@@ -17,7 +17,7 @@ layout(std140, binding = 28) uniform VgeLiquidFrameParams
     vec4 liquidSolar;
     vec4 liquidEnvironment;
     vec4 liquidAerial;
-    ivec4 liquidCounts;
+    uint fogSphereCount;
     vec4 liquidPerception;
     vec4 liquidPerceptionPosition;
     vec4 colorMapRects[40];
@@ -56,7 +56,7 @@ layout(std140, binding = 14) uniform VgeLiquidDrawParams
 #define vge_atmosphereAerialParams liquidAerial.xyz
 #define cameraUnderwater liquidAerial.z
 #define pointLightQuantity int(vgeLights.lightCount)
-#define fogSphereQuantity liquidCounts.y
+#define fogSphereQuantity int(fogSphereCount)
 #define psychedelicStrength liquidPerception.y
 #define perceptionWorldOffset liquidPerceptionPosition.xyz
 #endif

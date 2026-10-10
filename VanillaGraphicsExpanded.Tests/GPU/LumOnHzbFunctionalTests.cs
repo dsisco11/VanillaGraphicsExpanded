@@ -37,40 +37,12 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var primaryDepth = TestFramework.CreateTexture(w, h, PixelInternalFormat.R32f, baseDepth);
 
-        // Create mipmapped HZB texture: 4x4 -> 2x2 -> 1x1 (3 mips)
-        using var hzb = DynamicTexture2D.CreateMipmapped(w, h, PixelInternalFormat.R32f, mipLevels: 3);
-
-        int fbo = GL.GenFramebuffer();
-
-        var copyProg = Programs.Create<LumOnHzbCopyShaderProgram>();
-        var downProg = Programs.Create<LumOnHzbDownsampleShaderProgram>();
-
-        // Copy mip 0
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, 0);
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-        GL.Viewport(0, 0, w, h);
-        copyProg.PrimaryDepth = primaryDepth.TextureId;
-        TestFramework.RenderQuad(copyProg);
-
-        // Downsample mip0->mip1 and mip1->mip2
-
-        for (int dstMip = 1; dstMip <= 2; dstMip++)
-        {
-            int srcMip = dstMip - 1;
-            int dstW = Math.Max(1, w >> dstMip);
-            int dstH = Math.Max(1, h >> dstMip);
-
-            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, dstMip);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-            GL.Viewport(0, 0, dstW, dstH);
-
-            downProg.HzbDepth = hzb;
-            downProg.SrcMip = srcMip;
-
-            TestFramework.RenderQuad(downProg);
-        }
-
+        using var hierarchy=new DepthHierarchyPass();
+        using var draw=new VanillaGraphicsExpanded.PBR.Postprocessing.PostprocessDraw();
+        var pipelines=hierarchy.Prepare(draw,w,h,Programs.Create<DepthHierarchyCopyShaderProgram>(),Programs.Create<DepthHierarchyDownsampleShaderProgram>());
+        Assert.True(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsCommandContext.TryRun("Tests.DepthHierarchy",pipelines,true,
+            commands=>hierarchy.Render(commands,draw,primaryDepth)));
+        var hzb=hierarchy.Texture!;
         // Read mip0 and mip1 and validate mip1 texels are <= all covered mip0 texels.
         var mip0 = hzb.ReadPixels(mipLevel: 0);
         var mip1 = hzb.ReadPixels(mipLevel: 1);
@@ -100,7 +72,6 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
         float expectedMip2 = mip1.Min();
         Assert.True(MathF.Abs(mip2[0] - expectedMip2) < Epsilon,
             $"Mip2 expected {expectedMip2} got {mip2[0]}");
-        GL.DeleteFramebuffer(fbo);
     }
 
     [Fact]
@@ -160,18 +131,12 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
                 ["VGE_LUMON_HZB_COARSE_MIP"] = "1"
             });
 
-        // Build HZB (mip0 only is enough for this equivalence test).
-        using var hzb = DynamicTexture2D.CreateMipmapped(screenW, screenH, PixelInternalFormat.R32f, mipLevels: 1);
-        int fbo = GL.GenFramebuffer();
-        var copyProg = Programs.Create<LumOnHzbCopyShaderProgram>();
-
-        GL.BindFramebuffer(FramebufferTarget.Framebuffer, fbo);
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, hzb.TextureId, 0);
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
-        GL.Viewport(0, 0, screenW, screenH);
-        copyProg.PrimaryDepth = primaryDepth.TextureId;
-        TestFramework.RenderQuad(copyProg);
-
+        using var hierarchy=new DepthHierarchyPass();
+        using var draw=new VanillaGraphicsExpanded.PBR.Postprocessing.PostprocessDraw();
+        var pipelines=hierarchy.Prepare(draw,screenW,screenH,Programs.Create<DepthHierarchyCopyShaderProgram>(),Programs.Create<DepthHierarchyDownsampleShaderProgram>());
+        Assert.True(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsCommandContext.TryRun("Tests.TraceDepthHierarchy",pipelines,true,
+            commands=>hierarchy.Render(commands,draw,primaryDepth)));
+        var hzb=hierarchy.Texture!;
         float[] invProj = LumOnTestInputFactory.CreateRealisticInverseProjection();
         float[] proj = LumOnTestInputFactory.CreateRealisticProjection();
         float[] view = LumOnTestInputFactory.CreateIdentityView();
@@ -240,7 +205,7 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
             Assert.True(MathF.Abs(outMip0[idx + c] - outCoarse[idx + c]) < 1e-3f,
                 $"Mismatch channel {c} (coarseMip={coarseMip}): {outMip0[idx + c]} vs {outCoarse[idx + c]}");
         }
-        GL.DeleteFramebuffer(fbo);
+
     }
 
     private static float[] CreateValidProbeAnchors()

@@ -23,7 +23,7 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+        var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
         using var lifetime = new GraphicsPipelineLifetime();
         using var pipeline = Pipeline(lifetime, shader);
         using var geometry = Geometry();
@@ -65,7 +65,7 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+        var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
         using var lifetime = new GraphicsPipelineLifetime();
         using var pipeline = Pipeline(lifetime, shader);
         using var geometry = Geometry();
@@ -116,7 +116,7 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+        var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
         using var lifetime = new GraphicsPipelineLifetime();
         using var pipeline = Pipeline(lifetime, shader);
         using var geometry = Geometry(failure == "layout" ? 2 : 3, failure == "topology" ? PrimitiveType.Lines : PrimitiveType.Triangles);
@@ -146,14 +146,14 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+        var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
         using var lifetime = new GraphicsPipelineLifetime();
         using var pipeline = Pipeline(lifetime, shader);
         using var geometry = Geometry();
         using var source = DynamicTexture2D.CreateWithData(2, 2, PixelInternalFormat.R32f, [.2f, .4f, .6f, .8f]);
         using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
         shader.HzbDepth = source; shader.SrcMip = 0;
-        var previous = programs.Create<LumOnHzbDownsampleShaderProgram>();
+        var previous = programs.Create<DepthHierarchyDownsampleShaderProgram>();
         previous.HzbDepth = source; previous.SrcMip = 0;
         using var previousScope = previous.UseScope();
         var owner = ShaderProgramBase.CurrentShaderProgram;
@@ -181,7 +181,7 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
 
     #region Private
     /// <summary>Declares the exact production HZB vertex and single floating-point output contract.</summary>
-    private static GraphicsPipeline Pipeline(GraphicsPipelineLifetime lifetime, LumOnHzbDownsampleShaderProgram shader) =>
+    private static GraphicsPipeline Pipeline(GraphicsPipelineLifetime lifetime, DepthHierarchyDownsampleShaderProgram shader) =>
         new(lifetime, new(shader.GraphicsIdentity!, Layout(3), new([new(PixelInternalFormat.R32f)]), DynamicPipelineState.Viewport), shader);
 
     /// <summary>Declares one tightly packed floating position stream.</summary>

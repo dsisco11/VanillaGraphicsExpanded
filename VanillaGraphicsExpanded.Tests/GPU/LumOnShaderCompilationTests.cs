@@ -46,8 +46,8 @@ public class LumOnShaderCompilationTests : IDisposable
         {
             var pairs = new TheoryData<string, string>
             {
-        { "lumon_hzb_copy.vsh", "lumon_hzb_copy.fsh" },
-        { "lumon_hzb_downsample.vsh", "lumon_hzb_downsample.fsh" },
+        { "vge_depth_copy.vsh", "vge_depth_copy.fsh" },
+        { "vge_depth_reduce.vsh", "vge_depth_reduce.fsh" },
         { "lumon_probe_anchor.vsh", "lumon_probe_anchor.fsh" },
         { "lumon_probe_atlas_trace.vsh", "lumon_probe_atlas_trace.fsh" },
         { "lumon_probe_atlas_temporal.vsh", "lumon_probe_atlas_temporal.fsh" },

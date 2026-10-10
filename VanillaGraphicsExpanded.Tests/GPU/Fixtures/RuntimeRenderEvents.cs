@@ -61,6 +61,9 @@ internal sealed class RuntimeRenderEvents
     /// <summary>Delivers world teardown to all actual event subscribers.</summary>
     public void LeaveWorld() => subscriptions.GetValueOrDefault("LeaveWorld")?.DynamicInvoke();
 
+    /// <summary>Delivers shader-generation retirement to registered owners.</summary>
+    public void ReloadShaders() => subscriptions.GetValueOrDefault("ReloadShader")?.DynamicInvoke();
+
     /// <summary>Delivers a real edited-chunk notification to geometry, lighting and probe lifecycle subscribers.</summary>
     public void ChunkDirty(VanillaGraphicsExpanded.Numerics.VectorInt3 chunk,
         Vintagestory.API.Common.EnumChunkDirtyReason reason = Vintagestory.API.Common.EnumChunkDirtyReason.MarkedDirty) =>

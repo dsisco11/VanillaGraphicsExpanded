@@ -26,6 +26,11 @@ internal static class TestShaderPrograms
         programs.Add(new("tests/normal-input", [Fixture("normal-input", "vsh", ShaderStageKind.Vertex), Fixture("normal-input", "fsh", ShaderStageKind.Fragment)], 1));
         foreach (string name in new[] { "foliage-transmission", "liquid-interface" })
             programs.Add(new("tests/" + name, [Fixture("numerical-quad", "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
+        var integration=new GpuBindingContract();
+        integration.RegisterUniformBlockBinding("AoIntegralTestInputs",28);
+        integration.FragmentOutputLocations.Add("result",0);
+        programs.Add(new("tests/ao-integral",[Fixture("complete-state","vsh",ShaderStageKind.Vertex),
+            new ShaderStageContract("tests/ao-integral.fsh","tests/ao-integral.fsh",ShaderStageKind.Fragment,integration)],1));
         return new(programs);
     }
     #endregion

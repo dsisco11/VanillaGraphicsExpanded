@@ -62,7 +62,7 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         program.GBufferSurface = gbuffer.Surface;
         program.ScreenProbeAtlasHistory = history ?? Populate(buffers.ScreenProbeAtlasHistoryTex!, 0, 0, 0, 0);
         program.ScreenProbeAtlasMetaHistory = historyMeta ?? Populate(buffers.ScreenProbeAtlasMetaHistoryTex!, 0, 0);
-        program.HzbDepth = Populate(buffers.HzbDepthTex!, screenDepth);
+        program.HzbDepth = terrain.Depth;
         program.WorldProbeRadianceAtlas = worldResources?.ProbeRadianceAtlas ??
             Populate(worldInputs.ProbeRadianceAtlas, 10, 10, 10, MathF.Log(1 + cacheDistance));
         program.ProbeTraceMask = Populate(buffers.ProbeTraceMaskTex!, 0, 0);

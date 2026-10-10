@@ -43,12 +43,14 @@ internal sealed class AmbientOcclusionRenderer : IRenderer
         if(buffers.SurfaceTexture is not {} surface) throw new InvalidOperationException("AO requires the owned surface G-buffer.");
         draw??=new();depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         var horizon=GpuShaderPrograms.Get<PostSsaoShaderProgram>(api,"pbr_post_ssao")??throw new InvalidOperationException("AO program missing.");
-        var reduction=GpuShaderPrograms.Get<AmbientOcclusionDepthShaderProgram>(api,"pbr_ao_depth")??throw new InvalidOperationException("AO depth program missing.");
         var filter=GpuShaderPrograms.Get<AmbientOcclusionFilterShaderProgram>(api,"pbr_ao_filter")??throw new InvalidOperationException("AO filter program missing.");
         var receiverDepth=SceneColor.SceneColorParticleCapture.ReceiverDepthTexture(api)??depth;
-        var pipelines=pass.Prepare(draw,primary.Width,primary.Height,settings.SsaoQuality,horizon,reduction,filter);
+        var hierarchy=DepthHierarchyRenderer.Texture??throw new InvalidOperationException("AO requires the current corrected-depth hierarchy.");
+        if(!ReferenceEquals(DepthHierarchyRenderer.View,VgeFrameRenderer.Current) ||
+            DepthHierarchyRenderer.FrameIndex!=UboPacking.ReadUInt32(VgeFrameRenderer.Current.Bytes,396)) throw new InvalidOperationException("AO hierarchy view mismatch.");
+        var pipelines=pass.Prepare(draw,primary.Width,primary.Height,settings.SsaoQuality,horizon,filter);
         if(!GraphicsCommandContext.TryRun("AmbientOcclusion",pipelines,true,commands=>
-            pass.Render(commands,draw,receiverDepth,surface,VgeFrameRenderer.Current)))
+            pass.Render(commands,draw,receiverDepth,surface,hierarchy,VgeFrameRenderer.Current)))
             throw new InvalidOperationException("AO graphics boundary rejected.");
         published=true;
     }

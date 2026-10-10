@@ -262,9 +262,8 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
             using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
             GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, bytes.Length, bytes);
             bool boundary = program.CaptureMode == 3;
-            Assert.Equal(0, MemoryMarshal.Read<int>(bytes.AsSpan(272)));
             Assert.Same(sharedLights, ((ILiquidShaderProgramBindings)program).LightsInputs);
-            Assert.Equal(boundary ? 0 : spheres, MemoryMarshal.Read<int>(bytes.AsSpan(276)));
+            Assert.Equal((uint)(boundary ? 0 : spheres), MemoryMarshal.Read<uint>(bytes.AsSpan(272)));
             Assert.Equal(value + 3, MemoryMarshal.Read<float>(bytes.AsSpan(320)));
             Assert.Equal(value + 4, MemoryMarshal.Read<float>(bytes.AsSpan(128)));
             Assert.Same(sharedCamera, ((ILiquidShaderProgramBindings)program).FrameInputs);
@@ -502,7 +501,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
         GL.GetBufferSubData(BufferTarget.UniformBuffer, (IntPtr)offset, bytes.Length, bytes);
         Assert.Equal(new float[] { 1, 2, 3, 4 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(bytes.AsSpan(128, 16)).ToArray());
-        Assert.Equal(new int[] { 0, 1, 0, 0 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, int>(bytes.AsSpan(272, 16)).ToArray());
+        Assert.Equal(1u, System.Runtime.InteropServices.MemoryMarshal.Read<uint>(bytes.AsSpan(272)));
         Assert.Equal(new float[] { 5, 6, 7 }, System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(sharedLights.Bytes.Slice(32, 12)).ToArray());
         Assert.Equal(.75f, System.Runtime.InteropServices.MemoryMarshal.Read<float>(bytes.AsSpan(1328)));
         Assert.Equal(ErrorCode.NoError, GL.GetError());

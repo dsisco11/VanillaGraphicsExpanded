@@ -12,8 +12,7 @@ public partial class LumOnRenderer
     {
         if (!config.LumOn.Enabled) return;
         var programs = ImmutableArray.CreateBuilder<GpuProgram>();
-        foreach (string name in new[] { "lumon_velocity", "lumon_probe_anchor", "lumon_hzb_copy",
-            "lumon_hzb_downsample", "lumon_probe_atlas_project_sh9", "lumon_probe_atlas_filter", "lumon_upsample" })
+        foreach (string name in new[] { "lumon_velocity", "lumon_probe_anchor", "lumon_probe_atlas_project_sh9", "lumon_probe_atlas_filter", "lumon_upsample" })
         {
             var program = GpuShaderPrograms.Get<GpuProgram>(capi, name);
             if (program != null) programs.Add(program);

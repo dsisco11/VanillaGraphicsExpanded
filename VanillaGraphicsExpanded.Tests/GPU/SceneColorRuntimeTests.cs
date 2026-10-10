@@ -90,6 +90,8 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         api.SetupGet(value => value.World.Player).Returns(CreatePlayer());
         api.SetupGet(value => value.World.SeaLevel).Returns(0);
         programs.Initialize(api.Object);
+        using var frameCamera = new VgeFrameRenderer(api.Object);
+        using var lights = new VgeLightsRenderer(api.Object);
         using var gbuffer = new GBufferManager(api.Object);
         Assert.True(gbuffer.EnsureBuffers(2, 2));
         using var sky = new AtmosphereSkyRenderer(api.Object, gbuffer);
@@ -111,6 +113,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var camera = new CameraExposureRenderer(api.Object);
         using var post = new PostprocessPipeline(api.Object);
         using var shaftOcclusion = new LightShaftOcclusionRenderer(api.Object);
+        using var hierarchy = new DepthHierarchyRenderer(api.Object);
         using var ambientOcclusion = new AmbientOcclusionRenderer(api.Object, gbuffer);
         api.SetupGet(value => value.Settings.Int["ssaoQuality"]).Returns(ssaoQuality);
         api.SetupGet(value => value.Settings.Int["godRays"]).Returns(2);
@@ -131,6 +134,10 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             particles.OnRenderFrame(0, EnumRenderStage.Before);
             scene.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.True(SceneColorPipeline.HasSceneInput, string.Join(Environment.NewLine, assets.Logs));
+            frameCamera.OnRenderFrame(0, EnumRenderStage.Before);
+            lights.OnRenderFrame(0, EnumRenderStage.Before);
+            frameCamera.OnRenderFrame(0, EnumRenderStage.Opaque);
+            lights.OnRenderFrame(0, EnumRenderStage.Opaque);
             engine.BindWithViewport();
             GL.ClearBuffer(ClearBuffer.Color, 0, new float[4]);
             GL.DepthMask(true);
@@ -143,8 +150,10 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.True(shaftOcclusion.RenderOrder < composite.RenderOrder);
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             int earlyOcclusion = LightShaftOcclusionRenderer.Texture!.TextureId;
+            hierarchy.OnRenderFrame(0, EnumRenderStage.Before);
             ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.Null(AmbientOcclusionRenderer.Texture);
+            hierarchy.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.True(ambientOcclusion.RenderOrder < composite.RenderOrder);
             ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.Equal(ssaoQuality > 0, AmbientOcclusionRenderer.Texture is not null);

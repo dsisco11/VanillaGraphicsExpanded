@@ -3,6 +3,8 @@ using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.SceneColor;
+using VanillaGraphicsExpanded.PBR.Postprocessing;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -54,17 +56,25 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         var renderMock = Mock.Get(render);
         renderMock.SetupGet(value => value.CurrentRenderStage).Returns(EnumRenderStage.Opaque);
         renderMock.SetupGet(value => value.CurrentFrameBuffer).Returns(primary);
+        var world = new Mock<IClientWorldAccessor> { DefaultValue = DefaultValue.Mock };
+        world.SetupGet(value => value.Player).Returns(
+            RuntimeEngineServices.CameraPlayer(() => new VanillaGraphicsExpanded.LumOn.LumOnCameraState(0,0,0,0,0,0,0)));
         var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
         {
             "get_Render" => render,
+            "get_World" => world.Object,
             "get_Event" => events.Api,
             "get_Shader" => programs.Api,
             _ => method.Invoke(assets.Api, args)
         });
         programs.Initialize(api);
+        using var frameCamera = new VgeFrameRenderer(api);
+        using var lights = new VgeLightsRenderer(api);
         using var gbuffer = new GBufferManager(api);
         Assert.True(gbuffer.EnsureBuffers(2, 2));
         using var capture = new SceneColorParticleCapture(api, gbuffer);
+        using var hierarchy = new DepthHierarchyPass();
+        using var hierarchyDraw = new PostprocessDraw();
         using var directBuffers = new DirectLightingBufferManager(api);
         using var direct = new DirectLightingRenderer(api, gbuffer, directBuffers);
         var config = new VanillaGraphicsExpanded.LumOn.VgeConfig(); config.LumOn.Enabled = false;
@@ -98,6 +108,8 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
             for (int cycle = 0; cycle < 4; cycle++)
             {
                 events.Render(EnumRenderStage.Before);
+                frameCamera.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                lights.OnRenderFrame(.016f, EnumRenderStage.Opaque);
                 Assert.Null(SceneColorParticleCapture.Layer(api));
                 Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(api, depth.TextureId));
                 Assert.True(cube.HasUniform("vge_sceneLinear"));
@@ -156,6 +168,17 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 Assert.All(layer.ReadPixels(), value => Assert.Equal(0, value));
                 int receiver = SceneColorParticleCapture.ReceiverDepth(api, depth.TextureId);
                 Assert.NotEqual(depth.TextureId, receiver);
+                // Distinguish corrected material depth from a later primary-depth change.
+                // The shared generator must sample the actual published receiver instance.
+                var corrected = SceneColorParticleCapture.ReceiverDepthTexture(api)!;
+                depthStorage.UploadDataImmediate(new[] { .25f, .25f, .25f, .25f });
+                var hierarchyPipelines = hierarchy.Prepare(hierarchyDraw, 2, 2,
+                    GpuShaderPrograms.Get<DepthHierarchyCopyShaderProgram>(api, "vge_depth_copy")!,
+                    GpuShaderPrograms.Get<DepthHierarchyDownsampleShaderProgram>(api, "vge_depth_reduce")!);
+                Assert.True(GraphicsCommandContext.TryRun("Tests.CorrectedDepthHierarchy", hierarchyPipelines, true,
+                    commands => hierarchy.Render(commands, hierarchyDraw, corrected)));
+                for (int mip = 0; mip < hierarchy.Texture!.MipLevels; mip++)
+                    Assert.All(hierarchy.Texture.ReadPixels(mip), value => Assert.Equal(.75f, value));
                 int perCycle = ssao ? 6 : 1;
                 Assert.Equal(cycle * perCycle + 1, resolveDraws);
                 if (ssao) Assert.Equal(new[] { 1f, 2f, 3f, 4f }, engine[3].ReadPixels()[..4]);

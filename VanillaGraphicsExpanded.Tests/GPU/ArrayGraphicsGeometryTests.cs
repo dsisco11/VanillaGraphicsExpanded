@@ -19,7 +19,7 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+        var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
         using var lifetime = new GraphicsPipelineLifetime();
         var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12)]);
         using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, layout,
@@ -54,7 +54,7 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
     public void ProceduralAndInstancedRangesRejectOverflow()
     {
         EnsureContextValid();
-        using var programs = new ComponentShaderPrograms(); var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+        using var programs = new ComponentShaderPrograms(); var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
         using var procedural = new ArrayGraphicsGeometry(new([]), PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), 3);
         var description = new GraphicsPipelineDesc(shader.GraphicsIdentity!, new([]), new([new(PixelInternalFormat.R32f)]), DynamicPipelineState.Viewport);
         procedural.Validate(description, new(0, 3));

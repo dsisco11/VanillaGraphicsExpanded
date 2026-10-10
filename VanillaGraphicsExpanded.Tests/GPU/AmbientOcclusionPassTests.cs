@@ -96,7 +96,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         Assert.True(values[0]<.99f);
     }
 
-    /// <summary>Odd dimensions use ceil reductions, stable preparations reuse storage, and resize/disposal retire the publication.</summary>
+    /// <summary>Odd dimensions use ceil AO targets, stable preparations reuse storage, and resize/disposal retire the publication.</summary>
     [Fact]
     public void HierarchyStorageAndPublicationFollowLifecycle()
     {
@@ -105,7 +105,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         using var draw = new PostprocessDraw();
         Render(owner, draw, 65, 37, 1, 0);
         var first = owner.Texture;
-        long expected = 8L * (33 * 19 + 17 * 10 + 9 * 5 + 2 * 33 * 19 + 65 * 37);
+        long expected = 8L * (2 * 33 * 19 + 65 * 37);
         Assert.Equal(expected, owner.StorageBytes);
         Render(owner, draw, 65, 37, 2, 0);
         Assert.Same(first, owner.Texture);
@@ -135,7 +135,9 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         float occluderTransmission = 0, float receiverTransmission = 0, bool measure = false, float receiverDistance = 3)
     {
         var horizon = Programs.Create<PostSsaoShaderProgram>();
-        var reduction = Programs.Create<AmbientOcclusionDepthShaderProgram>();
+        using var hierarchy = new DepthHierarchyPass();
+        var copy = Programs.Create<DepthHierarchyCopyShaderProgram>();
+        var reduction = Programs.Create<DepthHierarchyDownsampleShaderProgram>();
         var filter = Programs.Create<AmbientOcclusionFilterShaderProgram>();
         float aspect = (float)width / height;
         const float near = .1f, far = 100f;
@@ -166,9 +168,10 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         using var normal = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f, normals);
         using var material = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f, materials);
         using var surface = LayeredTestTexture.Create(normal, material, null);
-        var pipelines = owner.Prepare(draw, width, height, quality, horizon, reduction, filter);
+        var pipelines = owner.Prepare(draw, width, height, quality, horizon, filter)
+            .Concat(hierarchy.Prepare(draw,width,height,copy,reduction)).ToArray();
         Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusion", pipelines, true,
-            commands => owner.Render(commands, draw, depth, surface, camera)));
+            commands => { hierarchy.Render(commands,draw,depth); owner.Render(commands, draw, depth, surface, hierarchy.Texture!, camera); }));
         if (measure)
         {
             var samples = new List<double>();
@@ -177,10 +180,10 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
                 using var timer = GpuTimerQuery.Create();
                 timer.Begin();
                 Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusionTiming", pipelines, true,
-                    commands => owner.Render(commands, draw, depth, surface, camera)));
+                    commands => { hierarchy.Render(commands,draw,depth); owner.Render(commands, draw, depth, surface, hierarchy.Texture!, camera); }));
                 timer.End(); samples.Add(timer.GetResultNanoseconds() / 1e6);
             }
-            log.WriteLine($"Synthetic AO {width}x{height} quality{quality}, six draws, five warm GPU samples: min={samples.Min():F4}ms median={samples.Order().ElementAt(2):F4}ms max={samples.Max():F4}ms; owned payload={owner.StorageBytes} bytes. Not live cost or physical bandwidth.");
+            log.WriteLine($"Synthetic AO {width}x{height} quality{quality}, hierarchy plus three AO draws, five warm GPU samples: min={samples.Min():F4}ms median={samples.Order().ElementAt(2):F4}ms max={samples.Max():F4}ms; AO payload={owner.StorageBytes} bytes, shared hierarchy={hierarchy.StorageBytes} bytes. Not live cost or physical bandwidth.");
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         return ((DynamicTexture2D)owner.Texture!).ReadPixels();

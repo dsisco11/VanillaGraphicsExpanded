@@ -232,20 +232,6 @@ public sealed class LumOnBufferManager : IDisposable
     /// </summary>
     public DynamicTexture2D? VelocityTex => targets?.VelocityTex;
 
-    /// <summary>
-    /// HZB depth pyramid texture (mipmapped R32F), mip 0 matches screen size.
-    /// </summary>
-    public DynamicTexture2D? HzbDepthTex => targets?.HzbDepthTex;
-
-    /// <summary>
-    /// FBO used for rendering into HZB mip levels.
-    /// </summary>
-    public Rendering.GpuFramebuffer? HzbFbo => targets?.HzbFbo;
-
-    /// <summary>
-    /// FBO id used for rendering into HZB mip levels.
-    /// </summary>
-    public int HzbFboId => targets?.HzbFbo?.FboId ?? 0;
 
     // ═══════════════════════════════════════════════════════════════
     // Dimensions

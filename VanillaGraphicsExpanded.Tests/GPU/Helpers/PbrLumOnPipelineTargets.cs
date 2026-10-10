@@ -53,7 +53,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                 debugName: "Test.VelocityFbo"));
 
             // HZB depth pyramid: 4x4 -> 2x2 -> 1x1
-            Hzb = new HzbTestPyramid(screenW, screenH, mipLevels: 3);
+            Hzb = new DepthHierarchyPass();
 
             // Probe anchors (2x2)
             ProbeAnchor = _resources.Own(GpuFramebuffer.Create(
@@ -135,7 +135,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
 
     public GpuFramebuffer Velocity { get; }
 
-    public HzbTestPyramid Hzb { get; }
+    internal DepthHierarchyPass Hzb { get; }
 
     public GpuFramebuffer ProbeAnchor { get; }
 

@@ -39,8 +39,6 @@ internal sealed class LumOnTargets : IDisposable
     public GpuFramebuffer SurfaceAlbedoFbo { get; }
     public DynamicTexture2D VelocityTex { get; }
     public GpuFramebuffer VelocityFbo { get; }
-    public DynamicTexture2D HzbDepthTex { get; }
-    public GpuFramebuffer HzbFbo { get; }
     #endregion
 
     #region Allocation
@@ -141,15 +139,6 @@ internal sealed class LumOnTargets : IDisposable
             VelocityFbo = resources.Own(GpuFramebuffer.CreateSingle(VelocityTex, debugName: "VelocityFBO")!);
 
             // ═══════════════════════════════════════════════════════════════
-            // HZB Depth Pyramid (mipmapped R32F)
-            // ═══════════════════════════════════════════════════════════════
-
-            int maxDim = Math.Max(screenWidth, screenHeight);
-            int mipLevels = 1;
-            while ((maxDim >>= 1) > 0) mipLevels++;
-
-            HzbDepthTex = resources.Own(DynamicTexture2D.CreateMipmapped(screenWidth, screenHeight, PixelInternalFormat.R32f, mipLevels, debugName: "HZBDepth")!);
-            HzbFbo = resources.Own(GpuFramebuffer.CreateEmpty(debugName: "HZBFBO")!);
 
         }
         catch { resources.Dispose(); throw; }

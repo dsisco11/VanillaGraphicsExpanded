@@ -80,7 +80,7 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
         surface.PublishSurfaceMetadata(1, 1);
         var metadata = surface.Surface!;
         using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+        var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
         using var lifetime = new GraphicsPipelineLifetime();
         var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12)]);
         using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, layout,

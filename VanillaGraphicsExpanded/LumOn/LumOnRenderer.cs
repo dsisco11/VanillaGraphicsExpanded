@@ -308,13 +308,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         using var cpuFrame = Profiler.BeginScope("LumOn.Frame", "Render");
         using (GlGpuProfiler.Instance.Scope("LumOn.Frame"))
         {
-            // === Pass 0: HZB depth pyramid ===
-            using var cpuHzb = Profiler.BeginScope("LumOn.HZB", "Render");
-            using (GlGpuProfiler.Instance.Scope("LumOn.HZB"))
-            {
-                BuildHzb(primaryFb);
-            }
-
+            // The shared corrected-depth hierarchy was published before ambient lighting.
             // === Pass 1: Probe Anchor ===
             using var cpuAnchor = Profiler.BeginScope("LumOn.Anchor", "Render");
             using (GlGpuProfiler.Instance.Scope("LumOn.Anchor"))
@@ -675,6 +669,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         // Don't clear - we want to preserve non-traced texels from history
         // The shader handles history read for non-traced texels
 
+        var hierarchy=DepthHierarchyRenderer.Texture??throw new InvalidOperationException("LumOn requires the current corrected-depth hierarchy.");
+        if(!ReferenceEquals(DepthHierarchyRenderer.View,VgeFrameRenderer.Current) ||
+            DepthHierarchyRenderer.FrameIndex!=UboPacking.ReadUInt32(VgeFrameRenderer.Current.Bytes,396)) throw new InvalidOperationException("LumOn hierarchy view mismatch.");
         // Define-backed knobs must be set before Use() so the correct variant is bound.
         // Publish trace settings together so reloads cannot install an intermediate combination.
         shader.ConfigureOptions(() =>
@@ -688,8 +685,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             shader.SkyMissWeight = config.LumOn.SkyMissWeight;
             shader.ImportanceSampling = config.LumOn.EnableProbePIS || config.LumOn.ForceUniformMask;
             shader.BatchSlicing = config.LumOn.ForceBatchSlicing;
-            if (primaryBuffers.HzbDepthTex != null)
-                shader.HzbCoarseMip = Math.Clamp(config.LumOn.HzbCoarseMip, 0, Math.Max(0, primaryBuffers.HzbDepthTex.MipLevels - 1));
+            shader.HzbCoarseMip = Math.Clamp(config.LumOn.HzbCoarseMip, 0, hierarchy.MipLevels - 1);
         });
 
         // World-probe clipmap uses compile-time defines. They must be configured before Use().
@@ -752,11 +748,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         shader.ScreenProbeAtlasHistory = bufferManager.ScreenProbeAtlasHistoryTex!;
         shader.ScreenProbeAtlasMetaHistory = bufferManager.ScreenProbeAtlasMetaHistoryTex!;
 
-        // HZB depth pyramid (always on)
-        if (primaryBuffers.HzbDepthTex != null)
-        {
-            shader.HzbDepth = primaryBuffers.HzbDepthTex;
-        }
+        // Borrow the same completed hierarchy used by AO.
+        shader.HzbDepth = hierarchy;
 
         if (hasWorldProbe)
         {
@@ -784,55 +777,6 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
         if (!SubmitFullscreen(shader, fbo, false)) lightingPassesComplete = false;
-
-    }
-
-    private void BuildHzb(FrameBufferRef primaryFb)
-    {
-        if (primaryBuffers.HzbDepthTex is null || bufferManager.HzbFbo is null || !bufferManager.HzbFbo.IsValid)
-        {
-            lightingPassesComplete = false;
-            return;
-        }
-
-        var copy = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnHzbCopyShaderProgram>(capi, "lumon_hzb_copy");
-        var down = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnHzbDownsampleShaderProgram>(capi, "lumon_hzb_downsample");
-        if (copy is null || down is null)
-        {
-            lightingPassesComplete = false;
-            return;
-        }
-
-        var hzb = primaryBuffers.HzbDepthTex;
-        var fbo = bufferManager.HzbFbo!;
-
-        // Copy mip 0 from the primary depth texture.
-        fbo.Attach(hzb.TextureId, attachmentIndex: 0, mipLevel: 0);
-
-        using (GlGpuProfiler.Instance.Scope(copy.PassName))
-        {
-            copy.PrimaryDepth = PBR.SceneColor.SceneColorParticleCapture.ReceiverDepth(capi, primaryFb.DepthTextureId);
-            if (!copy.EnsureReady()) { lightingPassesComplete = false; return; }
-            if (!SubmitFullscreen(copy, fbo, false)) { lightingPassesComplete = false; return; }
-        }
-
-        // Downsample the mip chain using MIN depth.
-        using (GlGpuProfiler.Instance.Scope(down.PassName))
-        {
-            down.HzbDepth = hzb;
-
-            for (int dstMip = 1; dstMip < hzb.MipLevels; dstMip++)
-            {
-                int dstW = Math.Max(1, hzb.Width >> dstMip);
-                int dstH = Math.Max(1, hzb.Height >> dstMip);
-                fbo.Attach(hzb.TextureId, attachmentIndex: 0, mipLevel: dstMip);
-
-                down.SrcMip = dstMip - 1;
-                if (!down.EnsureReady()) { lightingPassesComplete = false; return; }
-                if (!SubmitFullscreen(down, fbo, false)) { lightingPassesComplete = false; return; }
-            }
-
-        }
 
     }
 
@@ -1323,7 +1267,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     {
         // Sample resolved GPU profiler values. These typically represent a recent completed frame,
         // matching the intent of the legacy "collect results next frame" approach.
-        UpdateCounter("LumOn.HZB", v => debugCounters.HzbPassMs = v);
+        UpdateCounter("DepthHierarchy", v => debugCounters.HzbPassMs = v);
         UpdateCounter("LumOn.Anchor", v => debugCounters.ProbeAnchorPassMs = v);
         UpdateCounter("LumOn.PISMask", v => debugCounters.ProbePisMaskPassMs = v);
         UpdateCounter("LumOn.Trace", v => debugCounters.ProbeTracePassMs = v);

@@ -24,12 +24,8 @@ internal sealed partial class PostSsaoShaderProgram : GpuProgram, IPostSsaoShade
     public partial GpuTexture? DepthImage { set; }
     /// <summary>Stages surfaceImage without transferring ownership.</summary>
     public partial GpuTexture? SurfaceImage { set; }
-    /// <summary>Stages depthHalf without transferring ownership.</summary>
-    public partial GpuTexture? DepthHalf { set; }
-    /// <summary>Stages depthQuarter without transferring ownership.</summary>
-    public partial GpuTexture? DepthQuarter { set; }
-    /// <summary>Stages depthEighth without transferring ownership.</summary>
-    public partial GpuTexture? DepthEighth { set; }
+    /// <summary>Borrows the complete corrected-depth mip chain.</summary>
+    public partial GpuTexture? DepthHierarchy { set; }
     /// <summary>Stages the complete operation parameters before submission.</summary>
     internal void Capture(VgeFrameUniformBuffer camera, Vector4 frame, Vector4 sampling, Vector4 distance)
     {

@@ -23,7 +23,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
     {
         EnsureContextValid();
         using var storage = new LiquidPoolStorage(); using var geometry = new EngineLiquidPoolGeometry(storage.Pool);
-        using var programs = new ComponentShaderPrograms(); var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+        using var programs = new ComponentShaderPrograms(); var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
         using var lifetime = new GraphicsPipelineLifetime();
         using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, EngineLiquidPoolGeometry.Layout,
             new([new(PixelInternalFormat.R32f)]), DynamicPipelineState.Viewport), shader);

@@ -30,10 +30,10 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
         Assert.Empty(assets.Reads);
         Assert.Empty(assets.RegisteredPrograms);
-        var program = Assert.IsType<LumOnHzbCopyShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, "lumon_hzb_copy"));
+        var program = Assert.IsType<DepthHierarchyCopyShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, "vge_depth_copy"));
         Assert.Equal(0, program.ProgramId);
         using var depth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
-        program.PrimaryDepth = depth.TextureId;
+        program.PrimaryDepth = depth;
         if (activation == 0)
         {
             Assert.True(program.TryUse());
@@ -69,7 +69,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
-        var selected = GpuShaderPrograms.GetAll(assets.Api).Where(program => program.PassName is "lumon_hzb_copy" or "lumon_hzb_downsample").ToImmutableArray();
+        var selected = GpuShaderPrograms.GetAll(assets.Api).Where(program => program.PassName is "vge_depth_copy" or "vge_depth_reduce").ToImmutableArray();
         Assert.Equal(2, selected.Length);
         Assert.True(GpuShaderPrograms.Preload(assets.Api, selected));
         Assert.Equal(2, assets.RegisteredPrograms.Count);
@@ -86,7 +86,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
-        var program = GpuShaderPrograms.Declare(assets.Api, new LumOnHzbCopyShaderProgram());
+        var program = GpuShaderPrograms.Declare(assets.Api, new DepthHierarchyCopyShaderProgram());
         ((IShaderProgram)program).Dispose();
         Assert.True(program.Disposed);
         Assert.False(program.EnsureReady());
@@ -104,7 +104,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         EnsureContextValid();
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
-        var program = GpuShaderPrograms.Declare(assets.Api, new LumOnHzbCopyShaderProgram());
+        var program = GpuShaderPrograms.Declare(assets.Api, new DepthHierarchyCopyShaderProgram());
         Assert.True(program.EnsureReady());
         int installed = program.ProgramId;
         int reads = assets.Reads.Count;
@@ -178,7 +178,8 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
-        assets.BeforeRead = path => assets.Overrides[path] = new byte[20];
+        // Corrupt only the executable; digest metadata retains its asset-generation identity for retry.
+        assets.BeforeRead = path => { if(path.EndsWith(".spv",StringComparison.Ordinal)) assets.Overrides[path] = new byte[20]; };
         using var pipeline = GpuComputePipeline.DeclareFromAssets(assets.Api, settings);
         Assert.False(pipeline.EnsureReady());
         Assert.NotEmpty(pipeline.PreparationLog);

@@ -50,19 +50,19 @@ public sealed class LumOnTemporalRendererTests : RenderTestBase
         EnsureContextValid();
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(false, new SpatialLightingScene());
         for (int frame = 0; frame < 8; frame++) runtime.Frame();
-        var renderer = Assert.Single(runtime.Cache.Events.Registrations.Select(item => item.Renderer).Distinct(),
-            item => item is LumOnRenderer);
-        var build = typeof(LumOnRenderer).GetMethod("BuildHzb", BindingFlags.Instance | BindingFlags.NonPublic)!;
-        var hzb = runtime.Screen.HzbDepthTex!;
+        var renderer = (DepthHierarchyRenderer)Assert.Single(runtime.Cache.Events.Registrations.Select(item => item.Renderer).Distinct(),
+            item => item is DepthHierarchyRenderer);
+        var hzb = DepthHierarchyRenderer.Texture!;
         Assert.True(hzb.MipLevels > 1);
         foreach (float depth in new[] { .375f, .625f })
         {
             runtime.Cache.Terrain.Depth.UploadDataImmediate(Enumerable.Repeat(depth, 16).ToArray());
             using var hostile = new HostileFullscreenState();
-            int draws = runtime.DrawnPrograms.Count;
-            build.Invoke(renderer, [runtime.Cache.Terrain.Primary]);
+            renderer.OnRenderFrame(.016f, Vintagestory.API.Client.EnumRenderStage.Before);
+            Assert.Null(DepthHierarchyRenderer.Texture);
+            renderer.OnRenderFrame(.016f, Vintagestory.API.Client.EnumRenderStage.Opaque);
             hostile.AssertRestored();
-            Assert.Equal(hzb.MipLevels, runtime.DrawnPrograms.Count - draws);
+            Assert.Same(hzb,DepthHierarchyRenderer.Texture);
             for (int mip = 0; mip < hzb.MipLevels; mip++)
                 Assert.All(hzb.ReadPixels(mip), value => Assert.InRange(value, depth - .0001f, depth + .0001f));
         }

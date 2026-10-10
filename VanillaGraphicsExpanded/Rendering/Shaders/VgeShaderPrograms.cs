@@ -29,7 +29,6 @@ internal static class VgeShaderPrograms
             new PBR.Postprocessing.LightShaftShaderProgram(),
             new PBR.Postprocessing.PostLumaShaderProgram(),
             new PBR.Postprocessing.PostSsaoShaderProgram(),
-            new PBR.Postprocessing.AmbientOcclusionDepthShaderProgram(),
             new PBR.Postprocessing.AmbientOcclusionFilterShaderProgram(),
             new PBR.Liquids.LiquidShaderProgram(),
             // Keep both liquid executables resident; changing a compile-time mode replaces an executable.
@@ -53,8 +52,8 @@ internal static class VgeShaderPrograms
             new LumOnWorldProbeRadianceTileResolveShaderProgram(),
             new LumOnProbeAnchorShaderProgram(),
             new LumOnProbeAtlasPisMaskShaderProgram(),
-            new LumOnHzbCopyShaderProgram(),
-            new LumOnHzbDownsampleShaderProgram(),
+            new DepthHierarchyCopyShaderProgram(),
+            new DepthHierarchyDownsampleShaderProgram(),
             new LumOnScreenProbeAtlasTraceShaderProgram(),
             new LumOnVelocityShaderProgram(),
             new LumOnScreenProbeAtlasTemporalShaderProgram(),

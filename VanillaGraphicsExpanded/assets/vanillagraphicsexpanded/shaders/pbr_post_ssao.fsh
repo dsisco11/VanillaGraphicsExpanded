@@ -3,23 +3,40 @@
 @import "./includes/gbuffer_layers.glsl"
 uniform sampler2D depthImage;
 uniform sampler2DArray surfaceImage;
-uniform sampler2D depthHalf;
-uniform sampler2D depthQuarter;
-uniform sampler2D depthEighth;
+uniform sampler2D depthHierarchy;
 layout(location=0) out vec4 outOcclusion;
-/** Rejects empty or out-of-radius hierarchy intervals; reconstructs hits from exact depth to avoid false planes. */
-float VgeAoDepth(vec2 uv, float footprint, float receiverDepth) {
-    ivec2 pixel=ivec2(uv*vec2(textureSize(depthImage,0)));
-    vec2 range;
-    if(footprint>=8.0) range=texelFetch(depthEighth,pixel/8,0).rg;
-    else if(footprint>=4.0) range=texelFetch(depthQuarter,pixel/4,0).rg;
-    else if(footprint>=2.0) range=texelFetch(depthHalf,pixel/2,0).rg;
-    else return texelFetch(depthImage,pixel,0).r;
-    if(range.x>=1.0) return 1.0;
-    float nearest=-VgeAoPosition(uv,range.x).z;
-    float farthest=-VgeAoPosition(uv,range.y).z;
-    if(nearest>receiverDepth+aoSampling.x || farthest<receiverDepth-aoSampling.x) return 1.0;
-    return texelFetch(depthImage,pixel,0).r;
+/** Samples a footprint-sized minimum, then locates its real source receiver to preserve geometry and material identity. */
+float VgeAoDepth(inout vec2 uv, float footprint) {
+    ivec2 baseSize=textureSize(depthHierarchy,0);
+    int maximum=int(floor(log2(float(max(baseSize.x,baseSize.y)))));
+    int level=clamp(int(floor(log2(max(footprint,1.0)))),0,min(maximum,4));
+    ivec2 size=textureSize(depthHierarchy,level);
+    ivec2 pixel=min(ivec2(uv*vec2(size)),size-1);
+    float nearest=texelFetch(depthHierarchy,pixel,level).r;
+    if(nearest>=1.0) return 1.0;
+    // Coarse nearest depth has no source coordinate. Follow conservative proportional footprints
+    // to one matching leaf; tie-break by distance to the requested sample for spatial stability.
+    for(int iteration=0;iteration<4;iteration++) {
+        if(level==0) break;
+        ivec2 childSize=textureSize(depthHierarchy,level-1);
+        ivec2 first=pixel*childSize/size;
+        ivec2 end=((pixel+1)*childSize+size-1)/size;
+        ivec2 selected=first;
+        float bestDepth=1.0,bestDistance=1e20;
+        for(int y=0;y<3;y++) for(int x=0;x<3;x++) {
+            ivec2 child=first+ivec2(x,y);
+            if(any(greaterThanEqual(child,end))) continue;
+            float depth=texelFetch(depthHierarchy,child,level-1).r;
+            vec2 delta=(vec2(child)+0.5)/vec2(childSize)-uv;
+            float distanceSquared=dot(delta,delta);
+            if(depth<bestDepth || (depth==bestDepth && distanceSquared<bestDistance)) {
+                bestDepth=depth;bestDistance=distanceSquared;selected=child;
+            }
+        }
+        pixel=selected;size=childSize;nearest=bestDepth;level--;
+    }
+    uv=(vec2(pixel)+0.5)/vec2(baseSize);
+    return nearest;
 }
 /** Reduces isolated foreground depth spikes without treating continuous sloped walls as thin sheets. */
 float VgeAoThickness(vec2 uv, vec2 direction, float sampleDepth) {
@@ -59,11 +76,12 @@ void main() {
     vec3 view=normalize(-position);
     float radius=aoSampling.x;
     float pixels=min(radius*float(size.y)/(2.0*max(-position.z,0.001)*abs(vgeFrame.invProjectionMatrix[1][1])),float(max(size.x,size.y)));
-    float jitter=fract(dot(vec2(receiver),vec2(0.754877666,0.569840296)));
+    float rotation=fract(dot(vec2(receiver),vec2(0.754877666,0.569840296)));
+    float startOffset=fract(dot(vec2(receiver),vec2(0.438289,0.819173)));
     float visible=0.0,unoccluded=0.0;
     for(int slice=0;slice<6;slice++) {
         if(slice>=int(aoSampling.z)) break;
-        float phi=3.141592654*(float(slice)+jitter)/aoSampling.z;
+        float phi=3.141592654*(float(slice)+rotation)/aoSampling.z;
         vec2 direction=vec2(cos(phi),sin(phi));
         vec3 tangent=VgeAoPosition(uv+direction/vec2(size),depth)-position;
         tangent=normalize(tangent-view*dot(tangent,view));
@@ -73,17 +91,18 @@ void main() {
         if(normalLength<0.0001) continue;
         float angle=atan(dot(projectedNormal,tangent),dot(projectedNormal,view));
         angle=clamp(angle,-1.570796327,1.570796327);
-        float low=angle-1.570796327,high=angle+1.570796327;
+        float low=max(-1.570796327,angle-1.570796327);
+        float high=min(1.570796327,angle+1.570796327);
         float horizonLow=low,horizonHigh=high;
         for(int step=0;step<6;step++) {
             if(step>=int(aoSampling.w)) break;
-            float t=(float(step)+0.5)/aoSampling.w;
-            float offset=max(1.0,pixels*t*t);
+            float spacing=max(pixels-1.0,0.0)/aoSampling.w;
+            float offset=1.0+(float(step)+startOffset)*spacing;
             for(int side=-1;side<=1;side+=2) {
                 vec2 sampleUv=uv+float(side)*direction*offset/vec2(size);
                 if(any(lessThan(sampleUv,vec2(0)))||any(greaterThanEqual(sampleUv,vec2(1)))) continue;
                 sampleUv=(floor(sampleUv*vec2(size))+0.5)/vec2(size);
-                float sd=VgeAoDepth(sampleUv,offset/aoSampling.w,-position.z);
+                float sd=VgeAoDepth(sampleUv,spacing);
                 if(sd>=1.0) continue;
                 vec3 delta=VgeAoPosition(sampleUv,sd)-position;
                 float distanceSquared=dot(delta,delta);
@@ -93,12 +112,13 @@ void main() {
                 if(dot(normal,toSample)<=0.02) continue;
                 if(texture(surfaceImage,vec3(sampleUv,VGE_SURFACE_NORMAL)).a<0.0) continue;
                 float transmission=clamp(texture(surfaceImage,vec3(sampleUv,VGE_SURFACE_MATERIAL)).a,0.0,1.0);
-                float weight=(1.0-distanceSquared/(radius*radius))*(1.0-transmission);
+                float weight=clamp(1.0-distanceSquared/(radius*radius),0.0,1.0)*(1.0-transmission);
                 // Isolated depth spikes have uncertain thickness; continuous walls keep their horizon evidence.
                 weight*=VgeAoThickness(sampleUv,direction,-(position.z+delta.z));
-                float h=acos(clamp(dot(toSample,view),-1.0,1.0));
-                if(side>0) horizonHigh=min(horizonHigh,mix(high,clamp(h,low,high),weight));
-                else horizonLow=max(horizonLow,mix(low,clamp(-h,low,high),weight));
+                // Project the located leaf into this slice; its signed angle can differ from the requested side.
+                float h=atan(dot(delta,tangent),dot(delta,view));
+                if(h>=0.0) horizonHigh=min(horizonHigh,acos(mix(cos(high),cos(clamp(h,0.0,high)),weight)));
+                else horizonLow=max(horizonLow,-acos(mix(cos(low),cos(clamp(-h,0.0,-low)),weight)));
             }
         }
         visible+=normalLength*VgeAoIntegral(horizonLow,horizonHigh,angle);

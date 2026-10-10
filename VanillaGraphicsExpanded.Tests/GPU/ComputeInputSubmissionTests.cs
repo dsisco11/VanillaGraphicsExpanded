@@ -52,8 +52,9 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         outer.BindPageUsageStampImage(usage);
         outer.BindDebugCounters(counters.Buffer);
         using var outerScope = outer.UseScope();
-        var graphics = programs.Create<LumOnHzbCopyShaderProgram>();
-        graphics.PrimaryDepth = texture.TextureId;
+        using var graphicsDepth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        var graphics = programs.Create<DepthHierarchyCopyShaderProgram>();
+        graphics.PrimaryDepth = graphicsDepth;
         IDisposable inner;
         if (innerGraphics) inner = graphics.UseScope();
         else inner = outer.UseScope();
@@ -98,8 +99,9 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         second.BindPatchIdGBuffer(secondTexture.TextureId);
         second.BindPageUsageStampImage(usage);
         second.BindDebugCounters(secondCounters.Buffer);
-        var graphics = programs.Create<LumOnHzbCopyShaderProgram>();
-        graphics.PrimaryDepth = firstTexture.TextureId;
+        using var graphicsDepth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        var graphics = programs.Create<DepthHierarchyCopyShaderProgram>();
+        graphics.PrimaryDepth = graphicsDepth;
         using (graphics.UseScope())
         {
             using (first.UseScope())

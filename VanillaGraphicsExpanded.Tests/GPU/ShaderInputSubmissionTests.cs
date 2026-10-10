@@ -118,9 +118,9 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         GpuUniformRingSystem.SetCurrent(ring);
         try
         {
-            var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+            var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
             shader.SrcMip = 1;
-            var parameters = (CpuUniformBuffer)typeof(LumOnHzbDownsampleShaderProgram)
+            var parameters = (CpuUniformBuffer)typeof(DepthHierarchyDownsampleShaderProgram)
                 .GetField("paramsUbo", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(shader)!;
             StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, previous.TextureId);
             Assert.False(shader.TryUse());
@@ -137,7 +137,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
                 Assert.Equal(desired.TextureId, published);
             }
             using (shader.UseScope()) { }
-            var validation = (ShaderInputValidation)typeof(LumOnHzbDownsampleShaderProgram)
+            var validation = (ShaderInputValidation)typeof(DepthHierarchyDownsampleShaderProgram)
                 .GetField("__validation_HzbDepth", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(shader)!;
             Assert.Equal(1, validation.EntryResolutions);
             Assert.Equal(1, validation.CompatibilityChecks);
@@ -165,7 +165,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         GpuUniformRingSystem.SetCurrent(ring);
         try
         {
-            var shader = programs.Create<LumOnHzbDownsampleShaderProgram>();
+            var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
             int priorTexture = BoundTextures()[0];
             for (int mip = 0; mip < 2; mip++)
             {

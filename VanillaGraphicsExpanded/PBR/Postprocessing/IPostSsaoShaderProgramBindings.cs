@@ -18,14 +18,8 @@ internal interface IPostSsaoShaderProgramBindings
     /// <summary>Supplies surfaceImage through the retained typed texture contract.</summary>
     [ShaderBinding("surfaceImage", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTexture? SurfaceImage { set; }
-    /// <summary>Supplies depthHalf through the retained typed texture contract.</summary>
-    [ShaderBinding("depthHalf", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? DepthHalf { set; }
-    /// <summary>Supplies depthQuarter through the retained typed texture contract.</summary>
-    [ShaderBinding("depthQuarter", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? DepthQuarter { set; }
-    /// <summary>Supplies depthEighth through the retained typed texture contract.</summary>
-    [ShaderBinding("depthEighth", ShaderBindingKind.Sampler, 4, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? DepthEighth { set; }
+    /// <summary>Supplies the shared hardware-depth hierarchy with explicit shader LOD selection.</summary>
+    [ShaderBinding("depthHierarchy", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? DepthHierarchy { set; }
     #endregion
 }

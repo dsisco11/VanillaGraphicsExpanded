@@ -47,7 +47,7 @@ internal sealed class LiquidFrameParamsUbo : CpuUniformBuffer
     /// <summary>Selects unexposed scene-linear RGB for the shared HDR handoff.</summary>
     internal bool SceneLinear { set => WriteFloat(1356, value ? 1 : 0); }
     /// <summary>Sets the bounded number of active fog spheres; dynamic lights use the shared block.</summary>
-    internal void SetFogSphereCount(int spheres) => WriteIntVector4(272, 0, spheres, 0, 0);
+    internal void SetFogSphereCount(int spheres) => WriteUInt32(272, (uint)spheres);
     /// <summary>Stages one ColorMapRect array element with std140 stride.</summary>
     internal void SetColorMapRect(int index, Vector4 value)
     {

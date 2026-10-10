@@ -1,5 +1,6 @@
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -30,6 +31,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     private PBR.Postprocessing.PostprocessPipeline? postprocessing;
     private PBR.Postprocessing.LightShaftOcclusionRenderer? lightShaftOcclusion;
     private PBR.Postprocessing.AmbientOcclusionRenderer? ambientOcclusion;
+    private DepthHierarchyRenderer? depthHierarchy;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -61,6 +63,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         HarmonyPatches.PbrDrawRouteHook.Api = null;
 
         ambientOcclusion?.Dispose(); ambientOcclusion = null;
+        depthHierarchy?.Dispose(); depthHierarchy = null;
         lightShaftOcclusion?.Dispose(); lightShaftOcclusion = null;
         postprocessing?.Dispose(); postprocessing = null;
         cameraExposure?.Dispose(); cameraExposure = null;
@@ -121,6 +124,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         cameraExposure ??= new PBR.CameraExposure.CameraExposureRenderer(capi);
         postprocessing ??= new PBR.Postprocessing.PostprocessPipeline(capi);
         lightShaftOcclusion ??= new PBR.Postprocessing.LightShaftOcclusionRenderer(capi);
+        depthHierarchy ??= new DepthHierarchyRenderer(capi);
         ambientOcclusion ??= new PBR.Postprocessing.AmbientOcclusionRenderer(capi, gBufferManager);
         waterRefractionCapture ??= new PBR.Liquids.WaterRefractionCapture(capi, directLightingRenderer, pbrCompositeRenderer);
 

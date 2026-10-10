@@ -103,8 +103,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         {
             var pbrDirectProg = Programs.Create<PBRDirectLightingShaderProgram>();
             var velocityProg = Programs.Create<LumOnVelocityShaderProgram>();
-            var hzbCopyProg = Programs.Create<LumOnHzbCopyShaderProgram>();
-            var hzbDownProg = Programs.Create<LumOnHzbDownsampleShaderProgram>();
+            var hzbCopyProg = Programs.Create<DepthHierarchyCopyShaderProgram>();
+            var hzbDownProg = Programs.Create<DepthHierarchyDownsampleShaderProgram>();
             var anchorProg = Programs.Create<LumOnProbeAnchorShaderProgram>();
                 var traceProg = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(settings: new Dictionary<string, string?>
                     {
@@ -225,49 +225,11 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn HZB build
             // -----------------------------------------------------------------
-            // Copy mip0
-            targets.Hzb.BindMipForWrite(0);
-            hzbCopyProg.PrimaryDepth = primaryDepth.TextureId;
-
-            AssertSamplerBinding("Stage: HZB Copy", hzbCopyProg, "primaryDepth", primaryDepth);
-            AssertFboColorAttachment0("Stage: HZB Copy", expectedTextureId: targets.Hzb.Texture.TextureId, expectedMipLevel: 0);
-            AssertDrawBuffersForSingleColorTarget("Stage: HZB Copy");
-            AssertTexture2DLevelFormatAndSize(
-                stage: "Stage: HZB Copy",
-                textureId: targets.Hzb.Texture.TextureId,
-                mipLevel: 0,
-                expectedInternalFormat: PixelInternalFormat.R32f,
-                expectedWidth: ScreenWidth,
-                expectedHeight: ScreenHeight);
-            TestFramework.RenderQuad(hzbCopyProg);
-            targets.Hzb.Unbind();
-            AssertNoGLError("Stage: HZB Copy");
-
-            // Downsample mip0->mip1 and mip1->mip2
-            for (int dstMip = 1; dstMip <= 2; dstMip++)
-            {
-                int srcMip = dstMip - 1;
-
-                targets.Hzb.BindMipForWrite(dstMip);
-                hzbDownProg.HzbDepth = targets.Hzb.Texture;
-                // The source mip belongs to the HZB parameter block, not a standalone uniform.
-                hzbDownProg.SrcMip = srcMip;
-
-                AssertSamplerBinding($"Stage: HZB Downsample mip{dstMip}", hzbDownProg, "hzbDepth", targets.Hzb.Texture);
-                AssertFboColorAttachment0($"Stage: HZB Downsample mip{dstMip}", expectedTextureId: targets.Hzb.Texture.TextureId, expectedMipLevel: dstMip);
-                AssertDrawBuffersForSingleColorTarget($"Stage: HZB Downsample mip{dstMip}");
-                AssertTexture2DLevelFormatAndSize(
-                    stage: $"Stage: HZB Downsample mip{dstMip}",
-                    textureId: targets.Hzb.Texture.TextureId,
-                    mipLevel: dstMip,
-                    expectedInternalFormat: PixelInternalFormat.R32f,
-                    expectedWidth: Math.Max(1, ScreenWidth >> dstMip),
-                    expectedHeight: Math.Max(1, ScreenHeight >> dstMip));
-                TestFramework.RenderQuad(hzbDownProg);
-                targets.Hzb.Unbind();
-                AssertNoGLError($"Stage: HZB Downsample mip{dstMip}");
-            }
-
+            using var hierarchyDraw=new VanillaGraphicsExpanded.PBR.Postprocessing.PostprocessDraw();
+            var hierarchyPipelines=targets.Hzb.Prepare(hierarchyDraw,ScreenWidth,ScreenHeight,hzbCopyProg,hzbDownProg);
+            Assert.True(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsCommandContext.TryRun("Tests.FullPipeline.DepthHierarchy",hierarchyPipelines,true,
+                commands=>targets.Hzb.Render(commands,hierarchyDraw,primaryDepth)));
+            AssertNoGLError("Stage: shared depth hierarchy");
             var hzbMip0 = targets.Hzb.Texture.ReadPixels(mipLevel: 0);
             var hzbMip2 = targets.Hzb.Texture.ReadPixels(mipLevel: 2);
             AssertAllFinite(hzbMip0, "Stage: HZB mip0");

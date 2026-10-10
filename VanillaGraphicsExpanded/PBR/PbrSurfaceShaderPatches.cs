@@ -173,9 +173,10 @@ internal static class PbrSurfaceShaderPatches
         uniform sampler2D vge_normalDepthTex;
 
         """;
-        // Helpers are expanded before main, so declarations must precede the helper functions as well.
-        var header = tree.Select(Query.Syntax<GlDirectiveNode>().Named("extension")).LastOrDefault()
-            ?? tree.Select(Query.Syntax<GlDirectiveNode>().Named("version")).Single();
+        // Imported extensions can occur inside include guards after helper definitions.
+        // Anchor these core-language declarations at the unconditional version header so
+        // every patched helper sees them and no include guard can suppress them.
+        var header = tree.Select(Query.Syntax<GlDirectiveNode>().Named("version")).Single();
         editor.InsertAfter(header, declarations);
         if (chunk)
         {

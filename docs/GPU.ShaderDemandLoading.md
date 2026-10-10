@@ -30,7 +30,7 @@ owners can be retired without GL deletion calls.
 ## Preload decisions
 
 - The direct-lighting renderer explicitly preloads its required fixed-input shader.
-- An enabled LumOn renderer batches seven invariant passes: velocity, anchors, HZB copy/downsample,
+- An enabled LumOn renderer batches five invariant passes: velocity, anchors,
   SH9 projection, atlas filtering and upsampling.
 - PIS, tracing, temporal processing, gathering and PBR composition collect their current configuration
   and resource-dependent inputs before first activation. They avoid compiling an intermediate default

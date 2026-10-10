@@ -75,13 +75,17 @@ setting, engine sample kernel or engine intermediate is used.
 
 The independently authored shader reconstructs view positions with the inverse projection and
 transforms encoded world normals with the current view rotation. Each 2x2 receiver footprint selects
-its nearest real depth. Paired directional searches use a projected 1.25-block radius and squared
-radial spacing for contact detail. Deterministic pixel-dependent slice rotation distributes sampling
-without frame-varying noise. Samples outside the viewport or with background depth contribute no
+its nearest real depth. Paired directional searches use a projected 1.25-block radius bounded
+by the viewport extent, with approximately uniform radial spacing from a one-pixel minimum.
+Independent deterministic pixel-dependent slice rotation and radial start offset distribute
+sampling without frame-varying noise. Samples outside the viewport or with background depth contribute no
 occlusion. Coplanar/below-surface samples are rejected with a normal-direction bias of 0.02.
 
 For each view-space slice, project the normal into the slice, then integrate the cosine-weighted
-visible interval between the two horizons analytically. Divide the summed projected-normal-weighted
+visible interval between the two signed horizons analytically. Intersect the visible camera
+hemisphere with the projected normal hemisphere before integrating; blend occluder horizon
+cosines toward their unobstructed limits by bounded distance/transmission/thickness weights.
+Located hierarchy leaves are projected into the slice before choosing the signed horizon. Divide the summed projected-normal-weighted
 visible integrals by the matching unobstructed integrals. This keeps an unobstructed tilted plane
 neutral despite finite angular sampling; there is no artistic contrast exponent or global darkness
 clamp concealing invalid geometry. The mathematical approach is described by
@@ -98,13 +102,33 @@ reconstructed occlusion once. Alpha-tested foliage contributes only where depth 
 its material transmission remains meaningful. Transparent OIT surfaces are not opaque AO receivers
 or depth occluders. Visibility fades to neutral between 64 and 96 view-space blocks.
 
-Three separate RG32F images hold min/max hardware depth for ceil-half, ceil-quarter and ceil-eighth
-footprints. Their reductions include every valid texel of odd-sized inputs. Horizon searches select
-hierarchical intervals according to sample spacing to reject empty/out-of-radius footprints, then
-reconstruct actual hits from exact full-resolution depth and texel centers. Coarse minimum depth
-must not fabricate an occluding position on a tilted plane. LumOn's conditional hierarchy is built
-at order 10, after this pass, and uses a different contract; it cannot supply this always-available
-pre-lighting min/max hierarchy. Separate image objects avoid sampled/attached feedback.
+The shared [DepthHierarchyRenderer](../VanillaGraphicsExpanded/Rendering/DepthHierarchy/DepthHierarchyRenderer.cs)
+publishes one mipmapped R32F minimum-hardware-depth texture at opaque order 8.7, after corrected
+receiver depth at 8.5 and before AO at 8.8 and indirect lighting at 10. It runs independently of
+LumOn when native AO is enabled; it builds once per frame only when either consumer is enabled.
+AO and LumOn borrow that exact texture instance. A publication is identified by its allocation,
+shared frame snapshot and captured integer frame index; Before withdraws it, and consumers reject
+a mismatched frame/view. Native AO quality does not change the depth representation.
+
+Mip 0 copies corrected receiver depth without resampling. Each later floor-sized mip conservatively
+reduces every source texel whose normalized interval overlaps the destination texel. Odd axes can
+require three taps; an axis that reaches one retains its sole texel. The chain continues to 1×1.
+Persistent typed framebuffer attachments represent each mip. During reduction, the existing
+GpuTexture.SetMipRange API restricts accessible levels to the completed source mip; shader LOD 0
+is relative to that base level. The attached destination remains inaccessible to sampling. A finally
+boundary restores the complete mip range before consumer use. This follows the mip exclusion rule in
+the [OpenGL specification, feedback loops between textures and the framebuffer](https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf).
+No texture views, texture barriers, per-frame attachments or duplicate consumer pyramids are needed.
+
+AO selects an explicit mip from radial sample spacing, capped at level 4 and the available chain.
+Background minima are rejected immediately. For accepted minima, a bounded descent through the
+same proportional footprints finds a real source pixel; equal-depth candidates choose the source
+nearest the requested sample. This preserves positions on tilted planes and samples that source's
+normal/first-person identity and material transmission. The old min/max interval rejection is removed:
+minimum depth supplies conservative candidates, and reconstructed source distance enforces the
+world-radius bound. At most one coarse read plus four nine-tap descent steps occur per candidate;
+one-dimensional and even-sized footprints use fewer taps. This bounds hierarchy work without
+substituting a coarse synthetic surface for the real occluder.
 
 Raw visibility stores (visibility, positive view depth, octahedral normal XY) in RGBA16F. A 3x3
 spatial filter rejects depth/normal disagreement; a second 3x3 joint reconstruction compares those
@@ -124,17 +148,48 @@ indirect response uses its existing diffuse/specular AO strengths. The scalar si
 a bent normal. Direct sun, point lights, emission, sky, water/aerial transport and generated glare
 are not multiplied by AO. Final composition has four samplers and no AO input.
 
-The existing GpuResourceCollection owns all six textures and their framebuffer attachments.
-Stable frames reuse storage; resize, reload, world teardown and disabling withdraw publication and
-retire it. Half-resolution raw/filtered images and full-resolution visibility each use eight bytes
-per texel, as do hierarchy min/max texels. Total logical storage is
-8*(WH + 2*ceil(W/2)*ceil(H/2) + sum of three hierarchy areas), about 28.92 MiB at 1920x1080.
-There are six fullscreen draws: three reductions, horizon integration, spatial filtering and full
-reconstruction. There are no history images or per-frame GPU allocations. The sampler and storage
+Separate GpuResourceCollection owners manage the shared hierarchy and AO's three visibility images,
+including their framebuffer borrowers. The reduction program owns its parameter block through the existing
+shader uniform-buffer retirement mechanism. A shared `DepthHierarchy` GPU profile scope records
+generation separately from either lighting consumer; LumOn reads that scope for its HZB timing counter.
+Stable frames reuse storage; resize, reload, world teardown
+and disabled consumers withdraw publication and retire it. Disabling AO alone retires its visibility
+images while the hierarchy remains if indirect lighting requires it. Raw/filtered ceil-half images
+and full-resolution visibility use eight bytes per texel. AO payload is
+8*(WH + 2*ceil(W/2)*ceil(H/2)); the shared hierarchy adds
+4*sum(max(1,W>>m)*max(1,H>>m)) across all mips. At 1920×1080 this totals about **34.28 MiB**,
+with **11 hierarchy draws plus three AO draws**. Indirect lighting no longer allocates or generates
+a second hierarchy. There are no history images or per-frame GPU allocations. The sampler and storage
 counts are analytical; focused validation and synthetic timings are recorded below separately from
 user-run visual and matched-scene performance acceptance.
 
-Focused validation passed **35 unique checks**, with no skips: flat/tilted planes, a perpendicular
+Shared-hierarchy refinement validation passed **159 focused checks**, without failures or skips.
+They cover all conservative mips against an independent interval-overlap reducer, odd dimensions,
+one-texel axes/tails, source-mip exclusion and restored state, analytic integrals against numerical
+quadrature, AO-only publication, native enable/quality, once-per-frame reuse, frame/view identity,
+attachment replacement, resize/reload/teardown, contact/transmission/motion and LumOn tracing,
+near-field and temporal consumers. The incremental build reused all **436 production** and
+**506 fixture** shader variants. Receipt: `artifacts/horizon-validation/focused-final.log`.
+An additional **75 unique checks** passed: six HDR runtime cases across native AO quality and
+both lighting modes, 67 installed-surface declaration/interface variants, and two corrected particle
+receiver publication cases. The latter change primary depth after receiver separation and verify
+that every generated hierarchy mip still contains the corrected material depth. Runtime fixtures
+now publish shared camera/light snapshots through the production owners. Installed-surface
+declarations anchor at the unconditional version header so imported extension/include guards
+cannot hide route variables or place them after patched helpers. Receipts:
+`artifacts/horizon-validation/focused-runtime-2.log` (73 passing cases; two fixture failures
+superseded by the next receipt) and `artifacts/horizon-validation/focused-particle-final.log`
+(two passing cases). Together these establish **234 unique passing checks**.
+
+On the validation RTX 4090, five warmed GPU timer samples of the complete hierarchy plus three
+AO draws at 1280×720 measured quality 1 median **0.7731 ms** (0.6011–1.4664 ms), quality 2
+median **2.0900 ms** (1.4807–2.2436 ms). Logical AO payload was **11,059,200 bytes**; the shared
+hierarchy added **4,915,052 bytes**. These exclude allocation/readback and are synthetic workload
+measurements, not live frame cost, physical bandwidth or visual acceptance. They are not a matched
+performance comparison with the earlier implementation. The parent AO task retains user-run
+visual and matched-scene performance acceptance.
+
+Before shared-hierarchy refinement, focused validation passed **35 unique checks**, with no skips: flat/tilted planes, a perpendicular
 corner, contact detail, cutout gaps, material transmission, first-person exclusion, far fade,
 current-frame motion, odd sizes, reuse/resize/disposal, native quality/disable, corrected particle
 receiver depth, final display and all three deferred lighting modes. Composite checks preserve
@@ -144,7 +199,7 @@ errors (114 existing warnings). Receipts: `artifacts/SceneHdrRuntime/ambient-occ
 `ambient-occlusion-final32.trx`, `ambient-occlusion-composite-passed.trx` and
 `ambient-occlusion-managed-final.log` in the same directory.
 
-On the validation RTX 4090, five warmed GPU timer samples of the complete six-draw synthetic
+Before shared-hierarchy refinement, on the validation RTX 4090, five warmed GPU timer samples of the complete six-draw synthetic
 1280x720 contact scene measured quality 1 median **0.1188 ms** (0.1178–0.1229 ms), quality 2
 median **0.2161 ms** (0.2068–0.2335 ms). Logical owned storage was **13,478,400 bytes**.
 These exclude allocation/readback and are not live frame cost, physical bandwidth or visual
@@ -406,7 +461,7 @@ precision reduction, padding or mandatory allocation of disabled features is ass
 | [CameraExposureTargets](../VanillaGraphicsExpanded/PBR/CameraExposure/CameraExposureTargets.cs) | Histogram: 64×1 RG32F; two EV histories: 1×1 R32F, N | Meter → adapt(previous EV) → current EV/final and glare thresholds. Keep histogram and histories separate. Histories match physically but only one is sampled per adaptation draw, so one array adds feedback handling without sampler savings. Auto-exposure owns reset/cut/enable lifetime. |
 | [BloomRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/BloomRenderer.cs) | Two RGBA16F images per Gaussian scale; start ceil half-size, clamp each dimension to 1; 3–6 levels | Extract/downsample → horizontal/vertical Gaussian → weighted additive reconstruction → final. Different scales cannot be different layers without padding. Same-size scale/scratch images alternate read/write roles and remain separate objects to avoid feedback. |
 | [LightShaftRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/LightShaftRenderer.cs) | Two RGBA16F reduced ping-pong images per early/late instance; early output W×H RGBA16F; late output ceil(W/d)×ceil(H/d) RGBA16F, d=4 or 2 | Depth/radiance extraction → radial passes → early aerial occlusion or late final glare. Keep each ping-pong pair separate by default: each pass samples one while writing the other, and currently uses only one working-image sampler. Grouping them saves allocations, not sampler inputs, and adds feedback requirements. Early/late scratch reuse is a separate lifetime optimization, not array consolidation. |
-| [RetainedPostprocessRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/RetainedPostprocessRenderer.cs), [PostprocessPipeline](../VanillaGraphicsExpanded/PBR/Postprocessing/PostprocessPipeline.cs) | Full-size RGBA16F luma/scene; persistent black glare 1×1 RGBA16F | Completed scene → luma → final. Black is a disabled-effect identity. Horizon AO has a separate pre-lighting owner and separate hierarchy/filter allocations, as documented above. |
+| [RetainedPostprocessRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/RetainedPostprocessRenderer.cs), [PostprocessPipeline](../VanillaGraphicsExpanded/PBR/Postprocessing/PostprocessPipeline.cs) | Full-size RGBA16F luma/scene; persistent black glare 1×1 RGBA16F | Completed scene → luma → final. Black is a disabled-effect identity. Horizon AO has a separate pre-lighting owner for filter/visibility allocations and borrows the shared depth hierarchy, as documented above. |
 
 The primary color/depth/glow, native SSAO attachments, terrain color atlases, shadow maps,
 OIT engine images and native menu postprocess images remain **external storage**, even where
@@ -425,7 +480,7 @@ make it VGE-owned. See [HDR/display contract](PBR.SharedDisplay.md),
 | LumOnTargets: trace scheduling | ProbeTraceMask: P×Q RG32F, N; ProbePisEnergy: P×Q R32F, N | Importance selection MRT → trace/diagnostics. Different formats; retain. |
 | LumOnTargets: directional atlases | Trace/current/history/filtered radiance: 8P×8Q RGBA16F, N; corresponding four metadata images: same size RG32F, N | Trace → temporal with history → spatial filter → gather/projection; current/history swap roles. Same-format groups exist, but temporal/filter draws read and write members of the proposed group. **Defer**, retain ping-pong allocations. Radiance and metadata cannot share one array without changing representation. |
 | LumOnTargets: SH9 | Seven coefficient images: P×Q RGBA16F, N | Project filtered atlas through seven MRT outputs → SH9 gather. **Strong seven-layer candidate: 7→1 coefficient samplers, saving six in gather.** Still seven output attachments. Applies to SH9 gather mode; no benefit to the directional-atlas gather branch. Existing owner allocates this family with the screen target set. |
-| LumOnTargets: outputs | IndirectHalf: resolved half dimensions RGBA16F; IndirectFull, SurfaceAlbedo: W×H RGBA16F (albedo L, indirect default N); Velocity: W×H RGBA32F N; HZB: W×H R32F, 1+floor(log2(max(W,H))) mips, nearest mip sampling | Gather → upsample → composite; surface capture feeds GI; velocity/depth feed temporal/tracing. Keep separate across dependencies/resolutions. Do not merge IndirectFull into always-present direct lighting: standalone PBR must not allocate or require LumOn resources. HZB retains its hierarchy. |
+| LumOnTargets: outputs | IndirectHalf: resolved half dimensions RGBA16F; IndirectFull, SurfaceAlbedo: W×H RGBA16F (albedo L, indirect default N); Velocity: W×H RGBA32F N | Gather → upsample → composite; surface capture feeds GI; velocity/depth feed temporal/tracing. Keep separate across dependencies/resolutions. Do not merge IndirectFull into always-present direct lighting: standalone PBR must not allocate or require LumOn resources. The shared Rendering depth-hierarchy owner supplies HZB; these targets do not allocate it. |
 | [LumOnPmjJitterTexture](../VanillaGraphicsExpanded/LumOn/LumOnPmjJitterTexture.cs) | CycleLength×1 RG16 normalized, N | CPU sequence upload → tracing; cycle/seed lifetime. Unique format/size; retain. |
 | [World-probe resources](../VanillaGraphicsExpanded/LumOn/WorldProbes/Gpu/LumOnWorldProbeClipmapGpuResources.cs) | For resolution r, levels l, tile t: radiance r²t×rlt RGBA16F; visibility r²×rl RGBA16F; distance same scalar size RG16F; metadata RG32F; debug RGBA16 normalized. N | Scheduled probe updates/clear → tracing/gather/debug; generation lifetime. Radiance size differs and scalar formats differ. No lossless compatible group in the normal layout; do not pad/promote formats merely to consolidate. |
 | [SurfaceAtlasTextures](../VanillaGraphicsExpanded/LumOn/Scene/SurfaceAtlasTextures.cs) | Existing arrays of physical width×height×layers: Depth R16F, Material RGBA8, Indirect/Direct/two Outgoing RGBA16F; N | Capture/relight compute → surface-hit lighting; outgoing publication double-buffered. Four radiance arrays match storage, but updates read published lighting while writing pending/direct/indirect data. **Defer regrouping**; image load/store access and barriers must be audited per dispatch, independently of framebuffer feedback rules. Any layer-bank layout multiplies layer count and must respect MaxArrayTextureLayers and physical-pool budgeting. |

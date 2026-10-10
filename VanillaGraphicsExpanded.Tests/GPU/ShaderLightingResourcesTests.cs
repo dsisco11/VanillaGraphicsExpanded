@@ -112,7 +112,7 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
         screen.ScreenProbeAtlasHistoryTex!, screen.ScreenProbeAtlasMetaHistoryTex!,
         screen.ScreenProbeAtlasFilteredTex!, screen.ScreenProbeAtlasMetaFilteredTex!,
         screen.ProbeSh9!,
-        screen.IndirectHalfTex!, screen.IndirectFullTex!, screen.SurfaceAlbedoTex!, screen.VelocityTex!, screen.HzbDepthTex!
+        screen.IndirectHalfTex!, screen.IndirectFullTex!, screen.SurfaceAlbedoTex!, screen.VelocityTex!
     ];
 
     /// <summary>Observes framebuffers with stable roles; the private history framebuffer participates in ping-pong separately.</summary>
@@ -120,7 +120,7 @@ public sealed class ShaderLightingResourcesTests : RenderTestBase
     [
         screen.ProbeAnchorFbo!, screen.ProbeTraceMaskFbo!, screen.ScreenProbeAtlasTraceFbo!,
         screen.ScreenProbeAtlasFilteredFbo!, screen.ProbeSh9Fbo!, screen.IndirectHalfFbo!,
-        screen.IndirectFullFbo!, screen.SurfaceAlbedoFbo!, screen.VelocityFbo!, screen.HzbFbo!
+        screen.IndirectFullFbo!, screen.SurfaceAlbedoFbo!, screen.VelocityFbo!
     ];
 
     /// <summary>Observes the complete world-probe texture family owned by the production topology.</summary>

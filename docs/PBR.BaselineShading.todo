@@ -900,7 +900,7 @@ Tasks
         Parent remains open for user-run halo/temporal and matched-scene performance acceptance.
 
     ☐ Implement horizon-integrated ambient occlusion and its spatial filter.
-      - Implemented the owned pre-lighting horizon pass, min/max depth hierarchy, spatial filter
+      - Implemented the owned pre-lighting horizon pass, shared minimum-depth hierarchy, spatial filter
         and joint reconstruction. Native SSAO settings control bounded quality; only ambient/indirect
         lighting consumes visibility, using current corrected material depth and typed resources.
         No temporal history or final whole-scene AO multiplier remains. Contract: docs/PBR.Postprocessing.md.
@@ -968,7 +968,7 @@ Tasks
           migration and source review. Focused validation passed batches of 106 and 137 tests,
           including both lighting modes, alternate views and immutable GPU light snapshots.
           Contract and receipts: docs/ShaderAuthoring.md.
-      ☐ Refine paired horizon sampling and analytic integration.
+      ☑ Refine paired horizon sampling and analytic integration.
         - Replace AO's three separate reduced-depth textures with a single mipmapped HZB and
           explicit mip-level sampling. Extract the existing LumOn HZB allocation, generation and
           shader contracts into a shared rendering owner independent of LumOn; migrate AO and
@@ -988,6 +988,30 @@ Tasks
           direction/start-offset variation and footprint-appropriate hierarchical depth samples.
           Reconcile distance falloff, horizon representation and integral normalization together;
           preserve native quality controls, receiver identity and material/transparency handling.
+        - Completed shared R32F mip ownership, conservative odd/tail reduction, AO/LumOn migration,
+          paired spatial sampling and normalized analytic integration. 234 unique focused checks pass,
+          including independent reduction/quadrature references, corrected receiver publication,
+          native quality, both lighting modes and resize/reload/teardown. Shader catalogs reuse all
+          436 production and 506 fixture variants. Contract, receipts and synthetic costs:
+          docs/PBR.Postprocessing.md. Parent visual and matched-scene performance acceptance remain open.
+      ☐ Refactor shared HZB downsampling to a single-dispatch compute algorithm.
+        - Process depth tiles in parallel; each workgroup generates several minimum-depth mip
+          levels using shared memory. Publish tile results, then use an atomic completion counter
+          to elect the last finishing workgroup to generate the remaining coarse levels in the
+          same dispatch. Use memory visibility barriers and counter reset; do not spin-wait for
+          other workgroups or assume a dispatch-wide shader barrier exists.
+        - Preserve the shared R32F hierarchy, corrected receiver source, AO/LumOn publication and
+          lifecycle contracts. Adapt tile boundaries and footprints to retain conservative odd-edge
+          coverage and one-texel tails; the reference's fixed 2x2 kernel must not drop source texels.
+        - Use existing typed compute bindings, command contexts and resource owners; validate
+          image-binding/shared-memory limits and visibility before texture sampling. Retire the
+          superseded raster reduction contracts and per-mip framebuffer submissions.
+        - Run focused subagent tests against the independent reduction reference, including odd
+          sizes, tile seams, one-pixel axes, repeated frames, counter reuse and resize/reload/teardown.
+          Compare GPU time and submission/storage costs against the current raster chain at matched
+          workloads; document the algorithm and measured results in docs/PBR.Postprocessing.md.
+        - Technical references: [Single Pass Downsampler technique notes](https://gpuopen.com/manuals/fidelityfx_sdk/techniques/single-pass-downsampler/)
+          and [Optimizing for the Radeon RDNA Architecture, downsampler case study (2020 presentation)](https://gpuopen.com/wp-content/uploads/slides/GPUOpen_Let%E2%80%99sBuild2020_Optimizing%20for%20the%20Radeon%20RDNA%20Architecture.pdf).
       ☐ Replace neighbor-based thickness attenuation with running-horizon relaxation.
         - Raise each horizon for stronger occluders and relax it toward subsequent lower-angle
           evidence using a bounded thickness weight. Define the parameter's meaning independently
