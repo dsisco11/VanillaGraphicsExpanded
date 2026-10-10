@@ -1,0 +1,280 @@
+Cached incremental SPIR-V builds
+================================
+
+Source proposal: docs/ShaderBuild.CachedIncremental.Proposal.md
+Current behavior: docs/ShaderBuild.Incremental.md
+Status: planning only; all implementation and verification tasks are pending.
+
+Goal and shared contracts
+  Make expensive build work proportional to changed inputs and their dependents. Unchanged
+  stages and variants skip import expansion, emission, compilation, and interface extraction.
+  Cheap enumeration, registry resolution, content checking, and output verification may remain
+  catalogue-wide. Preserve runtime shader semantics, binary naming, manifest compatibility,
+  coverage validation, bounded concurrency, output leases, and coherent publication.
+  The source proposal is authoritative. Reconcile changes to this plan against it.
+
+Ownership and scope
+  Retain the shared shader resolver, ShaderFileHashIndex, ShaderVariantCache,
+  ShaderInterfaceExtraction, ShaderOutputLease, and ShaderBuildReceipt as the owning APIs.
+  TinyPreprocessor owns dependency discovery, graph relationships, ordering, and cycle detection.
+  SpirvBuild owns persistence, input validation, work selection, and cross-invocation reuse.
+  Keep Program thin. Separate identities, dependency records, variant records, selection, and
+  publication into clearly named responsibilities under ShaderBuildTool/Spirv; use domain
+  directories as needed. Do not duplicate import parsing, graph discovery, contract resolution,
+  or binding-layout rules. Apply workspace documentation/comment and method-region conventions.
+  Excluded: distributed caching, file watchers, automatic eviction, runtime loading redesign,
+  shader algorithm changes, and support for arbitrary live readers during publication.
+  Explicit clean remains the cache reclamation mechanism.
+
+Execution and completion rules
+  Run all build and test tools through subagents, as required by workspace instructions.
+  Leave completion markers unchecked until focused validation and a second review reconcile
+  the increment against its linked proposal sections and prior contracts.
+  Record concise results with the corresponding tasks; do not add unrequested audit documents.
+  Source review, unit tests, integration tests, packaging checks, and timings are distinct evidence.
+  No game launch or in-game visual acceptance is required. Headless validation must establish
+  clean/incremental output equivalence and runtime manifest compatibility.
+
+Open design decisions, resolved before their consumers
+  - Exact catalogue/shared-model assembly boundaries: resolve in Phase 1 before Phase 2.
+  - Canonical effective-contract projection and implementation identity inputs: inventory in
+    Phase 1 and verify in Phase 2, including every actual emitter/extractor dependency.
+  - Direct/transitive TinyPreprocessor query semantics: verify in Phase 1 before graph selection.
+  - Windows hard-link behavior and interruption recovery layout: define in Phase 1 and execute
+    the filesystem checks in Phase 4. Copy fallback is required regardless of platform support.
+  - Existing compiler-cache migration: establish compatibility in Phase 6; accept a one-time
+    cold population where identity equivalence cannot be demonstrated.
+
+Phase 1: Establish dependency, identity, and publication contracts
+  Outcome: foundational choices and verification fixtures are concrete enough to implement.
+  Depends on: none.
+  Proposal: Existing ownership and proposed layout; Identity boundaries; Expanded source record;
+    Coherent publication and output reuse; Implementation considerations requiring resolution.
+
+  ☐ Inventory the existing build and project graph.
+    ☐ Trace generated offline/runtime declarations, shared contract types, project references,
+      ShaderBuildTool entry points, SpirvBuild invocation, and deployed asset-copy targets.
+    ☐ Specify a dedicated offline catalogue data assembly with one-way model dependencies;
+      avoid conflicting shared type copies and circular references. Retain the same generator
+      and authoritative models for runtime declarations.
+    ☐ Inventory actual inputs used by source preprocessing, emission/layout, compiler execution,
+      reflection/packaging, and catalogue membership. Record the decisions here or in the
+      source proposal before implementing their consumers.
+  ☐ Verify installed TinyPreprocessor 0.4.0 / TinyAst.Preprocessor 0.4.3 graph semantics.
+    ☐ Use a root-to-include-to-nested-include fixture to establish direct/transitive behavior of
+      GetDependencies/GetDependents, canonical identities, isolated roots, order, and cycles.
+    ☐ Confirm ShaderSyntaxTreePreprocessor returns the graph and ShaderSourcePreprocessor's
+      current text-only return drops it; define the result boundary that will retain it.
+  ☐ Define output transaction and input-snapshot invariants.
+    ☐ Enumerate interruption points in staging, old-generation rename, new-generation install,
+      and receipt publication. Specify deterministic recovery before another receipt check.
+    ☐ Define immutable-file ownership for hard links, supported same-volume behavior, copy
+      fallback, and downstream copying only after successful publication.
+    ☐ Specify source/contract snapshot validation before commit and bounded retry or failure
+      behavior when inputs change while processing.
+  ☐ Completion gate: dependency APIs and compilation boundaries are verified; decisions cover
+    every identity input and publication transition without weakening proposal guarantees.
+
+Phase 2: Separate catalogue data and establish stable cache identities
+  Outcome: contract-only edits do not globally invalidate unrelated compiler results.
+  Depends on: Phase 1.
+  Proposal: Identity boundaries; Existing ownership and proposed layout.
+
+  ☐ Implement the dedicated catalogue assembly and directional shared-model dependencies.
+    ☐ Keep offline catalogue data out of global processing/compiler identities; preserve
+      runtime generator behavior, authoritative declarations, resolver semantics, and output paths.
+    ☐ Verify tool resolution uses the actual built target with inherited configuration/output
+      properties; preserve the existing custom-output behavior.
+  ☐ Implement deterministic, unambiguous, versioned identities.
+    ☐ Separate preprocessing, emission/layout, compiler policy/binaries, reflection/packaging,
+      effective variant contract, and catalogue membership identities.
+    ☐ Derive implementation identities automatically from actual relevant implementation
+      inputs, managed/native dependencies, and schema versions. Do not rely only on manually
+      incremented constants. Conservative invalidation within a shared processing assembly is allowed.
+    ☐ Share effective-contract projection with owning resolver logic. Cover source, stage kind,
+      entry point, fixed/structural defines, active specialization declarations/defaults, binding
+      layouts, selection information, and output association wherever required.
+    ☐ Keep compiler-result keys tied to final emitted source, stage, entry point, compiler
+      binaries, target, optimization, warning policy, and Debug information.
+  ☐ Verify identity boundaries with focused tests.
+    ☐ Change a catalogue contract and prove unrelated implementation/compiler identities stay
+      stable while affected effective-contract identities change.
+    ☐ Cover every inventoried emitter/extractor input; verify deterministic ordering.
+    ☐ Establish that processing changes require source reevaluation but identical emitted source
+      remains compiler-cache eligible, and extractor-only changes do not require compilation.
+  ☐ Completion gate: project boundaries build correctly and identity tests prove both required
+    invalidation and isolation; no catalogue-wide hash substitutes for per-variant contracts.
+
+Phase 3: Persist library dependency graphs and reusable processing records
+  Outcome: validated records can identify reusable work before AST construction or reflection.
+  Depends on: Phase 2.
+  Proposal: Persistent records; TinyPreprocessor ownership; Migration and scope.
+
+  ☐ Retain successful preprocessing metadata with expanded text.
+    ☐ Preserve DependencyGraph and ProcessedResources through ShaderSourcePreprocessor.
+    ☐ Capture graph snapshots from the library result using its resource/relationship APIs.
+      Record canonical opaque ResourceId values; never infer paths or edges from import strings.
+    ☐ Associate every resource with physical input and actual-read content hash through the
+      existing resolver callback; explicitly capture the directly supplied root and cross-domain inputs.
+  ☐ Implement versioned expanded-source records under the private cache tree.
+    ☐ Include root, preprocessing identity, graph snapshot, transitive input hashes, expanded
+      text digest/reference, and per-root provenance. Persist data, not live AST/library objects.
+    ☐ Restore snapshots with AddResource/AddDependency, including isolated roots; use library
+      queries and any required visited-set traversal for affected-root selection.
+    ☐ Replace an affected root's complete snapshot after successful expansion; remove its stale
+      edges without removing dependencies belonging to other roots. Do not persist partial failures.
+    ☐ Keep graph mutation and queries in controlled planning; parallel workers receive immutable
+      work/snapshots. Any derived ownership lookup is not a second persisted dependency authority.
+  ☐ Implement versioned variant and interface records.
+    ☐ Variant records associate source/contract/emission identities, emitted digest, compiler key,
+      binary digest, and interface key. Interface records include binary digest, relevant contract,
+      extractor identity, configuration, payload integrity, and schema.
+    ☐ Validate referenced artifacts before reuse. Restore missing/invalid interfaces from verified
+      binaries without requiring compilation. Support equivalent-source compiler reuse.
+    ☐ Constrain references to owned cache paths; publish atomically and retain per-key alias
+      synchronization. Report local misses for malformed, incomplete, incompatible, or corrupt data.
+    ☐ Retain historical successful content-addressed entries while current membership alone
+      determines output ownership; cache entries are not successful catalogue receipts.
+  ☐ Verify graph and record behavior.
+    ☐ Round-trip graph snapshots, isolated roots, nested/shared/cross-domain dependencies,
+      canonical IDs, cycles, removed edges, and ownership shared by several roots.
+    ☐ Test failed preprocessing, missing resource associations, tampered record metadata/payloads,
+      invalid paths, partial records, and concurrent aliases.
+    ☐ Prove restoring valid records needs no preprocessing, AST emission, or reflection.
+  ☐ Completion gate: record APIs validate all relevant identities/artifacts and preserve library
+    graph semantics; they are ready for selection without enabling an unsafe receipt shortcut.
+
+Phase 4: Preserve coherent publication while reusing unchanged outputs
+  Outcome: complete generations can reuse binaries and recover deterministically after interruption.
+  Depends on: Phases 1–3. The current build path can exercise this before selective integration.
+  Proposal: Coherent publication and output reuse; Build algorithm failure guarantees.
+
+  ☐ Implement recoverable generation publication under ShaderOutputLease.
+    ☐ Restore the previous complete generation or finish a fully validated pending generation
+      using explicit recovery state before receipt evaluation. Validate all recovery paths as owned.
+    ☐ Keep the full manifest/binary generation coherent; never update changed active files
+      individually. Publish the success receipt last and invalidate success on failed builds.
+    ☐ Prune removed outputs only on successful publication and copy downstream only after success.
+  ☐ Reuse unchanged verified binaries when constructing a generation.
+    ☐ Hard-link immutable same-volume files where supported; replace files on updates rather
+      than modifying linked contents. Preserve timestamps for unchanged deployed outputs.
+    ☐ Exercise and report copy fallback when hard links are unavailable; correctness cannot
+      depend on support. Write changed binaries and changed manifests as new files.
+    ☐ Skip generation replacement entirely when verified membership, binary bytes, and manifest
+      are unchanged; update only required private records/receipt.
+    ☐ Repair damaged published outputs from verified cached results before publication.
+  ☐ Verify failure and filesystem behavior.
+    ☐ Inject cancellation/failures around every transaction transition, including receipt write;
+      run restart recovery and verify no false success or accepted mixed generation.
+    ☐ Cover simultaneous writers, hard-link immutability, fallback copies, retained timestamps,
+      missing/corrupt outputs, removed membership, and the no-change publication path.
+  ☐ Completion gate: recovery and rollback tests pass; publication preserves coherent output
+    and documents the existing lack of arbitrary-live-reader transaction guarantees.
+
+Phase 5: Integrate selective processing and truthful work counters
+  Outcome: normal incremental builds skip expensive work for unrelated stages and variants.
+  Depends on: Phases 2–4.
+  Proposal: Build algorithm; Required behavior; Diagnostics.
+
+  ☐ Integrate selection into the existing owning pipeline with thin Program orchestration.
+    ☐ Recover under the lease, generate deterministic shared inputs, resolve registry, and validate
+      source coverage. Do not replace generated includes when bytes are unchanged; retain atomic
+      generation for concurrent configurations.
+    ☐ Compute hashes/identities once through ShaderFileHashIndex; include recorded cross-domain
+      dependencies. Preserve metadata-assisted mode and strict verifyContents semantics.
+    ☐ Accept the complete receipt shortcut only with compatible schema, membership, inputs, and
+      verified published outputs. Old receipts cannot bypass establishing new records.
+    ☐ Select valid records before expansion/emission. Expand only invalid roots, once per equivalent
+      shared source input; independently select variants with changed contracts/identities.
+    ☐ Emit selected variants, reuse verified compiler results, compile misses with bounded concurrency,
+      and reuse valid interface metadata. Restore binaries or metadata locally where possible.
+    ☐ Validate the complete manifest assembled from reused/new records and exact membership;
+      check consumed input/contract snapshots before committing through Phase 4 publication.
+    ☐ Abort or retry inconsistent snapshots; preserve successful immutable cache entries after
+      other failures without retaining a current success marker.
+  ☐ Add operation counters at the owning operations and meaningful progress output.
+    ☐ Count roots reused/expanded, variants reused/emitted, compiler reuse/actual invocations,
+      interfaces reused/extracted, and outputs retained/replaced/repaired/removed.
+    ☐ Distinguish variants from unique compiler jobs and account for equivalent-input aliases.
+      Report immediate reuse and progress over selected work; skipped variants are not compilations.
+    ☐ Retain compiler failure diagnostics and reasons; report dependency/schema/identity misses.
+      Preserve summary compatibility or document exact replacement semantics.
+    ☐ Separate input-check, selected-processing, and publication wall times from accumulated
+      concurrent work. Include fallback publication costs without dumping unchanged records.
+  ☐ Verify end-to-end selection with focused fixtures and operation counts.
+    ☐ Warm unchanged: zero expansions, emissions, compilations, and extractions.
+    ☐ Root/direct/nested/shared/cross-domain/import-topology edits: only affected roots and variants
+      processed; unrelated records and timestamps retained. Missing imports fail safely.
+    ☐ Contract-only, binding, specialization, structural/fixed define, entry-point, stage, policy,
+      and configuration changes: all required work selected with unrelated work skipped.
+    ☐ Extractor-only change: refresh interfaces using verified binaries. Equivalent source and
+      reverted edits: compiler cache reuse where valid.
+    ☐ Added/removed roots, stages, variants, and registry scopes: exact membership and pruning;
+      unregistered owned roots still fail coverage checks.
+    ☐ Inputs changed during processing and timestamp-preserving edits under strict verification:
+      no receipt may claim a snapshot different from the processed input.
+  ☐ Completion gate: selected processing and counters prove actual skipped work, with output
+    equivalence and failure guarantees preserved through the integrated path.
+
+Phase 6: Qualify migration, repair, packaging, and compatibility
+  Outcome: existing users and all supported build configurations can safely use the new pipeline.
+  Depends on: Phase 5.
+  Proposal: Migration and scope; Validation and acceptance; Required behavior.
+
+  ☐ Establish migration behavior for receipts and every new record schema.
+    ☐ Populate complete graph/interface records before allowing warm reuse. Validate all referenced
+      artifacts; reuse old compiler entries only with proven compatible identity, otherwise cold-fill.
+    ☐ Verify first-upgrade, subsequent unchanged, single-edit, and reverted-edit behavior.
+    ☐ Remove obsolete readers, compatibility scaffolding, or temporary instrumentation introduced
+      during implementation once unnecessary; retain only explicitly documented required migration.
+  ☐ Exercise missing/corrupt binary, record, manifest, and receipt recovery.
+    ☐ Cover absent data and mismatching/malformed metadata; repair locally when possible and
+      verify that unverifiable compiler results cause compilation rather than false cache hits.
+    ☐ Repeat compilation/reflection failure and cancellation through the integrated pipeline.
+  ☐ Verify compatibility and packaging.
+    ☐ Cover Debug/Release isolation, registry scopes, custom output paths, writer leases,
+      strict verification, explicit clean overriding reuse, and historical-cache retention.
+    ☐ Preserve runtime naming and packaged interface schema/consumer compatibility; verify private
+      graph, variant, interface, cache, and temporary files are not packaged.
+    ☐ Verify deployed asset copying preserves unchanged timestamps and prunes obsolete binaries.
+    ☐ Compare clean and incremental binaries/manifests under identical inputs and controlled paths,
+      including reverted edits. Account for Debug source-path attribution in comparison fixtures.
+  ☐ Completion gate: migration cannot bypass new dependencies, repair cannot bypass integrity,
+    and supported build/package paths preserve runtime contracts without temporary scaffolding.
+
+Phase 7: Measure production behavior and complete documentation
+  Outcome: matched production evidence demonstrates skipped work and an actual improvement.
+  Depends on: Phase 6.
+  Proposal: Current behavior and measured baseline; Validation and acceptance; Diagnostics.
+
+  ☐ Repeat the copied-production-assets cold, unchanged, and single-SSAO-edit experiment.
+    ☐ Match tool configuration, catalogue, concurrency, edit, and environment; retain production
+      sources/outputs. Refresh a comparable baseline if the historical setup has drifted.
+    ☐ Report internal timings and full command wall time separately; do not sum concurrent work
+      as elapsed time. Historical wall times were 35.498 s cold, 0.458 s unchanged, and 14.716 s
+      for one SSAO edit, with 435 hits and one compiler invocation on the edit run.
+    ☐ Verify one affected root and only its affected variant are processed; all unrelated variants
+      skip expansion/emission/reflection. Derive counts from current registry rather than hard-coding
+      historical 436/435 totals. An already-cached emitted input may need zero compiler invocations.
+    ☐ Require measured improvement over a matched baseline and elimination of unrelated expensive
+      operations; do not claim an unmeasured fixed latency or GPU/in-game performance improvement.
+  ☐ Run an end-to-end MSBuild check covering catalogue/tool rebuilding and deployed asset copying.
+    ☐ Include a contract-only change to prove the assembly identity boundary holds through actual
+      project builds, plus unchanged and isolated source edits and focused output equivalence checks.
+  ☐ Update docs/ShaderBuild.Incremental.md and relevant shader authoring/build instructions.
+    ☐ Explain dependency graph ownership, persistent records, identity boundaries, cache migration,
+      counters, strict hashing limitations, repair, clean, publication recovery, and hard-link fallback.
+    ☐ Reconcile proposal and plan links with final implementation and concise measured receipts;
+      keep proposed behavior distinguishable from completed evidence.
+  ☐ Completion gate: focused tests, integration/package checks, second review, and matched
+    measurements support the claimed behavior; all proposal requirements are accounted for.
+
+Final acceptance
+  ☐ Reconcile every source-proposal requirement with the implemented work and evidence above;
+    any unresolved change/deferment remains explicit and cannot silently weaken acceptance.
+  ☐ Confirm source processing uses TinyPreprocessor graph capabilities without duplicate discovery.
+  ☐ Confirm ordinary single-shader/contract edits skip unrelated expensive operations and runtime
+    binaries/manifests remain equivalent to clean builds.
+  ☐ Confirm failure recovery, migration, packaging, and supported configurations satisfy their gates.
+  ☐ Confirm documentation, cleanup, review, and measured performance results are complete before
+    marking the overall plan complete. Creating this plan does not begin implementation.
