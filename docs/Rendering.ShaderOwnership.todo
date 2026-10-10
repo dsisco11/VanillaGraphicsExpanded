@@ -2,8 +2,9 @@ VGE shader ownership and engine separation
 ==========================================
 
 Source proposal
-  docs/Rendering.ShaderOwnership.Proposal.md is authoritative.
-  Status: planning only; all implementation and acceptance tasks remain unchecked.
+  Rendering.ShaderOwnership.Proposal.md (sibling of this file) is authoritative.
+  Status: Phase 1 source audit and design contracts complete; runtime implementation and
+  acceptance remain unchecked.
 
 Scope and shared contracts
   Establish IGpuProgram with default implementation methods, implemented by independent
@@ -34,42 +35,52 @@ Execution and evidence
   Record concise receipts with the relevant task and linked contracts; no completion marks based
   solely on source inspection where executable or live evidence is required.
 
-Decisions to resolve before dependent implementation
-  ☐ Choose internal/public IGpuProgram accessibility and restricted state/hook access.
-    - Account for public GpuProgram and internal IShaderSubmissionTarget/GpuProgramLayout.
+Resolved decisions for dependent implementation
+  ☑ Choose internal/public IGpuProgram accessibility and restricted state/hook access.
+    - Use internal IGpuProgram with public GpuProgram/GpuProgramLayout and internal IShaderSubmissionTarget.
       Do not expose mutable lifecycle state or internal layout solely to enable default methods.
-  ☐ Specify distinct default workflow entry points, family hooks and required concrete facades.
+  ☑ Specify distinct default workflow entry points, family hooks and required concrete facades.
     - Prevent same-slot recursive dispatch; preserve protected Submit and authored overrides.
-  ☐ Select explicit compute reload policy: retain feature-owned reconstruction initially, or
+  ☑ Select explicit compute reload policy: retain feature-owned reconstruction initially, or
     implement retained rebuild descriptions and transactional replacement before promising it.
     - RetryPreparation alone is not invalidation of an already valid compute executable.
-  ☐ Choose the liquid pool interception after verifying installed call sites: narrow input adapter
+  ☑ Choose the liquid pool interception after verifying installed call sites: narrow input adapter
     at selected getter calls, or direct translation of the supported uniform operations.
-  ☐ Specify safe-boundary rejection/defer policy for actively borrowed executable replacement,
+  ☑ Specify safe-boundary rejection/defer policy for actively borrowed executable replacement,
     duplicate declarations, registry lifetime and actual shutdown/context-deletion ordering.
 
 Phase 1: Pin ownership contracts and migration coverage
   Outcome: interfaces, call-site obligations and validation boundaries are concrete enough to migrate.
-  Proposal: Evidence and current dependencies; Proposed ownership model; Compatibility.
+  Proposal: Evidence and current dependencies; Proposed ownership model; Compatibility;
+    Resolved migration contracts; Migration coverage and evidence.
 
-  ☐ Inventory inherited API and ambient ownership consumers.
+  ☑ Inventory inherited API and ambient ownership consumers.
     - Trace GpuProgram partials, GpuComputeShader, GpuShaderPrograms, GraphicsCommandContext,
       EngineBoundaryExecution, direct Use/TryUse/UseScope and low-level compute consumers.
     - Include LiquidGraphicsSubmission, MeshDataPoolManager.Render, LiquidPoolSubmissionHook,
       SceneColorProgramBindings, EngineRenderScopes and test/diagnostic uniform adapters.
     - Audit OwnedShaderSubmissionHook/GpuProgramStopHook and automatic frame/light inputs;
       distinguish VGE compensation from native terrain/atmosphere/material/particle behavior.
-  ☐ Confirm installed engine registration, Use/Stop/Dispose, pool input/finally restoration and
+  ☑ Confirm installed engine registration, Use/Stop/Dispose, pool input/finally restoration and
     reload call ordering against current assembly/API evidence, without running the game.
-  ☐ Define declaration identity, installed executable revision/asset generation and originating
+  ☑ Define declaration identity, installed executable revision/asset generation and originating
     native context identity using RenderContextRegistry; forbid numeric-ID-only ownership.
-  ☐ Resolve the decisions above in the proposal or linked owning contracts before their consumers.
+  ☑ Resolve the decisions above in the proposal or linked owning contracts before their consumers.
     - Define binding-only restoration versus immediate input replay and next-draw publication.
     - State which incoming engine/raw/compute footprints remain unsupported at boundaries.
-  ☐ Map existing tests to interface dispatch, cache loading, scopes, generators, liquids, registry,
+  ☑ Map existing tests to interface dispatch, cache loading, scopes, generators, liquids, registry,
     reload and disposal; identify fixtures that currently hide registration side effects.
-  ☐ Completion: each inherited/ambient dependency has a replacement owner or retained integration
+  ☑ Completion: each inherited/ambient dependency has a replacement owner or retained integration
     role, open decisions have an execution gate, and the migration has a source-backed test matrix.
+
+  Evidence: Rendering.ShaderOwnership.Proposal.md / Resolved migration contracts and
+    Migration coverage and evidence (installed 1.22.7 IL receipt, source disposition and test map).
+  Traceability: inventory -> Evidence/Compatibility -> dependency disposition; installed behavior
+    -> Evidence -> dated module/IL receipt; identity/decisions -> Proposed ownership model ->
+    resolved contracts; verification coverage -> Acceptance -> existing-test and gap matrix.
+  Verification: source/installed-IL inspection and second review completed 2026-10-10; independent
+    audit-stage-completion passed with no material gaps. No build, test or game execution; those
+    validate later implementation and remain open.
 
 Phase 2: Establish IGpuProgram workflows and compute naming
   Depends on Phase 1. Outcome: shared behavior and generated owners have a verified VGE contract.
