@@ -1,9 +1,9 @@
 Cached incremental SPIR-V builds
 ================================
 
-Source proposal: docs/ShaderBuild.CachedIncremental.Proposal.md
-Current behavior: docs/ShaderBuild.Incremental.md
-Status: planning only; all implementation and verification tasks are pending.
+Source proposal: ShaderBuild.CachedIncremental.Proposal.md
+Current behavior: ShaderBuild.Incremental.md
+Status: Phase 1 complete; Phases 2–7 remain pending.
 
 Goal and shared contracts
   Make expensive build work proportional to changed inputs and their dependents. Unchanged
@@ -35,13 +35,15 @@ Execution and completion rules
   No game launch or in-game visual acceptance is required. Headless validation must establish
   clean/incremental output equivalence and runtime manifest compatibility.
 
-Open design decisions, resolved before their consumers
-  - Exact catalogue/shared-model assembly boundaries: resolve in Phase 1 before Phase 2.
-  - Canonical effective-contract projection and implementation identity inputs: inventory in
-    Phase 1 and verify in Phase 2, including every actual emitter/extractor dependency.
-  - Direct/transitive TinyPreprocessor query semantics: verify in Phase 1 before graph selection.
-  - Windows hard-link behavior and interruption recovery layout: define in Phase 1 and execute
-    the filesystem checks in Phase 4. Copy fallback is required regardless of platform support.
+Design decisions and remaining verification
+  - Catalogue/shared-model boundaries are specified in the proposal, Resolved implementation
+    contracts / Project and declaration boundary; Phase 2 implements and validates the split.
+  - Effective-contract and implementation identity inputs are inventoried in the proposal,
+    Concrete identity and projection inputs; Phase 2 verifies their implementation.
+  - TinyPreprocessor direct-neighbor semantics and isolated-root behavior are verified by
+    ShaderDependencyGraphTests; Phase 3 implements persistent snapshots and selection.
+  - Hard-link ownership and interruption recovery are specified in the proposal, Publication
+    transaction and recovery; Phase 4 executes filesystem checks. Copy fallback remains required.
   - Existing compiler-cache migration: establish compatibility in Phase 6; accept a one-time
     cold population where identity equivalence cannot be demonstrated.
 
@@ -49,31 +51,47 @@ Phase 1: Establish dependency, identity, and publication contracts
   Outcome: foundational choices and verification fixtures are concrete enough to implement.
   Depends on: none.
   Proposal: Existing ownership and proposed layout; Identity boundaries; Expanded source record;
-    Coherent publication and output reuse; Implementation considerations requiring resolution.
+    Coherent publication and output reuse; Resolved implementation contracts.
 
-  ☐ Inventory the existing build and project graph.
-    ☐ Trace generated offline/runtime declarations, shared contract types, project references,
+  ☑ Inventory the existing build and project graph.
+    ☑ Trace generated offline/runtime declarations, shared contract types, project references,
       ShaderBuildTool entry points, SpirvBuild invocation, and deployed asset-copy targets.
-    ☐ Specify a dedicated offline catalogue data assembly with one-way model dependencies;
+    ☑ Specify a dedicated offline catalogue data assembly with one-way model dependencies;
       avoid conflicting shared type copies and circular references. Retain the same generator
       and authoritative models for runtime declarations.
-    ☐ Inventory actual inputs used by source preprocessing, emission/layout, compiler execution,
+    ☑ Inventory actual inputs used by source preprocessing, emission/layout, compiler execution,
       reflection/packaging, and catalogue membership. Record the decisions here or in the
       source proposal before implementing their consumers.
-  ☐ Verify installed TinyPreprocessor 0.4.0 / TinyAst.Preprocessor 0.4.3 graph semantics.
-    ☐ Use a root-to-include-to-nested-include fixture to establish direct/transitive behavior of
+  ☑ Verify installed TinyPreprocessor 0.4.0 / TinyAst.Preprocessor 0.4.3 graph semantics.
+    ☑ Use a root-to-include-to-nested-include fixture to establish direct/transitive behavior of
       GetDependencies/GetDependents, canonical identities, isolated roots, order, and cycles.
-    ☐ Confirm ShaderSyntaxTreePreprocessor returns the graph and ShaderSourcePreprocessor's
+    ☑ Confirm ShaderSyntaxTreePreprocessor returns the graph and ShaderSourcePreprocessor's
       current text-only return drops it; define the result boundary that will retain it.
-  ☐ Define output transaction and input-snapshot invariants.
-    ☐ Enumerate interruption points in staging, old-generation rename, new-generation install,
+  ☑ Define output transaction and input-snapshot invariants.
+    ☑ Enumerate interruption points in staging, old-generation rename, new-generation install,
       and receipt publication. Specify deterministic recovery before another receipt check.
-    ☐ Define immutable-file ownership for hard links, supported same-volume behavior, copy
+    ☑ Define immutable-file ownership for hard links, supported same-volume behavior, copy
       fallback, and downstream copying only after successful publication.
-    ☐ Specify source/contract snapshot validation before commit and bounded retry or failure
+    ☑ Specify source/contract snapshot validation before commit and bounded retry or failure
       behavior when inputs change while processing.
-  ☐ Completion gate: dependency APIs and compilation boundaries are verified; decisions cover
+  ☑ Completion gate: dependency APIs and compilation boundaries are verified; decisions cover
     every identity input and publication transition without weakening proposal guarantees.
+
+  Evidence and decisions (second review and independent completion audit passed)
+    - Source proposal, Resolved implementation contracts, records the inspected project graph,
+      offline model/catalogue split, exact identity inputs, immutable preprocessing result,
+      publication interruption/recovery table, and fail-without-retry input-snapshot policy.
+    - ShaderBuildTool.Tests/ShaderDependencyGraphTests.cs: 3/3 focused tests passed against the
+      installed TinyPreprocessor 0.4.0 / TinyAst.Preprocessor 0.4.3 bridge. Queries return direct
+      neighbors; isolated graph order is empty while membership/ProcessedResources retain root.
+      Canonical IDs, nested ordering, root callback exclusion, and cycle handling are verified.
+    - Subagent command: dotnet test ShaderBuildTool.Tests/ShaderBuildTool.Tests.csproj --no-restore
+      --filter FullyQualifiedName~ShaderDependencyGraphTests -p:UseSharedCompilation=false
+      -p:GenerateRuntimeConfigurationFiles=false --tl:off -v:minimal
+      Environment: normal runtimeconfig generation failed NETSDK1060 (null path1). Focused tests
+      used an ignored bin runtimeconfig targeting Microsoft.NETCore.App 10.0.0. Production shader
+      outputs were not built. Assembly-separation and filesystem recovery execution belong to
+      their later implementation gates; this phase establishes their concrete contracts.
 
 Phase 2: Separate catalogue data and establish stable cache identities
   Outcome: contract-only edits do not globally invalidate unrelated compiler results.
