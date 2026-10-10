@@ -120,7 +120,7 @@
 
   <Target Name="CopySpirvArtifactsToOutputAssets" Condition="'$(EnableSpirv)' == 'true' Or '$(EnableSpirv)' == 'True'" AfterTargets="Build">
     <ItemGroup>
-      <_SpirvFiles Include="$(SpirvArtifactsDir)\**\*.spv;$(SpirvArtifactsDir)\**\spirv-digests.json" Exclude="$(SpirvArtifactsDir)\_tmp\**;$(SpirvArtifactsDir)\_cache\**" />
+      <_SpirvFiles Include="$(SpirvArtifactsDir)\**\*.spv;$(SpirvArtifactsDir)\**\spirv-digests.json" Exclude="$(SpirvArtifactsDir)\_tmp\**;$(SpirvArtifactsDir)\_cache\**;$(SpirvArtifactsDir)\**\.shader-pending-*\**;$(SpirvArtifactsDir)\**\.shader-previous-*\**" />
       <_SpirvOutDirs Include="@(_SpirvFiles->'$(TargetDir)assets\%(RecursiveDir)')" />
       <_CurrentSpirvOutputs Include="@(_SpirvFiles->'$(TargetDir)assets\%(RecursiveDir)%(Filename)%(Extension)')" />
       <_ObsoleteSpirvOutputs Include="$(TargetDir)assets\$(SpirvDomain)\shaders\**\*.spv" Exclude="@(_CurrentSpirvOutputs)" />

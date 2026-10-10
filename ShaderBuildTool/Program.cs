@@ -55,57 +55,78 @@ internal static class Program
                 _ => throw new OptionsException("Unknown registry scope: " + options.RegistryScope)
             };
             using var outputLease = ShaderOutputLease.Acquire(outputRoot);
-            Console.WriteLine("[SPIR-V] Generating shared shader constants and checking input/compiler fingerprints...");
-            var checkTimer = System.Diagnostics.Stopwatch.StartNew();
-            LumonOctahedralShWeights.Generate(domainShadersRoot);
-            var fileHashes = new ShaderFileHashIndex(outputRoot, options.VerifyContents || options.Clean);
-            var inputDetails = new Dictionary<string, string>(StringComparer.Ordinal) { ["registry scope"] = options.RegistryScope };
-            var identities = ShaderBuildIdentities.Capture(
-                options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors, fileHashes, inputDetails);
-            string compilerIdentity = identities.Compiler;
-            inputDetails["preprocessing identity"] = identities.Preprocessing;
-            inputDetails["emission identity"] = identities.Emission;
-            inputDetails["interface identity"] = identities.Interface;
-            string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, identities.Receipt(registry, options.RegistryScope, inputDetails), fileHashes, inputDetails);
-            Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Input hashes: reused={fileHashes.ReusedFiles}; read={fileHashes.HashedFiles}; elapsedMs={checkTimer.Elapsed.TotalMilliseconds:F1}"));
-            Console.WriteLine("[SPIR-V] Checking incremental receipt and verifying published binary contents...");
-            checkTimer.Restart();
-            if (options.Clean) Console.WriteLine("[SPIR-V] Rebuild reason: --clean explicitly discards outputs and cache.");
-            else if (!options.Incremental) Console.WriteLine("[SPIR-V] Rebuild reason: --incremental was not enabled.");
-            if (!options.Clean && options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint, inputDetails,
-                reason => Console.WriteLine("[SPIR-V] Rebuild reason: " + reason)))
-            {
-                fileHashes.Save();
-                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] All shader binaries and contracts are current; receiptCheckMs={checkTimer.Elapsed.TotalMilliseconds:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
-                Console.WriteLine($"[SPIR-V] Cache hits={registry.Binaries.Count}; misses=0; shadersRecompiled=0; compilerInvocations=0");
-                return 0;
-            }
-            Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Catalog rebuild required (receipt missing/stale, outputs invalid, or rebuild requested); checkMs={checkTimer.Elapsed.TotalMilliseconds:F1}. Per-variant cache reuse={options.Incremental && !options.Clean}."));
-            if (options.Clean && Directory.Exists(outputRoot))
-            {
-                Directory.Delete(outputRoot, recursive: true);
-            }
-
-            Directory.CreateDirectory(outputRoot);
-
-            // Invalidate the old success marker even for non-clean rebuilds before scheduling any work.
-            File.Delete(Path.Combine(outputRoot, "build-receipt.json"));
-            using var cancellation = new CancellationTokenSource();
-            ConsoleCancelEventHandler cancel = (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
-            Console.CancelKeyPress += cancel;
+            var publication = new ShaderPublication(outputRoot, domain, report: message => Console.WriteLine("[SPIR-V] " + message));
             try
             {
-                ShaderVariantBuild.RunAsync(assetsRoot, outputRoot, domain,
-                    options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv,
-                    options.WarningsAsErrors, registry, options.Concurrency, cancellation.Token, options.Incremental,
-                    compilerIdentity).GetAwaiter().GetResult();
+                publication.Recover();
+                Console.WriteLine("[SPIR-V] Generating shared shader constants and checking input/compiler fingerprints...");
+                var checkTimer = System.Diagnostics.Stopwatch.StartNew();
+                LumonOctahedralShWeights.Generate(domainShadersRoot);
+                var fileHashes = new ShaderFileHashIndex(outputRoot, options.VerifyContents || options.Clean);
+                var inputDetails = new Dictionary<string, string>(StringComparer.Ordinal) { ["registry scope"] = options.RegistryScope };
+                var identities = ShaderBuildIdentities.Capture(
+                    options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors, fileHashes, inputDetails);
+                string compilerIdentity = identities.Compiler;
+                inputDetails["preprocessing identity"] = identities.Preprocessing;
+                inputDetails["emission identity"] = identities.Emission;
+                inputDetails["interface identity"] = identities.Interface;
+                string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, identities.Receipt(registry, options.RegistryScope, inputDetails), fileHashes, inputDetails);
+                var snapshot = new ShaderBuildInputSnapshot(assetsRoot, domain, options.WorkingDirectory ?? Directory.GetCurrentDirectory(),
+                    options.TargetEnv, options.WarningsAsErrors, registry, options.RegistryScope, fingerprint, options.VerifyContents || options.Clean);
+                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Input hashes: reused={fileHashes.ReusedFiles}; read={fileHashes.HashedFiles}; elapsedMs={checkTimer.Elapsed.TotalMilliseconds:F1}"));
+                Console.WriteLine("[SPIR-V] Checking incremental receipt and verifying published binary contents...");
+                checkTimer.Restart();
+                if (options.Clean) Console.WriteLine("[SPIR-V] Rebuild reason: --clean explicitly discards outputs and cache.");
+                else if (!options.Incremental) Console.WriteLine("[SPIR-V] Rebuild reason: --incremental was not enabled.");
+                if (!options.Clean && options.Incremental && ShaderBuildReceipt.IsCurrent(outputRoot, fingerprint, inputDetails,
+                    reason => Console.WriteLine("[SPIR-V] Rebuild reason: " + reason)))
+                {
+                    fileHashes.Save();
+                    Console.WriteLine(FormattableString.Invariant($"[SPIR-V] All shader binaries and contracts are current; receiptCheckMs={checkTimer.Elapsed.TotalMilliseconds:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
+                    Console.WriteLine($"[SPIR-V] Cache hits={registry.Binaries.Count}; misses=0; shadersRecompiled=0; compilerInvocations=0");
+                    return 0;
+                }
+                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Catalog rebuild required (receipt missing/stale, outputs invalid, or rebuild requested); checkMs={checkTimer.Elapsed.TotalMilliseconds:F1}. Per-variant cache reuse={options.Incremental && !options.Clean}."));
+                if (options.Clean && Directory.Exists(outputRoot))
+                {
+                    Directory.Delete(outputRoot, recursive: true);
+                }
+
+                Directory.CreateDirectory(outputRoot);
+
+                // Invalidate the old success marker even for non-clean rebuilds before scheduling any work.
+                File.Delete(Path.Combine(outputRoot, "build-receipt.json"));
+                using var cancellation = new CancellationTokenSource();
+                ConsoleCancelEventHandler cancel = (_, eventArgs) => { eventArgs.Cancel = true; cancellation.Cancel(); };
+                Console.CancelKeyPress += cancel;
+                try
+                {
+                    ShaderVariantBuild.RunAsync(assetsRoot, outputRoot, domain,
+                        options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv,
+                        options.WarningsAsErrors, registry, options.Concurrency, cancellation.Token, options.Incremental,
+                        compilerIdentity, generation =>
+                        {
+                            publication.Publish(generation.Binaries, generation.Manifest, fingerprint,
+                                publishReceipt: () =>
+                                {
+                                    fileHashes.Save();
+                                    Console.WriteLine("[SPIR-V] Publishing verified build receipt...");
+                                    ShaderBuildReceipt.Publish(outputRoot, fingerprint, inputDetails);
+                                },
+                                validateInputs: () => snapshot.Validate(outputRoot, generation), cancellationToken: cancellation.Token);
+                        }).GetAwaiter().GetResult();
+                }
+                finally { Console.CancelKeyPress -= cancel; }
+
+                Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Build complete; totalElapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
+                return 0;
             }
-            finally { Console.CancelKeyPress -= cancel; }
-            fileHashes.Save();
-            Console.WriteLine("[SPIR-V] Publishing verified build receipt...");
-            ShaderBuildReceipt.Publish(outputRoot, fingerprint, inputDetails);
-            Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Build complete; totalElapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}."));
-            return 0;
+            catch
+            {
+                // Invalidate while the writer lease is still held, including failures before selected work.
+                File.Delete(Path.Combine(outputRoot, "build-receipt.json"));
+                throw;
+            }
         }
         catch (OptionsException ex)
         {

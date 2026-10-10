@@ -89,7 +89,7 @@ internal static class ShaderBuildReceipt
             }
             foreach (var pair in receipt.Outputs)
             {
-                string file = Path.Combine(outputRoot, pair.Key);
+                string file = ShaderPublicationPaths.FileWithin(outputRoot, pair.Key);
                 if (!File.Exists(file)) { report?.Invoke("Published output missing: " + file); return false; }
                 if (Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(file))) != pair.Value)
                 { report?.Invoke("Published output content changed: " + file); return false; }
@@ -103,6 +103,9 @@ internal static class ShaderBuildReceipt
             }
             return true;
         }
+        catch (ArgumentException error) { report?.Invoke("Malformed build receipt path: " + error.Message); return false; }
+        catch (InvalidDataException error) { report?.Invoke("Invalid build receipt path: " + error.Message); return false; }
+        catch (IOException error) { report?.Invoke("Unreadable build receipt: " + error.Message); return false; }
         catch (JsonException error) { report?.Invoke("Malformed build receipt: " + error.Message); return false; }
     }
 
@@ -135,14 +138,20 @@ internal static class ShaderBuildReceipt
     }
 
     /// <summary>Prunes private trees before traversal so historical cache size does not increase receipt enumeration work.</summary>
-    private static IEnumerable<string> PublishedFiles(string root)
+    private static IEnumerable<string> PublishedFiles(string root, bool topLevel = true)
     {
-        foreach (string file in Directory.EnumerateFiles(root)) yield return file;
+        foreach (string file in Directory.EnumerateFiles(root))
+        {
+            ShaderPublicationPaths.EnsureUnredirected(file);
+            yield return file;
+        }
         foreach (string directory in Directory.EnumerateDirectories(root))
         {
             string name = Path.GetFileName(directory);
-            if (name.Equals("_tmp", StringComparison.OrdinalIgnoreCase) || name.Equals("_cache", StringComparison.OrdinalIgnoreCase)) continue;
-            foreach (string file in Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)) yield return file;
+            if (topLevel && (name.Equals("_tmp", StringComparison.OrdinalIgnoreCase) || name.Equals("_cache", StringComparison.OrdinalIgnoreCase))) continue;
+            if (name.StartsWith(".shader-pending-", StringComparison.Ordinal) || name.StartsWith(".shader-previous-", StringComparison.Ordinal)) continue;
+            ShaderPublicationPaths.EnsureUnredirected(directory);
+            foreach (string file in PublishedFiles(directory, topLevel: false)) yield return file;
         }
     }
     #endregion

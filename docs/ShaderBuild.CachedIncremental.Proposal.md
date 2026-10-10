@@ -1,6 +1,6 @@
 # Cached incremental SPIR-V builds
 
-Status: implementation in progress; assembly separation and identity boundaries are implemented and verified. Persistent processing record APIs are implemented and verified. Selective orchestration and publication recovery remain proposed.
+Status: implementation in progress; assembly separation and identity boundaries are implemented and verified. Persistent processing record APIs are implemented and verified. Recoverable generation publication is implemented and verified; selective orchestration remains proposed.
 
 ## Intent
 
@@ -10,7 +10,7 @@ The existing compiler-result cache remains useful. This proposal adds dependency
 
 ## Current behavior and measured baseline
 
-[ShaderBuild.Incremental.md](ShaderBuild.Incremental.md) documents the current implementation. An unchanged catalogue takes a receipt shortcut. Any shader input change invalidates that receipt and enters [ShaderVariantBuild](../ShaderBuildTool/Spirv/ShaderVariantBuild.cs), which expands every distinct source, emits every variant, checks the compiler-result cache, extracts interfaces even for cache hits, and republishes the complete catalogue.
+[ShaderBuild.Incremental.md](ShaderBuild.Incremental.md) documents the current implementation. An unchanged catalogue takes a receipt shortcut. Any shader input change invalidates that receipt and enters [ShaderVariantBuild](../ShaderBuildTool/Spirv/ShaderVariantBuild.cs), which expands every distinct source, emits every variant, checks the compiler-result cache, extracts interfaces even for cache hits, and submits the complete catalogue to publication. Publication now reuses verified unchanged binary files and skips replacement of an identical generation.
 
 The progress counter in [ShaderCompilationBatch](../ShaderBuildTool/Spirv/ShaderCompilationBatch.cs) counts processed variants, including cache hits. It does not count compiler invocations.
 

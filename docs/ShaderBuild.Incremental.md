@@ -117,3 +117,36 @@ Compiler and processing record filenames use the same Base32 alphabet as runtime
 identifiers, retaining the complete SHA-256 digest rather than truncating it. Old hexadecimal
 cache filenames are not reused by the new key format; entries populate on the next build.
 Explicit clean can reclaim the historical entries. Runtime variant filenames remain unchanged.
+
+Generation publication uses a versioned, integrity-checked journal at
+`_tmp/publication.json` under the output lease. Recovery runs before receipt checking
+or clean. Pending and previous generations are reserved siblings of the active shader
+directory; journal paths, file references and filesystem redirection are checked before
+recovery reads or removes them. Invalid or ambiguous recovery data invalidates success
+and requires repair rather than guessing which outputs to keep.
+
+The publisher stages and verifies the complete manifest/binary set, retains the previous
+generation through receipt commit, and writes the receipt last. Ordinary installation
+or receipt failures restore a verified previous generation when available. On restart,
+an interrupted rename restores the previous generation; a verified installed generation
+can be retained without a success marker. A receipt committed before interruption is
+accepted only after ordinary input/output verification and exact journal matching.
+
+Unchanged verified binaries use same-volume Windows hard links where supported. Writers
+replace files rather than modifying linked contents. Unsupported linking falls back to
+verified copies; publication reports linked/copied/written binary counts and copy work
+time. Retained binaries and identical manifests preserve last-write timestamps. If the
+complete output membership, manifest and bytes are identical, publication skips the
+directory replacement entirely. Damaged outputs can be reconstructed from verified
+compiler-cache results through the same complete-generation path.
+
+Consumed source bytes, catalogue content and processing/compiler fingerprints are checked
+before active mutation and again before receipt publication. Strict mode rehashes content;
+normal mode retains the documented metadata-assisted limitation. Input changes fail the
+invocation without automatic retry. Cache entries remain independently reusable.
+
+Downstream asset copying runs after successful shader build completion, excludes private
+pending/previous generation directories, and prunes removed binaries from current output
+membership. Directory renames provide recoverable writer publication, not an atomic
+transaction for arbitrary live readers. External in-place modification of hard-linked
+files is outside the writer ownership guarantee.

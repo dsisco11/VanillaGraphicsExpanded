@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 using System.Diagnostics;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -7,19 +8,23 @@ namespace ShaderBuildTool.Spirv;
 /// <summary>Compiles deduplicated program projections directly to runtime SPIR-V assets.</summary>
 internal static class ShaderVariantBuild
 {
-    #region Build and publication
+    #region Public API
     /// <summary>Publishes compiler output unchanged; program assignments and shared stages come from the resolver.</summary>
     public static async Task RunAsync(string assetsRoot, string outputRoot, string domain, string workingDirectory,
         string target, bool warningsAsErrors, ShaderVariantResolver registry, int concurrency, CancellationToken cancellationToken,
-        bool incremental = false, string? compilerIdentity = null)
+        bool incremental = false, string? compilerIdentity = null, Action<ShaderBuildGeneration>? publish = null)
     {
         var elapsed = Stopwatch.StartNew();
+        var publication = new ShaderPublication(outputRoot, domain, report: message => Console.WriteLine("[SPIR-V] " + message));
+        publication.Recover();
+        File.Delete(Path.Combine(outputRoot, "build-receipt.json"));
         string manifestPath = Path.Combine(outputRoot, domain, "shaders", ShaderBinaryDigest.FileName);
-        Directory.CreateDirectory(Path.GetDirectoryName(manifestPath)!);
+
         var digests = new System.Collections.Concurrent.ConcurrentDictionary<string, ShaderBinaryDigest.Entry>(StringComparer.Ordinal);
         var binaries = new System.Collections.Concurrent.ConcurrentDictionary<string, byte[]>(StringComparer.Ordinal);
         ValidateSources(Path.Combine(assetsRoot, domain, "shaders"), registry);
-        var sources = new ShaderVariantSource(assetsRoot, domain);
+        var sources = new ShaderSourcePreprocessor(assetsRoot, domain);
+        var observedInputs = new Dictionary<string, ShaderInputObservation>(StringComparer.Ordinal);
         var cache = new ShaderVariantCache(outputRoot, compilerIdentity
             ?? ShaderBuildReceipt.CompilerFingerprint(workingDirectory, target, warningsAsErrors));
         int hits = 0, misses = 0;
@@ -31,7 +36,14 @@ internal static class ShaderVariantBuild
         foreach (string source in registry.Binaries.Select(selection => selection.Stage.Source).Distinct(StringComparer.Ordinal))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            expanded.Add(source, sources.Expand(source));
+            var processed = sources.Expand(source);
+            expanded.Add(source, processed.Text);
+            foreach (var inputObservation in processed.Inputs)
+            {
+                if (observedInputs.TryGetValue(inputObservation.Path, out var earlier) && earlier.Hash != inputObservation.Hash)
+                    throw new IOException("Shader input changed between roots: " + inputObservation.Path);
+                observedInputs[inputObservation.Path] = inputObservation;
+            }
         }
         double expansionMilliseconds = elapsed.Elapsed.TotalMilliseconds;
         long emissionTicks = 0, compilerTicks = 0, interfaceTicks = 0;
@@ -53,7 +65,7 @@ internal static class ShaderVariantBuild
             {
                 string pending = input + ".spv";
                 Directory.CreateDirectory(Path.GetDirectoryName(input)!);
-                Directory.CreateDirectory(Path.GetDirectoryName(binary)!);
+
                 File.Delete(pending);
                 try
                 {
@@ -104,8 +116,10 @@ internal static class ShaderVariantBuild
         await ShaderCompilationBatch.RunAsync(jobs, concurrency, Console.Out, Console.Error, cancellationToken);
         Console.WriteLine("[SPIR-V] Pruning obsolete outputs and publishing binary digests...");
         // Keep the previous coherent generation intact until every compiler and extractor succeeds.
-        PublishGeneration(Path.GetDirectoryName(manifestPath)!, binaries,
-            ShaderBinaryDigest.Encode(digests.ToDictionary(pair => pair.Key, pair => pair.Value)));
+        var generation = new ShaderBuildGeneration(binaries,
+            ShaderBinaryDigest.Encode(digests.ToDictionary(pair => pair.Key, pair => pair.Value)), observedInputs.Values.ToImmutableArray());
+        if (publish is not null) publish(generation);
+        else publication.Publish(generation.Binaries, generation.Manifest, validateInputs: () => generation.ValidateInputs(new ShaderFileHashIndex(outputRoot, true)), cancellationToken: cancellationToken);
         Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Interface extraction: workMs={interfaceTicks * 1000.0 / Stopwatch.Frequency:F1}; manifestBytes={new FileInfo(manifestPath).Length}"));
         foreach (var stage in registry.Binaries.GroupBy(s => s.Stage.Identity))
             Console.WriteLine($"[SPIR-V] {stage.Key}: {stage.Count()} structural variants");
@@ -114,45 +128,6 @@ internal static class ShaderVariantBuild
         foreach (var reason in missReasons.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             Console.WriteLine($"[SPIR-V] Cache miss reason: {reason.Key}; variants={reason.Value}");
         Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Timing: concurrency={concurrency}; expansionMs={expansionMilliseconds:F1}; emissionWorkMs={emissionTicks * 1000.0 / Stopwatch.Frequency:F1}; compilerWorkMs={compilerTicks * 1000.0 / Stopwatch.Frequency:F1}; elapsedMs={elapsed.Elapsed.TotalMilliseconds:F1}"));
-    }
-
-    /// <summary>Stages complete binary/metadata pairs and replaces the published directory with rollback on installation failure.</summary>
-    private static void PublishGeneration(string publishedRoot, IReadOnlyDictionary<string, byte[]> binaries, byte[] manifest)
-    {
-        string parent = Path.GetDirectoryName(Path.GetFullPath(publishedRoot))!;
-        string pending = Path.Combine(parent, ".shader-pending-" + Guid.NewGuid().ToString("N"));
-        string previous = Path.Combine(parent, ".shader-previous-" + Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(pending);
-        bool movedPrevious = false;
-        bool installed = false;
-        try
-        {
-            foreach (var pair in binaries.OrderBy(pair => pair.Key, StringComparer.Ordinal))
-            {
-                string path = Path.GetFullPath(Path.Combine(pending, pair.Key));
-                if (!path.StartsWith(pending + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
-                    throw new InvalidDataException("Shader output escapes its publication directory: " + pair.Key);
-                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-                File.WriteAllBytes(path, pair.Value);
-                string prior = Path.Combine(publishedRoot, pair.Key);
-                if (File.Exists(prior) && File.ReadAllBytes(prior).AsSpan().SequenceEqual(pair.Value))
-                    File.SetLastWriteTimeUtc(path, File.GetLastWriteTimeUtc(prior));
-            }
-            File.WriteAllBytes(Path.Combine(pending, ShaderBinaryDigest.FileName), manifest);
-            if (Directory.Exists(publishedRoot)) { Directory.Move(publishedRoot, previous); movedPrevious = true; }
-            try { Directory.Move(pending, publishedRoot); installed = true; }
-            catch
-            {
-                if (movedPrevious) { Directory.Move(previous, publishedRoot); movedPrevious = false; }
-                throw;
-            }
-        }
-        finally
-        {
-            // These paths are unique direct children of the verified publication parent.
-            if (Directory.Exists(pending)) Directory.Delete(pending, recursive: true);
-            if (installed && movedPrevious && Directory.Exists(previous)) Directory.Delete(previous, recursive: true);
-        }
     }
 
     /// <summary>Checks owned entry-point coverage without inferring contracts or assuming source names are identities.</summary>
@@ -170,6 +145,9 @@ internal static class ShaderVariantBuild
             throw new InvalidOperationException($"Shader source coverage failed. Unregistered owned entry points: [{string.Join(", ", unknown)}]. Missing registered sources: [{string.Join(", ", missing)}].");
     }
 
+    #endregion
+
+    #region Private
     /// <summary>Maps the declared stage kind to the layout and compiler vocabulary, independently of asset naming.</summary>
     private static string StageExtension(ShaderStageKind kind) => kind switch
     {

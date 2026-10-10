@@ -65,6 +65,32 @@ public sealed class ShaderDigestReceiptTests
         Assert.True(ShaderBuildReceipt.IsCurrent(fixture.Output, "fixture"));
     }
 
+    /// <summary>Invalid filesystem characters in untrusted receipt keys cause a miss instead of escaping validation.</summary>
+    [Fact]
+    public void InvalidOutputPathInReceiptIsRejected()
+    {
+        using var fixture = new ShaderBuildFixture();
+        Directory.CreateDirectory(fixture.Output);
+        File.WriteAllText(Path.Combine(fixture.Output, "build-receipt.json"),
+            System.Text.Json.JsonSerializer.Serialize(new { Inputs = "fixture", Outputs = new Dictionary<string, string> { ["bad\0.spv"] = "digest" } }));
+        Assert.False(ShaderBuildReceipt.IsCurrent(fixture.Output, "fixture"));
+    }
+
+    /// <summary>Nested shader directories named like private roots remain part of receipt verification.</summary>
+    [Fact]
+    public void NestedPrivateNamesRemainPublishedOutputs()
+    {
+        using var fixture = new ShaderBuildFixture();
+        string nested = Path.Combine(fixture.Output, "domain", "shaders", "_cache");
+        Directory.CreateDirectory(nested);
+        string binary = Path.Combine(nested, "fixture.spv");
+        File.WriteAllBytes(binary, [1]);
+        ShaderBuildReceipt.Publish(fixture.Output, "fixture");
+        Assert.True(ShaderBuildReceipt.IsCurrent(fixture.Output, "fixture"));
+        File.WriteAllBytes(binary, [2]);
+        Assert.False(ShaderBuildReceipt.IsCurrent(fixture.Output, "fixture"));
+    }
+
     /// <summary>Malformed or incomplete receipt data requests a rebuild instead of accepting an invalid success marker.</summary>
     [Theory]
     [InlineData("{")]

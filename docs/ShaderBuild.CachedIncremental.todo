@@ -3,7 +3,7 @@ Cached incremental SPIR-V builds
 
 Source proposal: ShaderBuild.CachedIncremental.Proposal.md
 Current behavior: ShaderBuild.Incremental.md
-Status: Phases 1–3 complete; Phases 4–7 pending.
+Status: Phases 1–4 complete; Phases 5–7 pending.
 
 Goal and shared contracts
   Make expensive build work proportional to changed inputs and their dependents. Unchanged
@@ -223,27 +223,56 @@ Phase 4: Preserve coherent publication while reusing unchanged outputs
   Depends on: Phases 1–3. The current build path can exercise this before selective integration.
   Proposal: Coherent publication and output reuse; Build algorithm failure guarantees.
 
-  ☐ Implement recoverable generation publication under ShaderOutputLease.
-    ☐ Restore the previous complete generation or finish a fully validated pending generation
+  ☑ Implement recoverable generation publication under ShaderOutputLease.
+    ☑ Restore the previous complete generation or finish a fully validated pending generation
       using explicit recovery state before receipt evaluation. Validate all recovery paths as owned.
-    ☐ Keep the full manifest/binary generation coherent; never update changed active files
+    ☑ Keep the full manifest/binary generation coherent; never update changed active files
       individually. Publish the success receipt last and invalidate success on failed builds.
-    ☐ Prune removed outputs only on successful publication and copy downstream only after success.
-  ☐ Reuse unchanged verified binaries when constructing a generation.
-    ☐ Hard-link immutable same-volume files where supported; replace files on updates rather
+    ☑ Prune removed outputs only on successful publication and copy downstream only after success.
+  ☑ Reuse unchanged verified binaries when constructing a generation.
+    ☑ Hard-link immutable same-volume files where supported; replace files on updates rather
       than modifying linked contents. Preserve timestamps for unchanged deployed outputs.
-    ☐ Exercise and report copy fallback when hard links are unavailable; correctness cannot
+    ☑ Exercise and report copy fallback when hard links are unavailable; correctness cannot
       depend on support. Write changed binaries and changed manifests as new files.
-    ☐ Skip generation replacement entirely when verified membership, binary bytes, and manifest
+    ☑ Skip generation replacement entirely when verified membership, binary bytes, and manifest
       are unchanged; update only required private records/receipt.
-    ☐ Repair damaged published outputs from verified cached results before publication.
-  ☐ Verify failure and filesystem behavior.
-    ☐ Inject cancellation/failures around every transaction transition, including receipt write;
+    ☑ Repair damaged published outputs from verified cached results before publication.
+  ☑ Verify failure and filesystem behavior.
+    ☑ Inject cancellation/failures around every transaction transition, including receipt write;
       run restart recovery and verify no false success or accepted mixed generation.
-    ☐ Cover simultaneous writers, hard-link immutability, fallback copies, retained timestamps,
+    ☑ Cover simultaneous writers, hard-link immutability, fallback copies, retained timestamps,
       missing/corrupt outputs, removed membership, and the no-change publication path.
-  ☐ Completion gate: recovery and rollback tests pass; publication preserves coherent output
+  ☑ Completion gate: recovery and rollback tests pass; publication preserves coherent output
     and documents the existing lack of arbitrary-live-reader transaction guarantees.
+
+  Evidence (second review and independent completion audit passed)
+    - Proposal Coherent publication / Resolved publication transaction -> ShaderPublication,
+      ShaderPublicationJournal, ShaderPublicationPaths and ShaderGenerationSnapshot implement
+      versioned recovery, exact-generation validation, confined cleanup and receipt-last commit.
+      Program recovers under ShaderOutputLease before receipt evaluation or clean. Input checks
+      retain consumed source observations and captured catalogue/processing/compiler identities.
+    - ShaderBinaryReuse exercises actual Windows hard links and verified copy fallback; unchanged
+      binaries/manifests retain timestamps. Identical generations skip directory replacement.
+      ShaderVariantBuild now passes complete generations to the publisher; verified compiler
+      cache results repair damaged outputs through the same path. Recovery trees are excluded
+      from receipt membership and downstream asset copying.
+    - 34 publication tests cover all eight transition checkpoints, first publication, cancellation,
+      ordinary rename/receipt failures, rollback, corrupt/ambiguous generations, invalid journals
+      and paths, actual link immutability, forced copies, no-change publication, nested paths and
+      input rejection at both commit checks. Existing lease/incremental tests retain concurrent
+      writer exclusion and real compiler cache/output repair coverage. Two additional receipt
+      regressions cover malformed paths and nested shader directory ownership.
+    - Full ShaderBuildTool.Tests passed Debug 180/180 and Release 180/180; final focused
+      publication/incremental/lease/receipt checks passed 55/55 each, and final receipt regressions
+      passed 12/12 each. All final runs reported zero warnings/errors. Commands use dotnet test
+      ShaderBuildTool.Tests/ShaderBuildTool.Tests.csproj [-c Release] --no-restore
+      -p:UseSharedCompilation=false -nr:false -m:1 --tl:off -v:minimal, with focused filters.
+      Logs and isolated copy-probe receipts: artifacts/investigation/phase4.
+    - Actual CopySpirvArtifactsToOutputAssets MSBuild target ran three times against isolated
+      outputs: only active binaries/manifests copied, recovery/cache trees excluded, unchanged
+      timestamps retained, and removed binary pruned. No game deployment or visual claim.
+      Current-behavior documentation records recovery and the lack of arbitrary-live-reader
+      transaction guarantees. Selective processing remains the next integration gate.
 
 Phase 5: Integrate selective processing and truthful work counters
   Outcome: normal incremental builds skip expensive work for unrelated stages and variants.
