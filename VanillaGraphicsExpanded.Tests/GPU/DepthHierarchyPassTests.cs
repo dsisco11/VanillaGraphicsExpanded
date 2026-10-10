@@ -13,6 +13,10 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
     /// <summary>Every source texel, including odd edges and one-dimensional tails, contributes to its proportional parent footprint.</summary>
     [Theory]
     [InlineData(65,37)]
+    [InlineData(129,127)]
+    [InlineData(257,131)]
+    [InlineData(1,257)]
+    [InlineData(257,1)]
     [InlineData(7,3)]
     [InlineData(1,17)]
     [InlineData(17,1)]
@@ -21,13 +25,13 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
     public void EveryMipMatchesIndependentConservativeReduction(int width,int height) {
         EnsureShaderTestAvailable();
         using var owner=new DepthHierarchyPass();using var draw=new PostprocessDraw();
-        var copy=Programs.Create<DepthHierarchyCopyShaderProgram>();var reduce=Programs.Create<DepthHierarchyDownsampleShaderProgram>();
+        var compute=Programs.CreateDepthHierarchy();
         float[] values=Enumerable.Range(0,width*height).Select(i=>.1f+.8f*((i*31)%101)/101f).ToArray();
         values[^1]=.001f;
         using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.R32f,values);
-        var pipelines=owner.Prepare(draw,width,height,copy,reduce);
+        owner.Prepare(width,height,compute);
         using(var hostile=new HostileFullscreenState()) {
-            Assert.True(GraphicsCommandContext.TryRun("Tests.DepthHierarchy",pipelines,true,commands=>owner.Render(commands,draw,source)));
+            owner.Render(source);
             hostile.AssertRestored();
         }
         var texture=owner.Texture!;long bytes=0;int w=width,h=height;
@@ -51,9 +55,57 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.Equal(.001f,values[0]);Assert.Equal(bytes,owner.StorageBytes);
         // Restored mip accessibility is observable through readback of the complete chain above.
         Assert.Same(texture,owner.Texture);
-        owner.Prepare(draw,width,height,copy,reduce);Assert.Same(texture,owner.Texture);
-        owner.Prepare(draw,width+2,height+2,copy,reduce);Assert.False(texture.IsValid);
+        owner.Prepare(width,height,compute);Assert.Same(texture,owner.Texture);
+        owner.Prepare(width+2,height+2,compute);Assert.False(texture.IsValid);
         owner.Dispose();Assert.Null(owner.Texture);Assert.Equal(0,owner.StorageBytes);
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    /// <summary>The compute interruption restores borrowed image and indexed storage slots.</summary>
+    [Fact]
+    public void ComputeRestoresImageAndStorageBindings()
+    {
+        EnsureShaderTestAvailable();
+        using var owner=new DepthHierarchyPass();
+        var compute=Programs.CreateDepthHierarchy();
+        using var source=TestFramework.CreateTexture(257,131,PixelInternalFormat.R32f,
+            Enumerable.Repeat(.5f,257*131).ToArray());
+        using var external=GpuShaderStorageBuffer.Create(debugName:"Tests.Hzb.ExternalStorage");
+        external.UploadData(new uint[] { 123 }); external.BindBase(0);
+        using var image=GpuImageUnitBinding.Bind(6,source,TextureAccess.ReadOnly);
+        StateCache.Current.InvalidateAll();
+        try {
+            owner.Prepare(257,131,compute); owner.Render(source);
+            GL.GetInteger((GetIndexedPName)All.ShaderStorageBufferBinding,0,out int storage);
+            GL.GetInteger((GetIndexedPName)All.ImageBindingName,6,out int imageName);
+            GL.GetInteger((GetIndexedPName)All.ImageBindingAccess,6,out int access);
+            Assert.Equal(external.BufferId,storage); Assert.Equal(source.TextureId,imageName);
+            Assert.Equal((int)TextureAccess.ReadOnly,access);
+            Assert.Equal(ErrorCode.NoError,GL.GetError());
+        } finally { GpuShaderStorageBuffer.UnbindBase(0); }
+    }
+    /// <summary>The last-group reset allows consecutive changed frames and a resized allocation to publish complete tails.</summary>
+    [Fact]
+    public void RepeatedFramesReuseCounterAndResizeStorage()
+    {
+        EnsureShaderTestAvailable();
+        using var owner=new DepthHierarchyPass();
+        var compute=Programs.CreateDepthHierarchy();
+        foreach(var extent in new[] { (257,131), (321,241), (1,513), (513,1) }) {
+            int width=extent.Item1,height=extent.Item2;
+            owner.Prepare(width,height,compute);
+            var texture=owner.Texture!;
+            using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.R32f);
+            for(int frame=0;frame<8;frame++) {
+                float depth=.125f+frame*.0625f;
+                source.UploadDataImmediate(Enumerable.Repeat(depth,width*height).ToArray());
+                owner.Render(source);
+                for(int level=0;level<texture.MipLevels;level++)
+                    Assert.All(texture.ReadPixels(level),value=>Assert.Equal(depth,value));
+                owner.Prepare(width,height,compute);
+                Assert.Same(texture,owner.Texture);
+            }
+        }
+        owner.Dispose(); Assert.Null(owner.Texture); Assert.Equal(0,owner.ScratchBytes);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

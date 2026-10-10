@@ -114,6 +114,8 @@ public sealed record GraphicsCapabilities
     /// <summary>Number of atomic-counter-buffer binding points.</summary>
     public int MaxAtomicCounterBufferBindings { get; init; }
     /// <summary>Number of image-unit binding points, distinct from sampler texture units.</summary>
+    /// <summary>Limits active image uniforms in one compute executable.</summary>
+    public int MaxComputeImageUniforms { get; init; }
     public int MaxImageUnits { get; init; }
     /// <summary>Maximum combined image uniforms across shader stages.</summary>
     public int MaxCombinedImageUnits { get; init; }

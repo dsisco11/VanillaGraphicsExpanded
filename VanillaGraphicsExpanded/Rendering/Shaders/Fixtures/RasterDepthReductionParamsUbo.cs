@@ -4,7 +4,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>
 /// CPU-side wrapper for VgeDepthHierarchyParamsUBO (std140, 16 bytes).
 /// </summary>
-public sealed class DepthHierarchyDownsampleParamsUbo : CpuUniformBuffer
+public sealed class RasterDepthReductionParamsUbo : CpuUniformBuffer
 {
     #region Public API
     /// <summary>Identifies the shared shader parameter block.</summary>
@@ -13,7 +13,7 @@ public sealed class DepthHierarchyDownsampleParamsUbo : CpuUniformBuffer
     public const int UboSizeBytes = 16;
 
     /// <summary>Allocates the source-level parameter block.</summary>
-    public DepthHierarchyDownsampleParamsUbo() : base(UboSizeBytes)
+    public RasterDepthReductionParamsUbo() : base(UboSizeBytes)
     {
     }
 

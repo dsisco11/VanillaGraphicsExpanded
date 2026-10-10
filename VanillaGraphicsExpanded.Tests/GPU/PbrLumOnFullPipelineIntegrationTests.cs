@@ -103,8 +103,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
         {
             var pbrDirectProg = Programs.Create<PBRDirectLightingShaderProgram>();
             var velocityProg = Programs.Create<LumOnVelocityShaderProgram>();
-            var hzbCopyProg = Programs.Create<DepthHierarchyCopyShaderProgram>();
-            var hzbDownProg = Programs.Create<DepthHierarchyDownsampleShaderProgram>();
+            var hzbCompute = Programs.CreateDepthHierarchy();
+
             var anchorProg = Programs.Create<LumOnProbeAnchorShaderProgram>();
                 var traceProg = Programs.Create<LumOnScreenProbeAtlasTraceShaderProgram>(settings: new Dictionary<string, string?>
                     {
@@ -225,10 +225,8 @@ public sealed class PbrLumOnFullPipelineIntegrationTests : LumOnShaderFunctional
             // -----------------------------------------------------------------
             // Stage: LumOn HZB build
             // -----------------------------------------------------------------
-            using var hierarchyDraw=new VanillaGraphicsExpanded.PBR.Postprocessing.PostprocessDraw();
-            var hierarchyPipelines=targets.Hzb.Prepare(hierarchyDraw,ScreenWidth,ScreenHeight,hzbCopyProg,hzbDownProg);
-            Assert.True(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsCommandContext.TryRun("Tests.FullPipeline.DepthHierarchy",hierarchyPipelines,true,
-                commands=>targets.Hzb.Render(commands,hierarchyDraw,primaryDepth)));
+            targets.Hzb.Prepare(ScreenWidth,ScreenHeight,hzbCompute);
+            targets.Hzb.Render(primaryDepth);
             AssertNoGLError("Stage: shared depth hierarchy");
             var hzbMip0 = targets.Hzb.Texture.ReadPixels(mipLevel: 0);
             var hzbMip2 = targets.Hzb.Texture.ReadPixels(mipLevel: 2);

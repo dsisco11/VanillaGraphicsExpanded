@@ -22,7 +22,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\VanillaGraphicsExpanded\VanillaGraphicsExpanded.csproj" />
-    <Compile Include="..\ShaderBuildTool\TestShaderPrograms.cs" Link="Fixtures\Shaders\TestShaderPrograms.cs" />
+    <Compile Include="..\ShaderBuildCatalog\TestShaderPrograms.cs" Link="Fixtures\Shaders\TestShaderPrograms.cs" />
+    <!-- Dependencies of the linked production source emitter and preprocessor. -->
+    <Compile Include="..\ShaderBuildTool\Spirv\Records\ShaderExpandedSource.cs;..\ShaderBuildTool\Spirv\Records\ShaderInputObservation.cs;..\ShaderBuildTool\Spirv\Records\ShaderDependencySnapshot.cs;..\ShaderBuildTool\Spirv\Records\ShaderRecordStore.cs;..\ShaderBuildTool\Spirv\Identity\ShaderCacheKey.cs" Link="ShaderBuildTool\%(Filename)%(Extension)" />
     <!-- Exercise the production source-layout emitter directly. -->
     <Compile Include="..\ShaderBuildTool\Spirv\ShaderSourceLayout.cs" Link="ShaderBuildTool\%(Filename)%(Extension)" />
     <Compile Include="..\ShaderBuildTool\Spirv\ShaderVariantSource.cs;..\ShaderBuildTool\Spirv\ShaderSourcePreprocessor.cs;..\ShaderBuildTool\Spirv\DerivedGlobalConstants.cs;..\ShaderBuildTool\Spirv\FileSystemSyntaxTreeResourceResolver.cs" Link="ShaderBuildTool\%(Filename)%(Extension)" />

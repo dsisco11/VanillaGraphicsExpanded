@@ -26,7 +26,7 @@ public sealed class LiquidGraphicsSubmissionTests(HeadlessGLFixture fixture) : R
     {
         EnsureContextValid();
         using var storage = new LiquidPoolStorage(); using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
+        var shader = programs.Create<RasterDepthReductionShaderProgram>();
         using var first = DynamicTexture2D.CreateWithData(2, 2, PixelInternalFormat.R32f, [.2f, .4f, .6f, .8f]);
         using var second = DynamicTexture2D.CreateWithData(2, 2, PixelInternalFormat.R32f, [.7f, .8f, .9f, 1]);
         using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);

@@ -46,8 +46,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             Assert.Empty(assets.RegisteredPrograms);
             var selected = GpuShaderPrograms.GetAll(assets.Api).Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray();
             Assert.NotEmpty(selected);
-            Assert.Contains(selected,program=>program is DepthHierarchyCopyShaderProgram);
-            Assert.Contains(selected,program=>program is DepthHierarchyDownsampleShaderProgram);
+            Assert.DoesNotContain(selected,program=>program.PassName.StartsWith("tests/",StringComparison.Ordinal));
             Assert.Equal(selected.Length,selected.Select(program=>program.PassName).Distinct().Count());
             Assert.True(GpuShaderPrograms.Preload(assets.Api, selected));
             double startup = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -92,18 +91,17 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
     }
-    /// <summary>Measures one production shader's first draw and required GPU readback after registration.</summary>
+    /// <summary>Measures the production hierarchy's first compute dispatch and required GPU readback after registration.</summary>
     private double ObserveHzb(BinaryShaderApiFixture assets, DynamicTexture2D depth, GpuFramebuffer target)
     {
-        var program = Assert.IsType<DepthHierarchyCopyShaderProgram>(assets.RegisteredPrograms["vge_depth_copy"]);
         long started = Stopwatch.GetTimestamp();
-        target.BindWithViewport();
-        program.PrimaryDepth = depth;
-        using var scope = program.UseScope();
-        RenderFullscreenQuad(program.ProgramId);
-        var pixel = ReadPixel(target, 4, 4);
+        using var program = DepthHierarchyComputeShader.Create(assets.Api);
+        using var hierarchy = new DepthHierarchyPass();
+        hierarchy.Prepare(8, 8, program);
+        hierarchy.Render(depth);
+        var pixels = hierarchy.Texture!.ReadPixels(3);
         double elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
-        Assert.InRange(pixel.R, .499f, .501f);
+        Assert.InRange(pixels[0], .499f, .501f);
         GL.UseProgram(0);
         StateCache.Current.InvalidateAll();
         return elapsed;

@@ -5,16 +5,16 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Reduces one hardware-depth mip into the next using conservative proportional footprints.</summary>
-[ShaderProgram("Contract", "vge_depth_reduce", 1)]
-[ShaderStage("Contract", ShaderStageKind.Vertex, "vge_depth_reduce.vsh")]
-[ShaderStage("Contract", ShaderStageKind.Fragment, "vge_depth_reduce.fsh")]
-public sealed partial class DepthHierarchyDownsampleShaderProgram : GpuProgram, IDepthHierarchyDownsampleShaderProgramBindings
+[ShaderProgram("Contract", "tests/depth_raster_reduce", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "tests/depth_raster_reduce.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "tests/depth_raster_reduce.fsh")]
+public sealed partial class RasterDepthReductionShaderProgram : GpuProgram, IRasterDepthReductionShaderBindings
 {
-    private DepthHierarchyDownsampleParamsUbo? paramsUbo;
+    private RasterDepthReductionParamsUbo? paramsUbo;
 
     #region Public API
     /// <summary>Registers the shared reduction contract.</summary>
-    public DepthHierarchyDownsampleShaderProgram()
+    public RasterDepthReductionShaderProgram()
     {
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
@@ -22,7 +22,7 @@ public sealed partial class DepthHierarchyDownsampleShaderProgram : GpuProgram, 
     /// <summary>Declares the shared reduction program.</summary>
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new DepthHierarchyDownsampleShaderProgram
+        var instance = new RasterDepthReductionShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
@@ -42,12 +42,12 @@ public sealed partial class DepthHierarchyDownsampleShaderProgram : GpuProgram, 
     internal override GpuShaderContract ProgramContract => Contract;
 
     /// <summary>Supplies the retained CPU block for one publication per use.</summary>
-    CpuUniformBuffer IDepthHierarchyDownsampleShaderProgramBindings.Parameters => Params;
+    CpuUniformBuffer IRasterDepthReductionShaderBindings.Parameters => Params;
     #endregion
 
     #region Private
     /// <summary>Owns parameter publication versions through terminal shader retirement.</summary>
-    private DepthHierarchyDownsampleParamsUbo Params =>
-        paramsUbo ??= OwnUniformBuffer(new DepthHierarchyDownsampleParamsUbo());
+    private RasterDepthReductionParamsUbo Params =>
+        paramsUbo ??= OwnUniformBuffer(new RasterDepthReductionParamsUbo());
     #endregion
 }

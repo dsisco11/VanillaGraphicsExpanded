@@ -27,6 +27,8 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
     public void RegisteredCapturePublishesAndInvalidatesAcrossLifecycle(bool ssao)
     {
         EnsureContextValid();
+        // Direct owning attachments require a fresh disposal lifetime after earlier GPU tests retire it.
+        fixture.InitializeResourceDisposal();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var programs = new RuntimeLightingPrograms();
@@ -74,6 +76,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         Assert.True(gbuffer.EnsureBuffers(2, 2));
         using var capture = new SceneColorParticleCapture(api, gbuffer);
         using var hierarchy = new DepthHierarchyPass();
+        using var hierarchyCompute = DepthHierarchyComputeShader.Create(api);
         using var hierarchyDraw = new PostprocessDraw();
         using var directBuffers = new DirectLightingBufferManager(api);
         using var direct = new DirectLightingRenderer(api, gbuffer, directBuffers);
@@ -172,11 +175,8 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 // The shared generator must sample the actual published receiver instance.
                 var corrected = SceneColorParticleCapture.ReceiverDepthTexture(api)!;
                 depthStorage.UploadDataImmediate(new[] { .25f, .25f, .25f, .25f });
-                var hierarchyPipelines = hierarchy.Prepare(hierarchyDraw, 2, 2,
-                    GpuShaderPrograms.Get<DepthHierarchyCopyShaderProgram>(api, "vge_depth_copy")!,
-                    GpuShaderPrograms.Get<DepthHierarchyDownsampleShaderProgram>(api, "vge_depth_reduce")!);
-                Assert.True(GraphicsCommandContext.TryRun("Tests.CorrectedDepthHierarchy", hierarchyPipelines, true,
-                    commands => hierarchy.Render(commands, hierarchyDraw, corrected)));
+                hierarchy.Prepare(2, 2, hierarchyCompute);
+                hierarchy.Render(corrected);
                 for (int mip = 0; mip < hierarchy.Texture!.MipLevels; mip++)
                     Assert.All(hierarchy.Texture.ReadPixels(mip), value => Assert.Equal(.75f, value));
                 int perCycle = ssao ? 6 : 1;

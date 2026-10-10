@@ -1,7 +1,7 @@
 #version 330 core
 layout(location=0) out float outDepth;
 uniform sampler2D hzbDepth;
-@import "./includes/depth_hierarchy_params.glsl"
+@import "../includes/depth_hierarchy_params.glsl"
 /** Conservatively covers the entire proportional footprint, including odd edges and one-texel axes. */
 void main() {
     ivec2 sourceSize=textureSize(hzbDepth,srcMip);

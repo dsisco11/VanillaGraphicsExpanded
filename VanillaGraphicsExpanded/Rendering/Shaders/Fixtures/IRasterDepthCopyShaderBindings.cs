@@ -3,10 +3,10 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Declares the GPU binding contract for DepthHierarchyCopyShaderProgram.</summary>
+/// <summary>Declares the GPU binding contract for RasterDepthCopyShaderProgram.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-internal interface IDepthHierarchyCopyShaderProgramBindings
+internal interface IRasterDepthCopyShaderBindings
 {
     #region Public API
     /// <summary>Declares the primaryDepth Sampler slot.</summary>

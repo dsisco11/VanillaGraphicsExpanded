@@ -52,8 +52,6 @@ internal static class VgeShaderPrograms
             new LumOnWorldProbeRadianceTileResolveShaderProgram(),
             new LumOnProbeAnchorShaderProgram(),
             new LumOnProbeAtlasPisMaskShaderProgram(),
-            new DepthHierarchyCopyShaderProgram(),
-            new DepthHierarchyDownsampleShaderProgram(),
             new LumOnScreenProbeAtlasTraceShaderProgram(),
             new LumOnVelocityShaderProgram(),
             new LumOnScreenProbeAtlasTemporalShaderProgram(),

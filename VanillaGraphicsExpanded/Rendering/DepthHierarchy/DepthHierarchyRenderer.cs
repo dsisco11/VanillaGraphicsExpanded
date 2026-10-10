@@ -17,7 +17,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     private readonly DepthHierarchyPass pass=new();
     private GpuResourceCollection resources=new();
     private BorrowedTexture? depth;
-    private PostprocessDraw? draw;
+    private DepthHierarchyComputeShader? compute;
     private bool published,disposed;
     private uint frameIndex;
     #region Public API
@@ -47,15 +47,13 @@ internal sealed class DepthHierarchyRenderer : IRenderer
         bool required=PbrShaderLightingMode.LumOnEnabled || EnginePostprocessInputs.Capture(ScreenManager.Platform,api).Ssao;
         if(!required) {Retire();return;}
         var primary=api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));draw??=new();
+        depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
+        compute??=DepthHierarchyComputeShader.Create(api);
         var receiver=SceneColorParticleCapture.ReceiverDepthTexture(api)??depth;
-        var copy=GpuShaderPrograms.Get<DepthHierarchyCopyShaderProgram>(api,"vge_depth_copy")??throw new InvalidOperationException("Depth copy program missing.");
-        var reduce=GpuShaderPrograms.Get<DepthHierarchyDownsampleShaderProgram>(api,"vge_depth_reduce")??throw new InvalidOperationException("Depth reduction program missing.");
-        var pipelines=pass.Prepare(draw,primary.Width,primary.Height,copy,reduce);
+        pass.Prepare(primary.Width,primary.Height,compute);
         var snapshot=VgeFrameRenderer.Current;
         using var gpuScope=GlGpuProfiler.Instance.Scope("DepthHierarchy");
-        if(!GraphicsCommandContext.TryRun("DepthHierarchy",pipelines,true,commands=>pass.Render(commands,draw,receiver)))
-            throw new InvalidOperationException("Depth hierarchy graphics boundary rejected.");
+        pass.Render(receiver);
         view=snapshot;frameIndex=UboPacking.ReadUInt32(snapshot.Bytes,396);published=true;
     }
     /// <summary>Unregisters lifecycle callbacks before withdrawing storage.</summary>
@@ -68,7 +66,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     #region Private
     private VgeFrameUniformBuffer? view;
     /// <summary>Withdraws frame identity and retires executable references before attachments.</summary>
-    private void Retire() {published=false;view=null;draw?.Dispose();draw=null;pass.Dispose();resources.Dispose();resources=new();depth=null;}
+    private void Retire() {published=false;view=null;pass.Dispose();compute?.Dispose();compute=null;resources.Dispose();resources=new();depth=null;}
     /// <summary>Rejects stale executable generations.</summary>
     private bool Reload() {Retire();return true;}
     #endregion

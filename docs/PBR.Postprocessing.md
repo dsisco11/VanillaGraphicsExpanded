@@ -113,12 +113,11 @@ a mismatched frame/view. Native AO quality does not change the depth representat
 Mip 0 copies corrected receiver depth without resampling. Each later floor-sized mip conservatively
 reduces every source texel whose normalized interval overlaps the destination texel. Odd axes can
 require three taps; an axis that reaches one retains its sole texel. The chain continues to 1×1.
-Persistent typed framebuffer attachments represent each mip. During reduction, the existing
-GpuTexture.SetMipRange API restricts accessible levels to the completed source mip; shader LOD 0
-is relative to that base level. The attached destination remains inaccessible to sampling. A finally
-boundary restores the complete mip range before consumer use. This follows the mip exclusion rule in
-the [OpenGL specification, feedback loops between textures and the framebuffer](https://registry.khronos.org/OpenGL/specs/gl/glspec46.core.pdf).
-No texture views, texture barriers, per-frame attachments or duplicate consumer pyramids are needed.
+Typed image bindings write the local levels, and GPU buffer transfers fill the coarse tail after
+the compute dispatch. Generation samples the separate corrected receiver texture, so no attached
+framebuffer destination can feed back into its source. The complete mip range stays accessible to
+consumers. No texture views, texture barriers, per-frame attachments or duplicate consumer pyramids
+are needed; synchronization and the finishing-group protocol are described below.
 
 AO selects an explicit mip from radial sample spacing, capped at level 4 and the available chain.
 Background minima are rejected immediately. For accepted minima, a bounded descent through the
@@ -148,20 +147,76 @@ indirect response uses its existing diffuse/specular AO strengths. The scalar si
 a bent normal. Direct sun, point lights, emission, sky, water/aerial transport and generated glare
 are not multiplied by AO. Final composition has four samplers and no AO input.
 
-Separate GpuResourceCollection owners manage the shared hierarchy and AO's three visibility images,
-including their framebuffer borrowers. The reduction program owns its parameter block through the existing
-shader uniform-buffer retirement mechanism. A shared `DepthHierarchy` GPU profile scope records
-generation separately from either lighting consumer; LumOn reads that scope for its HZB timing counter.
-Stable frames reuse storage; resize, reload, world teardown
-and disabled consumers withdraw publication and retire it. Disabling AO alone retires its visibility
-images while the hierarchy remains if indirect lighting requires it. Raw/filtered ceil-half images
-and full-resolution visibility use eight bytes per texel. AO payload is
+Separate GpuResourceCollection owners manage the shared hierarchy and AO's three visibility images.
+The hierarchy uses one typed compute dispatch and no framebuffer targets; AO retains its framebuffer borrowers.
+The compute owner retains its dispatch block and is retired on shader reload. A shared `DepthHierarchy`
+GPU profile scope records generation separately from either lighting consumer; LumOn reads that scope for its HZB timing counter.
+Stable frames reuse storage; resize, reload, world teardown and disabled consumers withdraw publication and retire it.
+Disabling AO alone retires its visibility images while the hierarchy remains if indirect lighting requires it.
+Raw/filtered ceil-half images and full-resolution visibility use eight bytes per texel. AO payload is
 8*(WH + 2*ceil(W/2)*ceil(H/2)); the shared hierarchy adds
-4*sum(max(1,W>>m)*max(1,H>>m)) across all mips. At 1920×1080 this totals about **34.28 MiB**,
-with **11 hierarchy draws plus three AO draws**. Indirect lighting no longer allocates or generates
-a second hierarchy. There are no history images or per-frame GPU allocations. The sampler and storage
-counts are analytical; focused validation and synthetic timings are recorded below separately from
-user-run visual and matched-scene performance acceptance.
+4*sum(max(1,W>>m)*max(1,H>>m)) across all mips. At 1920×1080 these images total about **34.28 MiB**,
+with **one hierarchy dispatch, four coarse-tail transfers and three AO draws**. Indirect lighting no longer
+allocates or generates a second hierarchy. There are no history images or per-frame GPU allocations.
+The hierarchy also owns a four-byte completion counter and staging for levels seven onward; this is 624 bytes
+at 1920×1080, separate from the image payload. These counts are analytical; measured results are recorded below.
+
+The downsampler adapts the [single-pass downsampler finishing-group pattern](https://gpuopen.com/manuals/fidelityfx_sdk/techniques/single-pass-downsampler/)
+to conservative minimum hardware depth and OpenGL's image limits. A 256-invocation workgroup owns one texel
+at mip six (or the last level for smaller inputs). It backtracks the exact floor/ceiling proportional
+footprints to establish its local tile and overlapping halo. It copies a disjoint share of mip zero,
+then computes levels one through six using two shared arrays totaling 20,480 bytes. A separate shared
+four-byte flag distributes the finishing election. Halo calculations overlap, but each global mip texel
+has exactly one writer. This retains odd-edge coverage, tile-seam minima and one-texel tails, including
+one-pixel-wide or one-pixel-high sources.
+
+Every invocation publishes its image writes before lane zero atomically increments the completion counter.
+The last finishing workgroup reads the globally coherent mip-six image and computes the remaining levels;
+other groups exit immediately. There is no spin-wait or assumed dispatch-wide barrier. Buffer visibility
+and workgroup barriers separate the coarse levels, and the elected group resets the counter for the next frame.
+Host barriers make image writes visible to texture sampling, buffer writes visible to pixel transfers,
+and the reset visible to the next dispatch. Seven explicit image views suffice for all supported extents.
+Coarse levels use a small persistent SSBO because OpenGL's compute image limit can be smaller than the
+hierarchy's mip count. GPU pixel-unpack transfers copy only this coarse tail into the same R32F texture;
+there is no mapping, CPU readback or extra compute dispatch. Context image, shared-memory, workgroup,
+texture and storage-block limits are validated before generation. The former raster copy/reduction
+programs now exist only in the fixture catalogue for generic graphics tests and matched measurements.
+
+Matched synthetic measurements on 2026-10-09 used an NVIDIA GeForce RTX 4090 on Windows,
+identical patterned R32F inputs, the former raster implementation retained only as a test fixture,
+and the production compute owner. Every mip matched exactly before measurement. Eight warm elapsed-query
+samples alternated raster/compute ordering; the table records the final 17-check batch. CPU timings include each path's required submission and
+state-preservation work, excluding allocation and readback. These are headless synthetic costs, not live frame timings.
+
+| Source extent | Raster GPU median | Compute GPU median | Raster CPU submission median | Compute CPU submission median | Shared image bytes | Compute scratch bytes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| 1280×720 | 0.0932 ms | 0.0353 ms | 3.0807 ms | 0.1794 ms | 4,915,052 | 256 |
+| 1920×1080 | 0.0963 ms | 0.0538 ms | 2.4539 ms | 0.1254 ms | 11,058,620 | 624 |
+| 3840×2160 | 0.1505 ms | 0.1828 ms | 1.4261 ms | 0.1053 ms | 44,236,220 | 2,544 |
+
+The raster chain required 11/11/12 draws and persistent framebuffer targets at those extents.
+The compute path requires one dispatch, zero framebuffer targets and 4/4/5 coarse-tail GPU transfers.
+Image payload stays identical; only the listed compact scratch storage is added. Compute reduced GPU
+cost at 720p and 1080p and CPU submission cost at all three extents. At 4K its GPU cost increased
+by 0.0323 ms (about 21%); this change does not establish a universal GPU speedup. The shader uses exact
+two-texel arithmetic on even axes and computes tile ownership boundaries once per level, retaining
+proportional reduction on odd axes. Receipts: `artifacts/hzb-compute-optimized-validation.log`
+and `DepthHierarchyMeasurementTests`. Earlier unoptimized measurements are historical. A preceding optimized batch had comparable GPU medians
+but different CPU durations; these individual runs do not establish a fixed submission-time speedup.
+
+Single-dispatch qualification passed **104 distinct focused checks**: 17 reduction/binding/measurement
+cases, 66 AO/LumOn/graphics integration cases and 21 publication/lifecycle/preparation cases, without
+failures or skips in the final batches. They cover independent interval-overlap reduction, odd tile
+seams, one-pixel axes, repeated frames and counter reuse, borrowed image/SSBO restoration, corrected
+receiver publication, AO-only/current-frame/view identity, resize/reload/world teardown and enabled
+consumer transitions. Exhaustive axis backtracking through 32,768 pixels checked 8,372,799 tile cases:
+the largest mip-one span was 63 texels, and every unique-write interval fit inside its computed halo.
+The 4,096/1,024 shared-array capacities therefore cover these extents. Production and fixture builds
+published 433 and 507 variants respectively. Receipts: `artifacts/hzb-compute-optimized-validation.log`,
+`artifacts/hzb-compute-integration.log` and `artifacts/hzb-compute-lifecycle.log`.
+The corrected-receiver fixture explicitly initializes its attachment disposal lifetime, so it also
+passes after earlier tests retire the global resource manager. Live visual acceptance remains part
+of the parent lighting work.
 
 Shared-hierarchy refinement validation passed **159 focused checks**, without failures or skips.
 They cover all conservative mips against an independent interval-overlap reducer, odd dimensions,

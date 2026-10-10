@@ -28,9 +28,11 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
+        RasterDepthCopyShaderProgram.Register(assets.Api);
+        RasterDepthReductionShaderProgram.Register(assets.Api);
         Assert.Empty(assets.Reads);
         Assert.Empty(assets.RegisteredPrograms);
-        var program = Assert.IsType<DepthHierarchyCopyShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, "vge_depth_copy"));
+        var program = Assert.IsType<RasterDepthCopyShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, "tests/depth_raster_copy"));
         Assert.Equal(0, program.ProgramId);
         using var depth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
         program.PrimaryDepth = depth;
@@ -69,7 +71,9 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
-        var selected = GpuShaderPrograms.GetAll(assets.Api).Where(program => program.PassName is "vge_depth_copy" or "vge_depth_reduce").ToImmutableArray();
+        RasterDepthCopyShaderProgram.Register(assets.Api);
+        RasterDepthReductionShaderProgram.Register(assets.Api);
+        var selected = GpuShaderPrograms.GetAll(assets.Api).Where(program => program.PassName is "tests/depth_raster_copy" or "tests/depth_raster_reduce").ToImmutableArray();
         Assert.Equal(2, selected.Length);
         Assert.True(GpuShaderPrograms.Preload(assets.Api, selected));
         Assert.Equal(2, assets.RegisteredPrograms.Count);
@@ -86,7 +90,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
-        var program = GpuShaderPrograms.Declare(assets.Api, new DepthHierarchyCopyShaderProgram());
+        var program = GpuShaderPrograms.Declare(assets.Api, new RasterDepthCopyShaderProgram());
         ((IShaderProgram)program).Dispose();
         Assert.True(program.Disposed);
         Assert.False(program.EnsureReady());
@@ -104,7 +108,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         EnsureContextValid();
         using var cache = DriverProgramCache.UseStoreForTesting(null);
         using var assets = new BinaryShaderApiFixture();
-        var program = GpuShaderPrograms.Declare(assets.Api, new DepthHierarchyCopyShaderProgram());
+        var program = GpuShaderPrograms.Declare(assets.Api, new RasterDepthCopyShaderProgram());
         Assert.True(program.EnsureReady());
         int installed = program.ProgramId;
         int reads = assets.Reads.Count;

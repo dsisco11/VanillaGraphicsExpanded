@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using Vintagestory.Client.NoObf;
 
@@ -9,6 +10,7 @@ internal sealed class ComponentShaderPrograms : IDisposable
     private readonly BinaryShaderApiFixture assets = new();
     private readonly EngineShaderPlatformScope platform = new();
     private readonly List<GpuProgram> programs = [];
+    private readonly List<GpuComputeShader> computePrograms = [];
 
     /// <summary>Shares the owned engine boundary with scene resources that are disposed before this owner.</summary>
     internal Vintagestory.API.Client.ICoreClientAPI Api => assets.Api;
@@ -36,11 +38,21 @@ internal sealed class ComponentShaderPrograms : IDisposable
         return program;
     }
 
+    /// <summary>Loads and owns the production depth compute executable for component tests.</summary>
+    internal DepthHierarchyComputeShader CreateDepthHierarchy()
+    {
+        var program = DepthHierarchyComputeShader.Create(Api);
+        computePrograms.Add(program);
+        return program;
+    }
+
     /// <summary>Releases programs while their engine boundary and graphics context are still available.</summary>
     public void Dispose()
     {
         foreach (var program in programs) program.Dispose();
         programs.Clear();
+        foreach (var program in computePrograms) program.Dispose();
+        computePrograms.Clear();
         platform.Dispose();
         assets.Dispose();
     }

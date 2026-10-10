@@ -39,9 +39,8 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var hierarchy=new DepthHierarchyPass();
         using var draw=new VanillaGraphicsExpanded.PBR.Postprocessing.PostprocessDraw();
-        var pipelines=hierarchy.Prepare(draw,w,h,Programs.Create<DepthHierarchyCopyShaderProgram>(),Programs.Create<DepthHierarchyDownsampleShaderProgram>());
-        Assert.True(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsCommandContext.TryRun("Tests.DepthHierarchy",pipelines,true,
-            commands=>hierarchy.Render(commands,draw,primaryDepth)));
+        hierarchy.Prepare(w,h,Programs.CreateDepthHierarchy());
+        hierarchy.Render(primaryDepth);
         var hzb=hierarchy.Texture!;
         // Read mip0 and mip1 and validate mip1 texels are <= all covered mip0 texels.
         var mip0 = hzb.ReadPixels(mipLevel: 0);
@@ -133,9 +132,8 @@ public sealed class LumOnHzbFunctionalTests : LumOnShaderFunctionalTestBase
 
         using var hierarchy=new DepthHierarchyPass();
         using var draw=new VanillaGraphicsExpanded.PBR.Postprocessing.PostprocessDraw();
-        var pipelines=hierarchy.Prepare(draw,screenW,screenH,Programs.Create<DepthHierarchyCopyShaderProgram>(),Programs.Create<DepthHierarchyDownsampleShaderProgram>());
-        Assert.True(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsCommandContext.TryRun("Tests.TraceDepthHierarchy",pipelines,true,
-            commands=>hierarchy.Render(commands,draw,primaryDepth)));
+        hierarchy.Prepare(screenW,screenH,Programs.CreateDepthHierarchy());
+        hierarchy.Render(primaryDepth);
         var hzb=hierarchy.Texture!;
         float[] invProj = LumOnTestInputFactory.CreateRealisticInverseProjection();
         float[] proj = LumOnTestInputFactory.CreateRealisticProjection();

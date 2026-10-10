@@ -994,7 +994,7 @@ Tasks
           native quality, both lighting modes and resize/reload/teardown. Shader catalogs reuse all
           436 production and 506 fixture variants. Contract, receipts and synthetic costs:
           docs/PBR.Postprocessing.md. Parent visual and matched-scene performance acceptance remain open.
-      ☐ Refactor shared HZB downsampling to a single-dispatch compute algorithm.
+      ☑ Refactor shared HZB downsampling to a single-dispatch compute algorithm.
         - Process depth tiles in parallel; each workgroup generates several minimum-depth mip
           levels using shared memory. Publish tile results, then use an atomic completion counter
           to elect the last finishing workgroup to generate the remaining coarse levels in the
@@ -1012,6 +1012,14 @@ Tasks
           workloads; document the algorithm and measured results in docs/PBR.Postprocessing.md.
         - Technical references: [Single Pass Downsampler technique notes](https://gpuopen.com/manuals/fidelityfx_sdk/techniques/single-pass-downsampler/)
           and [Optimizing for the Radeon RDNA Architecture, downsampler case study (2020 presentation)](https://gpuopen.com/wp-content/uploads/slides/GPUOpen_Let%E2%80%99sBuild2020_Optimizing%20for%20the%20Radeon%20RDNA%20Architecture.pdf).
+        - Completed one typed dispatch with shared local mips, last-finishing-group election,
+          coherent visibility and counter reset. Seven mip images plus a compact GPU tail buffer
+          preserve the shared R32F chain and conservative odd/seam/one-pixel coverage without
+          per-mip framebuffer draws. Raster contracts remain only in test fixtures.
+        - 104 distinct focused checks pass; exhaustive tile-footprint ownership checks cover
+          extents through 32768. Matched RTX 4090 measurements reduce CPU submission at all tested
+          sizes and GPU cost at 720p/1080p; 4K GPU cost increases by 0.0323 ms. Algorithm, exact
+          storage/submission counts, measurements and receipts: docs/PBR.Postprocessing.md.
       ☐ Replace neighbor-based thickness attenuation with running-horizon relaxation.
         - Raise each horizon for stronger occluders and relax it toward subsequent lower-angle
           evidence using a bounded thickness weight. Define the parameter's meaning independently

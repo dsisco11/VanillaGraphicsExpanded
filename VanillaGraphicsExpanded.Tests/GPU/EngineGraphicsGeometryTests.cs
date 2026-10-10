@@ -26,7 +26,7 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         EnsureContextValid();
         using var native = new NativeMesh();
         using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<DepthHierarchyDownsampleShaderProgram>();
+        var shader = programs.Create<RasterDepthReductionShaderProgram>();
         using var lifetime = new GraphicsPipelineLifetime();
         using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, EngineFullscreenGeometry.Layout,
             new([new(PixelInternalFormat.R32f)]), DynamicPipelineState.Viewport), shader);

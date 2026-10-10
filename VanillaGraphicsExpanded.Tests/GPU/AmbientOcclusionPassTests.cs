@@ -136,8 +136,8 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
     {
         var horizon = Programs.Create<PostSsaoShaderProgram>();
         using var hierarchy = new DepthHierarchyPass();
-        var copy = Programs.Create<DepthHierarchyCopyShaderProgram>();
-        var reduction = Programs.Create<DepthHierarchyDownsampleShaderProgram>();
+        var compute = Programs.CreateDepthHierarchy();
+
         var filter = Programs.Create<AmbientOcclusionFilterShaderProgram>();
         float aspect = (float)width / height;
         const float near = .1f, far = 100f;
@@ -168,10 +168,11 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         using var normal = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f, normals);
         using var material = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f, materials);
         using var surface = LayeredTestTexture.Create(normal, material, null);
-        var pipelines = owner.Prepare(draw, width, height, quality, horizon, filter)
-            .Concat(hierarchy.Prepare(draw,width,height,copy,reduction)).ToArray();
+        hierarchy.Prepare(width, height, compute);
+        hierarchy.Render(depth);
+        var pipelines = owner.Prepare(draw, width, height, quality, horizon, filter);
         Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusion", pipelines, true,
-            commands => { hierarchy.Render(commands,draw,depth); owner.Render(commands, draw, depth, surface, hierarchy.Texture!, camera); }));
+            commands => { owner.Render(commands, draw, depth, surface, hierarchy.Texture!, camera); }));
         if (measure)
         {
             var samples = new List<double>();
@@ -179,8 +180,9 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
             {
                 using var timer = GpuTimerQuery.Create();
                 timer.Begin();
+                hierarchy.Render(depth);
                 Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusionTiming", pipelines, true,
-                    commands => { hierarchy.Render(commands,draw,depth); owner.Render(commands, draw, depth, surface, hierarchy.Texture!, camera); }));
+                    commands => { owner.Render(commands, draw, depth, surface, hierarchy.Texture!, camera); }));
                 timer.End(); samples.Add(timer.GetResultNanoseconds() / 1e6);
             }
             log.WriteLine($"Synthetic AO {width}x{height} quality{quality}, hierarchy plus three AO draws, five warm GPU samples: min={samples.Min():F4}ms median={samples.Order().ElementAt(2):F4}ms max={samples.Max():F4}ms; AO payload={owner.StorageBytes} bytes, shared hierarchy={hierarchy.StorageBytes} bytes. Not live cost or physical bandwidth.");

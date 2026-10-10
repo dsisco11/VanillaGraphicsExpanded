@@ -5,14 +5,14 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Copies corrected receiver hardware depth without resampling into the hierarchy's R32F mip zero.</summary>
-[ShaderProgram("Contract", "vge_depth_copy", 1)]
-[ShaderStage("Contract", ShaderStageKind.Vertex, "vge_depth_copy.vsh")]
-[ShaderStage("Contract", ShaderStageKind.Fragment, "vge_depth_copy.fsh")]
-public sealed partial class DepthHierarchyCopyShaderProgram : GpuProgram, IDepthHierarchyCopyShaderProgramBindings
+[ShaderProgram("Contract", "tests/depth_raster_copy", 1)]
+[ShaderStage("Contract", ShaderStageKind.Vertex, "tests/depth_raster_copy.vsh")]
+[ShaderStage("Contract", ShaderStageKind.Fragment, "tests/depth_raster_copy.fsh")]
+public sealed partial class RasterDepthCopyShaderProgram : GpuProgram, IRasterDepthCopyShaderBindings
 {
     #region Public API
     /// <summary>Registers the shared copy contract.</summary>
-    public DepthHierarchyCopyShaderProgram()
+    public RasterDepthCopyShaderProgram()
     {
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
@@ -20,7 +20,7 @@ public sealed partial class DepthHierarchyCopyShaderProgram : GpuProgram, IDepth
     /// <summary>Declares the shared copy program.</summary>
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new DepthHierarchyCopyShaderProgram
+        var instance = new RasterDepthCopyShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"

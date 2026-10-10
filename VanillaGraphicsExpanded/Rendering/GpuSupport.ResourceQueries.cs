@@ -37,6 +37,7 @@ public static partial class GpuSupport
         ImmutableArray<int> maxComputeWorkGroupSize = ImmutableArray<int>.Empty;
         int maxComputeWorkGroupInvocations = default;
         int maxComputeSharedMemorySize = default;
+        int maxComputeImageUniforms = default;
 
         GlDebug.ClearErrors();
         int[] viewport = new int[2];
@@ -112,6 +113,7 @@ public static partial class GpuSupport
             maxComputeWorkGroupCount = SafeGetInt3((GetIndexedPName)GetPName.MaxComputeWorkGroupCount);
             maxComputeWorkGroupSize = SafeGetInt3((GetIndexedPName)GetPName.MaxComputeWorkGroupSize);
             maxComputeWorkGroupInvocations = SafeGetInt(GetPName.MaxComputeWorkGroupInvocations);
+            maxComputeImageUniforms = SafeGetInt(GetPName.MaxComputeImageUniforms);
             maxComputeSharedMemorySize = SafeGetInt((GetPName)All.MaxComputeSharedMemorySize);
         }
         else
@@ -147,6 +149,7 @@ public static partial class GpuSupport
             MaxShaderStorageBufferBindings = maxShaderStorageBufferBindings,
             MaxShaderStorageBlockSize = maxShaderStorageBlockSize,
             MaxAtomicCounterBufferBindings = maxAtomicCounterBufferBindings,
+            MaxComputeImageUniforms = maxComputeImageUniforms,
             MaxImageUnits = maxImageUnits,
             MaxCombinedImageUnits = maxCombinedImageUnits,
             MaxColorAttachments = maxColorAttachments,
