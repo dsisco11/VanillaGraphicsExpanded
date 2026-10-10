@@ -40,7 +40,51 @@ Production VGE shader lookup already uses GpuShaderPrograms. The engine registra
 
 ## Proposed ownership model
 
-Keep the existing GpuProgram name as the independent graphics shader base, implementing IDisposable and the existing VGE submission contract. Feature shaders continue deriving from it. GpuComputeShader remains an independent compute owner and uses the existing scope machinery with the engine-independent graphics owners. A common abstract base is only justified for genuinely shared owner behavior; do not copy the engine's large shader API into a new base class.
+Introduce an engine-independent IGpuProgram interface with default implementation methods for common program behavior. GpuProgram implements it as the graphics family; rename GpuComputeShader to GpuComputeProgram and have that compute family implement it as well. No shared GpuShader base class is proposed. Feature programs continue deriving from their respective graphics or compute family.
+
+### Shared interface and default implementation
+
+IGpuProgram defines the common preparation, activation, scoped use and terminal lifetime contract. Its default methods implement the shared sequencing and guards through explicitly supplied owner state and family-specific hooks. Keep IShaderSubmissionTarget as the narrow installed-executable/layout view used by numeric input validation; binding-only consumers do not need disposal or preparation authority. IGpuProgram should reuse that contract where accessibility permits rather than introduce a second independent source of executable/layout state.
+
+The proposed relationship is interface implementation, not common class inheritance:
+
+```text
+                    IGpuProgram
+                  /             \
+          GpuProgram         GpuComputeProgram
+               |                    |
+       graphics programs     compute programs
+```
+
+| Default interface behavior | Concrete family responsibility |
+| --- | --- |
+| Check retirement and reject input mutation or recursive activation during submission | Store per-owner lifecycle state and retain generated input values |
+| Guarded preparation entry invoking the family's preparation hook | Graphics settings/replacement policy or compute eager/deferred preparation policy |
+| Ensure readiness, bind through StateCache, publish generated Submit, and unwind failed publication | Expose the installed executable/layout and implement the generated submission hook |
+| Register owned CPU uniform blocks, attach write guards and coordinate terminal release | Own the block collection and release family-specific resources through disposal hooks |
+| Participate in the existing scoped restoration contract | Graphics identity/revision validation, compute dispatch and diagnostic wrappers |
+
+C# interfaces cannot hold instance fields. Keep submitting/retired flags and the owned CPU-block collection in each program owner, preferably in one small composed lifecycle-state object with a stable identity per owner. Default methods operate on that state through a restricted implementation contract. That object holds lifecycle data only; it is not a registry, binding cache or activation stack, and it does not own a second copy of the native executable. Settings, installed generations and generated retained properties stay with their existing family or concrete owner.
+
+Default interface methods are invoked through an interface reference and are not inherited as callable concrete-class members. Route shared scope/registry operations through IGpuProgram. Preserve concrete APIs needed by existing callers and generated properties using deliberate family facade methods where necessary. Such facades must invoke distinct default workflow methods rather than cast and call the same interface slot they implement, which would recursively dispatch back to the facade. Keep preparation/submission/disposal hooks distinct from workflow entry points. Retain the protected Submit override contract on each family and bridge it explicitly to the interface workflow so generated concrete overrides remain supported.
+
+Choose interface accessibility together with its implementation hooks: the existing GpuProgram is public while IShaderSubmissionTarget and GpuProgramLayout are internal. An internal IGpuProgram can serve the rendering implementation without expanding those types' visibility. If IGpuProgram is made public, separate its public contract from internal layout/state hooks; a public interface cannot inherit a less-accessible interface. Do not expose mutable lifecycle state as a public API merely to support default methods.
+
+The common activation workflow must deliberately reconcile today's differences: graphics prepares before entering its input-publication guard, while compute currently calls pipeline.Use inside its guard. Define the shared order and failure cleanup explicitly. Guard checks must precede cleanup-owning activation so a rejected recursive call cannot tear down the enclosing submission. Terminal disposal must be idempotent, reject disposal during publication, and release owned CPU blocks and family resources exactly once. Migrate existing compute Dispose overrides to the chosen disposal hooks, preserving extra resources and cleanup on failure. Preserve legitimate Dispatch overrides such as LumonSceneCaptureVoxelComputeShader's diagnostic wrapper. Verify concrete calls, IGpuProgram calls and IDisposable calls all reach the intended common workflow.
+
+Shared preparation entry does not mean preparation is already interchangeable. GpuProgram tracks requested and installed settings and can replace an executable. GpuComputePipeline.EnsureReady transfers one candidate and clears its preparation factory; RetryPreparation only permits another failed attempt and does not invalidate a successfully installed executable. Initially keep these policies behind their family implementation. Before promising common asset invalidation or settings mutation, explicitly extend compute to retain a rebuild description and publish validated replacement generations, or keep feature-owned reconstruction as its stated reload policy. Never expose a common invalidation method that silently leaves compute's valid executable unchanged.
+
+Keep native ownership composed. Initially GpuComputePipeline remains the compute executable owner, while graphics adopts GpuProgramObject as described below. The common interface workflow must not also delete the compute program handle. Sharing the entire executable preparation backend requires reconciliation of eager factories, deferred preparation, graphics batch linking and settings replacement; it is not required for sharing lifecycle behavior or removing engine registration.
+
+This interface introduces no activation stack, ambient current-owner dictionary or state cache. Consolidate existing scope behavior using the established program scopes and command-context lifetimes described below. Those lifetimes may borrow IGpuProgram references for shared operations; StateCache remains the native binding authority.
+
+### Compute family rename and migration
+
+Rename the GpuComputeShader type and its source file to GpuComputeProgram. Update derived declarations, constructors, type references, restoration paths, tests, fixtures and documentation. This rename concerns the common compute family; it does not require renaming every feature-specific shader class or GpuComputePipeline, whose native executable ownership remains distinct.
+
+Update generator owner recognition and interface-binding assumptions with the rename. RuntimeSubmissionEmitter and BindingReader currently recognize GpuProgram and GpuComputeShader, and InterfaceBindingReader also assumes an owning compute field named pipeline. Recognize the new family name or the IGpuProgram contract while preserving eligibility rules for concrete generated owners and authored Submit overrides. Verify runtime and offline generated shells, intermediate abstract families, retained property mutation guards and interface dispatch. Do not assume a default interface method becomes a concrete member visible to generated code.
+
+The benefit is shared lifecycle policy without imposing common class inheritance. The cost is explicit per-owner state access, carefully separated default-method dispatch and family hooks, and coordinated generator/caller migration. The original crash is resolved by eliminating engine inheritance/registration and its stage-object requirements; IGpuProgram supplies the reusable VGE behavior around that fix.
 
 Use composition for the native executable. GpuProgramObject.Adopt and the existing GpuResource deletion policy already provide native program ownership. A prepared generation combines that owner with its immutable settings/load plan, prepared interface, graphics identity, and successful-installation revision. GpuProgram owns this generation and its retained desired inputs; GraphicsPipeline borrows it and continues to reject stale revisions.
 
@@ -66,7 +110,7 @@ Replacement or terminal retirement while the program is actively borrowed by sub
 
 ## Concrete registry responsibilities
 
-Evolve GpuShaderPrograms into a registry instance owned by the client rendering lifetime. The engine composition root may associate that instance with ICoreClientAPI, but the registry's ownership model and program base should not require the game API as their identity.
+Evolve GpuShaderPrograms into a registry instance owned by the client rendering lifetime. The engine composition root may associate that instance with ICoreClientAPI, but the registry's ownership model and program contract should not require the game API as their identity.
 
 The registry should own:
 
@@ -79,7 +123,7 @@ The registry should own:
 
 Move asset reads and logging behind the actual narrow dependencies already present in the compilation pipeline: ShaderAssetReader, digest access and diagnostic sinks. The integration composition root adapts the engine asset manager. Preserve batching's shared asset-source identity and generation; do not duplicate import, digest or binary-cache services. ShaderLinkBatch currently accepts the engine asset manager, so its entry boundary must be included if the core registry/program runtime is to be engine-type-independent.
 
-Compute owners remain feature-owned where that matches current lifetime. Sharing activation and reload contracts does not require moving every compute declaration into a global registry or merging GpuComputePipeline with graphics pipeline descriptions.
+Compute owners remain feature-owned where that matches current lifetime. Sharing activation and lifetime behavior does not require moving every compute declaration into a global registry or merging GpuComputePipeline with graphics pipeline descriptions. Their reload policy must remain explicit until compute supports executable replacement.
 
 ## Existing scope ownership and engine handoff
 
@@ -130,7 +174,7 @@ Distinguish configuration changes, asset reload, leave-world, registry disposal 
 
 ## Compatibility, generators and documentation
 
-Generated contracts already recognize GpuProgram and GpuComputeShader by their VGE types, not by the engine base class. Retain those entry names where practical; verify runtime and offline generated shells if hierarchy responsibilities change. Preserve numeric prepared bindings, desired-state retention, successful-publication history and CPU UBO ownership.
+Generated contracts currently recognize GpuProgram and GpuComputeShader by their VGE types, not by the engine base class. Migrate compute recognition to GpuComputeProgram and account for IGpuProgram default-method dispatch as described above; verify runtime and offline generated shells. Preserve numeric prepared bindings, desired-state retention, successful-publication history and CPU UBO ownership.
 
 Audit inherited API consumers explicitly. Production engine Uniform/HasUniform adapters are concentrated in liquid input translation; tests and diagnostic helpers also use inherited uniform/texture APIs. Migrate VGE fixtures to generated properties or preparation-owned numeric helpers. Do not recreate every engine overload on the independent class. Keep GpuProgramInterface's name/location projection where diagnostics or remaining fixture adapters still consume it; removing engine uniformLocations does not authorize deleting useful prepared metadata.
 
@@ -142,15 +186,17 @@ Update GpuProgram.md, GPU.ShaderDemandLoading.md, Rendering.ShaderBindingState.m
 
 ## Dependency-ordered implementation and acceptance
 
-1. Pin installed-engine handoff/pool-input contracts and audit all inherited API consumers. Define registry lifetime, executable generation and existing scope invariants.
+1. Pin installed-engine handoff/pool-input contracts and audit all inherited API consumers. Define registry lifetime, executable generation, the shared IGpuProgram contract and existing scope invariants.
 2. Remove engine-owner dependencies from existing program/command scopes and establish the liquid input bridge. Include compute and raw-binding interactions without introducing a parallel tracker.
-3. Remove engine inheritance and interface implementation from VGE executable owners; install independent executable resources and migrate inherited-API consumers. Remove engine registration as part of the same coherent migration.
+3. Remove engine inheritance and interface implementation from VGE executable owners; establish IGpuProgram default workflows with explicit owner state, rename GpuComputeShader to GpuComputeProgram, install independent executable resources, and migrate generator assumptions, interface/facade dispatch, disposal hooks and inherited-API consumers. Remove engine registration as part of the same coherent migration.
 4. Establish synchronous reload invalidation, registry shutdown and context-retirement behavior. Remove obsolete registration callbacks and VGE-specific engine shader hooks.
 5. Reconcile documentation and validate the complete owned path, including the original cached final-display failure scenario.
 
 These steps are dependencies for one reviewed migration, not permission to ship an intermediate state that loses liquid input staging or reload ownership.
 
 Acceptance requires:
+
+- Both program families implement IGpuProgram; shared default workflows preserve preparation, mutation and retirement guards through interface and concrete entry points. GpuComputeProgram replaces the old family name in runtime code and generated owners. No shared GpuShader base or parallel activation tracker is introduced.
 
 - Structural checks show no VGE executable derives from engine ShaderProgram/ShaderProgramBase or implements IShaderProgram, and no VGE executable reaches engine registration. Engine compatibility adapters stay outside the hierarchy.
 - A final-display shader loaded from a real executable cache hit prepares and renders without NewShader or RegisterMemoryShaderProgram. Repeat with a cache miss, invalid cache fallback, batched compilation and preparation failure.
