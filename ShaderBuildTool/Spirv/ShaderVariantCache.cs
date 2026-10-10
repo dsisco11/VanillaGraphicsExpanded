@@ -59,13 +59,6 @@ internal sealed class ShaderVariantCache(string outputRoot, string compilerIdent
         }
     }
 
-    /// <summary>Restores a cached output only when its bytes differ, preserving unaffected output timestamps.</summary>
-    internal static void Publish(string path, byte[] bytes)
-    {
-        if (File.Exists(path) && File.ReadAllBytes(path).AsSpan().SequenceEqual(bytes)) return;
-        WriteAtomic(path, bytes);
-    }
-
     /// <summary>Computes the runtime digest from successful compiler output.</summary>
     internal static ShaderBinaryDigest.Entry Digest(byte[] bytes) => new(bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
 

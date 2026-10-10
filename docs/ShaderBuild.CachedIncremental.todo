@@ -3,7 +3,7 @@ Cached incremental SPIR-V builds
 
 Source proposal: ShaderBuild.CachedIncremental.Proposal.md
 Current behavior: ShaderBuild.Incremental.md
-Status: Phases 1–5 complete; Phases 6–7 pending.
+Status: Phases 1–6 complete; Phase 7 pending.
 
 Goal and shared contracts
   Make expensive build work proportional to changed inputs and their dependents. Unchanged
@@ -358,26 +358,52 @@ Phase 6: Qualify migration, repair, packaging, and compatibility
   Depends on: Phase 5.
   Proposal: Migration and scope; Validation and acceptance; Required behavior.
 
-  ☐ Establish migration behavior for receipts and every new record schema.
-    ☐ Populate complete graph/interface records before allowing warm reuse. Validate all referenced
+  ☑ Establish migration behavior for receipts and every new record schema.
+    ☑ Populate complete graph/interface records before allowing warm reuse. Validate all referenced
       artifacts; reuse old compiler entries only with proven compatible identity, otherwise cold-fill.
-    ☐ Verify first-upgrade, subsequent unchanged, single-edit, and reverted-edit behavior.
-    ☐ Remove obsolete readers, compatibility scaffolding, or temporary instrumentation introduced
+    ☑ Verify first-upgrade, subsequent unchanged, single-edit, and reverted-edit behavior.
+    ☑ Remove obsolete readers, compatibility scaffolding, or temporary instrumentation introduced
       during implementation once unnecessary; retain only explicitly documented required migration.
-  ☐ Exercise missing/corrupt binary, record, manifest, and receipt recovery.
-    ☐ Cover absent data and mismatching/malformed metadata; repair locally when possible and
+  ☑ Exercise missing/corrupt binary, record, manifest, and receipt recovery.
+    ☑ Cover absent data and mismatching/malformed metadata; repair locally when possible and
       verify that unverifiable compiler results cause compilation rather than false cache hits.
-    ☐ Repeat compilation/reflection failure and cancellation through the integrated pipeline.
-  ☐ Verify compatibility and packaging.
-    ☐ Cover Debug/Release isolation, registry scopes, custom output paths, writer leases,
+    ☑ Repeat compilation/reflection failure and cancellation through the integrated pipeline.
+  ☑ Verify compatibility and packaging.
+    ☑ Cover Debug/Release isolation, registry scopes, custom output paths, writer leases,
       strict verification, explicit clean overriding reuse, and historical-cache retention.
-    ☐ Preserve runtime naming and packaged interface schema/consumer compatibility; verify private
+    ☑ Preserve runtime naming and packaged interface schema/consumer compatibility; verify private
       graph, variant, interface, cache, and temporary files are not packaged.
-    ☐ Verify deployed asset copying preserves unchanged timestamps and prunes obsolete binaries.
-    ☐ Compare clean and incremental binaries/manifests under identical inputs and controlled paths,
+    ☑ Verify deployed asset copying preserves unchanged timestamps and prunes obsolete binaries.
+    ☑ Compare clean and incremental binaries/manifests under identical inputs and controlled paths,
       including reverted edits. Account for Debug source-path attribution in comparison fixtures.
-  ☐ Completion gate: migration cannot bypass new dependencies, repair cannot bypass integrity,
+  ☑ Completion gate: migration cannot bypass new dependencies, repair cannot bypass integrity,
     and supported build/package paths preserve runtime contracts without temporary scaffolding.
+
+  Evidence (second review and independent completion audit passed)
+    - Proposal Migration and scope / Validation and acceptance -> ShaderMigrationRepairTests
+      verifies missing, malformed, incompatible-schema and digest-mismatched records for every
+      processing family; local compiler metadata repair; receipt/manifest recovery; legacy
+      hexadecimal-key cold population followed by warm reuse, single edit, reversion and clean.
+      Comparisons include complete runtime binary/manifest bytes at identical Debug-visible paths.
+    - Integrated reflection failure retains successful compiler artifacts without publishing
+      success; cancelled invocations preserve the prior generation and resume safely. Existing
+      compilation-failure, strict hashing, registry-scope, lease, runtime interface and publication
+      recovery tests remain part of the full qualification suite. The obsolete per-file cache
+      publication helper was removed; its hard-link test now exercises the actual cache Store API.
+    - Full ShaderBuildTool.Tests passed Debug 251/251 and Release 251/251; focused migration/repair
+      passed 29/29. All final runs reported zero warnings/errors. Commands: dotnet test
+      ShaderBuildTool.Tests/ShaderBuildTool.Tests.csproj [-c Release] --no-restore
+      -p:UseSharedCompilation=false -nr:false -m:1 --tl:off -v:minimal.
+      Logs: artifacts/investigation/phase6/tests-debug.log, tests-release.log, focused-debug.log.
+    - Actual isolated SpirvBuild builds passed for Debug and Release with custom OutputPath and
+      SpirvArtifactsDir. GetTargetPath resolved the configuration-specific built tools. Runtime
+      names remain equal, metadata identifies the correct configuration, and manifest/interface
+      schema remains version 2. Production assets and deployed game outputs were not modified.
+    - Actual CopySpirvArtifactsToOutputAssets target passed first-copy, unchanged and pruning
+      checks in both configurations: only active binaries/manifests copied; source/variant/interface
+      records, caches, work files and pending/previous trees excluded; unchanged timestamps retained.
+      Receipts/logs: artifacts/investigation/phase6/custom-{debug,release}.log,
+      target-path-{debug,release}.log, copy-{debug,release}-receipt.json and configuration-receipt.json.
 
 Phase 7: Measure production behavior and complete documentation
   Outcome: matched production evidence demonstrates skipped work and an actual improvement.

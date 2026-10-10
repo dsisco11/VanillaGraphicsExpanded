@@ -60,11 +60,13 @@ public sealed class ShaderPublicationTests
     {
         if (!OperatingSystem.IsWindows()) return;
         using var fixture = new PublicationFixture();
-        string source = Path.Combine(fixture.Output, "source.bin");
+        var cache = new ShaderVariantCache(fixture.Output, "compiler");
+        string key = cache.Key("source", "compute", "main");
+        string source = Path.Combine(fixture.Output, "_cache", key + ".bin");
         string linked = Path.Combine(fixture.Output, "linked.bin");
-        File.WriteAllBytes(source, [1, 2, 3]);
+        cache.Store(key, [1, 2, 3], ShaderVariantCache.Digest([1, 2, 3]));
         Assert.True(ShaderBinaryReuse.TryLink(linked, source));
-        ShaderVariantCache.Publish(source, [9, 8, 7]);
+        cache.Store(key, [9, 8, 7], ShaderVariantCache.Digest([9, 8, 7]));
         Assert.Equal(new byte[] { 1, 2, 3 }, File.ReadAllBytes(linked));
         Assert.Equal(new byte[] { 9, 8, 7 }, File.ReadAllBytes(source));
     }

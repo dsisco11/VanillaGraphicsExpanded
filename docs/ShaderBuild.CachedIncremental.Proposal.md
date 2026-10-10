@@ -1,6 +1,6 @@
 # Cached incremental SPIR-V builds
 
-Status: implementation in progress; assembly separation and identity boundaries are implemented and verified. Persistent processing record APIs are implemented and verified. Recoverable generation publication is implemented and verified; selective orchestration is implemented and verified by focused integration tests and an independent completion audit. Migration/package qualification and matched production measurements remain pending.
+Status: implementation in progress; assembly separation and identity boundaries are implemented and verified. Persistent processing record APIs are implemented and verified. Recoverable generation publication is implemented and verified; selective orchestration is implemented and verified by focused integration tests and an independent completion audit. Migration, repair and package compatibility are qualified by integrated tests and isolated Debug/Release MSBuild checks. Matched production measurements remain pending.
 
 ## Intent
 
@@ -178,7 +178,7 @@ Performance acceptance is elimination of unrelated expensive operations and a me
 
 ## Resolved implementation contracts
 
-These decisions govern the implementation. Graph semantics are qualified by the focused fixture described below. Assembly separation, identity APIs, persistent cache integration and publication recovery are implemented. The linked checklist retains migration/package qualification and matched production measurements.
+These decisions govern the implementation. Graph semantics are qualified by the focused fixture described below. Assembly separation, identity APIs, persistent cache integration and publication recovery are implemented. Migration/package compatibility is qualified; the linked checklist retains matched production measurements and final end-to-end qualification.
 
 ### Project and declaration boundary
 

@@ -139,6 +139,15 @@ identifiers, retaining the complete SHA-256 digest rather than truncating it. Ol
 cache filenames are not reused by the new key format; entries populate on the next build.
 Explicit clean can reclaim the historical entries. Runtime variant filenames remain unchanged.
 
+On upgrade, incompatible or absent source heads and graph records are rebuilt by expanding
+their roots; invalid variant records require emission, and invalid interface records require
+reflection. Independently verified compiler results remain reusable when their current keys
+match. Missing, malformed, unknown-schema, or digest-mismatched processing records are local
+misses. A valid receipt cannot bypass these checks. A damaged manifest or receipt is rebuilt
+from the complete verified generation without forcing compilation. Compiler metadata with
+a mismatching length or digest requires recompilation of its affected input. No legacy-key
+conversion or compatibility reader is used.
+
 Generation publication uses a versioned, integrity-checked journal at
 `_tmp/publication.json` under the output lease. Recovery runs before receipt checking
 or clean. Pending and previous generations are reserved siblings of the active shader
