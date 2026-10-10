@@ -10,7 +10,7 @@ internal sealed class ComponentShaderPrograms : IDisposable
     private readonly BinaryShaderApiFixture assets = new();
     private readonly EngineShaderPlatformScope platform = new();
     private readonly List<GpuProgram> programs = [];
-    private readonly List<GpuComputeShader> computePrograms = [];
+    private readonly List<GpuComputeProgram> computePrograms = [];
 
     /// <summary>Shares the owned engine boundary with scene resources that are disposed before this owner.</summary>
     internal Vintagestory.API.Client.ICoreClientAPI Api => assets.Api;

@@ -45,7 +45,7 @@ internal static class InterfaceBindingReader
             }
             if (!property.Type.ToDisplayString().StartsWith(Prefix, StringComparison.Ordinal) &&
                 NeedsImplementation(implementation) && !BindingReader.HasRuntimeTarget(owner))
-                throw new ArgumentException($"Interface binding '{property.Name}' requires a GpuProgram owner or an owning GpuComputePipeline field named 'pipeline'.");
+                throw new ArgumentException($"Interface binding '{property.Name}' requires a GpuProgram/GpuComputeProgram owner or an accessible owning GpuComputePipeline field named 'pipeline'.");
         }
     }
 
@@ -89,8 +89,7 @@ internal static class InterfaceBindingReader
                     .Append(Argument(attribute, 2).Value).Append(", ").Append(Named(attribute, "Required").Value is false ? "false" : "true").Append("); ");
             else
             {
-                string target = owner.GetMembers("pipeline").OfType<IFieldSymbol>().Any(f =>
-                    f.Type.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.GpuComputePipeline")
+                string target = !BindingReader.HasProgramFacade(owner) && BindingReader.HasLegacyPipelineTarget(owner)
                     ? "pipeline.ProgramLayout, pipeline.ProgramId" : "ProgramLayout, ProgramId";
                 var kind = BindingReader.ReadKind(attribute);
                 text.Append("set => global::VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.")

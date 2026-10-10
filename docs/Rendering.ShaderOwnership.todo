@@ -3,8 +3,8 @@ VGE shader ownership and engine separation
 
 Source proposal
   Rendering.ShaderOwnership.Proposal.md (sibling of this file) is authoritative.
-  Status: Phase 1 source audit and design contracts complete; runtime implementation and
-  acceptance remain unchecked.
+  Status: Phases 1-2 complete; shared workflows and compute naming validated. Engine separation,
+  registry/reload migration and final acceptance remain unchecked.
 
 Scope and shared contracts
   Establish IGpuProgram with default implementation methods, implemented by independent
@@ -55,7 +55,7 @@ Phase 1: Pin ownership contracts and migration coverage
     Resolved migration contracts; Migration coverage and evidence.
 
   ☑ Inventory inherited API and ambient ownership consumers.
-    - Trace GpuProgram partials, GpuComputeShader, GpuShaderPrograms, GraphicsCommandContext,
+    - Trace GpuProgram partials, GpuComputeProgram, GpuShaderPrograms, GraphicsCommandContext,
       EngineBoundaryExecution, direct Use/TryUse/UseScope and low-level compute consumers.
     - Include LiquidGraphicsSubmission, MeshDataPoolManager.Render, LiquidPoolSubmissionHook,
       SceneColorProgramBindings, EngineRenderScopes and test/diagnostic uniform adapters.
@@ -86,7 +86,7 @@ Phase 2: Establish IGpuProgram workflows and compute naming
   Depends on Phase 1. Outcome: shared behavior and generated owners have a verified VGE contract.
   Proposal: Shared interface and default implementation; Compute family rename and migration.
 
-  ☐ Introduce IGpuProgram default workflows for guarded preparation, activation/publication,
+  ☑ Introduce IGpuProgram default workflows for guarded preparation, activation/publication,
     scoped use and terminal lifetime; reuse the narrow IShaderSubmissionTarget view.
     - Keep lifecycle flags and CPU-block ownership in stable per-owner state with restricted access.
       Keep settings, retained generated values and installed generations with their family owners.
@@ -97,21 +97,40 @@ Phase 2: Establish IGpuProgram workflows and compute naming
     - Make retirement idempotent; reject mutation/disposal during publication and prevent revival.
     - Share CPU uniform registration/write guards and terminal release; preserve extra-resource
       disposal hooks, failure cleanup and compute diagnostic Dispatch overrides.
-  ☐ Rename GpuComputeShader and its file to GpuComputeProgram; update family constructors,
+  ☑ Rename GpuComputeShader and its file to GpuComputeProgram; update family constructors,
     derived declarations, type references, fixtures, tests and documentation references.
     - Keep GpuComputePipeline as the single native compute executable owner and preserve direct
       and indirect dispatch contracts. Do not add common-workflow double deletion.
-  ☐ Update RuntimeSubmissionEmitter, BindingReader and InterfaceBindingReader recognition.
+  ☑ Update RuntimeSubmissionEmitter, BindingReader and InterfaceBindingReader recognition.
     - Resolve the existing pipeline-field assumption deliberately; preserve concrete eligibility,
       abstract intermediate families, authored Submit overrides and property mutation guards.
     - Verify runtime/offline generated shells without assuming default methods become class members.
-  ☐ Validate through concrete, IGpuProgram and IDisposable entry points: sequencing, failed
+  ☑ Validate through concrete, IGpuProgram and IDisposable entry points: sequencing, failed
     publication cleanup, repeated disposal, recursion rejection, owned CPU blocks and generated inputs.
     - Keep current family preparation differences explicit; no compute invalidation no-op contract.
     - If graphics still needs an engine transition path before Phase 4, keep it temporary and
       explicitly isolate/remove it in Phases 3-4 rather than weaken the final interface contract.
-  ☐ Completion: generated families and focused dispatch/lifetime checks pass; compute family naming
+  ☑ Completion: generated families and focused dispatch/lifetime checks pass; compute family naming
     is migrated, native ownership is singular, and remaining engine transition dependencies are listed.
+
+  Traceability: workflows/lifetime -> proposal Shared interface and default implementation,
+    Resolved migration contracts / Interface visibility, dispatch and retained state -> IGpuProgram,
+    GpuProgramLifetime and family facades; guard/retirement regressions in GpuProgramWorkflowTests,
+    GpuComputeProgramWorkflowTests, GpuProgramUseScopeTests and ShaderDemandPreparationTests.
+    Rename/generation -> proposal Compute family rename and migration; Rendering.ShaderBindingState.md /
+    Prepared resource submission, Generated desired state and Declaration migration -> renamed families,
+    shared adapter targeting, RuntimeSubmissionTests, InterfaceBindingTests and retained-state coverage.
+    Preparation differences -> GPU.ShaderDemandLoading.md / Graphics and Compute ownership -> existing
+    settings-aware graphics preparation and first-load/retry compute pipeline, no common invalidation.
+    State authority -> Rendering.EngineStateSwitching.md / Limits and Selective invalidation -> unchanged
+    scope restoration/cache authority; proposal Shared workflow implementation lists transition removal.
+  Verification: Debug build passed with required production/fixture shader producers enabled
+    (0 errors, 116 warnings); generator suite 178/178 and focused lifecycle/submission/voxel/depth
+    suite 65/65 passed, with no skips. Receipts: ../artifacts/shader-ownership-phase2-build.log,
+    ../artifacts/shader-ownership-phase2-generator-tests.log and
+    ../artifacts/shader-ownership-phase2-focused-tests.log. Second source review and independent
+    audit-stage-completion passed 2026-10-10 after cleanup-admission and inherited-Submit corrections.
+    No game execution; engine separation and final acceptance remain open.
 
 Phase 3: Migrate existing scopes and liquid input translation
   Depends on Phase 2. Outcome: VGE use/restoration and liquid input staging no longer need an engine owner.

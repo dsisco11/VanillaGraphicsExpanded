@@ -17,7 +17,7 @@ public sealed class ShaderInputSubmissionStateTests
     public void EveryConcreteOwnerHasCompleteGeneratedState()
     {
         var owners = typeof(GpuProgram).Assembly.GetTypes().Where(type => !type.IsAbstract && !type.IsNested &&
-            (type.IsSubclassOf(typeof(GpuProgram)) || type.IsSubclassOf(typeof(GpuComputeShader)))).ToArray();
+            (type.IsSubclassOf(typeof(GpuProgram)) || type.IsSubclassOf(typeof(GpuComputeProgram)))).ToArray();
         Assert.NotEmpty(owners);
         foreach (var owner in owners)
         {
@@ -61,7 +61,7 @@ public sealed class ShaderInputSubmissionStateTests
         shader.Value = 9;
         Assert.Equal(9, shader.Value);
         shader.Fail = true;
-        Assert.Throws<TargetInvocationException>(shader.Publish);
+        Assert.Throws<InvalidOperationException>(shader.Publish);
         shader.Value = 11;
         Assert.Equal(11, shader.Value);
     }
@@ -69,7 +69,7 @@ public sealed class ShaderInputSubmissionStateTests
 
     #region Private
     /// <summary>Exercises the production submission boundary with a CPU-only implementation.</summary>
-    private sealed class GuardedShader : GeneratedAccessorShader
+    private sealed class GuardedShader : GeneratedAccessorShader, IGpuProgram
     {
         private int value;
         /// <summary>Retains one guarded runtime value.</summary>
@@ -77,7 +77,13 @@ public sealed class ShaderInputSubmissionStateTests
         /// <summary>Requests an exception after checking the guard.</summary>
         public bool Fail { get; set; }
         /// <summary>Invokes the real publication coordinator without invoking OpenGL activation.</summary>
-        public void Publish() => typeof(GpuProgram).GetMethod("SubmitPreparedInputs", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(this, null);
+        public void Publish() => ((IGpuProgram)this).Activate();
+        /// <summary>Supplies ready CPU-only preparation for workflow guard verification.</summary>
+        bool IGpuProgram.PrepareExecutable() => true;
+        /// <summary>Avoids native binding in the CPU-only guard fixture.</summary>
+        void IGpuProgram.BindExecutable() { }
+        /// <summary>Owns no native activation to clear in the CPU-only fixture.</summary>
+        void IGpuProgram.ClearActivation(bool bindingEntered) { }
         /// <summary>Verifies both mutation and recursive executable work are forbidden while publishing.</summary>
         protected override void Submit()
         {

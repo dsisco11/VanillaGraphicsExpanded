@@ -3,6 +3,7 @@ using HarmonyLib;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using Vintagestory.Client.NoObf;
 
@@ -34,6 +35,10 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
             Assert.Equal(4, first.Submissions);
             using (second.UseScope()) Assert.Equal(1, second.Submissions);
             Assert.Equal(5, first.Submissions);
+            ((IGpuProgram)first).Activate();
+            Assert.Equal(6, first.Submissions);
+            using (((IGpuProgram)second).BeginUse()) Assert.Equal(2, second.Submissions);
+            Assert.Equal(7, first.Submissions);
         }
         Assert.Null(ShaderProgramBase.CurrentShaderProgram);
     }
@@ -70,6 +75,29 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
         Assert.False(shader.TryUse());
         Assert.Null(ShaderProgramBase.CurrentShaderProgram);
         Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
+    }
+
+    /// <summary>Failed re-preparation of an already-active graphics owner withdraws its incompatible activation.</summary>
+    [Fact]
+    public void FailedPreparationClearsOnlyAlreadyActiveGraphicsOwner()
+    {
+        EnsureContextValid();
+        using var engine = new EngineShaderPlatformScope();
+        using var cache = DriverProgramCache.UseStoreForTesting(null);
+        using var assets = new BinaryShaderApiFixture();
+        using var shader = new CountingShader { PassName = "lumon_velocity" };
+        shader.Initialize(assets.Api);
+        shader.Use();
+        AssertActive(shader);
+        assets.BeforeRead = path =>
+        {
+            if (path.EndsWith(".spv", StringComparison.Ordinal)) assets.Overrides[path] = new byte[20];
+        };
+        shader.InvalidateAssets();
+        Assert.Throws<InvalidOperationException>(() => ((IGpuProgram)shader).Activate());
+        Assert.Null(ShaderProgramBase.CurrentShaderProgram);
+        Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     /// <summary>The engine's nonvirtual base-typed activation reaches owned shader publication.</summary>
@@ -164,6 +192,10 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
             if (ProbeRecursiveUse)
             {
                 Assert.False(TryUse());
+                Assert.Throws<InvalidOperationException>(() => ((IGpuProgram)this).Activate());
+                Assert.Throws<InvalidOperationException>(() => ((IGpuProgram)this).BeginUse());
+                Assert.Throws<InvalidOperationException>(() => ((IGpuProgram)this).Prepare());
+                Assert.Throws<InvalidOperationException>(() => ((IDisposable)this).Dispose());
                 AssertActive(this);
             }
             Submissions++;

@@ -7,12 +7,11 @@ using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Owns retained compute inputs and publishes them before executing work.</summary>
-internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
+internal abstract class GpuComputeProgram : IGpuProgram
 {
     protected readonly GpuComputePipeline pipeline;
-    private bool submitting;
-    private bool disposed;
-    [ThreadStatic] private static Dictionary<int, WeakReference<GpuComputeShader>>? owners;
+    private readonly GpuProgramLifetime lifetime = new();
+    [ThreadStatic] private static Dictionary<int, WeakReference<GpuComputeProgram>>? owners;
 
     #region Public API
     #region Executable state
@@ -21,45 +20,19 @@ internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
     /// <summary>Gets the installed binding layout.</summary>
     public GpuProgramLayout ProgramLayout => pipeline.ProgramLayout;
     /// <summary>Reports whether the owned executable remains available.</summary>
-    public bool IsValid => !disposed && pipeline.IsValid;
+    public bool IsValid => !lifetime.IsRetired && pipeline.IsValid;
     /// <summary>Reports the owned executable's last preparation failure.</summary>
     public string PreparationLog => pipeline.PreparationLog;
     /// <summary>Prepares the executable without publishing inputs or executing work.</summary>
-    public bool EnsureReady()
-    {
-        RequireInputMutation();
-        return pipeline.EnsureReady();
-    }
+    public bool EnsureReady() => ((IGpuProgram)this).Prepare();
     #endregion
 
     #region Submission and execution
     /// <summary>Activates the executable and publishes the complete retained input set.</summary>
-    public void Use()
-    {
-        RequireInputMutation();
-        ShaderProgramBase.CurrentShaderProgram?.Stop();
-        submitting = true;
-        try
-        {
-            pipeline.Use();
-            Submit();
-            (owners ??= new())[ProgramId] = new(this);
-        }
-        catch { StateCache.Current.UnbindProgram(); throw; }
-        finally { submitting = false; }
-    }
+    public void Use() => ((IGpuProgram)this).Activate();
 
     /// <summary>Publishes inputs and restores the previous executable on scope exit.</summary>
-    public IDisposable UseScope()
-    {
-        RequireInputMutation();
-        var previous = ShaderProgramBase.CurrentShaderProgram;
-        int previousId = StateCache.Current.GetCurrentProgram();
-        // Retain owner identity before nested work can dispose it or recycle its GL name.
-        var scope = new SubmissionScope(previous, previousId, FindOwner(previousId));
-        try { Use(); return scope; }
-        catch { scope.Dispose(); throw; }
-    }
+    public IDisposable UseScope() => ((IGpuProgram)this).BeginUse();
 
     /// <summary>Publishes current inputs immediately before dispatching the requested work.</summary>
     public virtual void Dispatch(int x, int y = 1, int z = 1)
@@ -81,42 +54,86 @@ internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
 
     #region Lifetime and restoration
     /// <summary>Releases the executable after rejecting recursive disposal during publication.</summary>
-    public virtual void Dispose()
-    {
-        if (disposed) return;
-        RequireInputMutation();
-        disposed = true;
-        owners?.Remove(ProgramId);
-        pipeline.Dispose();
-    }
+    public void Dispose() => ((IGpuProgram)this).Retire();
+    #endregion
+    #endregion
 
+    #region Internal API
     /// <summary>Captures compute ownership so scopes cannot mistake a retired owner for a raw executable.</summary>
-    internal static GpuComputeShader? FindOwner(int program)
+    internal static GpuComputeProgram? FindOwner(int program)
     {
         return owners != null && owners.TryGetValue(program, out var reference) && reference.TryGetTarget(out var owner)
             ? owner : null;
     }
     #endregion
-    #endregion
 
     #region Protected API
     /// <summary>Adopts the existing compute executable and its preparation policy.</summary>
-    protected GpuComputeShader(GpuComputePipeline pipeline) => this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+    protected GpuComputeProgram(GpuComputePipeline pipeline) => this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
     /// <summary>Allows derived resource owners to preserve idempotent disposal.</summary>
-    protected bool IsDisposed => disposed;
+    protected bool IsDisposed => lifetime.IsRetired;
     /// <summary>Rejects input writes during submission or after disposal.</summary>
-    protected void RequireInputMutation()
-    {
-        ObjectDisposedException.ThrowIf(disposed, this);
-        if (submitting) throw new InvalidOperationException("Compute inputs cannot change during submission.");
-    }
+    protected void RequireInputMutation() => lifetime.RequireMutation();
+    /// <summary>Registers CPU blocks owned by the compute wrapper rather than its pipeline.</summary>
+    protected T OwnUniformBuffer<T>(T buffer) where T : CpuUniformBuffer
+        => ((IGpuProgram)this).RegisterUniform(buffer);
+    /// <summary>Releases feature-owned resources after terminal admission closes.</summary>
+    protected virtual void ReleaseResources() { }
     /// <summary>Implemented by generated binding-contract publication.</summary>
     protected abstract void Submit();
     #endregion
 
     #region Private
+    #region Workflow hooks
+    /// <summary>Preserves compute's eager or deferred one-time preparation policy.</summary>
+    bool IGpuProgram.PrepareExecutable() => pipeline.EnsureReady();
+
+    /// <summary>Preserves the existing native handoff until scoped ownership migration.</summary>
+    void IGpuProgram.BindExecutable()
+    {
+        ShaderProgramBase.CurrentShaderProgram?.Stop();
+        StateCache.Current.UseProgram(ProgramId);
+    }
+    /// <summary>Publishes generated inputs and retains the temporary restoration lookup.</summary>
+    void IGpuProgram.PublishInputs()
+    {
+        Submit();
+        (owners ??= new())[ProgramId] = new(this);
+    }
+    /// <summary>Unbinds an incomplete compute activation.</summary>
+    void IGpuProgram.ClearActivation(bool bindingEntered)
+    {
+        if (bindingEntered) StateCache.Current.UnbindProgram();
+    }
+    /// <summary>Exposes stable lifecycle data solely to the common workflow.</summary>
+    GpuProgramLifetime IGpuProgram.Lifetime => lifetime;
+
+    /// <summary>Preserves existing compute restoration until program scopes migrate.</summary>
+    IDisposable IGpuProgram.OpenUseScope()
+    {
+        RequireInputMutation();
+        var previous = ShaderProgramBase.CurrentShaderProgram;
+        int previousId = StateCache.Current.GetCurrentProgram();
+        // Retain owner identity before nested work can dispose it or recycle its GL name.
+        return new SubmissionScope(previous, previousId, FindOwner(previousId));
+    }
+
+    /// <summary>Routes interface disposal through the same terminal facade.</summary>
+    void IDisposable.Dispose() => Dispose();
+    /// <summary>Releases the single compute executable owner and temporary restoration lookup.</summary>
+    void IGpuProgram.ReleaseExecutable()
+    {
+        owners?.Remove(ProgramId);
+        pipeline.Dispose();
+    }
+    /// <summary>Invokes extra-resource cleanup independently of native executable cleanup.</summary>
+    void IGpuProgram.ReleaseResources() => ReleaseResources();
+
+    #endregion
+
+    #region Restoration
     /// <summary>Restores graphics and compute ownership as well as the underlying GL executable.</summary>
-    private sealed class SubmissionScope(ShaderProgramBase? previous, int program, GpuComputeShader? compute) : IDisposable
+    private sealed class SubmissionScope(ShaderProgramBase? previous, int program, GpuComputeProgram? compute) : IDisposable
     {
         private bool ended;
         /// <summary>Re-publishes the enclosing owner's resources once on scope exit.</summary>
@@ -134,5 +151,6 @@ internal abstract class GpuComputeShader : IShaderSubmissionTarget, IDisposable
             catch { StateCache.Current.UnbindProgram(); throw; }
         }
     }
+    #endregion
     #endregion
 }

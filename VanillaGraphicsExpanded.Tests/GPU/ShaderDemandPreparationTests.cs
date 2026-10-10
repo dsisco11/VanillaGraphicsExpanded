@@ -21,6 +21,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
+    [InlineData(3)]
     public void ActivationPreparesOnlySelectedOwner(int activation)
     {
         EnsureContextValid();
@@ -46,12 +47,20 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
             using var use = program.UseScope();
             Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
         }
-        else
+        else if (activation == 2)
         {
             IShaderProgram contract = program;
             contract.Use();
             Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             contract.Stop();
+        }
+        else
+        {
+            IGpuProgram contract = program;
+            Assert.True(contract.Prepare());
+            using var use = contract.BeginUse();
+            Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+            contract.Activate();
         }
         Assert.True(GL.IsProgram(program.ProgramId));
         Assert.Single(assets.RegisteredPrograms);
@@ -85,13 +94,18 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
     }
 
     /// <summary>Interface disposal of a never-prepared declaration performs safe empty-owner cleanup.</summary>
-    [Fact]
-    public void InterfaceDisposalOfUnusedDeclarationDoesNotCreateGpuWork()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void InterfaceDisposalOfUnusedDeclarationDoesNotCreateGpuWork(int route)
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
         var program = GpuShaderPrograms.Declare(assets.Api, new RasterDepthCopyShaderProgram());
-        ((IShaderProgram)program).Dispose();
+        if (route == 0) ((IShaderProgram)program).Dispose();
+        else if (route == 1) ((IGpuProgram)program).Retire();
+        else ((IDisposable)program).Dispose();
         Assert.True(program.Disposed);
         Assert.False(program.EnsureReady());
         Assert.False(program.TryUse());

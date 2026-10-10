@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_feedback_mark_pages", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_feedback_mark_pages.csh")]
-internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : GpuComputeShader, ILumonSceneFeedbackMarkPagesComputeShaderBindings
+internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : GpuComputeProgram, ILumonSceneFeedbackMarkPagesComputeShaderBindings
 {
 
     public static string ShaderName => Contract.Identity;
@@ -93,7 +93,7 @@ internal sealed partial class LumonSceneFeedbackMarkPagesComputeShader : GpuComp
     /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
     private LumonSceneFeedbackMarkPagesComputeShader(GpuComputePipeline pipeline) : base(pipeline)
     {
-        parameters.SetWriteGuard(RequireInputMutation);
+        OwnUniformBuffer(parameters);
     }
 
     /// <summary>Packs retained values for one complete publication at dispatch.</summary>

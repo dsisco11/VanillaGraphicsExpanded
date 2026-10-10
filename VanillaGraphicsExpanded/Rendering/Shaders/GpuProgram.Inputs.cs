@@ -1,38 +1,23 @@
-using System;
-
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
-/// <summary>Owns publication of persistent shader inputs at activation.</summary>
+/// <summary>Bridges authored retained-input publication into the common program workflow.</summary>
 public abstract partial class GpuProgram
 {
-    private bool submittingInputs;
-
-    #region Public API
+    #region Internal API
     /// <summary>Rejects recursive executable work while retained inputs are being submitted.</summary>
-    internal void RequireOutsideSubmission()
-    {
-        if (submittingInputs) throw new InvalidOperationException("Cannot activate a shader during its submission.");
-    }
+    internal void RequireOutsideSubmission() => lifetime.RequireOutsidePublication();
+    #endregion
 
+    #region Protected API
     /// <summary>Rejects mutation during publication or after terminal owner retirement.</summary>
-    protected internal void RequireInputMutation()
-    {
-        if (IsRetired) throw new ObjectDisposedException(GetType().Name);
-        if (submittingInputs) throw new InvalidOperationException("Cannot change shader inputs during submission.");
-    }
-
+    protected internal void RequireInputMutation() => lifetime.RequireMutation();
     /// <summary>Publishes the complete retained state; binding contracts generate this implementation.</summary>
     protected abstract void Submit();
     #endregion
-
     #region Private
-    /// <summary>Keeps publication non-reentrant without requiring a separate editing scope.</summary>
-    private void SubmitPreparedInputs()
-    {
-        RequireOutsideSubmission();
-        submittingInputs = true;
-        try { Submit(); }
-        finally { submittingInputs = false; }
-    }
+    /// <summary>Exposes stable owner state only at the internal workflow boundary.</summary>
+    GpuProgramLifetime IGpuProgram.Lifetime => lifetime;
+    /// <summary>Invokes authored and generated overrides through their protected family contract.</summary>
+    void IGpuProgram.PublishInputs() => Submit();
     #endregion
 }

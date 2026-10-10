@@ -158,7 +158,7 @@ internal sealed partial class LumonSceneRelightVoxelDdaComputeShader : TraceGeom
     /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
     private LumonSceneRelightVoxelDdaComputeShader(GpuComputePipeline pipeline) : base(pipeline)
     {
-        parameters.SetWriteGuard(RequireInputMutation);
+        OwnUniformBuffer(parameters);
     }
 
     /// <summary>Packs retained values for one complete publication at dispatch.</summary>

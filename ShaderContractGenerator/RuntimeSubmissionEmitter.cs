@@ -16,13 +16,24 @@ internal static class RuntimeSubmissionEmitter
     {
         if (symbol.IsStatic || symbol.IsAbstract) return false;
         for (var parent = symbol.BaseType; parent != null; parent = parent.BaseType)
-            if (parent.ToDisplayString() is "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram" or "VanillaGraphicsExpanded.Rendering.GpuComputeShader") return true;
+            if (parent.ToDisplayString() is "VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram" or "VanillaGraphicsExpanded.Rendering.GpuComputeProgram") return true;
         return false;
     }
 
     /// <summary>Generates contract submission unless a specialized owner supplies its own override.</summary>
-    public static bool GeneratesSubmission(INamedTypeSymbol symbol) => IsRuntimeOwner(symbol) &&
-        !symbol.GetMembers("Submit").OfType<IMethodSymbol>().Any(m => m.IsOverride);
+    public static bool GeneratesSubmission(INamedTypeSymbol symbol)
+    {
+        if (!IsRuntimeOwner(symbol)) return false;
+        // The nearest authored implementation owns publication even through an abstract family.
+        // A reabstracted hook restores the obligation to generate the concrete owner's body.
+        for (var owner = symbol; owner != null; owner = owner.BaseType)
+        {
+            var method = owner.GetMembers("Submit").OfType<IMethodSymbol>()
+                .FirstOrDefault(candidate => !candidate.IsStatic && candidate.Parameters.Length == 0);
+            if (method != null) return method.IsAbstract || !method.IsOverride;
+        }
+        return true;
+    }
 
     /// <summary>Recognizes packed CPU block sources without introducing a second binding declaration.</summary>
     public static bool IsCpuBuffer(ITypeSymbol type)

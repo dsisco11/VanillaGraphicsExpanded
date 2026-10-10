@@ -25,7 +25,7 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// - Apply a GL debug label to the linked program
 ///
 /// </summary>
-public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDisposable, IShaderSubmissionTarget
+public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDisposable, IGpuProgram
 {
     #region Fields
 
@@ -137,16 +137,20 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     /// Binds this program (using the engine's <see cref="ShaderProgram.Use"/>), returning a scope that
     /// restores the previous program binding when disposed.
     /// </summary>
-    public ProgramUseScope UseScope()
+    public ProgramUseScope UseScope() => (ProgramUseScope)((IGpuProgram)this).BeginUse();
+
+    /// <summary>Captures existing graphics restoration until ownership moves to integration.</summary>
+    IDisposable IGpuProgram.OpenUseScope()
     {
         RequireOutsideSubmission();
         try
         {
             if (!EnsureReady()) throw new InvalidOperationException("Shader preparation failed.");
         }
-        catch
+        catch (Exception preparation)
         {
-            ClearFailedActivation();
+            try { ClearFailedActivation(); }
+            catch (Exception cleanup) { throw new AggregateException(preparation, cleanup); }
             throw;
         }
         var previous = ShaderProgramBase.CurrentShaderProgram;
@@ -154,25 +158,22 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         if (previous is null)
             previousId = StateCache.Current.GetCurrentProgram();
         // Capture ownership now; nested disposal must fail restoration rather than bind a retired GL name.
-        var previousCompute = previous is null ? GpuComputeShader.FindOwner(previousId) : null;
+        var previousCompute = previous is null ? GpuComputeProgram.FindOwner(previousId) : null;
 
+        // Retain native handoff within this family scope until integration owns it.
         try
         {
-            // The engine rejects overlapping shader owners, even when GL allows a bind.
             if (!ReferenceEquals(previous, this))
             {
                 previous?.Stop();
                 StateCache.Current.NotifyProgramBound(0);
             }
-            Use();
-            StateCache.Current.NotifyProgramBound(ProgramId);
             return new ProgramUseScope(previous, previousId, previousCompute, this);
         }
-        catch (Exception activationFailure)
+        catch (Exception handoff)
         {
-            // Restore the caller's ownership if activation failed during shutdown/reload.
             try { RestoreProgram(previous, previousId, previousCompute); }
-            catch (Exception restorationFailure) { throw new AggregateException(activationFailure, restorationFailure); }
+            catch (Exception restoration) { throw new AggregateException(handoff, restoration); }
             throw;
         }
     }
@@ -193,7 +194,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     }
 
     /// <summary>Restores owned resources through submission and preserves foreign engine activation policy.</summary>
-    private static void RestoreProgram(ShaderProgramBase? previous, int previousId, GpuComputeShader? previousCompute)
+    private static void RestoreProgram(ShaderProgramBase? previous, int previousId, GpuComputeProgram? previousCompute)
     {
         try
         {
@@ -222,11 +223,11 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     {
         private readonly ShaderProgramBase? previous;
         private readonly int previousProgramId;
-        private readonly GpuComputeShader? previousCompute;
+        private readonly GpuComputeProgram? previousCompute;
         private readonly GpuProgram? current;
 
         /// <summary>Remembers both the engine owner and any engine-independent GL binding.</summary>
-        internal ProgramUseScope(ShaderProgramBase? previous, int previousProgramId, GpuComputeShader? previousCompute, GpuProgram current)
+        internal ProgramUseScope(ShaderProgramBase? previous, int previousProgramId, GpuComputeProgram? previousCompute, GpuProgram current)
         {
             this.previous = previous;
             this.previousProgramId = previousProgramId;
@@ -258,7 +259,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     public bool CompileAndLink()
     {
         RequireOutsideSubmission();
-        if (retired) return false;
+        if (lifetime.IsRetired) return false;
         if (capi is null)
         {
             throw new InvalidOperationException("GpuProgram was not initialized. Call Initialize(api) first.");

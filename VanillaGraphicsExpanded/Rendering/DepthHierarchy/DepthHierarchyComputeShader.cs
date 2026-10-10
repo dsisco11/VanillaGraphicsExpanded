@@ -5,7 +5,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Owns the typed executable that generates a shared depth chain in one dispatch.</summary>
 [ShaderProgram("Contract", "vge_depth_hierarchy", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "vge_depth_hierarchy.csh")]
-internal sealed partial class DepthHierarchyComputeShader : GpuComputeShader, IDepthHierarchyComputeBindings
+internal sealed partial class DepthHierarchyComputeShader : GpuComputeProgram, IDepthHierarchyComputeBindings
 {
     private readonly PackedUniformBuffer parameters = new(16);
     private readonly byte[] parameterBytes = new byte[16];
@@ -27,20 +27,12 @@ internal sealed partial class DepthHierarchyComputeShader : GpuComputeShader, ID
         UboPacking.WriteIVec4(parameterBytes, 0, width, height, levels, 0);
         parameters.SetBytes(parameterBytes);
     }
-    /// <summary>Releases parameters before retiring the executable.</summary>
-    public override void Dispose()
-    {
-        if (IsDisposed) return;
-        RequireInputMutation();
-        parameters.Dispose();
-        base.Dispose();
-    }
     #endregion
     #region Private
     /// <summary>Adopts the linked executable and guards retained parameter mutation.</summary>
     private DepthHierarchyComputeShader(GpuComputePipeline pipeline) : base(pipeline)
     {
-        parameters.SetWriteGuard(RequireInputMutation);
+        OwnUniformBuffer(parameters);
     }
     /// <summary>Supplies the retained dispatch block.</summary>
     CpuUniformBuffer IDepthHierarchyComputeBindings.Parameters => parameters;

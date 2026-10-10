@@ -56,6 +56,83 @@ public sealed class InterfaceBindingTests
         Assert.Contains(offline.Generated, s => s.Contains("\"direct\", new GpuBindingContract.Binding(5, true, 1, null, 0, 0)"));
     }
 
+    /// <summary>Authored compute submission uses family facade state without requiring a field named pipeline.</summary>
+    [Fact]
+    public void AuthoredComputeOwnerUsesFacadeForAlternateBindings()
+    {
+        string support = BindingTests.RuntimeBindingSupport + """
+            namespace VanillaGraphicsExpanded.Rendering
+            {
+                public abstract class GpuComputeProgram
+                {
+                    public object ProgramLayout = new(); public int ProgramId = 42;
+                    protected abstract void Submit();
+                }
+            }
+            """;
+        string source = """
+            internal interface IResources
+            {
+                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute)]
+                VanillaGraphicsExpanded.Rendering.GpuTexture Source { set; }
+            }
+            internal abstract class Family : VanillaGraphicsExpanded.Rendering.GpuComputeProgram { }
+            """ + Header + """
+            internal partial class Shader : Family, IResources
+            {
+                protected override void Submit() { }
+            }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader(); var texture = new VanillaGraphicsExpanded.Rendering.GpuTexture();
+                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedLayout = shader.ProgramLayout;
+                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedTexture = texture;
+                    ((IResources)shader).Source = texture;
+                    return VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.Calls;
+                }
+            }
+            """;
+        var runtime = GeneratorFixture.Generate(source, supportSource: support);
+        Assert.Equal("True:source;", runtime.Run());
+        Assert.All(runtime.Generated, text => Assert.DoesNotContain("pipeline.ProgramLayout", text));
+        GeneratorFixture.Generate(source, true, supportSource: support).Compile();
+    }
+
+    /// <summary>Direct pipeline adapters can inherit an accessible owning field.</summary>
+    [Fact]
+    public void AlternateAdapterResolvesInheritedPipelineField()
+    {
+        string source = """
+            internal interface IResources
+            {
+                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute)]
+                VanillaGraphicsExpanded.Rendering.GpuTexture Source { set; }
+            }
+            internal abstract class Adapter
+            {
+                protected readonly VanillaGraphicsExpanded.Rendering.GpuComputePipeline pipeline = new();
+                public object Layout => pipeline.ProgramLayout;
+            }
+            """ + Header + """
+            internal partial class Shader : Adapter, IResources { }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader(); var texture = new VanillaGraphicsExpanded.Rendering.GpuTexture();
+                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedLayout = shader.Layout;
+                    VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.ExpectedTexture = texture;
+                    ((IResources)shader).Source = texture;
+                    return VanillaGraphicsExpanded.Rendering.ShaderBindingAccess.Calls;
+                }
+            }
+            """;
+        Assert.Equal("True:source;", GeneratorFixture.Generate(source, supportSource: BindingTests.RuntimeBindingSupport).Run());
+        GeneratorFixture.Generate(source, true, supportSource: BindingTests.RuntimeBindingSupport).Compile();
+    }
+
     /// <summary>Diamonds retain one owner and derived redeclarations explicitly replace the inherited index.</summary>
     [Fact]
     public void InterfaceDiamondsAndDerivedOverridesWork()

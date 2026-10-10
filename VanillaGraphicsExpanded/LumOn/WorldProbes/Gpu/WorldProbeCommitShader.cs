@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumon_worldprobe_commit.csh")]
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-internal sealed partial class WorldProbeCommitShader : GpuComputeShader, IWorldProbeCommitShaderBindings
+internal sealed partial class WorldProbeCommitShader : GpuComputeProgram, IWorldProbeCommitShaderBindings
 {
     /// <summary>Adopts the executable and its retained resource contract.</summary>
     public WorldProbeCommitShader(GpuComputePipeline pipeline) : base(pipeline) { }

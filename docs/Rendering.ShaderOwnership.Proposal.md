@@ -1,6 +1,6 @@
 # VGE shader ownership and engine separation proposal
 
-Status: design contracts and source dependency audit resolved; no runtime implementation or migration validation has been performed.
+Status: design contracts and source dependency audit resolved; shared workflows and compute naming implemented and validated. Engine isolation, registry/reload migration and final acceptance remain open.
 
 ## Objective and bounded outcome
 
@@ -28,7 +28,7 @@ Current sources were inspected together with IL from the installed G:/Vintagesto
 | --- | --- |
 | [GpuProgram](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.cs) and its Preparation/Spirv partials | Inherits engine fields, activation, uniform APIs and disposal. Replace these dependencies while preserving settings, preparation, generated Submit and pipeline revision contracts. |
 | [GpuShaderPrograms](../VanillaGraphicsExpanded/Rendering/Shaders/GpuShaderPrograms.cs) | Already owns declarations, typed lookup, selected preload, removal and application cleanup. Its per-API table and RegisterOnPreparation coupling need a concrete lifetime owner. |
-| [GpuComputeShader](../VanillaGraphicsExpanded/Rendering/GpuComputeShader.cs) | Already avoids engine inheritance, but stops/restores graphics owners through CurrentShaderProgram and retains a thread-local numeric-ID lookup. It must participate in the same VGE activation ownership as graphics. |
+| [GpuComputeProgram](../VanillaGraphicsExpanded/Rendering/GpuComputeProgram.cs) | Already avoids engine inheritance, but stops/restores graphics owners through CurrentShaderProgram and retains a thread-local numeric-ID lookup. It must participate in the same VGE activation ownership as graphics. |
 | [GraphicsCommandContext](../VanillaGraphicsExpanded/Rendering/Pipeline/GraphicsCommandContext.cs) | Owns shader scopes and per-draw submission. Preserve its validation and cleanup order; redirect activation ownership. |
 | [EngineBoundaryExecution](../VanillaGraphicsExpanded/Rendering/Integration/EngineBoundaryExecution.cs) | Identifies incoming VGE owners through an engine-base type check. Replace this with explicit VGE owner state and keep unsupported incoming engine/raw footprints rejected. |
 | [LiquidGraphicsSubmission](../VanillaGraphicsExpanded/PBR/Liquids/LiquidGraphicsSubmission.cs) | Borrows engine pool traversal and relies on CurrentActiveShader for input staging. This is the main functional engine-shader compatibility requirement. |
@@ -82,7 +82,7 @@ This interface introduces no activation stack, ambient current-owner dictionary 
 
 Rename the GpuComputeShader type and its source file to GpuComputeProgram. Update derived declarations, constructors, type references, restoration paths, tests, fixtures and documentation. This rename concerns the common compute family; it does not require renaming every feature-specific shader class or GpuComputePipeline, whose native executable ownership remains distinct.
 
-Update generator owner recognition and interface-binding assumptions with the rename. RuntimeSubmissionEmitter and BindingReader currently recognize GpuProgram and GpuComputeShader, and InterfaceBindingReader also assumes an owning compute field named pipeline. Recognize the new family name or the IGpuProgram contract while preserving eligibility rules for concrete generated owners and authored Submit overrides. Verify runtime and offline generated shells, intermediate abstract families, retained property mutation guards and interface dispatch. Do not assume a default interface method becomes a concrete member visible to generated code.
+Update generator owner recognition and interface-binding assumptions with the rename. RuntimeSubmissionEmitter and BindingReader currently recognize GpuProgram and GpuComputeProgram, and InterfaceBindingReader also assumes an owning compute field named pipeline. Recognize the new family name or the IGpuProgram contract while preserving eligibility rules for concrete generated owners and authored Submit overrides. Verify runtime and offline generated shells, intermediate abstract families, retained property mutation guards and interface dispatch. Do not assume a default interface method becomes a concrete member visible to generated code.
 
 The benefit is shared lifecycle policy without imposing common class inheritance. The cost is explicit per-owner state access, carefully separated default-method dispatch and family hooks, and coordinated generator/caller migration. The original crash is resolved by eliminating engine inheritance/registration and its stage-object requirements; IGpuProgram supplies the reusable VGE behavior around that fix.
 
@@ -133,7 +133,7 @@ The existing mechanisms have different responsibilities:
 
 - StateCache.UseProgramScope uses ProgramScopeTracker/BindScopeTracker to save and restore numeric program bindings. Its current stack is per-thread and stores integers, not shader owners, executable revisions or context generations. It is used by low-level compute and layout preparation.
 - GraphicsCommandContext retains ShaderActivation for the selected pipeline, disposes it on pipeline changes or EndPass, and registers it with EngineBoundaryScope for exceptional cleanup. It already owns managed activation lifetime.
-- ShaderActivation currently calls GpuProgram.UseScope, whose restoration still captures ShaderProgramBase.CurrentShaderProgram and optionally a compute owner. GpuComputeShader.UseScope has a corresponding engine-dependent path. These owner-aware scopes are not implemented through the numeric ProgramScopeTracker today.
+- ShaderActivation currently calls GpuProgram.UseScope, whose restoration still captures ShaderProgramBase.CurrentShaderProgram and optionally a compute owner. GpuComputeProgram.UseScope has a corresponding engine-dependent path. These owner-aware scopes are not implemented through the numeric ProgramScopeTracker today.
 
 The migration should replace the engine-dependent contents of those existing scopes and consolidate their restoration responsibility with the established binding scopes where appropriate. Carry a borrowed owner/generation reference in the existing program-scope or command-context lifetime only where resubmission and retirement validation require it. Do not recover an owner through another global dictionary or duplicate the command context's selected shader state.
 
@@ -174,7 +174,7 @@ Distinguish configuration changes, asset reload, leave-world, registry disposal 
 
 ## Compatibility, generators and documentation
 
-Generated contracts currently recognize GpuProgram and GpuComputeShader by their VGE types, not by the engine base class. Migrate compute recognition to GpuComputeProgram and account for IGpuProgram default-method dispatch as described above; verify runtime and offline generated shells. Preserve numeric prepared bindings, desired-state retention, successful-publication history and CPU UBO ownership.
+Generated contracts currently recognize GpuProgram and GpuComputeProgram by their VGE types, not by the engine base class. Migrate compute recognition to GpuComputeProgram and account for IGpuProgram default-method dispatch as described above; verify runtime and offline generated shells. Preserve numeric prepared bindings, desired-state retention, successful-publication history and CPU UBO ownership.
 
 Audit inherited API consumers explicitly. Production engine Uniform/HasUniform adapters are concentrated in liquid input translation; tests and diagnostic helpers also use inherited uniform/texture APIs. Migrate VGE fixtures to generated properties or preparation-owned numeric helpers. Do not recreate every engine overload on the independent class. Keep GpuProgramInterface's name/location projection where diagnostics or remaining fixture adapters still consume it; removing engine uniformLocations does not authorize deleting useful prepared metadata.
 
@@ -184,9 +184,31 @@ Audit automatic Use-hook effects before removal: VGE owners must obtain every re
 
 Update GpuProgram.md, GPU.ShaderDemandLoading.md, Rendering.ShaderBindingState.md and the engine/pipeline boundary documentation. GpuProgram.md currently describes older source compilation and memory registration, so it needs reconciliation with the current binary pipeline and proposed ownership. Public GpuProgram/VgeShaderProgram consumers will lose engine assignability and inherited APIs; treat this as an intentional API change and document the supported replacement surface.
 
+## Shared workflow implementation
+
+Both current families implement internal IGpuProgram. Its default Prepare, Activate, BeginUse and Retire
+workflows operate on one GpuProgramLifetime per owner. Concrete EnsureReady/Use/UseScope/Dispose
+facades dispatch to distinct workflow slots; explicit PublishInputs preserves protected Submit overrides.
+Owned CPU blocks register through the same default workflow and retain terminal write guards. Retirement
+closes admission once, attempts CPU, extra-resource and executable cleanup independently, and retains failures.
+Graphics activation and terminal cleanup have separate partials; compute keeps GpuComputePipeline as its
+single executable owner. Diagnostic Dispatch overrides remain authored.
+
+Runtime and offline generation recognizes GpuComputeProgram through abstract family inheritance. Authored
+Submit owners use ProgramLayout/ProgramId facades for alternate binding emission. Direct-pipeline adapters
+outside those families retain the explicit accessible pipeline-field path, shared by validation and emission.
+No common asset-invalidation method is introduced: graphics retains settings-aware preparation; compute
+retains its existing eager/deferred first preparation and explicit failed-attempt retry policy.
+
+Remaining transition dependencies are intentional and assigned to the following work: graphics still derives
+from ShaderProgram, creates/registers engine stages, and uses base activation/disposal; both family scopes
+still capture engine current ownership; compute retains its weak numeric-ID restoration lookup. Existing
+scope borrowing/context validation belongs to the scope migration. These dependencies must be removed by
+the existing scope/integration and executable separation tasks before the migration can ship.
+
 ## Resolved migration contracts
 
-These decisions are based on the current source and installed-engine inspection on 2026-10-10. They specify implementation work; they do not claim that the independent runtime already exists.
+These decisions are based on source and installed-engine inspection on 2026-10-10. Shared workflow implementation is recorded above; the complete independent runtime remains planned.
 
 ### Interface visibility, dispatch and retained state
 
@@ -251,7 +273,7 @@ Read-only Harmony GetOriginalInstructions inspection on 2026-10-10 used installe
 | --- | --- |
 | Rendering/Shaders/GpuProgram.cs, .Preparation.cs, .Spirv.cs | Engine fields, NewShader, registration, base Use/Dispose, engine Compile override and stage ownership become IGpuProgram workflows plus composed executable preparation. Public facades lose engine assignability intentionally. |
 | GpuProgram.Inputs.cs, .UniformOwnership.cs, .Options.cs, .Graphics.cs | Guards/CPU blocks use per-owner lifecycle state; settings transactions and graphics identity/revision stay graphics-specific. OnAfterCompile stays a post-install notification. |
-| Rendering/GpuComputeShader.cs and GpuComputePipeline.Preparation.cs | Rename family; move duplicated guards/workflow/restoration to interface and existing scopes. Keep native pipeline ownership and feature rebuild descriptions explicit. |
+| Rendering/GpuComputeProgram.cs and GpuComputePipeline.Preparation.cs | Rename family; move duplicated guards/workflow/restoration to interface and existing scopes. Keep native pipeline ownership and feature rebuild descriptions explicit. |
 | Rendering/Shaders/GpuShaderPrograms.cs; VgeShaderPrograms and generated Register/Get paths | Replace API-keyed implicit creation and candidate disposal/invalidation with explicit registry lifetime/descriptor lookup. Keep selected preload and batching. |
 | Rendering/ShaderCompilation/ShaderLinkBatch.cs; ProgramBinaries and SPIR-V loaders | Preserve caches, source identity and transactional interface preparation; adapt engine asset reads at integration and transfer pending native ownership exactly once. |
 | Rendering/Pipeline/GraphicsCommandContext.cs, GraphicsPipeline.cs; Rendering/EngineBoundaryScope.cs | Keep selected PSO/revision and ordered cleanup; borrow IGpuProgram in existing activation scopes. EndPass releases activation before pass targets; stale PSOs remain invalid. |
@@ -315,4 +337,4 @@ Acceptance requires:
 - Existing pipeline, binding, sampler retirement, state switching, generator, demand-loading and resource tests pass with fixtures that reject accidental engine registration rather than simulating it as a dictionary insert.
 - User-run game acceptance covers cold/warm startup, entering/leaving/re-entering a world, native shader reload, live shader configuration, liquids and native rendering around VGE passes. Headless evidence alone does not establish that acceptance.
 
-No builds, tests, performance measurements or live-game validation were run for this analysis. Existing tests were inspected to identify migration coverage and engine-mocking gaps.
+The initial analysis used source inspection to identify migration coverage and engine-mocking gaps. Shared workflow validation is recorded in the implementation todo; no live-game acceptance or performance measurement is claimed.

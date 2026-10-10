@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 /// <summary>Owns the compute shader contract and dispatch resources for this scene operation.</summary>
 [ShaderProgram("Contract", "lumonscene_capture_meshcard", 1)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "lumonscene_capture_meshcard.csh")]
-internal sealed partial class LumonSceneCaptureMeshCardComputeShader : GpuComputeShader, ILumonSceneCaptureMeshCardComputeShaderBindings
+internal sealed partial class LumonSceneCaptureMeshCardComputeShader : GpuComputeProgram, ILumonSceneCaptureMeshCardComputeShaderBindings
 {
 
     public static string ShaderName => Contract.Identity;
@@ -145,7 +145,7 @@ internal sealed partial class LumonSceneCaptureMeshCardComputeShader : GpuComput
     /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
     private LumonSceneCaptureMeshCardComputeShader(GpuComputePipeline pipeline) : base(pipeline)
     {
-        parameters.SetWriteGuard(RequireInputMutation);
+        OwnUniformBuffer(parameters);
     }
 
     /// <summary>Packs retained values for one complete publication at dispatch.</summary>

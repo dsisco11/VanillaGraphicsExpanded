@@ -133,25 +133,25 @@ internal sealed partial class LumonSceneCaptureVoxelComputeShader : TraceGeometr
         StageParameters();
     }
 
-    /// <summary>Releases diagnostic storage and the owned executable.</summary>
-    public override void Dispose()
-    {
-        if (IsDisposed) return;
-        RequireInputMutation();
-        Diagnostics.Dispose();
-        base.Dispose();
-    }
     /// <summary>Supplies retained packed dispatch parameters.</summary>
     CpuUniformBuffer ILumonSceneCaptureVoxelComputeShaderBindings.Parameters => parameters;
     /// <summary>Supplies counter storage admitted by the measured dispatch.</summary>
     GpuShaderStorageBuffer? ILumonSceneCaptureVoxelComputeShaderBindings.DiagnosticCounters => Diagnostics.ActiveBuffer;
     #endregion
 
+    #region Protected API
+    /// <summary>Releases diagnostic storage independently of native executable retirement.</summary>
+    protected override void ReleaseResources()
+    {
+        Diagnostics.Dispose();
+    }
+    #endregion
+
     #region Private
     /// <summary>Adopts the executable and attaches the input mutation guard.</summary>
     private LumonSceneCaptureVoxelComputeShader(GpuComputePipeline pipeline) : base(pipeline)
     {
-        parameters.SetWriteGuard(RequireInputMutation);
+        OwnUniformBuffer(parameters);
     }
 
     /// <summary>Packs retained values for one complete publication at dispatch.</summary>

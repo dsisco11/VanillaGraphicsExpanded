@@ -56,20 +56,31 @@ public sealed class RuntimeSubmissionTests
                 public static void ValidateAtomicCounter(params object[] args) { SubmissionRecorder.Calls += "validate-counter;"; }
                 public static void AtomicCounter(params object[] args) { SubmissionRecorder.Calls += "counter;"; }
             }
-            public abstract class GpuComputeShader
+            public interface IGpuProgram : System.IDisposable
             {
+                void PublishInputs();
+                void Activate() { PublishInputs(); }
+            }
+            public abstract class GpuComputeProgram : IGpuProgram
+            {
+                private bool retired;
                 protected abstract void Submit();
-                protected void RequireInputMutation() { }
-                public void Dispatch() { Submit(); }
+                protected void RequireInputMutation() { if (retired) throw new System.ObjectDisposedException("owner"); }
+                void IGpuProgram.PublishInputs() { RequireInputMutation(); Submit(); }
+                public void Dispatch() { ((IGpuProgram)this).Activate(); }
+                public void Dispose() { retired = true; }
             }
         }
         namespace VanillaGraphicsExpanded.Rendering.Shaders
         {
-            public abstract class GpuProgram
+            public abstract class GpuProgram : VanillaGraphicsExpanded.Rendering.IGpuProgram
             {
+                private bool retired;
                 protected abstract void Submit();
-                protected void RequireInputMutation() { }
-                public void Use() { Submit(); }
+                protected void RequireInputMutation() { if (retired) throw new System.ObjectDisposedException("owner"); }
+                void VanillaGraphicsExpanded.Rendering.IGpuProgram.PublishInputs() { RequireInputMutation(); Submit(); }
+                public void Use() { ((VanillaGraphicsExpanded.Rendering.IGpuProgram)this).Activate(); }
+                public void Dispose() { retired = true; }
             }
         }
         """;
@@ -225,7 +236,7 @@ public sealed class RuntimeSubmissionTests
             }
             [ShaderProgram("Contract", "example", 1)]
             [ShaderStage("Contract", ShaderStageKind.Compute, "example.csh")]
-            internal partial class Shader : VanillaGraphicsExpanded.Rendering.GpuComputeShader, IInputs { }
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.GpuComputeProgram, IInputs { }
             public static class Proof
             {
                 public static string Run()
@@ -244,6 +255,95 @@ public sealed class RuntimeSubmissionTests
         Assert.Equal(2, calls.Split(';').Count(call => call == "counter"));
         Assert.Equal(2, calls.Split(';').Count(call => call == "storage"));
         Assert.True(calls.IndexOf("validate-counter;", StringComparison.Ordinal) < calls.IndexOf(";storage;", StringComparison.Ordinal));
+    }
+
+    /// <summary>Abstract compute families retain generated input guards and default workflow dispatch on concrete shells.</summary>
+    [Fact]
+    public void ComputeIntermediateFamilyUsesDefaultWorkflowAndRetirementGuard()
+    {
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("Work", ShaderBindingKind.StorageBlock, 2, ShaderStageKind.Compute)]
+                VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding Work { get; set; }
+            }
+            internal abstract class Family : VanillaGraphicsExpanded.Rendering.GpuComputeProgram { }
+            [ShaderProgram("Contract", "example", 1)]
+            [ShaderStage("Contract", ShaderStageKind.Compute, "example.csh")]
+            internal partial class Shader : Family, IInputs { }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader(); shader.Work = new();
+                    ((VanillaGraphicsExpanded.Rendering.IGpuProgram)shader).Activate();
+                    shader.Dispatch();
+                    ((System.IDisposable)shader).Dispose();
+                    try { shader.Work = new(); return "unguarded"; }
+                    catch (System.ObjectDisposedException) { return VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls; }
+                }
+            }
+            """;
+        var runtime = GeneratorFixture.Generate(source, supportSource: Support);
+        Assert.Equal("validate-storage;storage;validate-storage;storage;", runtime.Run());
+        GeneratorFixture.Generate(source, true, supportSource: Support).Compile();
+    }
+
+    /// <summary>Specialized compute publication remains authored rather than receiving a conflicting generated override.</summary>
+    [Fact]
+    public void AuthoredComputeSubmitPreservesFamilyFacade()
+    {
+        string source = """
+            [ShaderProgram("Contract", "example", 1)]
+            [ShaderStage("Contract", ShaderStageKind.Compute, "example.csh")]
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.GpuComputeProgram
+            {
+                public int Calls;
+                protected override void Submit() { Calls++; }
+            }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader(); shader.Dispatch();
+                    ((VanillaGraphicsExpanded.Rendering.IGpuProgram)shader).Activate();
+                    return shader.Calls.ToString();
+                }
+            }
+            """;
+        var runtime = GeneratorFixture.Generate(source, supportSource: Support);
+        Assert.Equal("2", runtime.Run());
+        Assert.All(runtime.Generated, text => Assert.DoesNotContain("protected override void Submit()", text));
+        GeneratorFixture.Generate(source, true, supportSource: Support).Compile();
+    }
+
+    /// <summary>A sealed authored Submit inherited through an abstract compute family remains the publication owner.</summary>
+    [Fact]
+    public void InheritedAuthoredComputeSubmitIsPreserved()
+    {
+        string source = """
+            internal abstract class Family : VanillaGraphicsExpanded.Rendering.GpuComputeProgram
+            {
+                public int Calls;
+                protected sealed override void Submit() { Calls++; }
+            }
+            [ShaderProgram("Contract", "example", 1)]
+            [ShaderStage("Contract", ShaderStageKind.Compute, "example.csh")]
+            internal partial class Shader : Family { }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader(); shader.Dispatch();
+                    ((VanillaGraphicsExpanded.Rendering.IGpuProgram)shader).Activate();
+                    return shader.Calls.ToString();
+                }
+            }
+            """;
+        var runtime = GeneratorFixture.Generate(source, supportSource: Support);
+        Assert.Equal("2", runtime.Run());
+        Assert.All(runtime.Generated, text => Assert.DoesNotContain("protected override void Submit()", text));
+        GeneratorFixture.Generate(source, true, supportSource: Support).Compile();
     }
 
     /// <summary>Declared enum policies retain their actual values in generated runtime publication.</summary>
