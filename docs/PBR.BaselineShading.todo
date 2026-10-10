@@ -1045,13 +1045,19 @@ Tasks
           HDR, full LumOn integration, diagnostics, mode lifecycle and refraction capture. All 433
           production and 507 fixture variants build. Contract and receipts: docs/PBR.Postprocessing.md.
           Parent live visual and matched-scene performance acceptance remain open.
-      ☐ Validate horizon behavior and the final lighting contribution.
+      ☑ Validate horizon behavior and the final lighting contribution.
         - Use existing GPU abstractions for flat-plane, corner, thin-occluder, screen-edge,
           distance/FOV and roughness/view-angle checks, including spatial filter/reconstruction.
           Compare indoor and sunlit direct, ambient diffuse and indirect specular contributions
           before exposure; distinguish weak ambient lighting from weak or rejected AO visibility.
           Run focused tests through subagents, document results in docs/PBR.Postprocessing.md,
           and retain user-run visual acceptance and matched-workload performance checks.
+        - 70 distinct focused GPU cases pass through delegated validation, with a fresh stronger
+          screen-edge rerun and independent review. Generated AO preserves direct lighting;
+          diffuse/specular readbacks separate weak available illumination from depth rejection.
+          Projection, spatial stages, distant-corner limitations and matched synthetic costs
+          are documented in docs/PBR.Postprocessing.md. The mixed-suite disposal lifetime issue
+          and parent user-run visual/matched-scene performance acceptance remain open.
 
   ☐ Refactor PBR pipeline FBOs diffuse color buffer to drop alpha channel from the texture, as diffuse color doesnt need alpha handling and the OIT passes are responsible for actual alpha blending.
         - This will also require updating the shaders to drop alpha consideration for the diffuse color buffer.

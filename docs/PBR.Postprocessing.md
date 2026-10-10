@@ -140,7 +140,7 @@ consumers. No texture views, texture barriers, per-frame attachments or duplicat
 are needed; synchronization and the finishing-group protocol are described below.
 
 AO selects an explicit mip from radial sample spacing, capped at level 4 and the available chain.
-Background minima are rejected immediately. For accepted minima, a bounded descent through the
+Background minima supply unobstructed horizon evidence without a descent. For foreground minima, a bounded descent through the
 same proportional footprints finds a real source pixel; equal-depth candidates choose the source
 nearest the requested sample. This preserves positions on tilted planes and samples that source's
 normal/first-person identity and material transmission. The old min/max interval rejection is removed:
@@ -195,6 +195,104 @@ shader variants built successfully. Receipts: `artifacts/indirect-occlusion-vali
 `artifacts/indirect-occlusion-final-validation.log` (95 passing after explicit fixture camera/light
 snapshots). These headless results do not establish live appearance or matched-scene performance;
 parent acceptance remains open.
+
+For visibility diagnostics, inspect a matched receiver through raw horizon, filtered and reconstructed
+visibility before examining composed color. Raw visibility below one followed by a neutral filtered
+or reconstructed value indicates spatial receiver rejection or insufficient reduced-resolution
+coverage. A valid reconstructed value below one with little final color change can instead mean
+that little indirect illumination is available, that its strength is disabled, or that composition
+rejected an unmatched publication. Receiver depth/normal and publication identity distinguish
+these cases; tone-mapped screen brightness alone does not.
+
+Projection diagnostics cover 60/90/110-degree vertical FOV at receiver distances 3/10/20,
+both native enabled qualities, flat and tilted planes, walls, exact concave corner intersections
+and two-pixel strips. All raw, filtered and reconstructed channels must remain finite and
+visibility bounded. Wall contact, near corners and visible screen-edge contacts must reach visibility
+below 0.995; merely being below one is insufficient. The RGBA16F stages can give nominally
+neutral minima of 0.9995117, 0.9990234 and 0.9985352 respectively. Distant corner coverage is
+a limitation: at distance 20 for all three FOVs, and distance 10 at FOV 60/110, this fixture
+produces those same neutral minima. Its side-wall/back-plane intersection supplies no measurable
+contact evidence in this workload. This establishes projection sensitivity; the root cause
+is not proven by these diagnostics.
+These cases establish bounded output, not
+surviving contact or general distant-corner quality. Screen-edge controls separately test
+visible contacts near either boundary and neutral scenes with the discontinuity fully absent;
+receivers at distance 97 publish neutral visibility and zero AO depth at every tested FOV.
+
+The qualification fixtures feed the generated AO texture into the actual direct-lighting and
+PBR-composite shaders. They preserve the direct MRT results, then isolate ambient diffuse by
+setting only composite roughness to one (which removes the specular lobe without changing this
+integrated diffuse response). Subtracting that draw from the full response isolates indirect
+specular. Direct-only control draws withdraw indirect availability. Controlled indoor/sunlit
+inputs use solar irradiance zero/eight and indirect irradiance 0.5, with a second identical
+receiver at 0.005 to isolate weak available lighting. These are synthetic component inputs,
+not a model of a particular live room, atmosphere or LumOn tracing workload. Existing full
+LumOn pipeline tests separately check propagation into composition. No exposure, display resolve,
+fog or water transport participates in the contribution readback.
+
+Final-lighting readbacks on 2026-10-09 measured receiver (131,32) with raw/filter/reconstructed
+visibility 0.9384766/0.9404297/0.9521484. Standalone and LumOn PBR agreed within floating-point
+readback tolerance. The following values are one RGB channel of linear radiance, with each
+entry showing neutral → generated-AO lighting. Direct radiance is unchanged in every case.
+
+| Controlled lighting | Roughness | Direct | Ambient diffuse | Indirect specular | Combined |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Indoor | 0.05 | 0 | 0.239997 → 0.228513 | 0.019006 → 0.019006 | 0.259003 → 0.247519 |
+| Sunlit | 0.05 | 1.222373 | 0.239997 → 0.228513 | 0.019006 → 0.019006 | 1.481376 → 1.469892 |
+| Indoor | 0.5 | 0 | 0.239997 → 0.228513 | 0.010003 → 0.009536 | 0.250000 → 0.238049 |
+| Sunlit | 0.5 | 1.360272 | 0.239997 → 0.228513 | 0.010003 → 0.009536 | 1.610272 → 1.598322 |
+
+The diffuse factor matches generated visibility. At this receiver/view angle the smooth-specular
+approximation clamps to neutral; rough specular visibility is approximately 0.95335. Existing
+composition theories additionally cover N·V 0.1/0.5/1, off-axis views, strengths and material
+extremes. Reducing only available indirect irradiance from 0.5 to 0.005 leaves visibility
+unchanged but reduces the absolute combined-lighting loss from about 0.0115–0.0120 to
+0.000115–0.000120. Altering only AO receiver depth by +20 restores neutral composition,
+establishing rejection rather than weak available lighting. None of these controls measures
+live scene appearance.
+
+Matched warm ABBA submissions at identical wall geometry gave the following synthetic costs.
+Each row uses six samples and the median averages the middle two. GPU scope includes shared
+HZB generation and all three AO draws; CPU submission includes elapsed-query submission,
+restoring boundaries and required state work. Target creation, readback and query waits are excluded.
+
+| Extent | Native quality | GPU median (range) | CPU submission median | AO image bytes | Shared HZB image bytes |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| 1280×720 | 1 | 0.5222 ms (0.5151–0.7270) | 0.7491 ms | 11,059,200 | 4,915,052 |
+| 1280×720 | 2 | 1.3527 ms (1.3363–1.3701) | 0.5805 ms | 11,059,200 | 4,915,052 |
+| 1920×1080 | 1 | 0.9692 ms (0.9513–1.2032) | 0.2956 ms | 24,883,200 | 11,058,620 |
+| 1920×1080 | 2 | 2.6122 ms (2.4719–6.5280) | 0.4671 ms | 24,883,200 | 11,058,620 |
+
+Both qualities retain one HZB dispatch and three AO draws. CPU results and GPU ranges show
+submission/scheduling variability; they do not establish quality ordering for CPU cost or
+a speedup over an earlier implementation. Live matched-workload frame cost remains open.
+
+Horizon/final-lighting qualification passed **70 distinct focused GPU cases** across final
+batches: 18 horizon/projection/edge/fade/measurement, eight generated-AO contribution, 20
+AO geometry/lifecycle, ten integral, six material/view composition, one full LumOn integration
+and seven particle receiver metadata cases. The four screen-edge cases additionally passed
+a fresh build with the strengthened 0.995 criterion. There were no skips in these final
+batches; production and fixture builds retained all 433/507 shader variants. Receipts:
+`artifacts/horizon-final-lighting-revised-validation.log`,
+`artifacts/horizon-final-lighting-edge-validation.log` and
+`artifacts/horizon-final-lighting-particle-validation.log`. Independent review reconciled
+the diagnostics and measured limitations against the selected validation contract.
+
+The initial combined batch (`artifacts/horizon-final-lighting-validation.log`) passed 55/70:
+eight contribution cases failed because the new fixture used a color-texture factory for
+depth storage, corrected to the existing DepthTexture API. Seven particle cases encountered
+an existing cross-class global-disposal lifetime/order failure after earlier GPU tests;
+they pass in a fresh process. That mixed-batch lifetime issue remains unresolved, and the
+final receipts establish the listed focused batches rather than an order-independent full
+GPU suite. No production shader or shader-build system changes were needed for this task.
+
+User-run acceptance remains required for the parent AO task: compare a fixed camera indoors
+and in sunlight at native AO qualities 0/1/2, then check thin fences/foliage, concave corners,
+screen edges, camera movement, distance and FOV changes in both lighting modes. Use the same
+world, camera, light/time/weather, resolution, driver and exposure for performance comparisons;
+record the shared DepthHierarchy scope once, AO stages and final frame cost separately. Confirm
+resource reuse through resize/reload and avoid treating a synthetic quality comparison as a
+live performance result. No game is launched for automated qualification.
 
 Separate GpuResourceCollection owners manage the shared hierarchy and AO's three visibility images.
 The hierarchy uses one typed compute dispatch and no framebuffer targets; AO retains its framebuffer borrowers.

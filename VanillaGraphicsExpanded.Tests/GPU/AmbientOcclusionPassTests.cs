@@ -1,8 +1,6 @@
-using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
-using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -154,60 +152,13 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
     private float[] Render(AmbientOcclusionPass owner, PostprocessDraw draw, int width, int height, int quality, int scene,
         float occluderTransmission = 0, float receiverTransmission = 0, bool measure = false, float receiverDistance = 3)
     {
-        var horizon = Programs.Create<PostSsaoShaderProgram>();
-        using var hierarchy = new DepthHierarchyPass();
-        var compute = Programs.CreateDepthHierarchy();
-
-        var filter = Programs.Create<AmbientOcclusionFilterShaderProgram>();
-        float aspect = (float)width / height;
-        const float near = .1f, far = 100f;
-        float a = -(far + near) / (far - near), b = -2 * far * near / (far - near);
-        float[] inverse = [aspect,0,0,0, 0,1,0,0, 0,0,0,1/b, 0,0,-1,a/b];
-        float[] view = [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1];
-        float[] projection = [1/aspect,0,0,0, 0,1,0,0, 0,0,a,-1, 0,0,b,0];
-        // The fixture depth is rendered by this camera; AO borrows the same universal snapshot.
-        using var camera = new VgeFrameUniformBuffer();
-        camera.Capture(projection, view, inverse, view, projection, projection,
-            new Vector2(width, height), 0, 0, Vector3.Zero, Vector3.Zero, 0);
-        float[] depths = new float[width * height], normals = new float[width * height * 4], materials = new float[width * height * 4];
-        for (int y = 0; y < height; y++) for (int x = 0; x < width; x++)
-        {
-            int i = y * width + x;
-            bool front = ((scene == 4 || scene == 8) && x < width / 2) || (scene == 9 && x >= width / 2 - 2 && x < width / 2);
-            float z = scene == 7 ? 97 : front ? receiverDistance-.3f : scene == 1 ? receiverDistance / (1 - .2f * ((x + .5f) / width * 2 - 1) * aspect) : receiverDistance;
-            float rayX = ((x + .5f) / width * 2 - 1) * aspect;
-            bool sideWall = scene == 5 && rayX > 0 && .5f / rayX < z;
-            if (sideWall) z = .5f / rayX;
-            depths[i] = scene == 2 || (scene == 6 && x % 4 < 2) ? 1 : .5f * (-a + b / z) + .5f;
-            Vector3 n = sideWall ? -Vector3.UnitX : scene == 1 ? Vector3.Normalize(new(.2f, 0, 1)) : Vector3.UnitZ;
-            normals[i * 4] = n.X * .5f + .5f; normals[i * 4 + 1] = n.Y * .5f + .5f;
-            normals[i * 4 + 2] = n.Z * .5f + .5f; normals[i * 4 + 3] = scene == 3 || (scene == 8 && front) ? -1 : 1;
-            materials[i * 4 + 3] = front ? occluderTransmission : receiverTransmission;
+        using var inputs=new AmbientOcclusionSceneFixture(TestFramework,Programs,width,height,scene,
+            receiverDistance:receiverDistance,occluderTransmission:occluderTransmission,receiverTransmission:receiverTransmission);
+        inputs.Render(owner,draw,quality);
+        if(measure) {
+            var samples=inputs.Measure(owner,draw,quality).Gpu;
+            log.WriteLine($"Synthetic AO {width}x{height} quality{quality}, hierarchy plus three AO draws, five warm GPU samples: min={samples.Min():F4}ms median={samples.Order().ElementAt(2):F4}ms max={samples.Max():F4}ms; AO payload={owner.StorageBytes} bytes, shared hierarchy={inputs.HierarchyBytes} bytes. Not live cost or physical bandwidth.");
         }
-        using var depth = TestFramework.CreateTexture(width, height, PixelInternalFormat.R32f, depths);
-        using var normal = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f, normals);
-        using var material = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f, materials);
-        using var surface = LayeredTestTexture.Create(normal, material, null);
-        hierarchy.Prepare(width, height, compute);
-        hierarchy.Render(depth);
-        var pipelines = owner.Prepare(draw, width, height, quality, horizon, filter);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusion", pipelines, true,
-            commands => { owner.Render(commands, draw, depth, surface, hierarchy.Texture!, camera); }));
-        if (measure)
-        {
-            var samples = new List<double>();
-            for (int sample = 0; sample < 5; sample++)
-            {
-                using var timer = GpuTimerQuery.Create();
-                timer.Begin();
-                hierarchy.Render(depth);
-                Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusionTiming", pipelines, true,
-                    commands => { owner.Render(commands, draw, depth, surface, hierarchy.Texture!, camera); }));
-                timer.End(); samples.Add(timer.GetResultNanoseconds() / 1e6);
-            }
-            log.WriteLine($"Synthetic AO {width}x{height} quality{quality}, hierarchy plus three AO draws, five warm GPU samples: min={samples.Min():F4}ms median={samples.Order().ElementAt(2):F4}ms max={samples.Max():F4}ms; AO payload={owner.StorageBytes} bytes, shared hierarchy={hierarchy.StorageBytes} bytes. Not live cost or physical bandwidth.");
-        }
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
         return ((DynamicTexture2D)owner.Texture!).ReadPixels();
     }
 
