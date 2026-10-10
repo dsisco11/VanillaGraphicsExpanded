@@ -23,7 +23,7 @@ internal static class ShaderTargetCompatibility
             PixelInternalFormat.Rg8 or PixelInternalFormat.Rg16 or PixelInternalFormat.Rg16f or PixelInternalFormat.Rg32f
                 or PixelInternalFormat.Rg8i or PixelInternalFormat.Rg16i or PixelInternalFormat.Rg32i
                 or PixelInternalFormat.Rg8ui or PixelInternalFormat.Rg16ui or PixelInternalFormat.Rg32ui => 2,
-            PixelInternalFormat.Rgb8 or PixelInternalFormat.Rgb16 or PixelInternalFormat.Rgb16f or PixelInternalFormat.Rgb32f
+            PixelInternalFormat.R11fG11fB10f or PixelInternalFormat.Rgb8 or PixelInternalFormat.Rgb16 or PixelInternalFormat.Rgb16f or PixelInternalFormat.Rgb32f
                 or PixelInternalFormat.Rgb8i or PixelInternalFormat.Rgb16i or PixelInternalFormat.Rgb32i
                 or PixelInternalFormat.Rgb8ui or PixelInternalFormat.Rgb16ui or PixelInternalFormat.Rgb32ui or PixelInternalFormat.Srgb8 => 3,
             _ => 4

@@ -10,7 +10,7 @@ internal static class TargetFormatPolicy
     public static bool IsColor(PixelInternalFormat format) => format is
         PixelInternalFormat.R8 or PixelInternalFormat.R16 or PixelInternalFormat.R16f or PixelInternalFormat.R32f or
         PixelInternalFormat.Rg8 or PixelInternalFormat.Rg16 or PixelInternalFormat.Rg16f or PixelInternalFormat.Rg32f or
-        PixelInternalFormat.Rgb8 or PixelInternalFormat.Rgb16 or PixelInternalFormat.Rgb16f or PixelInternalFormat.Rgb32f or
+        PixelInternalFormat.R11fG11fB10f or PixelInternalFormat.Rgb8 or PixelInternalFormat.Rgb16 or PixelInternalFormat.Rgb16f or PixelInternalFormat.Rgb32f or
         PixelInternalFormat.Rgba8 or PixelInternalFormat.Rgba16 or PixelInternalFormat.Rgba16f or PixelInternalFormat.Rgba32f or
         PixelInternalFormat.Srgb8 or PixelInternalFormat.Srgb8Alpha8 || IsInteger(format);
 

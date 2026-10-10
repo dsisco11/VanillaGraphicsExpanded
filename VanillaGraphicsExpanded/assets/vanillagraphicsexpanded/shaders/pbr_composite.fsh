@@ -2,7 +2,7 @@
 @import "./includes/gbuffer_layers.glsl"
 
 #if !VGE_COMPOSITE_PRE_OVERLAY_ONLY
-out vec4 outColor;
+layout(location = 0) out vec3 outColor;
 #endif
 layout(location = 1) out vec4 outRefractionColor;
 layout(location = 2) out float outRefractionDepth;
@@ -13,7 +13,7 @@ layout(location = 2) out float outRefractionDepth;
 //
 // Merges direct radiance buffers (diffuse/specular/emissive) with optional
 // indirect diffuse (LumOn) and applies fog once.
-// Output remains scene-linear in RGBA16F until the separate display resolve.
+// Output remains scene-linear in R11F_G11F_B10F until the separate display resolve.
 // ============================================================================
 
 @import "./includes/lumon_common.glsl"
@@ -122,7 +122,7 @@ void main(void)
             bool resolved = VgeCompositeWaterTransport(receiverVS, true, transmission, inScattering, waterLength);
             if (resolved) skyColor = skyColor * transmission + inScattering;
         }
-        outColor = vec4(max(skyColor, vec3(0.0)), 1.0);
+        outColor = max(skyColor, vec3(0.0));
         return;
     }
 #endif
@@ -252,6 +252,6 @@ void main(void)
         finalColor = VgeApplyAerial(finalColor, transpose(mat3(viewMatrix)) * receiverVS,
             texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).a, vgePbrCompositeParams.atmosphereAerial.xy, vgePbrCompositeParams.atmosphereSun.xyz);
 
-    outColor = vec4(finalColor, 1.0);
+    outColor = finalColor;
 #endif
 }

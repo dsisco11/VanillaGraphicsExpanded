@@ -374,7 +374,8 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 Assert.True(composite.PrepareFrame());
                 Assert.Equal(ErrorCode.NoError, GL.GetError());
                 var ordinaryColor = Assert.IsType<DynamicTexture2D>(composite.SceneLinearColor);
-                float[] sentinel = [13f, 7f, 3f, 1f];
+                Assert.Equal(PixelInternalFormat.R11fG11fB10f, ordinaryColor.InternalFormat);
+                float[] sentinel = [13f, 7f, 3f];
                 ordinaryColor.UploadDataImmediate(sentinel);
                 terrain.UploadTerrain(gbuffer, [depth], [.5f, .5f, 1, 1], [.5f, 0, 0, 0], [depth, depth, depth, 1]);
                 HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null);

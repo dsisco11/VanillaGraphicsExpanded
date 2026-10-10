@@ -18,8 +18,8 @@ public sealed partial class PBRCompositeRenderer
     private static readonly RenderPassColor[] CompositeOutputs = [new(0), new(-1, DiscardOutput: true), new(-1, DiscardOutput: true)];
     private static readonly RenderPassColor[] ReceiverOutputs = [new(0), new(1), new(2)];
     private static readonly RenderPassColor[] CaptureOutputs = [new(-1), new(1), new(2)];
-    private static readonly RenderTargetSignature CompositeTargets = new([new(PixelInternalFormat.Rgba16f), new(null, true), new(null, true)]);
-    private static readonly RenderTargetSignature ReceiverTargets = new([new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.R32f)]);
+    private static readonly RenderTargetSignature CompositeTargets = new([new(PixelInternalFormat.R11fG11fB10f), new(null, true), new(null, true)]);
+    private static readonly RenderTargetSignature ReceiverTargets = new([new(PixelInternalFormat.R11fG11fB10f), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.R32f)]);
     private static readonly RenderTargetSignature CaptureTargets = new([new(null), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.R32f)]);
     private static readonly RenderTargetSignature ReductionTargets = new([new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba32f)]);
     private readonly GraphicsPipelineLifetime pipelineLifetime = new();

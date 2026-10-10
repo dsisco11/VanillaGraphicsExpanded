@@ -1058,11 +1058,6 @@ Tasks
           Projection, spatial stages, distant-corner limitations and matched synthetic costs
           are documented in docs/PBR.Postprocessing.md. The mixed-suite disposal lifetime issue
           and parent user-run visual/matched-scene performance acceptance remain open.
-
-  ☐ Refactor PBR pipeline FBOs diffuse color buffer to drop alpha channel from the texture, as diffuse color doesnt need alpha handling and the OIT passes are responsible for actual alpha blending.
-        - This will also require updating the shaders to drop alpha consideration for the diffuse color buffer.
-        - The diffuse color texture will need to be seperated from the combined G-Buffer surface texture array group.
-        - Afterwards, the G-Buffer surface texture-array can possibly be refactored to use RGB8 format?
         
   ☐ Analyze the current PBR MRT textures and evaluate which can be combined together to just use individual channels of the same texture-layer in the G-Buffer array.
 
