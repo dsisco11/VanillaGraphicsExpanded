@@ -72,6 +72,26 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
             if (x % 4 < 2) Assert.Equal(1, gaps[(y * 65 + x) * 4]);
     }
 
+    /// <summary>A narrow foreground strip releases occlusion beyond contact while a continuous foreground wall retains stronger evidence.</summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void ThinOccluderReleasesHorizonBehindContact(int quality)
+    {
+        EnsureShaderTestAvailable();
+        using var owner=new AmbientOcclusionPass();using var draw=new PostprocessDraw();
+        const int width=257,height=129;
+        float[] wall=Render(owner,draw,width,height,quality,4);
+        float[] thin=Render(owner,draw,width,height,quality,9);
+        AssertFinite(wall);AssertFinite(thin);
+        // Both scenes share the same foreground edge; compare the background halo outside its immediate contact pixels.
+        var receivers=Enumerable.Range(0,width*height).Where(i=>i/width>=height/4 && i/width<3*height/4 && i%width>=width/2+5 && i%width<width/2+20).ToArray();
+        double wallMean=receivers.Average(i=>(double)wall[i*4]),thinMean=receivers.Average(i=>(double)thin[i*4]);
+        log.WriteLine($"Running horizon quality{quality}: wall visibility={wallMean:R}, thin strip visibility={thinMean:R}");
+        Assert.True(wallMean<.995,$"Expected retained wall evidence: {wallMean:R}");
+        Assert.True(thinMean>wallMean+.0005,$"Expected thin-object release: wall={wallMean:R}, thin={thinMean:R}");
+    }
+
     /// <summary>Reports realistic-resolution visibility near analytic corners at representative receiver distances.</summary>
     [Theory]
     [InlineData(4,3f)]
@@ -153,7 +173,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         for (int y = 0; y < height; y++) for (int x = 0; x < width; x++)
         {
             int i = y * width + x;
-            bool front = (scene == 4 || scene == 8) && x < width / 2;
+            bool front = ((scene == 4 || scene == 8) && x < width / 2) || (scene == 9 && x >= width / 2 - 2 && x < width / 2);
             float z = scene == 7 ? 97 : front ? receiverDistance-.3f : scene == 1 ? receiverDistance / (1 - .2f * ((x + .5f) / width * 2 - 1) * aspect) : receiverDistance;
             float rayX = ((x + .5f) / width * 2 - 1) * aspect;
             bool sideWall = scene == 5 && rayX > 0 && .5f / rayX < z;

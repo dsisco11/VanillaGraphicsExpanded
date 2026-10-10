@@ -43,6 +43,7 @@ internal sealed class AmbientOcclusionPass : IDisposable
     internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,GpuTexture depth,GpuTexture surface,DynamicTexture2D hierarchy,VgeFrameUniformBuffer camera)
     {
         var frame=new System.Numerics.Vector4(0,0,quality.Divisor,0);
+        // Release one quarter of retained cosine-space occlusion per weaker radial observation; this is not a world-space thickness.
         var sampling=new System.Numerics.Vector4(1.25f,0.25f,quality.Directions,quality.Steps);
         var distance=new System.Numerics.Vector4(64,96,0,0);
         horizon!.DepthImage=depth;horizon.SurfaceImage=surface;

@@ -15,7 +15,12 @@ internal sealed class AoIntegralProgram : GpuProgram
     /// <summary>Selects the packaged numerical fixture.</summary>
     internal override GpuShaderContract ProgramContract=>contract;
     /// <summary>Stages normal angle and signed visible horizons through the typed block.</summary>
-    internal void Capture(float normal,float low,float high) {RequireInputMutation();UboPacking.WriteVec3(bytes,0,normal,low,high);inputs.SetBytes(bytes);}
+    internal void Capture(float normal,float low,float high) {RequireInputMutation();UboPacking.WriteVec3(bytes,0,normal,low,high);UboPacking.WriteFloat(bytes,12,0);inputs.SetBytes(bytes);}
+    /// <summary>Stages one ordered horizon update with a dimensionless release fraction.</summary>
+    internal void CaptureRelaxation(float horizon,float candidate,float relaxation) {
+        RequireInputMutation();UboPacking.WriteVec3(bytes,0,horizon,candidate,relaxation);
+        UboPacking.WriteFloat(bytes,12,1);inputs.SetBytes(bytes);
+    }
     #endregion
     #region Protected API
     /// <summary>Publishes the complete immutable angular parameter slice.</summary>

@@ -78,13 +78,14 @@ transforms encoded world normals with the current view rotation. Each 2x2 receiv
 its nearest real depth. Paired directional searches use a projected 1.25-block radius bounded
 by the viewport extent, with approximately uniform radial spacing from a one-pixel minimum.
 Independent deterministic pixel-dependent slice rotation and radial start offset distribute
-sampling without frame-varying noise. Samples outside the viewport or with background depth contribute no
-occlusion. Coplanar/below-surface samples are rejected with a normal-direction bias of 0.02.
+sampling without frame-varying noise. Samples outside the viewport contribute no observation. Background depth and coplanar/below-surface
+samples contribute unobstructed evidence, allowing a prior horizon to relax; they never raise
+occlusion. The normal-direction bias remains 0.02.
 
 For each view-space slice, project the normal into the slice, then integrate the cosine-weighted
 visible interval between the two signed horizons analytically. Intersect the visible camera
 hemisphere with the projected normal hemisphere before integrating; blend occluder horizon
-cosines toward their unobstructed limits by bounded distance/transmission/thickness weights.
+cosines toward their unobstructed limits by bounded distance and transmission weights.
 Located hierarchy leaves are projected into the slice before choosing the signed horizon. Divide the summed projected-normal-weighted
 visible integrals by the matching unobstructed integrals. This keeps an unobstructed tilted plane
 neutral despite finite angular sampling; there is no artistic contrast exponent or global darkness
@@ -92,15 +93,34 @@ clamp concealing invalid geometry. The mathematical approach is described by
 [Jimenez et al., Practical Realtime Strategies for Accurate Indirect Occlusion](https://www.activision.com/cdn/research/PracticalRealtimeStrategiesTRfinal.pdf).
 This implementation does not import a reference implementation or another renderer's shader source.
 
-Samples fade by squared world distance within the radius. A 0.25-block thickness scale attenuates
-isolated foreground samples whose two slice neighbours both lie farther away. Continuous walls
-retain their horizon evidence; isolated spikes have uncertain solid-volume thickness. This adds
-at most two full-resolution depth reads for each surviving horizon candidate.
-This is a conservative single-depth-layer approximation, not a recovered backside thickness.
+Samples fade by squared world distance within the radius. Each side maintains a running horizon
+in cosine space, where larger values represent stronger occlusion. Stronger candidates replace
+the horizon immediately; weaker subsequent candidates release 25% of the difference toward their
+own evidence. The parameter is a dimensionless release fraction clamped to [0,1]: zero retains
+the maximum horizon, one accepts each later weaker candidate in full. It does not represent
+world-space thickness. Repeated equal wall evidence retains the horizon, while a thin foreground
+object followed by background or coplanar evidence releases it gradually. Searches process
+radial steps from near to far, and located hierarchy leaves select their actual signed slice side.
+There are no extra neighboring-depth reads. This remains a single-depth-layer heuristic, without
+recovered backside geometry or temporal history.
 Occluder material transmission reduces horizon evidence; receiver transmission attenuates the
 reconstructed occlusion once. Alpha-tested foliage contributes only where depth survives coverage;
 its material transmission remains meaningful. Transparent OIT surfaces are not opaque AO receivers
 or depth occluders. Visibility fades to neutral between 64 and 96 view-space blocks.
+
+Running-horizon validation: **40 focused GPU tests passed**, including bounded release weights
+(-1, 0, 0.25, 1, 2), ordered stronger/weaker/equal evidence, analytic quadrature, plane/sky
+neutrality, continuous walls, thin strips, corners, transmission, current-frame motion, odd
+resize/lifecycle and particle receiver metadata. The 257x129 strip and wall share their foreground
+edge; a background region 5–19 pixels beyond contact has mean visibility 0.99014 versus 0.98597
+at low quality and 0.99202 versus 0.98796 at high quality after filtering/reconstruction. This
+compares geometry under the new algorithm, not a matched comparison against the old shader.
+All **433 production** and **507 fixture** shader variants built successfully. Receipt:
+`artifacts/horizon-relaxation-validation.log`. Five warm 1280x720 synthetic samples, including
+shared HZB generation and three AO draws, gave median GPU times of **0.5704 ms** (low) and
+**1.4397 ms** (high); allocation and readback are excluded. These are current synthetic costs,
+not a speedup claim, live frame timing or visual acceptance. Resource counts remain unchanged.
+Parent live visual and matched-scene performance acceptance remain open.
 
 The shared [DepthHierarchyRenderer](../VanillaGraphicsExpanded/Rendering/DepthHierarchy/DepthHierarchyRenderer.cs)
 publishes one mipmapped R32F minimum-hardware-depth texture at opaque order 8.7, after corrected

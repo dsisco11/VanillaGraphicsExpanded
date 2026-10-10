@@ -3,7 +3,7 @@
 @import "./vge_frame_ubo.glsl"
 layout(std140, binding = 28) uniform AmbientOcclusionInputs {
     vec4 aoFrame; // reserved.xy, reduction divisor, operation
-    vec4 aoSampling; // world radius, thickness, slices, radial steps
+    vec4 aoSampling; // world radius, dimensionless horizon relaxation [0,1], slices, radial steps
     vec4 aoDistance; // fade start/end, reserved
 };
 /** Reconstructs the receiver in view space from OpenGL hardware depth. */
@@ -21,6 +21,10 @@ vec3 VgeAoDecodeNormal(vec2 e) {
     vec3 n=vec3(e,1.0-abs(e.x)-abs(e.y));
     n.xy+=mix(vec2(1),vec2(-1),greaterThanEqual(n.xy,vec2(0)))*max(-n.z,0.0);
     return normalize(n);
+}
+/** Raises cosine-space occlusion immediately and relaxes weaker later evidence by a bounded fraction. */
+float VgeAoRelaxHorizon(float horizon, float candidate, float relaxation) {
+    return candidate>=horizon?candidate:mix(horizon,candidate,clamp(relaxation,0.0,1.0));
 }
 /** Integrates cosine-weighted visibility analytically between signed slice horizons. */
 float VgeAoIntegral(float low, float high, float normalAngle) {

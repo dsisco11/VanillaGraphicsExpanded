@@ -1020,10 +1020,17 @@ Tasks
           extents through 32768. Matched RTX 4090 measurements reduce CPU submission at all tested
           sizes and GPU cost at 720p/1080p; 4K GPU cost increases by 0.0323 ms. Algorithm, exact
           storage/submission counts, measurements and receipts: docs/PBR.Postprocessing.md.
-      ☐ Replace neighbor-based thickness attenuation with running-horizon relaxation.
+      ☑ Replace neighbor-based thickness attenuation with running-horizon relaxation.
         - Raise each horizon for stronger occluders and relax it toward subsequent lower-angle
           evidence using a bounded thickness weight. Define the parameter's meaning independently
           of world-space thickness; preserve continuous walls while limiting thin-object halos.
+        - Completed ordered cosine-space horizons: stronger evidence raises immediately; later
+          weaker evidence releases a bounded 25% fraction, including background/coplanar observations.
+          The parameter is dimensionless; the two extra neighboring-depth reads are retired.
+        - 40 focused GPU checks pass, including bounded ordered updates, wall versus thin-strip
+          reconstruction at both native qualities, neutrality, transmission, corners, motion and
+          lifecycle. 433 production and 507 fixture variants build. Contract, measured synthetic
+          costs and receipt: docs/PBR.Postprocessing.md. Parent live acceptance remains open.
       ☐ Separate ambient diffuse and specular occlusion.
         - Split the environment response before composition. Apply scalar visibility to diffuse
           lighting and derive indirect specular visibility from AO, roughness and normal/view angle.

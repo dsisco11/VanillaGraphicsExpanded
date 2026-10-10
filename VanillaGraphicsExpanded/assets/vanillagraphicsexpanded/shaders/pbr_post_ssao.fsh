@@ -38,21 +38,6 @@ float VgeAoDepth(inout vec2 uv, float footprint) {
     uv=(vec2(pixel)+0.5)/vec2(baseSize);
     return nearest;
 }
-/** Reduces isolated foreground depth spikes without treating continuous sloped walls as thin sheets. */
-float VgeAoThickness(vec2 uv, vec2 direction, float sampleDepth) {
-    vec2 size=vec2(textureSize(depthImage,0));
-    float gap=aoSampling.x;
-    // Both neighbours must lie behind the candidate before its thickness is uncertain.
-    for(int side=-1;side<=1;side+=2) {
-        vec2 neighbour=uv+float(side)*direction*1.5/size;
-        if(any(lessThan(neighbour,vec2(0)))||any(greaterThanEqual(neighbour,vec2(1)))) return 1.0;
-        neighbour=(floor(neighbour*size)+0.5)/size;
-        float depth=texture(depthImage,neighbour).r;
-        float separation=depth>=1.0?aoSampling.x:-VgeAoPosition(neighbour,depth).z-sampleDepth;
-        gap=min(gap,separation);
-    }
-    return min(1.0,aoSampling.y/max(gap,0.0001));
-}
 /** Integrates paired horizons in view-space slices; off-screen and missing geometry remain unoccluded. */
 void main() {
     ivec2 size=textureSize(depthImage,0), start=ivec2(gl_FragCoord.xy)*int(aoFrame.z);
@@ -93,7 +78,7 @@ void main() {
         angle=clamp(angle,-1.570796327,1.570796327);
         float low=max(-1.570796327,angle-1.570796327);
         float high=min(1.570796327,angle+1.570796327);
-        float horizonLow=low,horizonHigh=high;
+        float horizonLow=cos(low),horizonHigh=cos(high);
         for(int step=0;step<6;step++) {
             if(step>=int(aoSampling.w)) break;
             float spacing=max(pixels-1.0,0.0)/aoSampling.w;
@@ -103,25 +88,32 @@ void main() {
                 if(any(lessThan(sampleUv,vec2(0)))||any(greaterThanEqual(sampleUv,vec2(1)))) continue;
                 sampleUv=(floor(sampleUv*vec2(size))+0.5)/vec2(size);
                 float sd=VgeAoDepth(sampleUv,spacing);
-                if(sd>=1.0) continue;
-                vec3 delta=VgeAoPosition(sampleUv,sd)-position;
-                float distanceSquared=dot(delta,delta);
-                if(distanceSquared<0.000001 || distanceSquared>=radius*radius) continue;
-                vec3 toSample=delta*inversesqrt(distanceSquared);
-                // Reject coplanar/back-facing evidence rather than darkening an unoccluded plane.
-                if(dot(normal,toSample)<=0.02) continue;
-                if(texture(surfaceImage,vec3(sampleUv,VGE_SURFACE_NORMAL)).a<0.0) continue;
-                float transmission=clamp(texture(surfaceImage,vec3(sampleUv,VGE_SURFACE_MATERIAL)).a,0.0,1.0);
-                float weight=clamp(1.0-distanceSquared/(radius*radius),0.0,1.0)*(1.0-transmission);
-                // Isolated depth spikes have uncertain thickness; continuous walls keep their horizon evidence.
-                weight*=VgeAoThickness(sampleUv,direction,-(position.z+delta.z));
-                // Project the located leaf into this slice; its signed angle can differ from the requested side.
-                float h=atan(dot(delta,tangent),dot(delta,view));
-                if(h>=0.0) horizonHigh=min(horizonHigh,acos(mix(cos(high),cos(clamp(h,0.0,high)),weight)));
-                else horizonLow=max(horizonLow,-acos(mix(cos(low),cos(clamp(-h,0.0,-low)),weight)));
+                // Missing depth releases previous evidence on this ray, but off-screen rays have no observation.
+                float candidate=side<0?cos(low):cos(high);
+                int horizonSide=side;
+                if(sd<1.0) {
+                    vec3 delta=VgeAoPosition(sampleUv,sd)-position;
+                    float distanceSquared=dot(delta,delta);
+                    if(distanceSquared<0.000001) continue;
+                    // Project the located leaf into this slice; its signed angle can differ from the requested side.
+                    float h=atan(dot(delta,tangent),dot(delta,view));
+                    horizonSide=h<0.0?-1:1;
+                    float limit=horizonSide<0?low:high;
+                    candidate=cos(limit);
+                    vec3 toSample=delta*inversesqrt(distanceSquared);
+                    // Coplanar, distant and invalid surfaces are lower-angle evidence, not skipped observations.
+                    if(distanceSquared<radius*radius && dot(normal,toSample)>0.02 &&
+                       texture(surfaceImage,vec3(sampleUv,VGE_SURFACE_NORMAL)).a>=0.0) {
+                        float transmission=clamp(texture(surfaceImage,vec3(sampleUv,VGE_SURFACE_MATERIAL)).a,0.0,1.0);
+                        float weight=clamp(1.0-distanceSquared/(radius*radius),0.0,1.0)*(1.0-transmission);
+                        candidate=mix(cos(limit),cos(clamp(abs(h),0.0,abs(limit))),weight);
+                    }
+                }
+                if(horizonSide<0) horizonLow=VgeAoRelaxHorizon(horizonLow,candidate,aoSampling.y);
+                else horizonHigh=VgeAoRelaxHorizon(horizonHigh,candidate,aoSampling.y);
             }
         }
-        visible+=normalLength*VgeAoIntegral(horizonLow,horizonHigh,angle);
+        visible+=normalLength*VgeAoIntegral(-acos(clamp(horizonLow,-1.0,1.0)),acos(clamp(horizonHigh,-1.0,1.0)),angle);
         unoccluded+=normalLength*VgeAoIntegral(low,high,angle);
     }
     float visibility=unoccluded>0.0001?visible/unoccluded:1.0;

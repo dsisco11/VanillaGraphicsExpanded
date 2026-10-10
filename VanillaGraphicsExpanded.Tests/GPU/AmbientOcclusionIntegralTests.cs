@@ -29,6 +29,30 @@ public sealed class AmbientOcclusionIntegralTests(HeadlessGLFixture fixture) : L
         }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
+    /// <summary>Stronger evidence raises immediately; weaker evidence releases a bounded fraction, including repeated wall and thin-object sequences.</summary>
+    [Theory]
+    [InlineData(-1f)]
+    [InlineData(0f)]
+    [InlineData(.25f)]
+    [InlineData(1f)]
+    [InlineData(2f)]
+    public void RunningHorizonUsesBoundedOrderedEvidence(float relaxation) {
+        EnsureShaderTestAvailable();var program=Programs.Create<AoIntegralProgram>();
+        using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        foreach(float[] evidence in new float[][] { [.8f,.8f,.8f,.8f], [.8f,0f,0f,0f], [.2f,.6f,.4f,.9f], [0f,0f,0f,0f] }) {
+            float actual=0,expected=0;
+            foreach(float candidate in evidence) {
+                program.CaptureRelaxation(actual,candidate,relaxation);TestFramework.RenderQuadTo(program,target);
+                actual=target[0].ReadPixels()[0];
+                expected=candidate>=expected?candidate:expected+(candidate-expected)*Math.Clamp(relaxation,0,1);
+                Assert.InRange(actual,expected-.00001f,expected+.00001f);
+                Assert.InRange(actual,0,1);
+            }
+            if(evidence.All(value=>value==.8f)) Assert.InRange(actual,.79999f,.80001f);
+            if(evidence[0]==.8f && evidence[1]==0 && relaxation>0) Assert.True(actual<.8f);
+        }
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
     #endregion
     #region Private
     /// <summary>Numerically integrates the projected cosine measure without using the shader's closed form.</summary>
