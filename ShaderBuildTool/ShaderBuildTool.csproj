@@ -5,7 +5,6 @@
     <OutputType>Exe</OutputType>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <ShaderContractsOffline>true</ShaderContractsOffline>
     <ImplicitUsings>enable</ImplicitUsings>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
@@ -18,7 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\VanillaGraphicsExpanded\Rendering\Contracts\*.cs;..\VanillaGraphicsExpanded\Rendering\GpuBindingRegistry.cs" Link="Contracts\%(Filename)%(Extension)" />
     <Compile Include="..\VanillaGraphicsExpanded\Rendering\Spirv\ShaderBinaryDigest.cs" Link="Spirv\ShaderBinaryDigest.cs" />
     <Compile Include="..\VanillaGraphicsExpanded\Rendering\Spirv\PackagedShaderInterface.cs" Link="Spirv\PackagedShaderInterface.cs" />
     <Compile Include="..\VanillaGraphicsExpanded\Rendering\Spirv\PackagedInterfaceValidation.cs" Link="Spirv\PackagedInterfaceValidation.cs" />
@@ -32,10 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="../ShaderContractGenerator/ShaderContractGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
-    <CompilerVisibleProperty Include="ShaderContractsOffline" />
-    <!-- Read ordinary shader classes as semantic inputs without compiling their engine-dependent implementation. -->
-    <AdditionalFiles Include="../VanillaGraphicsExpanded/**/*.cs" Exclude="../VanillaGraphicsExpanded/bin/**;../VanillaGraphicsExpanded/obj/**;../VanillaGraphicsExpanded/obj2/**" />
+    <ProjectReference Include="../ShaderBuildModel/ShaderBuildModel.csproj" />
+    <ProjectReference Include="../ShaderBuildCatalog/ShaderBuildCatalog.csproj" />
   </ItemGroup>
 </Project>
-

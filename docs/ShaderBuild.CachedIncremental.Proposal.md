@@ -1,6 +1,6 @@
 # Cached incremental SPIR-V builds
 
-Status: proposed; no implementation changes are included in this document.
+Status: implementation in progress; assembly separation and identity boundaries are implemented and verified. Persistent processing caches and publication recovery remain proposed.
 
 ## Intent
 
@@ -60,7 +60,7 @@ Keep Program limited to options and orchestration. Put dependency records, varia
 
 ## Identity boundaries
 
-The current CompilerFingerprint hashes the build-tool assembly and dependencies. Generated shader declarations are compiled into that same assembly. A contract change can therefore invalidate every compiler-cache entry even when unrelated emitted GLSL is unchanged.
+At the investigation baseline, CompilerFingerprint hashed the build-tool assembly and dependencies, including generated declarations. This coupled every compiler-cache entry to any declaration edit. The implemented separation now keeps compiler identity independent of processing and catalogue assemblies.
 
 Separate the offline catalogue data from the stable processing implementation. The generated catalogue should be supplied by a dedicated data-bearing assembly with a one-way dependency on the shared contract model; it must not be part of the global compiler-result identity. The implementation must inventory the existing contract compilation graph before introducing this boundary and avoid compiling conflicting copies of shared types. Runtime declarations continue to use the same generator and authoritative models.
 
@@ -178,11 +178,11 @@ Performance acceptance is elimination of unrelated expensive operations and a me
 
 ## Resolved implementation contracts
 
-These decisions specify the future implementation; the current build remains unchanged. Graph semantics are qualified by the focused fixture described below. Assembly separation, cache integration, and publication recovery are implementation work in the linked checklist.
+These decisions govern the implementation. Graph semantics are qualified by the focused fixture described below. Assembly separation and identity APIs are implemented; persistent cache integration and publication recovery remain work in the linked checklist.
 
 ### Project and declaration boundary
 
-The current [tool project](../ShaderBuildTool/ShaderBuildTool.csproj) compiles all Rendering/Contracts sources, GpuBindingRegistry, preprocessing helpers, packaged-interface models, and the terrain fixture transform. It runs ShaderContractGenerator with ShaderContractsOffline=true and supplies runtime C# sources as AdditionalFiles. The generator constructs a semantic view of those files and emits owner shells, option enums as needed, and GeneratedShaderCatalog. The [generator project](../ShaderContractGenerator/ShaderContractGenerator.csproj) separately source-links pure validation models for its netstandard2.0 analyzer host. The [runtime project](../VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj) runs the same generator against its real implementations.
+Before separation, the [tool project](../ShaderBuildTool/ShaderBuildTool.csproj) compiles all Rendering/Contracts sources, GpuBindingRegistry, preprocessing helpers, packaged-interface models, and the terrain fixture transform. It runs ShaderContractGenerator with ShaderContractsOffline=true and supplies runtime C# sources as AdditionalFiles. The generator constructs a semantic view of those files and emits owner shells, option enums as needed, and GeneratedShaderCatalog. The [generator project](../ShaderContractGenerator/ShaderContractGenerator.csproj) separately source-links pure validation models for its netstandard2.0 analyzer host. The [runtime project](../VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj) runs the same generator against its real implementations.
 
 Adopt two offline projects, both net10.0:
 

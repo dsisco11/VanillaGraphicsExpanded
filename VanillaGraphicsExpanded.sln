@@ -21,6 +21,10 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShaderContractGenerator.Tes
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShaderBuildTool.Tests", "ShaderBuildTool.Tests\ShaderBuildTool.Tests.csproj", "{5DC14309-5C04-4638-861D-2C2EF4A17AF3}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShaderBuildModel", "ShaderBuildModel\ShaderBuildModel.csproj", "{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ShaderBuildCatalog", "ShaderBuildCatalog\ShaderBuildCatalog.csproj", "{759AD87A-FF76-4EBC-8A01-4355DBEA2030}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -31,6 +35,30 @@ Global
 		Release|x86 = Release|x86
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Debug|x64.Build.0 = Debug|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Debug|x86.Build.0 = Debug|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Release|Any CPU.Build.0 = Release|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Release|x64.ActiveCfg = Release|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Release|x64.Build.0 = Release|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Release|x86.ActiveCfg = Release|Any CPU
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691}.Release|x86.Build.0 = Release|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Debug|x64.Build.0 = Debug|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Debug|x86.Build.0 = Debug|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Release|Any CPU.Build.0 = Release|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Release|x64.ActiveCfg = Release|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Release|x64.Build.0 = Release|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Release|x86.ActiveCfg = Release|Any CPU
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030}.Release|x86.Build.0 = Release|Any CPU
 		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
 		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5DC14309-5C04-4638-861D-2C2EF4A17AF3}.Debug|x64.ActiveCfg = Debug|Any CPU
@@ -132,6 +160,8 @@ Global
 		HideSolutionNode = FALSE
 	EndGlobalSection
 	GlobalSection(NestedProjects) = preSolution
+		{8C0F258B-3BF4-4F46-9FB7-DA1EBB1CF691} = {5146D268-33CD-F99D-ACA3-C03DF32C8B64}
+		{759AD87A-FF76-4EBC-8A01-4355DBEA2030} = {5146D268-33CD-F99D-ACA3-C03DF32C8B64}
 		{B7A54EE9-49F0-460E-8DF4-9EFEE026B00D} = {5146D268-33CD-F99D-ACA3-C03DF32C8B64}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution

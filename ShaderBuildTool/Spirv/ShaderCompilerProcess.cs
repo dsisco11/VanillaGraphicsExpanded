@@ -16,16 +16,22 @@ internal static class ShaderCompilerProcess
 #endif
 
     #region Public API
+    /// <summary>Supplies the exact compiler policy shared by invocation and cache identity.</summary>
+    internal static string[] PolicyArguments(string stage, string target, bool warnings, string entryPoint)
+    {
+        var arguments = new List<string> { "tool", "run", "dotnet-shaderc", "--", "--shader-stage=" + stage,
+            "--entry-point=" + entryPoint, "--target-env=" + target, OptimizationArgument, "-x=glsl" };
+        if (GenerateDebugInfo) arguments.Add("-g");
+        if (warnings) arguments.Add("-Werror");
+        return arguments.ToArray();
+    }
+
     /// <summary>Runs the pinned shader compiler with optimization and configuration-specific debug information.</summary>
     public static async Task<ShaderCompilerResult> CompileAsync(string workingDirectory, string input, string output,
         string stage, string target, bool warningsAsErrors, string entryPoint, CancellationToken cancellationToken)
     {
         var start = new ProcessStartInfo("dotnet") { WorkingDirectory = workingDirectory };
-        string[] arguments = ["tool", "run", "dotnet-shaderc", "--", "--shader-stage=" + stage,
-            "--entry-point=" + entryPoint, "--target-env=" + target, OptimizationArgument, "-x=glsl"];
-        foreach (string argument in arguments) start.ArgumentList.Add(argument);
-        if (GenerateDebugInfo) start.ArgumentList.Add("-g");
-        if (warningsAsErrors) start.ArgumentList.Add("-Werror");
+        foreach (string argument in PolicyArguments(stage, target, warningsAsErrors, entryPoint)) start.ArgumentList.Add(argument);
         start.ArgumentList.Add("-o");
         start.ArgumentList.Add(output);
         start.ArgumentList.Add(input);

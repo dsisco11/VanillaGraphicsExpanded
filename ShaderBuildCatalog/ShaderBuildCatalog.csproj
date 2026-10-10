@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ShaderContractsOffline>true</ShaderContractsOffline>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../ShaderBuildModel/ShaderBuildModel.csproj" />
+    <ProjectReference Include="../ShaderContractGenerator/ShaderContractGenerator.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+    <CompilerVisibleProperty Include="ShaderContractsOffline" />
+    <Compile Include="../VanillaGraphicsExpanded/Rendering/Contracts/GpuShaderContracts.cs;../VanillaGraphicsExpanded/Rendering/Contracts/BuildValidationShaderPrograms.cs;../VanillaGraphicsExpanded/Rendering/Contracts/IShaderIncludeBindings.cs;../VanillaGraphicsExpanded/Rendering/Contracts/IShaderInterfaceLocations.cs;../VanillaGraphicsExpanded/Rendering/GpuBindingRegistry.cs" Link="Contracts/%(Filename)%(Extension)" />
+    <!-- The generator reads authoritative declarations without compiling their engine-dependent implementations. -->
+    <AdditionalFiles Include="../VanillaGraphicsExpanded/**/*.cs" Exclude="../VanillaGraphicsExpanded/bin/**;../VanillaGraphicsExpanded/obj/**;../VanillaGraphicsExpanded/obj2/**" />
+  </ItemGroup>
+</Project>

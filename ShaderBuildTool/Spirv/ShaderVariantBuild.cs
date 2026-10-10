@@ -60,7 +60,7 @@ internal static class ShaderVariantBuild
                     var timer = Stopwatch.StartNew();
                     var emitter = new ShaderVariantSource(assetsRoot, domain);
                     string source = ShaderSourceLayout.Apply(emitter.Emit(expanded[stage.Source], selection), extension, stage.Bindings);
-                    string key = cache.Key(source, Program.StageFromExtension(extension), stage.EntryPoint);
+                    string key = cache.Key(source, Program.StageFromExtension(extension), stage.EntryPoint, input, workingDirectory);
                     if (incremental && cache.TryRead(key, out var cachedBytes, out var cachedDigest,
                         reason => missReasons.AddOrUpdate(reason, 1, (_, count) => count + 1)))
                     {

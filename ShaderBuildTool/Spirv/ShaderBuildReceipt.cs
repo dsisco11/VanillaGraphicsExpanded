@@ -31,7 +31,7 @@ internal static class ShaderBuildReceipt
         return Convert.ToHexString(hash.GetHashAndReset());
     }
 
-    /// <summary>Computes compiler and build-tool identity once for receipt checking and every variant in an invocation.</summary>
+    /// <summary>Computes compiler contents and effective invocation policy independently of catalogue and processing assemblies.</summary>
     public static string CompilerFingerprint(string workingDirectory, string target, bool warnings, ShaderFileHashIndex? index = null,
         Dictionary<string, string>? details = null)
     {
@@ -43,25 +43,18 @@ internal static class ShaderBuildReceipt
         string compilerRoot = Path.Combine(packageRoot, "dotnet-shaderc", version, "tools");
         if (!Directory.Exists(compilerRoot)) throw new DirectoryNotFoundException("Restore the pinned shader compiler before building: " + compilerRoot);
         // Include managed and native compiler contents, not just its version label: replacing either invalidates the receipt.
-        var inputs = Directory.EnumerateFiles(AppContext.BaseDirectory, "*", SearchOption.AllDirectories)
-            .Where(path => path.EndsWith(".dll", StringComparison.OrdinalIgnoreCase)
-                || path.EndsWith(".dylib", StringComparison.OrdinalIgnoreCase)
-                || Path.GetFileName(path).Contains(".so", StringComparison.Ordinal))
-            .Concat(Directory.EnumerateFiles(compilerRoot, "*", SearchOption.AllDirectories))
+        var inputs = Directory.EnumerateFiles(compilerRoot, "*", SearchOption.AllDirectories)
             .Append(toolManifest).Select(Path.GetFullPath).Order(StringComparer.Ordinal);
-        using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        string policy = target + "|" + warnings + "|" + ShaderCompilerProcess.OptimizationArgument
-            + "|debug=" + ShaderCompilerProcess.GenerateDebugInfo;
-        hash.AppendData(Encoding.UTF8.GetBytes(policy));
+        string policy = JsonSerializer.Serialize(ShaderCompilerProcess.PolicyArguments("<stage>", target, warnings, "<entry-point>"));
+        var identity = new List<string> { "compiler-identity-v2", policy };
         if (details is not null) details["compiler policy"] = policy;
         foreach (string path in inputs)
         {
-            hash.AppendData(Encoding.UTF8.GetBytes(Path.GetFullPath(path)));
-            byte[] digest = HashInput(path, index);
-            hash.AppendData(digest);
-            if (details is not null) details["compiler/tool: " + path] = Convert.ToHexString(digest);
+            string digest = Convert.ToHexString(HashInput(path, index));
+            identity.Add(path); identity.Add(digest);
+            if (details is not null) details["compiler/tool: " + path] = digest;
         }
-        return Convert.ToHexString(hash.GetHashAndReset());
+        return ShaderBuildIdentities.Hash(identity.ToArray());
     }
 
     /// <summary>Accepts only a complete previous success whose binaries and sidecars still match their recorded content.</summary>

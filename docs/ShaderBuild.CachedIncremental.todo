@@ -3,7 +3,7 @@ Cached incremental SPIR-V builds
 
 Source proposal: ShaderBuild.CachedIncremental.Proposal.md
 Current behavior: ShaderBuild.Incremental.md
-Status: Phase 1 complete; Phases 2–7 remain pending.
+Status: Phases 1–2 complete; Phases 3–7 pending.
 
 Goal and shared contracts
   Make expensive build work proportional to changed inputs and their dependents. Unchanged
@@ -98,30 +98,57 @@ Phase 2: Separate catalogue data and establish stable cache identities
   Depends on: Phase 1.
   Proposal: Identity boundaries; Existing ownership and proposed layout.
 
-  ☐ Implement the dedicated catalogue assembly and directional shared-model dependencies.
-    ☐ Keep offline catalogue data out of global processing/compiler identities; preserve
+  ☑ Implement the dedicated catalogue assembly and directional shared-model dependencies.
+    ☑ Keep offline catalogue data out of global processing/compiler identities; preserve
       runtime generator behavior, authoritative declarations, resolver semantics, and output paths.
-    ☐ Verify tool resolution uses the actual built target with inherited configuration/output
+    ☑ Verify tool resolution uses the actual built target with inherited configuration/output
       properties; preserve the existing custom-output behavior.
-  ☐ Implement deterministic, unambiguous, versioned identities.
-    ☐ Separate preprocessing, emission/layout, compiler policy/binaries, reflection/packaging,
+  ☑ Implement deterministic, unambiguous, versioned identities.
+    ☑ Separate preprocessing, emission/layout, compiler policy/binaries, reflection/packaging,
       effective variant contract, and catalogue membership identities.
-    ☐ Derive implementation identities automatically from actual relevant implementation
+    ☑ Derive implementation identities automatically from actual relevant implementation
       inputs, managed/native dependencies, and schema versions. Do not rely only on manually
       incremented constants. Conservative invalidation within a shared processing assembly is allowed.
-    ☐ Share effective-contract projection with owning resolver logic. Cover source, stage kind,
+    ☑ Share effective-contract projection with owning resolver logic. Cover source, stage kind,
       entry point, fixed/structural defines, active specialization declarations/defaults, binding
       layouts, selection information, and output association wherever required.
-    ☐ Keep compiler-result keys tied to final emitted source, stage, entry point, compiler
+    ☑ Keep compiler-result keys tied to final emitted source, stage, entry point, compiler
       binaries, target, optimization, warning policy, and Debug information.
-  ☐ Verify identity boundaries with focused tests.
-    ☐ Change a catalogue contract and prove unrelated implementation/compiler identities stay
+  ☑ Verify identity boundaries with focused tests.
+    ☑ Change a catalogue contract and prove unrelated implementation/compiler identities stay
       stable while affected effective-contract identities change.
-    ☐ Cover every inventoried emitter/extractor input; verify deterministic ordering.
-    ☐ Establish that processing changes require source reevaluation but identical emitted source
+    ☑ Cover every inventoried emitter/extractor input; verify deterministic ordering.
+    ☑ Establish that processing changes require source reevaluation but identical emitted source
       remains compiler-cache eligible, and extractor-only changes do not require compilation.
-  ☐ Completion gate: project boundaries build correctly and identity tests prove both required
+  ☑ Completion gate: project boundaries build correctly and identity tests prove both required
     invalidation and isolation; no catalogue-wide hash substitutes for per-variant contracts.
+
+  Evidence (second review and independent completion audit passed)
+    - Proposal Identity boundaries / Resolved implementation contracts -> ShaderBuildModel and
+      ShaderBuildCatalog project split, ShaderContractProjection, ShaderBuildIdentities,
+      shared compiler argument policy, and separate receipt/compiler keys.
+    - ShaderBuildIdentityTests covers effective source/condition/specialization/binding inputs,
+      deterministic ordering/culture, assembly ownership, membership/output association,
+      implementation content/schema, and compiler policy/path identity.
+    - Full ShaderBuildTool.Tests: Debug 108/108 and Release 108/108, no failures.
+      Commands: dotnet test ShaderBuildTool.Tests/ShaderBuildTool.Tests.csproj (default Debug; -c Release for Release)
+      --no-restore -p:UseSharedCompilation=false -nr:false -m:1 --tl:off -v:minimal.
+      Complete standard process environment resolved the prior runtimeconfig generation issue;
+      no runtimeconfig workaround was required for these receipts.
+    - Actual catalogue-only AoIntegral binding edit 28 -> 27 -> 28 changed Catalogue DLL bytes
+      and restored them exactly; Tool and Model DLL hashes stayed identical across all builds.
+      Fixture source was restored. Evidence: artifacts/investigation/phase2/catalogue-isolation.json.
+    - Isolated runtime build with EnableSpirv=false passed with 13 existing warnings and no
+      ShaderBuildModel/ShaderBuildCatalog DLLs deployed. Actual Release custom OutputPath tool
+      build passed and GetTargetPath matched the built executable location.
+      Logs: artifacts/investigation/phase2/tests-debug.log, tests-release.log, runtime-build.log,
+      custom-build.log. An inherited GetTargetPath MSBuild-task probe also resolves the existing
+      custom executable (custom-target-path.log).
+    - ShaderCompilerPathIdentityTests: Release 1/1 passed with actual CompileAsync output byte
+      equality across two input paths and two working directories sharing the pinned manifest.
+      Debug 1/1 passed with conservative distinct-path keys. Logs: compiler-path-release.log and
+      compiler-path-debug.log under the same evidence directory. These are focused build/source
+      receipts, not in-game evidence.
 
 Phase 3: Persist library dependency graphs and reusable processing records
   Outcome: validated records can identify reusable work before AST construction or reflection.

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../VanillaGraphicsExpanded/Rendering/Contracts/*.cs"
+             Exclude="../VanillaGraphicsExpanded/Rendering/Contracts/GpuShaderContracts.cs;../VanillaGraphicsExpanded/Rendering/Contracts/BuildValidationShaderPrograms.cs;../VanillaGraphicsExpanded/Rendering/Contracts/IShaderIncludeBindings.cs;../VanillaGraphicsExpanded/Rendering/Contracts/IShaderInterfaceLocations.cs"
+             Link="Contracts/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>

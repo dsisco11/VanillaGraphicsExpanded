@@ -12,8 +12,10 @@ internal sealed class ShaderVariantCache(string outputRoot, string compilerIdent
 
     #region Cache identity and lookup
     /// <summary>Includes final source, layout, defines, entry point and compiler policy in an unambiguous content key.</summary>
-    internal string Key(string source, string stage, string entryPoint) => Convert.ToHexString(
-        SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] { "variant-cache-v1", compilerIdentity, stage, entryPoint, source })));
+    internal string Key(string source, string stage, string entryPoint, string? inputPath = null, string? workingDirectory = null) => Convert.ToHexString(
+        SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] { "variant-cache-v2", compilerIdentity, stage, entryPoint, source,
+            ShaderCompilerProcess.GenerateDebugInfo && inputPath != null ? Path.GetFullPath(inputPath) : "",
+            ShaderCompilerProcess.GenerateDebugInfo && workingDirectory != null ? Path.GetFullPath(workingDirectory) : "" })));
 
     /// <summary>Accepts only complete entries whose bytes still match the recorded digest.</summary>
     internal bool TryRead(string key, out byte[] bytes, out ShaderBinaryDigest.Entry digest, Action<string>? reportMiss = null)

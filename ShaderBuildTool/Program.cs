@@ -60,9 +60,13 @@ internal static class Program
             LumonOctahedralShWeights.Generate(domainShadersRoot);
             var fileHashes = new ShaderFileHashIndex(outputRoot, options.VerifyContents || options.Clean);
             var inputDetails = new Dictionary<string, string>(StringComparer.Ordinal) { ["registry scope"] = options.RegistryScope };
-            string compilerIdentity = ShaderBuildReceipt.CompilerFingerprint(
+            var identities = ShaderBuildIdentities.Capture(
                 options.WorkingDirectory ?? Directory.GetCurrentDirectory(), options.TargetEnv, options.WarningsAsErrors, fileHashes, inputDetails);
-            string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, compilerIdentity, fileHashes, inputDetails) + "|" + options.RegistryScope;
+            string compilerIdentity = identities.Compiler;
+            inputDetails["preprocessing identity"] = identities.Preprocessing;
+            inputDetails["emission identity"] = identities.Emission;
+            inputDetails["interface identity"] = identities.Interface;
+            string fingerprint = ShaderBuildReceipt.Fingerprint(assetsRoot, domain, identities.Receipt(registry, options.RegistryScope, inputDetails), fileHashes, inputDetails);
             Console.WriteLine(FormattableString.Invariant($"[SPIR-V] Input hashes: reused={fileHashes.ReusedFiles}; read={fileHashes.HashedFiles}; elapsedMs={checkTimer.Elapsed.TotalMilliseconds:F1}"));
             Console.WriteLine("[SPIR-V] Checking incremental receipt and verifying published binary contents...");
             checkTimer.Restart();

@@ -34,20 +34,27 @@ result integrity checks still hash their actual bytes. Logs report input hashes
 reused versus files read. The generated SH include is regenerated each invocation,
 so its changed timestamp normally requires rehashing that one input.
 
-The shared compiler fingerprint is computed once per invocation and reused for
-the catalog receipt and variant keys. A receipt miss expands source imports and emits
+Compiler and processing identities are computed once per invocation. Compiler-result
+keys contain compiler package contents and the effective invocation policy, while the
+catalogue receipt additionally includes processing implementation identities and resolved
+contract/output membership. Offline declarations live in ShaderBuildCatalog; shared model
+types live in ShaderBuildModel. Catalogue assembly contents are excluded from processing
+implementation hashes, so a declaration edit does not invalidate unrelated compiler results. A receipt miss expands source imports and emits
 each variant through the existing TinyAst and layout pipeline. Its cache key
 includes the final emitted source (including defines, specialization declarations
-and binding layouts), stage, entry point, tool/compiler contents, target,
+and binding layouts), stage, entry point, compiler contents, target,
 optimization, warning policy and debug-information policy.
 
 Verified compiler results live under `_cache` as binary data and digest metadata.
 An entry is reusable only when the binary's length and SHA-256 match its metadata.
 Missing, malformed or corrupt entries become misses. Hits restore missing or
 damaged published binaries; identical published binaries retain their timestamps.
-Compiler or build-tool changes conservatively invalidate variants, including
-contract changes that rebuild the tool itself. Ordinary GLSL/include edits affect
-only variants whose expanded compiler input changes.
+Compiler changes invalidate compiler results. Processing implementation changes invalidate
+the receipt and cause source reevaluation, but identical emitted compiler input remains
+cache eligible. Ordinary GLSL/include or contract edits recompile only variants whose
+final compiler input changes. Debug keys also include compiler-visible source and working
+paths; Release keys omit that debug-only context. The new key schema cold-populates
+older entries rather than assuming compatibility.
 
 Only successful compiler results enter the cache. Successful individual results
 can survive another variant's failure, but the complete runtime digest index and
@@ -71,8 +78,9 @@ compiler/tool and policy inputs with their old/new values. Older receipts remain
 valid but cannot identify individual changed inputs until a successful rebuild
 records this information. Variant builds also report cache-miss categories and
 counts (missing metadata/binary, invalid digest, malformed metadata or unreadable
-entries), separately from the receipt reason. Builder/contract assembly changes
-conservatively change every variant's compiler identity even when GLSL is unchanged.
+entries), separately from the receipt reason. Processing assembly changes
+invalidate the whole-build shortcut without changing compiler identity. Contract changes
+are represented by deterministic effective-contract projections in catalogue membership.
 Startup messages identify
 tool restoration, fingerprint checks and receipt/output verification before any
 variant work begins. Catalog rebuilds report source expansion and variant progress
