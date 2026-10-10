@@ -899,7 +899,7 @@ Tasks
         counts and synthetic GPU timing are recorded in docs/PBR.Postprocessing.md.
         Parent remains open for user-run halo/temporal and matched-scene performance acceptance.
 
-    ☐ Implement horizon-integrated ambient occlusion and its spatial filter.
+    ✔ Implement horizon-integrated ambient occlusion and its spatial filter. @done(26-10-10 14:45)
       - Implemented the owned pre-lighting horizon pass, shared minimum-depth hierarchy, spatial filter
         and joint reconstruction. Native SSAO settings control bounded quality; only ambient/indirect
         lighting consumes visibility, using current corrected material depth and typed resources.
