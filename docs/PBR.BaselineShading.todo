@@ -1031,11 +1031,20 @@ Tasks
           reconstruction at both native qualities, neutrality, transmission, corners, motion and
           lifecycle. 433 production and 507 fixture variants build. Contract, measured synthetic
           costs and receipt: docs/PBR.Postprocessing.md. Parent live acceptance remains open.
-      ☐ Separate ambient diffuse and specular occlusion.
+      ☑ Separate ambient diffuse and specular occlusion.
         - Split the environment response before composition. Apply scalar visibility to diffuse
           lighting and derive indirect specular visibility from AO, roughness and normal/view angle.
           Reconcile standalone and LumOn consumers without double attenuation; reuse existing
           inputs, leave direct lighting unchanged and keep bent-normal generation out of scope.
+        - Completed shared environment splitting and bounded diffuse/specular visibility. Scalar AO
+          attenuates diffuse; the indirect specular approximation uses AO, perceptual roughness and
+          actual receiver/view angle with independent strengths and one application per term.
+          Standalone and LumOn PBR share the response; compatibility mode remains diffuse-only.
+          Direct/emissive lighting, existing resources and unmatched receiver behavior are preserved.
+        - 95 focused GPU checks pass, including 96 numeric composition scenarios, direct lighting,
+          HDR, full LumOn integration, diagnostics, mode lifecycle and refraction capture. All 433
+          production and 507 fixture variants build. Contract and receipts: docs/PBR.Postprocessing.md.
+          Parent live visual and matched-scene performance acceptance remain open.
       ☐ Validate horizon behavior and the final lighting contribution.
         - Use existing GPU abstractions for flat-plane, corner, thin-occluder, screen-edge,
           distance/FOV and roughness/view-angle checks, including spatial filter/reconstruction.

@@ -162,10 +162,39 @@ reprojection and history validation.
 PBR composition consumes visibility with its matching receiver depth at sampler unit 12. The
 current-frame validity flag and depth agreement prevent stale or unrelated sampling; first-person
 visibility proxies bypass world AO as both receivers and occluders. Clean refraction captures made
-before AO publication remain neutral; they never sample the previous frame. Standalone environment response is attenuated, while LumOn's
-indirect response uses its existing diffuse/specular AO strengths. The scalar signal does not invent
-a bent normal. Direct sun, point lights, emission, sky, water/aerial transport and generated glare
+before AO publication remain neutral; they never sample the previous frame. Standalone and LumOn
+PBR composition split incoming integrated illumination into diffuse and specular responses before
+applying visibility. Both use the same material/Fresnel response and the same visibility helper.
+The diffuse factor is scalar AO. Indirect specular visibility is
+`clamp(pow(clamp(N·V,0,1)+AO, exp2(-16*roughness-1))-1+AO,0,1)`, with AO and perceptual
+roughness bounded to [0,1]. The actual reconstructed view direction and receiver normal determine
+N·V; there is no camera-axis substitute. This empirical [Lagarde approximation described by
+Filament](https://google.github.io/filament/main/filament.html#lighting/occlusion/specularocclusion)
+approaches diffuse visibility for rough surfaces and depends more strongly on view angle for smooth
+surfaces. It does not recover directional specular occlusion or a bent normal.
+
+Existing diffuse/specular strength inputs independently interpolate each visibility from neutral;
+each indirect term is multiplied once. Standalone environment light and LumOn PBR indirect use
+the same policy; LumOn's compatibility mode remains diffuse-only and uses only diffuse strength.
+Forward/OIT and first-person receivers without a matched AO publication retain unoccluded local
+lighting. Legacy combine/debug shaders have no matched visibility input and retain AO=1;
+they share the material/view response and use the actual normal rather than inventing a bend.
+No additional texture, target, binding or pass is introduced. Direct sun, point lights, emission, sky, water/aerial transport and generated glare
 are not multiplied by AO. Final composition has four samplers and no AO input.
+
+Diffuse/specular occlusion validation: **95 focused GPU tests passed**, including six AO composition
+theories covering **96 internal numeric scenarios** across standalone, LumOn diffuse-only and
+LumOn PBR modes. Known direct/emissive radiance remains separate while partial AO and independent
+strengths constrain single application of visibility. Coverage includes dielectrics/metals,
+roughness 0/0.05/0.5/1, N·V 0.1/0.5/1, an off-axis receiver with a camera-facing normal,
+neutral/full/partial AO, zero/partial/out-of-range strengths, depth mismatch and first-person
+proxies. Additional tests cover direct lighting, HDR, the full LumOn pipeline, diagnostic splits,
+mode changes and clean refraction capture/restoration. All **433 production** and **507 fixture**
+shader variants built successfully. Receipts: `artifacts/indirect-occlusion-validation.log`
+(initial run: 90 passing, five fixture camera setup failures) and
+`artifacts/indirect-occlusion-final-validation.log` (95 passing after explicit fixture camera/light
+snapshots). These headless results do not establish live appearance or matched-scene performance;
+parent acceptance remains open.
 
 Separate GpuResourceCollection owners manage the shared hierarchy and AO's three visibility images.
 The hierarchy uses one typed compute dispatch and no framebuffer targets; AO retains its framebuffer borrowers.

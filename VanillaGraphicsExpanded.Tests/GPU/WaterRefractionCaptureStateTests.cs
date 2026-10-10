@@ -44,6 +44,13 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             _ => method.Invoke(assets.Api, args)
         });
         programs.Initialize(api);
+        // These renderer-level fixtures own their camera snapshot instead of running the world's publication callback.
+        using var frameCamera=TestFrameCamera.CreateIdentity(1,1);
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api,"pbr_composite")!.FrameInputs=frameCamera;
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api,PBRCompositeShaderProgram.PreOverlayPassName)!.FrameInputs=frameCamera;
+        using var lights=new VgeLightsUniformBuffer();
+        var directProgram=GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(api,"pbr_direct_lighting")!;
+        directProgram.FrameInputs=frameCamera;directProgram.LightsInputs=lights;
         var config = new VanillaGraphicsExpanded.LumOn.VgeConfig();
         config.LumOn.Enabled = lumon; config.LumOn.EnablePbrComposite = false;
         config.LumOn.Intensity = 1; config.LumOn.IndirectTint = [1, 1, 1];

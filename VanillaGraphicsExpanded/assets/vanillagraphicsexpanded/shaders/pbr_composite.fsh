@@ -150,7 +150,7 @@ void main(void)
         indirect *= indirectTint;
 
 #if !VGE_LUMON_PBR_COMPOSITE
-        vec3 combined = lumonCombineLighting(directLight, indirect, albedo, metallic, ambientVisibility, vec3(1.0));
+        vec3 combined = lumonCombineLighting(directLight, indirect, albedo, metallic, mix(1.0,clamp(ambientVisibility,0.0,1.0),clamp(diffuseAOStrength,0.0,1.0)), vec3(1.0));
         finalColor = combined + emissiveLight;
 #else
         vec3 viewPosVS = receiverVS;
@@ -162,7 +162,6 @@ void main(void)
         // The dedicated current-frame signal is distinct from material transmission.
         float ao = ambientVisibility;
 
-        vec3 shortRangeAoDirVS = normalVS;
         // Scalar visibility does not define a bent normal; retain the actual receiver normal.
 
             vec3 indirectDiffuseContrib;
@@ -171,7 +170,7 @@ void main(void)
             lumonComputeIndirectSplit(
                 indirect,
                 albedo,
-                shortRangeAoDirVS,
+                normalVS,
                 viewDirVS,
                 roughness,
                 metallic,
@@ -188,8 +187,12 @@ void main(void)
     vec4 material = texture(gBufferSurface, vec3(uv, VGE_SURFACE_MATERIAL));
     vec3 normalVS = normalize(mat3(viewMatrix) * lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz));
     vec3 toEye = normalize(-receiverVS);
-    finalColor += ambientVisibility * VgeEnvironmentResponse(texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).rgb,
-        albedo, material.g, material.r, dot(normalVS, toEye));
+    float nDotV=clamp(dot(normalVS,toEye),0.0,1.0);
+    vec3 environmentDiffuse,environmentSpecular;
+    VgeEnvironmentSplit(texture(gBufferSurface,vec3(uv,VGE_SURFACE_ENVIRONMENT)).rgb,
+        albedo,material.g,material.r,nDotV,environmentDiffuse,environmentSpecular);
+    vec2 indirectVisibility=VgeIndirectVisibility(ambientVisibility,material.r,nDotV,diffuseAOStrength,specularAOStrength);
+    finalColor+=environmentDiffuse*indirectVisibility.x+environmentSpecular*indirectVisibility.y;
 #endif // VGE_LUMON_ENABLED
 
     finalColor = max(finalColor, vec3(0.0));

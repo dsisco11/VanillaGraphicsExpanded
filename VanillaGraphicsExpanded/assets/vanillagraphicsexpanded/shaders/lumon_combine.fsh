@@ -110,15 +110,8 @@ void main(void)
     if (specularAOStrength != specularAOStrength) ao = 0.0;
 #endif
 
-    // Short-range AO direction: when enabled, apply a cheap approximation that
-    // biases the visibility direction toward +Y (view-up) as AO decreases.
-    // This provides a usable visibility-ish signal without requiring a dedicated
-    // short-range AO buffer.
-    vec3 shortRangeAoDirVS = normalVS;
-#if VGE_LUMON_ENABLE_SHORT_RANGE_AO
-    float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
-    shortRangeAoDirVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
-#endif
+    // Scalar visibility has no bent direction; the shared split uses the actual receiver normal.
+
 
         vec3 indirectDiffuseContrib;
         vec3 indirectSpecularContrib;
@@ -126,7 +119,7 @@ void main(void)
         lumonComputeIndirectSplit(
             indirect,
             albedo,
-            shortRangeAoDirVS,
+            normalVS,
             viewDirVS,
             roughness,
             metallic,

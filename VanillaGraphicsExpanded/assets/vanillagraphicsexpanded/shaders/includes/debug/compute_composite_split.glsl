@@ -58,11 +58,8 @@ void computeCompositeSplit(
     vec3 normalWS = lumonDecodeNormal(texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).xyz);
     vec3 normalVS = normalize((getViewMatrix() * vec4(normalWS, 0.0)).xyz);
 
-    vec3 shortRangeAoDirVS = normalVS;
-#if VGE_LUMON_ENABLE_SHORT_RANGE_AO
-    float bend = clamp((1.0 - clamp(ao, 0.0, 1.0)) * 0.5, 0.0, 0.5);
-    shortRangeAoDirVS = normalize(mix(normalVS, vec3(0.0, 1.0, 0.0), bend));
-#endif
+    // Scalar visibility has no bent direction; the shared split uses the actual receiver normal.
+
 
     vec3 diffuseContrib;
     vec3 specContrib;
@@ -70,7 +67,7 @@ void computeCompositeSplit(
     lumonComputeIndirectSplit(
         indirect,
         albedo,
-        shortRangeAoDirVS,
+        normalVS,
         viewDirVS,
         roughness,
         metallic,
