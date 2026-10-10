@@ -7,19 +7,20 @@ namespace ShaderBuildTool.Spirv;
 /// <summary>Stores verified compiler results independently of the currently published shader catalog.</summary>
 internal sealed class ShaderVariantCache(string outputRoot, string compilerIdentity)
 {
+    internal string CompilerIdentity { get; } = compilerIdentity;
     private readonly string root = Path.Combine(outputRoot, "_cache");
     private readonly System.Collections.Concurrent.ConcurrentDictionary<string, object> entryLocks = new(StringComparer.Ordinal);
 
-    #region Cache identity and lookup
+    #region Public API
     /// <summary>Includes final source, layout, defines, entry point and compiler policy in an unambiguous content key.</summary>
-    internal string Key(string source, string stage, string entryPoint, string? inputPath = null, string? workingDirectory = null) => Convert.ToHexString(
-        SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new[] { "variant-cache-v2", compilerIdentity, stage, entryPoint, source,
+    internal string Key(string source, string stage, string entryPoint, string? inputPath = null, string? workingDirectory = null) => ShaderCacheKey.Create("variant-cache-v3", CompilerIdentity, stage, entryPoint, source,
             ShaderCompilerProcess.GenerateDebugInfo && inputPath != null ? Path.GetFullPath(inputPath) : "",
-            ShaderCompilerProcess.GenerateDebugInfo && workingDirectory != null ? Path.GetFullPath(workingDirectory) : "" })));
+            ShaderCompilerProcess.GenerateDebugInfo && workingDirectory != null ? Path.GetFullPath(workingDirectory) : "");
 
     /// <summary>Accepts only complete entries whose bytes still match the recorded digest.</summary>
     internal bool TryRead(string key, out byte[] bytes, out ShaderBinaryDigest.Entry digest, Action<string>? reportMiss = null)
     {
+        if (!ShaderCacheKey.IsValid(key)) { bytes = []; digest = null!; reportMiss?.Invoke("invalid compiler cache reference"); return false; }
         // The output lease excludes other builders, but aliases within this batch can share a key.
         // Keep native file reads out of the atomic replacement window on platforms denying delete sharing.
         lock (entryLocks.GetOrAdd(key, static _ => new object()))
@@ -43,12 +44,12 @@ internal sealed class ShaderVariantCache(string outputRoot, string compilerIdent
             catch (IOException) { reportMiss?.Invoke("cache entry unreadable"); return false; }
         }
     }
-    #endregion
 
-    #region Successful publication
     /// <summary>Publishes metadata last so interrupted writes cannot validate a partial compiler result.</summary>
     internal void Store(string key, byte[] bytes, ShaderBinaryDigest.Entry digest)
     {
+        if (!ShaderCacheKey.IsValid(key) || bytes.Length == 0 || Digest(bytes) != digest)
+            throw new InvalidDataException("Compiler cache key or binary digest is invalid.");
         // Serialize only this entry; different compiler results still publish concurrently.
         lock (entryLocks.GetOrAdd(key, static _ => new object()))
         {
@@ -68,6 +69,9 @@ internal sealed class ShaderVariantCache(string outputRoot, string compilerIdent
     /// <summary>Computes the runtime digest from successful compiler output.</summary>
     internal static ShaderBinaryDigest.Entry Digest(byte[] bytes) => new(bytes.Length, Convert.ToHexString(SHA256.HashData(bytes)));
 
+    #endregion
+
+    #region Private
     /// <summary>Replaces a file only after all bytes have been written under the output lease.</summary>
     private static void WriteAtomic(string path, byte[] bytes)
     {

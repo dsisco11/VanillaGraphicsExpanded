@@ -32,16 +32,18 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
     private readonly string defaultDomain;
 
     private readonly Action<ResourceId, string, string, SyntaxTree>? resourceRead;
+    private readonly Action<ShaderInputObservation>? inputRead;
 
-    #region Construction and resource resolution
+    #region Public API
     /// <summary>Resolves asset imports and optionally reports the source content used by each resolution.</summary>
-    public FileSystemSyntaxTreeResourceResolver(string assetsRoot, string defaultDomain, Action<ResourceId, string, string, SyntaxTree>? resourceRead = null)
+    public FileSystemSyntaxTreeResourceResolver(string assetsRoot, string defaultDomain, Action<ResourceId, string, string, SyntaxTree>? resourceRead = null, Action<ShaderInputObservation>? inputRead = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(assetsRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(defaultDomain);
 
         this.assetsRoot = Path.GetFullPath(assetsRoot);
         this.resourceRead = resourceRead;
+        this.inputRead = inputRead;
         this.defaultDomain = defaultDomain;
     }
 
@@ -86,7 +88,7 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
             return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Failure(diag));
         }
 
-        string text = File.ReadAllText(filePath);
+        var (text, observation) = ShaderInputObservation.Read(id.Path, filePath);
         if (string.IsNullOrEmpty(text))
         {
             var diag = new ResolutionFailedDiagnostic(reference, $"File was empty: {filePath}", relativeTo?.Id, null);
@@ -95,13 +97,15 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
 
         var tree = SyntaxTree.Parse(text, GlslSchema.Instance);
         resourceRead?.Invoke(id, filePath, text, tree);
+        inputRead?.Invoke(observation);
         var resource = new Resource<SyntaxTree>(id, tree, EmptyMetadata);
         return ValueTask.FromResult(ResourceResolutionResult<SyntaxTree>.Success(resource));
     }
 
     #endregion
 
-    #region Resource path normalization
+    #region Private
+    #region Reference interpretation
     /// <summary>Removes control characters from imported asset identifiers.</summary>
     private static string RemoveControlChars(string value)
     {
@@ -185,6 +189,9 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         return (domain, path);
     }
 
+    #endregion
+
+    #region Path normalization
     /// <summary>Normalizes path segments using a stable synthetic domain root.</summary>
     private static string NormalizePathWithinDomain(string path)
     {
@@ -212,5 +219,6 @@ internal sealed class FileSystemSyntaxTreeResourceResolver : IResourceResolver<S
         }
         return path + Path.DirectorySeparatorChar;
     }
+    #endregion
     #endregion
 }

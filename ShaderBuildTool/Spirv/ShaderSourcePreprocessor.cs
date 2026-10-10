@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using TinyPreprocessor.Core;
 using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded;
@@ -11,32 +12,37 @@ internal sealed class ShaderSourcePreprocessor
     private readonly string root;
     private readonly string domain;
 
-    #region Construction
+    #region Public API
     /// <summary>Identifies the asset tree used for stage sources and imported resources.</summary>
     public ShaderSourcePreprocessor(string assetsRoot, string assetDomain)
     {
         root = Path.GetFullPath(assetsRoot);
         domain = assetDomain;
     }
-    #endregion
 
-    #region Preprocessing
     /// <summary>Expands syntax imports using library-owned dependency ordering and source attribution.</summary>
-    public string Expand(string relative)
+    public ShaderExpandedSource Expand(string relative)
     {
 
         string sourceRoot = Path.Combine(root, domain, "shaders");
         string path = Path.GetFullPath(Path.Combine(sourceRoot, relative));
         if (!path.StartsWith(sourceRoot + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
             throw new InvalidOperationException("Shader source escaped its asset directory: " + relative);
-        string raw = File.ReadAllText(path);
+        relative = Path.GetRelativePath(sourceRoot, path).Replace(Path.DirectorySeparatorChar, '/');
         var sources = new Dictionary<ResourceId, SyntaxTree>();
         var id = new ResourceId($"{domain}:shaders/{relative.Replace('\\', '/')}");
+        var (raw, rootInput) = ShaderInputObservation.Read(id.Path, path);
+        var inputs = new Dictionary<string, ShaderInputObservation>(StringComparer.Ordinal) { [id.Path] = rootInput };
         var parsed = SyntaxTree.Parse(raw, GlslSchema.Instance);
         sources.Add(id, parsed);
         var resolver = new FileSystemSyntaxTreeResourceResolver(root, domain, (resourceId, file, text, tree) =>
         {
             sources[resourceId] = tree;
+        }, observation =>
+        {
+            if (inputs.TryGetValue(observation.Resource, out var previous) && previous != observation)
+                throw new IOException("Shader resource changed during preprocessing: " + observation.Resource);
+            inputs[observation.Resource] = observation;
         });
         var result = new ShaderSyntaxTreePreprocessor(resolver).Process(id, parsed);
         if (!result.Success)
@@ -54,7 +60,12 @@ internal sealed class ShaderSourcePreprocessor
         if (relative is "tests/terrain-capture-opaque.fsh" or "tests/terrain-capture-topsoil.fsh")
             VanillaGraphicsExpanded.PBR.PbrTerrainColorPatches.ApplyFragment(output,
                 relative.EndsWith("opaque.fsh", StringComparison.Ordinal) ? "chunkopaque.fsh" : "chunktopsoil.fsh");
-        return SourceCodeImportsProcessor.StripNonAscii(output.ToText());
+        if (result.DependencyGraph is null) throw new InvalidDataException("Successful preprocessing omitted dependency graph.");
+        var expanded = new ShaderExpandedSource(id.Path, root, SourceCodeImportsProcessor.StripNonAscii(output.ToText()),
+            ShaderDependencySnapshot.Capture(result.DependencyGraph, result.ProcessedResources),
+            inputs.Values.OrderBy(input => input.Resource, StringComparer.Ordinal).ToImmutableArray());
+        ShaderExpandedSource.Validate(expanded);
+        return expanded;
     }
     #endregion
 }

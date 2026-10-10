@@ -10,7 +10,7 @@ internal sealed class ShaderVariantSource
 {
     private readonly string root;
     private readonly string domain;
-    #region Construction and import expansion
+    #region Public API
     /// <summary>Uses the asset root and domain for shared AST import processing.</summary>
     public ShaderVariantSource(string assetsRoot, string assetDomain)
     {
@@ -18,10 +18,8 @@ internal sealed class ShaderVariantSource
     }
 
     /// <summary>Resolves imports beneath the assets root; GLSL guards still govern duplicate declarations.</summary>
-    public string Expand(string relative) => new ShaderSourcePreprocessor(root, domain).Expand(relative);
-    #endregion
+    public string Expand(string relative) => new ShaderSourcePreprocessor(root, domain).Expand(relative).Text;
 
-    #region Configuration and emission
     /// <summary>Inserts typed configuration before imported defaults, preserving shared availability and stable IDs.</summary>
     public string Emit(string source, ShaderStageSelection selection)
     {

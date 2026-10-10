@@ -12,8 +12,8 @@ writers to the same directory.
 Variant filenames use the first 128 bits of the canonical key's SHA-256 hash,
 encoded as 26 uppercase, unpadded RFC 4648 Base32 characters. The shared resolver
 generates the same names for building and runtime loading, and rejects output
-path collisions with a case-insensitive comparison. Full SHA-256 digests remain
-in use for cache keys and binary integrity verification. Old variant filenames
+path collisions with a case-insensitive comparison. Cache filenames encode all 256 SHA-256 bits as 52 uppercase, unpadded Base32
+characters. Binary and payload integrity digests retain their hexadecimal representation. Old variant filenames
 are pruned by the normal successful catalog build and asset-copy cleanup.
 
 An unchanged catalog uses the success receipt with content-verified outputs and runs
@@ -96,3 +96,24 @@ summary remains useful even when earlier ordinary log lines are hidden.
 Explicit `--clean` overrides `--incremental`, discards outputs/cache and forces compilation.
 The cache retains historical successful variants to support reverting changes;
 explicit clean is currently the mechanism for reclaiming that storage.
+
+Reusable processing record APIs live under `ShaderBuildTool/Spirv/Records`. Successful
+preprocessing now retains immutable TinyPreprocessor resource/edge snapshots, processed
+resource IDs, and physical input associations with hashes of the exact bytes read.
+Expanded text is embedded in a content-addressed source record; a context-specific head
+points to the latest successful record. Replacing a root preserves other roots and
+historical records. Current dependency planning restores private library graphs and
+uses their direct-neighbor queries with visited traversal.
+
+Variant records validate emitted text and its compiler key against verified compiler
+artifacts. Interface records independently validate binary, contract, implementation,
+configuration and runtime schema; missing or corrupt interfaces can be extracted from
+verified binaries without compilation. All new record families use digest-only references
+and atomic, integrity-checked envelopes under `_cache`. They confer no catalogue success.
+These APIs are tested independently; the normal catalogue loop still processes every
+variant after a receipt miss until selective orchestration is integrated.
+
+Compiler and processing record filenames use the same Base32 alphabet as runtime variant
+identifiers, retaining the complete SHA-256 digest rather than truncating it. Old hexadecimal
+cache filenames are not reused by the new key format; entries populate on the next build.
+Explicit clean can reclaim the historical entries. Runtime variant filenames remain unchanged.

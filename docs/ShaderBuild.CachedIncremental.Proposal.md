@@ -1,6 +1,6 @@
 # Cached incremental SPIR-V builds
 
-Status: implementation in progress; assembly separation and identity boundaries are implemented and verified. Persistent processing caches and publication recovery remain proposed.
+Status: implementation in progress; assembly separation and identity boundaries are implemented and verified. Persistent processing record APIs are implemented and verified. Selective orchestration and publication recovery remain proposed.
 
 ## Intent
 
@@ -87,7 +87,7 @@ Compiler-result keys continue to identify final emitted source, compiler policy,
 
 Store a versioned record containing the qualified root source identity, preprocessing identity, a serializable snapshot of the library dependency graph, root and transitive dependency content hashes, expanded-text digest, and a reference to the cached expanded text. Persist resource identities and dependency relationships as data, not live ASTs or the library object representation. Retain per-root provenance so replacing one root record removes its obsolete relationships without deleting relationships still required by another root.
 
-The existing ShaderSyntaxTreePreprocessor already returns PreprocessResult<SyntaxTree>. ShaderSourcePreprocessor currently consumes its content, source map, and diagnostics, then returns only text. Change that boundary to retain DependencyGraph and ProcessedResources from successful preprocessing. TinyPreprocessor.Graph.ResourceDependencyGraph already exposes GetAllResources, GetDependencies, GetDependents, GetProcessingOrder, and cycle detection. Use these APIs rather than implementing another import scanner, dependency resolver, or graph algorithm.
+The existing ShaderSyntaxTreePreprocessor already returns PreprocessResult<SyntaxTree>. ShaderSourcePreprocessor now retains immutable DependencyGraph and ProcessedResources snapshots alongside expanded text after successful preprocessing. Its text-only caller remains compatible while selective record reuse is integrated separately. TinyPreprocessor.Graph.ResourceDependencyGraph already exposes GetAllResources, GetDependencies, GetDependents, GetProcessingOrder, and cycle detection. Use these APIs rather than implementing another import scanner, dependency resolver, or graph algorithm.
 
 Capture the graph produced by the library during actual expansion. Associate its canonical resource IDs with physical files and hashes through the existing resolver callback, and explicitly record the root input supplied directly to preprocessing. Treat ResourceId as an opaque identity supplied by the resolver; do not reconstruct paths or edges from import strings. Every graph resource must have a validated input association before its record can be reused. Cross-domain imports are dependencies too; the receipt shortcut must include them even if they lie outside the current single-domain enumeration.
 
