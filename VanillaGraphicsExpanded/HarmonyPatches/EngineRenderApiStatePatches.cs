@@ -7,11 +7,11 @@ using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches;
 
-/// <summary>Rebuilds engine render API bodies after native state call sites have been patched.</summary>
+/// <summary>Rebuilds engine render implementations and higher callers after native state routing.</summary>
 internal static class EngineRenderApiStatePatches
 {
     #region Public API
-    /// <summary>Removes preexisting inlined platform calls from render API implementations using the state transpiler.</summary>
+    /// <summary>Recompiles managed engine callers using the state transpiler to replace preexisting inlined native calls.</summary>
     internal static void Apply(Harmony harmony)
     {
         // The raw-call patches must already exist before Harmony compiles these replacement bodies.
@@ -29,20 +29,33 @@ internal static class EngineRenderApiStatePatches
         }
     }
 
-    /// <summary>Selects declared managed bodies by the engine render API contract, without individual method names.</summary>
+    /// <summary>Selects render API implementations and the explicitly identified higher engine caller classes.</summary>
     internal static IEnumerable<MethodBase> TargetMethods()
     {
         const BindingFlags flags = BindingFlags.DeclaredOnly | BindingFlags.Public | BindingFlags.NonPublic
             | BindingFlags.Instance | BindingFlags.Static;
-        // Limit discovery to the engine: third-party implementations and dynamically emitted code are outside this boundary.
-        foreach (var type in typeof(ClientPlatformWindows).Assembly.GetTypes())
+        var engine = typeof(ClientPlatformWindows).Assembly;
+        // Retain the established API hierarchy and add only the known GUI/platform caller classes.
+        // Resolve internal game types by their exact names rather than broad namespace or IL scans.
+        var types = engine.GetTypes().Where(type => typeof(IRenderAPI).IsAssignableFrom(type))
+            .Concat(new[]
+            {
+                engine.GetType("Vintagestory.Client.GuiScreenConnectingToServer", throwOnError: true)!,
+                engine.GetType("Vintagestory.Client.ScreenManager", throwOnError: true)!,
+                engine.GetType("Vintagestory.Client.GuiCompositeMainMenuLeft", throwOnError: true)!,
+                engine.GetType("Vintagestory.Client.ParticleRenderer2D", throwOnError: true)!,
+                engine.GetType("Vintagestory.Client.NoObf.TextureAtlasManager", throwOnError: true)!,
+                engine.GetType("Vintagestory.Client.NoObf.BlendedTextureManager", throwOnError: true)!,
+                typeof(GuiComposer),
+                typeof(GuiElement).Assembly.GetType("Vintagestory.API.Client.GuiElementClip", throwOnError: true)!
+            }).Distinct();
+        foreach (var type in types)
         {
-            if (!typeof(IRenderAPI).IsAssignableFrom(type) || type.ContainsGenericParameters)
-                continue;
+            if (type.ContainsGenericParameters) continue;
             foreach (var method in type.GetMethods(flags).Cast<MethodBase>()
                 .Concat(type.GetConstructors(flags & ~BindingFlags.Static)))
             {
-                // Static initializers are intentionally excluded; abstract/native/open generic bodies cannot be rebuilt here.
+                // Harmony rebuilds eligible bodies; static initialization and open generic bodies stay excluded.
                 if (!method.IsAbstract && !method.ContainsGenericParameters && method.GetMethodBody() is not null)
                     yield return method;
             }

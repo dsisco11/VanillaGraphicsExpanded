@@ -12,9 +12,11 @@ The engine's supported native state calls are replaced at their managed call sit
 
 ## Previously compiled render API callers
 
-Immediately after `Harmony.PatchAll()` installs the native-call replacements, [EngineRenderApiStatePatches](../VanillaGraphicsExpanded/HarmonyPatches/EngineRenderApiStatePatches.cs) applies the same transpiler to declared managed methods and instance constructors on engine types implementing `IRenderAPI`. Selection includes private helpers and property accessors, without individual method names. Abstract bodies, open generics and static initializers are excluded. Both passes use the mod's Harmony owner and existing unpatch lifecycle.
+Immediately after `Harmony.PatchAll()` installs the native-call replacements, [EngineRenderApiStatePatches](../VanillaGraphicsExpanded/HarmonyPatches/EngineRenderApiStatePatches.cs) rebuilds declared managed methods and instance constructors in the existing engine `IRenderAPI` hierarchy and the explicitly identified caller classes: `GuiElementClip`, `GuiComposer`, `GuiScreenConnectingToServer`, `ScreenManager`, `GuiCompositeMainMenuLeft`, `ParticleRenderer2D`, `TextureAtlasManager`, and `BlendedTextureManager`.
 
-The menu can compile render API methods before mod startup. The JIT can inline platform GL wrappers into those bodies, so patching the platform wrappers alone leaves native calls in already compiled callers. Rebuilding the render API bodies after the wrappers are patched removes that bypass. Where no mapped GL call exists, the transpiler preserves the original IL; Harmony still generates a replacement body. Existing copies in unselected higher callers are not automatically rebuilt, and this selection does not claim complete coverage of arbitrary mod code.
+The menu can compile these callers before mod startup and retain inlined platform operations. The existing Harmony transpiler and patch processor regenerate their bodies after native routing. Repeated application rebuilds existing patches without duplicating the owner's transpiler, and both passes use the existing owner-scoped unpatch lifecycle. No call graph is constructed and no per-frame discovery occurs.
+
+Selection uses exact engine/API types, including internal types resolved by full name. Third-party implementations, abstract bodies, open generic bodies and static initializers are excluded. Higher callers outside these selected classes are not automatically rebuilt.
 
 ## Supported operations
 
@@ -93,6 +95,6 @@ The engine adapter now uses `BindTextureOnActiveUnit` rather than querying the a
 
 The full build encountered a shader-cache atomic file-move access error; the serialized shader retry was stopped after it stalled. Validation compiled the production C# project with `EnableSpirv=false`, then compiled tests with `BuildProjectReferences=false`, reusing existing shader artifacts. Both C# builds passed. This fix changes no shaders; it does not establish that a fresh shader rebuild succeeds. Receipts: `artifacts/active-texture-fix-production-build.log`, `artifacts/active-texture-fix-build.log`, and `artifacts/active-texture-fix-tests.log`.
 
-### Render API caller rebuilding validation
+### Render API caller verification boundary
 
-The standard Debug build passed with zero errors. Both warmed scissor regressions passed individually in fresh test hosts, covering direct API calls and PushScissor/PopScissor before subsequent cache restoration. The broader state and atmosphere selection passed 384 tests with five opt-in measurement skips. Installed coverage verifies 216 render API bodies, repeated application without duplicate transpilers, and owner-scoped removal. Receipts: `artifacts/RenderApiStatePatches/build.log`, `artifacts/RenderApiStatePatches/broad.trx`, and the fresh-host scissor receipts in that directory. No game was launched; live visual acceptance remains user-run.
+The test suite does not inventory or execute installed client rendering classes: CI can obtain only the server distribution. The local client-only render API coverage and warmed GUI scissor tests were removed. Their earlier results were local diagnostic evidence, not CI coverage. Loading-screen behavior and post-routing rebuilding of these client classes require user-run client verification.
