@@ -1,0 +1,239 @@
+VGE shader ownership and engine separation
+==========================================
+
+Source proposal
+  docs/Rendering.ShaderOwnership.Proposal.md is authoritative.
+  Status: planning only; all implementation and acceptance tasks remain unchecked.
+
+Scope and shared contracts
+  Establish IGpuProgram with default implementation methods, implemented by independent
+  GpuProgram and renamed GpuComputeProgram families. Remove VGE executable dependence on
+  engine ShaderProgram inheritance, IShaderProgram, ShaderRegistry and CurrentShaderProgram.
+  Establish explicit VGE declaration, preparation, activation, reload and retirement ownership.
+  Resolve the cached pbr_final registration failure without constructing placeholder engine stages.
+
+  Preserve StateCache, GraphicsCommandContext, GraphicsPipeline, EngineBoundaryScope and existing
+  program scopes. No shared GpuShader base, parallel activation stack, current-owner dictionary,
+  second context registry, per-frame native scans or blanket invalidation.
+  Keep IShaderSubmissionTarget narrow; keep mutable state in concrete owners, not the interface.
+  Reuse SPIR-V loading, binary caches, ShaderLinkBatch, generated bindings and resource deletion.
+  Keep compute feature-owned where appropriate; do not force global compute registration.
+
+  Non-goals: replace terrain rendering, engine traversal/culling, framebuffer allocation, shader
+  compilation tools or native shader patching; support arbitrary engine-shader interruption;
+  merge graphics and compute preparation backends or rename every feature shader class.
+  Engine integration stays in adapters. Borrowed resources keep their existing ownership.
+
+Execution and evidence
+  Phases are dependency-ordered review increments of one migration. Intermediate states are not
+  independently shippable while liquid inputs, reload invalidation or retirement remain incomplete.
+  Temporary compatibility paths must have removal tasks below; none may become a second authority.
+  Run every build/test tool through a subagent as required by repository instructions.
+  Keep source/installed-IL evidence, compilation, focused unit tests, headless GPU integration,
+  packaged-shader verification and user-run game acceptance distinct. Do not launch the game.
+  Record concise receipts with the relevant task and linked contracts; no completion marks based
+  solely on source inspection where executable or live evidence is required.
+
+Decisions to resolve before dependent implementation
+  ☐ Choose internal/public IGpuProgram accessibility and restricted state/hook access.
+    - Account for public GpuProgram and internal IShaderSubmissionTarget/GpuProgramLayout.
+      Do not expose mutable lifecycle state or internal layout solely to enable default methods.
+  ☐ Specify distinct default workflow entry points, family hooks and required concrete facades.
+    - Prevent same-slot recursive dispatch; preserve protected Submit and authored overrides.
+  ☐ Select explicit compute reload policy: retain feature-owned reconstruction initially, or
+    implement retained rebuild descriptions and transactional replacement before promising it.
+    - RetryPreparation alone is not invalidation of an already valid compute executable.
+  ☐ Choose the liquid pool interception after verifying installed call sites: narrow input adapter
+    at selected getter calls, or direct translation of the supported uniform operations.
+  ☐ Specify safe-boundary rejection/defer policy for actively borrowed executable replacement,
+    duplicate declarations, registry lifetime and actual shutdown/context-deletion ordering.
+
+Phase 1: Pin ownership contracts and migration coverage
+  Outcome: interfaces, call-site obligations and validation boundaries are concrete enough to migrate.
+  Proposal: Evidence and current dependencies; Proposed ownership model; Compatibility.
+
+  ☐ Inventory inherited API and ambient ownership consumers.
+    - Trace GpuProgram partials, GpuComputeShader, GpuShaderPrograms, GraphicsCommandContext,
+      EngineBoundaryExecution, direct Use/TryUse/UseScope and low-level compute consumers.
+    - Include LiquidGraphicsSubmission, MeshDataPoolManager.Render, LiquidPoolSubmissionHook,
+      SceneColorProgramBindings, EngineRenderScopes and test/diagnostic uniform adapters.
+    - Audit OwnedShaderSubmissionHook/GpuProgramStopHook and automatic frame/light inputs;
+      distinguish VGE compensation from native terrain/atmosphere/material/particle behavior.
+  ☐ Confirm installed engine registration, Use/Stop/Dispose, pool input/finally restoration and
+    reload call ordering against current assembly/API evidence, without running the game.
+  ☐ Define declaration identity, installed executable revision/asset generation and originating
+    native context identity using RenderContextRegistry; forbid numeric-ID-only ownership.
+  ☐ Resolve the decisions above in the proposal or linked owning contracts before their consumers.
+    - Define binding-only restoration versus immediate input replay and next-draw publication.
+    - State which incoming engine/raw/compute footprints remain unsupported at boundaries.
+  ☐ Map existing tests to interface dispatch, cache loading, scopes, generators, liquids, registry,
+    reload and disposal; identify fixtures that currently hide registration side effects.
+  ☐ Completion: each inherited/ambient dependency has a replacement owner or retained integration
+    role, open decisions have an execution gate, and the migration has a source-backed test matrix.
+
+Phase 2: Establish IGpuProgram workflows and compute naming
+  Depends on Phase 1. Outcome: shared behavior and generated owners have a verified VGE contract.
+  Proposal: Shared interface and default implementation; Compute family rename and migration.
+
+  ☐ Introduce IGpuProgram default workflows for guarded preparation, activation/publication,
+    scoped use and terminal lifetime; reuse the narrow IShaderSubmissionTarget view.
+    - Keep lifecycle flags and CPU-block ownership in stable per-owner state with restricted access.
+      Keep settings, retained generated values and installed generations with their family owners.
+    - Separate workflow methods from preparation, Submit and disposal hooks; retain required
+      concrete facades and bridge protected Submit without recursive interface dispatch.
+    - Check guards before cleanup-owning activation; a rejected recursive call must not unwind
+      an enclosing submission. Publish inputs even when the program ID is already bound.
+    - Make retirement idempotent; reject mutation/disposal during publication and prevent revival.
+    - Share CPU uniform registration/write guards and terminal release; preserve extra-resource
+      disposal hooks, failure cleanup and compute diagnostic Dispatch overrides.
+  ☐ Rename GpuComputeShader and its file to GpuComputeProgram; update family constructors,
+    derived declarations, type references, fixtures, tests and documentation references.
+    - Keep GpuComputePipeline as the single native compute executable owner and preserve direct
+      and indirect dispatch contracts. Do not add common-workflow double deletion.
+  ☐ Update RuntimeSubmissionEmitter, BindingReader and InterfaceBindingReader recognition.
+    - Resolve the existing pipeline-field assumption deliberately; preserve concrete eligibility,
+      abstract intermediate families, authored Submit overrides and property mutation guards.
+    - Verify runtime/offline generated shells without assuming default methods become class members.
+  ☐ Validate through concrete, IGpuProgram and IDisposable entry points: sequencing, failed
+    publication cleanup, repeated disposal, recursion rejection, owned CPU blocks and generated inputs.
+    - Keep current family preparation differences explicit; no compute invalidation no-op contract.
+    - If graphics still needs an engine transition path before Phase 4, keep it temporary and
+      explicitly isolate/remove it in Phases 3-4 rather than weaken the final interface contract.
+  ☐ Completion: generated families and focused dispatch/lifetime checks pass; compute family naming
+    is migrated, native ownership is singular, and remaining engine transition dependencies are listed.
+
+Phase 3: Migrate existing scopes and liquid input translation
+  Depends on Phase 2. Outcome: VGE use/restoration and liquid input staging no longer need an engine owner.
+  Proposal: Existing scope ownership and engine handoff; Liquid mesh-pool input bridge.
+
+  ☐ Consolidate graphics/compute restoration within existing program scopes and command lifetimes.
+    - Replace CurrentShaderProgram-based VGE capture and compute numeric-ID owner lookup with
+      borrowed IGpuProgram/generation references carried only where the existing scopes need them.
+    - Preserve GraphicsCommandContext ShaderActivation, pipeline-change/EndPass cleanup and
+      EngineBoundaryScope exceptional cleanup; do not duplicate selected-pipeline ownership.
+    - Validate context, revision and retirement before restoration; stale tokens must not unbind
+      another owner or restore a recycled handle. Extend existing scopes only as required.
+    - Restore input resources where immediate scopes promise it; otherwise preserve explicit
+      next-draw submission. Avoid redundant replay across complete resource-restoring boundaries.
+    - Route direct Use/TryUse/UseScope and low-level compute paths through their declared scope
+      contract; retain standalone/headless operation without a game singleton.
+  ☐ Move native shader capture/Stop/Use to Rendering/Integration at supported outer boundaries.
+    - Include native restoration effects in the footprint and ordered cleanup; preserve rejection
+      of unsupported native/raw/compute incoming states and targeted StateCache mutation semantics.
+  ☐ Implement the chosen narrow MeshDataPoolManager input bridge during LiquidGraphicsSubmission.
+    - Translate origin, modelViewMatrix and forcedTransparency into the typed liquid input sink.
+      Preserve engine culling, dimension offsets, interpolation, visibility and finally writes.
+    - Keep pool draws on GraphicsCommandContext.Draw and borrowed geometry lifetime/validation
+      with EngineLiquidPoolGeometry and LiquidGraphicsSubmission.
+    - Native pool rendering must still receive the native shader; handle unknown inputs explicitly.
+      No global CurrentActiveShader patch or engine executable proxy. An input-only adapter must
+      reject unsupported executable operations and never enter engine registry/current-owner state.
+  ☐ Validate all graphics/compute nesting combinations, unchanged-ID submission, success/failure,
+    exceptional cleanup, resource restoration, raw bindings, disposal and context/ID reuse.
+  ☐ Validate visible/depth liquids for ordinary, empty/culled pools, dimension offsets,
+    mini-dimension transforms, preview transparency, restoration writes and exceptions; include
+    unrelated native pools and real engine traversal where feasible.
+  ☐ Completion: boundary and liquid checks pass; VGE scope behavior is independent of engine owner
+    state, with native handoff contained in integration. Remove temporary scope compatibility paths.
+
+Phase 4: Remove engine executable inheritance and registration
+  Depends on Phase 3. Outcome: independent VGE executables prepare and render on cached/uncached paths.
+  Proposal: Executable preparation and retirement; Proposed ownership model; Compatibility.
+
+  ☐ Remove ShaderProgram/ShaderProgramBase inheritance and IShaderProgram from VGE executable owners.
+    - Remove engine Shader creation, stage slots, EngineDisposed reflection, PassId and inherited
+      uniformLocations requirements. Keep useful GpuProgramInterface diagnostic projections.
+    - Remove RegisterOnPreparation/RegisterMemoryShaderProgram coupling and transition paths.
+    - Move liquid interface methods fully into the bridge; migrate remaining uniform/texture
+      consumers and fixtures to generated properties or preparation-owned numeric helpers.
+  ☐ Compose graphics executable ownership through GpuProgramObject.Adopt and GpuResource policy.
+    - Prepare/validate candidates before publishing executable, layout, installed settings,
+      graphics identity, asset generation and successful revision together.
+    - Retain the previous generation after failure/superseded requests without claiming readiness
+      for incompatible requests; reject stale GraphicsPipeline borrowers after replacement.
+    - Preserve ShaderLinkBatch, SPIR-V loader, binary cache, numeric bindings and desired inputs.
+    - Update PendingShaderProgram transfers for synchronous, batch, failed and cancelled paths;
+      detach/release temporary stages once after successful linking. Cached programs need no stages.
+    - Use StateCache.DeleteProgram/targeted resource retirement; reject or defer active borrowing
+      according to the chosen policy. Keep terminal disposal distinct from executable invalidation.
+  ☐ Expose preparation diagnostics so mandatory HDR failure identifies the program and real cause.
+  ☐ Remove obsolete OwnedShaderSubmissionHook/GpuProgramStopHook behavior after explicit frame/light
+    bindings are verified; reconcile SceneColorProgramBindings, LiquidPoolSubmissionHook and
+    EngineBoundaryExecution type checks. Preserve native-only hooks and profiling labels via adapters.
+  ☐ Validate pbr_final from a real executable-cache hit with no NewShader or engine registration;
+    repeat cache miss, invalid-cache fallback, batched load and preparation failure.
+    - Test replacement failure/supersession, monotonic successful revisions, cancellation and
+      exactly-once stage/program retirement. Fixtures must reject accidental engine registration.
+  ☐ Completion: structural checks and focused GPU evidence show independent cached/uncached rendering,
+    no engine executable assignability/registration, and no stale engine-specific VGE hooks remain.
+    Reload/shutdown completion in Phase 5 is required before release.
+
+Phase 5: Establish registry, reload and context lifetime
+  Depends on Phase 4. Outcome: VGE ownership remains correct across assets, worlds and context retirement.
+  Proposal: Concrete registry responsibilities; Reload and lifecycle sequencing.
+
+  ☐ Make GpuShaderPrograms an instance owned by client rendering lifetime with explicit composition.
+    - Decouple core identity from ICoreClientAPI; preserve typed lookup and useful mismatch diagnostics.
+    - Enforce the selected duplicate-declaration policy without silently discarding incompatible
+      types/contracts/settings or constructing throwaway replacement owners on asset reload.
+    - Keep declarations/lookup free of binary reads and GL work; selected preload follows configuration.
+      Preserve demand preparation, failed-input suppression and observable readiness/failure details.
+    - Own removal, shutdown and callback invalidation so retired worlds/registries cannot revive.
+  ☐ Adapt assets/logging through ShaderAssetReader, digest access and diagnostic sinks at integration.
+    - Include ShaderLinkBatch's engine asset-manager boundary; preserve shared source identity and
+      asset generation without duplicating import/digest/binary-cache services.
+  ☐ Replace delayed RegisterAll invalidation with a synchronous reload transaction.
+    - At a safe boundary withdraw old readiness, mark reload, clear digest/import caches and capture
+      coherent settings. Let the engine refresh/rebuild native shaders before completing VGE invalidation.
+    - Withdraw dependent render publications, reopen demand preparation and preload only selected
+      mandatory sets when configured. Handle native exceptions, suppressed reload and compile failure.
+    - Report native API reload status separately from VGE lazy/mandatory readiness; eliminate any
+      window where old assets appear current because a callback has not executed yet.
+  ☐ Apply the chosen compute reload policy to feature owners and test successful-executable reload.
+    - Preserve CPU input state required by the policy; do not treat failure retry as executable reload.
+  ☐ Wire actual shutdown order: stop submissions, dispose renderer/PSO borrowers, retire registry
+    programs and drain native deletion on the live originating context.
+    - Keep configuration, asset reload, world leave/re-entry and native context retirement distinct.
+      Withdraw owner knowledge before context reuse; abandon deletion with a destroyed context
+      rather than delete a matching numeric handle on another context.
+  ☐ Validate duplicate/mismatched declarations, demand/preload failures, reload ordering/failures,
+    settings edits, feature compute reload, world re-entry, queued callbacks and retired-context reuse.
+    - Prove CPU blocks survive executable reload and retire once; verify targeted cache deletion.
+  ☐ Completion: no delayed registration dependency remains; lifecycle checks establish coherent
+    readiness, no owner resurrection and correct borrower/resource retirement ordering.
+
+Phase 6: Reconcile documentation and final acceptance
+  Depends on Phase 5. Outcome: the migration is documented and qualified at each required evidence level.
+  Proposal: Compatibility, generators and documentation; Dependency-ordered implementation and acceptance.
+
+  ☐ Update GpuProgram.md, GPU.ShaderDemandLoading.md, Rendering.ShaderBindingState.md and engine/pipeline
+    boundary documentation, including Rendering.EngineStateSwitching.md where affected.
+    - Describe IGpuProgram default dispatch, concrete owner state, GpuComputeProgram naming,
+      registry/reload contracts, binary preparation and supported integration adapters.
+    - Document intentional GpuProgram/VgeShaderProgram loss of engine assignability/inherited APIs
+      and supported replacements. Reconcile obsolete memory-registration/source-compilation claims.
+    - Remove remaining temporary migration paths; keep historical evidence clearly distinguished.
+  ☐ Through subagents, run appropriate builds and focused pipeline, binding, sampler-retirement,
+    state-switching, generator, demand-loading and resource regression suites after integration.
+    - Verify generated/offline shells and packaged shader inputs through the existing build path;
+      distinguish package verification from deployment. No performance claim without measurements.
+    - Record failures/skips and evidence limits; expand checks only for unresolved concerns.
+  ☐ Obtain user-run game acceptance: cold/warm startup, enter/leave/re-enter world, native reload,
+    live shader configuration, visible/depth liquids and native rendering around VGE passes.
+    - Confirm the original cached final-display startup scenario no longer fails. Do not substitute
+      headless rendering or compilation for live appearance/lifecycle acceptance.
+  ☐ Perform a second implementation review against every proposal section and independently audit
+    completion using fresh receipts; reconcile discrepancies before marking phases complete.
+  ☐ Completion: required structural, unit, GPU, generated/package and user-run receipts are linked;
+    intentional limits/deferred decisions are explicit and no required acceptance is silently waived.
+
+Final acceptance and proposal traceability
+  ☐ Shared interface/default methods and compute rename: Phases 1-2; final dispatch/generator checks in 6.
+  ☐ Engine independence and cached final-display fix: Phases 3-4; cold/warm user acceptance in 6.
+  ☐ Existing scopes, native handoff and all graphics/compute restoration combinations: Phase 3.
+  ☐ Liquid bridge, engine traversal/finally behavior and unaffected native pools: Phases 3 and 6.
+  ☐ Transactional generations, stale PSO rejection, diagnostics and native/CPU ownership: Phases 4-5.
+  ☐ Concrete registry, coherent reload, callback withdrawal and context retirement: Phase 5.
+  ☐ Compatibility, native hooks, generators, documentation and complete validation: Phases 2-6.
+  ☐ Every proposal requirement is implemented or has an explicit reviewed deferral with rationale;
+    required live acceptance remains open until supplied. All temporary compatibility paths are removed.
