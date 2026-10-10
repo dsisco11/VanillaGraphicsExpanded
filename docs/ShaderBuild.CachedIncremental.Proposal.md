@@ -1,6 +1,6 @@
 # Cached incremental SPIR-V builds
 
-Status: implementation in progress; assembly separation and identity boundaries are implemented and verified. Persistent processing record APIs are implemented and verified. Recoverable generation publication is implemented and verified; selective orchestration is implemented and verified by focused integration tests and an independent completion audit. Migration, repair and package compatibility are qualified by integrated tests and isolated Debug/Release MSBuild checks. Matched production measurements remain pending.
+Status: implemented and qualified. Assembly boundaries, graph and processing records, selective reuse, recoverable publication, migration and packaging passed focused validation. Matched production measurements and the full MSBuild chain passed; the linked checklist and final acceptance passed independent completion audit. The measured unchanged-build overhead and single-sample performance limits remain explicit below.
 
 ## Intent
 
@@ -10,7 +10,7 @@ The existing compiler-result cache remains useful. This proposal adds dependency
 
 ## Current behavior and measured baseline
 
-[ShaderBuild.Incremental.md](ShaderBuild.Incremental.md) documents the current implementation. The investigation baseline below predates selective processing. At that baseline, an unchanged catalogue took a receipt shortcut. Any shader input change invalidated that receipt and entered ShaderVariantBuild, which expanded every distinct source, emitted every variant, checked the compiler-result cache, extracted interfaces even for cache hits, and submitted the complete catalogue to publication. The implemented selective loop now checks source, variant and interface records first; publication reuses verified unchanged binary files and skips replacement of an identical generation.
+[ShaderBuild.Incremental.md](ShaderBuild.Incremental.md) documents the current implementation. The investigation baseline below predates selective processing. At that baseline, an unchanged catalogue took a receipt shortcut. Any shader input change invalidated that receipt and entered ShaderVariantBuild, which expanded every distinct source, emitted every variant, checked the compiler-result cache, extracted interfaces even for cache hits, and submitted the complete catalogue to publication. After a receipt miss, the implemented selective loop checks source, variant and interface records; publication reuses verified unchanged binary files and skips replacement of an identical generation.
 
 At the baseline, the progress counter in [ShaderCompilationBatch](../ShaderBuildTool/Spirv/ShaderCompilationBatch.cs) counted processed variants across the full catalogue, including cache hits. It now counts selected emission jobs; separate counters report actual compiler invocations.
 
@@ -25,6 +25,15 @@ An investigation using the existing Debug tool, copied production assets, and is
 The edit changed one numeric threshold from 0.02 to 0.021. All 436 variants were processed. Expansion took 3.709 s; compiler work took 0.310 s. Emission work totaled 75.197 s across concurrent workers, and interface extraction totaled 3.714 s across workers; these work totals are not additive wall timings. The cold run reused equivalent inputs encountered within the same invocation.
 
 Local evidence: [single-edit log](../artifacts/investigation/incremental-shaders/tool-single-shader-edit.log), [unchanged log](../artifacts/investigation/incremental-shaders/tool-unchanged.log), and [baseline log](../artifacts/investigation/incremental-shaders/tool-baseline.log). These investigation artifacts may be cleaned independently of this proposal. The measurements establish the original bottleneck; they do not predict a completed implementation's speed.
+
+The final matched measurement uses pre-selective commit `2bc2ce6d` and selective commit
+`260e0273` with identical production inputs and controlled Debug paths. Cold/unchanged/SSAO-edit
+command wall times were 52.168/0.626/18.911 s before and 45.862/2.080/5.385 s after.
+The single edit processes one of 165 source roots and one of 436 variants, retaining the
+other 435 binaries and timestamps. That measured revision's unchanged record-validation path was slower than
+the former receipt-only shortcut; the isolated edit is 3.51 times faster. These are individual
+local samples, not a latency guarantee. See [measured production behavior](ShaderBuild.Incremental.md#measured-production-behavior-before-receipt-first-validation)
+for internal timings, comparison controls, equivalence checks and evidence locations.
 
 ## Required behavior
 
@@ -116,8 +125,8 @@ Keep these records under the existing private cache tree. References must be con
 1. Acquire the existing output lease and recover any interrupted publication before evaluating the receipt.
 2. Generate shared shader inputs, resolve the current registry, and validate source coverage. Avoid replacing generated files when their contents are unchanged.
 3. Compute implementation/policy identities and input hashes once. Include previously recorded dependencies in the input check. Retain metadata-assisted hashing and the explicit verifyContents mode; do not describe metadata checks as unconditional detection of timestamp-preserving edits.
-4. Try the complete receipt shortcut only when its schema, membership, relevant inputs, and published outputs validate.
-5. Restore the persisted TinyPreprocessor graph snapshots and select reusable source and variant records before any expansion or emission. Use library dependency queries to identify affected roots. Re-expand invalid roots, replace their snapshots from successful preprocessing results, and reevaluate their dependent variants. Independently reevaluate variants whose contracts or identities changed.
+4. Validate a compatible receipt against current input/implementation identities, its complete consumed-resource snapshot and the exact published output bytes/membership. Return immediately on success without loading intermediate cache records. Missing dependency snapshots require one selective refresh; missing or incompatible receipt versions cannot establish success.
+5. Restore the persisted TinyPreprocessor graph snapshots. Check source records before expansion and variant records before emission. Use library dependency queries to identify affected roots. Re-expand invalid roots, replace their snapshots from successful preprocessing results, and reevaluate their dependent variants. Independently reevaluate variants whose contracts or identities changed.
 6. For affected variants, emit source, reuse verified compiler results where possible, compile misses with bounded concurrency, and reuse or extract interface metadata as required.
 7. Assemble the complete manifest from reused and newly produced records. Validate complete current membership and references before publication.
 8. Publish the coherent output generation, then publish the success receipt last.
@@ -148,7 +157,7 @@ Report wall time for input checking, selected processing, and publication, and l
 
 ## Migration and scope
 
-Version the new records and receipt. An older receipt must not bypass establishment of complete dependency and interface records. The first upgraded build may populate those records across the catalogue; subsequent unchanged and isolated-edit builds must exercise the new shortcuts. Reuse old compiler entries only where their identities can be proven compatible; otherwise accept a one-time cold population. Never claim migrated records without validating their referenced artifacts.
+Version the new records and receipt. An incompatible receipt must not bypass establishment of complete dependency and interface records. A compatible receipt with its verified consumed-input snapshot can skip intermediate cache inspection; validate and repair those records only when selective processing needs them. The first upgraded build may populate those records across the catalogue; subsequent unchanged and isolated-edit builds must exercise the new shortcuts. Reuse old compiler entries only where their identities can be proven compatible; otherwise accept a one-time cold population. Never claim migrated records without validating their referenced artifacts.
 
 Keep Debug and Release isolation, registry scope, custom output paths, output leases, strict verification, clean behavior, runtime binary naming, packaged manifest contracts, and obsolete-output cleanup. Private cache files remain excluded from packaging. Automatic cache eviction, distributed caching, a file watcher, and runtime shader-loading redesign are outside this proposal. Existing explicit clean remains the reclamation mechanism.
 
@@ -178,7 +187,7 @@ Performance acceptance is elimination of unrelated expensive operations and a me
 
 ## Resolved implementation contracts
 
-These decisions govern the implementation. Graph semantics are qualified by the focused fixture described below. Assembly separation, identity APIs, persistent cache integration and publication recovery are implemented. Migration/package compatibility is qualified; the linked checklist retains matched production measurements and final end-to-end qualification.
+These decisions govern the implementation. Graph semantics are qualified by the focused fixture described below. Assembly separation, identity APIs, persistent cache integration and publication recovery are implemented. Migration/package compatibility, matched production measurements and final end-to-end qualification are complete; the linked checklist records their evidence.
 
 ### Project and declaration boundary
 

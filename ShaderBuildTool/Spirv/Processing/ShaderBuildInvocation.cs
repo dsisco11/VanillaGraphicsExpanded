@@ -36,27 +36,35 @@ internal static class ShaderBuildInvocation
             Report(FormattableString.Invariant($"Input hashes: reused={hashes.ReusedFiles}; read={hashes.HashedFiles}; elapsedMs={timer.Elapsed.TotalMilliseconds:F1}"));
             if (clean) Report("Rebuild reason: --clean explicitly discards outputs and cache.");
             else if (!incremental) Report("Rebuild reason: --incremental was not enabled.");
+            cancellationToken.ThrowIfCancellationRequested();
+            ShaderVariantBuild.ValidateSources(shaders, registry);
+            if (incremental && !clean && ShaderBuildReceipt.TryReuse(outputRoot, fingerprint, hashes, details,
+                out var consumed, reason => Report("Rebuild reason: " + reason)))
+            {
+                snapshot.Validate(consumed);
+                cancellationToken.ThrowIfCancellationRequested();
+                hashes.Save();
+                Report("All shader binaries and contracts are current; processing records were not loaded.");
+                new ShaderBuildStatistics
+                {
+                    RootsReused = registry.Binaries.Select(selection => selection.Stage.Source).Distinct(StringComparer.Ordinal).Count(),
+                    VariantsReused = registry.Binaries.Count, CompilerReused = registry.Binaries.Count,
+                    InterfacesReused = registry.Binaries.Count, OutputsRetained = registry.Binaries.Count, ReceiptReused = true
+                }.Report(timer.Elapsed.TotalMilliseconds, 0, 0);
+                return;
+            }
             await ShaderVariantBuild.RunAsync(assetsRoot, outputRoot, domain, workingDirectory, target, warnings,
                 registry, concurrency, cancellationToken, incremental && !clean, identities.Compiler,
                 generation =>
                 {
-                    string completeFingerprint = CompleteFingerprint(fingerprint, generation, details);
+                    string completeFingerprint = ShaderBuildReceipt.CompleteFingerprint(fingerprint, generation.Inputs, details);
                     publication.Publish(generation.Binaries, generation.Manifest, completeFingerprint,
                         publishReceipt: () =>
                         {
                             hashes.Save();
-                            ShaderBuildReceipt.Publish(outputRoot, completeFingerprint, details);
-                        }, validateInputs: () => snapshot.Validate(generation), cancellationToken: cancellationToken);
-                }, new ShaderBuildExecution(identities, hashes, generation =>
-                {
-                    string completeFingerprint = CompleteFingerprint(fingerprint, generation, details);
-                    if (!ShaderBuildReceipt.IsCurrent(outputRoot, completeFingerprint, details, reason => Report("Rebuild reason: " + reason))) return false;
-                    snapshot.Validate(generation);
-                    // The receipt and current record generation must describe the same bytes and membership.
-                    if (!MatchesGeneration(outputRoot, domain, generation)) return false;
-                    Report("All shader binaries and contracts are current.");
-                    return true;
-                }));
+                            ShaderBuildReceipt.Publish(outputRoot, completeFingerprint, details, fingerprint, generation.Inputs.ToArray());
+                        }, validateInputs: () => snapshot.Validate(generation.Inputs), cancellationToken: cancellationToken);
+                }, new ShaderBuildExecution(identities, hashes));
         }
         catch
         {
@@ -67,30 +75,6 @@ internal static class ShaderBuildInvocation
     #endregion
 
     #region Private
-    /// <summary>Includes every consumed dependency, including resources resolved outside the owning asset domain.</summary>
-    private static string CompleteFingerprint(string fingerprint, ShaderBuildGeneration generation, Dictionary<string, string> details)
-    {
-        var values = new List<string> { "complete-inputs-v1", fingerprint };
-        foreach (var input in generation.Inputs.OrderBy(input => input.Path, StringComparer.Ordinal))
-        {
-            values.Add(input.Path); values.Add(input.Resource); values.Add(input.Hash);
-            details["consumed: " + input.Path] = input.Hash;
-        }
-        return ShaderBuildIdentities.Hash(values.ToArray());
-    }
-
-    /// <summary>Rejects a receipt whose published generation differs from the selected records.</summary>
-    private static bool MatchesGeneration(string outputRoot, string domain, ShaderBuildGeneration generation)
-    {
-        string active = Path.Combine(outputRoot, domain, "shaders");
-        var expected = generation.Binaries.Keys.Append(VanillaGraphicsExpanded.Rendering.Spirv.ShaderBinaryDigest.FileName).ToHashSet(StringComparer.Ordinal);
-        var actual = Directory.EnumerateFiles(active, "*", SearchOption.AllDirectories)
-            .Select(path => Path.GetRelativePath(active, path).Replace('\\', '/')).ToHashSet(StringComparer.Ordinal);
-        if (!expected.SetEquals(actual)) return false;
-        if (!File.ReadAllBytes(Path.Combine(active, VanillaGraphicsExpanded.Rendering.Spirv.ShaderBinaryDigest.FileName)).AsSpan().SequenceEqual(generation.Manifest)) return false;
-        return generation.Binaries.All(pair => File.ReadAllBytes(ShaderPublicationPaths.FileWithin(active, pair.Key.Replace('/', Path.DirectorySeparatorChar))).AsSpan().SequenceEqual(pair.Value));
-    }
-
     /// <summary>Prefixes invocation diagnostics consistently with shader processing output.</summary>
     private static void Report(string message) => Console.WriteLine("[SPIR-V] " + message);
     #endregion

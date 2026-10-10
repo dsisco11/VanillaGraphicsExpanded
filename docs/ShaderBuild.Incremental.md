@@ -9,6 +9,18 @@ independent outputs, receipts and caches. An explicit `SpirvArtifactsDir` proper
 still overrides this path. The existing adjacent output lease prevents concurrent
 writers to the same directory.
 
+For the standard shader-enabled mod build, run `dotnet build VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj -c Debug --tl:off -v:minimal`
+from the repository root. The shader project restores
+the pinned compiler and resolves the tool built with the inherited output properties.
+Use `-p:SpirvConcurrency=1` for serial processing or another positive limit to bound
+selected jobs; the default is `min(8, logical CPU count)`. `SpirvAssetsRoot`,
+`SpirvRegistry` and `SpirvArtifactsDir` support isolated build fixtures.
+
+For focused validation, run `ShaderBuildTool/Tests/ValidateBuildContract.ps1` with
+`-Configuration Debug` or `-Configuration Release`. It restores the pinned tool and
+runs the maintained integration tests with temporary fixture assets. It does not
+replace the shader-enabled mod build or the Cake packaging task.
+
 Variant filenames use the first 128 bits of the canonical key's SHA-256 hash,
 encoded as 26 uppercase, unpadded RFC 4648 Base32 characters. The shared resolver
 generates the same names for building and runtime loading, and rejects output
@@ -16,8 +28,9 @@ path collisions with a case-insensitive comparison. Cache filenames encode all 2
 characters. Binary and payload integrity digests retain their hexadecimal representation. Old variant filenames
 are pruned by the normal successful catalog build and asset-copy cleanup.
 
-An unchanged catalog checks source, variant and interface records before accepting the
-success receipt with content-verified outputs. It performs zero import expansions, AST
+An unchanged catalog validates the version-2 success receipt before loading source, variant
+or interface records. It checks current inputs and identities, the receipt's consumed-dependency
+snapshot (including cross-domain inputs), and content-verified published outputs. It performs zero import expansions, AST
 emissions, compiler invocations or interface extractions. Receipt enumeration skips private cache/work trees
 before descending into them, so historical cache entries do not add directory
 traversal work. Source, include and compiler/tool hashes share a single
@@ -85,7 +98,9 @@ Receipt invalidation reports missing/malformed receipts, exact missing or modifi
 outputs, and unexpected published files. Successful receipts retain per-input
 content identities; fingerprint changes report added, removed or changed shader,
 compiler/tool and policy inputs with their old/new values. Receipts require schema version 2. Missing, older or unknown versions cannot skip
-record population; verified compiler results remain independently reusable. Consumed
+record population; verified compiler results remain independently reusable. Receipts also retain
+the base input fingerprint and opaque consumed-resource observations needed for early validation.
+Earlier version-2 receipts without this snapshot refresh once through selective processing. Consumed
 cross-domain resources are included in the complete receipt fingerprint. Variant builds also report cache-miss categories and
 counts (missing metadata/binary, invalid digest, malformed metadata or unreadable
 entries), separately from the receipt reason. Processing assembly changes
@@ -143,7 +158,8 @@ On upgrade, incompatible or absent source heads and graph records are rebuilt by
 their roots; invalid variant records require emission, and invalid interface records require
 reflection. Independently verified compiler results remain reusable when their current keys
 match. Missing, malformed, unknown-schema, or digest-mismatched processing records are local
-misses. A valid receipt cannot bypass these checks. A damaged manifest or receipt is rebuilt
+misses when selective processing needs those records. A current receipt skips intermediate
+cache inspection; damaged private records are repaired when a later build needs them. A damaged manifest or receipt is rebuilt
 from the complete verified generation without forcing compilation. Compiler metadata with
 a mismatching length or digest requires recompilation of its affected input. No legacy-key
 conversion or compatibility reader is used.
@@ -180,3 +196,67 @@ pending/previous generation directories, and prunes removed binaries from curren
 membership. Directory renames provide recoverable writer publication, not an atomic
 transaction for arbitrary live readers. External in-place modification of hard-linked
 files is outside the writer ownership guarantee.
+
+## Measured production behavior before receipt-first validation
+
+A matched Windows x64 Debug run on 2026-10-09 (Core i9-12900K, .NET SDK 10.0.401) compared the pre-selective implementation
+at `2bc2ce6d` with `260e0273`, using identical production shaders, catalogue declarations,
+compiler manifest, target and concurrency 8. Both tools used the same copied asset root,
+working directory and output path sequentially, controlling Debug source-path attribution.
+The catalogue contained 176 declared stages, 165 distinct source roots and 436 variants.
+The isolated SSAO edit changed one threshold from `0.02` to `0.021`.
+
+| Invocation | Pre-selective command wall time | Selective command wall time |
+| --- | ---: | ---: |
+| Cold | 52.168 s | 45.862 s |
+| Unchanged | 0.626 s | 2.080 s |
+| One SSAO edit | 18.911 s | 5.385 s |
+
+The edited run was 3.51 times faster (71.5% less elapsed time). It expanded one root,
+emitted one variant, invoked one compiler and extracted one interface. The other
+164 roots and 435 variants/interfaces were reused; all 435 unrelated binary timestamps
+were retained. The unchanged run performed none of those four expensive operations,
+but was slower than the former receipt-only shortcut because that implementation validated the processing
+records before accepting the receipt. The subsequent receipt-first correction removes that
+intermediate-record scan; the figures in this table describe the earlier implementation.
+
+For the selective edit, reported internal times were 1.301 s input checking, 0.703 s
+selected processing and 2.897 s publication; total tool time was 5.324 s. The external
+5.385 s includes process overhead. Accumulated emission/compiler/interface work was
+70.4/389.9/30.7 ms; concurrent work totals are not elapsed-time components to sum.
+Both cold and edited binary/manifest generations matched the baseline byte for byte
+at the controlled paths. Reverting restored the original generation, which also matched
+an explicit clean rebuild across all 437 files. Reversion and a repeated cached edit
+required one expansion but no emission, compilation or interface extraction. These are individual local measurements, not guaranteed latency
+or evidence of runtime/GPU performance. The older 35.498/0.458/14.716 s investigation
+is historical: Debug cache identity and environment costs had changed, so it was not
+used to calculate this speedup.
+
+Logs and output snapshots are retained under
+`artifacts/investigation/phase7`: `timings.json` records full commands and process wall
+times; `measurement-setup.json` records the environment and matching inputs; `equivalence.json`
+and the `baseline-*`/`current-*` logs and snapshots retain work and byte evidence.
+
+An isolated Debug mod build also exercised the actual mod → SpirvBuild → catalogue/tool
+→ asset-copy chain using the three-stage build-validation fixture. A generated binding
+contract edit changed only catalogue membership among the recorded identities: catalogue
+assembly bytes changed, tool/model bytes and processing/compiler inputs did not. It required
+zero source expansions and one emission/compiler/interface extraction. Unchanged builds
+performed zero expensive shader work; unrelated deployed timestamps were retained. Source
+and contract reversions and a same-path clean rebuild produced identical deployed binaries
+and manifests. See `artifacts/investigation/phase7/msbuild-summary.json` and `msbuild-*`
+logs/snapshots. This fixture qualification is separate from the production timing table.
+
+## Receipt-first validation measurement
+
+After moving compatible receipt validation ahead of processing-record loading, three
+unchanged runs on the same copied production catalogue took 0.689, 0.663 and 0.628 s
+command wall time. Each reused the receipt without loading intermediate records and
+reported zero expansion, emission, compilation, extraction and publication work. The earlier
+record-first measurement was 2.080 s. These local samples retain the same Debug setup and
+436-variant catalogue; they are not a fixed latency guarantee. Logs and commands are under
+`artifacts/investigation/receipt-shortcut`.
+The subsequent SSAO edit still selected one root and one variant (one compilation and
+interface extraction), retaining all 435 unrelated binary timestamps. Reversion restored
+all 437 published files byte for byte. `measurements.json` and `equivalence.json` retain
+the measured commands and checks; production sources and outputs were untouched.

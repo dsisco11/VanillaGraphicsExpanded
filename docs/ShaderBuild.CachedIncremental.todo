@@ -3,7 +3,7 @@ Cached incremental SPIR-V builds
 
 Source proposal: ShaderBuild.CachedIncremental.Proposal.md
 Current behavior: ShaderBuild.Incremental.md
-Status: Phases 1–6 complete; Phase 7 pending.
+Status: Phases 1–7 and final acceptance complete.
 
 Goal and shared contracts
   Make expensive build work proportional to changed inputs and their dependents. Unchanged
@@ -35,17 +35,17 @@ Execution and completion rules
   No game launch or in-game visual acceptance is required. Headless validation must establish
   clean/incremental output equivalence and runtime manifest compatibility.
 
-Design decisions and remaining verification
+Established design decisions
   - Catalogue/shared-model boundaries are specified in the proposal, Resolved implementation
-    contracts / Project and declaration boundary; Phase 2 implements and validates the split.
+    contracts / Project and declaration boundary; Phase 2 implemented and validated the split.
   - Effective-contract and implementation identity inputs are inventoried in the proposal,
-    Concrete identity and projection inputs; Phase 2 verifies their implementation.
+    Concrete identity and projection inputs; Phase 2 verified their implementation.
   - TinyPreprocessor direct-neighbor semantics and isolated-root behavior are verified by
-    ShaderDependencyGraphTests; Phase 3 implements persistent snapshots and selection.
+    ShaderDependencyGraphTests; Phases 3 and 5 implement persistent snapshots and selection.
   - Hard-link ownership and interruption recovery are specified in the proposal, Publication
-    transaction and recovery; Phase 4 executes filesystem checks. Copy fallback remains required.
-  - Existing compiler-cache migration: establish compatibility in Phase 6; accept a one-time
-    cold population where identity equivalence cannot be demonstrated.
+    transaction and recovery; Phase 4 passed filesystem checks, including required copy fallback.
+  - Existing compiler-cache migration: Phase 6 verified one-time cold population for legacy
+    keys whose identity equivalence cannot be demonstrated.
 
 Phase 1: Establish dependency, identity, and publication contracts
   Outcome: foundational choices and verification fixtures are concrete enough to implement.
@@ -325,7 +325,8 @@ Phase 5: Integrate selective processing and truthful work counters
       ShaderSourcePlan uses persisted TinyPreprocessor graphs to select affected roots; source and
       variant records are checked before AST work. ShaderVariantProcessor deduplicates compiler
       jobs by emitted input and reuses independently validated interface records.
-    - Compatible version-2 receipts require complete reusable processing records, exact current
+    - The original integration required complete reusable processing records before version-2
+      receipt acceptance (superseded by the receipt-first correction below), exact current
       generation membership and verified outputs. Consumed cross-domain inputs participate in
       fingerprints. Captured source/catalogue/implementation inputs are checked at commit boundaries;
       strict hash epochs reread each distinct input. Identical generated include bytes preserve
@@ -410,34 +411,80 @@ Phase 7: Measure production behavior and complete documentation
   Depends on: Phase 6.
   Proposal: Current behavior and measured baseline; Validation and acceptance; Diagnostics.
 
-  ☐ Repeat the copied-production-assets cold, unchanged, and single-SSAO-edit experiment.
-    ☐ Match tool configuration, catalogue, concurrency, edit, and environment; retain production
+  ☑ Repeat the copied-production-assets cold, unchanged, and single-SSAO-edit experiment.
+    ☑ Match tool configuration, catalogue, concurrency, edit, and environment; retain production
       sources/outputs. Refresh a comparable baseline if the historical setup has drifted.
-    ☐ Report internal timings and full command wall time separately; do not sum concurrent work
+    ☑ Report internal timings and full command wall time separately; do not sum concurrent work
       as elapsed time. Historical wall times were 35.498 s cold, 0.458 s unchanged, and 14.716 s
       for one SSAO edit, with 435 hits and one compiler invocation on the edit run.
-    ☐ Verify one affected root and only its affected variant are processed; all unrelated variants
+    ☑ Verify one affected root and only its affected variant are processed; all unrelated variants
       skip expansion/emission/reflection. Derive counts from current registry rather than hard-coding
       historical 436/435 totals. An already-cached emitted input may need zero compiler invocations.
-    ☐ Require measured improvement over a matched baseline and elimination of unrelated expensive
+    ☑ Require measured improvement over a matched baseline and elimination of unrelated expensive
       operations; do not claim an unmeasured fixed latency or GPU/in-game performance improvement.
-  ☐ Run an end-to-end MSBuild check covering catalogue/tool rebuilding and deployed asset copying.
-    ☐ Include a contract-only change to prove the assembly identity boundary holds through actual
+  ☑ Run an end-to-end MSBuild check covering catalogue/tool rebuilding and deployed asset copying.
+    ☑ Include a contract-only change to prove the assembly identity boundary holds through actual
       project builds, plus unchanged and isolated source edits and focused output equivalence checks.
-  ☐ Update docs/ShaderBuild.Incremental.md and relevant shader authoring/build instructions.
-    ☐ Explain dependency graph ownership, persistent records, identity boundaries, cache migration,
+  ☑ Update docs/ShaderBuild.Incremental.md and relevant shader authoring/build instructions.
+    ☑ Explain dependency graph ownership, persistent records, identity boundaries, cache migration,
       counters, strict hashing limitations, repair, clean, publication recovery, and hard-link fallback.
-    ☐ Reconcile proposal and plan links with final implementation and concise measured receipts;
+    ☑ Reconcile proposal and plan links with final implementation and concise measured receipts;
       keep proposed behavior distinguishable from completed evidence.
-  ☐ Completion gate: focused tests, integration/package checks, second review, and matched
+  ☑ Completion gate: focused tests, integration/package checks, second review, and matched
     measurements support the claimed behavior; all proposal requirements are accounted for.
 
+  Evidence (second review and independent completion audit passed)
+    - Proposal Current behavior / Validation and acceptance / Diagnostics -> matched Debug
+      production comparison of pre-selective 2bc2ce6d and 260e0273. Identical catalogue/assets,
+      compiler policy, concurrency 8, working/assets/output paths; exclusive sequential runs.
+      176 stages, 165 distinct roots, 436 variants. Historical figures are not the speedup baseline.
+    - Command wall seconds, baseline -> selective: cold 52.168 -> 45.862; unchanged
+      0.626 -> 2.080; SSAO threshold edit 18.911 -> 5.385 (3.51x faster). One local sample
+      per case; warm record-validation overhead is explicit. Internal wall stages and accumulated
+      concurrent work are reported separately in current-behavior documentation.
+    - Single edit: one expansion/emission/compiler/interface extraction; 164 roots and 435
+      variants/interfaces reused, 435 unrelated timestamps retained. Warm: zero expensive work.
+      Revert/cached edit: one expansion, zero emission/compile/extraction. All 437 binary/manifest
+      files match baseline for original/edited inputs; reverted and clean original also match.
+      All 304 copied source files were restored and match production. No live-game/GPU claim.
+    - Measurement evidence: artifacts/investigation/phase7/measurement-setup.json, timings.json,
+      equivalence.json and baseline-*/current-* logs and output snapshots.
+    - Seven actual isolated Debug mod builds exercised mod -> SpirvBuild -> catalogue/tool ->
+      asset-copy: cold, unchanged, source edit/revert, binding-contract edit/revert and clean.
+      Contract edit changes catalogue bytes/membership while tool/model and processing/compiler
+      inputs remain stable; zero roots expanded, one variant emitted/compiled/reflected of three.
+      Unchanged and unrelated deployed timestamps retained; source/contract revert and clean
+      binary/manifest/deployed bytes identical. Evidence: phase7/msbuild-summary.json and
+      msbuild-*.log/.json. Builds passed with existing runtime warnings and NU1900
+      vulnerability-feed warnings; no errors.
+    - ShaderBuild.Incremental.md and ShaderAuthoring.md explain current reuse, migration, repair,
+      strict hashing, clean, publication, timing semantics and measured tradeoffs. The obsolete
+      ValidateBuildContract.ps1 duplicated old filenames/clean/compiler/package policy; it now
+      delegates to maintained owning integration fixtures with Debug/Release selection.
+      Actual PowerShell entry point passed 142/142 in each configuration; only NU1900 restore
+      warnings. Logs: phase7/validate-contract-debug.log and validate-contract-release.log.
+      The prior full 251/251 Debug and Release receipts remain valid: no production C# changed.
+
 Final acceptance
-  ☐ Reconcile every source-proposal requirement with the implemented work and evidence above;
+  ☑ Reconcile every source-proposal requirement with the implemented work and evidence above;
     any unresolved change/deferment remains explicit and cannot silently weaken acceptance.
-  ☐ Confirm source processing uses TinyPreprocessor graph capabilities without duplicate discovery.
-  ☐ Confirm ordinary single-shader/contract edits skip unrelated expensive operations and runtime
+  ☑ Confirm source processing uses TinyPreprocessor graph capabilities without duplicate discovery.
+  ☑ Confirm ordinary single-shader/contract edits skip unrelated expensive operations and runtime
     binaries/manifests remain equivalent to clean builds.
-  ☐ Confirm failure recovery, migration, packaging, and supported configurations satisfy their gates.
-  ☐ Confirm documentation, cleanup, review, and measured performance results are complete before
-    marking the overall plan complete. Creating this plan does not begin implementation.
+  ☑ Confirm failure recovery, migration, packaging, and supported configurations satisfy their gates.
+  ☑ Confirm documentation, cleanup, review, and measured performance results are complete before
+    marking the overall plan complete.
+
+Receipt-first correction
+  Compatible receipts validate current identities/inputs, a compact stored consumed-resource
+  inventory and published output hashes before intermediate cache loading. The version-2 gate
+  remains; receipts missing the compact inventory refresh once. Intermediate records and
+  compiler-cache artifacts are checked and repaired only when selective processing needs them.
+  Source coverage, cross-domain hashes, strict verification, cancellation, recovery and clean
+  behavior remain mandatory. Earlier timing evidence above predates this correction.
+  Validation: full ShaderBuildTool.Tests passed 253/253 in Debug and Release; final focused
+  receipt/shortcut checks passed 28/28 each. Unchanged copied-production wall times were
+  0.689/0.663/0.628 s, with no intermediate-record loading or expensive processing. Logs:
+  artifacts/investigation/receipt-shortcut. NU1900 vulnerability-feed warnings only.
+  Single SSAO edit still expands/emits/compiles/extracts one; 435 unrelated timestamps
+  retained. Reverted output matches all 437 original files. Copied source restored.

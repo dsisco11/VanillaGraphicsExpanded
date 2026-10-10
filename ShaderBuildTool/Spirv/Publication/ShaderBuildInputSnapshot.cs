@@ -24,7 +24,7 @@ internal sealed class ShaderBuildInputSnapshot
     }
 
     /// <summary>Rejects changed membership or content without substituting declarations for the loaded registry.</summary>
-    internal void Validate(ShaderBuildGeneration generation)
+    internal void Validate(IEnumerable<ShaderInputObservation> consumedInputs)
     {
         // Each commit boundary starts a new epoch: strict verification rereads each distinct file,
         // while normal mode deliberately retains the documented metadata-assisted shortcut.
@@ -36,7 +36,9 @@ internal sealed class ShaderBuildInputSnapshot
         foreach (var input in inputs)
             if (Convert.ToHexString(hashes.GetHash(input.Key)) != input.Value)
                 throw new IOException("Shader build input changed during processing: " + input.Key);
-        generation.ValidateInputs(hashes);
+        foreach (var input in consumedInputs)
+            if (Convert.ToHexString(hashes.GetHash(input.Path)) != input.Hash)
+                throw new IOException("Shader input changed during build: " + input.Path);
     }
     #endregion
 

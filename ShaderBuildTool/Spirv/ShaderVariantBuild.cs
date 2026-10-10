@@ -68,11 +68,7 @@ internal static class ShaderVariantBuild
             if (!contracts.AsSpan().SequenceEqual(ShaderContractProjection.Membership(registry, "selection")))
                 throw new IOException("Shader contracts changed during processing; rerun the build.");
             ShaderOutputStatistics.Capture(outputRoot, domain, generation, statistics);
-            // A receipt may skip publication only after every required processing record was checked.
-            if (incremental && statistics.RootsExpanded == 0 && statistics.VariantsEmitted == 0 && statistics.InterfacesExtracted == 0
-                && execution?.TryReceipt?.Invoke(generation) == true)
-                statistics.ReceiptReused = true;
-            else if (publish is not null) publish(generation);
+            if (publish is not null) publish(generation);
             else publication.Publish(generation.Binaries, generation.Manifest,
                 validateInputs: () => generation.ValidateInputs(new ShaderFileHashIndex(outputRoot, true)), cancellationToken: cancellationToken);
             hashes.Save();

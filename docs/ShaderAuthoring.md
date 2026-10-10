@@ -163,6 +163,26 @@ Each graphics load captures a `ShaderLoadPlan` before asset reads. Its immutable
 
 Compute loading accepts an explicit `ShaderSettings` snapshot. The asset compatibility overload resolves its argument as a program identity; direct-file loading requires settings alongside the path and never infers a stage from the filename. Compute creation prepares a new pipeline and leaves an existing caller-owned pipeline intact on failure. The span loader consumes each selected binary synchronously and does not read source or runtime metadata to reconstruct configuration.
 
+## Incremental shader builds
+
+Normal builds reuse validated source, variant, compiler and interface records. Editing a shader
+processes that root and its variants; editing an imported file processes its recorded dependents.
+TinyPreprocessor discovers those relationships during expansion. A declaration-only edit selects
+variants whose effective contracts changed without invalidating unrelated compiler results.
+The build still enumerates the catalogue and verifies inputs and outputs.
+
+Read the roots expanded, variants emitted, compilerInvocations and interfaces extracted counters
+to see actual work. An unchanged build reports zero for all four; selected-variant progress does
+not imply that the whole catalogue is compiled. Reverting an edit can reuse historical results.
+Avoid routine clean builds: explicit clean discards reusable state and forces regeneration.
+
+Use `-p:SpirvVerifyContents=true` when checking edits that preserve file size and timestamps.
+Normal hashing uses file metadata and can miss those edits. Debug and Release have separate
+caches; `SpirvArtifactsDir` overrides their location. Copy the complete active binary/manifest
+set after a successful build, leaving private caches, receipts and recovery directories out of
+runtime assets. See [incremental build behavior](ShaderBuild.Incremental.md) for migration,
+repair, publication recovery, hard-link fallback, command options and measured build costs.
+
 ## Supported assignments and diagnostics
 
 Use repeated `ShaderAssignment` attributes when only specific complete structural assignments are supported. Each row must specify every structural option with canonical names and typed values, and the default row must be included. Otherwise the catalog enumerates the Cartesian product. The budget limits program assignments; sharing a stage does not multiply its binary count. Fixed defines belong in `ShaderFixedDefine`, and ordinary include guards or helper macros need no option declaration.
@@ -179,7 +199,7 @@ When selection or loading fails, follow the reported owner and stage:
 | Link failure | Declared stage pairing and source-owned interface layouts, then the driver link log |
 | Requested change is not visible | Compare requested and installed settings, the last explicit preparation/activation and the last load error; inactive values are retained without reloading and a failed replacement leaves the prior installed generation intact |
 
-Run the normal shader-enabled build before GPU tests so their copied assets match current declarations. `SpirvInventoryTests` enumerates every distinct stage binary and every declared graphics/compute assignment from the resolver. Rendering tests verify behavior separately from successful specialization/linking. The isolated `ShaderBuildTool/Tests/ValidateBuildContract.ps1` checks compilation, incremental invalidation and package rules; full mod packaging is the `Package` task in `CakeBuild`. Build receipts stay outside runtime assets. The existing spirv-digests.json also carries versioned compiler interface declarations associated with each exact binary. Deploy this manifest with its matching binaries; linked activity and driver resource addresses remain runtime responsibilities. Do not add binary rewriting, parallel metadata manifests or filename-pairing rules to repair a declaration or packaging error.
+Run the normal shader-enabled build before GPU tests so their copied assets match current declarations. `SpirvInventoryTests` enumerates every distinct stage binary and every declared graphics/compute assignment from the resolver. Rendering tests verify behavior separately from successful specialization/linking. `ShaderBuildTool/Tests/ValidateBuildContract.ps1 -Configuration Debug` (or `Release`) runs the maintained integration tests for compilation, selective reuse, repair, publication and runtime manifest compatibility against isolated fixtures. Run the normal shader-enabled mod build to check MSBuild asset copying; full mod packaging is the `Package` task in `CakeBuild`. Build receipts stay outside runtime assets. The existing spirv-digests.json also carries versioned compiler interface declarations associated with each exact binary. Deploy this manifest with its matching binaries; linked activity and driver resource addresses remain runtime responsibilities. Do not add binary rewriting, parallel metadata manifests or filename-pairing rules to repair a declaration or packaging error.
 
 ## Removed ineffective option writes
 

@@ -301,34 +301,6 @@ public sealed class ShaderSelectiveBuildTests
         Assert.Equal(3, repaired.InterfacesExtracted);
         Assert.True(File.Exists(Path.Combine(Published(fixture), "c.csh.spv")));
     }
-    /// <summary>The complete shortcut is considered only after all records establish that processing can be skipped.</summary>
-    [Fact]
-    public async Task ReceiptShortcutRequiresCompleteReusableProcessingRecords()
-    {
-        using var fixture = Create();
-        var registry = Registry();
-        await Build(fixture, registry);
-        int checks = 0;
-        var warm = await ShaderVariantBuild.RunAsync(fixture.Assets, fixture.Output, Domain, fixture.Repository,
-            "opengl4.5", false, registry, 3, TestContext.Current.CancellationToken, incremental: true,
-            execution: new ShaderBuildExecution(Identities, new ShaderFileHashIndex(fixture.Output, true),
-                _ => { checks++; return true; }));
-        Assert.Equal(1, checks);
-        Assert.True(warm.ReceiptReused);
-        Assert.Equal(0, warm.RootsExpanded);
-        Assert.Equal(0, warm.VariantsEmitted);
-        Assert.Equal(0, warm.CompilerInvocations);
-        Assert.Equal(0, warm.InterfacesExtracted);
-        foreach (var path in Directory.GetFiles(Path.Combine(fixture.Output, "_cache", "variants"))) File.Delete(path);
-        var missing = await ShaderVariantBuild.RunAsync(fixture.Assets, fixture.Output, Domain, fixture.Repository,
-            "opengl4.5", false, registry, 3, TestContext.Current.CancellationToken, incremental: true,
-            execution: new ShaderBuildExecution(Identities, new ShaderFileHashIndex(fixture.Output, true),
-                _ => throw new InvalidOperationException("Incomplete processing records reached receipt shortcut.")));
-        Assert.False(missing.ReceiptReused);
-        Assert.Equal(3, missing.VariantsEmitted);
-        Assert.Equal(0, missing.CompilerInvocations);
-    }
-
     /// <summary>Aliases share one compiler job when compiler-visible path policy permits equivalent input.</summary>
     [Fact]
     public async Task EquivalentInputAliasesCountUniqueCompilerJobs()
