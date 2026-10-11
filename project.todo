@@ -30,6 +30,8 @@ Issues:
       ☐ Investigate potential optimizations for memory layout and data transfer patterns to improve overall GPU efficiency.
 
   PBR Shading:
+    ☐ Profile and optimize ambient-occlusion GPU cost while preserving visibility quality. See docs/PBR.BaselineShading.todo.
+    ☐ Optimize owned postprocessing submission, state transitions and pass scheduling. See docs/PBR.BaselineShading.todo.
     ☐ Optimize water rendering and composition preparation, receiver sampling and background capture. See docs/PBR.WaterPerformance.todo.
     ☐ Ensure PBR shader system can operate independently of LumOn and still produce nice lighting.
         ☐ Ensure PBr shader system is split into two halves, first half does the material properties setup and albedo maps and such, second half does final compositing to produce a direct-lighting result. 

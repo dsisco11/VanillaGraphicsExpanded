@@ -16,6 +16,56 @@ Scope and shared contracts
 
 Tasks
 
+  ☐ Profile and optimize ambient-occlusion GPU cost while preserving visibility quality.
+    - Starting evidence: the 2026-10-11 performance-issue.rdc capture at 3440x1377 has repeatable
+      AO replay timings of 2.71-2.72 ms, dominated by the half-resolution horizon pass at event 7091
+      (~2.61 ms). These are optimization leads, not proof of the reported 120+ to 90 FPS regression;
+      inconsistent engine-draw replay spikes invalidate total replay frame-time comparisons.
+      Extracted evidence: artifacts/RenderDocPerformance/timings_repeat_*.json and pipelines.json.
+    - Establish matched steady-state CPU/GPU and live frame-time baselines across native AO quality,
+      resolution, representative outdoor/interior/foliage scenes and LumOn enabled/disabled. Record
+      settings, hardware and build configuration; measure shared DepthHierarchy once, then horizon,
+      filtering and reconstruction separately. Compare AO enabled/disabled to isolate its contribution.
+    - Profile horizon candidate sampling, hierarchy descent, texture bandwidth and integration work;
+      evaluate reuse, locality and redundant-work removal before selecting an optimization. Reuse
+      existing AO, depth-hierarchy, shader and resource owners; retain native quality/enable authority.
+    - Preserve running-horizon relaxation, projection and receiver-depth agreement, transmission,
+      background rejection, edge-aware reconstruction and indirect-only lighting application.
+      Any sampling/resolution tradeoff must be explicit, quality-bounded and visually accepted;
+      do not count a silent reduction in quality as an equivalent-work speedup.
+    - Validate changed behavior through focused subagent numerical/GPU tests and independent review;
+      obtain user-run visual acceptance for contact shadows, thin geometry, foliage, screen edges,
+      movement and disocclusion. Check resize, reload, runtime settings and both lighting modes.
+    - Record matched before/after pass and live frame costs, bandwidth/storage changes and remaining
+      limits. Remove temporary profiling instrumentation; mark complete only with measured improvement
+      and preserved output contracts. Contract: docs/PBR.Postprocessing.md / Horizon-integrated ambient visibility.
+
+  ☐ Optimize owned postprocessing submission and pass scheduling.
+    - Starting evidence: the same capture's postprocessing interval contains 25 fullscreen draws,
+      54 program switches, 108 sampler binds and 75 framebuffer binds, with ~0.28 ms repeatable GPU
+      replay cost. Binding churn predates the shader lifecycle ownership refactor; its managed CPU
+      cost and contribution to the FPS regression remain unmeasured. Evidence:
+      artifacts/RenderDocPerformance/frame_events.json and timings_repeat_*.json.
+    - Establish matched CPU submission/allocation, GPU and live frame-time baselines. Attribute costs
+      to PostprocessDraw preparation/submission, shader activation, input publication, context checks,
+      pass teardown and boundary restoration. Compare equivalent builds before/after the lifecycle
+      refactor where reproducible; separate first-use preparation and diagnostics from steady state.
+    - Reduce measured redundant program/sampler/framebuffer transitions through existing command,
+      pipeline and state-cache owners. Evaluate retaining compatible state across owned passes and
+      restoring engine state at the enclosing boundary; preserve complete restoration on normal,
+      exception, nested and unavailable-resource paths and safe executable retirement.
+    - Evaluate bloom reduction/filter/reconstruction scheduling and intermediate bandwidth for
+      measured opportunities to reuse work or combine compatible passes. Preserve the selected kernel,
+      scale weights and output quality; skip disabled-effect work through existing settings authority.
+    - Preserve scene-linear HDR, exposure metering/adaptation order, bloom and shaft behavior, grading,
+      exactly-once display conversion/dithering and UI/offscreen separation. Keep attachment ownership,
+      feedback avoidance, resize/reload and both PBR lighting modes intact; coordinate shared changes
+      with the AO task above and the water performance task below without duplicating their work.
+    - Use focused subagent state-restoration, image/numerical and lifecycle tests plus independent
+      review. Obtain user-run visual acceptance; record matched call counts, CPU/GPU/frame costs and
+      allocation/storage changes. Do not use reduced call counts alone as completion evidence.
+      Contract: docs/PBR.Postprocessing.md; retain results there and remove temporary diagnostics.
+
   ☐ Optimize water rendering and composition performance. See docs/PBR.WaterPerformance.todo.
     - Remove recurring executable preparation, reduce redundant receiver/scattering work, and
       gate unnecessary background capture while preserving the established water rendering contracts.
