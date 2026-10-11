@@ -76,6 +76,7 @@ internal sealed partial class StateCache
         // neither the current executable nor the selected program-pipeline object.
         GL.DeleteProgram(program);
         RecordBoundaryRetirement(EPipelineState.Program, program);
+        ProgramScopeTracker.MarkDeleted(program);
     }
     #endregion
     #endregion

@@ -3,8 +3,8 @@ VGE shader ownership and engine separation
 
 Source proposal
   Rendering.ShaderOwnership.Proposal.md (sibling of this file) is authoritative.
-  Status: Phases 1-2 complete; shared workflows and compute naming validated. Engine separation,
-  registry/reload migration and final acceptance remain unchecked.
+  Status: Phases 1-3 complete; workflows, compute naming, scope ownership and liquid translation validated.
+  Executable inheritance/registration removal, registry/reload migration and final acceptance remain unchecked.
 
 Scope and shared contracts
   Establish IGpuProgram with default implementation methods, implemented by independent
@@ -136,7 +136,7 @@ Phase 3: Migrate existing scopes and liquid input translation
   Depends on Phase 2. Outcome: VGE use/restoration and liquid input staging no longer need an engine owner.
   Proposal: Existing scope ownership and engine handoff; Liquid mesh-pool input bridge.
 
-  ☐ Consolidate graphics/compute restoration within existing program scopes and command lifetimes.
+  ☑ Consolidate graphics/compute restoration within existing program scopes and command lifetimes.
     - Replace CurrentShaderProgram-based VGE capture and compute numeric-ID owner lookup with
       borrowed IGpuProgram/generation references carried only where the existing scopes need them.
     - Preserve GraphicsCommandContext ShaderActivation, pipeline-change/EndPass cleanup and
@@ -147,10 +147,10 @@ Phase 3: Migrate existing scopes and liquid input translation
       next-draw submission. Avoid redundant replay across complete resource-restoring boundaries.
     - Route direct Use/TryUse/UseScope and low-level compute paths through their declared scope
       contract; retain standalone/headless operation without a game singleton.
-  ☐ Move native shader capture/Stop/Use to Rendering/Integration at supported outer boundaries.
+  ☑ Move native shader capture/Stop/Use to Rendering/Integration at supported outer boundaries.
     - Include native restoration effects in the footprint and ordered cleanup; preserve rejection
       of unsupported native/raw/compute incoming states and targeted StateCache mutation semantics.
-  ☐ Implement the chosen narrow MeshDataPoolManager input bridge during LiquidGraphicsSubmission.
+  ☑ Implement the chosen narrow MeshDataPoolManager input bridge during LiquidGraphicsSubmission.
     - Translate origin, modelViewMatrix and forcedTransparency into the typed liquid input sink.
       Preserve engine culling, dimension offsets, interpolation, visibility and finally writes.
     - Keep pool draws on GraphicsCommandContext.Draw and borrowed geometry lifetime/validation
@@ -158,13 +158,42 @@ Phase 3: Migrate existing scopes and liquid input translation
     - Native pool rendering must still receive the native shader; handle unknown inputs explicitly.
       No global CurrentActiveShader patch or engine executable proxy. An input-only adapter must
       reject unsupported executable operations and never enter engine registry/current-owner state.
-  ☐ Validate all graphics/compute nesting combinations, unchanged-ID submission, success/failure,
+  ☑ Validate all graphics/compute nesting combinations, unchanged-ID submission, success/failure,
     exceptional cleanup, resource restoration, raw bindings, disposal and context/ID reuse.
-  ☐ Validate visible/depth liquids for ordinary, empty/culled pools, dimension offsets,
+  ☑ Validate visible/depth liquids for ordinary, empty/culled pools, dimension offsets,
     mini-dimension transforms, preview transparency, restoration writes and exceptions; include
     unrelated native pools and real engine traversal where feasible.
-  ☐ Completion: boundary and liquid checks pass; VGE scope behavior is independent of engine owner
+  ☑ Completion: boundary and liquid checks pass; VGE scope behavior is independent of engine owner
     state, with native handoff contained in integration. Remove temporary scope compatibility paths.
+
+  Traceability: scope/restoration -> proposal Existing scope ownership and engine handoff,
+    Resolved migration contracts / Scope and executable identity -> StateCache.ProgramScopes,
+    IGpuProgram ReplayInputs, GpuProgramLifetime and family facades; GpuProgramScopeIdentityTests,
+    GpuProgramUseScopeTests, ComputeInputSubmissionTests and GpuComputeProgramWorkflowTests.
+    Boundary/resource ownership -> Rendering.EngineStateSwitching.md / Selective invalidation;
+    Rendering.AuthoritativePipelineState.md / Scoped restoration, borrowed bindings and failure
+    guarantees; Rendering.ShaderBindingState.md / Prepared resource submission and Generated desired
+    state -> EngineBoundaryExecution, EngineBoundaryScope and GraphicsCommandContext; boundary,
+    command, refraction and sampler-retirement regressions. Missing binding knowledge resolves only
+    through the existing cache, while immediate restoration replays a validated installed generation.
+    Raw compute activation and complete boundary work/restoration reject a changed context registration
+    before any native mutation; boundary tokens remain retryable on their original live context.
+    Liquid translation -> proposal Liquid mesh-pool input bridge and Resolved migration contracts /
+    Liquid bridge choice -> ILiquidPoolInputs, LiquidPoolInputAdapter, LiquidPoolInputBridgeHook and
+    existing LiquidGraphicsSubmission/TryDraw geometry ownership; input contract tests and real patched
+    visible/depth MeshDataPoolManager traversal. Bridge installation follows pool draw patching to
+    preserve interception when the JIT could otherwise inline the native pool draw body.
+    Preparation admission -> GPU.ShaderDemandLoading.md / Graphics and Compute ownership -> existing
+    family preparation, guarded replacement and native compute resource borrowing; demand/lifetime tests.
+  Verification: final Debug build passed with production/fixture shader producers enabled (0 errors,
+    109 warnings); focused scope/boundary/liquid suite 142/142, affected rendering suite 83/83 and
+    generator suite 178/178 passed, with no skips. Receipts:
+    ../artifacts/shader-ownership-phase3-build.log, ../artifacts/shader-ownership-phase3-focused-tests.log,
+    ../artifacts/shader-ownership-phase3-affected-tests.log and
+    ../artifacts/shader-ownership-phase3-generator-tests.log. Second implementation review and independent
+    audit-stage-completion passed 2026-10-10 after raw compute context admission and complete-boundary
+    cross-context cleanup corrections, both covered by fresh regressions. No game execution.
+    Engine inheritance/registration removal and destroyed-context shutdown cleanup remain later work.
 
 Phase 4: Remove engine executable inheritance and registration
   Depends on Phase 3. Outcome: independent VGE executables prepare and render on cached/uncached paths.

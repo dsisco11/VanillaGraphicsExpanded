@@ -11,15 +11,13 @@ internal static class GpuProgramStopHook
 {
     #region Program retirement
 
-    /// <summary>Releases explicit contract slots omitted by the engine's source-based custom sampler list.</summary>
-    [HarmonyPostfix]
-    internal static void Postfix(ShaderProgramBase __instance)
+    /// <summary>Redirects temporary base-typed VGE calls without invoking native engine stop side effects.</summary>
+    [HarmonyPrefix]
+    internal static bool Prefix(ShaderProgramBase __instance)
     {
-        // Stop is sealed in the engine. Hooking it also covers calls through the
-        // engine's current-program reference and VGE's nested program scopes.
-        if (__instance is not GpuProgram program) return;
-        program.ProgramLayout.ReleaseSamplerBindings();
-        StateCache.Current.NotifyProgramBound(0);
+        if (__instance is not GpuProgram program) return true;
+        program.Stop();
+        return false;
     }
 
     #endregion

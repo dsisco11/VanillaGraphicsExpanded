@@ -1,6 +1,6 @@
 # VGE shader ownership and engine separation proposal
 
-Status: design contracts and source dependency audit resolved; shared workflows and compute naming implemented and validated. Engine isolation, registry/reload migration and final acceptance remain open.
+Status: design contracts and source dependency audit resolved; shared workflows, compute naming, scope ownership and liquid input translation implemented and validated. Executable inheritance/registration removal, registry/reload migration and final acceptance remain open.
 
 ## Objective and bounded outcome
 
@@ -10,7 +10,7 @@ The completion boundary is that a VGE program can prepare, render, reload, and r
 
 This work does not require replacing terrain rendering, world traversal/culling, framebuffer allocation, shader compilation tools, generated bindings, or the existing graphics pipeline/state cache. Those owners already supply the necessary contracts.
 
-## Evidence and current dependencies
+## Initial evidence and dependencies
 
 The October 10 crash session records missing vertex/fragment stages followed by a NullReferenceException during engine registration of pbr_final. GpuProgram.Spirv installs null engine stage slots for cached executable hits; CompletePreparation subsequently registers the program with the engine. This registration failure is converted into false readiness and the mandatory HDR check aborts the frame.
 
@@ -129,11 +129,11 @@ Compute owners remain feature-owned where that matches current lifetime. Sharing
 
 Reuse the existing scope and pipeline machinery. No separate ambient current-shader registry or parallel activation stack is proposed. StateCache remains the authority for native binding state; GraphicsCommandContext and its selected GraphicsPipeline already retain the shader object and executable revision needed for managed draws.
 
-The existing mechanisms have different responsibilities:
+Before the scope migration, the existing mechanisms had different responsibilities:
 
-- StateCache.UseProgramScope uses ProgramScopeTracker/BindScopeTracker to save and restore numeric program bindings. Its current stack is per-thread and stores integers, not shader owners, executable revisions or context generations. It is used by low-level compute and layout preparation.
+- StateCache.UseProgramScope uses ProgramScopeTracker/BindScopeTracker to save and restore numeric program bindings. Its original stack was per-thread and stored integers, not shader owners, executable revisions or context generations. It is used by low-level compute and layout preparation.
 - GraphicsCommandContext retains ShaderActivation for the selected pipeline, disposes it on pipeline changes or EndPass, and registers it with EngineBoundaryScope for exceptional cleanup. It already owns managed activation lifetime.
-- ShaderActivation currently calls GpuProgram.UseScope, whose restoration still captures ShaderProgramBase.CurrentShaderProgram and optionally a compute owner. GpuComputeProgram.UseScope has a corresponding engine-dependent path. These owner-aware scopes are not implemented through the numeric ProgramScopeTracker today.
+- ShaderActivation originally called GpuProgram.UseScope, whose restoration captured ShaderProgramBase.CurrentShaderProgram and optionally a compute owner. GpuComputeProgram.UseScope had a corresponding engine-dependent path. These owner-aware scopes were separate from the numeric ProgramScopeTracker.
 
 The migration should replace the engine-dependent contents of those existing scopes and consolidate their restoration responsibility with the established binding scopes where appropriate. Carry a borrowed owner/generation reference in the existing program-scope or command-context lifetime only where resubmission and retirement validation require it. Do not recover an owner through another global dictionary or duplicate the command context's selected shader state.
 
@@ -147,15 +147,34 @@ Audit direct Use, TryUse and UseScope consumers as well as GraphicsCommandContex
 
 EngineStateSwitching already routes native GL mutations through StateCache. Keep that single cache and its existing explicit external boundary. No per-frame native scans, parallel current-owner tracking system or blanket invalidation is needed for the separation.
 
+The current implementation consolidates family restoration in StateCache.ProgramScopeTracker.
+Its existing scope chain now retains borrowed owner/revision/context metadata; raw scopes remain
+binding-only, and direct activation establishes a tracked use lifetime ended by Stop. GpuProgramLifetime
+rejects retirement/replacement while borrowed, including suspended owners. Immediate restoration uses
+IGpuProgram.ReplayInputs against the validated installed generation, without preparing pending settings.
+GraphicsCommandContext and EngineBoundaryScope use binding restoration followed by their existing
+resource snapshots. EngineBoundaryExecution retains native/raw/compute admission limits through the
+integration adapter and resolves missing binding knowledge through StateCache before selecting a footprint.
+Complete boundaries and raw compute activation validate the existing context registration before any
+operation or restoration. A wrong-context boundary retains its token for retry on the original live
+context; destroyed-context resource abandonment remains part of the shutdown contract.
+
 ## Liquid mesh-pool input bridge
 
-The API source MeshDataPoolManager.Render reads CurrentActiveShader to write origin and mini-dimension modelViewMatrix/forcedTransparency. Its finally block restores transform and transparency. Both LiquidShaderProgram and LiquidDepthShaderProgram currently implement those IShaderProgram methods and retain values in LiquidDrawParamsUbo. LiquidGraphicsSubmission activates the shader before entering the engine traversal for precisely this reason.
+The API source MeshDataPoolManager.Render reads CurrentActiveShader to write origin and mini-dimension modelViewMatrix/forcedTransparency. Its finally block restores transform and transparency. Before the bridge migration, both LiquidShaderProgram and LiquidDepthShaderProgram implemented those IShaderProgram methods and retained values in LiquidDrawParamsUbo. LiquidGraphicsSubmission activated the shader before entering the engine traversal for this reason.
 
 The preferred bounded bridge is a narrow interception at those pool-input call sites while LiquidGraphicsSubmission is active. Translate the engine's existing origin/matrix/transparency operations into a typed VGE pool-input sink. Keep culling, dimension offsets, mini-dimension interpolation, visibility groups and the engine's finally/restoration control flow in the engine owner. The existing intercepted pool draw continues through GraphicsCommandContext.Draw.
 
 An implementation option is to replace the selected CurrentActiveShader getter calls inside MeshDataPoolManager.Render with a helper returning an engine-interface input adapter only for an active VGE liquid submission; otherwise return the real engine shader. That adapter is an input translator, has no GPU executable or registry membership, and never occupies CurrentShaderProgram. It must not silently accept rendering/compile/dispose operations as if it were an executable. A more direct translation of the small uniform-call set can avoid the broad interface entirely, but requires a more involved transpiler. Verify the installed method's call sites before choosing the exact interception.
 
 Do not patch CurrentActiveShader globally or introduce an engine ShaderProgram proxy owning/aliasing the VGE executable. Either would recreate ambient coupling. Remove the liquid engine-interface implementations from shader classes after moving their behavior into the bridge. Unknown input names should be handled explicitly rather than falling through to inherited engine Uniform calls.
+
+The implemented bridge uses ILiquidPoolInputs and an input-only LiquidPoolInputAdapter. Its five getter
+replacements retain the original instructions' labels and exception regions. LiquidPoolInputBridgeHook
+is installed after the pool draw hook, rebuilding traversal after native draw interception is available;
+this follows the existing caller-rebuild pattern and prevents JIT inlining ahead of the hook. Visible/depth
+shader input interfaces and the engine-current fallback draw switch have been removed. Executable
+inheritance and engine registration remain separate pending work.
 
 Required behavioral coverage includes ordinary pools, culled/empty pools, dimension offsets, mini-dimension transforms, preview transparency, engine restoration writes, visible/depth passes, exceptions, and unrelated native pool rendering. Borrowed engine geometry lifetime and draw validation remain with EngineLiquidPoolGeometry and LiquidGraphicsSubmission.
 
@@ -201,10 +220,10 @@ No common asset-invalidation method is introduced: graphics retains settings-awa
 retains its existing eager/deferred first preparation and explicit failed-attempt retry policy.
 
 Remaining transition dependencies are intentional and assigned to the following work: graphics still derives
-from ShaderProgram, creates/registers engine stages, and uses base activation/disposal; both family scopes
-still capture engine current ownership; compute retains its weak numeric-ID restoration lookup. Existing
-scope borrowing/context validation belongs to the scope migration. These dependencies must be removed by
-the existing scope/integration and executable separation tasks before the migration can ship.
+from ShaderProgram, creates/registers engine stages, and uses base disposal. Temporary engine-interface
+Use/Stop hooks route to VGE activation while that assignability remains. Family scopes now use the existing
+StateCache tracker, and the compute weak numeric-ID restoration lookup is removed. Remaining inheritance,
+registration and compatibility hooks must be removed by the executable separation tasks before shipping.
 
 ## Resolved migration contracts
 

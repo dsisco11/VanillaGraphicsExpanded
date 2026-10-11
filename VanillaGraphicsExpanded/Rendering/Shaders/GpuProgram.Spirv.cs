@@ -124,6 +124,7 @@ public abstract partial class GpuProgram
                 EngineDisposed(this) = false;
                 installedPlan = plan;
                 GraphicsIdentity = graphicsIdentity;
+                ExecutableContext = Integration.RenderContextRegistry.Current();
                 ExecutableRevision++;
                 if (oldProgram != 0) GL.DeleteProgram(oldProgram);
                 foreach (int shader in oldStages) if (shader != 0) GL.DeleteShader(shader);

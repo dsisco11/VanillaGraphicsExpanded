@@ -1,51 +1,28 @@
 using System;
-
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
-
-/// <summary>Adapts graphics activation to VGE workflows while retaining the engine handoff.</summary>
+/// <summary>Publishes graphics inputs through VGE's context-aware program lifetime.</summary>
 public abstract partial class GpuProgram
 {
-    private bool activatingEngine;
-
     #region Public API
-    /// <summary>Prepares and publishes every activation through the common program workflow.</summary>
+    /// <summary>Prepares and publishes every activation through the shared workflow.</summary>
     public new void Use() => ((IGpuProgram)this).Activate();
+    /// <summary>Stops only this owner's current admitted activation.</summary>
+    public new void Stop() => StateCache.Current.StopProgram(this);
     #endregion
-
     #region Internal API
-    /// <summary>Allows underlying engine activation only within the owned submission workflow.</summary>
-    internal bool IsActivatingEngine => activatingEngine;
+    /// <summary>Keeps the temporary engine activation hook from bypassing VGE publication.</summary>
+    internal bool IsActivatingEngine => false;
     #endregion
-
     #region Private
-    /// <summary>Temporarily establishes engine ownership until graphics activation is isolated.</summary>
-    void IGpuProgram.BindExecutable()
-    {
-        if (!ReferenceEquals(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram, this))
-        {
-            activatingEngine = true;
-            try { base.Use(); }
-            finally { activatingEngine = false; }
-        }
-        StateCache.Current.UseProgram(ProgramId);
-        StateCache.Current.NotifyProgramBound(ProgramId);
-    }
-
-    /// <summary>Clears only this owner's failed graphics activation.</summary>
+    /// <summary>Admits the installed generation in the existing program tracker.</summary>
+    void IGpuProgram.BindExecutable() => StateCache.Current.ActivateProgram(this);
+    /// <summary>Withdraws incomplete inputs without affecting an unrelated owner.</summary>
     void IGpuProgram.ClearActivation(bool bindingEntered) => ClearFailedActivation();
-
-    /// <summary>Routes engine-interface activation through the same readiness and submission boundary.</summary>
+    /// <summary>Routes temporary engine-interface activation through VGE publication.</summary>
     void Vintagestory.API.Client.IShaderProgram.Use() => Use();
-
-    /// <summary>Stops a failed owner so a caller cannot accidentally draw with incomplete submitted resources.</summary>
-    private void ClearFailedActivation()
-    {
-        if (ReferenceEquals(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram, this))
-        {
-            try { Stop(); }
-            finally { StateCache.Current.UnbindProgram(); }
-        }
-    }
-
+    /// <summary>Routes temporary engine-interface stopping through scoped ownership.</summary>
+    void Vintagestory.API.Client.IShaderProgram.Stop() => Stop();
+    /// <summary>Clears only this owner's admitted activation after failed preparation or submission.</summary>
+    private void ClearFailedActivation() => StateCache.Current.StopProgram(this);
     #endregion
 }

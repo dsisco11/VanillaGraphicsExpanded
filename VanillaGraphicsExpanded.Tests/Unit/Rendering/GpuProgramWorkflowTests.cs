@@ -110,6 +110,12 @@ public sealed class GpuProgramWorkflowTests
         public GpuProgramLifetime Lifetime { get; } = new();
         /// <summary>Supplies an unused numeric executable view.</summary>
         public int ProgramId => 0;
+        /// <summary>Supplies a CPU-only executable revision.</summary>
+        public ulong ExecutableRevision => 0;
+        /// <summary>Reports whether controlled preparation is unavailable.</summary>
+        public bool RequiresPreparation => !Ready;
+        /// <summary>Supplies an absent native context for workflow-only tests.</summary>
+        public (nint Handle, long Generation) ExecutableContext => default;
         /// <summary>Supplies a CPU-only layout view.</summary>
         public GpuProgramLayout ProgramLayout { get; } = new();
         /// <summary>Records observable workflow order.</summary>
@@ -151,7 +157,7 @@ public sealed class GpuProgramWorkflowTests
             if (FailClear) throw new InvalidOperationException("clear");
         }
         /// <summary>Checks that scoped admission reaches its family hook.</summary>
-        public IDisposable OpenUseScope()
+        public IDisposable OpenUseScope(bool replayInputs)
         {
             Events += "capture;";
             return new Scope(this);

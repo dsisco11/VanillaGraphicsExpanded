@@ -108,7 +108,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.Equal(callerTarget.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
             Assert.Equal(readTarget.FboId, GL.GetInteger(GetPName.ReadFramebufferBinding));
             Assert.Equal(caller.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-            Assert.Same(caller, Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
+            Assert.Same(caller, StateCache.ActiveProgram);
             Assert.True(GL.GetBoolean(GetPName.DepthWritemask));
             Assert.True(GL.IsEnabled(EnableCap.DepthTest));
             for (int output = 0; output < 8; output++)
@@ -308,13 +308,17 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             Assert.All(composite.PreOverlayScene.Depth!.ReadPixels(), value => Assert.Equal(.75f, value));
             var capturedColor = composite.PreOverlayScene.Color;
             var capturedDepth = composite.PreOverlayScene.Depth;
-            // Retiring the incoming owner during the interruption makes shader cleanup
-            // fail. Production capture must withdraw its completed pair and surface the
-            // classified restoration error, rather than treating it as optional capture loss.
+            // Retirement of the suspended incoming generation is rejected before deletion.
+            // Capture preserves that operation failure, withdraws publication and successfully
+            // restores the still-live caller through the declared boundary.
             duringDraw = () => { duringDraw = null; caller.Dispose(); };
             var cleanupFailure = Assert.Throws<System.Reflection.TargetInvocationException>(() =>
                 HarmonyLib.AccessTools.Method(typeof(VanillaGraphicsExpanded.PBR.Liquids.WaterRefractionCapture), "Capture").Invoke(capture, null));
-            Assert.True(EngineBoundaryRestoreException.IsRestorationFailure(cleanupFailure.InnerException!));
+            Assert.IsType<InvalidOperationException>(cleanupFailure.InnerException);
+            Assert.False(EngineBoundaryRestoreException.IsRestorationFailure(cleanupFailure.InnerException!));
+            Assert.False(caller.IsRetired);
+            Assert.Same(caller, StateCache.ActiveProgram);
+            Assert.Equal(caller.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.False(composite.PreOverlayScene.Published);
             caller.Stop(); StateCache.Current.UnbindProgram();
             events.LeaveWorld();

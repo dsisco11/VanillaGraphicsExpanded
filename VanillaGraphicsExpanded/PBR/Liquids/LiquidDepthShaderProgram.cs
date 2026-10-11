@@ -12,7 +12,7 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 [ShaderProgram("Contract", "pbr_liquid_depth", 1)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_liquid_depth.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_liquid_depth.fsh")]
-internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProgram, ILiquidDepthShaderProgramBindings
+internal sealed partial class LiquidDepthShaderProgram : GpuProgram, ILiquidPoolInputs, ILiquidDepthShaderProgramBindings
 {
 
 
@@ -60,31 +60,12 @@ internal sealed partial class LiquidDepthShaderProgram : GpuProgram, IShaderProg
     }
 
 
-    /// <summary>Advertises pool inputs whose backing storage is a UBO.</summary>
-    bool IShaderProgram.HasUniform(string name)
-        => name is "origin" or "modelViewMatrix" or "forcedTransparency" || HasUniform(name);
-
-    /// <summary>Retains a pool-origin write through the shared draw block.</summary>
-    void IShaderProgram.Uniform(string name, Vec3f value)
-    {
-        if (name != "origin") { Uniform(name, value); return; }
-        Origin = new(value.X, value.Y, value.Z);
-    }
-
-    /// <summary>Retains mini-dimension transforms and their restoration writes.</summary>
-    void IShaderProgram.UniformMatrix(string name, float[] value)
-    {
-        if (name != "modelViewMatrix") { UniformMatrix(name, value); return; }
-        ModelViewMatrix = value;
-    }
-
-    /// <summary>Retains preview transparency in the pool's shared draw block.</summary>
-    void IShaderProgram.Uniform(string name, float value)
-    {
-        if (name != "forcedTransparency") { Uniform(name, value); return; }
-        draw.SetTransparency(value);
-
-    }
+    /// <summary>Stages the origin through retained draw storage.</summary>
+    Vector3 ILiquidPoolInputs.Origin { set => Origin = value; }
+    /// <summary>Stages the transform through the existing frame-aware conversion.</summary>
+    float[] ILiquidPoolInputs.ModelViewMatrix { set => ModelViewMatrix = value; }
+    /// <summary>Stages preview transparency for depth traversal.</summary>
+    float ILiquidPoolInputs.ForcedTransparency { set => draw.SetTransparency(value); }
     #endregion
     /// <summary>Attaches mutation guards to all retained blocks.</summary>
     public LiquidDepthShaderProgram()

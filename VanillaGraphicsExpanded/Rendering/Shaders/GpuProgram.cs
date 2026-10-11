@@ -133,50 +133,12 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
 
     #region Program Binding
 
-    /// <summary>
-    /// Binds this program (using the engine's <see cref="ShaderProgram.Use"/>), returning a scope that
-    /// restores the previous program binding when disposed.
-    /// </summary>
+    /// <summary>Publishes inputs and restores the enclosing owner's inputs on scope exit.</summary>
     public ProgramUseScope UseScope() => (ProgramUseScope)((IGpuProgram)this).BeginUse();
-
-    /// <summary>Captures existing graphics restoration until ownership moves to integration.</summary>
-    IDisposable IGpuProgram.OpenUseScope()
-    {
-        RequireOutsideSubmission();
-        try
-        {
-            if (!EnsureReady()) throw new InvalidOperationException("Shader preparation failed.");
-        }
-        catch (Exception preparation)
-        {
-            try { ClearFailedActivation(); }
-            catch (Exception cleanup) { throw new AggregateException(preparation, cleanup); }
-            throw;
-        }
-        var previous = ShaderProgramBase.CurrentShaderProgram;
-        int previousId = previous?.ProgramId ?? 0;
-        if (previous is null)
-            previousId = StateCache.Current.GetCurrentProgram();
-        // Capture ownership now; nested disposal must fail restoration rather than bind a retired GL name.
-        var previousCompute = previous is null ? GpuComputeProgram.FindOwner(previousId) : null;
-
-        // Retain native handoff within this family scope until integration owns it.
-        try
-        {
-            if (!ReferenceEquals(previous, this))
-            {
-                previous?.Stop();
-                StateCache.Current.NotifyProgramBound(0);
-            }
-            return new ProgramUseScope(previous, previousId, previousCompute, this);
-        }
-        catch (Exception handoff)
-        {
-            try { RestoreProgram(previous, previousId, previousCompute); }
-            catch (Exception restoration) { throw new AggregateException(handoff, restoration); }
-            throw;
-        }
-    }
+    /// <summary>Lets complete boundaries restore resource snapshots without redundant publication.</summary>
+    internal ProgramUseScope UseScope(bool replayInputs) => (ProgramUseScope)((IGpuProgram)this).BeginUse(replayInputs);
+    /// <summary>Captures restoration in the existing context-aware program tracker.</summary>
+    IDisposable IGpuProgram.OpenUseScope(bool replayInputs) => new ProgramUseScope(StateCache.Current.CaptureProgramScope(replayInputs));
     /// <summary>
     /// Attempts to bind this program.
     /// </summary>
@@ -193,59 +155,14 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         StateCache.Current.UnbindProgram();
     }
 
-    /// <summary>Restores owned resources through submission and preserves foreign engine activation policy.</summary>
-    private static void RestoreProgram(ShaderProgramBase? previous, int previousId, GpuComputeProgram? previousCompute)
-    {
-        try
-        {
-            if (previous is GpuProgram owner) owner.Use();
-            else if (previous is not null) previous.Use();
-            else if (previousCompute is not null) previousCompute.Use();
-            else StateCache.Current.UseProgram(previousId);
-            StateCache.Current.NotifyProgramBound(previous?.ProgramId ?? previousCompute?.ProgramId ?? previousId);
-        }
-        catch (Exception restorationFailure)
-        {
-            try { StateCache.Current.UnbindProgram(); }
-            catch (Exception unbindFailure)
-            {
-                throw new ShaderOwnershipRestoreException(new AggregateException(restorationFailure, unbindFailure));
-            }
-            finally { StateCache.Current.Invalidate(EPipelineState.Program); }
-            throw new ShaderOwnershipRestoreException(restorationFailure);
-        }
-    }
-
-    /// <summary>
-    /// Scope that restores the previous program binding when disposed.
-    /// </summary>
+    /// <summary>Shares one exactly-once restoration token between scope copies.</summary>
     public readonly struct ProgramUseScope : IDisposable
     {
-        private readonly ShaderProgramBase? previous;
-        private readonly int previousProgramId;
-        private readonly GpuComputeProgram? previousCompute;
-        private readonly GpuProgram? current;
-
-        /// <summary>Remembers both the engine owner and any engine-independent GL binding.</summary>
-        internal ProgramUseScope(ShaderProgramBase? previous, int previousProgramId, GpuComputeProgram? previousCompute, GpuProgram current)
-        {
-            this.previous = previous;
-            this.previousProgramId = previousProgramId;
-            this.previousCompute = previousCompute;
-            this.current = current;
-        }
-
-        /// <summary>Stops this activation and restores the caller's engine and GL state together.</summary>
-        public void Dispose()
-        {
-            if (current is null) return;
-            if (!ReferenceEquals(current, previous))
-            {
-                current.Stop();
-                StateCache.Current.NotifyProgramBound(0);
-            }
-            RestoreProgram(previous, previousProgramId, previousCompute);
-        }
+        private readonly IDisposable? token;
+        /// <summary>Wraps the existing program tracker token.</summary>
+        internal ProgramUseScope(IDisposable token) => this.token = token;
+        /// <summary>Restores through the originating tracked lifetime.</summary>
+        public void Dispose() => token?.Dispose();
     }
     #endregion
 
@@ -260,6 +177,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     {
         RequireOutsideSubmission();
         if (lifetime.IsRetired) return false;
+        lifetime.RequireUnborrowed();
         if (capi is null)
         {
             throw new InvalidOperationException("GpuProgram was not initialized. Call Initialize(api) first.");

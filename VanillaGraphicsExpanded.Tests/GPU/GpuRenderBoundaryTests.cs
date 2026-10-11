@@ -299,11 +299,11 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         Assert.Throws<InvalidOperationException>((Action)(() =>
         {
             using var activation = nested.UseScope();
-            Assert.Same(nested, ShaderProgramBase.CurrentShaderProgram);
+            Assert.Same(nested, StateCache.ActiveProgram);
             throw new InvalidOperationException("Controlled nested failure.");
         }));
         Assert.Equal(previous.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-        Assert.Equal(engineOwned ? previous : null, ShaderProgramBase.CurrentShaderProgram);
+        Assert.Equal(engineOwned ? previous : null, StateCache.ActiveProgram);
         if (engineOwned) Assert.Equal(2, previous.Submissions);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         if (engineOwned) previous.Stop();

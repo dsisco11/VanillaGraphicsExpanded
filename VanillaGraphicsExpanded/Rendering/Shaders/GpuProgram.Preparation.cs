@@ -18,6 +18,9 @@ public abstract partial class GpuProgram
     #endregion
 
     #region Internal API
+    /// <summary>Supplies replacement admission to the common activation workflow.</summary>
+    bool IGpuProgram.RequiresPreparation => RequiresPreparation;
+
     /// <summary>Reports whether an explicit preload must prepare a new generation.</summary>
     internal bool RequiresPreparation => reloadRequired || !IsLinked || NeedsRecompile;
 
@@ -56,6 +59,7 @@ public abstract partial class GpuProgram
             readySettings = settings;
             return true;
         }
+        lifetime.RequireUnborrowed();
         var plan = new ShaderLoadPlan(settings);
         if (failedPreparation?.SameInputs(plan) == true) return false;
         if (!CompileAndLink())

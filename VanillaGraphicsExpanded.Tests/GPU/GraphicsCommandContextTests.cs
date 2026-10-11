@@ -156,7 +156,7 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
         var previous = programs.Create<RasterDepthReductionShaderProgram>();
         previous.HzbDepth = source; previous.SrcMip = 0;
         using var previousScope = previous.UseScope();
-        var owner = ShaderProgramBase.CurrentShaderProgram;
+        var owner = StateCache.ActiveProgram;
         Assert.Same(previous, owner);
         int framebuffer = GL.GetInteger(GetPName.DrawFramebufferBinding);
         int[] viewport = new int[4]; GL.GetInteger(GetPName.Viewport, viewport);
@@ -167,7 +167,7 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
             commands.Draw(geometry, new(0, 3));
             throw new ArithmeticException("Fixture failure after submission.");
         }));
-        Assert.Same(owner, ShaderProgramBase.CurrentShaderProgram);
+        Assert.Same(owner, StateCache.ActiveProgram);
         Assert.Equal(framebuffer, GL.GetInteger(GetPName.DrawFramebufferBinding));
         int[] restored = new int[4]; GL.GetInteger(GetPName.Viewport, restored); Assert.Equal(viewport, restored);
         Assert.True(GraphicsCommandContext.TryRun("SubmissionRetry", [pipeline], true, commands =>

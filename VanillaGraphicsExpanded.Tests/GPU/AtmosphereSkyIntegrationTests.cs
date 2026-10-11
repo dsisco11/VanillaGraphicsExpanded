@@ -9,6 +9,7 @@ using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using Vintagestory.API.Client;
@@ -68,6 +69,8 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         api.SetupGet(value => value.World.Player).Returns(CreatePlayer());
         api.SetupGet(value => value.World.SeaLevel).Returns(0);
         programs.Initialize(api.Object);
+        using var frameCamera = TestFrameCamera.CreateIdentity(2, 2);
+        GpuShaderPrograms.Get<AtmosphereSkyShaderProgram>(api.Object, "pbr_sky")!.FrameInputs = frameCamera;
         using var gbuffer = new GBufferManager(api.Object);
         Assert.True(gbuffer.EnsureBuffers(2, 2));
         using var sky = new AtmosphereSkyRenderer(api.Object, gbuffer);
@@ -110,7 +113,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                     sky.OnRenderFrame(0, EnumRenderStage.Opaque);
                     hostile.AssertRestored();
                 }
-                Assert.Equal(before + 1, StateCache.Current.DrawSubmissions);
+                Assert.True(before + 1 == StateCache.Current.DrawSubmissions, string.Join(Environment.NewLine, assets.Logs));
                 Assert.Null(ShaderProgramBase.CurrentShaderProgram);
                 Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
                 int activeUnit = StateCache.Current.GetActiveTextureUnit();
@@ -125,22 +128,28 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                 for (int attachment = 2; attachment < 8; attachment++)
                 {
                     if (attachment == 2 && !ssao) continue;
-                    using var texture = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0,
-                        gbuffer.PrimaryFramebuffer.GetAttachment(FramebufferAttachment.ColorAttachment0 + attachment)!.TextureId);
-                    if (attachment == 6)
+                    // Metadata layers share one array allocation; read their framebuffer attachment instead of a 2D alias.
+                    using var read = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, engine.FboId);
+                    int priorReadBuffer = GL.GetInteger(GetPName.ReadBuffer);
+                    try
                     {
-                        uint[] pixels = new uint[16];
-                        GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.RgbaInteger, PixelType.UnsignedInt, pixels);
-                        Assert.All(pixels, value => Assert.Equal(6u, value));
+                        GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + attachment);
+                        if (attachment == 6)
+                        {
+                            uint[] pixels = new uint[16];
+                            GL.ReadPixels(0, 0, 2, 2, PixelFormat.RgbaInteger, PixelType.UnsignedInt, pixels);
+                            Assert.All(pixels, value => Assert.Equal(6u, value));
+                        }
+                        else
+                        {
+                            float[] pixels = new float[16];
+                            GL.ReadPixels(0, 0, 2, 2, PixelFormat.Rgba, PixelType.Float, pixels);
+                            Assert.All(pixels, value => Assert.Equal((float)attachment, value));
+                        }
                     }
-                    else
-                    {
-                        float[] pixels = new float[16];
-                        GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
-                        Assert.All(pixels, value => Assert.Equal((float)attachment, value));
-                    }
+                    finally { GL.ReadBuffer((ReadBufferMode)priorReadBuffer); }
                 }
-                }
+            }
             Mock.Get(render).Verify(value => value.DeleteMesh(It.IsAny<MeshRef>()), Times.Never);
             Mock.Get(render).Verify(value => value.UploadMesh(It.IsAny<MeshData>()), Times.Never);
             frames[(int)EnumFrameBuffer.LiquidDepth] = null!;
@@ -151,11 +160,12 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
             // A resource exception latches owned drawing until reload without reviving vanilla.
             frames[(int)EnumFrameBuffer.LiquidDepth] = new FrameBufferRef { DepthTextureId = liquidDepth.TextureId, Width = 2, Height = 2 };
             events.Raise(value => value.ReloadShader += null!);
-            Mock.Get(render).SetupGet(value => value.CurrentProjectionMatrix).Returns(new float[16]);
+            // Camera inversion belongs to the shared frame owner; fail the sky-owned effect capture instead.
+            Mock.Get(render).SetupGet(value => value.ShaderUniforms).Throws(new InvalidOperationException("Fixture sky capture failure."));
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.Equal(missing, StateCache.Current.DrawSubmissions);
             Assert.False(AtmosphereSkyDrawHook.Prefix());
-            Mock.Get(render).SetupGet(value => value.CurrentProjectionMatrix).Returns(identity);
+            Mock.Get(render).SetupGet(value => value.ShaderUniforms).Returns(uniforms);
             events.Raise(value => value.ReloadShader += null!);
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.Equal(missing + 1, StateCache.Current.DrawSubmissions);

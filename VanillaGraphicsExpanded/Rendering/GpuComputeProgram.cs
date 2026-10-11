@@ -1,8 +1,6 @@
 using System;
-using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Shaders;
-using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -11,7 +9,6 @@ internal abstract class GpuComputeProgram : IGpuProgram
 {
     protected readonly GpuComputePipeline pipeline;
     private readonly GpuProgramLifetime lifetime = new();
-    [ThreadStatic] private static Dictionary<int, WeakReference<GpuComputeProgram>>? owners;
 
     #region Public API
     #region Executable state
@@ -30,6 +27,9 @@ internal abstract class GpuComputeProgram : IGpuProgram
     #region Submission and execution
     /// <summary>Activates the executable and publishes the complete retained input set.</summary>
     public void Use() => ((IGpuProgram)this).Activate();
+
+    /// <summary>Ends only this owner's current direct activation.</summary>
+    public void Stop() => StateCache.Current.StopProgram(this);
 
     /// <summary>Publishes inputs and restores the previous executable on scope exit.</summary>
     public IDisposable UseScope() => ((IGpuProgram)this).BeginUse();
@@ -58,18 +58,13 @@ internal abstract class GpuComputeProgram : IGpuProgram
     #endregion
     #endregion
 
-    #region Internal API
-    /// <summary>Captures compute ownership so scopes cannot mistake a retired owner for a raw executable.</summary>
-    internal static GpuComputeProgram? FindOwner(int program)
-    {
-        return owners != null && owners.TryGetValue(program, out var reference) && reference.TryGetTarget(out var owner)
-            ? owner : null;
-    }
-    #endregion
-
     #region Protected API
     /// <summary>Adopts the existing compute executable and its preparation policy.</summary>
-    protected GpuComputeProgram(GpuComputePipeline pipeline) => this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+    protected GpuComputeProgram(GpuComputePipeline pipeline)
+    {
+        this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
+        lifetime.NativeExecutable = pipeline;
+    }
     /// <summary>Allows derived resource owners to preserve idempotent disposal.</summary>
     protected bool IsDisposed => lifetime.IsRetired;
     /// <summary>Rejects input writes during submission or after disposal.</summary>
@@ -88,42 +83,32 @@ internal abstract class GpuComputeProgram : IGpuProgram
     /// <summary>Preserves compute's eager or deferred one-time preparation policy.</summary>
     bool IGpuProgram.PrepareExecutable() => pipeline.EnsureReady();
 
-    /// <summary>Preserves the existing native handoff until scoped ownership migration.</summary>
-    void IGpuProgram.BindExecutable()
-    {
-        ShaderProgramBase.CurrentShaderProgram?.Stop();
-        StateCache.Current.UseProgram(ProgramId);
-    }
-    /// <summary>Publishes generated inputs and retains the temporary restoration lookup.</summary>
-    void IGpuProgram.PublishInputs()
-    {
-        Submit();
-        (owners ??= new())[ProgramId] = new(this);
-    }
-    /// <summary>Unbinds an incomplete compute activation.</summary>
+    /// <summary>Admits compute ownership without consulting engine shader state.</summary>
+    void IGpuProgram.BindExecutable() => StateCache.Current.ActivateProgram(this);
+    /// <summary>Publishes the complete authored or generated input set.</summary>
+    void IGpuProgram.PublishInputs() => Submit();
+    /// <summary>Clears only the failing admitted compute activation.</summary>
     void IGpuProgram.ClearActivation(bool bindingEntered)
     {
-        if (bindingEntered) StateCache.Current.UnbindProgram();
+        if (bindingEntered) StateCache.Current.StopProgram(this);
     }
+    /// <summary>Identifies the installed compute executable generation.</summary>
+    ulong IGpuProgram.ExecutableRevision => pipeline.ExecutableRevision;
+    /// <summary>Preserves one-time compute preparation while allowing already borrowed native reuse.</summary>
+    bool IGpuProgram.RequiresPreparation => !pipeline.IsValid;
+    /// <summary>Identifies the compute executable's originating context.</summary>
+    (nint Handle, long Generation) IGpuProgram.ExecutableContext => pipeline.ExecutableContext;
     /// <summary>Exposes stable lifecycle data solely to the common workflow.</summary>
     GpuProgramLifetime IGpuProgram.Lifetime => lifetime;
 
-    /// <summary>Preserves existing compute restoration until program scopes migrate.</summary>
-    IDisposable IGpuProgram.OpenUseScope()
-    {
-        RequireInputMutation();
-        var previous = ShaderProgramBase.CurrentShaderProgram;
-        int previousId = StateCache.Current.GetCurrentProgram();
-        // Retain owner identity before nested work can dispose it or recycle its GL name.
-        return new SubmissionScope(previous, previousId, FindOwner(previousId));
-    }
+    /// <summary>Captures the enclosing managed generation through the existing tracker.</summary>
+    IDisposable IGpuProgram.OpenUseScope(bool replayInputs) => StateCache.Current.CaptureProgramScope(replayInputs);
 
     /// <summary>Routes interface disposal through the same terminal facade.</summary>
     void IDisposable.Dispose() => Dispose();
-    /// <summary>Releases the single compute executable owner and temporary restoration lookup.</summary>
+    /// <summary>Releases the single compute executable owner after all activation borrows end.</summary>
     void IGpuProgram.ReleaseExecutable()
     {
-        owners?.Remove(ProgramId);
         pipeline.Dispose();
     }
     /// <summary>Invokes extra-resource cleanup independently of native executable cleanup.</summary>
@@ -131,26 +116,5 @@ internal abstract class GpuComputeProgram : IGpuProgram
 
     #endregion
 
-    #region Restoration
-    /// <summary>Restores graphics and compute ownership as well as the underlying GL executable.</summary>
-    private sealed class SubmissionScope(ShaderProgramBase? previous, int program, GpuComputeProgram? compute) : IDisposable
-    {
-        private bool ended;
-        /// <summary>Re-publishes the enclosing owner's resources once on scope exit.</summary>
-        public void Dispose()
-        {
-            if (ended) return;
-            ended = true;
-            try
-            {
-                if (previous is GpuProgram graphics) graphics.Use();
-                else if (previous != null) previous.Use();
-                else if (compute != null) compute.Use();
-                else StateCache.Current.UseProgram(program);
-            }
-            catch { StateCache.Current.UnbindProgram(); throw; }
-        }
-    }
-    #endregion
     #endregion
 }

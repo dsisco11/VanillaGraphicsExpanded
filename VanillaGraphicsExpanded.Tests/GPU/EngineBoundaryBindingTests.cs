@@ -138,11 +138,11 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
             Action run = () => Assert.True(EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Shader"), footprint, scope =>
             {
                 scope.AddCleanup(EngineBoundaryCleanup.Shader, inner.UseScope());
-                Assert.Same(inner, ShaderProgramBase.CurrentShaderProgram);
+                Assert.Same(inner, StateCache.ActiveProgram);
                 if (failDraw) throw operationFailure;
             }));
             if (failDraw) Assert.Same(operationFailure, Assert.Throws<InvalidOperationException>(run)); else run();
-            Assert.Same(previous, ShaderProgramBase.CurrentShaderProgram);
+            Assert.Same(previous, StateCache.ActiveProgram);
             Assert.Equal(previous.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.True(StateCache.Current.TryGetCachedCurrentProgram(out int cached)); Assert.Equal(previous.ProgramId, cached);
         }

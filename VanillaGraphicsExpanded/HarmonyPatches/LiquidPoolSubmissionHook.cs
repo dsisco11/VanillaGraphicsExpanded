@@ -17,11 +17,6 @@ internal static class LiquidPoolSubmissionHook
         // MeshDataPoolManager stages mini-dimension state and origin before RenderMesh,
         // then restores transforms afterwards. Only our liquid owners use this boundary.
         if (LiquidGraphicsSubmission.TryDraw(__instance)) return false;
-        switch (ShaderProgramBase.CurrentShaderProgram)
-        {
-            case LiquidShaderProgram liquid: liquid.Use(); break;
-            case LiquidDepthShaderProgram depth: depth.Use(); break;
-        }
         return true;
     }
     #endregion

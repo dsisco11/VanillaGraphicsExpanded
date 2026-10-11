@@ -367,8 +367,9 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         using var volume = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
         AssignTextures(program, texture, volume, sharedCamera, sharedLights);
         using var activation = program.UseScope();
-        Assert.Same(program, Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
-        IShaderProgram engine = (IShaderProgram)Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram;
+        Assert.Same(program, StateCache.ActiveProgram);
+        Assert.Null(Vintagestory.Client.NoObf.ShaderProgramBase.CurrentShaderProgram);
+        IShaderProgram engine = new VanillaGraphicsExpanded.Rendering.Integration.LiquidPoolInputAdapter(program);
         int frameBlock = program.ProgramLayout.BinaryInterface!.GetUniformBlockIndex(LiquidFrameParamsUbo.BlockName);
         GL.GetActiveUniformBlock(program.ProgramId, frameBlock, ActiveUniformBlockParameter.UniformBlockDataSize, out int frameSize);
         Assert.Equal(LiquidFrameParamsUbo.BlockSize, frameSize);
@@ -380,12 +381,12 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         engine.UniformMatrix("modelViewMatrix", identity);
         engine.Uniform("forcedTransparency", .25f);
         engine.Uniform("origin", new Vec3f(1, 2, 3));
-        LiquidPoolSubmissionHook.Prefix(null!);
+        program.Use();
         var first = ReadDraw(out int firstOffset, out int firstBuffer);
         Assert.Equal(new float[] { 1, 2, 3, .25f }, first[16..]);
         engine.Uniform("origin", new Vec3f(-4, 5, 6));
         Assert.Equal(first, ReadDraw(out _, out _));
-        LiquidPoolSubmissionHook.Prefix(null!);
+        program.Use();
         var second = ReadDraw(out int secondOffset, out int secondBuffer);
         Assert.True(firstBuffer != secondBuffer || firstOffset != secondOffset);
         Assert.Equal(new float[] { -4, 5, 6, .25f }, second[16..]);
@@ -398,11 +399,11 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         }
         var moved = (float[])identity.Clone(); moved[12] = 7;
         engine.UniformMatrix("modelViewMatrix", moved);
-        LiquidPoolSubmissionHook.Prefix(null!);
+        program.Use();
         Assert.Equal(7, ReadDraw(out _, out _)[12]);
         engine.UniformMatrix("modelViewMatrix", identity);
         engine.Uniform("forcedTransparency", 0f);
-        LiquidPoolSubmissionHook.Prefix(null!);
+        program.Use();
         var restored = ReadDraw(out _, out _);
         Assert.Equal(identity, restored[..16]);
         Assert.Equal(0, restored[19]);

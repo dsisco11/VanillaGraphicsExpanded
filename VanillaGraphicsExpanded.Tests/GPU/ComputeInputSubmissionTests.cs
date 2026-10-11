@@ -34,11 +34,11 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Retiring the enclosing compute owner cannot restore a deleted program identifier.</summary>
+    /// <summary>Suspended compute generations reject retirement before native resources can be deleted.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void RetiredEnclosingComputeFailsClosed(bool innerGraphics)
+    public void BorrowedEnclosingComputeRejectsRetirement(bool innerGraphics)
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
@@ -58,23 +58,11 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         IDisposable inner;
         if (innerGraphics) inner = graphics.UseScope();
         else inner = outer.UseScope();
-        outer.Dispose();
-        try
-        {
-            if (innerGraphics)
-            {
-                var failure = Assert.Throws<VanillaGraphicsExpanded.Rendering.Shaders.ShaderOwnershipRestoreException>(inner.Dispose);
-                Assert.IsType<ObjectDisposedException>(failure.InnerException);
-            }
-            else Assert.Throws<ObjectDisposedException>(inner.Dispose);
-            Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
-        }
-        finally
-        {
-            StateCache.Current.UnbindProgram();
-            while (GL.GetError() != ErrorCode.NoError) { }
-        }
+        Assert.Throws<InvalidOperationException>(outer.Dispose);
+        inner.Dispose();
+        Assert.Same(outer, StateCache.ActiveProgram);
+        AssertBound(outer.ProgramId, texture.TextureId, counters.Buffer.BufferId);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     /// <summary>Nested owners restore graphics, compute samplers and counter storage without resetting values.</summary>
@@ -110,10 +98,10 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
                 AssertBound(first.ProgramId, firstTexture.TextureId, firstCounters.Buffer.BufferId);
                 using (second.UseScope()) AssertBound(second.ProgramId, secondTexture.TextureId, secondCounters.Buffer.BufferId);
                 AssertBound(first.ProgramId, firstTexture.TextureId, firstCounters.Buffer.BufferId);
-                using (graphics.UseScope()) Assert.Same(graphics, ShaderProgramBase.CurrentShaderProgram);
+                using (graphics.UseScope()) Assert.Same(graphics, StateCache.ActiveProgram);
                 AssertBound(first.ProgramId, firstTexture.TextureId, firstCounters.Buffer.BufferId);
             }
-            Assert.Same(graphics, ShaderProgramBase.CurrentShaderProgram);
+            Assert.Same(graphics, StateCache.ActiveProgram);
             Assert.Equal(graphics.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
         }
         Assert.Equal(17u, firstCounters.Read());

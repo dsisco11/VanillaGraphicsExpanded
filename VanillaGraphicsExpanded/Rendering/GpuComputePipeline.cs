@@ -22,6 +22,10 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
 {
     private int programId;
+    /// <summary>Identifies the single installed native generation.</summary>
+    internal ulong ExecutableRevision { get; private set; }
+    /// <summary>Identifies the native context owning that generation.</summary>
+    internal (nint Handle, long Generation) ExecutableContext { get; private set; }
     private GpuProgramLayout programLayout = GpuProgramLayout.Empty;
 
     private Action<string>? warn;
@@ -56,6 +60,11 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
     private GpuComputePipeline(int programId, GpuProgramLayout programLayout, Action<string>? warn)
     {
         this.programId = programId;
+        if (programId != 0)
+        {
+            ExecutableRevision = 1;
+            ExecutableContext = Integration.RenderContextRegistry.Current();
+        }
         this.programLayout = programLayout;
         this.warn = warn;
     }
@@ -344,6 +353,8 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
             throw new InvalidOperationException("Compute preparation failed: " + preparationLog);
         }
 
+        RequireActivationContext();
+        Integration.NativeShaderHandoff.RequireInactive();
         StateCache.Current.UseProgram(programId);
     }
 
@@ -357,6 +368,8 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
             return false;
         }
 
+        RequireActivationContext();
+        Integration.NativeShaderHandoff.RequireInactive();
         StateCache.Current.UseProgram(programId);
         return true;
     }
@@ -367,8 +380,10 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
     public ProgramScope UseScope()
     {
         if (!EnsureReady()) throw new InvalidOperationException(preparationLog);
-        var scope = StateCache.Current.UseProgramScope(programId);
-        return new ProgramScope(scope);
+        RequireActivationContext();
+        RetainPassReference();
+        try { return new ProgramScope(new ComputeScope(this, StateCache.Current.UseProgramScope(programId))); }
+        catch { ReleasePassReference(); throw; }
     }
 
     /// <summary>
@@ -428,19 +443,14 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
     /// </summary>
     public readonly struct ProgramScope : IDisposable
     {
-        private readonly StateCache.ProgramScope scope;
-
-        public ProgramScope(StateCache.ProgramScope scope)
-        {
-            this.scope = scope;
-        }
-
-        public void Dispose()
-        {
-            scope.Dispose();
-        }
+        private readonly IDisposable? scope;
+        /// <summary>Shares the native borrow and binding restoration token between value copies.</summary>
+        internal ProgramScope(IDisposable scope) => this.scope = scope;
+        /// <summary>Ends native borrowing and restores only the saved binding.</summary>
+        public void Dispose() => scope?.Dispose();
     }
-
+    #region Protected API
+    /// <summary>Withdraws the deleted executable layout and diagnostic callback.</summary>
     protected override void OnAfterDelete()
     {
         warn = null;
@@ -448,4 +458,32 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
         // Keep the contract but clear the active snapshot for safety.
         programLayout.RebuildCache(programId: 0);
     }
+    #endregion
+
+    #region Private
+    /// <summary>Rejects an executable from a retired or different native context before binding.</summary>
+    private void RequireActivationContext()
+    {
+        var context = Integration.RenderContextRegistry.Current();
+        if (context.Handle == 0 || ExecutableContext != context)
+            throw new InvalidOperationException("Compute executable belongs to a different or retired render context.");
+    }
+
+    /// <summary>Pairs binding-only restoration with the existing native resource borrow contract.</summary>
+    private sealed class ComputeScope(GpuComputePipeline owner, StateCache.ProgramScope scope) : IDisposable
+    {
+        private bool ended;
+        /// <summary>Restores the binding once and releases the originating native owner's borrow.</summary>
+        public void Dispose()
+        {
+            if (ended) return;
+            // An out-of-order rejection must leave both the token and its native borrow usable.
+            try { scope.Dispose(); }
+            finally
+            {
+                if (scope.IsEnded) { ended = true; owner.ReleasePassReference(); }
+            }
+        }
+    }
+    #endregion
 }

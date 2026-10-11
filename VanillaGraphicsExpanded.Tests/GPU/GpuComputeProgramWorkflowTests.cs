@@ -1,5 +1,6 @@
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using Vintagestory.Client.NoObf;
@@ -66,7 +67,7 @@ public sealed class GpuComputeProgramWorkflowTests(HeadlessGLFixture fixture) : 
         var outerGraphics = programs.Create<GpuProgramUseScopeTests.CountingShader>();
         using var scope = graphics ? (IDisposable)outerGraphics.UseScope() : outerCompute.UseScope();
         int expected = GL.GetInteger(GetPName.CurrentProgram);
-        var engineOwner = ShaderProgramBase.CurrentShaderProgram;
+        var engineOwner = StateCache.ActiveProgram;
         assets.BeforeRead = path =>
         {
             if (path.EndsWith(".spv", StringComparison.Ordinal)) assets.Overrides[path] = new byte[20];
@@ -74,11 +75,95 @@ public sealed class GpuComputeProgramWorkflowTests(HeadlessGLFixture fixture) : 
         using var failed = new Owner(GpuComputePipeline.DeclareFromAssets(assets.Api, settings));
         Assert.Throws<InvalidOperationException>(failed.Use);
         Assert.Equal(expected, GL.GetInteger(GetPName.CurrentProgram));
-        Assert.Same(engineOwner, ShaderProgramBase.CurrentShaderProgram);
+        Assert.Same(engineOwner, StateCache.ActiveProgram);
         Assert.Throws<InvalidOperationException>(() => ((IGpuProgram)failed).BeginUse());
         Assert.Equal(expected, GL.GetInteger(GetPName.CurrentProgram));
-        Assert.Same(engineOwner, ShaderProgramBase.CurrentShaderProgram);
+        Assert.Same(engineOwner, StateCache.ActiveProgram);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    /// <summary>Managed and binding-only scopes reuse the native resource borrower guard against disposal and detach.</summary>
+    [Fact]
+    public void NativePipelineCannotRetireWhileScoped()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
+        var native = GpuComputePipeline.DeclareFromAssets(assets.Api, settings);
+        using var owner = new Owner(native);
+        Assert.True(owner.EnsureReady());
+        using (owner.UseScope())
+        {
+            Assert.Throws<InvalidOperationException>(native.Dispose);
+            Assert.Throws<InvalidOperationException>(() => native.Detach());
+        }
+        using (native.UseScope())
+        {
+            Assert.Null(StateCache.ActiveProgram);
+            Assert.Throws<InvalidOperationException>(native.Dispose);
+            Assert.Throws<InvalidOperationException>(() => native.Detach());
+        }
+        Assert.True(native.IsValid);
+        Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
+    }
+    /// <summary>Raw compute entry rejects a genuine engine shader before changing its native or managed ownership.</summary>
+    [Fact]
+    public void RawComputeCannotInterruptNativeShader()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var programs = new ComponentShaderPrograms();
+        var graphics = programs.Create<GpuProgramUseScopeTests.CountingShader>();
+        var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
+        using var raw = GpuComputePipeline.DeclareFromAssets(assets.Api, settings);
+        Assert.True(raw.EnsureReady());
+        var native = new ShaderProgram { ProgramId = graphics.ProgramId };
+        StateCache.Current.UseProgram(graphics.ProgramId);
+        ShaderProgramBase.CurrentShaderProgram = native;
+        try
+        {
+            Assert.Throws<InvalidOperationException>(raw.Use);
+            Assert.Throws<InvalidOperationException>(() => raw.TryUse());
+            Assert.Throws<InvalidOperationException>(() => raw.UseScope());
+            Assert.Same(native, ShaderProgramBase.CurrentShaderProgram);
+            Assert.Equal(graphics.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+            Assert.Null(StateCache.ActiveProgram);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { ShaderProgramBase.CurrentShaderProgram = null; StateCache.Current.UnbindProgram(); }
+    }
+
+    /// <summary>Raw compute entry rejects an obsolete installed context tuple before altering a later owner.</summary>
+    [Fact]
+    public void RawComputeCannotActivateAfterContextGenerationReuse()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var programs = new ComponentShaderPrograms();
+        var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
+        using var raw = GpuComputePipeline.DeclareFromAssets(assets.Api, settings);
+        Assert.True(raw.EnsureReady());
+        var replacement = new object();
+        RenderContextRegistry.Retire(fixture);
+        RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
+        try
+        {
+            // The integer GL namespace stays unchanged while its registered lifetime is replaced.
+            var later = programs.Create<GpuProgramUseScopeTests.CountingShader>();
+            later.Use();
+            Assert.Throws<InvalidOperationException>(raw.Use);
+            Assert.Throws<InvalidOperationException>(() => raw.TryUse());
+            Assert.Throws<InvalidOperationException>(() => raw.UseScope());
+            Assert.Same(later, StateCache.ActiveProgram);
+            Assert.Equal(later.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+            later.Stop();
+        }
+        finally
+        {
+            StateCache.Current.UnbindProgram();
+            RenderContextRegistry.Retire(replacement);
+            RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+        }
     }
     #endregion
 

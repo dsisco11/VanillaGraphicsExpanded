@@ -1,4 +1,3 @@
-using System.Reflection;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -65,9 +64,9 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             Assert.Equal(1, imageLayered);
             Assert.Equal(0, imageLayer);
             direct.ProgramId = 0;
-            GL.ActiveTexture(TextureUnit.Texture7);
-            GL.BindTexture(TextureTarget.Texture3D, 0);
-            GL.ActiveTexture(TextureUnit.Texture3);
+            StateCache.Current.ActiveTexture(7);
+            StateCache.Current.BindTexture(TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), 0);
+            StateCache.Current.ActiveTexture(3);
             GL.GetInteger(GetPName.TextureBinding3D, out int priorInput);
             shader.Input = input;
             shader.Output = new(output, Access: TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.R32ui);
@@ -75,7 +74,7 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             GL.GetInteger(GetPName.TextureBinding3D, out int stagedInput);
             Assert.Equal(priorInput, stagedInput);
             Publish(shader);
-            GL.ActiveTexture(TextureUnit.Texture7);
+            StateCache.Current.ActiveTexture(7);
             GL.GetInteger(GetPName.TextureBinding3D, out int unusedBinding);
             Assert.Equal(0, unusedBinding);
             GL.DispatchCompute(1, 1, 1);
@@ -83,7 +82,7 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             GpuTestFence.WaitForGpuOrSkip("Generated resource binding dispatch");
             uint[] result = new uint[1];
             GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-            GL.BindTexture(TextureTarget.Texture3D, output.TextureId);
+            StateCache.Current.BindTexture(TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), output.TextureId);
             GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, result);
             Assert.Equal(123u, result[0]);
             // Optional active absence explicitly clears a binding left by the preceding owner.
@@ -92,7 +91,7 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             optional = optional with { Contract = optional.Contract with { Binding = optional.Contract.Binding with { Required = false } } };
             ShaderPreparedSubmission.ValidateSampler(optional, (GpuTexture?)null);
             ShaderPreparedSubmission.Sampler(optional, (GpuTexture?)null);
-            GL.ActiveTexture(TextureUnit.Texture3);
+            StateCache.Current.ActiveTexture(3);
             GL.GetInteger(GetPName.TextureBinding3D, out int clearedInput);
             Assert.Equal(0, clearedInput);
             shader.ProgramId = 0;
@@ -100,7 +99,7 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
         finally
         {
             GL.UseProgram(0);
-            GL.BindTexture(TextureTarget.Texture3D, 0);
+            StateCache.Current.BindTexture(TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), 0);
             TestShaderInterfaces.DeleteProgram(program);
             TestShaderInterfaces.DeleteShader(module);
         }
@@ -109,6 +108,6 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
 
     #region Private
     /// <summary>Runs production publication for a fixture-owned executable without invoking asset readiness.</summary>
-    private static void Publish(GpuProgram shader) => typeof(GpuProgram).GetMethod("SubmitPreparedInputs", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(shader, null);
+    private static void Publish(GpuProgram shader) => ((IGpuProgram)shader).ReplayInputs();
     #endregion
 }

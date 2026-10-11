@@ -36,7 +36,9 @@ internal static class EngineRenderScopes
     });
 
     /// <summary>Identifies the current fullscreen shader without querying driver state.</summary>
-    internal static string FullscreenName() => ShaderProgramBase.CurrentShaderProgram is { } program
+    internal static string FullscreenName() => StateCache.ActiveProgram is Shaders.GpuProgram owned
+        ? $"{owned.AssetDomain}:{owned.PassName}"
+        : ShaderProgramBase.CurrentShaderProgram is { } program
         ? Programs.GetValue(program, static value => $"{value.AssetDomain ?? "game"}:{value.PassName ?? value.GetType().Name}")
         : "Fullscreen";
     #endregion

@@ -46,7 +46,7 @@ public sealed class LiquidGraphicsSubmissionTests(HeadlessGLFixture fixture) : R
         Assert.True(submission.Run(shader, [manager], new(target, [new(0)]), new(), [new ColorBlendDesc()], () =>
         {
             Assert.False(LiquidMeshSource.UseSsbo(render));
-            Assert.Same(shader, ShaderProgramBase.CurrentShaderProgram);
+            Assert.Null(ShaderProgramBase.CurrentShaderProgram);
             shader.HzbDepth = second;
             Assert.False(LiquidPoolSubmissionHook.Prefix(storage.Pool));
         }));

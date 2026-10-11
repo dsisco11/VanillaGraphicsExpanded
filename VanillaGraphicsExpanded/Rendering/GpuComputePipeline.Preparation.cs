@@ -44,6 +44,8 @@ internal sealed partial class GpuComputePipeline
         // Transfer the linked object and its interface together; the temporary owner no longer owns GL state.
         programLayout = candidate.programLayout;
         InstalledSettings = candidate.InstalledSettings;
+        ExecutableContext = candidate.ExecutableContext;
+        ExecutableRevision++;
         programId = (int)candidate.Detach();
         prepare = null;
         return true;

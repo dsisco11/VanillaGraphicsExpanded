@@ -157,6 +157,13 @@ internal sealed partial class StateCache
     /// <summary>Selects an executable only when its binding is unknown or different.</summary>
     public void UseProgram(int programId)
     {
+        ProgramScopeTracker.ForgetCurrent();
+        UseProgramBinding(programId);
+    }
+
+    /// <summary>Binds through the single native cache without withdrawing an admitted owner.</summary>
+    private void UseProgramBinding(int programId)
+    {
         if (currentProgram == programId) return;
         try
         {
@@ -176,27 +183,6 @@ internal sealed partial class StateCache
     public void UnbindProgram()
     {
         UseProgram(0);
-    }
-
-    public ProgramScope UseProgramScope(int programId)
-    {
-        int previous = ProgramScopeTracker.Begin(programId);
-        return new ProgramScope(previous);
-    }
-
-    public readonly struct ProgramScope : IDisposable
-    {
-        private readonly int previous;
-
-        public ProgramScope(int previous)
-        {
-            this.previous = previous;
-        }
-
-        public void Dispose()
-        {
-            ProgramScopeTracker.End(previous);
-        }
     }
 
     public int GetCurrentVao()
@@ -530,13 +516,6 @@ internal sealed partial class StateCache
         {
             TransformFeedbackScopeTracker.End(previous);
         }
-    }
-
-    private sealed class ProgramScopeTracker : BindScopeTracker<ProgramScopeTracker>
-    {
-        protected override int GetCurrent() => StateCache.Current.GetCurrentProgram();
-
-        protected override void Bind(int id) => StateCache.Current.UseProgram(id);
     }
 
     private sealed class VaoScopeTracker : BindScopeTracker<VaoScopeTracker>

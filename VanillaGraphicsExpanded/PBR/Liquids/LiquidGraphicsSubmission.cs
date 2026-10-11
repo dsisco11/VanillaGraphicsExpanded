@@ -4,6 +4,7 @@ using System.Linq;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
@@ -26,6 +27,8 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
     private GraphicsPipeline? pipeline;
     private GraphicsCommandContext? commands;
     private bool dirty = true;
+    private GpuProgram? inputOwner;
+    private LiquidPoolInputAdapter? inputAdapter;
 
     #region Public API
     /// <summary>Invalidates borrowed target metadata when the engine publishes rebuilt screen resources.</summary>
@@ -55,6 +58,11 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
         DepthStencilDesc depth, IReadOnlyList<ColorBlendDesc> blends, Action renderManagers)
     {
         if (!shader.EnsureReady()) return false;
+        if (!ReferenceEquals(inputOwner, shader))
+        {
+            inputOwner = shader;
+            inputAdapter = shader is ILiquidPoolInputs inputs ? new(inputs) : null;
+        }
         var current = managers.SelectMany(manager => ReadPools(manager)).ToHashSet();
         foreach (var old in geometry.Keys.Where(pool => !current.Contains(pool)).ToArray())
         { geometry[old].Dispose(); geometry.Remove(old); }
@@ -79,9 +87,7 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
             context.BeginPass(pass);
             context.SetPipeline(pipeline);
             context.SetDynamicState(new() { Viewport = context.PassViewport });
-            // Managers use CurrentActiveShader to stage origin and mini-dimension transforms.
-            // The context owns activation through exceptional cleanup; the hook still validates each draw.
-            context.ActivateShaderForEngineInputs();
+            // The narrow input bridge stages retained values before Draw publishes them.
             var engine = (Vintagestory.Client.RenderAPIBase)api.Render;
             bool previous = LiquidMeshSource.UseSsbo(engine);
             commands = context; active = this;
@@ -89,6 +95,10 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
             finally { LiquidMeshSource.UseSsbo(engine) = previous; active = null; commands = null; }
         });
     }
+
+    /// <summary>Returns the input-only bridge solely during the existing active submission lifetime.</summary>
+    internal static IShaderProgram? ActiveInputs => active == null ? null : active.inputAdapter
+        ?? throw new InvalidOperationException("The selected liquid program has no pool input sink.");
 
     /// <summary>Replaces only a currently declared VGE liquid pool draw; unrelated engine pools retain their original path.</summary>
     internal static bool TryDraw(MeshDataPool pool)

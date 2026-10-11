@@ -83,16 +83,6 @@ internal sealed class GraphicsCommandContext
         dynamics = value;
     }
 
-    /// <summary>Exposes the selected typed shader bridge to a verified engine pool manager before it stages per-pool inputs.</summary>
-    /// <remarks>No geometry is submitted here. Each intercepted pool must still pass the ordinary Draw validation path.</remarks>
-    internal void ActivateShaderForEngineInputs()
-    {
-        RequireMutable();
-        var selected = pipeline ?? throw new InvalidOperationException("Engine input staging requires a selected pipeline.");
-        (pass ?? throw new InvalidOperationException("Engine input staging requires a pass.")).ValidatePipeline(selected);
-        ActivateShader(selected);
-    }
-
     /// <summary>Validates the full draw, publishes current typed inputs, and only then emits native geometry.</summary>
     internal void Draw(GraphicsGeometry geometry, GraphicsDraw draw)
     {
@@ -133,7 +123,7 @@ internal sealed class GraphicsCommandContext
     #endregion
 
     #region Private
-    /// <summary>Retains one activation owner so engine staging, draws and exceptional boundary cleanup share its lifetime.</summary>
+    /// <summary>Retains one activation owner so draws and exceptional boundary cleanup share its lifetime.</summary>
     private void ActivateShader(GraphicsPipeline selected)
     {
         if (activation is null || !ReferenceEquals(activation.Program, selected.Shader))
@@ -167,8 +157,8 @@ internal sealed class GraphicsCommandContext
     {
         private IDisposable? scope;
         internal GpuProgram Program { get; }
-        /// <summary>Uses the engine-aware activation path, including generated input publication.</summary>
-        internal ShaderActivation(GpuProgram program) { Program = program; scope = program.UseScope(); }
+        /// <summary>Uses the scoped VGE activation path, including generated input publication.</summary>
+        internal ShaderActivation(GpuProgram program) { Program = program; scope = program.UseScope(false); }
         /// <summary>Consumes the ownership scope once even when restoration throws.</summary>
         public void Dispose() { var value = scope; scope = null; value?.Dispose(); }
     }

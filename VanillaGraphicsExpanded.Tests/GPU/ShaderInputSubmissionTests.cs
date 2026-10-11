@@ -281,7 +281,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Equal(12f, UboPacking.ReadFloat(Parameters(shader).Bytes, 4));
             shader.Use();
             Assert.Equal(3, ring.AllocationsWritten);
-            // The retained resource set remains usable after program replacement and page reuse.
+            // End the direct use borrow before replacing the executable and reusing its uniform page.
+            shader.Stop();
             shader.InvalidateAssets();
             GL.Finish();
             ring.BeginFrame(1);

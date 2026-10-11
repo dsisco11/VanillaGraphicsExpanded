@@ -95,6 +95,9 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
         };
         shader.InvalidateAssets();
         Assert.Throws<InvalidOperationException>(() => ((IGpuProgram)shader).Activate());
+        AssertActive(shader);
+        shader.Stop();
+        Assert.Throws<InvalidOperationException>(() => ((IGpuProgram)shader).Activate());
         Assert.Null(ShaderProgramBase.CurrentShaderProgram);
         Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -109,6 +112,7 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
         var shader = programs.Create<CountingShader>();
         var harmony = new Harmony("VGE.Tests.ShaderInputSubmission.EngineUse");
         harmony.CreateClassProcessor(typeof(OwnedShaderSubmissionHook)).Patch();
+        harmony.CreateClassProcessor(typeof(GpuProgramStopHook)).Patch();
         try
         {
             ShaderProgramBase engineOwner = shader;
@@ -163,7 +167,7 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
     /// <summary>Observes the actual driver state; the cache alone cannot detect a refused engine activation.</summary>
     private static void AssertActive(ShaderProgramBase expected)
     {
-        Assert.Same(expected, ShaderProgramBase.CurrentShaderProgram);
+        Assert.Same(expected, StateCache.ActiveProgram);
         Assert.Equal(expected.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
         Assert.True(StateCache.Current.TryGetCachedCurrentProgram(out int cached));
         Assert.Equal(expected.ProgramId, cached);

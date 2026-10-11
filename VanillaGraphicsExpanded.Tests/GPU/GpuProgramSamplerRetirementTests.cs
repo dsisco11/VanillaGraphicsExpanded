@@ -23,7 +23,10 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        var program = programs.Create<PBRDirectLightingShaderProgram>();
+        using var camera = TestFrameCamera.CreateIdentity(1, 1);
+        using var lights = new VgeLightsUniformBuffer();
+        TestUniformRing.EnsureFrame();
+        var program = programs.Create<PBRDirectLightingShaderProgram>(owner => { owner.FrameInputs = camera; owner.LightsInputs = lights; });
         using var depth = Texture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
         using var input = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var unrelated = GpuSampler.Create();
@@ -44,15 +47,15 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 5, out int farSampler);
             Assert.NotEqual(0, nearSampler);
             Assert.NotEqual(0, farSampler);
-            // Engine callers consume IShaderProgram; a hidden concrete Stop would not protect this boundary.
+            // The temporary interface facade shares VGE stopping even without native engine hooks.
             ((IShaderProgram)program).Stop();
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 4, out nearSampler);
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 5, out farSampler);
-            Assert.Equal(installHook, nearSampler == 0);
-            Assert.Equal(installHook, farSampler == 0);
+            Assert.Equal(0, nearSampler);
+            Assert.Equal(0, farSampler);
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 9, out int retained);
             Assert.Equal(unrelated.SamplerId, retained);
-            if (installHook) AssertPlainTextureHandoff();
+            AssertPlainTextureHandoff();
         }
         finally
         {

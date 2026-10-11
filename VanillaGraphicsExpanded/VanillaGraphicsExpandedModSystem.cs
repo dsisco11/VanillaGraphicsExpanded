@@ -46,6 +46,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         harmony.PatchAll();
         // Rebuild render API callers only after their native state callees have been routed.
         EngineRenderApiStatePatches.Apply(harmony);
+        LiquidPoolInputBridgeHook.Install(harmony);
 
         // Atlas binding is injected by the renderer transpiler; retain frame-level mapping refresh.
         TerrainLumonSceneChunkSlotUniformBindingHook.ApplyPatches(harmony, api.Logger.Notification);

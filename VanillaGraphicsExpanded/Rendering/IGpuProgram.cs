@@ -6,9 +6,16 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Sequences preparation, publication and retirement for VGE executable owners.</summary>
 internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
 {
+    #region Public API
     #region Owner contract
     /// <summary>Provides stable lifecycle data without duplicating native ownership.</summary>
     GpuProgramLifetime Lifetime { get; }
+    /// <summary>Identifies the installed executable independently of its numeric name.</summary>
+    ulong ExecutableRevision { get; }
+    /// <summary>Identifies the originating registered native context lifetime.</summary>
+    (nint Handle, long Generation) ExecutableContext { get; }
+    /// <summary>Reports whether the requested executable needs installation rather than reuse.</summary>
+    bool RequiresPreparation { get; }
     /// <summary>Prepares the family-specific executable and reports readiness.</summary>
     bool PrepareExecutable();
     /// <summary>Establishes the family's existing activation ownership before publication.</summary>
@@ -18,7 +25,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     /// <summary>Clears this family's failed activation.</summary>
     void ClearActivation(bool bindingEntered);
     /// <summary>Captures the existing family restoration scope before activation.</summary>
-    IDisposable OpenUseScope();
+    IDisposable OpenUseScope(bool replayInputs);
     /// <summary>Releases the family's singular native executable owner.</summary>
     void ReleaseExecutable();
     /// <summary>Releases additional family-owned resources on terminal retirement.</summary>
@@ -26,6 +33,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     #endregion
 
     #region Default workflows
+    #region Preparation and activation
     /// <summary>Checks lifecycle admission before family-specific demand preparation.</summary>
     bool Prepare()
     {
@@ -39,6 +47,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     {
         // Reject recursion before this call owns cleanup of an activation.
         Lifetime.RequireMutation();
+        if (RequiresPreparation) Lifetime.RequireUnborrowed();
         bool bindingEntered = false;
         try
         {
@@ -47,9 +56,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
             // a new compute owner cannot clear an unrelated binding before entering its bind.
             bindingEntered = true;
             BindExecutable();
-            Lifetime.IsPublishing = true;
-            try { PublishInputs(); }
-            finally { Lifetime.IsPublishing = false; }
+            PublishGuardedInputs();
         }
         catch (Exception failure)
         {
@@ -59,11 +66,26 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
         }
     }
 
-    /// <summary>Enters the established family scope after rejecting recursive or retired use.</summary>
-    IDisposable BeginUse()
+    /// <summary>Replays retained inputs for an already validated borrowed executable without demand replacement.</summary>
+    void ReplayInputs()
     {
         Lifetime.RequireMutation();
-        var scope = OpenUseScope();
+        try { PublishGuardedInputs(); }
+        catch (Exception failure)
+        {
+            try { ClearActivation(true); }
+            catch (Exception cleanup) { throw new AggregateException(failure, cleanup); }
+            throw;
+        }
+    }
+    #endregion
+    #region Scoped use and lifetime
+    /// <summary>Enters the established family scope after rejecting recursive or retired use.</summary>
+    IDisposable BeginUse(bool replayInputs = true)
+    {
+        Lifetime.RequireMutation();
+        if (RequiresPreparation) Lifetime.RequireUnborrowed();
+        var scope = OpenUseScope(replayInputs);
         try { Activate(); return scope; }
         catch (Exception activation)
         {
@@ -79,6 +101,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     {
         if (Lifetime.IsRetired) return;
         Lifetime.RequireMutation();
+        Lifetime.RequireUnborrowed();
         Lifetime.IsRetired = true;
         List<Exception>? failures = null;
         // Terminal admission closes before any cleanup can invoke owner code again.
@@ -101,6 +124,18 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
         if (!Lifetime.OwnedUniforms.Contains(buffer)) Lifetime.OwnedUniforms.Add(buffer);
         buffer.SetWriteGuard(Lifetime.RequireMutation);
         return buffer;
+    }
+    #endregion
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Brackets retained publication with the shared mutation guard.</summary>
+    private void PublishGuardedInputs()
+    {
+        Lifetime.IsPublishing = true;
+        try { PublishInputs(); }
+        finally { Lifetime.IsPublishing = false; }
     }
     #endregion
 }
