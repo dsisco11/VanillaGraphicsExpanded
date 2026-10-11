@@ -143,13 +143,17 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
             program.ShadowMapNear = depth.TextureId;
             program.ShadowMapFar = depth.TextureId;
 
-            Assert.True(program.TryUse(), "Could not use the configured capture variant.");
-            state.Apply(liquidPipeline);
-            indices.UploadIndices(topology);
-            target.BindWithViewport();
-            target.Clear(0, 0, 0, 0);
-            vao.DrawElements(PrimitiveType.Triangles, indices);
-            float[] radiance = target[0].ReadPixels();
+            float[] radiance;
+            // Each executable borrow ends before changing variants or retiring the fixture registry.
+            using (program.UseScope())
+            {
+                state.Apply(liquidPipeline);
+                indices.UploadIndices(topology);
+                target.BindWithViewport();
+                target.Clear(0, 0, 0, 0);
+                vao.DrawElements(PrimitiveType.Triangles, indices);
+                radiance = target[0].ReadPixels();
+            }
             if (capture is not null)
             {
                 string path = Path.Combine(Path.GetDirectoryName(capturePath!) ?? string.Empty,
@@ -158,7 +162,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
                 // The wire variant shares the production vertex stage and marks actual GL-rasterized edges.
                 program.CaptureMode = 2;
                 Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
-                Assert.True(program.TryUse(), "Could not use the precompiled wire capture variant.");
+                using var wireScope = program.UseScope();
                 state.Apply(liquidPipeline);
                 target.BindWithViewport();
                 GL.PolygonMode(MaterialFace.FrontAndBack, PolygonMode.Line);

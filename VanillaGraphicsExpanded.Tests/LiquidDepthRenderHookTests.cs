@@ -21,9 +21,16 @@ public sealed class LiquidDepthRenderHookTests
         var code = LiquidDepthRenderHook.Transpiler(original.Select(i => new CodeInstruction(i)), generator).ToArray();
         int gate = Array.FindIndex(code, i => i.Calls(AccessTools.Method(typeof(LiquidDepthRenderer), nameof(LiquidDepthRenderer.TryRender))));
         Assert.True(gate >= 0);
+        // The installed engine establishes the origin-relative view before the owned
+        // handoff; its native depth path consumes these same current matrices.
+        int loadView = Array.FindIndex(code, i => i.operand is System.Reflection.MethodInfo m && m.Name == "GlLoadMatrix");
+        Assert.InRange(loadView, 0, gate - 1);
+        Assert.Contains(code.Take(loadView), i => i.operand is System.Reflection.FieldInfo f && f.Name == "CameraMatrixOrigin");
         Assert.Equal(OpCodes.Brtrue, code[gate + 1].opcode);
         var target = (Label)code[gate + 1].operand;
         int resume = Array.FindIndex(code, i => i.labels.Contains(target));
+        Assert.Contains(code.Skip(gate).Take(resume - gate), i => i.operand is System.Reflection.MethodInfo m && m.Name == "get_CurrentProjectionMatrix");
+        Assert.Contains(code.Skip(gate).Take(resume - gate), i => i.operand is System.Reflection.MethodInfo m && m.Name == "get_CurrentModelViewMatrix");
         Assert.True(code[gate + 2].LoadsField(AccessTools.Field(typeof(ShaderPrograms), nameof(ShaderPrograms.Chunkliquiddepth))));
         Assert.True(code[resume - 1].Calls(AccessTools.Method(typeof(ShaderProgramBase), nameof(ShaderProgramBase.Stop))));
         Assert.DoesNotContain(code.Skip(gate + 2).Take(resume - gate - 2), i =>

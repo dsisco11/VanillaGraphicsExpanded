@@ -3,8 +3,12 @@ VGE shader ownership and engine separation
 
 Source proposal
   Rendering.ShaderOwnership.Proposal.md (sibling of this file) is authoritative.
-  Status: Phases 1-5 complete; independent executable ownership, registry/reload and ordered shutdown validated.
-  Documentation reconciliation and user-run final acceptance remain unchecked.
+  Status: Phases 1-6 complete; independent executable ownership, registry/reload and ordered shutdown validated.
+  Earlier local qualification is recorded below; live liquid acceptance exposed a camera-order defect.
+  Live acceptance rejected the aliased-matrix correction; its package is superseded.
+  Shared capture now runs after native camera preparation at Before order 0.001;
+  focused qualification passed and the user confirmed the live fix and remaining acceptance scenarios.
+  Second review and independent completion audit passed 2026-10-10; final acceptance is complete.
 
 Scope and shared contracts
   Establish IGpuProgram with default implementation methods, implemented by independent
@@ -343,34 +347,196 @@ Phase 6: Reconcile documentation and final acceptance
   Depends on Phase 5. Outcome: the migration is documented and qualified at each required evidence level.
   Proposal: Compatibility, generators and documentation; Dependency-ordered implementation and acceptance.
 
-  ☐ Update GpuProgram.md, GPU.ShaderDemandLoading.md, Rendering.ShaderBindingState.md and engine/pipeline
+  ☑ Update GpuProgram.md, GPU.ShaderDemandLoading.md, Rendering.ShaderBindingState.md and engine/pipeline
     boundary documentation, including Rendering.EngineStateSwitching.md where affected.
     - Describe IGpuProgram default dispatch, concrete owner state, GpuComputeProgram naming,
       registry/reload contracts, binary preparation and supported integration adapters.
     - Document intentional GpuProgram/VgeShaderProgram loss of engine assignability/inherited APIs
       and supported replacements. Reconcile obsolete memory-registration/source-compilation claims.
     - Remove remaining temporary migration paths; keep historical evidence clearly distinguished.
-  ☐ Through subagents, run appropriate builds and focused pipeline, binding, sampler-retirement,
+  ☑ Through subagents, run appropriate builds and focused pipeline, binding, sampler-retirement,
     state-switching, generator, demand-loading and resource regression suites after integration.
     - Verify generated/offline shells and packaged shader inputs through the existing build path;
       distinguish package verification from deployment. No performance claim without measurements.
     - Record failures/skips and evidence limits; expand checks only for unresolved concerns.
-  ☐ Obtain user-run game acceptance: cold/warm startup, enter/leave/re-enter world, native reload,
+  ☑ Obtain user-run game acceptance: cold/warm startup, enter/leave/re-enter world, native reload,
     live shader configuration, visible/depth liquids and native rendering around VGE passes.
     - Confirm the original cached final-display startup scenario no longer fails. Do not substitute
       headless rendering or compilation for live appearance/lifecycle acceptance.
-  ☐ Perform a second implementation review against every proposal section and independently audit
+  ☑ Perform a second implementation review against every proposal section and independently audit
     completion using fresh receipts; reconcile discrepancies before marking phases complete.
-  ☐ Completion: required structural, unit, GPU, generated/package and user-run receipts are linked;
+  ☑ Completion: required structural, unit, GPU, generated/package and user-run receipts are linked;
     intentional limits/deferred decisions are explicit and no required acceptance is silently waived.
 
+
+  Traceability: documentation -> proposal Compatibility, generators and documentation and every
+    Resolved migration contract -> GpuProgram.md / Declare and use, Shared workflows and compatibility,
+    Reload and retirement; GPU.ShaderDemandLoading.md / Graphics ownership and Retained compute reload;
+    Rendering.ShaderBindingState.md / Executable ownership and current compatibility;
+    Rendering.AuthoritativePipelineState.md / Shader ownership and boundary lifetime;
+    Rendering.EngineStateSwitching.md / Shader ownership and native handoff.
+    Historical engine-registration, inherited-API and cache-lifetime receipts remain explicitly scoped
+    to their original implementations; supported replacements and intentional public API loss are current.
+    Local qualification -> proposal Acceptance and Verification map -> fresh delegated receipts below,
+    preserving unit/headless GPU/generator/package boundaries and prior implementation traceability.
+
+  Review correction: the combined shutdown/rendering selection exposed SceneColorRuntimeTests' missing
+    opt-in attachment-disposal lifetime. It now uses HeadlessGLFixture.InitializeResourceDisposal and
+    drains through CleanupGpuResources in documented per-test teardown. Root second review and the
+    independent audit verified the existing fixture contract; production shutdown/deletion guards are
+    unchanged. The initial combined receipt is retained as failed evidence, not a successful run.
+    The broader rerun reproduced the SurfaceCache UBO mapping failure at a fixture-context switch.
+    RenderTestBase now moves its existing cache invalidation/error drain before uniform-ring allocation,
+    so a reused buffer name cannot inherit another context's thread-local binding knowledge. No
+    production cache policy or new invalidation was introduced; root second review confirmed ordering.
+
+  Pre-live automated receipts: shader-enabled Debug build passed (0 errors, 126 warnings); the fixture-only
+    incremental rebuild passed (0 errors, 113 warnings). Generator tests passed 178/178, no skips.
+    Initial combined regressions passed 897/904 with seven failures, no skips: six scene-color fixture
+    lifetime failures and one persistent UBO mapping failure in SurfaceCacheRuntimeTests. The repaired
+    composition/scene-color/surface-cache selection passed 13/13, no skips; that narrower run does not
+    establish the initial mapping failure's cause. The original selection then passed 903/904, with
+    the same mapping failure reproduced and no scene-color failures. That intermediate failed receipt
+    is retained. After the fixture setup-order correction, the existing ring-retirement/composition/
+    scene-color/surface-cache selection passed 16/16 with no skips. The final original selection
+    passed 904/904 with no failures or skips (3m33s), including the previously failing context transition.
+    The two failed broad runs establish the pre-correction reproduction; the final run qualifies the
+    corrected setup in the same selected workload. No producer/package or generator rerun was needed
+    for test-only changes. Counts from these overlapping selections are not a unique-test total.
+    Receipts: ../artifacts/shader-ownership-phase6-build.log,
+    ../artifacts/shader-ownership-phase6-fixture-build.log,
+    ../artifacts/shader-ownership-phase6-generator.log,
+    ../artifacts/shader-ownership-phase6-regressions-initial.log,
+    ../artifacts/shader-ownership-phase6-regressions.log,
+    ../artifacts/shader-ownership-phase6-regressions-post-scene-fixture.log,
+    ../artifacts/shader-ownership-phase6-fixture-regressions.log,
+    ../artifacts/shader-ownership-phase6-regressions-final.log; matching TRX under ../artifacts/TestResults/.
+
+  Pre-live package qualification: the existing Cake Package path completed without deployment. Its clean
+    catalog overlay compiled 433 production SPIR-V binaries (433 misses/compiler invocations), in
+    contrast to the initial build's production/fixture binary-cache reuse. All 434 producer-receipt
+    outputs matched archive hashes; the package contains 433 SPIR-V files, 297 shader-stage/include
+    sources, one digest manifest, the mod assembly and modinfo. Archive:
+    ../Releases/vanillagraphicsexpanded_999.99.9.zip;
+    SHA256 9B2CF29F051907829930FA321C44874E7C31672F9264161B295A5620AE0BAFDC.
+    Receipts: ../artifacts/shader-ownership-phase6-package.log and
+    ../artifacts/shader-ownership-phase6-package-verification.log.
+
+  Pre-live review verdict: second implementation/documentation review completed against every proposal
+    section and the current owning contracts, including both fixture corrections. Independent
+    audit-stage-completion directly reviewed sources/docs and fresh build, generator, GPU/runtime
+    and archive receipts; local requirements are satisfied without unresolved implementation findings.
+    Full completion is not established because required live evidence is absent. Per complete-todo-phase,
+    task entries and the goal remain unchecked/uncompleted while this evidence gap remains; no
+    historical planning reference or automated receipt silently waives the live requirement.
+
+  Initial live acceptance: on 2026-10-10 the user reported the migrated build had not yet been tested in-game.
+    Cold/warm cached-final-display startup, world enter/leave/re-entry, native reload, live settings,
+    visible/depth liquids and native rendering around VGE passes remain required and unchecked.
+    No game was launched, no live acceptance is inferred from automated checks and no performance
+    measurement or claim is made. This is an outstanding requirement, not an approved deferral.
+
+  Subsequent live result: the user reported liquids use the base-game shader. The current automation
+    client-main.log line 433 records VGE depth shutdown on an unpublished shared world camera.
+    LiquidDepthRenderHook runs in ChunkRenderer.OnRenderBefore, before the shared Opaque publication;
+    persistent depth failure also prevents visible-liquid ownership. Installed engine IL establishes
+    the origin-relative current model-view before interception and supplies the current projection
+    to its native depth shader. A subsequently rejected correction moved shared capture to that
+    boundary, with Opaque reusing its publication; that implementation is no longer retained.
+    The earlier automated/package receipts predate this correction. User-run liquid retry remains
+    required. Other live acceptance cases are not inferred as passed.
+
+  Rejected shared-camera correction qualification: Debug build passed with 0 errors and 127 warnings;
+    the affected liquid, frame, temporal and native-boundary selection passed 119/119 with no skips.
+    The real pool traversal verifies shared GPU matrices before Opaque, the identical frame object,
+    bytes and GPU buffer range across Opaque, no additional frame upload, and next-frame history.
+    An earlier selection exposed an existing specular fixture's unclosed executable borrow; lexical
+    UseScope now ends before variant mutation and registry retirement. No production assertion was
+    weakened. Root second review and independent audit found no material source issues.
+    Receipts: ../artifacts/liquid-shared-camera-build.log,
+    ../artifacts/liquid-shared-camera-tests.log and matching TRX under ../artifacts/TestResults/.
+    These focused receipts do not replace the required live liquid retry or claim a fresh 904-test run.
+    The existing Cake Package path completed for this correction; all 433 archived SPIR-V outputs
+    match the embedded manifest and the packaged assembly matches the current published assembly.
+    Receipt: ../artifacts/liquid-shared-camera-package.log. Refreshed archive:
+    ../Releases/vanillagraphicsexpanded_999.99.9.zip;
+    SHA256 811B0CB36FD97D96843525B6A75426F3C256FA7F58E306E498701DFF1097565C.
+    No deployment or game execution was performed.
+
+  Live rejection: the user reported the sun follows camera motion and shadows follow screen-center
+    aiming after the early publication change. The 119-test selection proved internal snapshot
+    consistency and reuse, not equivalence with the established Opaque camera data. Global camera
+    capture has been restored to its original Opaque implementation; the associated early-publication
+    regression was withdrawn. The archived correction above is superseded and must not be treated
+    as accepted. Liquid-depth availability and permanent failure handling require further diagnosis.
+    Installed engine IL subsequently identified the concrete corruption: CurrentProjectionMatrix
+    and CurrentModelViewMatrix return the same mutable tmpMatrix array. The rejected early publisher
+    retained a view span, then read projection and overwrote that view. Separate mock arrays concealed
+    the defect. The restored Opaque publisher uses the independent CameraMatrixOriginf storage.
+
+  Post-camera Before publication: the native camera and ambient callbacks run at order zero;
+    terrain/liquid-depth preparation runs at 0.995. Shared capture now runs at 0.001, while a
+    separate reset callback withdraws the prior publication at -10001. Both callbacks belong to
+    the existing frame owner; no second frame block is allocated. Projection scratch is copied
+    immediately and the dedicated CameraMatrixOriginf is copied before other engine getters.
+    Continuity samples orientation alongside native camera preparation, before perception effects
+    alter future angles. Later shadow/Opaque passes cannot recapture or advance temporal history.
+    Debug build passed with 0 errors and 127 warnings. A fresh affected selection passed 129/129
+    with no failures/skips, including actual liquid GPU matrices before Opaque, same GPU range/no
+    additional frame upload, scratch aliasing, history and affected runtime publishers.
+    Root second review and independent source/test/installed-IL review found no material issues.
+    Receipts: ../artifacts/liquid-before-camera-build.log,
+    ../artifacts/liquid-before-camera-focused-tests.log and
+    ../artifacts/TestResults/liquid-before-camera-focused.trx.
+    The broader selection was interrupted after source-patch assertions and native-shader
+    interruption failures in other fixtures; ../artifacts/liquid-before-camera-tests.log is
+    retained as failed/incomplete evidence, not qualification. No unrelated fixes were added.
+    The fresh affected receipt does not establish a full-suite pass or live visual acceptance.
+    The existing Cake Package path completed for this implementation. All 433 archived SPIR-V
+    entries match embedded receipt lengths/hashes; the assembly matches current publish.
+    Refreshed archive: ../Releases/vanillagraphicsexpanded_999.99.9.zip;
+    SHA256 9444C060BB2860CBFCF65FE1DCE26AC28F4FA6E9A256A287CB4201BC26E3AA28.
+    Package/verification receipt: ../artifacts/liquid-before-camera-package.log.
+    No agent deployment or game launch was performed. The user subsequently confirmed "that fixed it",
+    accepting the reported liquid/camera/sun/shadow regression correction. This does not silently
+    accept the remaining startup, reload, configuration or world-lifetime scenarios.
+
+  Remaining live acceptance: in response to the explicit remaining-check list (cold/warm startup
+    including cached final display, world leave/re-entry, native reload, live shader settings and
+    native rendering around VGE passes), the user replied "yea it seems fine". Record this as
+    user-reported acceptance of those listed scenarios, alongside the liquid/camera confirmation.
+    No agent-run visual test or performance measurement is inferred. Final local failure disposition
+    and independent completion audit remain outstanding before task markers can be checked.
+
+  Final fixture reconciliation: native colorgrade remains untouched under the owned-final contract
+    (PBR.SharedDisplay.md / Scene postprocessing; PBR.Postprocessing.md / Responsibilities and order);
+    the fixture now checks unchanged source and no added capability. Deferred material route alpha
+    is one; native/forward routes retain authored alpha. Terrain fixtures end native activation
+    before their VGE compute validation, preserving actual mapping assertions and cleanup.
+    Surface lighting readback now exposes strict RGBA fixture data from packed RGB HDR, retaining
+    all RGB values and numerical tolerances. Primary handoff assertions preserve linear HDR until
+    owned final composition, whose grading, shoulder, sRGB and dithering retain independent tests.
+    No production changes were required by these fixture corrections.
+    Fresh bounded qualification passed 47/47 with no failures/skips; final build had 0 errors and
+    113 warnings. Receipts: ../artifacts/liquid-display-contract-build.log,
+    ../artifacts/liquid-display-contract-tests.log and ../artifacts/TestResults/liquid-display-contract.trx.
+    Earlier isolated failures and intermediate receipts remain evidence of the stale expectations;
+    they do not qualify completion. The final receipt covers all seven affected test classes.
+    Published assembly still matches the verified current archive, so no test-only package rebuild
+    was required. Earlier 904-test and 178-generator receipts remain scoped to unchanged ownership
+    and generator behavior; the current 129-test camera receipt and 47-test fixture receipt overlap
+    and are not summed into a unique-test count. Second implementation/document review completed;
+    independent audit-stage-completion passed 2026-10-10 with no material remaining gaps.
+    The auditor directly verified current sources, controlling documents, build/TRX/package receipts
+    and user-reported live acceptance. Required work is complete; no broader repeat was needed.
+
 Final acceptance and proposal traceability
-  ☐ Shared interface/default methods and compute rename: Phases 1-2; final dispatch/generator checks in 6.
-  ☐ Engine independence and cached final-display fix: Phases 3-4; cold/warm user acceptance in 6.
-  ☐ Existing scopes, native handoff and all graphics/compute restoration combinations: Phase 3.
-  ☐ Liquid bridge, engine traversal/finally behavior and unaffected native pools: Phases 3 and 6.
-  ☐ Transactional generations, stale PSO rejection, diagnostics and native/CPU ownership: Phases 4-5.
-  ☐ Concrete registry, coherent reload, callback withdrawal and context retirement: Phase 5.
-  ☐ Compatibility, native hooks, generators, documentation and complete validation: Phases 2-6.
-  ☐ Every proposal requirement is implemented or has an explicit reviewed deferral with rationale;
-    required live acceptance remains open until supplied. All temporary compatibility paths are removed.
+  ☑ Shared interface/default methods and compute rename: Phases 1-2; final dispatch/generator checks in 6.
+  ☑ Engine independence and cached final-display fix: Phases 3-4; cold/warm user acceptance in 6.
+  ☑ Existing scopes, native handoff and all graphics/compute restoration combinations: Phase 3.
+  ☑ Liquid bridge, engine traversal/finally behavior and unaffected native pools: Phases 3 and 6.
+  ☑ Transactional generations, stale PSO rejection, diagnostics and native/CPU ownership: Phases 4-5.
+  ☑ Concrete registry, coherent reload, callback withdrawal and context retirement: Phase 5.
+  ☑ Compatibility, native hooks, generators, documentation and complete validation: Phases 2-6.
+  ☑ Every proposal requirement is implemented or has an explicit reviewed deferral with rationale;
+    required live acceptance is user-reported above. All temporary compatibility paths are removed.

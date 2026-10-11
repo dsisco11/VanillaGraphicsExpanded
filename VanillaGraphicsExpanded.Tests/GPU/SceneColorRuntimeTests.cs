@@ -40,6 +40,8 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
     public void OwnedSceneRetainsHdrAcrossFailuresAndUnclassifiedRegistrations(int ssaoQuality, bool lumOn)
     {
         EnsureContextValid();
+        // Particle capture owns attachments, so this test needs a fresh disposal lifetime after shutdown tests.
+        fixture.InitializeResourceDisposal();
         bool? previousGeneration = PbrShaderLightingMode.GenerationLumOnEnabled;
         PbrShaderLightingMode.GenerationLumOnEnabled = lumOn;
         bool previousLumOn = ConfigModSystem.Config.LumOn.Enabled;
@@ -138,9 +140,9 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             particles.OnRenderFrame(0, EnumRenderStage.Before);
             scene.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.True(SceneColorPipeline.HasSceneInput, string.Join(Environment.NewLine, assets.Logs));
+            frameCamera.BeginFrame();
             frameCamera.OnRenderFrame(0, EnumRenderStage.Before);
             lights.OnRenderFrame(0, EnumRenderStage.Before);
-            frameCamera.OnRenderFrame(0, EnumRenderStage.Opaque);
             lights.OnRenderFrame(0, EnumRenderStage.Opaque);
             engine.BindWithViewport();
             GL.ClearBuffer(ClearBuffer.Color, 0, new float[4]);
@@ -363,6 +365,15 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             ShaderProgramBase.CurrentShaderProgram = null;
             StateCache.Current.UseProgram(0);
         }
+    }
+    #endregion
+
+    #region Protected
+    /// <summary>Drains capture-owned storage after per-test render resources have retired.</summary>
+    protected override void Dispose(bool disposing)
+    {
+        try { base.Dispose(disposing); }
+        finally { if (disposing) fixture.CleanupGpuResources(); }
     }
     #endregion
 

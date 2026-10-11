@@ -1,57 +1,97 @@
 # VGE Shader Programs (GpuProgram)
 
-This mod compiles all VGE-owned shaders through a unified pipeline implemented by `GpuProgram` + `ShaderSourceCode`.
+VGE graphics executables belong to the independent `GpuProgram` family. Compute owners use
+`GpuComputeProgram`, which composes a `GpuComputePipeline`. Neither executable family derives
+from an engine shader or implements `IShaderProgram`. The internal `IGpuProgram` interface
+provides shared workflows; there is no common shader base class.
 
-## Add a new shader program
+## Declare and use a graphics program
 
-1. Add stage files under:
-   - `VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/`
-   - Names must match the program name: `{PassName}.vsh` and `{PassName}.fsh` (optional `{PassName}.gsh`).
+Declare a partial `GpuProgram` subclass with generated `ShaderProgram`/`ShaderStage` contracts
+and typed binding inputs. Stage sources live under `assets/vanillagraphicsexpanded/shaders/`.
+The existing offline build resolves imports, injects layouts and builds packaged SPIR-V variants.
+Runtime preparation loads those binaries, specializes immutable settings and uses the driver
+executable cache. It does not compile stage GLSL or construct engine stage objects.
 
-2. Create a C# program inheriting `GpuProgram`.
-
-3. Register it using **memory shader registration** (important):
+Within VGE, a feature's registration method uses the already composed client library:
 
 ```csharp
+/// <summary>Declares the feature's program without reading binaries or issuing GL calls.</summary>
 public static void Register(ICoreClientAPI api)
 {
-    var instance = new MyShaderProgram
-    {
-        PassName = "my_shader",
-        AssetDomain = "vanillagraphicsexpanded"
-    };
-
-    api.Shader.RegisterMemoryShaderProgram("my_shader", instance);
-    instance.Initialize(api);
-    instance.CompileAndLink();
+    GpuShaderProgramLibraries.Declare(api, Contract.Identity,
+        () => new MyShaderProgram { PassName = Contract.Identity });
 }
 ```
 
-Why `RegisterMemoryShaderProgram`?
+The root creates the library explicitly. `GpuShaderPrograms` is its owning registry instance;
+`GpuShaderProgramLibraries` is the internal engine-facing locator/adapter. Identical immutable
+name/domain/type/contract/settings descriptors return the existing owner without calling the factory.
+Incompatible duplicates fail before mutation. Configuration edits apply to the retained owner;
+repeating a declaration does not reset requested settings. Retired entries require explicit removal.
 
-- VGE builds stage sources itself (imports + define injection), so we don’t want the engine to load raw files again.
-- The Harmony hook (`ShaderIncludesHook`) is intended for vanilla shaders; VGE shaders compile through `ShaderSourceCode`.
+Configure typed settings or declared `SetDefine`/`RemoveDefine` aliases before `EnsureReady`,
+selected preload or first activation. Settings changes remain pending until those boundaries.
+`OnAfterCompile` is a post-install notification. Preparation publishes the native owner, interface,
+settings, asset generation and successful revision together; failure retains the old allocation but
+cannot render it for incompatible requests. `PreparationFailure` records the underlying cause.
+A cached executable requires no vertex/fragment stage objects and never enters engine registration.
 
-## Imports
+Prefer `GraphicsCommandContext` and prepared `GraphicsPipeline` draws. Standalone `UseScope`
+restores the enclosing validated owner's inputs. Direct `Use` establishes a tracked lifetime ended
+by `Stop`; `TryUse` reports failure as a Boolean. Raw scopes restore bindings only. StateCache's
+existing program-scope chain retains owner/revision/context borrows; no separate current-owner table
+is used. Every activation publishes retained inputs even when the native program ID is unchanged.
+See [pipeline boundaries](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime).
 
-Use AST-aware `@import` directives in shader stages:
+## Shared workflows and compatibility
 
-```glsl
-@import "./includes/pbrfunctions.glsl"
-```
+`IGpuProgram` default `Prepare`, `Activate`, `BeginUse`, `ReplayInputs` and `Retire` workflows
+operate on one concrete `GpuProgramLifetime`. It owns guards, CPU-block registration and borrow
+accounting, not another native executable or binding cache. Concrete facades call distinct workflow
+slots; generated/authored protected `Submit` overrides are preserved. Default interface methods
+are invoked through the interface and do not become inherited concrete members.
 
-- VGE resolves `./includes/...` relative to the stage source (i.e. `shaders/{PassName}.fsh`).
-- Place shared includes in `assets/vanillagraphicsexpanded/shaders/includes/`.
+The public `GpuProgram`/`VgeShaderProgram` families intentionally lose engine assignability,
+`VertexShader`/`FragmentShader`, `PassId`, inherited `Uniform`/`HasUniform`/texture APIs and
+engine registry membership. Use generated retained properties and CPU UBO inputs for VGE parameters,
+VGE preparation/scopes for execution, and prepared numeric interfaces for internal diagnostics.
+Do not pass a VGE executable to `api.Shader.RegisterMemoryShaderProgram` or assign it to the engine's
+`CurrentShaderProgram`. The library and common lifecycle interface remain internal; this migration
+does not expose a replacement public third-party registration service.
 
-## Defines
+Engine assets/logging enter through `EngineShaderAssets` and the integration partials; core
+preparation consumes `ShaderAssetSource`. Native terrain, particle, material, frame/light and
+atmosphere hooks still operate on real engine programs. The liquid pool bridge translates only
+origin, model-view and transparency inputs during VGE traversal; its input-only engine adapter owns
+no executable and rejects compile/use/dispose operations.
 
-At runtime, use `SetDefine(name, value)` / `RemoveDefine(name)` on the shader program.
+## Reload and retirement
 
-- Defines are injected **after** the `#version` directive (AST-aware, not a string prepend).
-- Because of that, every VGE shader stage must start with a `#version ...` line.
-- A `null` value means `#define NAME` (no explicit value).
+`ClientRenderingLifetime` admits native reload at a safe outer boundary, validates all borrowers,
+withdraws graphics/compute readiness and feature publications synchronously, then reopens demand
+preparation after native refresh, including failures. Only configured mandatory selections preload.
+Native reload success and lazy VGE readiness are separate results. Asset-backed compute owners keep
+rebuild descriptions and atomically replace their pipeline while retaining inputs/CPU blocks; raw
+pipelines without descriptions remain caller-lifetime resources. Failed requests are suppressed per
+asset epoch; `RetryPreparation` retries failed preparation rather than invalidating a ready owner.
 
-Define changes trigger a recompile on the main thread (GL context safety). If you cache uniform locations or similar program-dependent state, override `OnAfterCompile()` to refresh it.
+World leave invalidates queued world work without changing context identity or retiring reusable
+declarations. Terminal root shutdown closes admission, releases feature borrowers/owners and registry
+programs, releases shared resources, then drains/closes the GPU manager. The manager does not call
+root disposal. Native resources carry their originating registered context: delete there, queue while
+that live context is noncurrent, or abandon names after its destruction. Never delete against a
+replacement context. CPU-owned blocks survive reload and retire exactly once; borrowed resources
+remain with their existing owners.
+
+## Imports and defines
+
+Use AST-aware `@import "./includes/pbrfunctions.glsl"` in stage sources. Imports resolve relative
+to the stage, with shared includes under `shaders/includes/`. Sources start with `#version`;
+offline define/layout injection follows it. Runtime `SetDefine` supports declared options/aliases,
+not arbitrary source recompilation. A null value restores the declaration default. Prefer generated
+option properties inside ConfigureOptions, or SetDefines for a complete validated batch;
+single-name SetDefine/RemoveDefine facades are obsolete compatibility APIs.
 
 ## Generated GPU binding contracts
 
@@ -92,10 +132,10 @@ An image property typed as `GpuTexture` uses the same defaults as `new GpuTextur
 read-only access, mip zero, layer zero, non-layered binding and the texture's internal
 format. Use a `GpuTextureBinding` property when callers need write access or other view
 settings. This value describes a binding; it does not create an OpenGL texture-view object.
-Assignments require the owning program to be linked; bind the program before dispatch
-or drawing. The setters resolve linked resource activity and skip optimized-away
-resources. They do not upload data or retain resource ownership. Compute wrappers
-use their owning `GpuComputePipeline` field named `pipeline`.
+Assignments retain desired inputs; activation validates the installed prepared interface and
+publishes active resources before drawing or dispatch. Inactive resources are skipped. Resource
+assignments do not upload storage or transfer resource ownership. Generated family owners use
+ProgramLayout/ProgramId facades; explicit direct-pipeline adapters retain the accessible pipeline-field path.
 
 Shared layouts and contract-only owners import interfaces with get-only properties of
 `ShaderSamplerBinding`, `ShaderImageBinding`, `ShaderUniformBlockBinding`, or

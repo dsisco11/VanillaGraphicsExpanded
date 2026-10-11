@@ -84,7 +84,9 @@ public sealed class PbrSurfaceCaptureBoundaryTests : RenderTestBase
                 float expected = route == 0 ? (encoded + 1f) * .5f : MathF.Pow((encoded + .055f) / 1.055f, 2.4f);
                 Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
             }
-            Assert.InRange(actual[3], .24999f, .25001f);
+            // Deferred material capture owns a surviving sample; native/forward paths preserve authored alpha.
+            float expectedAlpha = route == 1 ? 1f : .25f;
+            Assert.InRange(actual[3], expectedAlpha - .00001f, expectedAlpha + .00001f);
         }
         finally
         {

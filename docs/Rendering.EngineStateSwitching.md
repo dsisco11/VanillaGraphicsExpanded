@@ -62,11 +62,34 @@ Active texture selection, per-unit texture bindings and sampler bindings are sep
 
 Selective-invalidation validation: the normal build passed with zero errors and 106 warnings; all 41 focused invalidation, engine-switching, unbind, pixel-pack and shader-binding tests passed with zero skips. Tests cover independent categories, combined and invalid masks, dependent VAO/buffer and transform-feedback snapshots, full-invalidation compatibility, and preservation of active-unit knowledge through resource deletion. Logs: `artifacts/selective-invalidation-build.log` and `artifacts/selective-invalidation-tests.log`.
 
+## Shader ownership and native handoff
+
+Exact-signature program adapters observe native bindings; they do not register VGE executables or
+publish VGE owners into `CurrentShaderProgram`. Independent graphics/compute families share internal
+`IGpuProgram` workflows and the existing StateCache program scopes, retaining owner/revision/context
+borrows. GraphicsCommandContext owns managed activation; immediate standalone scopes replay retained
+inputs, while complete boundaries restore their declared binding snapshots and draw state.
+
+Engine-boundary admission retains unsupported native/raw/compute-footprint rejection. Native terrain,
+material, atmosphere, particle and frame/light hooks remain engine-owned. Liquid pool getter interception
+returns an input-only adapter only during a VGE liquid submission; native pools still see their engine
+shader. There is no global current-shader getter replacement or engine program proxy.
+
+VGE native resources and deferred deletion carry their originating RenderContextRegistry registration.
+Delete on that live context, defer while it is noncurrent, or abandon after destruction. Engine deletion
+adapters retain ordinary native deletion plus targeted cache retirement; there is no global deletion
+suppression switch. Root-owned shutdown releases borrowers and programs before draining the GPU manager.
+This context validation applies to resource/program/boundary lifetime, not a new broad cache authority.
+See [pipeline lifetime](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime)
+and [shader qualification](Rendering.ShaderOwnership.todo). Earlier dated switching receipts below
+remain scoped historical evidence. Live native rendering/reload acceptance remains user-run.
+
 ## Limits
 
 This work routes state through the existing cache. Binding operations that currently always issue native calls retain that behavior; this is not a new blanket binding-deduplication policy or a measured performance improvement.
 
-Existing shader ownership, framebuffer observation, invalidation and restoration scopes remain in place. Tracking engine mutations does not itself restore state required after a VGE pass. Raw calls from other mods and unobserved external operations still require the established boundary handling. Context lifetime behavior is unchanged.
+Existing shader ownership, framebuffer observation, invalidation and restoration scopes remain in place. Tracking engine mutations does not itself restore state required after a VGE pass. Raw calls from other mods and unobserved external operations still require the established boundary handling. Shader ownership now validates originating context lifetime as described above; native routing
+continues to use targeted cache updates.
 
 The first validation build also exposed an existing `GpuQuery.ResourceId` setter assigning `nint` to its `int` field. The setter now explicitly converts to `int`, matching its stored GL object name and allowing the build to proceed.
 

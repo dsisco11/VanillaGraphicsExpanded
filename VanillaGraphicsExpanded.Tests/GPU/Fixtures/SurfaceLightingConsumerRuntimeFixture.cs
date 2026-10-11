@@ -164,9 +164,23 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     /// <summary>Reads the primary engine target after registered PBR composition.</summary>
     public float[] ComposedPixels() => Cache.Terrain.Color.ReadPixels();
 
-    /// <summary>Reads HDR composition before the explicit display transfer.</summary>
-    public float[] SceneLinearPixels() => host.SceneLinearColor?.ReadPixels() ?? throw new InvalidOperationException("PBR composition has not produced scene-linear output.");
-
+    /// <summary>Reads HDR composition as RGBA before the explicit display transfer.</summary>
+    public float[] SceneLinearPixels()
+    {
+        var texture = host.SceneLinearColor ?? throw new InvalidOperationException("PBR composition has not produced scene-linear output.");
+        float[] pixels = texture.ReadPixels();
+        int count = checked(texture.Width * texture.Height);
+        if (pixels.Length == count * 4) return pixels;
+        Assert.Equal(count * 3, pixels.Length);
+        // Packed HDR stores RGB; retain those values and expose opaque alpha to existing image assertions.
+        float[] rgba = new float[count * 4];
+        for (int pixel = 0; pixel < count; pixel++)
+        {
+            Array.Copy(pixels, pixel * 3, rgba, pixel * 4, 3);
+            rgba[pixel * 4 + 3] = 1f;
+        }
+        return rgba;
+    }
     /// <summary>Reads the actual worker/query/upload-owned world radiance atlas.</summary>
     public float[] WorldPixels() => WorldBuffers.Resources?.ProbeRadianceAtlas.ReadPixels() ?? [];
 

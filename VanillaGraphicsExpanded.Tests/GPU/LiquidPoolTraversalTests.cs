@@ -33,11 +33,25 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         using var storage = new LiquidPoolStorage();
         using var programs = new ComponentShaderPrograms();
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
+        var cameraWorld = new Mock<IClientWorldAccessor>();
+        cameraWorld.SetupGet(value => value.Player).Returns(RuntimeEngineServices.CameraPlayer(() => new VanillaGraphicsExpanded.LumOn.LumOnCameraState(0, 0, 0, 0, 0, 0, 0)));
+        cameraWorld.SetupGet(value => value.ElapsedMilliseconds).Returns(0L);
+        float[] worldView = Mat4f.Create(); worldView[12] = 3;
+        float[] worldProjection = Mat4f.Create(); worldProjection[0] = 2;
+        var cameraRender = RuntimeEngineServices.Render(1, [], () => worldView, () => worldProjection, () => { });
+        var cameraApi = RuntimeEngineServices.Client(programs.Api, new Mock<IClientEventAPI>().Object,
+            cameraWorld.Object, cameraRender, programs.Api.Shader);
+        using var publisher = new VgeFrameRenderer(cameraApi);
+        publisher.BeginFrame();
+        Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
+        publisher.OnRenderFrame(.016f, EnumRenderStage.Before);
+        var sharedFrame = VgeFrameRenderer.Current;
+        byte[] publishedBytes = sharedFrame.Bytes.ToArray();
         using var lights = new VgeLightsUniformBuffer();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var volume = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
         GpuProgram program;
-        if (depth) program = programs.Create<LiquidDepthShaderProgram>(owner => owner.FrameInputs = camera);
+        if (depth) program = programs.Create<LiquidDepthShaderProgram>();
         else program = programs.Create<LiquidShaderProgram>(owner =>
         {
             owner.FrameInputs = camera; owner.LightsInputs = lights;
@@ -46,12 +60,14 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
             owner.AerialRadianceTexture = volume; owner.AerialAttenuationTexture = volume;
         });
         float[] identity = [1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1];
+        float[] engineView = depth ? worldView : identity;
         var moved = (float[])identity.Clone(); moved[12] = 7;
-        var master = new MeshDataPoolMasterManager(null!); master.OnFrame(.125f, identity, identity);
+        var combinedMoved = (float[])moved.Clone(); combinedMoved[12] += depth ? 3 : 0;
+        var master = new MeshDataPoolMasterManager(null!); master.OnFrame(.125f, engineView, identity);
         var dimension = new Mock<IMiniDimension>();
         dimension.SetupGet(value => value.selectionTrackingOriginalPos).Returns(new BlockPos());
         dimension.Setup(value => value.GetRenderOffset(.125f)).Returns(new FastVec3d(4, 5, 6));
-        dimension.Setup(value => value.GetRenderTransformMatrix(identity, It.IsAny<Vec3d>())).Returns(moved);
+        dimension.Setup(value => value.GetRenderTransformMatrix(engineView, It.IsAny<Vec3d>())).Returns(combinedMoved);
         var world = new Mock<IClientWorldAccessor>(); IMiniDimension selected = dimension.Object;
         world.Setup(value => value.TryGetMiniDimension(It.IsAny<Vec3i>(), out selected)).Returns(true);
         var settings = new Mock<ISettings>(); var floats = new Mock<ISettingsClass<float>>();
@@ -82,6 +98,12 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
             {
                 draws++;
                 Assert.Equal(new float[] { 9, 18 + 2 * BlockPos.DimensionBoundary, 27, 0 }, ReadDraw()[16..]);
+                if (depth)
+                {
+                    Assert.Same(sharedFrame, VgeFrameRenderer.Current);
+                    Assert.Equal(worldProjection, ReadFrame()[..16]);
+                    Assert.Equal(worldView, ReadFrame()[16..32]);
+                }
                 Assert.Null(ShaderProgramBase.CurrentShaderProgram);
             };
             run(); Assert.Equal(1, draws);
@@ -99,12 +121,25 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
             };
             run(); Assert.Equal(2, draws);
             using (program.UseScope()) { Assert.Equal(identity, ReadDraw()[..16]); Assert.Equal(0, ReadDraw()[19]); }
+            // Shadow pass matrices and opaque dispatch cannot replace or upload the already shared frame again.
+            Assert.True(sharedFrame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            var firstBinding = FrameBinding();
+            Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+            long uploads = ring.AllocationsWritten;
+            var shadowProjection = Mat4f.Create(); shadowProjection[0] = 19;
+            Mock.Get(cameraRender).SetupGet(value => value.CurrentProjectionMatrix).Returns(shadowProjection);
+            publisher.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+            Assert.Same(sharedFrame, VgeFrameRenderer.Current);
+            Assert.Equal(publishedBytes, sharedFrame.Bytes.ToArray());
+            Assert.True(sharedFrame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            Assert.Equal(firstBinding, FrameBinding());
+            Assert.Equal(uploads, ring.AllocationsWritten);
             observe = () => throw new ArithmeticException("Draw observer failure.");
             Assert.Throws<ArithmeticException>(run);
             Assert.Null(LiquidGraphicsSubmission.ActiveInputs);
             using (program.UseScope()) { Assert.Equal(identity, ReadDraw()[..16]); Assert.Equal(0, ReadDraw()[19]); }
             dimension.Verify(value => value.GetRenderOffset(.125f), Times.Exactly(2));
-            dimension.Verify(value => value.GetRenderTransformMatrix(identity, player), Times.Exactly(2));
+            dimension.Verify(value => value.GetRenderTransformMatrix(engineView, player), Times.Exactly(2));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { observe = null; harmony.UnpatchAll(harmony.Id); }
@@ -153,6 +188,23 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         Assert.NotEqual(0, buffer); float[] bytes = new float[20];
         using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, buffer);
         GL.GetBufferSubData(BufferTarget.UniformBuffer, (nint)offset, 80, bytes); return bytes;
+    }
+    /// <summary>Identifies the actual GPU range selected for the shared camera.</summary>
+    private static (int Buffer, int Offset) FrameBinding()
+    {
+        GL.GetInteger(GetIndexedPName.UniformBufferBinding, GpuBindingRegistry.Ubo.Frame, out int buffer);
+        GL.GetInteger(GetIndexedPName.UniformBufferStart, GpuBindingRegistry.Ubo.Frame, out int offset);
+        return (buffer, offset);
+    }
+    /// <summary>Reads camera matrices actually consumed during the depth draw.</summary>
+    private static float[] ReadFrame()
+    {
+        var selected = FrameBinding();
+        Assert.NotEqual(0, selected.Buffer);
+        float[] bytes = new float[32];
+        using var binding = StateCache.Current.BindBufferScope(BufferTarget.UniformBuffer, selected.Buffer);
+        GL.GetBufferSubData(BufferTarget.UniformBuffer, (nint)selected.Offset, 128, bytes);
+        return bytes;
     }
     #endregion
 }

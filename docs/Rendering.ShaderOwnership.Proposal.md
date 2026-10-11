@@ -1,6 +1,6 @@
 # VGE shader ownership and engine separation proposal
 
-Status: design contracts and source dependency audit resolved; shared workflows, compute naming, scope ownership and liquid input translation implemented and validated. Independent graphics executable ownership and cached/uncached rendering are implemented and validated. Registry/reload migration and final acceptance remain open.
+Status: independent executable ownership, shared workflows, registry/reload and ordered retirement are implemented. Local qualification and user-reported live acceptance are recorded in Rendering.ShaderOwnership.todo; second review and independent completion audit passed 2026-10-10.
 
 ## Objective and bounded outcome
 
@@ -11,6 +11,8 @@ The completion boundary is that a VGE program can prepare, render, reload, and r
 This work does not require replacing terrain rendering, world traversal/culling, framebuffer allocation, shader compilation tools, generated bindings, or the existing graphics pipeline/state cache. Those owners already supply the necessary contracts.
 
 ## Initial evidence and dependencies
+
+This section records the pre-migration source audit and installed engine behavior. References to removed hooks/partials are historical inventory, not current integration requirements.
 
 The October 10 crash session records missing vertex/fragment stages followed by a NullReferenceException during engine registration of pbr_final. GpuProgram.Spirv installs null engine stage slots for cached executable hits; CompletePreparation subsequently registers the program with the engine. This registration failure is converted into false readiness and the mandatory HDR check aborts the frame.
 
@@ -201,7 +203,7 @@ Remove VGE-specific engine Use/Stop patches once no VGE executable can enter the
 
 Audit automatic Use-hook effects before removal: VGE owners must obtain every required shared frame/light input through explicit generated contracts rather than accidentally depending on an engine postfix. Preserve profiling labels through the VGE owner and keep native labels in the engine adapter.
 
-Update GpuProgram.md, GPU.ShaderDemandLoading.md, Rendering.ShaderBindingState.md and the engine/pipeline boundary documentation. GpuProgram.md currently describes older source compilation and memory registration, so it needs reconciliation with the current binary pipeline and proposed ownership. Public GpuProgram/VgeShaderProgram consumers will lose engine assignability and inherited APIs; treat this as an intentional API change and document the supported replacement surface.
+Update GpuProgram.md, GPU.ShaderDemandLoading.md, Rendering.ShaderBindingState.md and the engine/pipeline boundary documentation. GpuProgram.md previously described source compilation and memory registration; its reconciled guidance now describes the binary pipeline and independent ownership. Public GpuProgram/VgeShaderProgram consumers will lose engine assignability and inherited APIs; treat this as an intentional API change and document the supported replacement surface.
 
 ## Shared workflow implementation
 
@@ -216,8 +218,9 @@ single executable owner. Diagnostic Dispatch overrides remain authored.
 Runtime and offline generation recognizes GpuComputeProgram through abstract family inheritance. Authored
 Submit owners use ProgramLayout/ProgramId facades for alternate binding emission. Direct-pipeline adapters
 outside those families retain the explicit accessible pipeline-field path, shared by validation and emission.
-No common asset-invalidation method is introduced: graphics retains settings-aware preparation; compute
-retains its existing eager/deferred first preparation and explicit failed-attempt retry policy.
+No common asset-invalidation method merges the backends: graphics retains settings-aware preparation;
+asset-backed compute wrappers now retain rebuild descriptions and replace pipelines transactionally,
+as specified in Compute reload policy below. Raw pipelines keep explicit caller lifetime.
 
 Graphics now composes GpuProgramObject ownership and implements IGpuProgram without engine executable
 inheritance or IShaderProgram. Preparation releases temporary stages and never calls the engine shader
@@ -228,11 +231,12 @@ originating context after external asset reads and before allocation or transfer
 a changed registration. Batch asset invalidation withdraws captured snapshots. PreparationFailure retains the underlying exception for
 mandatory HDR diagnostics. The VGE-specific engine Use/Stop hooks have been removed. Family scopes use
 the existing StateCache tracker; native frame/light hooks and the liquid input adapter remain integration
-responsibilities. Registry instance/reload/shutdown completion remains required before shipping.
+responsibilities. The concrete registry, synchronous reload transaction and root-owned shutdown are implemented.
+Final qualification and user-run acceptance remain recorded in the implementation checklist.
 
 ## Resolved migration contracts
 
-These decisions are based on source and installed-engine inspection on 2026-10-10. Shared workflow implementation is recorded above; the complete independent runtime remains planned.
+These decisions are based on source and installed-engine inspection on 2026-10-10. Shared workflow implementation is recorded above; current local qualification and user-reported live acceptance are recorded in the implementation checklist.
 
 ### Interface visibility, dispatch and retained state
 
@@ -274,7 +278,9 @@ Use one explicitly created registry instance per client rendering lifetime, with
 
 Declare by immutable descriptor plus factory so an identical repeated declaration returns the existing owner without constructing a throwaway candidate or invalidating assets. Match domain, identity, concrete family/type, contract/schema and declaration-time settings. Incompatible duplicates throw before GL work or mutation; configuration changes use explicit settings operations rather than another declaration. Current requested settings can differ from declaration-time defaults without making repeated catalog declaration silently reset them. Missing/mismatched typed lookup reports a VGE diagnostic. Retired entries require explicit removal/redeclaration, not implicit revival.
 
-Current source ordering is insufficient to promise coordinated shutdown: VanillaGraphicsExpandedModSystem.Dispose retires GpuShaderPrograms before disposing its frame/light renderers; PbrModSystem, LumOnModSystem, WorldProbeModSystem and AtmosphereModSystem independently dispose their own borrowers/resources. GpuResourceManagerModSystem disposes shared samplers, closes/drains its renderer, disposes streaming, then shuts down the manager. GpuResource.DeleteOrEnqueue currently routes by current manager/thread and carries no originating context generation. RenderContextLifetimeHook only withdraws the window registration. These are concrete migration sites, not already-proven lifetime guarantees.
+The initial source ordering was insufficient to promise coordinated shutdown: VanillaGraphicsExpandedModSystem.Dispose retires GpuShaderPrograms before disposing its frame/light renderers; PbrModSystem, LumOnModSystem, WorldProbeModSystem and AtmosphereModSystem independently dispose their own borrowers/resources. GpuResourceManagerModSystem disposes shared samplers, closes/drains its renderer, disposes streaming, then shuts down the manager. GpuResource.DeleteOrEnqueue currently routes by current manager/thread and carries no originating context generation. RenderContextLifetimeHook only withdraws the window registration. These were migration sites. The implemented root now owns borrower/registry/resource retirement and
+explicit manager drain; the manager never invokes root disposal. Resources/queued deletes carry their
+originating context, with dead-origin abandonment rather than global deletion suppression.
 
 The client rendering lifetime must explicitly close submission/callback admission, stop and release feature renderers and their PSO/scope borrowers, retire feature compute and registry graphics owners, release remaining shared GPU resources, drain deletion on the matching live context, and only then close the manager/unpatch integration. Connect the existing mod-system cleanup methods to that ordered owner; do not depend on unspecified mod-system disposal order. Repeated engine Dispose callbacks must be harmless. Window destruction retires the same lifetime before native handle reuse; if the originating context is already gone, abandon its queued native deletes instead of routing them to a new context. Stamp program deletion and queued work with RenderContextRegistry identity using existing resource services. Broader unrelated resource redesign is outside this shader migration.
 
@@ -317,7 +323,7 @@ Read-only Harmony GetOriginalInstructions inspection on 2026-10-10 used installe
 
 Direct-use search found production graphics activation concentrated in GraphicsCommandContext.ShaderActivation, EngineBoundaryScope.Activate and liquid/owned-engine hooks; restoration calls live in the two program families. TryUse has no external production call site in this snapshot but remains a public facade and test obligation. Compute Dispatch/DispatchIndirect use their owner scopes; raw GpuComputePipeline Use/UseScope/Dispatch/DispatchBound remain explicit lower-level contracts. Inspect those direct entry points as well as managed draw consumers. Feature compute creation occurs in DepthHierarchyComputeShader, AtmosphereGpuComputation, WorldProbeTraceBatch/HybridCommit/history-clear, and LumOn scene capture/feedback/relight/query/history owners; each asset-backed path must carry the selected rebuild description without a new global registry.
 
-The current supporting docs were consulted: [engine state switching](Rendering.EngineStateSwitching.md) preserves exact native routing/targeted invalidation; [shader binding state](Rendering.ShaderBindingState.md#prepared-resource-submission) and its desired-state/compatibility sections preserve numeric validation, retained publication and actual engine adapters; [demand loading](GPU.ShaderDemandLoading.md) supplies demand/preload and failure suppression. Their existing engine-reload/base-disposal descriptions are the migration baseline, not a requirement to retain engine ownership. [GpuProgram.md](GpuProgram.md) has stale runtime source-compilation, registration and immediate-setter guidance; the current source and this proposal control those replacements, with documentation reconciliation required before final acceptance.
+The current supporting docs were consulted: [engine state switching](Rendering.EngineStateSwitching.md) preserves exact native routing/targeted invalidation; [shader binding state](Rendering.ShaderBindingState.md#prepared-resource-submission) and its desired-state/compatibility sections preserve numeric validation, retained publication and actual engine adapters; [demand loading](GPU.ShaderDemandLoading.md) supplies demand/preload and failure suppression. Their previous engine-reload/base-disposal descriptions were migration baselines. These owning documents now describe independent binary preparation, retained input publication, registry/reload and supported integration replacements; dated evidence remains historical.
 
 ### Verification map and known gaps
 
@@ -361,4 +367,4 @@ Acceptance requires:
 - Existing pipeline, binding, sampler retirement, state switching, generator, demand-loading and resource tests pass with fixtures that reject accidental engine registration rather than simulating it as a dictionary insert.
 - User-run game acceptance covers cold/warm startup, entering/leaving/re-entering a world, native shader reload, live shader configuration, liquids and native rendering around VGE passes. Headless evidence alone does not establish that acceptance.
 
-The initial analysis used source inspection to identify migration coverage and engine-mocking gaps. Shared workflow validation is recorded in the implementation todo; no live-game acceptance or performance measurement is claimed.
+The initial analysis used source inspection to identify migration coverage and engine-mocking gaps. Subsequent local validation and user-reported live acceptance are recorded in the implementation todo. No agent-run game acceptance or performance measurement is claimed.

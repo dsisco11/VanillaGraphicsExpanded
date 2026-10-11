@@ -5,36 +5,51 @@ contract dispositions and consolidated acceptance are recorded in [System accept
 Superseded temporary helpers and custom-clipping experiments described in historical sections are
 not part of the current production implementation.
 
-## State cache lifetime
+## Shader ownership and boundary lifetime
 
-StateCache retains knowledge for the rendering thread and relies on explicit invalidation at
-renderer lifecycle and external-mutation boundaries. It does not track context handles or
-registration generations, automatically invalidate on context changes, or validate context identity
-inside boundary snapshots. Engine scopes must finish on the same live rendering context.
+VGE graphics/compute executables are independent `IGpuProgram` owners. The existing StateCache
+program-scope chain retains owner/revision/originating-context borrows; raw scopes remain binding-only.
+GraphicsCommandContext owns exactly-once ShaderActivation and rejects stale prepared pipeline revisions.
+Standalone owner scopes replay validated retained inputs; managed complete boundaries restore their
+resource snapshots after activation cleanup, then fixed/dynamic state. No second activation stack or
+current-owner dictionary is introduced.
 
-GpuSupport remains the owner of capability capture and its existing registration lifecycle.
-Capability-dependent boundary entry still checks readiness through that owner. Native-error handling,
-declared mutation coverage, targeted resource retirement and ordered boundary restoration remain in place.
-The context-switch/replacement checks described in the historical records below no longer apply to
-StateCache; future context recovery is separate work.
+EngineBoundaryExecution admits supported prepared VGE graphics footprints, and rejects active native
+engine shaders and nonzero unowned raw/compute footprints that cannot be restored completely. Native
+shader globals/inputs remain integration concerns. The liquid input-only adapter preserves engine pool
+traversal and finally writes without making VGE executables engine shaders. VGE draws obtain frame/light
+inputs explicitly through generated contracts; native hooks remain for real engine owners.
 
-The expanded regression selection exposed two existing SurfaceLightingDisplayBoundaryTests failures:
-their engine mesh fixture applies an additional fullscreen pipeline beyond the production boundary's
-coverage. Both failures reproduced on HEAD with the same shader assets. They are excluded from the
-focused cache validation; the fixture has not been changed as part of this lifetime removal.
+Existing RenderContextRegistry identity validates program scopes and boundary tokens before native
+restoration. Wrong-live-context tokens remain retryable on their origin. Client context retirement
+abandons existing borrowers before ordered shutdown; stamped native resources delete on their live
+origin, defer while noncurrent, or abandon after destruction. This is scoped lifetime validation,
+not automatic whole-cache invalidation or arbitrary context recovery. GpuSupport still owns stable
+capabilities, and unknown external mutations still require explicit invalidation.
 
-Final shader-enabled Debug and Release builds passed, and the focused cache/boundary/startup/resource
-selection passed 93/93 tests in each configuration with no skips. Receipts: artifacts/
-statecache-context-removal-{debug,release}-{build,tests}.log and matching TRX files under
-artifacts/TestResults. Baseline failures are recorded in artifacts/statecache-context-baseline-tests.log.
-No live-game acceptance or performance measurement was performed.
+The root closes admission, releases feature borrowers/owners and registry executables, then shared
+resources and GPU manager. World leave changes callback admission without changing native context
+identity. See [shader lifecycle](GpuProgram.md#reload-and-retirement), [engine switching](Rendering.EngineStateSwitching.md#shader-ownership-and-native-handoff)
+and [current qualification](Rendering.ShaderOwnership.todo). Dated cache-lifetime-removal and consumer
+receipts below apply to their original implementations; shader ownership supersedes their assertions
+that boundaries do not validate context identity. Live acceptance remains user-run.
+
+### Historical cache lifetime receipt
+
+The earlier cache-lifetime removal passed shader-enabled Debug/Release builds and 93/93 focused
+cases in each configuration. Receipts: `artifacts/statecache-context-removal-{debug,release}-{build,tests}.log`
+and corresponding TestResults TRX. Its two baseline SurfaceLightingDisplayBoundaryTests failures
+were recorded in `artifacts/statecache-context-baseline-tests.log`. These are historical receipts,
+not current shader-migration failures or proof of the present context contract.
 
 ## Graphics submission design contract
 
-Source review: 2026-10-05. This section resolves the bounded design choices in the
-[approved proposal](Rendering.AuthoritativePipelineState.Proposal.md) for the
-[implementation plan](Rendering.AuthoritativePipelineState.todo). It specifies complete
-submission; retained partial descriptors do not implement these requirements.
+Source review: 2026-10-05. This contract was originally reconciled with the now-retired
+Rendering.AuthoritativePipelineState.Proposal.md and Rendering.AuthoritativePipelineState.todo,
+which are not present in this checkout. They are historical planning references, not current
+prerequisites. This document records complete submission requirements; retained partial descriptors
+do not implement them. Current shader ownership is controlled by
+[the ownership proposal](Rendering.ShaderOwnership.Proposal.md) and the lifetime section above.
 The state-cache lifetime policy above governs this design. Historical receipts below remain evidence
 only for the implementations and scopes they actually exercised.
 
@@ -69,7 +84,7 @@ below accounts for the eleven retired capture invocations, including the removed
 | --- | --- |
 | [EngineStateSwitchingHook](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateSwitchingHook.cs), [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs), [EngineStateCalls](../VanillaGraphicsExpanded/Rendering/EngineStateCalls.cs) | Observed/routed only for exact mapped signatures in selected engine assemblies. Depth function/mask, selected capability enables, indexed/global blend factors/masks, viewport, line/point size, patch/provoking state, clear color, pixel store, program/VAO/FBO/renderbuffer/texture/sampler/buffer/image bindings and mapped deletion calls use cache adapters. Unsupported capability enums are forwarded, not proof of complete tracking. |
 | [FramebufferBindingHook](../VanillaGraphicsExpanded/HarmonyPatches/FramebufferBindingHook.cs) | Successful setter postfix observes combined read/draw FBO binding without another GL call. Does not establish blend/routing or arbitrary mod coverage. |
-| [GpuProgram](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.cs), [OwnedShaderSubmissionHook](../VanillaGraphicsExpanded/HarmonyPatches/OwnedShaderSubmissionHook.cs), terrain material/scene-slot binding hooks | Shader owner and prepared resource publication remain authoritative; native program tracking alone does not restore engine ownership. Texture/UBO inputs may change on every draw with the same executable. |
+| [GpuProgram](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.cs), IGpuProgram workflows, terrain material/scene-slot binding hooks | Shader owner and prepared resource publication remain authoritative; native program tracking alone does not restore engine ownership. Texture/UBO inputs may change on every draw with the same executable. |
 | [CompleteGraphicsBoundary](../VanillaGraphicsExpanded/Rendering/Integration/CompleteGraphicsBoundary.cs), [EngineBoundaryScope](../VanillaGraphicsExpanded/Rendering/EngineBoundaryScope.cs) | Explicit restoration of declared effects and prepared resource footprints. Resolve unknown incoming fields once at entry; restore shader owner, borrowed bindings and independent read/draw FBOs, then draw state. Complete descriptions supply full PSO restoration coverage; engine compatibility adapters retain their explicitly partial scopes. |
 | GpuFramebuffer creation/routing and scratch helpers | Framebuffer blend storage is retired; complete pipeline descriptions own VGE blend policy. Raw draw/read-buffer routing is FBO-local resource state. RenderPass owns routing and restores borrowed engine routing. |
 | Engine compatibility scopes, explicit external invalidation, [StateCache.ScissorScope](../VanillaGraphicsExpanded/Rendering/StateCache.ScissorScope.cs) | Retained for bounded engine-owned operations; the legacy fixed-function capture is test-only. Scissor helper preserves enable, not a general dynamic rectangle contract. Complete VGE draws use the full boundary contract. |
@@ -484,7 +499,8 @@ the evidence available at those implementation checkpoints; Consolidated accepta
 the final disposition. This section records implementation against
 the retired restoration plan, under
 its retired approved proposal and the
-[parent sequencing exception](Rendering.AuthoritativePipelineState.todo).
+parent sequencing exception in the retired Rendering.AuthoritativePipelineState.todo (unavailable
+in this checkout).
 The retired documents are historical records, not controlling dependencies for current design. Paths below are relative to the repository root. References to existing source names locate
 the compatibility implementation; proposed names describe responsibilities to implement.
 Second source review and independent audit-stage-completion review passed on 2026-10-05;
@@ -535,7 +551,7 @@ Observation alone does not imply preservation.
 | `Rendering/GpuFramebuffer.cs` Bind / BindWithViewport / Clear | Binding tracked by StateCache; Bind refreshes dirty attachments but does not apply blend policy. Explicit ApplyAttachmentBlendState (`GpuFramebuffer.Blending.cs`) changes indexed state and needs declared effects if invoked. Viewport currently raw: migrate to declared cache-backed dynamic application. Global ColorMask affects all draw outputs, not only index zero. Clear(r,g,b,a) mutates clear-color helper state: preserve through StateCache clear-operation storage, outside static PSO identity. Clear masks/scissor established by declared draw/clear state. |
 | `GpuFramebuffer.Creation.cs` routing/attachments | DrawBuffers/ReadBuffer are FBO-local; creation changes owned FBO routing, not incoming engine FBO routing. Preserve read/draw bindings with existing scope. Mutation of routing on a borrowed engine FBO is excluded from this boundary. No framebuffer blend-policy reapplication is inferred from rebinding. |
 | Texture creation / retirement | Existing texture scopes preserve allocation bindings/active unit. Deletion uses existing targeted lifecycle invalidation and deferred retirement. Do not fold bindings into fixed-function structs. |
-| `Rendering/Shaders/GpuProgram.cs` preparation, UseScope, disposal | Retain readiness, failed-activation cleanup, prepared input publication and engine CurrentShaderProgram ownership. Existing UseScope stops/restores the previous owner (or compute/raw program fallback). Preserve it, including exceptions; restoration of prior owner may bind its resource inputs. Restore borrowed binding scope after shader cleanup, then pipeline snapshot last. |
+| `Rendering/Shaders/GpuProgram.cs` preparation, UseScope, disposal | Retain readiness, failed-activation cleanup and prepared input publication. Current UseScope borrows validated VGE owner/revision/context metadata through the existing StateCache tracker; raw scopes restore bindings only. Immediate owner restoration replays retained inputs without preparing pending replacements. Restore borrowed binding scope after shader cleanup, then pipeline snapshot last. |
 | Installed `ClientPlatformWindows.RenderMesh(MeshRef)` | IL binds VAO and element buffer, draws, unbinds element buffer and VAO. No fixed-function or viewport mutation. Exact-signature mappings observe these calls. Engine rendering reestablishes its geometry before drawing; adapter additionally preserves incoming VAO and generic array-buffer binding for strict handoff, without rewriting VAO-owned EBO associations. No SSBO multi-draw overload is used by the fullscreen quad. |
 | Shader resources / resumed engine inputs | ShaderProgramBase.Use binds program, default uniforms and selected textures; BindTexture2D mutates active unit/texture/sampler. VGE prepared input publication also changes resource slots. Preserve the active unit and touched texture/sampler/UBO/SSBO/image slots through existing cache binding APIs around the entire operation, after preparing executable resource footprints and before activation. Resolve/query missing incoming slots at entry. Prior owner activation runs first on cleanup. Do not assume every slot is rebound by held-item code or create another binding cache. |
 | Unchanged state / unsupported helpers | Blend equations, cull mode/winding, scissor rectangle, depth range, stencil, sampling, clipping and patch/provoking state are not changed by these fullscreen descriptors/helpers. Leave untouched; new helper effects require expanded coverage before mutation. Arbitrary mod/raw GL, external shader callbacks with undeclared effects, context migration mid-operation and engine-FBO routing changes are excluded; fail entry or suspend authority, never assert warm-cache authority over them. |

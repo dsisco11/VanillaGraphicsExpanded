@@ -13,7 +13,7 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
     public SurfaceLightingDisplayBoundaryTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Display boundary
-    /// <summary>Brightness and gamma changes retain the same HDR image and cache generation; the engine grades it later.</summary>
+    /// <summary>Brightness and gamma changes retain the same HDR image and cache generation; owned final composition grades it later.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public void DisplayGradingDoesNotEnterSceneLinearLighting(bool sh9)
@@ -39,15 +39,8 @@ public sealed class SurfaceLightingDisplayBoundaryTests : RenderTestBase
             for (int i = 0; i < reference.Length; i++)
             {
                 if ((i & 3) == 3) continue;
-                float positive = Math.Max(0, reference[i]);
-                int pixel = i & ~3;
-                float peak = Math.Max(0, Math.Max(reference[pixel], Math.Max(reference[pixel + 1], reference[pixel + 2])));
-                float mapped = positive / (1 + peak);
-                float expected = mapped <= .0031308f ? mapped * 12.92f : 1.055f * MathF.Pow(mapped, 1 / 2.4f) - .055f;
-                int x = (i / 4) % 4, y = (i / 4) / 4;
-                int[] ranks = [0, 32, 8, 40, 48, 16, 56, 24, 12, 44, 4, 36, 60, 28, 52, 20];
-                expected = Math.Clamp(expected + ((ranks[y * 4 + x] + .5f) / 64f - .5f) / 255f, 0f, 1f);
-                Assert.InRange(displayed[i], expected - .002f, expected + .002f);
+                // Primary remains scene-linear; owned final composition performs the display transfer.
+                Assert.InRange(displayed[i], reference[i] - .002f, reference[i] + .002f);
             }
             Assert.Contains("pbr_display_resolve", runtime.LoadedPrograms);
             Assert.True(runtime.Cache.TryGetLighting(out var before));

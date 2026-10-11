@@ -1,5 +1,37 @@
 # Generated shader binding state
 
+## Executable ownership and current compatibility
+
+Graphics `GpuProgram` and compute `GpuComputeProgram` implement internal `IGpuProgram`;
+shared default workflows use concrete lifecycle state and deliberate facades, preserving authored
+and generated `Submit`. Runtime/offline generation recognizes both families through abstract
+intermediates. Family owners expose ProgramLayout/ProgramId for generated publication; direct
+pipeline adapters retain their explicitly accessible pipeline-field path.
+
+Prepared interfaces publish atomically with the independent executable/revision/asset generation.
+Desired values and CPU blocks survive reload, while successful-upload history follows the installed
+generation. StateCache's existing scopes carry owner/revision/context borrows; native engine globals
+are not a VGE ownership channel. Replacement and retirement reject active borrows. Every managed draw
+publishes intended inputs even when the binding ID is unchanged.
+
+The world `VgeFrameUBO` remains one shared snapshot. An early `Before` callback withdraws the
+previous publication; capture runs at order `0.001`, immediately after native camera and ambient
+preparation at order zero and before liquid depth at `0.995`. Projection is copied immediately
+from engine scratch storage; view comes from the dedicated `CameraMatrixOriginf`. Continuity
+samples player orientation at that same boundary, before perception effects alter future angles.
+Shadow and Opaque consumers reuse this snapshot without recapture or another frame-block upload.
+
+`GpuProgramInterface` retains preparation-owned diagnostic name/location projections and raw-handle
+fixture helpers. It does not populate an inherited engine dictionary. Public VGE shader classes no
+longer implement engine `Uniform`/`HasUniform`/texture APIs or `IShaderProgram`; use typed retained
+bindings/CPU blocks instead. `LiquidPoolInputAdapter` translates the three supported logical pool
+inputs without engine executable ownership. Real native terrain/material/atmosphere/frame/light hooks
+retain their engine interfaces. See [supported replacements](GpuProgram.md#shared-workflows-and-compatibility).
+
+Dated receipts and initial-checkpoint descriptions below are historical evidence; they do not retain
+removed engine inheritance or temporary compatibility paths. Current qualification and live acceptance
+are tracked in [Rendering.ShaderOwnership.todo](Rendering.ShaderOwnership.todo).
+
 ## Prepared executable bindings
 
 The C# attributes remain the authoritative contract. `ArrayLength` and optional `ShaderType`
@@ -182,9 +214,10 @@ engine shaders retain their ordinary uniforms and external shader API behavior.
 Compatibility was independently reviewed before these removals. Preparation now retains private
 sampler/image inspection locations keyed by resource kind and fixed unit. GpuProgramInterface
 projects contract names to these addresses, including array extent and inactive `-1` entries,
-for inherited engine Uniform/HasUniform APIs, diagnostics and raw-handle fixture adapters. No
+for diagnostics and raw-handle fixture adapters. The original implementation also populated
+an inherited engine uniform dictionary; independent VGE owners have removed that integration. No
 SPIR-V debug name or authored opaque address is required. Candidate installation still publishes
-the executable, prepared table and engine dictionary together. PreparedBindingTests exercises
+the executable and prepared table together. PreparedBindingTests exercises
 array base/element addressing, bounds, image addresses and inactive resources; the pre-removal
 build and 422 affected tests passed before location removal.
 
@@ -192,17 +225,18 @@ The surviving compatibility boundaries have specific consumers:
 
 | Boundary | Supported consumer and responsibility |
 | --- | --- |
-| GpuProgramInterface.Uniforms/GetUniformLocation | Engine indexed uniform dictionary, ordinary Uniform APIs, diagnostic naming and TestShaderInterfaces raw-handle fixtures. Resource addresses are derived during preparation; ordinary addresses remain authored value metadata. |
+| GpuProgramInterface.Uniforms/GetUniformLocation | Diagnostic naming and TestShaderInterfaces raw-handle fixtures; no VGE engine dictionary or inherited uniform API. Resource addresses are derived during preparation; ordinary addresses remain authored value metadata. |
 | ShaderBindingAccess | InterfaceBindingReader's authored-Submit/pipeline-field alternate generator path, covered by InterfaceBindingTests. It now resolves preparation-owned numeric identities and validates/publishes through ShaderPreparedSubmission. PreparedSubmissionTests checks explicit/default image views with semantic readback and inactive sampler handling. |
 | GpuProgramLayout named binding methods | Direct pipeline/catalog fixtures, CPU UBO binding owners, and engine integration adapters. Prepared sampler/image activity uses numeric entries. Context-wide binding cache and view/range ownership remain shared. |
 | GpuProgramLayout.ApplyUniformUnitContract and driver lookup fallback | AtmosphereProgramBindings decorates externally owned engine programs without a VGE binary interface. Its dynamic registrations must assign engine sampler units. Compiled VGE contracts bypass this branch; normal VGE submission does not call it. Atmosphere engine binding regressions preserve this boundary. |
-| LiquidShaderProgram.EngineInterface | Engine origin/model-view/transparency calls continue to update liquid draw UBO storage; other engine APIs retain their inherited behavior. |
+| LiquidPoolInputAdapter / ILiquidPoolInputs | Engine origin/model-view/transparency calls update the active visible/depth draw UBO through the input-only integration bridge; executable operations are rejected. |
 | TerrainMaterialParamsTextureBindingHook / TerrainReliefBindings / AtmosphereShaderBindingHook | Externally owned engine shader bindings and cache invalidation remain at their existing ownership boundary. These are real engine writes, not generated value history. |
 
 ShaderBindingSubmission had no production callers; its three fixture call sites now use prepared
 entries and it was removed. Unused protected managed/raw texture helpers and their private
 SetSamplerUnitLegacy writer were removed from GpuProgram after independent caller review.
-Inherited public engine texture APIs remain supported. Height-bake, Poisson and material smoke
+Inherited public engine texture APIs were retained at that checkpoint and have since been removed
+from VGE owners; typed retained inputs are the supported replacement. Height-bake, Poisson and material smoke
 fixtures no longer repeat fixed sampler assignments with Uniform1; their established texture
 bindings and semantic assertions remain. Retired SH gather fixture sampler assignment writes
 were removed; the explicitly skipped retired comparison remains skipped.
@@ -348,6 +382,10 @@ variant applicability without claiming the optimizer's linked activity before pr
 
 ## Initial runtime consumers and migration boundaries
 
+This inventory describes the earlier binding-state source audit. Its inherited engine APIs, dictionary
+installation and old liquid interface references are historical; the current ownership/compatibility
+section above supplies their implemented replacement. These tables do not require retaining removed paths.
+
 The following table describes the pre-migration implementation. The final architecture and retained
 consumers are recorded in the sections above; deleted source names are historical identifiers.
 
@@ -488,10 +526,11 @@ evidence are recorded above. Final integration evidence and acceptance are recor
 frame-time improvement is claimed.
 
 
-The [prepared bindings and generated state proposal](Rendering.ShaderBindingState.Proposal.md) describes
-the approved replacement for the location-dependent submission path. This audit retains the original
-declarations as historical inventory and records the resulting architecture and verification above.
-Implementation and acceptance are tracked in the dedicated [task list](Rendering.ShaderBindingState.todo).
+The retired Rendering.ShaderBindingState.Proposal.md and Rendering.ShaderBindingState.todo
+recorded the original approved replacement and implementation. They are unavailable in this checkout
+and are historical references, not current prerequisites. This audit retains the original declarations
+as historical inventory and records the resulting architecture and verification above. Current shader
+ownership and remaining acceptance are tracked in [the ownership checklist](Rendering.ShaderOwnership.todo).
 
 ## Initial uniform-location audit
 

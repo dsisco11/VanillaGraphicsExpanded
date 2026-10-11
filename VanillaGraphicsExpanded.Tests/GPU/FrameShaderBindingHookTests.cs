@@ -107,8 +107,8 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
                 Mock.Get(render).SetupGet(value => value.FrameHeight).Returns(16);
                 render.ShaderUniforms.PointLightColors3[0] = .5f;
                 lightsPublisher.OnRenderFrame(.032f,EnumRenderStage.Before);
+                publisher.BeginFrame();
                 publisher.OnRenderFrame(.032f,EnumRenderStage.Before);
-                publisher.OnRenderFrame(.032f,EnumRenderStage.Opaque);
                 lightsPublisher.OnRenderFrame(.032f,EnumRenderStage.Opaque);
                 FrameShaderBindingHook.ClearUniformCache();
                 engine.Use();

@@ -157,6 +157,8 @@ public sealed class TerrainChunkSlotBindingTests : RenderTestBase
                 Assert.InRange(BitConverter.UInt32BitsToSingle(actual[4]), expectedU - .00001f, expectedU + .00001f);
                 Assert.InRange(BitConverter.UInt32BitsToSingle(actual[5]), expectedV - .00001f, expectedV + .00001f);
             }
+            // Release the native owner before entering the VGE compute validation scope.
+            engineProgram.Stop();
             if (face >= 0) TerrainBoundaryCaptureFixture.AssertSelectedSurface(assets.Api, finalMapping, face, boundary);
         }
         finally

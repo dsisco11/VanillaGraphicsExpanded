@@ -25,7 +25,7 @@ internal sealed partial class LiquidDepthShaderProgram : GpuProgram, ILiquidPool
     internal override GpuShaderContract ProgramContract => Contract;
 
     #region Public API
-    /// <summary>Supplies an alternate camera snapshot without duplicating common transforms.</summary>
+    /// <summary>Supplies an alternate fixture camera; world rendering uses the shared frame.</summary>
     internal VgeFrameUniformBuffer? FrameInputs
     {
         get => frameInputs;
@@ -73,7 +73,7 @@ internal sealed partial class LiquidDepthShaderProgram : GpuProgram, ILiquidPool
         draw.SetWriteGuard(RequireInputMutation);
         wave.SetWriteGuard(RequireInputMutation);
     }
-    /// <summary>Shares the same current world camera as the visible liquid pass.</summary>
+    /// <summary>Uses the shared world camera unless an alternate fixture view is supplied.</summary>
     CpuUniformBuffer ILiquidDepthShaderProgramBindings.FrameInputs => frameInputs ?? VgeFrameRenderer.Current;
     /// <summary>Supplies retained draw inputs.</summary>
     CpuUniformBuffer ILiquidDepthShaderProgramBindings.DrawParameters => draw;

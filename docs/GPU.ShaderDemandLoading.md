@@ -11,7 +11,7 @@ look up declarations there, so a missing shader never triggers the engine's GLSL
 ## Graphics ownership
 
 `GpuProgram.EnsureReady` prepares the current immutable settings through the existing SPIR-V loader
-and driver executable cache. `TryUse`, `UseScope`, direct `Use`, and `IShaderProgram.Use` establish
+and driver executable cache. `TryUse`, `UseScope`, direct `Use`, and internal `IGpuProgram` workflows establish
 readiness before activation. Failed preparation retains a previous executable but does not activate
 it with incompatible inputs. Repeated attempts with the same failed inputs do not reread binaries;
 changed effective settings or asset invalidation permit another attempt.
@@ -22,10 +22,18 @@ are excluded from driver submission. Settings edits alone no longer enqueue comp
 recompile queue and debug-family-specific lifecycle owner have been removed; the debug family now
 only groups declarations and applies shared settings.
 
-Explicit owner disposal is terminal. Engine shader reload calls the base engine disposal method;
-that invalidates GL ownership without retiring the declaration. Subsequent preparation recreates
-and re-registers it. Application teardown retires and removes the shared library. Never-linked
-owners can be retired without GL deletion calls.
+Explicit owner disposal is terminal. VGE never enters the engine registry or receives engine-base
+disposal. The client rendering lifetime synchronously invalidates graphics asset epochs and
+feature-owned compute generations before native reload, withdraws publications, and reopens demand
+preparation after native refresh or failure. Declarations, settings and CPU inputs survive reload;
+known failures retry only when settings/assets change or explicitly requested. Native reload's
+Boolean is independent of lazy VGE readiness. Closed client libraries cannot be recreated by late
+lookup callbacks. Never-linked owners can retire without native deletion.
+
+The root owns feature/registry/shared-resource shutdown before the GPU manager drain. World leave
+advances callback admission without changing native context generation. Program resources and queued
+deletes carry their originating context registration; dead-context names are abandoned rather than
+deleted in another context. See [shader lifetime](GpuProgram.md#reload-and-retirement).
 
 ## Preload decisions
 
@@ -54,7 +62,20 @@ systems already invoke these at their feature-use boundaries rather than through
 registration. The world-probe trace owner now declares its three required programs and explicitly
 preloads them through its existing linking batch.
 
-## Validation
+## Retained compute reload
+
+The `GpuComputeProgram` wrapper retains desired inputs and CPU blocks. Asset-backed eager and
+deferred creation paths retain an immutable rebuild factory/source. On reload a validated candidate
+`GpuComputePipeline`, interface and revision install together, then the old native owner retires.
+Failed candidates retain the previous allocation but cannot dispatch it for the new asset epoch.
+Raw pipelines without a rebuild description are explicitly caller-lifetime objects. Compute owners
+remain feature-owned and do not require graphics registry membership. Shared default workflows and
+concrete facade dispatch are documented in [GpuProgram](GpuProgram.md#shared-workflows-and-compatibility).
+
+## Historical demand-loading validation
+
+The following receipts predate independent shader ownership and describe that earlier implementation.
+Current migration qualification is recorded in [the ownership checklist](Rendering.ShaderOwnership.todo).
 
 Final Release validation passed **53/53** focused tests in 35 seconds, including declaration-only
 registration, selective activation and preload, graphics interface activation/disposal, terminal

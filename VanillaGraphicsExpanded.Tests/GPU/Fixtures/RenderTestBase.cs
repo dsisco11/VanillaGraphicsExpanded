@@ -59,17 +59,16 @@ public abstract class RenderTestBase : IDisposable
     {
         _fixture.EnsureContextValid();
 
+        // Context switches and raw test operations can leave stale native bindings in the thread-local cache.
+        // Clear them before ring allocation: another context can reuse the same buffer name.
+        StateCache.Current.InvalidateAll();
+        while (GL.GetError() != ErrorCode.NoError) { }
+
         // Option B: UBO binding uses the per-thread ring allocator.
         // In production this is installed by a renderer; in tests we activate it manually.
         if (beginUniformFrame) TestUniformRing.BeginFrame();
         else TestUniformRing.EnsureFrame();
         
-        // Drain any leftover GL errors so each test starts clean
-        while (GL.GetError() != ErrorCode.NoError) { }
-
-        // Many production paths rely on GlStateCache + PSO for correctness.
-        // Tests should invalidate the cache, then apply explicit PSO intent per pass.
-        StateCache.Current.InvalidateAll();
     }
 
     #region Render Target Management
