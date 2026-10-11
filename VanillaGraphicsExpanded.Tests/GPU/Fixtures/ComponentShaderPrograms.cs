@@ -25,9 +25,6 @@ internal sealed class ComponentShaderPrograms : IDisposable
         programs.Add(program);
         program.PassName = identity ?? program.ProgramContract.Identity;
         program.AssetDomain = "vanillagraphicsexpanded";
-        // Supply the engine's stage objects without starting its window or renderer.
-        program.VertexShader = new Shader();
-        program.FragmentShader = new Shader();
         program.ConfigureOptions(() =>
         {
             if (settings != null) program.SetDefines(settings);

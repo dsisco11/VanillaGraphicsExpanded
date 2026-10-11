@@ -70,8 +70,9 @@ internal sealed class SceneColorPipeline : IRenderer
         // This tracks the input to final composition, not an optional HDR mode. Even
         // failed preparation must never cause subsequent scene draws to emit display RGB.
         hasSceneInput = true;
-        if (GpuShaderPrograms.Get<Postprocessing.FinalDisplayShaderProgram>(api,"pbr_final")?.EnsureReady()!=true)
-            throw new InvalidOperationException("VGE HDR requires the final display program.");
+        var final = GpuShaderPrograms.Get<Postprocessing.FinalDisplayShaderProgram>(api, "pbr_final");
+        if (final?.EnsureReady() != true)
+            throw new InvalidOperationException($"VGE HDR requires pbr_final: {final?.PreparationFailure?.Message ?? "declaration unavailable or not ready"}.", final?.PreparationFailure);
         if (!targets.Prepare(api.Render.FrameBuffers, out string? failure))
             throw new InvalidOperationException($"VGE HDR scene storage is invalid: {failure}");
         if (AtmosphereModSystem.Lighting is null || AtmosphereModSystem.SkyTextureId == 0

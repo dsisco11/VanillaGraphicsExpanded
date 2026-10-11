@@ -273,7 +273,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.True(Parameters(shader).IsDirty);
             Assert.Null(ShaderProgramBase.CurrentShaderProgram);
             GpuUniformRingSystem.SetCurrent(ring);
-            ((Vintagestory.API.Client.IShaderProgram)shader).Use();
+            ((IGpuProgram)shader).Activate();
             Assert.Equal(2, ring.AllocationsWritten);
             shader.Stop();
             shader.UpsampleDepthSigma = 0.75f;

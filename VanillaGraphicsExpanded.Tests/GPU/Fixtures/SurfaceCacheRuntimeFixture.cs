@@ -145,8 +145,6 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         framebuffers[(int)EnumFrameBuffer.Primary] = Terrain.Primary;
         var render = RuntimeEngineServices.Render(edge,framebuffers,() => spatial?.View() ?? identity,() => identity,() => Draw());
         var shaders = new Mock<IShaderAPI>(MockBehavior.Strict);
-        shaders.Setup(service => service.NewShader(It.IsAny<EnumShaderType>())).Returns(() => new Vintagestory.Client.NoObf.Shader());
-        shaders.Setup(service => service.RegisterMemoryShaderProgram(It.IsAny<string>(), It.IsAny<IShaderProgram>())).Returns(1);
         var api = RuntimeEngineServices.Client(assets.Api,Events.Api,world.Object,render,shaders.Object);
         Api = api;
         partitions.StartClientSide(api);

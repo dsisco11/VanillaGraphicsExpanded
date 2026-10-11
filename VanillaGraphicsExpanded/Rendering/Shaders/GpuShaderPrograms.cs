@@ -29,7 +29,6 @@ internal sealed class GpuShaderPrograms
             return (T)existing;
         }
         candidate.Initialize(api);
-        candidate.RegisterOnPreparation();
         library.programs[name] = candidate;
         return candidate;
     }
@@ -56,7 +55,12 @@ internal sealed class GpuShaderPrograms
     internal static bool Preload(ICoreClientAPI api, ImmutableArray<GpuProgram> selection)
     {
         // Check every owner before the linking batch can read assets or issue driver commands.
-        foreach (var program in selection) program.RequireOutsideSubmission();
+        foreach (var program in selection)
+        {
+            program.RequireOutsideSubmission();
+            // Reject stale borrowed generations before the batch allocates unpublished candidates.
+            if (program.RequiresPreparation) ((IGpuProgram)program).Lifetime.RequireUnborrowed();
+        }
         bool success = true;
         foreach (var group in selection.Distinct().Where(program => !program.IsRetired && program.RequiresPreparation && program.CanSubmitPreparation).GroupBy(program =>
             string.IsNullOrWhiteSpace(program.AssetDomain) ? ShaderImportsSystem.DefaultDomain : program.AssetDomain))

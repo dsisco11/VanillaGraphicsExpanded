@@ -25,11 +25,19 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// - Apply a GL debug label to the linked program
 ///
 /// </summary>
-public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDisposable, IGpuProgram
+public abstract partial class GpuProgram : IDisposable, IGpuProgram
 {
     #region Fields
 
     private GpuProgramLayout? programLayout;
+    private GpuProgramObject? executable;
+
+    /// <summary>Gets the installed native executable without transferring ownership.</summary>
+    public int ProgramId => executable?.ProgramId ?? 0;
+    /// <summary>Names this declaration for lookup and diagnostics.</summary>
+    public string PassName { get; set; } = string.Empty;
+    /// <summary>Selects the built asset domain.</summary>
+    public string AssetDomain { get; set; } = string.Empty;
 
     private ICoreClientAPI? capi;
     private ILogger? log;
@@ -45,7 +53,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     internal GpuProgramLayout ProgramLayout => programLayout ??= CreateLayout();
     /// <summary>Exposes the installed layout at the shared submission boundary.</summary>
     GpuProgramLayout IShaderSubmissionTarget.ProgramLayout => ProgramLayout;
-    /// <summary>Exposes the engine executable at the shared submission boundary.</summary>
+    /// <summary>Exposes the installed executable at the shared submission boundary.</summary>
     int IShaderSubmissionTarget.ProgramId => ProgramId;
 
     #endregion
@@ -53,9 +61,9 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
     #region Properties and Hooks
 
     /// <summary>
-    /// Returns <c>true</c> when this program has a non-zero <see cref="ShaderProgram.ProgramId"/>.
+    /// Returns <c>true</c> when this program has a non-zero <see cref="ProgramId"/>.
     /// </summary>
-    public bool IsLinked => ProgramId != 0 && !Disposed;
+    public bool IsLinked => ProgramId != 0 && !lifetime.IsRetired;
 
     /// <summary>
     /// Program identity used for GL debug labels and explicit catalog lookup by generic owners.
@@ -121,11 +129,6 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
             AssetDomain = ShaderImportsSystem.DefaultDomain;
         }
 
-        // IMPORTANT: Memory shader programs must provide stage instances themselves.
-        // The engine may attempt to compile/validate registered programs and will log "shader missing" (and may NRE)
-        // if these slots are null.
-        VertexShader ??= (global::Vintagestory.Client.NoObf.Shader)api.Shader.NewShader(EnumShaderType.VertexShader);
-        FragmentShader ??= (global::Vintagestory.Client.NoObf.Shader)api.Shader.NewShader(EnumShaderType.FragmentShader);
     }
 
     #endregion
@@ -186,16 +189,15 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         try
         {
             Contracts.ShaderLoadPlan plan;
-            lock (settingsLock) plan = RequestedPlan;
+            ulong assets;
+            lock (settingsLock) { plan = RequestedPlan; assets = assetGeneration; }
             if (plan.Stages.Any(s => s.Stage.Kind == Contracts.ShaderStageKind.Compute))
                 throw new InvalidOperationException("A graphics program cannot load a compute contract.");
 
             // The captured plan supplies binary selection and bindings without reconstructing GLSL.
-            if (Disposed) registeredWithEngine = false;
-            bool ok = CompileSpirv(plan);
+            bool ok = CompileSpirv(plan, assets);
             if (ok)
             {
-                CompletePreparation();
                 GlDebug.TryLabel(ObjectLabelIdentifier.Program, ProgramId, ShaderName);
                 // Owner notifications run after installation and cannot turn a committed link into a failed candidate.
                 try { OnAfterCompile(); }
@@ -206,6 +208,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         catch (Exception ex)
         {
             // Never let shader compilation exceptions bring down the client.
+            PreparationFailure = ex;
             log?.Error($"[VGE][{ShaderName}] Exception during CompileAndLink(): {ex}");
             return false;
         }
@@ -227,7 +230,7 @@ public abstract partial class GpuProgram : ShaderProgram, IShaderProgram, IDispo
         get
         {
             lock (settingsLock)
-                return !Disposed && (ProgramId == 0 || installedPlan == null || !RequestedPlan.SameInputs(installedPlan));
+                return !lifetime.IsRetired && (ProgramId == 0 || installedPlan == null || !RequestedPlan.SameInputs(installedPlan));
         }
     }
     #endregion

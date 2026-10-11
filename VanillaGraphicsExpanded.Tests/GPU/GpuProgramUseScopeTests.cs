@@ -29,7 +29,7 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
         using (first.UseScope())
         {
             Assert.Equal(1, first.Submissions);
-            ((Vintagestory.API.Client.IShaderProgram)first).Use();
+            ((IGpuProgram)first).Activate();
             Assert.Equal(2, first.Submissions);
             using (first.UseScope()) Assert.Equal(3, first.Submissions);
             Assert.Equal(4, first.Submissions);
@@ -93,7 +93,8 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
         {
             if (path.EndsWith(".spv", StringComparison.Ordinal)) assets.Overrides[path] = new byte[20];
         };
-        shader.InvalidateAssets();
+        Assert.Throws<InvalidOperationException>(shader.InvalidateAssets);
+        AccessTools.Field(typeof(VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram), "reloadRequired").SetValue(shader, true);
         Assert.Throws<InvalidOperationException>(() => ((IGpuProgram)shader).Activate());
         AssertActive(shader);
         shader.Stop();
@@ -103,25 +104,13 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>The engine's nonvirtual base-typed activation reaches owned shader publication.</summary>
+    /// <summary>VGE executables cannot enter engine activation or registration contracts.</summary>
     [Fact]
-    public void EngineBaseActivationSubmitsOwnedInputs()
+    public void ExecutableOwnersAreIndependentOfEngineTypes()
     {
-        EnsureContextValid();
-        using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<CountingShader>();
-        var harmony = new Harmony("VGE.Tests.ShaderInputSubmission.EngineUse");
-        harmony.CreateClassProcessor(typeof(OwnedShaderSubmissionHook)).Patch();
-        harmony.CreateClassProcessor(typeof(GpuProgramStopHook)).Patch();
-        try
-        {
-            ShaderProgramBase engineOwner = shader;
-            engineOwner.Use();
-            Assert.Equal(1, shader.Submissions);
-            AssertActive(shader);
-            engineOwner.Stop();
-        }
-        finally { harmony.UnpatchAll(harmony.Id); }
+        var type = typeof(VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram);
+        Assert.False(typeof(ShaderProgramBase).IsAssignableFrom(type));
+        Assert.False(typeof(Vintagestory.API.Client.IShaderProgram).IsAssignableFrom(type));
     }
 
     /// <summary>Switches instances, borrows nested uses of one instance, then restores an inactive engine.</summary>
@@ -165,7 +154,7 @@ public sealed class GpuProgramUseScopeTests : RenderTestBase
     }
 
     /// <summary>Observes the actual driver state; the cache alone cannot detect a refused engine activation.</summary>
-    private static void AssertActive(ShaderProgramBase expected)
+    private static void AssertActive(VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram expected)
     {
         Assert.Same(expected, StateCache.ActiveProgram);
         Assert.Equal(expected.ProgramId, GL.GetInteger(GetPName.CurrentProgram));

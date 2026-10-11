@@ -317,7 +317,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
                 Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
                 Assert.False(program.RequiresPreparation);
                 Assert.Same(program.RequestedSettings, program.InstalledSettings);
-                Assert.False(((IShaderProgram)program).HasUniform("vge_waterRefractionQuality"));
+                Assert.False(program.ResourceBindings.BinaryInterface!.GetUniformLocation("vge_waterRefractionQuality") >= 0);
                 Assert.Equal(quality, program.RefractionQuality);
                 Assert.Equal(resolution, program.RefractionBackgroundScale);
             }

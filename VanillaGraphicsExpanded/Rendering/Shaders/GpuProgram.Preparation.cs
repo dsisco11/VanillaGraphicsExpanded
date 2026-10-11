@@ -7,9 +7,13 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 public abstract partial class GpuProgram
 {
     private bool reloadRequired = true;
-    private bool registeredWithEngine;
-    private bool registerWhenReady;
+    private ulong assetGeneration;
+    /// <summary>Identifies the assets used by the installed executable.</summary>
+    internal ulong InstalledAssetGeneration { get; private set; }
+    /// <summary>Retains the actual failed preparation cause for mandatory consumers.</summary>
+    public Exception? PreparationFailure { get; private set; }
     private ShaderLoadPlan? failedPreparation;
+    private ulong failedAssetGeneration;
     private ShaderSettings? readySettings;
 
     #region Public API
@@ -24,36 +28,43 @@ public abstract partial class GpuProgram
     /// <summary>Reports whether an explicit preload must prepare a new generation.</summary>
     internal bool RequiresPreparation => reloadRequired || !IsLinked || NeedsRecompile;
 
-    /// <summary>Distinguishes final owner retirement from the engine's base-class reload disposal.</summary>
+    /// <summary>Reports terminal owner retirement.</summary>
     internal bool IsRetired => lifetime.IsRetired;
 
     /// <summary>Excludes a known failed selection from batch submission until inputs or assets change.</summary>
-    internal bool CanSubmitPreparation => failedPreparation == null ||
+    internal bool CanSubmitPreparation => failedAssetGeneration != assetGeneration || failedPreparation == null ||
         !failedPreparation.SameInputs(new ShaderLoadPlan(RequestedSettings));
 
     /// <summary>Invalidates assets while preserving requested settings and any valid installed generation.</summary>
     internal void InvalidateAssets()
     {
-        reloadRequired = true;
-        failedPreparation = null;
-        if (Disposed) registeredWithEngine = false;
+        RequireOutsideSubmission();
+        lifetime.RequireUnborrowed();
+        lock (settingsLock)
+        {
+            assetGeneration++;
+            reloadRequired = true;
+            failedPreparation = null;
+            PreparationFailure = null;
+        }
+        if (capi is not null)
+            ShaderCompilation.ShaderLinkBatch.InvalidateAssets(capi.Assets, string.IsNullOrWhiteSpace(AssetDomain)
+                ? PBR.ShaderImportsSystem.DefaultDomain : AssetDomain);
     }
 
-    /// <summary>Marks a declared application owner for engine registration after successful preparation.</summary>
-    internal void RegisterOnPreparation() => registerWhenReady = true;
 
     #endregion
 
     #region Private
-    /// <summary>Preserves graphics settings and engine reload preparation during ownership migration.</summary>
+    /// <summary>Prepares the requested settings without exposing incompatible retained generations.</summary>
     bool IGpuProgram.PrepareExecutable()
     {
         RequireOutsideSubmission();
         if (capi == null) throw new InvalidOperationException("Initialize the shader before preparation.");
         if (lifetime.IsRetired) return false;
-        if (Disposed && !registerWhenReady) return false;
-        if (Disposed) registeredWithEngine = false;
-        var settings = RequestedSettings;
+        ShaderSettings settings;
+        ulong assets;
+        lock (settingsLock) { settings = RequestedPlan.Settings; assets = assetGeneration; }
         if (!reloadRequired && IsLinked && (ReferenceEquals(readySettings, settings) || !NeedsRecompile))
         {
             readySettings = settings;
@@ -61,27 +72,23 @@ public abstract partial class GpuProgram
         }
         lifetime.RequireUnborrowed();
         var plan = new ShaderLoadPlan(settings);
-        if (failedPreparation?.SameInputs(plan) == true) return false;
+        if (failedAssetGeneration == assets && failedPreparation?.SameInputs(plan) == true) return false;
         if (!CompileAndLink())
         {
             // Keep a previous executable alive, but never draw it for incompatible requested inputs.
             failedPreparation = plan;
+            failedAssetGeneration = assets;
             return false;
         }
         return true;
     }
 
-    /// <summary>Records a coherent installed generation and restores registration after engine teardown.</summary>
+    /// <summary>Records readiness only after a coherent generation is installed.</summary>
     private void CompletePreparation()
     {
         reloadRequired = false;
         failedPreparation = null;
         readySettings = InstalledSettings;
-        if (registerWhenReady && !registeredWithEngine)
-        {
-            capi!.Shader.RegisterMemoryShaderProgram(PassName, this);
-            registeredWithEngine = true;
-        }
     }
     #endregion
 

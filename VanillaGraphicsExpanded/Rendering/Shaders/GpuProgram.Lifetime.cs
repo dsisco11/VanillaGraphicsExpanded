@@ -9,7 +9,7 @@ public abstract partial class GpuProgram
 
     #region Public API
     /// <summary>Releases linked resources safely, including declarations with no GL stage ownership.</summary>
-    public new void Dispose() => ((IGpuProgram)this).Retire();
+    public void Dispose() => ((IGpuProgram)this).Retire();
 
     #endregion
 
@@ -24,18 +24,12 @@ public abstract partial class GpuProgram
     /// <summary>Bridges family resource cleanup to the shared lifetime workflow.</summary>
     void IGpuProgram.ReleaseResources() => ReleaseResources();
 
-    /// <summary>Retires the temporary engine-owned graphics executable exactly once.</summary>
+    /// <summary>Retires the composed native executable through targeted resource deletion.</summary>
     void IGpuProgram.ReleaseExecutable()
     {
-        if (ProgramId == 0)
-        {
-            VertexShader = null;
-            FragmentShader = null;
-            GeometryShader = null;
-            EngineDisposed(this) = true;
-            return;
-        }
-        base.Dispose();
+        var previous = executable;
+        executable = null;
+        previous?.Dispose();
     }
     #endregion
 }

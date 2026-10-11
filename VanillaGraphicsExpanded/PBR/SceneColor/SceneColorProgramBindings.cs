@@ -12,7 +12,7 @@ internal static class SceneColorProgramBindings
     /// <summary>Resets reused engine executables on every binding, including UI and offscreen calls.</summary>
     internal static void BindScene(ShaderProgramBase program, ICoreClientAPI? api)
     {
-        if (program is GpuProgram || !program.HasUniform("vge_sceneLinear")) return;
+        if (!program.HasUniform("vge_sceneLinear")) return;
         bool linear = false;
         if (api is not null)
         {

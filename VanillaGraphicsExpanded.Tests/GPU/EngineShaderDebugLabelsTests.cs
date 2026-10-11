@@ -21,21 +21,19 @@ public sealed class EngineShaderDebugLabelsTests(HeadlessGLFixture fixture) : Re
     public void CompiledBinaryObjectsReceiveProceduralLabels(string shader, string domain, string pass)
     {
         EnsureContextValid();
-        using var assets = new BinaryShaderApiFixture();
-        using var program = new FixtureProgram(shader);
-        program.Initialize(assets.Api);
+        using var binaries = new TerrainShaderTestFixture();
         int previous = 0;
         for (int generation = 0; generation < 2; generation++)
         {
-            Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
-            Assert.NotEqual(previous, program.ProgramId);
+            int vertex = binaries.Load(ShaderType.VertexShader, shader + ".vsh");
+            int fragment = binaries.Load(ShaderType.FragmentShader, shader + ".fsh");
+            using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
             previous = program.ProgramId;
             // Borrow live binary handles without transferring ownership to this engine metadata object.
             var engine = new ShaderProgram
             {
                 AssetDomain = domain, PassName = pass, ProgramId = program.ProgramId,
-                VertexShader = program.VertexShader, FragmentShader = program.FragmentShader,
-                GeometryShader = program.GeometryShader
+                VertexShader = new Shader { ShaderId = vertex }, FragmentShader = new Shader { ShaderId = fragment }
             };
             EngineShaderDebugLabelsHook.Postfix(engine, true);
 #if DEBUG
@@ -64,31 +62,4 @@ public sealed class EngineShaderDebugLabelsTests(HeadlessGLFixture fixture) : Re
     }
     #endregion
 
-    #region Binary fixture
-    /// <summary>Loads existing SPIR-V assets through the production shader abstraction.</summary>
-    private sealed class FixtureProgram : GpuProgram
-    {
-        #region Submission
-        /// <summary>Retains this owner's explicit external input publication contract.</summary>
-        protected override void Submit() { }
-        #endregion
-
-        /// <summary>Selects an existing binary contract and initializes engine stage holders.</summary>
-        internal FixtureProgram(string name)
-        {
-            PassName = name;
-            VertexShader = new Shader();
-            FragmentShader = new Shader();
-        }
-
-        /// <summary>Uses the existing compiled resource contract for the selected fixture.</summary>
-        protected override GpuProgramLayout CreateLayout()
-        {
-            var layout = new GpuProgramLayout();
-            layout.RegisterContract(GpuShaderContracts.Create(ShaderName));
-            return layout;
-        }
-    }
-    #endregion
 }
-

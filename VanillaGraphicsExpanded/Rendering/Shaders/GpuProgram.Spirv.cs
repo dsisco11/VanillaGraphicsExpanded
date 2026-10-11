@@ -17,32 +17,17 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 /// <summary>Prepares binary graphics generations and transfers ownership only after successful linking and interface preparation.</summary>
 public abstract partial class GpuProgram
 {
-    private static readonly HarmonyLib.AccessTools.FieldRef<Vintagestory.Client.NoObf.ShaderProgramBase, bool> EngineDisposed =
-        HarmonyLib.AccessTools.FieldRefAccess<Vintagestory.Client.NoObf.ShaderProgramBase, bool>("disposed");
 
     #region Binary linking
-    /// <summary>Routes engine-triggered reloads through the same strict binary loader as explicit reloads.</summary>
-    public override bool Compile() => CompileAndLink();
 
     /// <summary>Prepares every stage from one plan, preserving the installed program and interface on failure.</summary>
-    private bool CompileSpirv(ShaderLoadPlan plan)
+    private bool CompileSpirv(ShaderLoadPlan plan, ulong assets)
     {
         if (capi == null) throw new InvalidOperationException("Shader API is unavailable.");
 #if DEBUG
         using var errors = new GlDebug.ErrorScope($"{ShaderName}: SPIR-V graphics loading/linking");
 #endif
-        if (Disposed)
-        {
-            // The engine leaves deleted IDs behind. Forget them before new allocations can reuse them.
-            ProgramId = 0;
-            if (VertexShader != null) VertexShader.ShaderId = 0;
-            if (FragmentShader != null) FragmentShader.ShaderId = 0;
-            if (GeometryShader != null) GeometryShader.ShaderId = 0;
-            ProgramLayout.BinaryInterface = null;
-            ProgramLayout.RebuildCache(0);
-            uniformLocations.Clear();
-            lock (settingsLock) installedPlan = null;
-        }
+        var context = Integration.RenderContextRegistry.Current();
         string domain = string.IsNullOrWhiteSpace(AssetDomain) ? ShaderImportsSystem.DefaultDomain : AssetDomain;
         ReadOnlySpan<byte> Read(string path) => capi.Assets.TryGet(AssetLocation.Create("shaders/" + path, domain), loadAsset: true)?.Data
             ?? throw new InvalidOperationException("Missing built shader asset: " + domain + ":shaders/" + path);
@@ -52,9 +37,11 @@ public abstract partial class GpuProgram
         {
             using var pending = ShaderLinkBatch.Take(capi.Assets, domain, plan);
             var inputs = pending?.Inputs ?? DriverProgramCache.Prepare(plan, Read, () => ShaderDigestIndexCache.ForAssets(capi.Assets, domain));
+            // Synchronous asset callbacks must not allocate or transfer names on a changed context.
+            if (context != Integration.RenderContextRegistry.Current())
+                throw new InvalidOperationException("Preparation requires its originating native context generation.");
             program = pending?.DetachProgram() ?? GL.CreateProgram();
             bool cached = pending?.Cached ?? DriverProgramCache.TryLoad(program, inputs);
-            if (pending != null) { stages.AddRange(pending.Stages); pending.Stages.Clear(); }
             LastSpirvLinkMilliseconds = pending?.LinkSubmissionMilliseconds ?? 0;
             if (!cached && pending == null)
             {
@@ -83,51 +70,37 @@ public abstract partial class GpuProgram
             layout.ValidateContract(program, LayoutWarn);
             GlDebug.ThrowIfErrors($"{ShaderName}: program {program} active interface and bindings");
 #endif
-            // Contracts include inactive uniforms; source-derived placeholder names are unnecessary.
-            var locations = layout.BinaryInterface.Uniforms;
             var graphicsIdentity = new ShaderPipelineIdentity(domain, plan);
             if (!cached) DriverProgramCache.Save(program, inputs);
-
-            // Stages unsupported by the engine's slots can be deleted after linking; the executable retains them.
-            foreach (var stage in stages.Where(s => s.Kind is ShaderStageKind.TessellationControl or ShaderStageKind.TessellationEvaluation))
+            // Linked stages are temporary resources, including every graphics stage kind.
+            foreach (var stage in stages)
             {
                 GL.DetachShader(program, stage.Shader);
                 GL.DeleteShader(stage.Shader);
             }
-            stages.RemoveAll(s => s.Kind is ShaderStageKind.TessellationControl or ShaderStageKind.TessellationEvaluation);
-            // Prepare the optional engine slot before committing the candidate generation.
-            var geometry = stages.FirstOrDefault(s => s.Kind == ShaderStageKind.Geometry);
-            var geometrySlot = geometry.Shader == 0 ? null : GeometryShader ??
-                (Vintagestory.Client.NoObf.Shader)capi.Shader.NewShader(Vintagestory.API.Client.EnumShaderType.GeometryShader);
-            var vertexSlot = cached ? null : VertexShader ??
-                (Vintagestory.Client.NoObf.Shader)capi.Shader.NewShader(Vintagestory.API.Client.EnumShaderType.VertexShader);
-            var fragmentSlot = cached ? null : FragmentShader ??
-                (Vintagestory.Client.NoObf.Shader)capi.Shader.NewShader(Vintagestory.API.Client.EnumShaderType.FragmentShader);
+            stages.Clear();
             // A configuration edit can arrive while the driver works. Never publish superseded inputs.
             lock (settingsLock)
             {
-                if (!RequestedPlan.SameInputs(plan)) return false;
-                int oldProgram = ProgramId;
-                int[] oldStages = [VertexShader?.ShaderId ?? 0, FragmentShader?.ShaderId ?? 0, GeometryShader?.ShaderId ?? 0];
-                ProgramId = program; program = 0;
+                if (lifetime.IsRetired || !RequestedPlan.SameInputs(plan) || assets != assetGeneration ||
+                    context != Integration.RenderContextRegistry.Current())
+                {
+                    PreparationFailure = new InvalidOperationException("Preparation was superseded by retirement, changed settings, assets or context.");
+                    return false;
+                }
+                var candidate = GpuProgramObject.Adopt(program);
+                program = 0;
+                var previous = executable;
+                executable = candidate;
                 ProgramLayout.InstallCandidate(layout);
-                // Engine disposal detaches every non-null stage. Cached executables have no attached stages.
-                VertexShader = vertexSlot;
-                FragmentShader = fragmentSlot;
-                if (vertexSlot != null) vertexSlot.ShaderId = stages.Single(s => s.Kind == ShaderStageKind.Vertex).Shader;
-                if (fragmentSlot != null) fragmentSlot.ShaderId = stages.Single(s => s.Kind == ShaderStageKind.Fragment).Shader;
-                GeometryShader = geometrySlot;
-                if (geometrySlot != null) geometrySlot.ShaderId = geometry.Shader;
-                stages.Clear();
-                uniformLocations.Clear();
-                foreach (var pair in locations) uniformLocations[pair.Key] = pair.Value;
-                EngineDisposed(this) = false;
                 installedPlan = plan;
                 GraphicsIdentity = graphicsIdentity;
-                ExecutableContext = Integration.RenderContextRegistry.Current();
+                ExecutableContext = context;
                 ExecutableRevision++;
-                if (oldProgram != 0) GL.DeleteProgram(oldProgram);
-                foreach (int shader in oldStages) if (shader != 0) GL.DeleteShader(shader);
+                InstalledAssetGeneration = assets;
+                PreparationFailure = null;
+                CompletePreparation();
+                previous?.Dispose();
                 return true;
             }
         }
@@ -150,7 +123,7 @@ public abstract partial class GpuProgram
         {
             candidate = ShaderProgramLink.Submit(stages.Select(stage => stage.Shader).ToArray(), retrievableBinary, out linkMilliseconds);
             if (!ShaderProgramLink.Validate(candidate, out infoLog)) return false;
-            // The caller retains stages for engine disposal and owns the successfully linked candidate.
+            // The caller retains temporary stages for retirement and owns the successfully linked candidate.
             program = candidate;
             candidate = 0;
             return true;

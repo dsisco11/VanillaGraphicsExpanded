@@ -28,7 +28,9 @@ public sealed class GpuProgramScopeIdentityTests(HeadlessGLFixture fixture) : Re
         }
         Assert.Same(first, StateCache.ActiveProgram);
         Assert.Equal(2, first.Submissions); // Managed nesting replays; the raw binding scope does not.
-        first.InvalidateAssets();
+        Assert.Throws<InvalidOperationException>(first.InvalidateAssets);
+        // Model pending replacement without admitting an invalidation inside a borrowed generation.
+        AccessTools.Field(typeof(VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram), "reloadRequired").SetValue(first, true);
         Assert.Throws<InvalidOperationException>(() => first.EnsureReady());
         Assert.Throws<InvalidOperationException>(first.Use);
         Assert.Same(first, StateCache.ActiveProgram);
@@ -84,7 +86,7 @@ public sealed class GpuProgramScopeIdentityTests(HeadlessGLFixture fixture) : Re
         Assert.Equal(later.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
         later.Stop();
         // Native deletion was deliberately external to the owner in this fixture.
-        rawOwner.ProgramId = 0;
+        BorrowedProgramFixture.ForgetDeleted(rawOwner);
     }
     /// <summary>An unchanged numeric name cannot authorize restoration of an obsolete executable revision.</summary>
     [Fact]

@@ -30,7 +30,8 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             TestShaderInterfaces.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            var shader = new GeneratedResourceBindingShader { ProgramId = program };
+            var shader = new GeneratedResourceBindingShader();
+            using var shaderHandle = new BorrowedProgramFixture(shader, program);
             shader.ProgramLayout.BinaryInterface = TestShaderInterfaces.BuildLayout(program).BinaryInterface;
             shader.ProgramLayout.RebuildCache(program);
             using var input = Texture3D.Create(1, 1, 1, PixelInternalFormat.R32ui,
@@ -43,7 +44,8 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             // Readback depends on both assignments reaching the binary's actual binding units.
             GL.UseProgram(program);
             // The texture-only property must infer format and use the same defaults as an explicit view.
-            var direct = new GeneratedTextureImageShader { ProgramId = program };
+            var direct = new GeneratedTextureImageShader();
+            using var directHandle = new BorrowedProgramFixture(direct, program);
             direct.ProgramLayout.BinaryInterface = shader.ProgramLayout.BinaryInterface;
             direct.ProgramLayout.RebuildCache(program);
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int priorImage);
@@ -63,7 +65,6 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             Assert.Equal(0, imageLevel);
             Assert.Equal(1, imageLayered);
             Assert.Equal(0, imageLayer);
-            direct.ProgramId = 0;
             StateCache.Current.ActiveTexture(7);
             StateCache.Current.BindTexture(TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), 0);
             StateCache.Current.ActiveTexture(3);
@@ -94,7 +95,6 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             StateCache.Current.ActiveTexture(3);
             GL.GetInteger(GetPName.TextureBinding3D, out int clearedInput);
             Assert.Equal(0, clearedInput);
-            shader.ProgramId = 0;
         }
         finally
         {

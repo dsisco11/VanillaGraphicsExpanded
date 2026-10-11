@@ -112,13 +112,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
                 Assert.InRange(pixel.R, .55f, .58f);
                 Assert.InRange(pixel.G, .55f, .58f);
                 output.WriteLine($"Graphics generation {generation}: load {load:F3} ms, first draw/completion {firstUse:F3} ms");
-                if (generation == 1)
-                {
-                    GL.UseProgram(0);
-                    ((Vintagestory.Client.NoObf.ShaderProgramBase)program).Dispose();
-                    Assert.False(GL.IsProgram(previous));
-                    previous = 0;
-                }
+                if (generation == 1) program.InvalidateAssets();
             }
             Assert.NotEmpty(Directory.GetFiles(directory, "*.json"));
             GL.UseProgram(0);
@@ -237,9 +231,9 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         {
             using var cache = DriverProgramCache.UseStoreForTesting(new ProgramBinaryStore(directory));
             using var assets = new BinaryShaderApiFixture();
-            using var program = new FixtureProgram("lumon_debug_view_direct_total");
+            using var program = new FixtureProgram("pbr_direct_lighting");
             program.Initialize(assets.Api);
-            var contract = GpuShaderContracts.Create("lumon_debug_view_direct_total");
+            var contract = GpuShaderContracts.Create("pbr_direct_lighting");
             for (int generation = 0; generation < 2; generation++)
             {
                 Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
@@ -266,7 +260,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
     }
 
-    /// <summary>Provides the engine stage wrappers while leaving binary loading and linking untouched.</summary>
+    /// <summary>Selects packaged declarations while leaving binary loading and linking untouched.</summary>
     private sealed class FixtureProgram : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram
     {
         #region Submission
@@ -278,8 +272,6 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
         public FixtureProgram(string name = "tests/render_infrastructure")
         {
             PassName = name;
-            VertexShader = new Vintagestory.Client.NoObf.Shader();
-            FragmentShader = new Vintagestory.Client.NoObf.Shader();
         }
 
         /// <summary>Registers the production declaration used by both link paths.</summary>

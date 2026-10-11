@@ -18,7 +18,7 @@ public abstract partial class GpuProgram
     internal ShaderSettings RequestedSettings { get { lock (settingsLock) return RequestedPlan.Settings; } }
 
     /// <summary>Returns the snapshot used for the last successful link, or null before installation.</summary>
-    internal ShaderSettings? InstalledSettings { get { lock (settingsLock) return Disposed ? null : installedPlan?.Settings; } }
+    internal ShaderSettings? InstalledSettings { get { lock (settingsLock) return lifetime.IsRetired ? null : installedPlan?.Settings; } }
 
     /// <summary>Initializes defaults after the derived owner has established its contract.</summary>
     private ShaderLoadPlan RequestedPlan => requestedPlan ??= new(new ShaderSettings(ProgramContract));

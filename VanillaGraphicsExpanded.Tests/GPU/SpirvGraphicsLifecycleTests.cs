@@ -22,14 +22,14 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     public static IEnumerable<object[]> GraphicsVariants() => SpirvInventoryTests.GraphicsPrograms()
         .Where(row => VanillaGraphicsExpanded.Rendering.Contracts.GpuShaderContracts.Registry.Programs.ContainsKey((string)row[0]));
 
-    /// <summary>Reuses the registered program after the engine has disposed its previous GL generation.</summary>
+    /// <summary>Replaces every packaged variant through independent asset invalidation and targeted retirement.</summary>
     [Theory]
     [MemberData(nameof(GraphicsVariants))]
-    public void RuntimeReloadAfterEngineDisposalDoesNotDeleteStaleHandles(string shaderName, string variant)
+    public void RuntimeReplacementRetiresOnlyPreviousExecutable(string shaderName, string variant)
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
-        // A deployed binary needs no GLSL assets, including during engine-driven reloads.
+        // Replacement uses only packaged binary assets.
         assets.BeforeRead = AssertBinaryAsset;
         var program = new FixtureProgram(shaderName);
         program.SetDefines(variant.Split(';', StringSplitOptions.RemoveEmptyEntries)
@@ -40,34 +40,29 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             Assert.True(program.CompileAndLink(), string.Join("\n", assets.Logs));
             GL.UseProgram(0);
             int previous = program.ProgramId;
-            int vertex = program.VertexShader.ShaderId, fragment = program.FragmentShader.ShaderId;
-            ((Vintagestory.Client.NoObf.ShaderProgramBase)program).Dispose();
-            Assert.False(GL.IsProgram(previous));
-            Assert.False(GL.IsShader(vertex));
-            Assert.False(GL.IsShader(fragment));
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
+            program.InvalidateAssets();
+            Assert.True(GL.IsProgram(previous));
             Assert.True(program.CompileAndLink(), string.Join("\n", assets.Logs));
             Assert.True(GL.IsProgram(program.ProgramId));
-            Assert.False(program.Disposed);
-            // Engine Use also touches the live renderer singleton, unavailable in a headless fixture.
-            // Verify the GL binding directly; Disposed above checks its engine-side lifetime guard.
+            Assert.False(program.IsRetired);
+            // Verify the linked executable directly without publishing this fixture's intentionally absent inputs.
             GL.UseProgram(program.ProgramId);
             Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             GL.UseProgram(0);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             int reloaded = program.ProgramId;
-            ((Vintagestory.Client.NoObf.ShaderProgramBase)program).Dispose();
-            Assert.False(GL.IsProgram(reloaded));
+            program.InvalidateAssets();
+            Assert.True(GL.IsProgram(reloaded));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            // A second cycle verifies that resetting the engine's disposed flag restores future disposal too.
+            // A second replacement checks monotonic ownership beyond the first install.
             Assert.True(program.CompileAndLink(), string.Join("\n", assets.Logs));
-            Assert.False(program.Disposed);
+            Assert.False(program.IsRetired);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { program.Dispose(); }
     }
 
-    /// <summary>Populates the engine lookup from the compiled contract, including optimized-out uniforms, without reading source.</summary>
+    /// <summary>Retains active and optimized-out diagnostic locations from compiled contracts without engine storage.</summary>
     [Fact]
     public void BinaryOnlyReloadPreservesContractUniformDictionary()
     {
@@ -83,7 +78,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             Assert.NotEmpty(expected);
             Assert.Contains(expected, pair => pair.Value == -1);
             Assert.Contains(expected, pair => pair.Value >= 0);
-            Assert.Equal(expected.OrderBy(pair => pair.Key), program.EngineUniformLocations.OrderBy(pair => pair.Key));
+            Assert.Equal(expected.OrderBy(pair => pair.Key), program.DiagnosticUniformLocations.OrderBy(pair => pair.Key));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         Assert.NotEmpty(assets.Reads);
@@ -103,7 +98,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             Assert.True(program.CompileAndLink(), string.Join("\n", assets.Logs));
             int first = program.ProgramId;
             var firstTable = program.ResourceBindings.BinaryInterface!.PreparedBindings;
-            Assert.True(program.Compile());
+            Assert.True(program.CompileAndLink());
             Assert.NotSame(firstTable, program.ResourceBindings.BinaryInterface!.PreparedBindings);
             Assert.NotEqual(first, program.ProgramId);
             Assert.False(GL.IsProgram(first));
@@ -111,12 +106,12 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             var currentTable = program.ResourceBindings.BinaryInterface!.PreparedBindings;
             const string source = "shaders/tests/render_infrastructure.fsh.spv";
             assets.Overrides[source] = new byte[20];
-            Assert.False(program.Compile());
+            Assert.False(program.CompileAndLink());
             Assert.Equal(current, program.ProgramId);
             Assert.Same(currentTable, program.ResourceBindings.BinaryInterface!.PreparedBindings);
             Assert.True(GL.IsProgram(current));
             assets.Overrides.Clear();
-            Assert.True(program.Compile());
+            Assert.True(program.CompileAndLink());
             output.WriteLine($"Runtime reload driver link: {program.LastSpirvLinkMilliseconds:F3} ms");
         }
         finally
@@ -176,7 +171,7 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
     /// <summary>Permits only compiled payloads and their required association metadata, never GLSL source.</summary>
     private static void AssertBinaryAsset(string path) =>
         Assert.True(path.EndsWith(".spv", StringComparison.Ordinal) || path == "shaders/" + ShaderBinaryDigest.FileName, path);
-    /// <summary>Installs engine stage objects while retaining production binary loading and reload behavior.</summary>
+    /// <summary>Selects packaged declarations while retaining production binary loading and replacement behavior.</summary>
     private sealed class FixtureProgram : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram
     {
         #region Submission
@@ -184,15 +179,13 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
         protected override void Submit() { }
         #endregion
 
-        /// <summary>Exposes the engine lookup to verify inactive contract entries as well as live locations.</summary>
-        public IReadOnlyDictionary<string, int> EngineUniformLocations => uniformLocations;
+        /// <summary>Exposes prepared diagnostic locations including inactive contract entries.</summary>
+        public IReadOnlyDictionary<string, int> DiagnosticUniformLocations => ResourceBindings.BinaryInterface!.Uniforms;
 
         /// <summary>Selects the reusable fullscreen fixture without requiring the game's shader factory.</summary>
         public FixtureProgram(string name = "tests/render_infrastructure")
         {
             PassName = name;
-            VertexShader = new Vintagestory.Client.NoObf.Shader();
-            FragmentShader = new Vintagestory.Client.NoObf.Shader();
         }
 
         /// <summary>Uses the shared declarations for production resource lookup.</summary>

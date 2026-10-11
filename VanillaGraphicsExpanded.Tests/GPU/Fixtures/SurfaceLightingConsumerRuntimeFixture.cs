@@ -63,7 +63,6 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
     public SurfaceLightingConsumerRuntimeFixture(bool sh9, SpatialLightingScene? spatial = null, bool pbrComposition = false, bool shortProbeRange = false)
     {
         // The engine Stop method is sealed; run its production ownership hook alongside native geometry submission.
-        shaderStop.CreateClassProcessor(typeof(VanillaGraphicsExpanded.HarmonyPatches.GpuProgramStopHook)).Patch();
         this.spatial=spatial; edge=spatial==null?2:4;
         Cache = new(requestedPages:24,enclosure:true,spatial:spatial,productionOwned:true);
         World = new(Cache.SourceBlock,spatial);

@@ -56,7 +56,7 @@ public sealed class LumOnDebugShaderDemandTests(HeadlessGLFixture fixture) : Ren
             Assert.Equal("1", program.RequestedSettings.Values["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"].Canonical);
         }
         Assert.Empty(assets.Reads);
-        Assert.Empty(assets.RegisteredPrograms);
+        Assert.Empty(assets.PreparedPrograms);
         Assert.Empty(assets.ScheduledTasks);
     }
 
@@ -73,7 +73,7 @@ public sealed class LumOnDebugShaderDemandTests(HeadlessGLFixture fixture) : Ren
         Assert.True(LumOnDebugShaderProgramFamily.TryGet(name, out var selected));
         Assert.True(selected.SetDefines(new Dictionary<string, string?> { ["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"] = "true" }));
         Assert.True(LumOnDebugShaderProgramFamily.EnsureReady(assets.Api, selected), string.Join('\n', assets.Logs));
-        Assert.Same(selected, Assert.Single(assets.RegisteredPrograms).Value);
+        Assert.Same(selected, Assert.Single(assets.PreparedPrograms).Value);
         Assert.Equal("1", selected.InstalledSettings!.Values["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"].Canonical);
         Assert.True(GL.IsProgram(selected.ProgramId));
         Assert.All(assets.Reads.Where(path => path.EndsWith(".spv", StringComparison.Ordinal)), path => Assert.True(path == "shaders/lumon_debug.vsh.spv" || path.StartsWith($"shaders/{name}.", StringComparison.Ordinal) || path.StartsWith($"shaders/variants/{name}.", StringComparison.Ordinal), path));
@@ -110,9 +110,9 @@ public sealed class LumOnDebugShaderDemandTests(HeadlessGLFixture fixture) : Ren
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Engine-disposed registered owners are recreated on demand while unused declarations retain their settings.</summary>
+    /// <summary>Invalidated owners replace their executable on demand while unused declarations retain their settings.</summary>
     [Fact]
-    public void EngineReloadRestoresDisposedSelectionWithoutLoadingUnusedPrograms()
+    public void AssetInvalidationReplacesSelectionWithoutLoadingUnusedPrograms()
     {
         EnsureContextValid();
         using var cache = DriverProgramCache.UseStoreForTesting(null);
@@ -122,14 +122,13 @@ public sealed class LumOnDebugShaderDemandTests(HeadlessGLFixture fixture) : Ren
         Assert.True(LumOnDebugShaderProgramFamily.TryGet("lumon_debug_view_direct_specular", out var unused));
         unused.SetDefines(new Dictionary<string, string?> { ["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"] = "true" });
         Assert.True(LumOnDebugShaderProgramFamily.EnsureReady(assets.Api, selected));
-        ((Vintagestory.Client.NoObf.ShaderProgramBase)selected).Dispose();
-        assets.RegisteredPrograms.Clear();
+        selected.InvalidateAssets();
         int reads = assets.Reads.Count;
         Assert.Equal(reads, assets.Reads.Count);
         Assert.True(LumOnDebugShaderProgramFamily.EnsureReady(assets.Api, selected), string.Join('\n', assets.Logs));
-        Assert.False(selected.Disposed);
+        Assert.False(selected.IsRetired);
         Assert.True(GL.IsProgram(selected.ProgramId));
-        Assert.Single(assets.RegisteredPrograms);
+        Assert.Single(assets.PreparedPrograms);
         Assert.Equal("1", unused.RequestedSettings.Values["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"].Canonical);
         Assert.Equal(0, unused.ProgramId);
         Assert.Equal(ErrorCode.NoError, GL.GetError());

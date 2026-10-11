@@ -1,6 +1,6 @@
 # VGE shader ownership and engine separation proposal
 
-Status: design contracts and source dependency audit resolved; shared workflows, compute naming, scope ownership and liquid input translation implemented and validated. Executable inheritance/registration removal, registry/reload migration and final acceptance remain open.
+Status: design contracts and source dependency audit resolved; shared workflows, compute naming, scope ownership and liquid input translation implemented and validated. Independent graphics executable ownership and cached/uncached rendering are implemented and validated. Registry/reload migration and final acceptance remain open.
 
 ## Objective and bounded outcome
 
@@ -174,7 +174,7 @@ replacements retain the original instructions' labels and exception regions. Liq
 is installed after the pool draw hook, rebuilding traversal after native draw interception is available;
 this follows the existing caller-rebuild pattern and prevents JIT inlining ahead of the hook. Visible/depth
 shader input interfaces and the engine-current fallback draw switch have been removed. Executable
-inheritance and engine registration remain separate pending work.
+ownership no longer uses engine inheritance or registration.
 
 Required behavioral coverage includes ordinary pools, culled/empty pools, dimension offsets, mini-dimension transforms, preview transparency, engine restoration writes, visible/depth passes, exceptions, and unrelated native pool rendering. Borrowed engine geometry lifetime and draw validation remain with EngineLiquidPoolGeometry and LiquidGraphicsSubmission.
 
@@ -219,11 +219,16 @@ outside those families retain the explicit accessible pipeline-field path, share
 No common asset-invalidation method is introduced: graphics retains settings-aware preparation; compute
 retains its existing eager/deferred first preparation and explicit failed-attempt retry policy.
 
-Remaining transition dependencies are intentional and assigned to the following work: graphics still derives
-from ShaderProgram, creates/registers engine stages, and uses base disposal. Temporary engine-interface
-Use/Stop hooks route to VGE activation while that assignability remains. Family scopes now use the existing
-StateCache tracker, and the compute weak numeric-ID restoration lookup is removed. Remaining inheritance,
-registration and compatibility hooks must be removed by the executable separation tasks before shipping.
+Graphics now composes GpuProgramObject ownership and implements IGpuProgram without engine executable
+inheritance or IShaderProgram. Preparation releases temporary stages and never calls the engine shader
+API. PendingShaderProgram releases stages before transferring a completed executable. Installed settings,
+layout, graphics identity, asset generation, context and successful revision are published together after
+validation; superseded candidates are discarded. Synchronous and batched candidates validate their
+originating context after external asset reads and before allocation or transfer; pending cleanup rejects
+a changed registration. Batch asset invalidation withdraws captured snapshots. PreparationFailure retains the underlying exception for
+mandatory HDR diagnostics. The VGE-specific engine Use/Stop hooks have been removed. Family scopes use
+the existing StateCache tracker; native frame/light hooks and the liquid input adapter remain integration
+responsibilities. Registry instance/reload/shutdown completion remains required before shipping.
 
 ## Resolved migration contracts
 
@@ -331,7 +336,7 @@ The listed tests were inspected, not run for this source-audit task. Paths witho
 | CPU/native retirement and context | Unit/Rendering/GpuResourceDisposalQueueTests; GPU/GpuResourceManagerDeletionQueueIntegrationTests, StateCacheResourceDeletionTests, GpuProgramSamplerRetirementTests, EngineStartupContextTests | Current queue test proves background-thread deletion, not wrong-context protection. Add scope-borrow rejection, callback withdrawal, exactly-once stages/programs, context-handle reuse and ordered feature/registry/manager teardown. |
 | Native/shared inputs and live behavior | GPU/FrameShaderBindingHookTests, DirectLightingSubmissionTests, SceneColorRuntimeTests; user-run client | Prove VGE draws use explicit frame/light inputs without base hooks while native consumers still work. Obtain cold/warm world/reload/liquid acceptance separately; local installed-client IL is not CI or live-rendering evidence. |
 
-BinaryShaderApiFixture.NewShader constructs engine stages and RegisterMemoryShaderProgram only inserts/disposes dictionary entries. RuntimeLightingPrograms uses Moq registration callbacks that record a GpuProgram. SurfaceCacheRuntimeFixture and LumOnDebugRendererFunctionalTests also stub registration. None reproduces ShaderRegistry.LoadShaderProgram/default-prefix stage dereferences. Migrate these fixtures to observe VGE registry/preparation directly and reject accidental engine registration instead of perpetuating the mock blind spot. EngineShaderPlatformScope and current-shader assertions must remain only for explicit native adapter tests after separation.
+The original fixture audit found dictionary-only registration mocks in BinaryShaderApiFixture, RuntimeLightingPrograms, SurfaceCacheRuntimeFixture and LumOnDebugRendererFunctionalTests. These now reject engine shader API calls and observe VGE declarations/preparation directly. FinalDisplayShaderTests exercises actual cached and uncached pbr_final execution through this hostile fixture boundary. EngineShaderPlatformScope and current-shader assertions must remain only for explicit native adapter tests after separation.
 
 ## Dependency-ordered implementation and acceptance
 

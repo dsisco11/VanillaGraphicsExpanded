@@ -98,6 +98,177 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
     #endregion
 
     #region Failure and cancellation
+    /// <summary>Context changes during external asset reads reject the candidate before any native allocation.</summary>
+    [Fact]
+    public void PendingAssetReadsCannotAllocateOnChangedContextRegistration()
+    {
+        EnsureContextValid();
+        using var cache = DriverProgramCache.UseStoreForTesting(null);
+        using var assets = new BinaryShaderApiFixture();
+        using var sentinel = new FixtureProgram();
+        sentinel.Initialize(assets.Api);
+        Assert.True(sentinel.CompileAndLink());
+        StateCache.Current.UseProgram(sentinel.ProgramId);
+        var original = VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current();
+        var registrations = (System.Collections.IDictionary)typeof(VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry)
+            .GetField("registrations", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
+        object registration = registrations[original.Handle]!;
+        var replacement = new object();
+        bool changed = false;
+        ReadOnlySpan<byte> Read(string path)
+        {
+            if (!changed)
+            {
+                changed = true;
+                VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(fixture);
+                VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
+            }
+            return File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path));
+        }
+        try
+        {
+            var failure = Assert.Throws<InvalidOperationException>(() => new PendingShaderProgram(
+                new ShaderLoadPlan(Settings(Graphics)), Read,
+                () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain),
+                GetProgramParameterName.LinkStatus));
+            Assert.Contains("originating native context generation", failure.Message);
+            Assert.Equal(sentinel.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+            Assert.True(GL.IsProgram(sentinel.ProgramId));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            lock (registrations) registrations[original.Handle] = registration;
+            StateCache.Current.UnbindProgram();
+        }
+    }
+
+    /// <summary>Pending cached and uncached candidates cannot be consumed or deleted under a reused context registration.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ContextGenerationMismatchRejectsBeforeTransferOrDeletion(bool cached)
+    {
+        EnsureContextValid();
+        string directory = Path.Combine(Path.GetTempPath(), "VGE.BatchContext", Guid.NewGuid().ToString("N"));
+        try
+        {
+            using var cache = DriverProgramCache.UseStoreForTesting(cached ? new ProgramBinaryStore(directory) : null);
+            using var assets = new BinaryShaderApiFixture();
+            using var program = new FixtureProgram();
+            using var sentinel = new FixtureProgram();
+            program.Initialize(assets.Api); sentinel.Initialize(assets.Api);
+            Assert.True(program.CompileAndLink());
+            Assert.True(sentinel.CompileAndLink());
+            int installed = program.ProgramId;
+            ulong revision = program.ExecutableRevision;
+            using var batch = new ShaderLinkBatch(assets.Api.Assets, ShaderImportsSystem.DefaultDomain, [program.RequestedSettings]);
+            int outstanding = batch.Outstanding;
+            var original = VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current();
+            var registrations = (System.Collections.IDictionary)typeof(VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry)
+                .GetField("registrations", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
+            object registration = registrations[original.Handle]!;
+            StateCache.Current.UseProgram(sentinel.ProgramId);
+            var replacement = new object();
+            try
+            {
+                VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(fixture);
+                VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
+                Assert.False(program.CompileAndLink());
+                Assert.Contains("originating native context generation", program.PreparationFailure!.Message);
+                Assert.Equal(installed, program.ProgramId);
+                Assert.Equal(revision, program.ExecutableRevision);
+                Assert.Equal(0, batch.ConsumedCount);
+                Assert.Throws<InvalidOperationException>(batch.Dispose);
+                Assert.Equal(outstanding, batch.Outstanding);
+                Assert.Equal(sentinel.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+                Assert.True(GL.IsProgram(installed));
+                Assert.Equal(ErrorCode.NoError, GL.GetError());
+            }
+            finally
+            {
+                // Reuse the original live registration receipt to retry cleanup; destroyed-context abandonment is separate.
+                lock (registrations) registrations[original.Handle] = registration;
+                batch.Dispose();
+                StateCache.Current.UnbindProgram();
+            }
+            Assert.Equal(0, batch.Outstanding);
+            batch.Dispose();
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
+    /// <summary>An asset epoch change after batch submission prevents old captured binaries being published as new assets.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void AssetInvalidationWithdrawsSubmittedCandidates(bool disable)
+    {
+        EnsureContextValid();
+        using var cache = DriverProgramCache.UseStoreForTesting(null);
+        using var assets = new BinaryShaderApiFixture();
+        using var program = new FixtureProgram();
+        program.Initialize(assets.Api);
+        Assert.True(program.EnsureReady());
+        int installed = program.ProgramId;
+        ulong revision = program.ExecutableRevision;
+        using var batch = new ShaderLinkBatch(assets.Api.Assets, ShaderImportsSystem.DefaultDomain,
+            [program.RequestedSettings], disable: disable);
+        assets.Overrides["shaders/tests/render_infrastructure.fsh.spv"] = new byte[20];
+        program.InvalidateAssets();
+        Assert.False(program.EnsureReady());
+        Assert.Equal(installed, program.ProgramId);
+        Assert.Equal(revision, program.ExecutableRevision);
+        Assert.True(program.RequiresPreparation);
+        Assert.True(GL.IsProgram(installed));
+        assets.Overrides.Clear();
+        program.InvalidateAssets();
+        Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
+        Assert.False(GL.IsProgram(installed));
+        Assert.Equal(revision + 1, program.ExecutableRevision);
+    }
+
+    /// <summary>Successful transfers release attached stages; abandoned and cancelled candidates retire every native allocation once.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PendingCandidateOwnsExactlyOneRetirement(bool transfer)
+    {
+        EnsureContextValid();
+        using var cache = DriverProgramCache.UseStoreForTesting(null);
+        using var assets = new BinaryShaderApiFixture();
+        ReadOnlySpan<byte> Read(string path) => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path));
+        var pending = new PendingShaderProgram(new ShaderLoadPlan(Settings(Graphics)), Read,
+            () => ShaderDigestIndexCache.ForAssets(assets.Api.Assets, ShaderImportsSystem.DefaultDomain),
+            GetProgramParameterName.LinkStatus);
+        int program = pending.Program;
+        int[] stages = pending.Stages.Select(stage => stage.Shader).ToArray();
+        Assert.Equal(2, stages.Length);
+        if (transfer)
+        {
+            pending.Complete(TestContext.Current.CancellationToken);
+            using var installed = GpuProgramObject.Adopt(pending.DetachProgram());
+            Assert.Empty(pending.Stages);
+            Assert.Equal(0, pending.Program);
+            Assert.All(stages, stage => Assert.False(GL.IsShader(stage)));
+            pending.Dispose(); pending.Dispose();
+            Assert.True(GL.IsProgram(program));
+            GL.GetProgram(program, GetProgramParameterName.AttachedShaders, out int count);
+            Assert.Equal(0, count);
+        }
+        else
+        {
+            using var cancellation = new CancellationTokenSource();
+            cancellation.Cancel();
+            Assert.Throws<OperationCanceledException>(() => pending.Complete(cancellation.Token));
+            pending.Dispose(); pending.Dispose();
+            Assert.False(GL.IsProgram(program));
+            Assert.All(stages, stage => Assert.False(GL.IsShader(stage)));
+        }
+        Assert.False(GL.IsProgram(program));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>A deferred submission failure retains the installed executable and permits later recovery.</summary>
     [Fact]
     public void FailedSubmissionPreservesInstalledProgram()
@@ -302,8 +473,6 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         public FixtureProgram(string name = Graphics)
         {
             PassName = name;
-            VertexShader = new Vintagestory.Client.NoObf.Shader();
-            FragmentShader = new Vintagestory.Client.NoObf.Shader();
         }
 
         /// <summary>Builds the declared interface for both linking paths.</summary>

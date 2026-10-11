@@ -121,8 +121,6 @@ public sealed class ShaderDigestIndexCacheTests(HeadlessGLFixture fixture) : Ren
         internal FixtureProgram()
         {
             PassName = "tests/render_infrastructure";
-            VertexShader = new Vintagestory.Client.NoObf.Shader();
-            FragmentShader = new Vintagestory.Client.NoObf.Shader();
         }
 
         /// <summary>Registers the same contract for cache hits and ordinary linking.</summary>

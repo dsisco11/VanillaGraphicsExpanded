@@ -16,6 +16,26 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Graphics demand and ownership
+    /// <summary>Batch preparation rejects a borrowed stale generation before reading assets or allocating candidates.</summary>
+    [Fact]
+    public void BorrowedPreloadRejectsBeforeAssetReads()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var depth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        var program = GpuShaderPrograms.Declare(assets.Api, new RasterDepthCopyShaderProgram());
+        program.PrimaryDepth = depth;
+        using (program.UseScope())
+        {
+            HarmonyLib.AccessTools.Field(typeof(GpuProgram), "reloadRequired").SetValue(program, true);
+            int reads = assets.Reads.Count;
+            Assert.Throws<InvalidOperationException>(() => GpuShaderPrograms.Preload(assets.Api, [program]));
+            Assert.Equal(reads, assets.Reads.Count);
+            Assert.Same(program, StateCache.ActiveProgram);
+        }
+        Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
+    }
+
     /// <summary>Each supported activation path prepares its declaration once without eager registry lookup.</summary>
     [Theory]
     [InlineData(0)]
@@ -32,7 +52,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         RasterDepthCopyShaderProgram.Register(assets.Api);
         RasterDepthReductionShaderProgram.Register(assets.Api);
         Assert.Empty(assets.Reads);
-        Assert.Empty(assets.RegisteredPrograms);
+        Assert.Empty(assets.PreparedPrograms);
         var program = Assert.IsType<RasterDepthCopyShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, "tests/depth_raster_copy"));
         Assert.Equal(0, program.ProgramId);
         using var depth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
@@ -49,10 +69,10 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         }
         else if (activation == 2)
         {
-            IShaderProgram contract = program;
-            contract.Use();
+            IGpuProgram contract = program;
+            contract.Activate();
             Assert.Equal(program.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
-            contract.Stop();
+            program.Stop();
         }
         else
         {
@@ -63,7 +83,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
             contract.Activate();
         }
         Assert.True(GL.IsProgram(program.ProgramId));
-        Assert.Single(assets.RegisteredPrograms);
+        Assert.Single(assets.PreparedPrograms);
         int reads = assets.Reads.Count;
         Assert.True(program.EnsureReady());
         Assert.Equal(reads, assets.Reads.Count);
@@ -85,7 +105,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         var selected = GpuShaderPrograms.GetAll(assets.Api).Where(program => program.PassName is "tests/depth_raster_copy" or "tests/depth_raster_reduce").ToImmutableArray();
         Assert.Equal(2, selected.Length);
         Assert.True(GpuShaderPrograms.Preload(assets.Api, selected));
-        Assert.Equal(2, assets.RegisteredPrograms.Count);
+        Assert.Equal(2, assets.PreparedPrograms.Count);
         int reads = assets.Reads.Count;
         Assert.True(GpuShaderPrograms.Preload(assets.Api, selected));
         Assert.Equal(reads, assets.Reads.Count);
@@ -103,15 +123,15 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
         var program = GpuShaderPrograms.Declare(assets.Api, new RasterDepthCopyShaderProgram());
-        if (route == 0) ((IShaderProgram)program).Dispose();
+        if (route == 0) program.Dispose();
         else if (route == 1) ((IGpuProgram)program).Retire();
         else ((IDisposable)program).Dispose();
-        Assert.True(program.Disposed);
+        Assert.True(program.IsRetired);
         Assert.False(program.EnsureReady());
         Assert.False(program.TryUse());
         Assert.False(program.CompileAndLink());
         Assert.Empty(assets.Reads);
-        Assert.Empty(assets.RegisteredPrograms);
+        Assert.Empty(assets.PreparedPrograms);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

@@ -239,7 +239,6 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
                     candidate = 0;
                     if (pending != null)
                     {
-                        foreach (var stage in pending.Stages) GL.DetachShader(pipeline.ProgramId, stage.Shader);
                         if (!pending.Cached) DriverProgramCache.Save(pipeline.ProgramId, inputs);
                     }
                 }

@@ -12,6 +12,59 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Exercises the original registered final-display path through cold, warm, corrupt and batched executable preparation.</summary>
+    [Fact]
+    public void FinalDisplayCachePathsNeverRequireEngineStagesOrRegistration()
+    {
+        EnsureShaderTestAvailable();
+        string directory = Path.Combine(Path.GetTempPath(), "VGE.FinalCache", Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store = new VanillaGraphicsExpanded.Rendering.ProgramBinaries.ProgramBinaryStore(directory);
+            using var cache = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(store);
+            using var assets = new BinaryShaderApiFixture();
+            var shader = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(assets.Api, new FinalDisplayShaderProgram());
+            using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [4f, 4f, 4f, .37f]);
+            using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 0f]);
+            using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+            using var camera = TestFrameCamera.CreateIdentity(1, 1);
+            shader.FrameInputs = camera;
+            shader.SceneImage = source; shader.BloomImage = zero; shader.ShaftImage = zero; shader.ExposureImage = zero;
+            shader.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), Vector4.Zero);
+            ulong revision = 0;
+            for (int path = 0; path < 4; path++)
+            {
+                if (path != 0) shader.InvalidateAssets();
+                if (path == 2)
+                {
+                    string key = Path.GetFileNameWithoutExtension(Assert.Single(Directory.GetFiles(directory, "*.bin")));
+                    store.Write(key, -1, [1, 2, 3, 4]);
+                }
+                bool ready = path == 3
+                    ? VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Preload(assets.Api, [shader])
+                    : shader.EnsureReady();
+                Assert.True(ready, string.Join("\n", assets.Logs));
+                Assert.Equal(path is 1 or 3, VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.LastLoadWasHit);
+                Assert.True(shader.ExecutableRevision > revision);
+                revision = shader.ExecutableRevision;
+                GL.GetProgram(shader.ProgramId, GetProgramParameterName.AttachedShaders, out int attached);
+                Assert.Equal(0, attached);
+                Draw(shader, target);
+                Assert.InRange(target[0].ReadPixels()[0], Display(4f) - .00001f, Display(4f) + .00001f);
+            }
+            int installed = shader.ProgramId;
+            shader.InvalidateAssets();
+            assets.BeforeRead = _ => throw new IOException("controlled final asset failure");
+            Assert.False(shader.EnsureReady());
+            Assert.Contains("controlled final asset failure", shader.PreparationFailure!.Message);
+            Assert.Equal(installed, shader.ProgramId);
+            Assert.Equal(revision, shader.ExecutableRevision);
+            Assert.True(GL.IsProgram(installed));
+            Assert.True(shader.RequiresPreparation);
+        }
+        finally { if (Directory.Exists(directory)) Directory.Delete(directory, true); }
+    }
+
     /// <summary>Already lit scene radiance receives additive effects, then one exposure and display transform.</summary>
     [Theory]
     [InlineData(-2f, false)]

@@ -43,7 +43,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             long started = Stopwatch.GetTimestamp();
             Assert.True(VgeShaderPrograms.RegisterAll(assets.Api), string.Join('\n', assets.Logs));
             Assert.Empty(assets.Reads);
-            Assert.Empty(assets.RegisteredPrograms);
+            Assert.Empty(assets.PreparedPrograms);
             var selected = GpuShaderPrograms.GetAll(assets.Api).Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray();
             Assert.NotEmpty(selected);
             Assert.DoesNotContain(selected,program=>program.PassName.StartsWith("tests/",StringComparison.Ordinal));
@@ -53,12 +53,12 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             double startupUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Startup driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
             submitted = completed = 0; consumed = peak = 0;
-            Assert.Equal(selected.Length, assets.RegisteredPrograms.Count);
+            Assert.Equal(selected.Length, assets.PreparedPrograms.Count);
             Assert.Equal(LumOnDebugShaderProgram.Contracts.Count(), LumOnDebugShaderProgramFamily.GetAll().Count());
-            foreach (var program in assets.RegisteredPrograms.Values) Assert.True(GL.IsProgram(program.ProgramId));
+            foreach (var program in assets.PreparedPrograms.Values) Assert.True(GL.IsProgram(program.ProgramId));
 
             // Shared edits remain pending until the caller explicitly preloads its required selection.
-            var changed = assets.RegisteredPrograms.Values.OfType<GpuProgram>()
+            var changed = assets.PreparedPrograms.Values.OfType<GpuProgram>()
                 .Where(program => program.ProgramContract.Options.Any(option => option.Name == "VGE_LUMON_DIRECT_LOCAL_VISIBILITY")).ToArray();
             Assert.True(changed.Length > 1);
             int[] previous = changed.Select(program => program.ProgramId).ToArray();
@@ -86,8 +86,8 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             double reload = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double reloadUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Re-registration driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
-            Assert.Equal(selected.Length, assets.RegisteredPrograms.Count);
-            output.WriteLine($"Production mode={(disable ? "sync" : "batch")}, registered={assets.RegisteredPrograms.Count}, changed={changed.Length}, startup={startup:F3} ms, configuration={configuration:F3} ms, re-registration={reload:F3} ms; HZB use+readback startup={startupUse:F3}/configuration={configurationUse:F3}/re-registration={reloadUse:F3} ms.");
+            Assert.Equal(selected.Length, assets.PreparedPrograms.Count);
+            output.WriteLine($"Production mode={(disable ? "sync" : "batch")}, registered={assets.PreparedPrograms.Count}, changed={changed.Length}, startup={startup:F3} ms, configuration={configuration:F3} ms, re-registration={reload:F3} ms; HZB use+readback startup={startupUse:F3}/configuration={configurationUse:F3}/re-registration={reloadUse:F3} ms.");
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
     }

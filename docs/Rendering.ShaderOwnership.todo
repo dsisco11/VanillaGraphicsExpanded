@@ -3,8 +3,8 @@ VGE shader ownership and engine separation
 
 Source proposal
   Rendering.ShaderOwnership.Proposal.md (sibling of this file) is authoritative.
-  Status: Phases 1-3 complete; workflows, compute naming, scope ownership and liquid translation validated.
-  Executable inheritance/registration removal, registry/reload migration and final acceptance remain unchecked.
+  Status: Phases 1-4 complete; independent executable ownership and cached/uncached rendering validated.
+  Registry/reload migration, ordered shutdown and final acceptance remain unchecked.
 
 Scope and shared contracts
   Establish IGpuProgram with default implementation methods, implemented by independent
@@ -199,13 +199,13 @@ Phase 4: Remove engine executable inheritance and registration
   Depends on Phase 3. Outcome: independent VGE executables prepare and render on cached/uncached paths.
   Proposal: Executable preparation and retirement; Proposed ownership model; Compatibility.
 
-  ☐ Remove ShaderProgram/ShaderProgramBase inheritance and IShaderProgram from VGE executable owners.
+  ☑ Remove ShaderProgram/ShaderProgramBase inheritance and IShaderProgram from VGE executable owners.
     - Remove engine Shader creation, stage slots, EngineDisposed reflection, PassId and inherited
       uniformLocations requirements. Keep useful GpuProgramInterface diagnostic projections.
     - Remove RegisterOnPreparation/RegisterMemoryShaderProgram coupling and transition paths.
     - Move liquid interface methods fully into the bridge; migrate remaining uniform/texture
       consumers and fixtures to generated properties or preparation-owned numeric helpers.
-  ☐ Compose graphics executable ownership through GpuProgramObject.Adopt and GpuResource policy.
+  ☑ Compose graphics executable ownership through GpuProgramObject.Adopt and GpuResource policy.
     - Prepare/validate candidates before publishing executable, layout, installed settings,
       graphics identity, asset generation and successful revision together.
     - Retain the previous generation after failure/superseded requests without claiming readiness
@@ -215,17 +215,47 @@ Phase 4: Remove engine executable inheritance and registration
       detach/release temporary stages once after successful linking. Cached programs need no stages.
     - Use StateCache.DeleteProgram/targeted resource retirement; reject or defer active borrowing
       according to the chosen policy. Keep terminal disposal distinct from executable invalidation.
-  ☐ Expose preparation diagnostics so mandatory HDR failure identifies the program and real cause.
-  ☐ Remove obsolete OwnedShaderSubmissionHook/GpuProgramStopHook behavior after explicit frame/light
+  ☑ Expose preparation diagnostics so mandatory HDR failure identifies the program and real cause.
+  ☑ Remove obsolete OwnedShaderSubmissionHook/GpuProgramStopHook behavior after explicit frame/light
     bindings are verified; reconcile SceneColorProgramBindings, LiquidPoolSubmissionHook and
     EngineBoundaryExecution type checks. Preserve native-only hooks and profiling labels via adapters.
-  ☐ Validate pbr_final from a real executable-cache hit with no NewShader or engine registration;
+  ☑ Validate pbr_final from a real executable-cache hit with no NewShader or engine registration;
     repeat cache miss, invalid-cache fallback, batched load and preparation failure.
     - Test replacement failure/supersession, monotonic successful revisions, cancellation and
       exactly-once stage/program retirement. Fixtures must reject accidental engine registration.
-  ☐ Completion: structural checks and focused GPU evidence show independent cached/uncached rendering,
+  ☑ Completion: structural checks and focused GPU evidence show independent cached/uncached rendering,
     no engine executable assignability/registration, and no stale engine-specific VGE hooks remain.
     Reload/shutdown completion in Phase 5 is required before release.
+
+  Traceability: executable separation -> proposal Proposed ownership model and Compatibility ->
+    independent GpuProgram/IGpuProgram, strict shader-API fixtures and assignability regression.
+    Transactional ownership -> proposal Executable preparation and retirement and Resolved migration
+    contracts / Scope and executable identity -> composed GpuProgramObject, atomic settings/layout/
+    graphics identity/asset generation/context/revision publication and targeted resource retirement.
+    ShaderLinkBatch withdraws invalidated asset snapshots; batch and synchronous preparation reject
+    changed context registrations after asset reads and before allocation, transfer or native cleanup.
+    Replacement, supersession, retirement, borrowing and pending-stage ownership have focused regressions.
+    Diagnostics -> mandatory HDR preparation contract -> pbr_final reports PreparationFailure and cause.
+    Native integration -> proposal Compatibility; Rendering.ShaderBindingState.md / Prepared resource
+    submission and Generated desired state; Rendering.EngineStateSwitching.md / Selective invalidation ->
+    explicit VGE frame/light inputs, removed VGE Use/Stop hooks, retained native hooks/liquid bridge and
+    profiling adapters. GPU.ShaderDemandLoading.md / Graphics and Compute ownership -> preserved cache,
+    SPIR-V, batch and demand preparation, with preload admission before native work.
+
+  Verification: final Debug Rebuild passed with production/fixture shader producers enabled
+    (0 errors, 123 warnings); latest focused ownership/cache/context suite 115/115 and packaged graphics
+    lifecycle suite 452/452 passed. Prior unaffected rendering/integration suite 245/245 and generator
+    suite 178/178 remain applicable; all suites had no skips. Actual batch capability receipt reports
+    enabled=True. Receipts: ../artifacts/shader-ownership-phase4-build.log,
+    ../artifacts/shader-ownership-phase4-focused-tests.log,
+    ../artifacts/shader-ownership-phase4-focused-lifecycle-tests.log,
+    ../artifacts/shader-ownership-phase4-affected-tests.log,
+    ../artifacts/shader-ownership-phase4-generator-tests.log and
+    ../artifacts/shader-ownership-phase4-batch-capability-tests.log.
+    Second implementation review and independent audit-stage-completion passed 2026-10-10 after stale
+    batch asset, terminal-retirement publication and originating-context admission corrections, covered
+    by fresh regressions. No game execution or performance claim. Registry/reload/ordered shutdown and
+    destroyed-context deletion abandonment remain Phase 5; user-run acceptance remains Phase 6.
 
 Phase 5: Establish registry, reload and context lifetime
   Depends on Phase 4. Outcome: VGE ownership remains correct across assets, worlds and context retirement.

@@ -75,16 +75,11 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
         var framebuffers = Enumerable.Repeat<FrameBufferRef>(null!, Enum.GetValues<EnumFrameBuffer>().Max(v => (int)v) + 1).ToList();
         framebuffers[(int)EnumFrameBuffer.Primary] = terrain.Primary;
         int draws = 0;
-        var programs = new Dictionary<string, IShaderProgram>();
-        var shaderApi = new Mock<IShaderAPI>();
-        shaderApi.Setup(api => api.NewShader(It.IsAny<EnumShaderType>())).Returns(() => new Vintagestory.Client.NoObf.Shader());
-        shaderApi.Setup(api => api.GetProgramByName(It.IsAny<string>())).Returns((string name) => programs.GetValueOrDefault(name)!);
-        shaderApi.Setup(api => api.RegisterMemoryShaderProgram(It.IsAny<string>(), It.IsAny<IShaderProgram>()))
-            .Callback((string name, IShaderProgram program) => programs[name] = program);
+        var shaderApi = new Mock<IShaderAPI>(MockBehavior.Strict);
         var render = RuntimeEngineServices.Render(2, framebuffers, () => view, () => projection, () =>
         {
             draws++;
-            drawing.RenderQuad(programs[LumOnDebugShaderProgramFamily.GetProgramName(config.LumOn.DebugMode)].ProgramId);
+            drawing.RenderQuad(StateCache.ActiveProgram!.ProgramId);
         });
         var api = RuntimeEngineServices.Client(assets.Api, events.Api, world.Object, render, shaderApi.Object);
         using var frameCamera = new VgeFrameRenderer(api);
@@ -131,7 +126,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
             if (selectedFailure)
             {
                 Assert.Equal(0, draws);
-                Assert.Empty(programs);
+                Assert.Empty(VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.GetAll(api).Where(program => program.IsLinked));
                 Assert.Equal(1, assets.Reads.Count(path => path.Contains("lumon_debug_view_near_field_geometry", StringComparison.Ordinal)));
                 return;
             }
@@ -183,7 +178,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
         {
             probeView.SetImportanceSurfaceHeatmapEnabled(previousHeatmap);
             LumOnDebugShaderProgramFamily.Dispose(api);
-            foreach (var program in programs.Values) program.Dispose();
+            foreach (var program in VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.GetAll(api)) program.Dispose();
         }
     }
     #endregion

@@ -15,6 +15,110 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
     public ProductionShaderAccessorGpuTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Production loading
+    /// <summary>Synchronous asset callbacks cannot allocate a replacement under a changed context registration.</summary>
+    [Fact]
+    public void ContextChangeDuringAssetReadsPreservesInstalledExecutable()
+    {
+        EnsureContextValid();
+        using var cache = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
+        using var assets = new BinaryShaderApiFixture();
+        using var program = Create(assets);
+        Assert.True(program.EnsureReady());
+        int installed = program.ProgramId;
+        ulong revision = program.ExecutableRevision;
+        program.InvalidateAssets();
+        var original = VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Current();
+        var registrations = (System.Collections.IDictionary)typeof(VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry)
+            .GetField("registrations", System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic)!.GetValue(null)!;
+        object registration = registrations[original.Handle]!;
+        var replacement = new object();
+        bool changed = false;
+        assets.BeforeRead = _ =>
+        {
+            if (changed) return;
+            changed = true;
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
+        };
+        try
+        {
+            Assert.False(program.EnsureReady());
+            Assert.Contains("originating native context generation", program.PreparationFailure!.Message);
+            Assert.Equal(installed, program.ProgramId);
+            Assert.Equal(revision, program.ExecutableRevision);
+            Assert.True(GL.IsProgram(installed));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            // Restore the live originating registration before owner retirement.
+            lock (registrations) registrations[original.Handle] = registration;
+            assets.BeforeRead = null;
+        }
+    }
+
+    /// <summary>Retirement during binary preparation cannot publish or leak a replacement after terminal cleanup.</summary>
+    [Fact]
+    public void RetirementDuringPreparationCannotInstallAnotherExecutable()
+    {
+        EnsureContextValid();
+        using var cache = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
+        using var assets = new BinaryShaderApiFixture();
+        using var program = Create(assets);
+        Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
+        int installed = program.ProgramId;
+        ulong revision = program.ExecutableRevision;
+        program.InvalidateAssets();
+        bool retired = false;
+        assets.BeforeRead = _ =>
+        {
+            if (retired) return;
+            retired = true;
+            program.Dispose();
+        };
+        Assert.False(program.EnsureReady());
+        Assert.True(program.IsRetired);
+        Assert.Equal(0, program.ProgramId);
+        Assert.Equal(revision, program.ExecutableRevision);
+        Assert.False(GL.IsProgram(installed));
+        program.Dispose();
+        Assert.False(program.CompileAndLink());
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    /// <summary>Asset invalidation during preparation discards the obsolete candidate without suppressing the new asset epoch.</summary>
+    [Fact]
+    public void AssetEpochSupersessionRetainsInstalledGenerationAndPermitsRetry()
+    {
+        EnsureContextValid();
+        using var cache = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(null);
+        using var assets = new BinaryShaderApiFixture();
+        using var program = Create(assets);
+        Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
+        int installed = program.ProgramId;
+        ulong revision = program.ExecutableRevision;
+        ulong epoch = program.InstalledAssetGeneration;
+        program.InvalidateAssets();
+        bool changed = false;
+        assets.BeforeRead = _ =>
+        {
+            if (changed) return;
+            changed = true;
+            program.InvalidateAssets();
+        };
+        Assert.False(program.EnsureReady());
+        Assert.Equal(installed, program.ProgramId);
+        Assert.Equal(revision, program.ExecutableRevision);
+        Assert.Equal(epoch, program.InstalledAssetGeneration);
+        Assert.True(program.RequiresPreparation);
+        Assert.True(GL.IsProgram(installed));
+        assets.BeforeRead = null;
+        Assert.True(program.EnsureReady(), string.Join('\n', assets.Logs));
+        Assert.Equal(revision + 1, program.ExecutableRevision);
+        Assert.Equal(epoch + 2, program.InstalledAssetGeneration);
+        Assert.False(GL.IsProgram(installed));
+        Assert.Null(program.PreparationFailure);
+    }
+
     /// <summary>A typed structural update selects a real PBR variant and preserves the installed program if loading fails.</summary>
     [Fact]
     public void CompositeGeneratedAccessorSelectsBinaryAndPreservesFailedReplacement()
@@ -24,9 +128,7 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         using var assets = new BinaryShaderApiFixture();
         var program = new PBRCompositeShaderProgram
         {
-            PassName = PBRCompositeShaderProgram.Contract.Identity,
-            VertexShader = new Vintagestory.Client.NoObf.Shader(),
-            FragmentShader = new Vintagestory.Client.NoObf.Shader()
+            PassName = PBRCompositeShaderProgram.Contract.Identity
         };
         program.Initialize(assets.Api);
         try
@@ -148,9 +250,7 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         using var assets = new BinaryShaderApiFixture();
         using var program = new LumOnScreenProbeAtlasTraceShaderProgram
         {
-            PassName = LumOnScreenProbeAtlasTraceShaderProgram.Contract.Identity,
-            VertexShader = new Vintagestory.Client.NoObf.Shader(),
-            FragmentShader = new Vintagestory.Client.NoObf.Shader()
+            PassName = LumOnScreenProbeAtlasTraceShaderProgram.Contract.Identity
         };
         program.Initialize(assets.Api);
         Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
@@ -179,9 +279,7 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         using var assets = new BinaryShaderApiFixture();
         using var program = new LumOnScreenProbeAtlasTraceShaderProgram
         {
-            PassName = LumOnScreenProbeAtlasTraceShaderProgram.Contract.Identity,
-            VertexShader = new Vintagestory.Client.NoObf.Shader(),
-            FragmentShader = new Vintagestory.Client.NoObf.Shader()
+            PassName = LumOnScreenProbeAtlasTraceShaderProgram.Contract.Identity
         };
         program.Initialize(assets.Api);
         program.ConfigureOptions(() =>
@@ -207,9 +305,7 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
         using var assets = new BinaryShaderApiFixture();
         using var program = new PBRCompositeShaderProgram
         {
-            PassName = PBRCompositeShaderProgram.Contract.Identity,
-            VertexShader = new Vintagestory.Client.NoObf.Shader(),
-            FragmentShader = new Vintagestory.Client.NoObf.Shader()
+            PassName = PBRCompositeShaderProgram.Contract.Identity
         };
         program.ConfigureOptions(() => { program.EnableShortRangeAo = false; program.EnablePbrComposite = false; });
         Assert.Empty(assets.ScheduledTasks);
@@ -271,9 +367,7 @@ public sealed class ProductionShaderAccessorGpuTests : RenderTestBase
     {
         var program = new PBRCompositeShaderProgram
         {
-            PassName = PBRCompositeShaderProgram.Contract.Identity,
-            VertexShader = new Vintagestory.Client.NoObf.Shader(),
-            FragmentShader = new Vintagestory.Client.NoObf.Shader()
+            PassName = PBRCompositeShaderProgram.Contract.Identity
         };
         program.Initialize(assets.Api);
         return program;

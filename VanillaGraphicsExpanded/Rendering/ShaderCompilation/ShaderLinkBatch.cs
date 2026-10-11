@@ -25,7 +25,9 @@ internal sealed class ShaderLinkBatch : IDisposable
     private readonly List<(ShaderLoadPlan Plan, PendingShaderProgram? Program, Exception? Error)> submitted = new();
     private readonly int limit;
     private readonly int thread = Environment.CurrentManagedThreadId;
+    private readonly (nint Handle, long Generation) context = Integration.RenderContextRegistry.Current();
     private bool disposed;
+    private bool assetsInvalidated;
     internal bool Enabled { get; }
     internal int Outstanding => submitted.Count;
     internal int CompletedOutstanding => submitted.Count(entry => entry.Program?.Validated == true);
@@ -64,9 +66,15 @@ internal sealed class ShaderLinkBatch : IDisposable
     {
         var batch = current;
         if (batch == null) return null;
-        batch.CheckThread();
+        batch.RequireOriginatingContext();
         batch.cancellation.ThrowIfCancellationRequested();
         if (!batch.Enabled) return null;
+        if (batch.assetsInvalidated)
+        {
+            // Finish the old window before synchronous work, but never consume its captured assets.
+            batch.WaitForSubmitted();
+            return null;
+        }
         if (!ReferenceEquals(batch.assets, assets) || batch.domain != domain)
         {
             batch.WaitForSubmitted();
@@ -100,10 +108,18 @@ internal sealed class ShaderLinkBatch : IDisposable
         catch { entry.Program?.Dispose(); throw; }
     }
 
+    /// <summary>Withdraws pending asset snapshots in existing batch scopes without creating another asset registry.</summary>
+    internal static void InvalidateAssets(IAssetManager assets, string domain)
+    {
+        for (var batch = current; batch != null; batch = batch.previous)
+            if (ReferenceEquals(batch.assets, assets) && batch.domain == domain)
+                batch.assetsInvalidated = true;
+    }
+
     /// <summary>Establishes completion before an unplanned synchronous dependency or nested batch can submit work.</summary>
     private void WaitForSubmitted()
     {
-        CheckThread();
+        RequireOriginatingContext();
         cancellation.ThrowIfCancellationRequested();
         for (int index = 0; index < submitted.Count; index++)
         {
@@ -126,11 +142,13 @@ internal sealed class ShaderLinkBatch : IDisposable
     {
         ReadOnlySpan<byte> Read(string path) => assets.TryGet(AssetLocation.Create("shaders/" + path, domain), loadAsset: true)?.Data
             ?? throw new InvalidOperationException("Missing built shader asset: " + domain + ":shaders/" + path);
-        while (submitted.Count < limit && waiting.TryDequeue(out var plan))
+        while (!assetsInvalidated && submitted.Count < limit && waiting.TryDequeue(out var plan))
         {
             cancellation.ThrowIfCancellationRequested();
             try
             {
+                // Each asset callback can change context; never let the next plan adopt that context.
+                RequireOriginatingContext();
                 long started = Stopwatch.GetTimestamp();
                 var pending = new PendingShaderProgram(plan, Read, () => ShaderDigestIndexCache.ForAssets(assets, domain), completionQuery);
                 SubmissionMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
@@ -143,17 +161,19 @@ internal sealed class ShaderLinkBatch : IDisposable
     #endregion
 
     #region Lifetime
-    /// <summary>Rejects cross-thread operations before issuing any GL calls.</summary>
-    private void CheckThread()
+    /// <summary>Rejects another thread or context generation before consuming, querying or deleting native candidates.</summary>
+    private void RequireOriginatingContext()
     {
         if (Environment.CurrentManagedThreadId != thread) throw new InvalidOperationException("Shader batches belong to their render thread.");
+        if (context != Integration.RenderContextRegistry.Current())
+            throw new InvalidOperationException("Shader batch candidates belong to their originating native context generation.");
     }
 
     /// <summary>Deletes abandoned candidates and restores the enclosing batch on the owning context.</summary>
     public void Dispose()
     {
-        CheckThread();
         if (disposed) return;
+        RequireOriginatingContext();
         if (!ReferenceEquals(current, this)) throw new InvalidOperationException("Shader batch scopes must be disposed in reverse order.");
         disposed = true;
         current = previous;

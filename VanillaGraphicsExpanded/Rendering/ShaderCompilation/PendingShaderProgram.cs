@@ -22,6 +22,8 @@ internal sealed class PendingShaderProgram : IDisposable
     private readonly GetProgramParameterName completionQuery;
     private readonly ShaderLoadPlan plan;
     private bool completed;
+    private readonly int thread = Environment.CurrentManagedThreadId;
+    private readonly (nint Handle, long Generation) context = Integration.RenderContextRegistry.Current();
 
     #region Submission and completion
     /// <summary>Submits specialization and linking without status, log or interface queries on cache misses.</summary>
@@ -33,6 +35,8 @@ internal sealed class PendingShaderProgram : IDisposable
         Inputs = DriverProgramCache.Prepare(plan, read, digestIndex);
         try
         {
+            // External asset reads may invalidate the context; reject before allocating native names.
+            RequireOriginatingContext();
             Program = GL.CreateProgram();
             if (Program == 0) throw new InvalidOperationException("glCreateProgram returned 0.");
             Cached = DriverProgramCache.TryLoad(Program, Inputs);
@@ -56,6 +60,7 @@ internal sealed class PendingShaderProgram : IDisposable
         get
         {
             if (completed) return true;
+            RequireOriginatingContext();
             GL.GetProgram(Program, completionQuery, out int ready);
             return ready != 0;
         }
@@ -85,10 +90,18 @@ internal sealed class PendingShaderProgram : IDisposable
         completed = true;
     }
 
-    /// <summary>Transfers a completed executable; stage ownership remains here until explicitly moved or disposed.</summary>
+    /// <summary>Transfers a completed executable after releasing every temporary attached stage.</summary>
     internal int DetachProgram()
     {
         if (!completed) throw new InvalidOperationException("Cannot publish an unfinished shader program.");
+        if (Program != 0) RequireOriginatingContext();
+        // Successful linking no longer needs stage allocations; cached programs have none.
+        foreach (var stage in Stages)
+        {
+            GL.DetachShader(Program, stage.Shader);
+            GL.DeleteShader(stage.Shader);
+        }
+        Stages.Clear();
         int result = Program;
         Program = 0;
         return result;
@@ -96,9 +109,18 @@ internal sealed class PendingShaderProgram : IDisposable
     #endregion
 
     #region Lifetime
-    /// <summary>Deletes unpublished executables and any stages not transferred to a graphics owner.</summary>
+    /// <summary>Rejects native queries, transfer and deletion outside this candidate's original thread and context registration.</summary>
+    private void RequireOriginatingContext()
+    {
+        if (Environment.CurrentManagedThreadId != thread || context != Integration.RenderContextRegistry.Current())
+            throw new InvalidOperationException("Shader candidate belongs to its originating native context generation and thread.");
+    }
+
+    /// <summary>Deletes unpublished executables and all remaining temporary stages exactly once.</summary>
     public void Dispose()
     {
+        if (Program == 0 && Stages.Count == 0) return;
+        RequireOriginatingContext();
         if (Program != 0) { GL.DeleteProgram(Program); Program = 0; }
         foreach (var stage in Stages) GL.DeleteShader(stage.Shader);
         Stages.Clear();

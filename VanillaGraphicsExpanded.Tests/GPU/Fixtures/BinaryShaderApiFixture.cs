@@ -15,7 +15,9 @@ internal sealed class BinaryShaderApiFixture : IDisposable
     public Action<string>? BeforeRead { get; set; }
     public List<Action> ScheduledTasks { get; } = [];
     public ICoreClientAPI Api { get; }
-    public Dictionary<string, IShaderProgram> RegisteredPrograms { get; } = new(StringComparer.Ordinal);
+    /// <summary>Observes prepared VGE declarations without an engine registry substitute.</summary>
+    public Dictionary<string, VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram> PreparedPrograms =>
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.GetAll(Api).Where(program => program.IsLinked).ToDictionary(program => program.PassName);
 
     #region API construction
     /// <summary>Routes asset reads to the test output and allows isolated in-memory edits for reload scenarios.</summary>
@@ -55,21 +57,8 @@ internal sealed class BinaryShaderApiFixture : IDisposable
             ScheduledTasks.Add((Action)args![0]!);
             return null;
         });
-        var shaders = Proxy<IShaderAPI>((method, args) =>
-        {
-            if (method.Name == "NewShader") return new Vintagestory.Client.NoObf.Shader();
-            if (method.Name == "RegisterMemoryShaderProgram")
-            {
-                string name = (string)args![0]!;
-                var program = (IShaderProgram)args[1]!;
-                if (RegisteredPrograms.TryGetValue(name, out var previous)) previous.Dispose();
-                RegisteredPrograms[name] = program;
-                return method.ReturnType == typeof(bool) ? true : method.ReturnType == typeof(int) ? RegisteredPrograms.Count : null;
-            }
-            if (method.Name == "GetProgramByName")
-                return RegisteredPrograms.GetValueOrDefault((string)args![0]!);
-            throw new NotSupportedException(method.Name);
-        });
+        var shaders = Proxy<IShaderAPI>((method, _) =>
+            throw new InvalidOperationException("VGE executables must not call the engine shader API: " + method.Name));
         Api = Proxy<ICoreClientAPI>((method, _) => method.Name switch
         {
             "get_Assets" => assets,
@@ -87,8 +76,6 @@ internal sealed class BinaryShaderApiFixture : IDisposable
     {
         VanillaGraphicsExpanded.LumOn.LumOnDebugShaderProgramFamily.Dispose(Api);
         VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Dispose(Api);
-        foreach (var program in RegisteredPrograms.Values) program.Dispose();
-        RegisteredPrograms.Clear();
         VanillaGraphicsExpanded.PBR.ShaderImportsSystem.Instance.Clear();
     }
 

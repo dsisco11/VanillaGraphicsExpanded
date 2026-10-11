@@ -38,10 +38,10 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
                 output.WriteLine($"Generation={generation}, declaration={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms, reads={assets.Reads.Count}.");
                 started = Stopwatch.GetTimestamp();
                 Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
-                Assert.Empty(assets.RegisteredPrograms);
+                Assert.Empty(assets.PreparedPrograms);
                 Assert.True(GpuShaderPrograms.Preload(assets.Api, GpuShaderPrograms.GetAll(assets.Api).Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray()));
-                output.WriteLine($"Generation={generation}, explicitproductionpreload={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms, registered={assets.RegisteredPrograms.Count}.");
-                Assert.Equal(19, assets.RegisteredPrograms.Count);
+                output.WriteLine($"Generation={generation}, explicitproductionpreload={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms, registered={assets.PreparedPrograms.Count}.");
+                Assert.Equal(19, assets.PreparedPrograms.Count);
                 foreach (string name in new[] { "lumon_debug_view_direct_diffuse", "lumon_debug_view_direct_specular", "lumon_debug_view_direct_diffuse" })
                 {
                     Assert.True(LumOnDebugShaderProgramFamily.TryGet(name, out var program));
@@ -72,7 +72,7 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
                     }
                     output.WriteLine($"Generation={generation}, name={name}, selection={selection:F3} ms, first-use/readback={firstUse:F3} ms, assetreads={reads}, cachehit={DriverProgramCache.LastLoadWasHit}.");
                 }
-                Assert.Equal(21, assets.RegisteredPrograms.Count);
+                Assert.Equal(21, assets.PreparedPrograms.Count);
                 Assert.Equal(ErrorCode.NoError, GL.GetError());
             }
         }

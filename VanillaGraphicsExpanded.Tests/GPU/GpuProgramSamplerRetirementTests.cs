@@ -16,10 +16,8 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
 {
     #region Engine handoff
     /// <summary>The normal interface Stop path retires shadow comparison samplers before engine texture reuse.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void DirectLightingStopRetiresContractSamplers(bool installHook)
+    [Fact]
+    public void DirectLightingStopRetiresContractSamplers()
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
@@ -31,10 +29,8 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         using var input = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var unrelated = GpuSampler.Create();
         unrelated.Bind(9);
-        var harmony = new Harmony("VGE.Tests.SamplerRetirement");
         try
         {
-            if (installHook) harmony.CreateClassProcessor(typeof(GpuProgramStopHook)).Patch();
             program.PrimaryScene = input.TextureId;
             program.PrimaryDepth = depth.TextureId;
             program.GBufferPosition = input.TextureId;
@@ -47,8 +43,8 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 5, out int farSampler);
             Assert.NotEqual(0, nearSampler);
             Assert.NotEqual(0, farSampler);
-            // The temporary interface facade shares VGE stopping even without native engine hooks.
-            ((IShaderProgram)program).Stop();
+            // The concrete VGE facade withdraws the generated sampler footprint.
+            program.Stop();
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 4, out nearSampler);
             GL.GetInteger((GetIndexedPName)GetPName.SamplerBinding, 5, out farSampler);
             Assert.Equal(0, nearSampler);
@@ -59,7 +55,6 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id);
             StateCache.Current.UnbindSampler(4);
             StateCache.Current.UnbindSampler(5);
             StateCache.Current.UnbindSampler(9);
