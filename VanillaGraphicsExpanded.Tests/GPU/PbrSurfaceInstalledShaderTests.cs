@@ -79,7 +79,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             if (vertex != 0) GL.DeleteShader(vertex);
         }
     }
-    /// <summary>Keeps the engine sky available as a metadata-compatible fallback without atmospheric source interception.</summary>
+    /// <summary>Preserves the engine asset lifecycle without injecting outputs owned by the replacement sky.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
@@ -99,7 +99,8 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             Assert.Equal(-1, GL.GetUniformLocation(program, "vge_atmosphereSky"));
             Assert.Equal(-1, GL.GetUniformLocation(program, "vge_atmosphereLutHorizon"));
             Assert.Equal(-1, GL.GetUniformLocation(program, "vge_atmosphereSunDirection"));
-            Assert.Equal(6, GL.GetFragDataLocation(program, "vge_outPatchId"));
+            foreach (string output in new[] { "vge_outNormal", "vge_outMaterial", "vge_outPatchId", "vge_outEnvironment" })
+                Assert.Equal(-1, GL.GetFragDataLocation(program, output));
         }
         finally
         {
@@ -153,7 +154,14 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             return included.Add(path) ? Expand(File.ReadAllText(path), Path.GetDirectoryName(path)!) : "";
         });
         tree = SyntaxTree.Parse(Expand(tree.ToText(), Path.Combine(AppContext.BaseDirectory, "assets/shaders")), GlslSchema.Instance);
-        if (name is not ("final.fsh" or "luma.fsh" or "godrays.fsh" or "colorgrade.fsh" or "blur.fsh" or "sky.vsh" or "particlescube.vsh" or "particlesquad2d.vsh" or "final.vsh" or "chunkshadowmap.fsh" or "chunkshadowmap.vsh" or "chunkliquid.vsh" or "chunkliquid.fsh")) Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
+        if (name is "sky.vsh" or "sky.fsh")
+        {
+            // The engine still compiles its sky assets, but replacement output must not modify them.
+            string unpatched = tree.ToText();
+            Assert.False(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
+            Assert.Equal(unpatched, tree.ToText());
+        }
+        else if (name is not ("final.fsh" or "luma.fsh" or "godrays.fsh" or "colorgrade.fsh" or "blur.fsh" or "particlescube.vsh" or "particlesquad2d.vsh" or "final.vsh" or "chunkshadowmap.fsh" or "chunkshadowmap.vsh" or "chunkliquid.vsh" or "chunkliquid.fsh")) Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
         if (name == "standard.fsh")
         {
             string main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single().ToText();

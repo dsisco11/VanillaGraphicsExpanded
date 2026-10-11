@@ -5,6 +5,8 @@ namespace VanillaGraphicsExpanded.Tests;
 /// <summary>Checks engine shader stages are parsed only when VGE processing is required.</summary>
 public sealed class ShaderStageSelectionTests
 {
+    #region Public API
+    /// <summary>Leaves import-free shader stages outside the VGE patch families untouched.</summary>
     [Fact]
     public void RequiresProcessing_UnpatchedImportFreeStage_ReturnsFalse()
     {
@@ -15,14 +17,13 @@ public sealed class ShaderStageSelectionTests
         Assert.False(requiresProcessing);
     }
 
+    /// <summary>Processes every engine stage whose source still receives an owned VGE patch.</summary>
     [Theory]
     [InlineData("chunkopaque.vsh")]
     [InlineData("chunkopaque.fsh")]
     [InlineData("chunktopsoil.vsh")]
     [InlineData("chunktopsoil.fsh")]
     [InlineData("chunkshadowmap.vsh")]
-    [InlineData("final.fsh")]
-    [InlineData("sky.fsh")]
     [InlineData("standard.vsh")]
     [InlineData("standard.fsh")]
     [InlineData("entityanimated.vsh")]
@@ -38,6 +39,7 @@ public sealed class ShaderStageSelectionTests
         Assert.True(requiresProcessing);
     }
 
+    /// <summary>Resolves VGE imports even when a stage has no source patch.</summary>
     [Fact]
     public void RequiresProcessing_UnpatchedStageWithImport_ReturnsTrue()
     {
@@ -47,4 +49,15 @@ public sealed class ShaderStageSelectionTests
 
         Assert.True(requiresProcessing);
     }
+
+    /// <summary>Owned sky and display replacements leave their import-free engine stages untouched.</summary>
+    [Theory]
+    [InlineData("sky.vsh")]
+    [InlineData("sky.fsh")]
+    [InlineData("final.fsh")]
+    public void RequiresProcessing_ReplacedEngineStage_ReturnsFalse(string shaderName)
+    {
+        Assert.False(EngineShaderProcessingHook.RequiresProcessing(shaderName, "#version 330 core\n"));
+    }
+    #endregion
 }

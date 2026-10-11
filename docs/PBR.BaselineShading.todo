@@ -25,7 +25,7 @@ Tasks
     Per-axis-face overrides were withdrawn: texture-to-material mappings already let different
     block-face textures use different properties and naturally follow block rotation.
 
-  ☐ Fully replace the base-game sky shader with a VGE-owned shader.
+  ✔ Fully replace the base-game sky shader with a VGE-owned shader. @done(26-10-11)
     - Implemented ownership: atmosphere publication supplies physical-model-derived compatibility
       lighting before ambient blending; an independently registered sky IRenderer consumes it.
       A lifecycle prefix suppresses the complete engine sky callback regardless of draw readiness.
@@ -35,26 +35,33 @@ Tasks
     - Owned pbr_sky SPIR-V and typed inputs reuse the published atmosphere and primary framebuffer;
       the renderer owns a procedural fullscreen triangle and reconstructs camera-relative rays per pixel. Runtime always emits scene-linear HDR.
       The earlier draw-hook/shader-handoff validation is historical and does not validate the revised
-      ownership. User-run visual acceptance remains required before completion.
+      ownership. User-run visual acceptance was supplied on 2026-10-11.
       Evidence: docs/PBR.Atmosphere.md / Owned fullscreen submission.
-    - Persistent ownership validation: Debug build passed; 265 regression tests passed with five
+    - Current replacement cleanup/reload validation: SPIR-V-enabled Debug build passed;
+      300 regression tests passed with five opt-in measurement skips and no failures.
+      Covers untouched installed sky assets, retained complete publication on shader reload,
+      owned rendering and runtime HDR handoff. Receipts: docs/PBR.Atmosphere.Publication.md.
+      User accepted the current appearance on 2026-10-11: "yea it looks fine".
+    - Historical persistent ownership validation: Debug build passed; 265 regression tests passed with five
       opt-in measurement skips, no GPU-availability skips. See docs/PBR.Atmosphere.Publication.md.
-      Twilight/night compatibility mapping and legacy cloud appearance still require user review.
+      This receipt predates the current replacement and its 2026-10-11 visual acceptance.
     - Reuse the existing atmospheric LUT generation, publication and shared lighting inputs;
       replace the engine sky program rather than extending its GLSL with further HDR patches.
     - Use the established VGE shader asset, typed binding, registration and SPIR-V build paths.
-      Establish draw ownership while preserving engine sky geometry, render order and celestial
+      Use the owned procedural fullscreen triangle while preserving render order and celestial
       ordering; avoid duplicate sky draws and keep resource orchestration thin.
     - Explicitly own twilight/star visibility alpha, horizon and liquid-depth masking, underwater
       tint, night vision, psychedelic effects, glow and G-buffer/SSAO outputs. Specify which effects
       remain spatial sky operations and which belong at the final display boundary.
-    - Emit scene-linear HDR on prepared HDR frames, retaining the compatible legacy display route
-      until the common scene handoff is ready. Preserve values above one; apply display conversion
+    - Emit scene-linear HDR through the common scene handoff. The legacy shader branch is retained
+      for isolated compatibility tests; runtime always selects HDR. Preserve values above one; apply display conversion
       and SDR dithering once at the selected boundary. Keep UI/offscreen rendering separate.
     - Enable scene-HDR participation only after the owned program and bindings are
       verified. This task supports full-scene HDR activation but does not gate water Phase 2.
     - Preserve shader reload, resize, world teardown, failure handling and both PBR lighting modes.
       Remove superseded sky source patches when the owned shader assumes their responsibilities.
+      The vanilla sky G-buffer injection is removed; the owned draw writes only color/glow and
+      framebuffer clearing supplies background metadata. Engine sky assets remain unmodified.
     - Validate LUT row/seam sampling, day/night alpha and celestial ordering, perception effects,
       above/underwater views, HDR/legacy output and lifecycle with focused subagent tests. Retain
       existing atmospheric-model tests; obtain user-run visual acceptance without launching the game.

@@ -62,10 +62,9 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     /// <summary>Invalidates pending shader generations while keeping the last complete display snapshot.</summary>
     private bool Reload()
     {
+        // Completed textures are independent of the compute executable. Keep every consumer on
+        // the same publication until replacement transport and uploads complete successfully.
         computation?.Reload();
-        Lighting = null; SkyTextureId = 0; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
-        AerialRadianceTexture = null; AerialAttenuationTexture = null;
-        ambientPublication?.Dispose();
         return true;
     }
 

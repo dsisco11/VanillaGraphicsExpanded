@@ -33,7 +33,7 @@ internal static class VanillaShaderPatches
 
     /// <summary>Reports whether a shader stage receives any VGE pre- or post-processing edits.</summary>
     internal static bool Supports(string sourceName) => sourceName is
-        "chunkshadowmap.vsh" or "sky.fsh"
+        "chunkshadowmap.vsh"
         || PatchedChunkVertexShaders.Contains(sourceName)
         || PatchedChunkShaders.Contains(sourceName)
         || SceneColor.SceneColorLegacyPatches.Supports(sourceName)
@@ -397,23 +397,7 @@ flat in uint vge_faceId;
                 log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
                 return true;
             }
-            switch (sourceName)
-            {
-                // case "normalshading.fsh": // Note: Disabled since we don't really care to change the lighting for gui items or first-person view items.
-                //     PatchNormalshading(tree);
-                //     return true;
-                case "sky.fsh":
-                    {
-                        var editor = tree.CreateEditor();
-                        InjectGBufferInputs(editor);
-                        InjectSkyGBufferOutputs(editor);
-                        editor.Commit();
-                        log?.Audit($"[VGE] Applied patches to shader: {sourceName}");
-                        return true;
-                    }
-                default:
-                    return false;
-            }
+            return false;
         }
         catch (Exception ex)
         {
@@ -562,26 +546,6 @@ flat in uint vge_faceId;
         tree.CreateEditor()
             .InsertAfter(mainQuery, outputWrites)
             .Commit();
-    }
-
-    private static void InjectSkyGBufferOutputs(SyntaxTree tree)
-    {
-        var editor = tree.CreateEditor();
-        InjectSkyGBufferOutputs(editor);
-        editor.Commit();
-    }
-
-    /// <summary>Queues default sky G-buffer values into a stage-scoped transaction.</summary>
-    private static void InjectSkyGBufferOutputs(SyntaxEditor editor)
-    {
-        const string skyGBufferWrites = @"
-    // VGE: Write default G-buffer outputs for sky
-    vge_outEnvironment = vec4(0.0);
-    vge_outPatchId = uvec4(0u);
-    vge_outNormal = vec4(0.0); // Upward normal
-    vge_outMaterial = vec4(0.0, 0.0, outGlow.g, 0.0); // Default material properties
-";
-        editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main").InnerEnd("body"), skyGBufferWrites);
     }
 
     /// <summary>Patches the fog and lighting helpers in one transaction.</summary>

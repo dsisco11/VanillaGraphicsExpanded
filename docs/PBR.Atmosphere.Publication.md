@@ -4,7 +4,8 @@
 
 Implemented ownership contract following the installed-engine consumer inspection. Runtime uses
 an independently registered fullscreen sky renderer and pre-blend atmospheric compatibility publication.
-Visual acceptance and migration of legacy cloud lookup content remain open.
+The user accepted the replacement's appearance on 2026-10-11. Migration of legacy cloud lookup content belongs to the separate
+volumetric-cloud task; the compatibility adapter retains valid original lookup handles meanwhile.
 
 Extend the existing atmospheric subsystem to own environmental lighting independently of the
 sky draw. The sky renderer consumes published state; it does not update engine lighting globals,
@@ -29,7 +30,8 @@ the shared unit-exposure peak-preserving shoulder and sRGB transfer for legacy c
 Fog uses the same transfer on `Horizon`. Compatibility daylight is clamped Rec.709-weighted
 luminance of that encoded ambient reference; it is an artistic visibility scalar, not physical
 irradiance or photometric luminance. No nighttime floor is added. Physical VGE consumers still
-read the original snapshot. This explicit approximation needs user-run twilight/night acceptance.
+read the original snapshot. The replacement's appearance was accepted by the user on 2026-10-11;
+this mapping remains an artistic approximation, without calibrated lunar illumination.
 
 ## Verified engine consumers and ordering
 
@@ -69,6 +71,9 @@ textures. On pending work or failed upload, retain the previous complete generat
 counter still advances once per enabled frame even when atmospheric computation or sky drawing is unavailable.
 Startup uses the neutral black atmospheric snapshot until the first completed result. Update failures
 retain the last successfully uploaded snapshot and report the failure without changing sky ownership.
+Shader reload withdraws pending transport through the existing backend while retaining the completed
+lighting snapshot, sky/aerial texture handles and ambient ownership. Completed texture storage does
+not depend on the compute executable. World teardown still clears publication and retires storage.
 
 Engine ambient RGB is a combined sunlight tint/brightness multiplier: installed
 `fogandlight.vsh` multiplies it by voxel sunlight brightness. Ambient blending linearly mixes
@@ -117,6 +122,20 @@ reactivating the vanilla sky callback. Shared daylight/fog fields still update e
 color slot is missing or owned by another mod.
 
 ## Validation and remaining acceptance
+
+Current replacement cleanup and reload validation passed the SPIR-V-enabled Debug build
+with zero errors and 128 unchanged warnings. The subagent-run regression suite passed 300 tests
+with five explicit opt-in measurement skips and no failures. Coverage includes exact source
+preservation and native linking of both installed sky SSAO variants, complete lighting/sky/aerial
+publication retention on reload, owned sky effects and lifecycle, atmospheric-model regressions,
+frame inputs and runtime HDR handoff. All 431 production and 508 test shader variants reused
+compiler results; no shader compiler invocations or emission occurred in this build.
+Receipts: `artifacts/PbrColor/sky-task-current-repaired-build.log` and
+`artifacts/PbrColor/sky-task-current-repaired-focused.log/.trx`.
+The validation subagent independently reviewed the cleanup and reload lifetime changes.
+The user supplied visual acceptance on 2026-10-11: "yea it looks fine", resolving the parent
+task's remaining acceptance gate. This is overall appearance acceptance; no individual scene
+results or GPU timing measurements were supplied. The agent did not launch the game.
 
 The fullscreen replacement passed the SPIR-V-enabled Debug build and 203 focused atmosphere,
 frame-input and procedural-geometry tests, with five opt-in measurement skips and no failures.

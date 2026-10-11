@@ -211,11 +211,21 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
                 ImmutableArray.Create(.1f, .2f, .3f, 1f)) { Width = 1, Height = 1 };
             system.Publish(display);
             int texture = AtmosphereModSystem.SkyTextureId;
+            var radiance = AtmosphereModSystem.AerialRadianceTexture;
+            var attenuation = AtmosphereModSystem.AerialAttenuationTexture;
+            int radianceId = AtmosphereModSystem.AerialRadianceTextureId;
+            int attenuationId = AtmosphereModSystem.AerialAttenuationTextureId;
             Assert.NotEqual(0, texture);
             backend.Update(Vector3.UnitY, 0, 0, 32, 24, 0);
             Assert.Equal(true, typeof(AtmosphereModSystem).GetMethod("Reload", flags)!.Invoke(system, null));
             Assert.Same(display, AtmosphereModSystem.Lighting); Assert.Equal(texture, AtmosphereModSystem.SkyTextureId);
-            Assert.Throws<ObjectDisposedException>(() => backend.Update(Vector3.UnitY, 0, 0, 32, 24, 0));
+            Assert.Same(radiance, AtmosphereModSystem.AerialRadianceTexture);
+            Assert.Same(attenuation, AtmosphereModSystem.AerialAttenuationTexture);
+            Assert.Equal(radianceId, AtmosphereModSystem.AerialRadianceTextureId);
+            Assert.Equal(attenuationId, AtmosphereModSystem.AerialAttenuationTextureId);
+            Assert.True(GL.IsTexture(texture) && GL.IsTexture(radianceId) && GL.IsTexture(attenuationId));
+            // Reload withdraws pending transport while retaining the backend and its input owners.
+            Assert.Null(backend.Update(Vector3.UnitY, 0, 0, 32, 24, 0));
             var seasonField = typeof(AtmosphereModSystem).GetField("seasonInputs", flags)!;
             var previousSeasonOwner = seasonField.GetValue(system);
             typeof(AtmosphereModSystem).GetMethod("Reset", flags)!.Invoke(system, null);

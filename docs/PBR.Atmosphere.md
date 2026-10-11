@@ -3,6 +3,8 @@
 The separation of atmospheric publication from the owned sky renderer is specified in
 [Atmospheric lighting publication and sky ownership](PBR.Atmosphere.Publication.md).
 Atmosphere publication owns environmental compatibility values; the registered sky renderer owns drawing.
+The user accepted the owned sky replacement's appearance on 2026-10-11: "yea it looks fine".
+Historical headless receipts below do not themselves establish visual acceptance or GPU timings.
 
 ## Model and units
 
@@ -336,10 +338,15 @@ Sky declares only color and glow outputs and routes only primary attachments 0 a
 The other attachments remain unchanged during sky drawing; framebuffer clearing establishes
 background metadata validity. The pass restores the previous draw-buffer routing afterward. Color and
 glow retain the engine's source-alpha/one-minus-source-alpha blend, including alpha; glow RGB is zero. Culling and depth testing/writes are disabled for this background pass.
+The superseded vanilla `sky.fsh` G-buffer injection is removed, including its stage-processing
+selection and default-output helpers. The engine sky shader remains unmodified for its asset
+lifecycle; it is not a readiness fallback. Installed-source linking checks both SSAO variants
+and verifies that none of the four VGE metadata outputs are injected.
 Two-output validation: the SPIR-V-enabled build and all 28 focused sky tests passed with no
 skips or failures (`artifacts/PbrColor/sky-two-outputs.trx`). Tests seed nonzero metadata and
 verify preservation and draw-buffer restoration with SSAO enabled and disabled.
-Solar glow remains owned by the separate sun draw. Complete-scene HDR activation, user-run visual
+Solar glow remains owned by the separate sun draw. Runtime scene-HDR ownership is documented in
+[the shared display contract](PBR.SharedDisplay.md#runtime-scene-handoff). User-run visual
 acceptance and GPU cost measurements remain separate from shader and headless draw validation.
 
 Historical draw-hook validation (before independent renderer ownership): the Debug build passed and the combined atmosphere/installed-surface suite
