@@ -39,7 +39,7 @@ public sealed class LumOnDebugShaderDemandTimingTests(HeadlessGLFixture fixture,
                 started = Stopwatch.GetTimestamp();
                 Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
                 Assert.Empty(assets.PreparedPrograms);
-                Assert.True(GpuShaderPrograms.Preload(assets.Api, GpuShaderPrograms.GetAll(assets.Api).Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray()));
+                Assert.True(GpuShaderProgramLibraries.Preload(assets.Api, GpuShaderProgramLibraries.GetAll(assets.Api).Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray()));
                 output.WriteLine($"Generation={generation}, explicitproductionpreload={Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms, registered={assets.PreparedPrograms.Count}.");
                 Assert.Equal(19, assets.PreparedPrograms.Count);
                 foreach (string name in new[] { "lumon_debug_view_direct_diffuse", "lumon_debug_view_direct_specular", "lumon_debug_view_direct_diffuse" })

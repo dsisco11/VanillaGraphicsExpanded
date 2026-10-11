@@ -42,10 +42,10 @@ internal sealed class RuntimeWaterReceiver : IDisposable
         });
         programs.Initialize(api);
         frameCamera = TestFrameCamera.CreateFromProjection(projection, size, size, .1f, 100f);
-        GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(api, "pbr_direct_lighting")!.FrameInputs = frameCamera;
-        GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!.FrameInputs = frameCamera;
-        GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName)!.FrameInputs = frameCamera;
-        GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(api, "pbr_direct_lighting")!.LightsInputs = lights;
+        GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(api, "pbr_direct_lighting")!.FrameInputs = frameCamera;
+        GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!.FrameInputs = frameCamera;
+        GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName)!.FrameInputs = frameCamera;
+        GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(api, "pbr_direct_lighting")!.LightsInputs = lights;
         var config = new VanillaGraphicsExpanded.LumOn.VgeConfig();
         config.LumOn.Enabled = false;
         gbuffer = new GBufferManager(api);

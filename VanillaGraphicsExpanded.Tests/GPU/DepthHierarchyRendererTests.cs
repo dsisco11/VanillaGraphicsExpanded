@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration;
 using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -34,7 +35,9 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
         framebuffers[(int)EnumFrameBuffer.Primary]=terrain.Primary;api.SetupGet(a=>a.Render.FrameBuffers).Returns(framebuffers);
         var previous=PbrShaderLightingMode.GenerationLumOnEnabled;PbrShaderLightingMode.GenerationLumOnEnabled=false;
         ScreenManager.Platform.DoPostProcessingEffects=true;
+        GpuShaderProgramLibraries.Create(api.Object);
         using var frame=new VgeFrameRenderer(api.Object);using var owner=new DepthHierarchyRenderer(api.Object);
+        var lifetime=ClientRenderingLifetime.Find(api.Object)!;lifetime.Attach(owner.Dispose);
         try {
             Assert.True(VgeShaderPrograms.RegisterAll(api.Object));Assert.Equal(8.7,owner.RenderOrder);
             events.Render(EnumRenderStage.Before);Assert.Null(DepthHierarchyRenderer.Texture);
@@ -51,7 +54,7 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(first.IsValid);
             quality=2;events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
             var second=DepthHierarchyRenderer.Texture!;Assert.NotSame(first,second);
-            events.ReloadShaders();Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(second.IsValid);
+            ClientRenderingLifetime.BeginNativeReload(); events.ReloadShaders(); ClientRenderingLifetime.CompleteNativeReload();Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(second.IsValid);
             events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
             var third=DepthHierarchyRenderer.Texture!;
             // Exercise the same publication boundary used after engine attachment replacement.
@@ -67,7 +70,7 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             events.LeaveWorld();Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(fourth.IsValid);
             owner.Dispose();Assert.DoesNotContain(events.Registrations,r=>ReferenceEquals(r.Renderer,owner));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
-        } finally {GpuShaderPrograms.Dispose(api.Object);PbrShaderLightingMode.GenerationLumOnEnabled=previous;}
+        } finally {lifetime.Shutdown();PbrShaderLightingMode.GenerationLumOnEnabled=previous;}
     }
     #endregion
 }

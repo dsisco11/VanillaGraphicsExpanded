@@ -90,12 +90,12 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnProbeSh9GatherShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new LumOnProbeSh9GatherShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
+        });
+
     }
 
     #endregion

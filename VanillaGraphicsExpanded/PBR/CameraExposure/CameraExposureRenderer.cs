@@ -14,6 +14,7 @@ namespace VanillaGraphicsExpanded.PBR.CameraExposure;
 /// <summary>Meters the completed HDR scene before generated glare and publishes GPU-resident camera exposure.</summary>
 internal sealed class CameraExposureRenderer : IRenderer
 {
+    private System.IDisposable? reloadRegistration;
     private static CameraExposureRenderer? active;
     private static readonly VertexLayoutDesc Layout = new([]);
     private readonly ICoreClientAPI api;
@@ -36,7 +37,7 @@ internal sealed class CameraExposureRenderer : IRenderer
         this.api = api;
         unregisterResize = ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder, Retire);
         api.Event.LeaveWorld += Retire;
-        api.Event.ReloadShader += Reload;
+        reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload);
         api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_camera_exposure");
         active = this;
     }
@@ -52,7 +53,7 @@ internal sealed class CameraExposureRenderer : IRenderer
         if (ReferenceEquals(active, this)) active = null;
         api.Event.UnregisterRenderer(this, EnumRenderStage.Before);
         api.Event.LeaveWorld -= Retire;
-        api.Event.ReloadShader -= Reload;
+        reloadRegistration?.Dispose();
         unregisterResize(); Retire(); lifetime.Dispose();
     }
     #endregion
@@ -101,8 +102,8 @@ internal sealed class CameraExposureRenderer : IRenderer
             // Manual mode has no metering draws or retained histogram/history allocation.
             DisposeResources(); reset = true; published = true; return;
         }
-        var histogram = GpuShaderPrograms.Get<CameraHistogramShaderProgram>(api, "pbr_camera_histogram");
-        var adaptation = GpuShaderPrograms.Get<CameraAdaptShaderProgram>(api, "pbr_camera_adapt");
+        var histogram = GpuShaderProgramLibraries.Get<CameraHistogramShaderProgram>(api, "pbr_camera_histogram");
+        var adaptation = GpuShaderProgramLibraries.Get<CameraAdaptShaderProgram>(api, "pbr_camera_adapt");
         if (histogram?.EnsureReady() != true || adaptation?.EnsureReady() != true)
             throw new InvalidOperationException("VGE camera exposure shaders are unavailable.");
         targets ??= new CameraExposureTargets();

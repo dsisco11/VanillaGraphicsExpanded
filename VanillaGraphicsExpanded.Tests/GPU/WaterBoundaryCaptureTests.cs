@@ -39,7 +39,7 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
                 if (path.Contains("variants/pbr_liquid.fsh/", StringComparison.Ordinal)) assets.Overrides[path] = binary;
             };
         }
-        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram { CaptureMode = 3 });
+        var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram { CaptureMode = 3 }, new VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(LiquidShaderProgram.Contract).With("VGE_LIQUID_CAPTURE_MODE", "3"));
         using var sharedLights = new VgeLightsUniformBuffer();
         program.LightsInputs = sharedLights;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));

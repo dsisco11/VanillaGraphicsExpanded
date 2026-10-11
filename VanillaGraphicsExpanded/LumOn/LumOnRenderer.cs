@@ -51,6 +51,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     #region Fields
 
     private readonly ICoreClientAPI capi;
+    private readonly IDisposable reloadRegistration;
+    private readonly IDisposable? reloadPreload;
     private readonly VgeConfig config;
     private readonly LumOnBufferManager primaryBuffers;
     private LumOnBufferManager bufferManager => comparisonPass ? comparisonBuffers! : primaryBuffers;
@@ -123,6 +125,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         this.capi = capi;
         this.config = config;
         primaryBuffers = bufferManager;
+        reloadRegistration = Rendering.Integration.EngineShaderReload.Register(capi, Reload);
         this.gBufferManager = gBufferManager;
         this.worldProbeClipmapBufferManager = worldProbeClipmapBufferManager;
         this.readCamera = readCamera ?? (() => LumOnCameraState.Read(capi));
@@ -135,6 +138,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         geometry = EngineFullscreenGeometry.Upload(capi.Render, quadMesh);
 
         PreloadInvariantPrograms();
+        reloadPreload = Rendering.Integration.ClientRenderingLifetime.Find(capi)?.RegisterPreload(() => { if (config.LumOn.Enabled) PreloadInvariantPrograms(); });
 
         // Register renderer
         capi.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "lumon");
@@ -154,6 +158,15 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         worldProbeClipmapBufferManager = bufferManager;
     }
 
+    /// <summary>Withdraws temporal publications and executable borrowers while retaining shader input blocks.</summary>
+    private bool Reload()
+    {
+        primaryBuffers.HasPublishedIndirect = false;
+        primaryBuffers.WorldProbeSuppressedLighting = null;
+        isFirstFrame = true;
+        DisposeGraphicsPipelines();
+        return true;
+    }
     private void RegisterWorldEvents()
     {
         // Clear history when leaving world (prevents stale data on rejoin)
@@ -510,7 +523,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnVelocityShaderProgram>(capi, "lumon_velocity");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnVelocityShaderProgram>(capi, "lumon_velocity");
         if (shader is null)
         {
             lightingPassesComplete = false;
@@ -549,7 +562,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAnchorPass(FrameBufferRef primaryFb)
     {
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnProbeAnchorShaderProgram>(capi, "lumon_probe_anchor");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnProbeAnchorShaderProgram>(capi, "lumon_probe_anchor");
         if (shader is null)
         {
             lightingPassesComplete = false;
@@ -604,7 +617,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnProbeAtlasPisMaskShaderProgram>(capi, "lumon_probe_atlas_pis_mask");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnProbeAtlasPisMaskShaderProgram>(capi, "lumon_probe_atlas_pis_mask");
         if (shader is null)
             return;
 
@@ -648,7 +661,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasTracePass(FrameBufferRef primaryFb)
     {
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnScreenProbeAtlasTraceShaderProgram>(capi, "lumon_probe_atlas_trace");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnScreenProbeAtlasTraceShaderProgram>(capi, "lumon_probe_atlas_trace");
         if (shader is null)
         {
             lightingPassesComplete = false;
@@ -788,7 +801,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasTemporalPass()
     {
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnScreenProbeAtlasTemporalShaderProgram>(capi, "lumon_probe_atlas_temporal");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnScreenProbeAtlasTemporalShaderProgram>(capi, "lumon_probe_atlas_temporal");
         if (shader is null)
         {
             lightingPassesComplete = false;
@@ -885,7 +898,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasProjectSh9Pass()
     {
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnScreenProbeAtlasProjectSh9ShaderProgram>(capi, "lumon_probe_atlas_project_sh9");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnScreenProbeAtlasProjectSh9ShaderProgram>(capi, "lumon_probe_atlas_project_sh9");
         if (shader is null)
         {
             lightingPassesComplete = false;
@@ -935,7 +948,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeSh9GatherPass(FrameBufferRef primaryFb)
     {
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnProbeSh9GatherShaderProgram>(capi, "lumon_probe_sh9_gather");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnProbeSh9GatherShaderProgram>(capi, "lumon_probe_sh9_gather");
         if (shader is null)
         {
             lightingPassesComplete = false;
@@ -1016,7 +1029,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasGatherPass(FrameBufferRef primaryFb)
     {
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnScreenProbeAtlasGatherShaderProgram>(capi, "lumon_probe_atlas_gather");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnScreenProbeAtlasGatherShaderProgram>(capi, "lumon_probe_atlas_gather");
         if (shader is null)
         {
             lightingPassesComplete = false;
@@ -1148,7 +1161,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderProbeAtlasFilterPass()
     {
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnScreenProbeAtlasFilterShaderProgram>(capi, "lumon_probe_atlas_filter");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnScreenProbeAtlasFilterShaderProgram>(capi, "lumon_probe_atlas_filter");
         if (shader is null)
         {
             lightingPassesComplete = false;
@@ -1200,7 +1213,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     /// </summary>
     private void RenderUpsamplePass(FrameBufferRef primaryFb)
     {
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnUpsampleShaderProgram>(capi, "lumon_upsample");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnUpsampleShaderProgram>(capi, "lumon_upsample");
         if (shader is null)
         {
             lightingPassesComplete = false;
@@ -1304,6 +1317,8 @@ public partial class LumOnRenderer : IRenderer, IDisposable
     public void Dispose()
     {
 
+        reloadPreload?.Dispose();
+        reloadRegistration.Dispose();
         comparisonBuffers?.Dispose();
         primaryBuffers.WorldProbeSuppressedLighting = null;
         pmjJitter.Dispose();

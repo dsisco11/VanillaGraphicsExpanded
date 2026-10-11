@@ -153,6 +153,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         if (productionOwned) return;
         frameCamera = new VgeFrameRenderer(api);
         lights = new VgeLightsRenderer(api);
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Create(api);
         LumOnDebugShaderProgramFamily.Register(api);
         Geometry = new(api, Config, partitions, CreateSource, Camera);
         Feedback = new(api, Config, Buffers, partitions.GetCoordinator(), Camera);
@@ -341,7 +342,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         if (!productionOwned)
         {
             LumOnDebugShaderProgramFamily.Dispose(Api);
-            VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Dispose(Api);
+            VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Dispose(Api);
         }
         Buffers.Dispose(); Terrain.Dispose(); drawing.Dispose(); assets.Dispose(); material.Dispose();
     }

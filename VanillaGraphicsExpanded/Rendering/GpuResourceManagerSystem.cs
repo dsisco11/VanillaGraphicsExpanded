@@ -7,6 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal static class GpuResourceManagerSystem
 {
     private static GpuResourceManager? manager;
+    internal static GpuResourceManager? CurrentManager => Volatile.Read(ref manager);
     private static GpuResourceDisposalQueue resourceDisposals = new();
 
     /// <summary>Captures the disposal service for the resource's original context lifetime.</summary>
@@ -51,7 +52,7 @@ internal static class GpuResourceManagerSystem
     public static void Shutdown()
     {
         var previous = Interlocked.Exchange(ref manager, null);
-        resourceDisposals.Close(previous?.IsRenderThread == true);
+        resourceDisposals.Close(previous?.CanDrainNative == true);
     }
 
     public static void EnqueueDeleteBuffer(int bufferId)

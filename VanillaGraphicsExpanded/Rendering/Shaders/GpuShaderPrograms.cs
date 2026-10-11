@@ -2,83 +2,151 @@ using System;
 using System.Collections.Generic;
 using System.Collections.Immutable;
 using System.Linq;
-using System.Runtime.CompilerServices;
-using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
-using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
-/// <summary>Owns application shader declarations independently of the engine's executable registry.</summary>
-internal sealed class GpuShaderPrograms
+/// <summary>Owns declarations and asset readiness for one explicitly composed rendering lifetime.</summary>
+internal sealed class GpuShaderPrograms(Func<string, ShaderAssetSource> assets) : IDisposable
 {
-    private static readonly ConditionalWeakTable<ICoreClientAPI, GpuShaderPrograms> Libraries = new();
-    private readonly Dictionary<string, GpuProgram> programs = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, (GpuProgramDeclaration Declaration, GpuProgram Owner)> programs = new(StringComparer.Ordinal);
+    private bool closed;
+    private bool submissionsClosed;
+    private bool reloading;
+    internal long Epoch { get; private set; }
+    internal bool IsClosed => closed;
+    internal bool IsReloading => reloading;
 
+    #region Public API
     #region Declarations
-    /// <summary>Declares an owner without reading assets, linking, or invoking engine shader lookup.</summary>
-    internal static T Declare<T>(ICoreClientAPI api, T candidate) where T : GpuProgram
+    /// <summary>Returns an identical declaration without invoking its factory; incompatible duplicates fail before mutation.</summary>
+    internal T Declare<T>(GpuProgramDeclaration declaration, Func<T> factory) where T : GpuProgram
     {
-        var library = Libraries.GetValue(api, _ => new GpuShaderPrograms());
-        string name = candidate.PassName;
-        if (string.IsNullOrEmpty(name)) candidate.PassName = name = candidate.ProgramContract.Identity;
-        if (library.programs.TryGetValue(name, out var existing) && !existing.IsRetired)
+        RequireOpen();
+        ObjectDisposedException.ThrowIf(submissionsClosed, this);
+        if (programs.TryGetValue(declaration.Name, out var existing))
         {
-            candidate.Dispose();
-            existing.InvalidateAssets();
-            return (T)existing;
+            if (!existing.Declaration.Matches(declaration))
+                throw new InvalidOperationException("Incompatible VGE declaration: " + declaration.Name);
+            if (existing.Owner.IsRetired) throw new InvalidOperationException("Remove the retired VGE declaration before redeclaring: " + declaration.Name);
+            return (T)existing.Owner;
         }
-        candidate.Initialize(api);
-        library.programs[name] = candidate;
-        return candidate;
+        var owner = factory();
+        try
+        {
+            if (!declaration.Matches(new(declaration.Domain, declaration.Name, owner.GetType(), owner.RequestedSettings)))
+                throw new InvalidOperationException("VGE factory does not match declaration: " + declaration.Name);
+            owner.PassName = declaration.Name;
+            owner.Initialize(assets(declaration.Domain));
+            owner.PreparationAdmission = () => !closed && !submissionsClosed && !reloading;
+            programs.Add(declaration.Name, (declaration, owner));
+            return owner;
+        }
+        catch { owner.Dispose(); throw; }
     }
 
-    /// <summary>Returns a declaration; preparation remains the consumer's explicit responsibility.</summary>
-    internal static T? Get<T>(ICoreClientAPI api, string name) where T : GpuProgram =>
-        Libraries.TryGetValue(api, out var library) && library.programs.TryGetValue(name, out var program)
-            ? program as T : null;
+    /// <summary>Returns a typed owner; absent entries remain optional and incompatible types produce a diagnostic.</summary>
+    internal T? Get<T>(string name) where T : GpuProgram
+    {
+        RequireOpen();
+        if (!programs.TryGetValue(name, out var entry))
+        {
+            assets(PBR.ShaderImportsSystem.DefaultDomain).Warning?.Invoke("Missing VGE shader declaration: " + name);
+            return null;
+        }
+        return entry.Owner as T ?? throw new InvalidOperationException($"VGE declaration '{name}' is {entry.Owner.GetType().Name}, requested {typeof(T).Name}.");
+    }
 
-    /// <summary>Captures declarations for explicit preload selection and configuration.</summary>
-    internal static ImmutableArray<GpuProgram> GetAll(ICoreClientAPI api) =>
-        Libraries.TryGetValue(api, out var library) ? library.programs.Values.ToImmutableArray() : [];
+    /// <summary>Captures declarations without preparation or native work.</summary>
+    internal ImmutableArray<GpuProgram> GetAll() { RequireOpen(); return programs.Values.Select(e => e.Owner).ToImmutableArray(); }
+
+    /// <summary>Retires an explicitly removed declaration without permitting implicit revival.</summary>
+    internal void Remove(string name)
+    {
+        RequireOpen();
+        if (!programs.TryGetValue(name, out var entry)) return;
+        entry.Owner.Dispose();
+        programs.Remove(name);
+    }
     #endregion
 
-    #region Preparation and lifetime
-    /// <summary>Removes one declaration and permanently retires its executable owner.</summary>
-    internal static void Remove(ICoreClientAPI api, string name)
+    #region Preparation and reload
+    /// <summary>Checks the entire selection before submitting a bounded compilation window.</summary>
+    internal bool Preload(ImmutableArray<GpuProgram> selection)
     {
-        if (Libraries.TryGetValue(api, out var library) && library.programs.Remove(name, out var program))
-            program.Dispose();
-    }
-
-    /// <summary>Batches only requested stale programs after the caller has supplied their intended settings.</summary>
-    internal static bool Preload(ICoreClientAPI api, ImmutableArray<GpuProgram> selection)
-    {
-        // Check every owner before the linking batch can read assets or issue driver commands.
-        foreach (var program in selection)
+        RequireOpen();
+        ObjectDisposedException.ThrowIf(submissionsClosed, this);
+        if (reloading) throw new InvalidOperationException("VGE shader reload is in progress.");
+        foreach (var owner in selection)
         {
-            program.RequireOutsideSubmission();
-            // Reject stale borrowed generations before the batch allocates unpublished candidates.
-            if (program.RequiresPreparation) ((IGpuProgram)program).Lifetime.RequireUnborrowed();
+            if (!programs.Values.Any(e => ReferenceEquals(e.Owner, owner))) throw new InvalidOperationException("Preload requires a declaration from this registry.");
+            owner.RequireOutsideSubmission();
+            if (owner.RequiresPreparation) ((IGpuProgram)owner).Lifetime.RequireUnborrowed();
         }
         bool success = true;
-        foreach (var group in selection.Distinct().Where(program => !program.IsRetired && program.RequiresPreparation && program.CanSubmitPreparation).GroupBy(program =>
-            string.IsNullOrWhiteSpace(program.AssetDomain) ? ShaderImportsSystem.DefaultDomain : program.AssetDomain))
+        foreach (var group in selection.Distinct().Where(o => !o.IsRetired && o.RequiresPreparation && o.CanSubmitPreparation).GroupBy(o => o.AssetDomain))
         {
-            using var batch = new ShaderLinkBatch(api.Assets, group.Key, group.Select(program => program.RequestedSettings));
-            foreach (var program in group) success &= program.EnsureReady();
+            using var batch = new ShaderLinkBatch(assets(group.Key), group.Select(o => o.RequestedSettings));
+            foreach (var owner in group) success &= owner.EnsureReady();
         }
-        return success && selection.All(program => !program.RequiresPreparation);
+        return success && selection.All(o => !o.RequiresPreparation);
     }
 
-    /// <summary>Releases this application's declarations and executable owners without touching another API.</summary>
-    internal static void Dispose(ICoreClientAPI api)
+    /// <summary>Validates all borrowers before withdrawing any readiness or entering the native reload.</summary>
+    internal void BeginReload()
     {
-        if (!Libraries.TryGetValue(api, out var library)) return;
-        foreach (var program in library.programs.Values) program.Dispose();
-        library.programs.Clear();
-        Libraries.Remove(api);
+        RequireOpen();
+        ObjectDisposedException.ThrowIf(submissionsClosed, this);
+        if (reloading) throw new InvalidOperationException("Recursive VGE shader reload.");
+        foreach (var entry in programs.Values)
+        {
+            entry.Owner.RequireOutsideSubmission();
+            ((IGpuProgram)entry.Owner).Lifetime.RequireUnborrowed();
+        }
+        foreach (var entry in programs.Values) if (!entry.Owner.IsRetired) entry.Owner.InvalidateAssets();
+        reloading = true;
+        Epoch++;
     }
+
+    /// <summary>Reopens demand preparation only after native refresh has returned or failed.</summary>
+    internal void CompleteReload() { if (!closed) reloading = false; }
+
+    /// <summary>Invalidates queued world work without changing the native context or declarations.</summary>
+    internal void LeaveWorld() { RequireOpen(); Epoch++; }
+    #endregion
+
+    #region Lifetime
+    /// <summary>Stops executable use before borrower cleanup while retaining explicit removal for retiring features.</summary>
+    internal void CloseSubmissionAdmission() => submissionsClosed = true;
+    /// <summary>Rejects terminal teardown before changing admission when an owner is publishing or borrowed.</summary>
+    internal void RequireRetirementBoundary()
+    {
+        foreach (var entry in programs.Values)
+        {
+            ((IGpuProgram)entry.Owner).Lifetime.RequireOutsidePublication();
+            ((IGpuProgram)entry.Owner).Lifetime.RequireUnborrowed();
+        }
+    }
+    /// <summary>Closes admission permanently and attempts every independent owner cleanup.</summary>
+    public void Dispose()
+    {
+        if (closed) return;
+        RequireRetirementBoundary();
+        closed = true;
+        Epoch++;
+        List<Exception> failures = [];
+        foreach (var entry in programs.Values)
+            try { entry.Owner.Dispose(); } catch (Exception error) { failures.Add(error); }
+        programs.Clear();
+        if (failures.Count != 0) throw new AggregateException(failures);
+    }
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Rejects late callbacks instead of recreating a retired library.</summary>
+    private void RequireOpen() => ObjectDisposedException.ThrowIf(closed, this);
     #endregion
 }
 

@@ -12,6 +12,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// <summary>Produces and publishes surface radiance through bounded, fair page updates on the render thread.</summary>
 internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurfaceLightingProvider, IDisposable
 {
+    private IDisposable? reloadRegistration;
     private readonly ICoreClientAPI capi;
     private readonly VgeConfig config;
     private readonly LumonSceneFeedbackUpdateRenderer feedback;
@@ -55,6 +56,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         this.capi = capi; this.config = config; this.feedback = feedback; geometry = occupancy;
         capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_lumonscene_relight");
         capi.Event.LeaveWorld += OnLeaveWorld;
+        reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(capi, Reload);
         ((ICoreAPI)capi).Event.ChunkDirty += OnFallbackChunkDirty;
     }
 
@@ -294,6 +296,19 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     }
 
     /// <summary>Retires borrowed publication references before disposing private GPU resources.</summary>
+    /// <summary>Withdraws surface lighting and rejects old worker results while preserving compute wrappers and CPU inputs.</summary>
+    private bool Reload()
+    {
+        ResetFallback(); ResetHitRetries();
+        System.Threading.Interlocked.Increment(ref fallbackWorldRevision);
+        published = false;
+        identities.Clear(); pageGenerations.Clear(); pageCaptureRevisions.Clear();
+        seeded.Clear(); initialized.Clear(); publishedPages.Clear(); refreshSchedule.Clear(); batches.Clear();
+        seedWork.Clear(); traceWork.Clear(); refreshWork.Clear(); resetWork.Clear(); publishable.Clear(); committedWork.Clear();
+        ResetLightingAdmission(); sceneRevision = historyRevision = -1;
+        return true;
+    }
+
     private void OnLeaveWorld()
     {
         ResetFallback();
@@ -316,6 +331,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     {
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Done);
         capi.Event.LeaveWorld -= OnLeaveWorld;
+        reloadRegistration?.Dispose();
         ((ICoreAPI)capi).Event.ChunkDirty -= OnFallbackChunkDirty;
         OnLeaveWorld(); fallbackWorker?.Dispose(); fallbackWorker = null;
     }

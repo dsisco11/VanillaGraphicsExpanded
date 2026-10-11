@@ -19,6 +19,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
     private readonly GpuQueue<Vector4> output;
     private GpuFence? batch;
     private Request? admitted, completed;
+    private bool discardPending;
     private (int Weather, int Quality, int Albedo)? sourceKey;
     private int nextCell;
     private bool disposed;
@@ -88,7 +89,8 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         if (output.Pending)
         {
             if (!output.TryRead(ReadLighting, out ready)) return null;
-            completed = admitted; admitted = null;
+            completed = discardPending ? null : admitted; admitted = null;
+            if (discardPending) { ready = null; discardPending = false; }
         }
         if (batch is not null)
         {
@@ -172,6 +174,16 @@ internal sealed class AtmosphereGpuComputation : IDisposable
                 AerialAttenuation = ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values.Slice(4 + count + aerialCount, aerialCount))) };
     }
     #endregion
+
+    /// <summary>Withdraws cached transport and discards old readback while preserving feature wrappers and storage.</summary>
+    internal void Reload()
+    {
+        sourceKey = null;
+        completed = null;
+        if (output.Pending) discardPending = true;
+        else admitted = null;
+        nextCell = 0;
+    }
 
     #region Lifetime
     /// <summary>Retires in-flight resources through the GPU lifetime owners without publishing or waiting.</summary>

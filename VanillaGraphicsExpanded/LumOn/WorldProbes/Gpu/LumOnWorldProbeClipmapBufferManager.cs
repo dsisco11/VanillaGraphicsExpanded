@@ -16,6 +16,7 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 /// </summary>
 internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
 {
+    private System.IDisposable? reloadRegistration;
     private const int LayoutVersion = LumOnWorldProbeLayout.WorldProbeLayoutVersion;
     internal const int MaxDebugTraceRays = 512;
 
@@ -213,7 +214,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
 
         // On shader reload, treat clipmap resources as needing rebuild.
         // This is conservative (textures often survive), but keeps attachment state deterministic.
-        this.capi.Event.ReloadShader += OnReloadShader;
+        reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(capi, OnReloadShader);
 
         lastLayoutVersion = LayoutVersion;
     }
@@ -334,7 +335,7 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
         if (isDisposed) return;
         isDisposed = true;
 
-        capi.Event.ReloadShader -= OnReloadShader;
+        reloadRegistration?.Dispose();
 
         uploader?.Dispose();
         uploader = null;
@@ -345,8 +346,8 @@ internal sealed class LumOnWorldProbeClipmapBufferManager : IDisposable
 
     private bool OnReloadShader()
     {
-        RequestRecreate("graphics reload");
-        EnsureResources();
+        hasRuntimeParams = false;
+        debugTraceRayCount = 0;
         return true;
     }
 }

@@ -11,6 +11,7 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 /// <summary>Owns scene postprocessing order and atomic effect publication independently of engine shader passes.</summary>
 internal sealed class PostprocessPipeline : IRenderer
 {
+    private System.IDisposable? reloadRegistration;
     private static PostprocessPipeline? active;
     private readonly ICoreClientAPI api;
     private readonly Action unregisterResize;
@@ -34,7 +35,7 @@ internal sealed class PostprocessPipeline : IRenderer
         this.api=api;
         unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,Retire);
         api.Event.RegisterRenderer(this,EnumRenderStage.Before,"vge_postprocess");
-        api.Event.LeaveWorld+=Retire; api.Event.ReloadShader+=Reload; active=this;
+        api.Event.LeaveWorld+=Retire; reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload); active=this;
     }
     /// <summary>Captures settings after scene and camera preparation.</summary>
     public double RenderOrder=>1002;
@@ -51,7 +52,7 @@ internal sealed class PostprocessPipeline : IRenderer
     {
         if(disposed) return; disposed=true;
         if(ReferenceEquals(active,this)) active=null;
-        api.Event.UnregisterRenderer(this,EnumRenderStage.Before); api.Event.LeaveWorld-=Retire; api.Event.ReloadShader-=Reload;
+        api.Event.UnregisterRenderer(this,EnumRenderStage.Before); api.Event.LeaveWorld-=Retire; reloadRegistration?.Dispose();
         unregisterResize(); Retire();
     }
     #endregion
@@ -88,7 +89,7 @@ internal sealed class PostprocessPipeline : IRenderer
     internal void RenderFinal(FinalDisplayParameters display)
     {
         if(!published) throw new InvalidOperationException("Owned postprocessing outputs were not published for this frame.");
-        var shader=Rendering.Shaders.GpuShaderPrograms.Get<FinalDisplayShaderProgram>(api,"pbr_final");
+        var shader=Rendering.Shaders.GpuShaderProgramLibraries.Get<FinalDisplayShaderProgram>(api,"pbr_final");
         if(shader?.EnsureReady()!=true) throw new InvalidOperationException("Owned final display shader unavailable.");
         // Only the presentation destination is borrowed; every sampled postprocess output is owned.
         if(finalTarget is null)

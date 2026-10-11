@@ -32,12 +32,12 @@ public partial class LumOnVelocityShaderProgram : LumOnShaderProgram, ILumOnVelo
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnVelocityShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new LumOnVelocityShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
+        });
+
     }
 
     #endregion

@@ -107,7 +107,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         // the frame convention. The frame owner must also prepare the other producers.
         using var bindings = StateCache.Current.BindFramebufferScope();
         if (!PrepareTargets(primary)) return false;
-        var display = GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
+        var display = GpuShaderProgramLibraries.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
         // The pre-overlay world capture uses the environment fallback even when
         // ordinary composition consumes LumOn, so both variants must be available.
         if (PrepareCompositeProgram(false, preOverlay: true) is null) return false;
@@ -197,9 +197,9 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         var indirectTex = capture is null && currentBuffers?.HasPublishedIndirect == true ? currentBuffers.IndirectFullTex : null;
         if (indirectTex?.IsValid != true) indirectTex = null;
 
-        var shader = GpuShaderPrograms.Get<PBRCompositeShaderProgram>(capi,
+        var shader = GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(capi,
             capture is not null ? PBRCompositeShaderProgram.PreOverlayPassName : "pbr_composite");
-        var display = capture is null ? GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve") : null;
+        var display = capture is null ? GpuShaderProgramLibraries.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve") : null;
         if (shader is null || shader.RequiresPreparation || shader.IsRetired
             || (capture is null && (display is null || display.RequiresPreparation || display.IsRetired))) return;
 
@@ -322,7 +322,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
             if (RefractionScene.BackgroundScale == 1) RefractionScene.Publish();
             else
             {
-                var reduction = GpuShaderPrograms.Get<Liquids.WaterRefractionReductionShaderProgram>(capi, "water_refraction_reduce");
+                var reduction = GpuShaderProgramLibraries.Get<Liquids.WaterRefractionReductionShaderProgram>(capi, "water_refraction_reduce");
                 if (reduction is { RequiresPreparation: false, IsRetired: false })
                     RefractionScene.Publish((target, color, depth) =>
                     {
@@ -345,7 +345,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
     /// <summary>Prepares the selected retained owner, adopting ordinary lighting changes before readiness.</summary>
     private PBRCompositeShaderProgram? PrepareCompositeProgram(bool lumOnEnabled, bool preOverlay)
     {
-        var shader = GpuShaderPrograms.Get<PBRCompositeShaderProgram>(capi,
+        var shader = GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(capi,
             preOverlay ? PBRCompositeShaderProgram.PreOverlayPassName : "pbr_composite");
         if (shader is null) return null;
         // Capture's fixed options belong to its declaration. Ordinary composition adopts

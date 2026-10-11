@@ -28,8 +28,8 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
-        var surface = GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api, "pbr_liquid")!;
-        var volume = GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api, LiquidShaderProgram.VolumePassName)!;
+        var surface = GpuShaderProgramLibraries.Get<LiquidShaderProgram>(assets.Api, "pbr_liquid")!;
+        var volume = GpuShaderProgramLibraries.Get<LiquidShaderProgram>(assets.Api, LiquidShaderProgram.VolumePassName)!;
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var atmosphere = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
         AssignTextures(surface, texture, atmosphere, sharedCamera, sharedLights); AssignTextures(volume, texture, atmosphere, sharedCamera, sharedLights);
@@ -54,7 +54,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
                 Assert.Equal(new float[] { 1, 2, 3 }, ReadDraw(out _, out _).AsSpan(16, 3).ToArray());
             }
         }
-        finally { GpuUniformRingSystem.ClearCurrent(); GpuShaderPrograms.Dispose(assets.Api); }
+        finally { GpuUniformRingSystem.ClearCurrent(); GpuShaderProgramLibraries.Dispose(assets.Api); }
     }
 
     /// <summary>Measures actual frame preparation with representative and maximum authored array counts.</summary>
@@ -114,7 +114,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
-        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
@@ -169,8 +169,8 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
-        var surface = Assert.IsType<LiquidShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, "pbr_liquid"));
-        var volume = Assert.IsType<LiquidShaderProgram>(GpuShaderPrograms.Get<GpuProgram>(assets.Api, LiquidShaderProgram.VolumePassName));
+        var surface = Assert.IsType<LiquidShaderProgram>(GpuShaderProgramLibraries.Get<GpuProgram>(assets.Api, "pbr_liquid"));
+        var volume = Assert.IsType<LiquidShaderProgram>(GpuShaderProgramLibraries.Get<GpuProgram>(assets.Api, LiquidShaderProgram.VolumePassName));
         Assert.NotSame(surface, volume);
         Assert.Equal(0, surface.CaptureMode);
         Assert.Equal(3, volume.CaptureMode);
@@ -198,11 +198,13 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         Assert.False(volume.RequiresPreparation);
         AssertStableSubmissions();
 
-        // Production reload redeclares the owners. Both retain their selected
-        // mode and rebuild on demand, then return to stable alternating use.
+        // Repeated declarations preserve readiness; explicit reload withdraws both independent selections.
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
-        Assert.Same(surface, GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api, "pbr_liquid"));
-        Assert.Same(volume, GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api, LiquidShaderProgram.VolumePassName));
+        Assert.Same(surface, GpuShaderProgramLibraries.Get<LiquidShaderProgram>(assets.Api, "pbr_liquid"));
+        Assert.Same(volume, GpuShaderProgramLibraries.Get<LiquidShaderProgram>(assets.Api, LiquidShaderProgram.VolumePassName));
+        Assert.False(surface.RequiresPreparation); Assert.False(volume.RequiresPreparation);
+        var registry = GpuShaderProgramLibraries.Require(assets.Api);
+        registry.BeginReload(); registry.CompleteReload();
         Assert.True(surface.RequiresPreparation);
         Assert.True(volume.RequiresPreparation);
         Assert.True(surface.EnsureReady(), string.Join("\n", assets.Logs));
@@ -220,7 +222,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         }
         surfaceId = surface.ProgramId;
         volumeId = volume.ProgramId;
-        GpuShaderPrograms.Dispose(assets.Api);
+        GpuShaderProgramLibraries.Dispose(assets.Api);
         Assert.False(GL.IsProgram(surfaceId));
         Assert.False(GL.IsProgram(volumeId));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -292,7 +294,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
-        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
         Assert.Equal(3, program.RefractionQuality);
         Assert.Equal(2, program.RefractionBackgroundScale);
         Assert.DoesNotContain("vge_waterRefractionQuality", LiquidShaderProgram.Contract.Bindings.UniformLocations.Keys);
@@ -360,7 +362,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
-        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
@@ -421,7 +423,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
-        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
         using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
@@ -484,7 +486,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
-        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);

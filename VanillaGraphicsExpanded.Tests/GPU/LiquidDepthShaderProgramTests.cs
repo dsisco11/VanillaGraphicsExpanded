@@ -20,8 +20,8 @@ public sealed class LiquidDepthShaderProgramTests(HeadlessGLFixture fixture) : R
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
-        var color = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
-        var depth = GpuShaderPrograms.Declare(assets.Api, new LiquidDepthShaderProgram());
+        var color = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
+        var depth = GpuShaderProgramLibraries.Declare(assets.Api, LiquidDepthShaderProgram.Contract.Identity, () => new LiquidDepthShaderProgram());
         color.FrameInputs = frameCamera;
         depth.FrameInputs = frameCamera;
         Assert.True(color.EnsureReady(), string.Join("\n", assets.Logs));

@@ -20,8 +20,8 @@ internal sealed class SurfaceLightingWorldProbeFixture : IDisposable
     {
         Resources = new(assets.Api, resolution, 1, 8);
         // The uploader discovers retained owners through the production declaration library.
-        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(assets.Api, metadata);
-        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(assets.Api, radiance);
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Declare(assets.Api, metadata.PassName, () => metadata, metadata.RequestedSettings);
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Declare(assets.Api, radiance.PassName, () => radiance, radiance.RequestedSettings);
         Assert.True(metadata.EnsureReady(), string.Join('\n', assets.Logs));
         Assert.True(radiance.EnsureReady(), string.Join('\n', assets.Logs));
         uploader = new(assets.Api);

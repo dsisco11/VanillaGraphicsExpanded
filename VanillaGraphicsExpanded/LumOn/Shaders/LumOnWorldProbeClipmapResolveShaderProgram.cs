@@ -44,13 +44,12 @@ public sealed partial class LumOnWorldProbeClipmapResolveShaderProgram : GpuProg
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnWorldProbeClipmapResolveShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new LumOnWorldProbeClipmapResolveShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
+        });
 
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
     }
 
     #endregion

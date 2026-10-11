@@ -17,7 +17,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
     public ICoreClientAPI Api { get; }
     /// <summary>Observes prepared VGE declarations without an engine registry substitute.</summary>
     public Dictionary<string, VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram> PreparedPrograms =>
-        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.GetAll(Api).Where(program => program.IsLinked).ToDictionary(program => program.PassName);
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.GetAll(Api).Where(program => program.IsLinked).ToDictionary(program => program.PassName);
 
     #region API construction
     /// <summary>Routes asset reads to the test output and allows isolated in-memory edits for reload scenarios.</summary>
@@ -68,6 +68,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
             "get_Side" => EnumAppSide.Client,
             _ => throw new NotSupportedException(method.Name)
         });
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Create(Api);
         VanillaGraphicsExpanded.PBR.ShaderImportsSystem.Instance.Initialize(Api);
     }
 
@@ -75,7 +76,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
     public void Dispose()
     {
         VanillaGraphicsExpanded.LumOn.LumOnDebugShaderProgramFamily.Dispose(Api);
-        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Dispose(Api);
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Dispose(Api);
         VanillaGraphicsExpanded.PBR.ShaderImportsSystem.Instance.Clear();
     }
 

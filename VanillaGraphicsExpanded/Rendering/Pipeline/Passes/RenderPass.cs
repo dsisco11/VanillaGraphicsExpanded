@@ -34,8 +34,17 @@ internal sealed class RenderPass : IDisposable
             throw new InvalidOperationException("Render passes require complete graphics restoration coverage.");
         if (active is not null) throw new InvalidOperationException("Render passes cannot nest.");
         var pass = new RenderPass(description, boundary);
-        boundary.AddCleanup(EngineBoundaryCleanup.Framebuffers, pass);
+        boundary.AddCleanup(EngineBoundaryCleanup.Framebuffers, pass, pass.Abandon);
         return pass;
+    }
+
+    /// <summary>Releases CPU target borrows after context loss without restoring framebuffer routing or bindings.</summary>
+    internal void Abandon()
+    {
+        if (disposed) return;
+        disposed = true;
+        targets.Dispose();
+        if (ReferenceEquals(active, this)) active = null;
     }
 
     /// <summary>Checks active authority and image lifetime without querying native state.</summary>

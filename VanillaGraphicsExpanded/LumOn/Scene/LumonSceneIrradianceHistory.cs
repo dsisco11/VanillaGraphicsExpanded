@@ -50,6 +50,8 @@ internal sealed class LumonSceneIrradianceHistory : IDisposable
     }
     #endregion
 
+    /// <summary>Withdraws prior publication identity while preserving the reset program wrapper and inputs.</summary>
+    internal void InvalidateAssets() { previousScene = null; previousAtlas = null; }
     #region Lifetime
     /// <summary>Releases the reset program and forgets the prior scene and atlas identity.</summary>
     public void Dispose()

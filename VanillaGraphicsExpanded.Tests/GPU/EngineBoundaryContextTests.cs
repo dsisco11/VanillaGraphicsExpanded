@@ -70,7 +70,7 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
             // Restore the exact live registration receipt so the rejected boundary can be retried normally.
             lock (registrations) registrations[original.Handle] = registration;
             boundary.Dispose();
-            Assert.True(GL.IsEnabled(EnableCap.DepthTest));
+            Assert.True(GL.IsEnabled(EnableCap.DepthTest), $"Restoration depth={boundary.Snapshot.Depth.TestEnabled}; observer={observer.Calls}; original={original}; current={RenderContextRegistry.Current()}");
             StateCache.Current.UnbindProgram();
             cache.SetCapability(EnableCap.DepthTest, false);
         }

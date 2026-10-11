@@ -31,10 +31,14 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     private bool? lastEnableNormalMaps;
     private float? lastNormalMapScale;
     private bool pendingShaderReload;
-    private bool shaderReloadQueued;
-    private bool memoryShaderRegistrationQueued;
+    private long? queuedShaderReloadEpoch;
+    private Rendering.Integration.ClientRenderingLifetime? renderingLifetime;
+    private bool disposed;
     private bool liveShaderReloadReady;
 
+
+    /// <summary>Composes rendering ownership after configuration and before default-order feature systems.</summary>
+    public override double ExecuteOrder() => 0.05;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -56,6 +60,7 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         api.Event.EnqueueMainThreadTask(
             () =>
             {
+                if (disposed) return;
                 GlExtensions.TryLoadExtensions();
                 GpuSupport.TryInitialize();
                 GlDebug.TrySuppressGroupDebugMessages();
@@ -72,6 +77,10 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     {
         capi = api;
         Rendering.Integration.EngineRenderContext.RegisterCurrent();
+        var registry = GpuShaderProgramLibraries.Create(api);
+        renderingLifetime = Rendering.Integration.ClientRenderingLifetime.Find(api);
+        capi.ModLoader.GetModSystem<GpuResourceManagerModSystem>()?.AdoptByRenderingRoot();
+        renderingLifetime!.Attach(DisposeRendering);
         // Begin renderer ownership with unknown state; later external mutations invalidate their affected categories.
         StateCache.Current.InvalidateAll();
         // Establish HDR storage before any VGE system borrows the engine framebuffer images.
@@ -187,12 +196,13 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
     {
         liveShaderReloadReady = false;
         pendingShaderReload = false;
-        shaderReloadQueued = false;
+        queuedShaderReloadEpoch = null;
+        renderingLifetime?.LeaveWorld();
     }
 
     private bool OnReloadShader()
     {
-        if (capi is null)
+        if (disposed || capi is null)
         {
             return true;
         }
@@ -200,35 +210,28 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         TerrainMaterialParamsTextureBindingHook.ClearUniformCache();
         TerrainLumonSceneChunkSlotUniformBindingHook.ClearUniformCache();
         FrameShaderBindingHook.ClearUniformCache();
-        if (!memoryShaderRegistrationQueued)
-        {
-            memoryShaderRegistrationQueued = true;
-            capi.Event.EnqueueMainThreadTask(
-                () =>
-                {
-                    memoryShaderRegistrationQueued = false;
-                    VgeShaderPrograms.RegisterAll(capi);
-                },
-                "vge-register-memory-shaders-after-reload");
-        }
 
-        return true;
+        if (renderingLifetime?.ReloadFailure is { } failure)
+            capi.Logger.Error("[VGE] Native reload returned; VGE preparation/publication failure: {0}", failure);
+        return renderingLifetime?.ReloadFailure is null;
     }
 
     /// <summary>Coalesces shader changes onto the main thread without reloading during GUI initialization.</summary>
     private void TryReloadShadersInWorld()
     {
-        if (!pendingShaderReload || capi?.World?.Player is null || shaderReloadQueued)
+        if (!pendingShaderReload || capi?.World?.Player is null || queuedShaderReloadEpoch == renderingLifetime?.Epoch)
         {
             return;
         }
 
-        shaderReloadQueued = true;
+        long epoch = renderingLifetime?.Epoch ?? -1;
+        queuedShaderReloadEpoch = epoch;
         capi.Event.EnqueueMainThreadTask(
-            () =>
+            renderingLifetime!.GuardWorldCallback(() =>
             {
-                shaderReloadQueued = false;
-                if (capi.World?.Player is null)
+                if (disposed || renderingLifetime?.IsClosed == true || renderingLifetime?.Epoch != epoch) return;
+                queuedShaderReloadEpoch = null;
+                if (capi!.World?.Player is null)
                 {
                     return;
                 }
@@ -250,51 +253,79 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
                     capi.Logger.Notification("[VGE] Shaders reloaded after live compile-time config change.");
                 else
                     capi.Logger.Error("[VGE] Shader reload failed. The engine discarded the previous programs; check shader errors and reload again after correcting them.");
-            },
+            }),
             "vge-reload-shaders-on-config-change");
     }
 
+    /// <summary>Requests coordinated rendering teardown before the engine disposes this mod system.</summary>
     public override void Dispose()
     {
+        if (renderingLifetime is not null) renderingLifetime.Shutdown();
+        else DisposeRendering();
+    }
+
+    /// <summary>Retires feature borrowers, shared programs and the deletion manager in explicit dependency order.</summary>
+    private void DisposeRendering()
+    {
+        if (disposed) return;
+        disposed = true;
         base.Dispose();
+        var cleanupFailures = new System.Collections.Generic.List<Exception>();
         try
         {
             if (capi is not null)
             {
-                capi.Event.ReloadShader -= OnReloadShader;
-                capi.Event.LevelFinalize -= OnLevelFinalize;
-                capi.Event.LeaveWorld -= OnLeaveWorld;
+                TryCleanup(() => capi.Event.ReloadShader -= OnReloadShader, cleanupFailures);
+                TryCleanup(() => capi.Event.LevelFinalize -= OnLevelFinalize, cleanupFailures);
+                TryCleanup(() => capi.Event.LeaveWorld -= OnLeaveWorld, cleanupFailures);
             }
 
-            VgeDebugViewerManager.Dispose();
-            if (capi != null)
+            // Feature borrowers and compute owners retire before shared graphics declarations.
+            if (capi is not null)
             {
-                LumOnDebugShaderProgramFamily.Dispose(capi);
-                GpuShaderPrograms.Dispose(capi);
+                TryCleanup(() => capi.ModLoader.GetModSystem<PbrModSystem>()?.Dispose(), cleanupFailures);
+                TryCleanup(() => capi.ModLoader.GetModSystem<LumOnModSystem>()?.Dispose(), cleanupFailures);
+                TryCleanup(() => capi.ModLoader.GetModSystem<WorldProbeModSystem>()?.Dispose(), cleanupFailures);
+                TryCleanup(() => capi.ModLoader.GetModSystem<AtmosphereModSystem>()?.Dispose(), cleanupFailures);
             }
+            TryCleanup(() => VgeDebugViewerManager.Dispose(), cleanupFailures);
 
 
-            gpuProfilerRenderer?.Dispose();
+
+            TryCleanup(() => gpuProfilerRenderer?.Dispose(), cleanupFailures);
             gpuProfilerRenderer = null;
-            lightsRenderer?.Dispose();
+            TryCleanup(() => lightsRenderer?.Dispose(), cleanupFailures);
             lightsRenderer = null;
-            frameRenderer?.Dispose();
+            TryCleanup(() => frameRenderer?.Dispose(), cleanupFailures);
             frameRenderer = null;
 
-            GlGpuProfiler.Instance.Dispose();
+            TryCleanup(() => GlGpuProfiler.Instance.Dispose(), cleanupFailures);
 
-            gBufferManager?.Dispose();
+            if (capi != null)
+            {
+                TryCleanup(() => LumOnDebugShaderProgramFamily.Dispose(capi), cleanupFailures);
+                TryCleanup(() => GpuShaderProgramLibraries.Dispose(capi), cleanupFailures);
+            }
+
+            TryCleanup(() => gBufferManager?.Dispose(), cleanupFailures);
             gBufferManager = null;
+            TryCleanup(() => capi?.ModLoader.GetModSystem<GpuResourceManagerModSystem>()?.ShutdownRenderingResources(), cleanupFailures);
 
         }
         finally
         {
             // Unpatch Harmony patches
-            PBR.HeldLighting.HeldLightSystem.Stop();
-            harmony?.UnpatchAll(Constants.ModId);
+            TryCleanup(PBR.HeldLighting.HeldLightSystem.Stop, cleanupFailures);
+            TryCleanup(() => harmony?.UnpatchAll(Constants.ModId), cleanupFailures);
             harmony = null;
             PBR.Tessellation.TerrainTessellationPrograms.Log = null;
         }
+        if (cleanupFailures.Count != 0) throw new AggregateException("VGE rendering cleanup failed.", cleanupFailures);
+    }
+    /// <summary>Attempts each independent teardown owner so one failure cannot prevent later native cleanup.</summary>
+    private static void TryCleanup(Action cleanup, System.Collections.Generic.List<Exception> failures)
+    {
+        try { cleanup(); } catch (Exception error) { failures.Add(error); }
     }
 
 }

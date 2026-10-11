@@ -19,7 +19,7 @@ public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : 
         EnsureShaderTestAvailable();
         using var scene = new WaterRefractionScene();
         using var composite = DynamicTexture2D.Create(5, 3, PixelInternalFormat.Rgba16f);
-        var reduction = GpuShaderPrograms.Declare(Programs.Api, new WaterRefractionReductionShaderProgram());
+        var reduction = GpuShaderProgramLibraries.Declare(Programs.Api, WaterRefractionReductionShaderProgram.Contract.Identity, () => new WaterRefractionReductionShaderProgram());
         Assert.True(reduction.EnsureReady());
         int reductions = 0;
         var fullTarget = scene.BeginFrame(true, composite, 1)!;
@@ -56,7 +56,7 @@ public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : 
         // RegisterAll redeclares existing owners on shader reload. Reprepare that
         // actual library owner while retaining the immutable background allocation.
         scene.BeginFrame(true, composite, 2);
-        Assert.Same(reduction, GpuShaderPrograms.Declare(Programs.Api, new WaterRefractionReductionShaderProgram()));
+        Assert.Same(reduction, GpuShaderProgramLibraries.Declare(Programs.Api, WaterRefractionReductionShaderProgram.Contract.Identity, () => new WaterRefractionReductionShaderProgram()));
         Assert.True(reduction.RequiresPreparation);
         Assert.False(scene.Published);
         Assert.True(reduction.EnsureReady());

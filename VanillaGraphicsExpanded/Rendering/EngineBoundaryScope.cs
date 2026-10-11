@@ -8,7 +8,7 @@ internal sealed class EngineBoundaryScope : IDisposable
 {
     private readonly StateCache cache;
     private readonly (nint Handle, long Generation) context;
-    private readonly List<(EngineBoundaryCleanup Order, IDisposable Owner)> cleanup = new();
+    private readonly List<(EngineBoundaryCleanup Order, IDisposable Owner, Action? Abandon)> cleanup = new();
     private bool consumed;
     private bool executing;
     internal PipelineStateSnapshot Snapshot { get; }
@@ -19,12 +19,29 @@ internal sealed class EngineBoundaryScope : IDisposable
     { this.cache = cache; Snapshot = snapshot; context = Integration.RenderContextRegistry.Current(); }
 
     /// <summary>Registers an existing scope for ordered cleanup without transferring resource ownership.</summary>
-    internal void AddCleanup(EngineBoundaryCleanup order, IDisposable owner)
+    internal void AddCleanup(EngineBoundaryCleanup order, IDisposable owner, Action? abandon = null)
     {
         ObjectDisposedException.ThrowIf(consumed, this);
         ArgumentNullException.ThrowIfNull(owner);
         if (!Enum.IsDefined(order)) throw new ArgumentOutOfRangeException(nameof(order));
-        cleanup.Add((order, owner));
+        cleanup.Add((order, owner, abandon));
+    }
+
+    /// <summary>Consumes target borrowing and cache authority after irreversible context loss without native restoration.</summary>
+    internal void AbandonContext((nint Handle, long Generation) retiring)
+    {
+        if (consumed || context != retiring) return;
+        consumed = true;
+        List<Exception> failures = [];
+        try
+        {
+            // Native restoration scopes are dropped; only explicitly supplied CPU borrowing cleanup may run.
+            foreach (var entry in cleanup)
+                try { entry.Abandon?.Invoke(); } catch (Exception failure) { failures.Add(failure); }
+            cleanup.Clear();
+        }
+        finally { cache.ReleaseEngineBoundary(this); }
+        if (failures.Count != 0) throw new AggregateException(failures);
     }
 
     /// <summary>Activates an already prepared shader and defers its existing ownership scope to ordered cleanup.</summary>

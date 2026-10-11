@@ -81,4 +81,110 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
             TextureStreamingSystem.Dispose();
         }
     }
+    /// <summary>Queued program deletion cannot cross a retired registration even when the native namespace is unchanged.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ProgramDeletionUsesOriginatingRegistration(bool queued)
+    {
+        fixture.EnsureContextValid();
+        var manager = new GpuResourceManager();
+        GpuResourceManagerSystem.Initialize(manager);
+        int id = 0;
+        object replacement = new();
+        try
+        {
+            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            var program = GpuProgramObject.Create(); id = program.ProgramId;
+            if (queued)
+            {
+                Exception? failure = null;
+                var thread = new Thread(() => { try { program.Dispose(); } catch (Exception error) { failure = error; } });
+                thread.Start(); thread.Join(); Assert.Null(failure);
+            }
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(fixture);
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
+            if (!queued) program.Dispose();
+            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            manager.Dispose();
+            // Actual GL namespace is deliberately unchanged; its live name represents a reused-context sentinel.
+            Assert.True(GL.IsProgram(id));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(replacement);
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            if (id != 0) GL.DeleteProgram(id);
+            manager.Dispose(); GpuResourceManagerSystem.Shutdown(); TextureStreamingSystem.Dispose();
+        }
+    }
+
+    /// <summary>Buffer retirement abandons only the dead originating registration and leaves other resources deletable.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BufferDeletionUsesOriginatingRegistration(bool queued)
+    {
+        fixture.EnsureContextValid();
+        var manager = new GpuResourceManager();
+        GpuResourceManagerSystem.Initialize(manager);
+        int id = 0;
+        object replacement = new();
+        try
+        {
+            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            var buffer = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw);
+            buffer.Bind(); buffer.Unbind(); id = buffer.BufferId;
+            if (queued)
+            {
+                var thread = new Thread(buffer.Dispose); thread.Start(); thread.Join();
+            }
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(fixture);
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
+            if (!queued) buffer.Dispose();
+            manager.Dispose();
+            // Registration changes emulate a reused namespace while keeping a live sentinel observable.
+            Assert.True(GL.IsBuffer(id));
+            using (var current = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw))
+            {
+                current.Bind(); current.Unbind();
+                int currentId = current.BufferId;
+                current.Dispose();
+                Assert.False(GL.IsBuffer(currentId));
+            }
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(replacement);
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            if (id != 0) StateCache.Current.DeleteBuffer(id);
+            manager.Dispose(); GpuResourceManagerSystem.Shutdown(); TextureStreamingSystem.Dispose();
+        }
+    }
+
+    /// <summary>Live queued program retirement drains on its registered origin even before the first renderer tick.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void QueuedProgramDeletionDrainsOnOriginatingContext(bool ticked)
+    {
+        fixture.EnsureContextValid();
+        var manager = new GpuResourceManager();
+        GpuResourceManagerSystem.Initialize(manager);
+        try
+        {
+            if (ticked) manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            var program = GpuProgramObject.Create(); int id = program.ProgramId;
+            var thread = new Thread(program.Dispose); thread.Start(); thread.Join();
+            Assert.True(GL.IsProgram(id));
+            if (ticked) manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            else manager.Dispose();
+            Assert.False(GL.IsProgram(id));
+            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { manager.Dispose(); GpuResourceManagerSystem.Shutdown(); TextureStreamingSystem.Dispose(); }
+    }
 }

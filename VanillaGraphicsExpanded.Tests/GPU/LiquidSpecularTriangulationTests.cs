@@ -22,7 +22,7 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
-        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
         program.CaptureMode = 1;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();

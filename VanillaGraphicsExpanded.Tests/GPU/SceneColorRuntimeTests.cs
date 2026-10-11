@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
@@ -119,6 +120,9 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         api.SetupGet(value => value.Settings.Int["godRays"]).Returns(2);
         Vintagestory.Client.ScreenManager.Platform.DoPostProcessingEffects = true;
         var harmony = new Harmony("VGE.Tests.SceneColorRuntime");
+        var lifetime = ClientRenderingLifetime.Find(api.Object)!;
+        lifetime.Attach(() => RenderingCleanup.Run(ambientOcclusion.Dispose, hierarchy.Dispose, shaftOcclusion.Dispose,
+            post.Dispose, camera.Dispose, scene.Dispose, particles.Dispose, composite.Dispose, direct.Dispose, sky.Dispose));
         try
         {
             ConfigModSystem.Config.CameraExposure = new() { Enabled = false };
@@ -326,13 +330,17 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             api.SetupGet(value => value.Settings.Int["godRays"]).Returns(2);
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             int beforeShaftReload = LightShaftOcclusionRenderer.Texture!.TextureId;
-            events.Raise(value => value.ReloadShader += null!);
+            ClientRenderingLifetime.BeginNativeReload();
+            try { events.Raise(value => value.ReloadShader += null!); }
+            finally { ClientRenderingLifetime.CompleteNativeReload(); }
             Assert.Null(LightShaftOcclusionRenderer.Texture);
             Assert.False(GL.IsTexture(beforeShaftReload));
             Assert.False(GL.IsTexture(beforeReload));
             Assert.True(GL.IsTexture(material.TextureId));
             Assert.True(GL.IsTexture(postStorage.TextureId));
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.DisplayExposure());
+            Assert.False(SceneColorPipeline.HasSceneInput);
+            scene.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.True(SceneColorPipeline.HasSceneInput);
             cube.Engine.Use();
             AssertMode(cube.Engine, 1);
@@ -343,6 +351,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         }
         finally
         {
+            lifetime.Shutdown();
             ConfigModSystem.Config.CameraExposure = previousExposure;
             ConfigModSystem.Config.LumOn.Enabled = previousLumOn;
             PbrShaderLightingMode.GenerationLumOnEnabled = previousGeneration;

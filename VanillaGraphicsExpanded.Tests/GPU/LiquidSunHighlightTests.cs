@@ -21,7 +21,7 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
-        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
 

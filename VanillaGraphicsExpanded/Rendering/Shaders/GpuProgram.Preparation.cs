@@ -7,6 +7,8 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders;
 public abstract partial class GpuProgram
 {
     private bool reloadRequired = true;
+    /// <summary>Shares client admission with the common workflows and direct binary compilation.</summary>
+    internal Func<bool>? PreparationAdmission { get => lifetime.SubmissionAdmission; set => lifetime.SubmissionAdmission = value; }
     private ulong assetGeneration;
     /// <summary>Identifies the assets used by the installed executable.</summary>
     internal ulong InstalledAssetGeneration { get; private set; }
@@ -47,8 +49,8 @@ public abstract partial class GpuProgram
             failedPreparation = null;
             PreparationFailure = null;
         }
-        if (capi is not null)
-            ShaderCompilation.ShaderLinkBatch.InvalidateAssets(capi.Assets, string.IsNullOrWhiteSpace(AssetDomain)
+        if (assetSource is not null)
+            ShaderCompilation.ShaderLinkBatch.InvalidateAssets(assetSource.Identity, string.IsNullOrWhiteSpace(AssetDomain)
                 ? PBR.ShaderImportsSystem.DefaultDomain : AssetDomain);
     }
 
@@ -60,7 +62,8 @@ public abstract partial class GpuProgram
     bool IGpuProgram.PrepareExecutable()
     {
         RequireOutsideSubmission();
-        if (capi == null) throw new InvalidOperationException("Initialize the shader before preparation.");
+        if (PreparationAdmission?.Invoke() == false) return false;
+        if (assetSource == null) throw new InvalidOperationException("Initialize the shader before preparation.");
         if (lifetime.IsRetired) return false;
         ShaderSettings settings;
         ulong assets;

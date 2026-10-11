@@ -40,13 +40,12 @@ public sealed partial class VgeDebugLinesShaderProgram : GpuProgram, IVgeDebugLi
     /// <summary>Declares the debug pass for demand preparation.</summary>
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new VgeDebugLinesShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new VgeDebugLinesShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
+        });
 
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
     }
 
     /// <summary>Offsets the line geometry within the shared camera-relative space.</summary>

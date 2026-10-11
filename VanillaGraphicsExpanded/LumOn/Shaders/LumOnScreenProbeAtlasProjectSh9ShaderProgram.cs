@@ -32,12 +32,12 @@ public partial class LumOnScreenProbeAtlasProjectSh9ShaderProgram : LumOnShaderP
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnScreenProbeAtlasProjectSh9ShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new LumOnScreenProbeAtlasProjectSh9ShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
+        });
+
     }
 
     #endregion

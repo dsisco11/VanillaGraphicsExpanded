@@ -177,7 +177,7 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
+            var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
             if (shader is null || !shader.EnsureReady())
             {
                 return;

@@ -44,12 +44,12 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new PBRCompositeShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new PBRCompositeShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
+        });
+
     }
 
     #endregion

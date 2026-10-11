@@ -54,42 +54,31 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         EnsureInitializedIfReady("dependencies ready");
     }
 
+    /// <summary>Withdraws engine admission and attempts every independent renderer before shared buffers.</summary>
     public override void Dispose()
     {
-        capi?.Event.UnregisterRenderer(this, EnumRenderStage.Before);
+        var api = capi; capi = null; gBufferManager = null;
         PBR.Tessellation.TerrainDisplacementRuntime.Api = null;
         PBR.Tessellation.TerrainDisplacementRuntime.ResetHistory();
-        base.Dispose();
         HarmonyPatches.PbrDrawRouteHook.Api = null;
-
-        ambientOcclusion?.Dispose(); ambientOcclusion = null;
-        depthHierarchy?.Dispose(); depthHierarchy = null;
-        lightShaftOcclusion?.Dispose(); lightShaftOcclusion = null;
-        postprocessing?.Dispose(); postprocessing = null;
-        cameraExposure?.Dispose(); cameraExposure = null;
-        sceneColor?.Dispose(); sceneColor = null;
-        liquidRenderer?.Dispose();
-        skyRenderer?.Dispose(); skyRenderer = null;
-        particleCapture?.Dispose();
-        particleCapture = null;
-        waterRefractionCapture?.Dispose();
-        waterRefractionCapture = null;
-        waterVolumeRenderer?.Dispose();
-        waterVolumeRenderer = null;
-        liquidRenderer = null;
-        liquidDepthRenderer?.Dispose();
-        liquidDepthRenderer = null;
-        directLightingRenderer?.Dispose();
-        directLightingRenderer = null;
-
-        directLightingBufferManager?.Dispose();
-        directLightingBufferManager = null;
-
-        pbrCompositeRenderer?.Dispose();
-        pbrCompositeRenderer = null;
-
-        gBufferManager = null;
-        capi = null;
+        Rendering.Integration.RenderingCleanup.Run(
+            () => api?.Event.UnregisterRenderer(this, EnumRenderStage.Before),
+            () => { var owner = ambientOcclusion; ambientOcclusion = null; owner?.Dispose(); },
+            () => { var owner = depthHierarchy; depthHierarchy = null; owner?.Dispose(); },
+            () => { var owner = lightShaftOcclusion; lightShaftOcclusion = null; owner?.Dispose(); },
+            () => { var owner = postprocessing; postprocessing = null; owner?.Dispose(); },
+            () => { var owner = cameraExposure; cameraExposure = null; owner?.Dispose(); },
+            () => { var owner = sceneColor; sceneColor = null; owner?.Dispose(); },
+            () => { var owner = liquidRenderer; liquidRenderer = null; owner?.Dispose(); },
+            () => { var owner = skyRenderer; skyRenderer = null; owner?.Dispose(); },
+            () => { var owner = particleCapture; particleCapture = null; owner?.Dispose(); },
+            () => { var owner = waterRefractionCapture; waterRefractionCapture = null; owner?.Dispose(); },
+            () => { var owner = waterVolumeRenderer; waterVolumeRenderer = null; owner?.Dispose(); },
+            () => { var owner = liquidDepthRenderer; liquidDepthRenderer = null; owner?.Dispose(); },
+            () => { var owner = directLightingRenderer; directLightingRenderer = null; owner?.Dispose(); },
+            () => { var owner = pbrCompositeRenderer; pbrCompositeRenderer = null; owner?.Dispose(); },
+            () => { var owner = directLightingBufferManager; directLightingBufferManager = null; owner?.Dispose(); },
+            () => base.Dispose());
     }
 
     private void EnsureInitializedIfReady(string reason)

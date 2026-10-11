@@ -107,13 +107,13 @@ internal sealed partial class LumOnWorldProbeClipmapGpuUploader : IDisposable
         if (resources is null) throw new ArgumentNullException(nameof(resources));
 
 
-        var probeProg = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnWorldProbeClipmapResolveShaderProgram>(capi, "lumon_worldprobe_clipmap_resolve");
+        var probeProg = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnWorldProbeClipmapResolveShaderProgram>(capi, "lumon_worldprobe_clipmap_resolve");
         if (probeProg is null || !probeProg.EnsureReady())
         {
             return 0;
         }
 
-        var tileProg = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<LumOnWorldProbeRadianceTileResolveShaderProgram>(capi, "lumon_worldprobe_radiance_tile_resolve");
+        var tileProg = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<LumOnWorldProbeRadianceTileResolveShaderProgram>(capi, "lumon_worldprobe_radiance_tile_resolve");
 
         int bytesPerProbeVertex = Marshal.SizeOf<ProbeResolveVertex>();
         int bytesPerTileVertex = Marshal.SizeOf<TileResolveVertex>();

@@ -54,13 +54,12 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
     /// <summary>Declares the debug pass for demand preparation.</summary>
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new VgeWorldProbeOrbsPointsShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new VgeWorldProbeOrbsPointsShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
+        });
 
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
     }
 
     public Vec3f WorldOffset

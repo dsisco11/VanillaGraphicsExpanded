@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -147,7 +148,8 @@ public sealed class LumOnDebugShaderDemandTests(HeadlessGLFixture fixture) : Ren
         Assert.True(LumOnDebugShaderProgramFamily.EnsureReady(assets.Api, selected));
         int installed = selected.ProgramId;
         int reads = assets.Reads.Count;
-        Assert.True(LumOnDebugShaderProgramFamily.Register(assets.Api));
+        GpuShaderProgramLibraries.Require(assets.Api).BeginReload();
+        GpuShaderProgramLibraries.Require(assets.Api).CompleteReload();
         Assert.Equal(reads, assets.Reads.Count);
         Assert.True(LumOnDebugShaderProgramFamily.TryGet("lumon_debug_view_direct_diffuse", out var replacement));
         Assert.Equal("1", replacement.RequestedSettings.Values["VGE_LUMON_DIRECT_LOCAL_VISIBILITY"].Canonical);
@@ -170,7 +172,8 @@ public sealed class LumOnDebugShaderDemandTests(HeadlessGLFixture fixture) : Ren
         Assert.True(LumOnDebugShaderProgramFamily.EnsureReady(assets.Api, selected));
         int installed = selected.ProgramId;
         assets.Overrides["shaders/lumon_debug_view_direct_diffuse.fsh.spv"] = new byte[20];
-        Assert.True(LumOnDebugShaderProgramFamily.Register(assets.Api));
+        GpuShaderProgramLibraries.Require(assets.Api).BeginReload();
+        GpuShaderProgramLibraries.Require(assets.Api).CompleteReload();
         Assert.False(LumOnDebugShaderProgramFamily.EnsureReady(assets.Api, selected));
         Assert.Equal(installed, selected.ProgramId);
         Assert.True(GL.IsProgram(installed));
@@ -178,7 +181,8 @@ public sealed class LumOnDebugShaderDemandTests(HeadlessGLFixture fixture) : Ren
         for (int index = 0; index < 3; index++) Assert.False(LumOnDebugShaderProgramFamily.EnsureReady(assets.Api, selected));
         Assert.Equal(reads, assets.Reads.Count);
         assets.Overrides.Clear();
-        Assert.True(LumOnDebugShaderProgramFamily.Register(assets.Api));
+        GpuShaderProgramLibraries.Require(assets.Api).BeginReload();
+        GpuShaderProgramLibraries.Require(assets.Api).CompleteReload();
         Assert.True(LumOnDebugShaderProgramFamily.EnsureReady(assets.Api, selected));
         Assert.NotEqual(installed, selected.ProgramId);
         Assert.Equal(ErrorCode.NoError, GL.GetError());

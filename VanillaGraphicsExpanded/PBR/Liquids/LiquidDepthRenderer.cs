@@ -67,7 +67,7 @@ internal sealed class LiquidDepthRenderer : IDisposable
             || buffers[(int)EnumFrameBuffer.LiquidDepth] is not { } target
             || target.FboId == 0
             || render.CurrentFrameBuffer?.FboId != target.FboId) return false;
-        var program = GpuShaderPrograms.Get<LiquidDepthShaderProgram>(api, "pbr_liquid_depth");
+        var program = GpuShaderProgramLibraries.Get<LiquidDepthShaderProgram>(api, "pbr_liquid_depth");
         if (program is null || !GpuUniformRingSystem.TryGetCurrent(out _)) return false;
 
         bool beganSubmission = false;

@@ -19,21 +19,20 @@ internal static partial class LumOnDebugShaderProgramFamily
     private static ICoreClientAPI? ownerApi;
 
     #region Declaration and selection
-    /// <summary>Refreshes declarations after asset reload without linking unused debug programs.</summary>
+    /// <summary>Declares debug selections idempotently without linking or invalidating existing owners.</summary>
     public static bool Register(ICoreClientAPI api)
     {
         lock (Sync)
         {
             if (!ReferenceEquals(ownerApi, api))
             {
-                foreach (var entry in Entries.Values) if (ownerApi != null) GpuShaderPrograms.Remove(ownerApi, entry.PassName);
+                foreach (var entry in Entries.Values) if (ownerApi != null && !GpuShaderProgramLibraries.Require(ownerApi).IsClosed) GpuShaderProgramLibraries.Remove(ownerApi, entry.PassName);
                 Entries.Clear();
                 ownerApi = api;
             }
             foreach (var contract in LumOnDebugShaderProgram.Contracts)
             {
-                if (Entries.TryGetValue(contract.Identity, out var entry) && !entry.IsRetired) entry.InvalidateAssets();
-                else Entries[contract.Identity] = GpuShaderPrograms.Declare(api, new LumOnDebugShaderProgram { PassName = contract.Identity });
+                Entries[contract.Identity] = GpuShaderProgramLibraries.Declare(api, contract.Identity, () => new LumOnDebugShaderProgram { PassName = contract.Identity }, new ShaderSettings(contract));
             }
             return true;
         }
@@ -76,7 +75,7 @@ internal static partial class LumOnDebugShaderProgramFamily
         lock (Sync)
         {
             if (!ReferenceEquals(ownerApi, api)) return;
-            foreach (var entry in Entries.Values) if (ownerApi != null) GpuShaderPrograms.Remove(ownerApi, entry.PassName);
+            foreach (var entry in Entries.Values) if (ownerApi != null && !GpuShaderProgramLibraries.Require(ownerApi).IsClosed) GpuShaderProgramLibraries.Remove(ownerApi, entry.PassName);
             Entries.Clear();
             ownerApi = null;
         }

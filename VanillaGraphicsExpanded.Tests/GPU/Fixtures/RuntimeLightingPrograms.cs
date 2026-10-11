@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal sealed class RuntimeLightingPrograms : IDisposable
 {
     private ICoreClientAPI? owner;
-    public IReadOnlyCollection<string> Loaded => owner is null ? [] : GpuShaderPrograms.GetAll(owner).Where(program => program.IsLinked).Select(program => program.PassName).ToArray();
+    public IReadOnlyCollection<string> Loaded => owner is null ? [] : GpuShaderProgramLibraries.GetAll(owner).Where(program => program.IsLinked).Select(program => program.PassName).ToArray();
     public IShaderAPI Api { get; }
 
     #region Declaration observation
@@ -22,8 +22,9 @@ internal sealed class RuntimeLightingPrograms : IDisposable
     public void Initialize(ICoreClientAPI api)
     {
         owner = api;
+        GpuShaderProgramLibraries.Create(api);
         Assert.True(VgeShaderPrograms.RegisterAll(api));
-        Assert.NotEmpty(GpuShaderPrograms.GetAll(api));
+        Assert.NotEmpty(GpuShaderProgramLibraries.GetAll(api));
         Assert.Empty(Loaded);
     }
 
@@ -33,7 +34,7 @@ internal sealed class RuntimeLightingPrograms : IDisposable
     /// <summary>Releases VGE-owned programs after production consumers have stopped.</summary>
     public void Dispose()
     {
-        if (owner is not null) GpuShaderPrograms.Dispose(owner);
+        if (owner is not null) GpuShaderProgramLibraries.Dispose(owner);
     }
     #endregion
 }

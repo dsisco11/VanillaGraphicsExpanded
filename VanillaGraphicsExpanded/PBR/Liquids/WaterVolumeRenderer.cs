@@ -67,7 +67,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
             || !LiquidRenderer.CanTakeOwnership(api, atlases) || atlases.Length == 0) return;
         var primary = api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primary is null || primary.Width <= 0 || primary.Height <= 0 || primary.DepthTextureId == 0) return;
-        var program = GpuShaderPrograms.Get<LiquidShaderProgram>(api, LiquidShaderProgram.VolumePassName);
+        var program = GpuShaderProgramLibraries.Get<LiquidShaderProgram>(api, LiquidShaderProgram.VolumePassName);
         if (program is null) return;
         try
         {

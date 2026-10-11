@@ -14,6 +14,8 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12),
         new(1, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 1, 0, 8)]);
     private readonly IRenderAPI render;
+    private readonly (nint Handle, long Generation) context;
+    private readonly GpuResourceManager? deletionManager;
     private readonly VAO mesh;
     private readonly int vao, positions, uv, elements, count;
     private bool disposed;
@@ -30,6 +32,8 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
             || data.Indices.Take(data.IndicesCount).Any(i => i < 0 || i >= data.VerticesCount))
             throw new ArgumentException("Expected indexed position/UV geometry without a color stream.", nameof(data));
         StateCache.Current.RequireOutsideEngineBoundary();
+        var context = Integration.RenderContextRegistry.Current();
+        var deletionManager = GpuResourceManagerSystem.CurrentManager;
         // Upload may bind arrays through the engine; existing scopes preserve the caller's bindings.
         using var vertexScope = StateCache.Current.BindVertexArrayScope(0);
         using var arrayScope = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, 0);
@@ -38,11 +42,11 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         {
             uploaded = render.UploadMesh(data);
             if (uploaded is not VAO native) throw new InvalidOperationException("Unsupported engine mesh representation.");
-            return new(render, native, data.VerticesCount, data.IndicesCount);
+            return new(render, native, data.VerticesCount, data.IndicesCount, context, deletionManager);
         }
         catch (Exception failure)
         {
-            try { if (uploaded is not null) render.DeleteMesh(uploaded); }
+            try { if (uploaded is not null) RetireMesh(render, uploaded, context, deletionManager); }
             catch (Exception cleanup) { throw new AggregateException(failure, cleanup); }
             throw;
         }
@@ -86,15 +90,19 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
     {
         if (disposed) return;
         disposed = true;
-        render.DeleteMesh(mesh);
+        RetireMesh(render, mesh, context, deletionManager);
     }
     #endregion
 
     #region Private
     /// <summary>Checks the installed VAO once; native queries never occur on its draw path.</summary>
-    private EngineFullscreenGeometry(IRenderAPI render, VAO mesh, int vertices, int count)
+    private EngineFullscreenGeometry(IRenderAPI render, VAO mesh, int vertices, int count,
+        (nint Handle, long Generation) context, GpuResourceManager? deletionManager)
     {
         this.render = render; this.mesh = mesh; this.count = count;
+        this.context = context; this.deletionManager = deletionManager;
+        if (context != Integration.RenderContextRegistry.Current())
+            throw new InvalidOperationException("Engine mesh publication requires its uploading context.");
         vao = mesh.VaoId; positions = mesh.xyzVboId; uv = mesh.uvVboId; elements = mesh.vboIdIndex;
         if (vao == 0 || positions == 0 || uv == 0 || elements == 0 || mesh.IndicesCount != count
             || mesh.drawMode != PrimitiveType.Triangles || !HasOnlyPositionUvStreams(mesh))
@@ -108,6 +116,22 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         CheckBuffer(BufferTarget.ArrayBuffer, positions, checked(vertices * 12));
         CheckBuffer(BufferTarget.ArrayBuffer, uv, checked(vertices * 8));
         CheckBuffer(BufferTarget.ElementArrayBuffer, elements, checked(count * sizeof(uint)));
+    }
+
+    /// <summary>Retires only the adapter's owned mesh, preserving engine cleanup on its originating context.</summary>
+    private static void RetireMesh(IRenderAPI render, MeshRef mesh,
+        (nint Handle, long Generation) origin, GpuResourceManager? manager)
+    {
+        // The adapter owns terminal cleanup. Suppress the engine leak diagnostic when
+        // ownership moves to deferred cleanup or the retired context reclaims its names.
+        GC.SuppressFinalize(mesh);
+        if (origin == default || origin == Integration.RenderContextRegistry.Current())
+        {
+            render.DeleteMesh(mesh);
+            return;
+        }
+        if (Integration.RenderContextRegistry.IsAlive(origin))
+            manager?.EnqueueContextCleanup(() => render.DeleteMesh(mesh), origin);
     }
 
     /// <summary>Requires enabled floating attributes, zero offsets, and no instancing or integer reinterpretation.</summary>

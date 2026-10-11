@@ -39,7 +39,8 @@ public sealed class ShaderDigestIndexCacheTests(HeadlessGLFixture fixture) : Ren
             }
             Assert.Single(assets.Reads.Where(path => path == ManifestPath));
             // Refreshing metadata belongs to asset reload, not disposal or recompilation of a program.
-            ShaderDigestReloadHook.Prefix();
+            ShaderDigestReloadHook.Prefix(out _);
+            ShaderDigestReloadHook.Finalizer(true);
             Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
             Assert.Equal(2, assets.Reads.Count(path => path == ManifestPath));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -78,7 +79,8 @@ public sealed class ShaderDigestIndexCacheTests(HeadlessGLFixture fixture) : Ren
         assets.Overrides.Remove(ManifestPath);
         Assert.Null(ShaderDigestIndexCache.ForAssets(assets.Api.Assets, "vanillagraphicsexpanded"));
         Assert.Single(assets.Reads.Where(path => path == ManifestPath));
-        ShaderDigestReloadHook.Prefix();
+        ShaderDigestReloadHook.Prefix(out _);
+            ShaderDigestReloadHook.Finalizer(true);
         Assert.NotNull(ShaderDigestIndexCache.ForAssets(assets.Api.Assets, "vanillagraphicsexpanded"));
         Assert.Equal(2, assets.Reads.Count(path => path == ManifestPath));
     }
@@ -93,12 +95,14 @@ public sealed class ShaderDigestIndexCacheTests(HeadlessGLFixture fixture) : Ren
             Assert.Null(ShaderDigestIndexCache.ForFile(path));
             File.WriteAllBytes(path, ShaderBinaryDigest.Encode(new() { ["a.spv"] = new(20, new string('A', 64)) }));
             Assert.Null(ShaderDigestIndexCache.ForFile(path));
-            ShaderDigestReloadHook.Prefix();
+            ShaderDigestReloadHook.Prefix(out _);
+            ShaderDigestReloadHook.Finalizer(true);
             var first = ShaderDigestIndexCache.ForFile(path);
             Assert.NotNull(first);
             File.WriteAllBytes(path, ShaderBinaryDigest.Encode(new() { ["b.spv"] = new(24, new string('B', 64)) }));
             Assert.Same(first, ShaderDigestIndexCache.ForFile(Path.Combine(Path.GetDirectoryName(path)!, ".", Path.GetFileName(path))));
-            ShaderDigestReloadHook.Prefix();
+            ShaderDigestReloadHook.Prefix(out _);
+            ShaderDigestReloadHook.Finalizer(true);
             var replacement = ShaderDigestIndexCache.ForFile(path);
             Assert.NotNull(replacement);
             Assert.NotSame(first, replacement);

@@ -63,7 +63,7 @@ internal sealed class LiquidRenderer : IRenderer
             || AtmosphereModSystem.AerialRadianceTextureId == 0
             || AtmosphereModSystem.AerialAttenuationTextureId == 0
             || !GpuUniformRingSystem.TryGetCurrent(out _)) return false;
-        var program = GpuShaderPrograms.Get<LiquidShaderProgram>(api, "pbr_liquid");
+        var program = GpuShaderProgramLibraries.Get<LiquidShaderProgram>(api, "pbr_liquid");
         if (program is null) return false;
         var waterSettings = ConfigModSystem.Config;
         // Publish both selections before preparation so one owned generation
@@ -92,7 +92,7 @@ internal sealed class LiquidRenderer : IRenderer
         if (buffers.Count <= (int)EnumFrameBuffer.Transparent
             || buffers[(int)EnumFrameBuffer.Transparent] is not { } transparent
             || render.CurrentFrameBuffer is not { } current || current.FboId != transparent.FboId) return;
-        var program = GpuShaderPrograms.Get<LiquidShaderProgram>(api, "pbr_liquid");
+        var program = GpuShaderProgramLibraries.Get<LiquidShaderProgram>(api, "pbr_liquid");
         if (program is null) return;
         try
         {

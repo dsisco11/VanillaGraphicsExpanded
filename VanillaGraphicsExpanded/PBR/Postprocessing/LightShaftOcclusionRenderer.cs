@@ -9,6 +9,7 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 /// <summary>Publishes current-frame depth occlusion before deferred aerial scattering and forward OIT consumers.</summary>
 internal sealed class LightShaftOcclusionRenderer : IRenderer
 {
+    private System.IDisposable? reloadRegistration;
     private readonly ICoreClientAPI api;
     private readonly Action unregisterResize;
     private readonly LightShaftRenderer shafts=new();
@@ -31,7 +32,7 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
         unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,Retire);
         api.Event.RegisterRenderer(this,EnumRenderStage.Before,"vge_lightshaft_reset");
         api.Event.RegisterRenderer(this,EnumRenderStage.Opaque,"vge_lightshaft_occlusion");
-        api.Event.ReloadShader+=Reload; api.Event.LeaveWorld+=Retire;
+        reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload); api.Event.LeaveWorld+=Retire;
     }
     /// <summary>Builds visibility from completed opaque depth without sampling scene radiance or retaining prior-frame history.</summary>
     public void OnRenderFrame(float deltaTime,EnumRenderStage stage)
@@ -54,7 +55,7 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
     {
         if(ReferenceEquals(active,this)) active=null;
         api.Event.UnregisterRenderer(this,EnumRenderStage.Before); api.Event.UnregisterRenderer(this,EnumRenderStage.Opaque);
-        api.Event.ReloadShader-=Reload; api.Event.LeaveWorld-=Retire; unregisterResize(); Retire();
+        reloadRegistration?.Dispose(); api.Event.LeaveWorld-=Retire; unregisterResize(); Retire();
     }
     #endregion
     #region Private

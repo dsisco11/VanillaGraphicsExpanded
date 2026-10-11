@@ -20,12 +20,12 @@ public sealed partial class RasterDepthCopyShaderProgram : GpuProgram, IRasterDe
     /// <summary>Declares the shared copy program.</summary>
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new RasterDepthCopyShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new RasterDepthCopyShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
-        GpuShaderPrograms.Declare(api, instance);
+        });
+
     }
 
     /// <summary>Supplies the current corrected receiver depth texture.</summary>

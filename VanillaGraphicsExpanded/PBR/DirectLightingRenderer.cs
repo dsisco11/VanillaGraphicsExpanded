@@ -31,6 +31,7 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
         new(2, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))];
 
     private readonly ICoreClientAPI capi;
+    private readonly IDisposable? reloadPreload;
     private readonly GBufferManager gBufferManager;
     private readonly DirectLightingBufferManager bufferManager;
 
@@ -55,8 +56,13 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
         this.gBufferManager = gBufferManager;
         this.bufferManager = bufferManager;
 
-        var shader = Rendering.Shaders.GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
-        if (shader != null) Rendering.Shaders.GpuShaderPrograms.Preload(capi, [shader]);
+        var shader = Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
+        if (shader != null) Rendering.Shaders.GpuShaderProgramLibraries.Preload(capi, [shader]);
+        reloadPreload = Rendering.Integration.ClientRenderingLifetime.Find(capi)?.RegisterPreload(() =>
+        {
+            if (shader != null && !Rendering.Shaders.GpuShaderProgramLibraries.Preload(capi, [shader]))
+                throw new InvalidOperationException("VGE direct lighting preparation failed after native reload.", shader.PreparationFailure);
+        });
 
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         quadMesh.Rgba = null;
@@ -93,7 +99,7 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
     {
         StateCache.Current.RequireOutsideEngineBoundary();
         if (geometry is null) return null;
-        var shader = GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
+        var shader = GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
         if (shader?.EnsureReady() != true) return null;
         if (lightingPipeline is not null && ReferenceEquals(lightingPipeline.Shader, shader)
             && lightingPipeline.ExecutableRevision == shader.ExecutableRevision) return lightingPipeline;
@@ -165,6 +171,7 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
     /// <summary>Releases the fullscreen mesh and unregisters the lighting callback.</summary>
     public void Dispose()
     {
+        reloadPreload?.Dispose();
         lightingPipeline?.Dispose();
         lightingPipeline = null;
         pipelineLifetime.Dispose();

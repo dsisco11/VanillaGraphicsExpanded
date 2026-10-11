@@ -14,55 +14,47 @@ internal static class VgeShaderPrograms
     /// <summary>Declares programs without loading assets; feature owners explicitly preload required selections.</summary>
     internal static bool RegisterAll(ICoreClientAPI api)
     {
-        GpuProgram[] programs =
-        [
-            new VgeDebugLinesShaderProgram(),
-            new DebugView.DebugTextureShaderProgram(),
-            new DebugView.DebugSurfaceShaderProgram(),
-            new VgeWorldProbeOrbsPointsShaderProgram(),
-            new PBRDirectLightingShaderProgram(),
-            new PBR.Atmosphere.AtmosphereSkyShaderProgram(),
-            new PBR.CameraExposure.CameraHistogramShaderProgram(),
-            new PBR.CameraExposure.CameraAdaptShaderProgram(),
-            new PBR.Postprocessing.FinalDisplayShaderProgram(),
-            new PBR.Postprocessing.BloomShaderProgram(),
-            new PBR.Postprocessing.LightShaftShaderProgram(),
-            new PBR.Postprocessing.PostLumaShaderProgram(),
-            new PBR.Postprocessing.PostSsaoShaderProgram(),
-            new PBR.Postprocessing.AmbientOcclusionFilterShaderProgram(),
-            new PBR.Liquids.LiquidShaderProgram(),
-            // Keep both liquid executables resident; changing a compile-time mode replaces an executable.
-            new PBR.Liquids.LiquidShaderProgram { PassName = PBR.Liquids.LiquidShaderProgram.VolumePassName, CaptureMode = 3 },
-            new PBR.Liquids.LiquidDepthShaderProgram(),
-            new PBR.Liquids.WaterRefractionReductionShaderProgram(),
-            new PBRCompositeShaderProgram(),
-            // Capture precedes current-frame LumOn gathering; retain its environment-only executable.
-            new PBRCompositeShaderProgram
-            {
-                PassName = PBRCompositeShaderProgram.PreOverlayPassName,
-                PreOverlayOnly = true,
-                LumOnEnabled = false,
-                EnablePbrComposite = false,
-                EnableShortRangeAo = false
-            },
-            new PBRDisplayResolveShaderProgram(),
-            new PBR.SceneColor.SceneColorParticleShaderProgram(),
-            new PBR.SceneColor.SceneColorParticleSsaoShaderProgram(),
-            new LumOnWorldProbeClipmapResolveShaderProgram(),
-            new LumOnWorldProbeRadianceTileResolveShaderProgram(),
-            new LumOnProbeAnchorShaderProgram(),
-            new LumOnProbeAtlasPisMaskShaderProgram(),
-            new LumOnScreenProbeAtlasTraceShaderProgram(),
-            new LumOnVelocityShaderProgram(),
-            new LumOnScreenProbeAtlasTemporalShaderProgram(),
-            new LumOnScreenProbeAtlasFilterShaderProgram(),
-            new LumOnScreenProbeAtlasProjectSh9ShaderProgram(),
-            new LumOnProbeSh9GatherShaderProgram(),
-            new LumOnScreenProbeAtlasGatherShaderProgram(),
-            new LumOnUpsampleShaderProgram(),
-            new LumOnCombineShaderProgram(),
-        ];
-        foreach (var program in programs) GpuShaderPrograms.Declare(api, program);
+        GpuShaderProgramLibraries.Declare(api, VgeDebugLinesShaderProgram.Contract.Identity, () => new VgeDebugLinesShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, DebugView.DebugTextureShaderProgram.Contract.Identity, () => new DebugView.DebugTextureShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, DebugView.DebugSurfaceShaderProgram.Contract.Identity, () => new DebugView.DebugSurfaceShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, VgeWorldProbeOrbsPointsShaderProgram.Contract.Identity, () => new VgeWorldProbeOrbsPointsShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBRDirectLightingShaderProgram.Contract.Identity, () => new PBRDirectLightingShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Atmosphere.AtmosphereSkyShaderProgram.Contract.Identity, () => new PBR.Atmosphere.AtmosphereSkyShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.CameraExposure.CameraHistogramShaderProgram.Contract.Identity, () => new PBR.CameraExposure.CameraHistogramShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.CameraExposure.CameraAdaptShaderProgram.Contract.Identity, () => new PBR.CameraExposure.CameraAdaptShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.FinalDisplayShaderProgram.Contract.Identity, () => new PBR.Postprocessing.FinalDisplayShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.BloomShaderProgram.Contract.Identity, () => new PBR.Postprocessing.BloomShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.LightShaftShaderProgram.Contract.Identity, () => new PBR.Postprocessing.LightShaftShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.PostLumaShaderProgram.Contract.Identity, () => new PBR.Postprocessing.PostLumaShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.PostSsaoShaderProgram.Contract.Identity, () => new PBR.Postprocessing.PostSsaoShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.AmbientOcclusionFilterShaderProgram.Contract.Identity, () => new PBR.Postprocessing.AmbientOcclusionFilterShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Liquids.LiquidShaderProgram.Contract.Identity, () => new PBR.Liquids.LiquidShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Liquids.LiquidDepthShaderProgram.Contract.Identity, () => new PBR.Liquids.LiquidDepthShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Liquids.WaterRefractionReductionShaderProgram.Contract.Identity, () => new PBR.Liquids.WaterRefractionReductionShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBRCompositeShaderProgram.Contract.Identity, () => new PBRCompositeShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBRDisplayResolveShaderProgram.Contract.Identity, () => new PBRDisplayResolveShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.SceneColor.SceneColorParticleShaderProgram.Contract.Identity, () => new PBR.SceneColor.SceneColorParticleShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.SceneColor.SceneColorParticleSsaoShaderProgram.Contract.Identity, () => new PBR.SceneColor.SceneColorParticleSsaoShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnWorldProbeClipmapResolveShaderProgram.Contract.Identity, () => new LumOnWorldProbeClipmapResolveShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnWorldProbeRadianceTileResolveShaderProgram.Contract.Identity, () => new LumOnWorldProbeRadianceTileResolveShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnProbeAnchorShaderProgram.Contract.Identity, () => new LumOnProbeAnchorShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnProbeAtlasPisMaskShaderProgram.Contract.Identity, () => new LumOnProbeAtlasPisMaskShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnScreenProbeAtlasTraceShaderProgram.Contract.Identity, () => new LumOnScreenProbeAtlasTraceShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnVelocityShaderProgram.Contract.Identity, () => new LumOnVelocityShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnScreenProbeAtlasTemporalShaderProgram.Contract.Identity, () => new LumOnScreenProbeAtlasTemporalShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnScreenProbeAtlasFilterShaderProgram.Contract.Identity, () => new LumOnScreenProbeAtlasFilterShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnScreenProbeAtlasProjectSh9ShaderProgram.Contract.Identity, () => new LumOnScreenProbeAtlasProjectSh9ShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnProbeSh9GatherShaderProgram.Contract.Identity, () => new LumOnProbeSh9GatherShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnScreenProbeAtlasGatherShaderProgram.Contract.Identity, () => new LumOnScreenProbeAtlasGatherShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnUpsampleShaderProgram.Contract.Identity, () => new LumOnUpsampleShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, LumOnCombineShaderProgram.Contract.Identity, () => new LumOnCombineShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Liquids.LiquidShaderProgram.VolumePassName,
+            () => new PBR.Liquids.LiquidShaderProgram { CaptureMode = 3 },
+            new Contracts.ShaderSettings(PBR.Liquids.LiquidShaderProgram.Contract).With("VGE_LIQUID_CAPTURE_MODE", "3"));
+        GpuShaderProgramLibraries.Declare(api, PBRCompositeShaderProgram.PreOverlayPassName,
+            () => new PBRCompositeShaderProgram { PreOverlayOnly = true, LumOnEnabled = false, EnablePbrComposite = false, EnableShortRangeAo = false },
+            new Contracts.ShaderSettings(PBRCompositeShaderProgram.Contract).With("VGE_COMPOSITE_PRE_OVERLAY_ONLY", "true")
+                .With("VGE_LUMON_ENABLED", "false").With("VGE_LUMON_PBR_COMPOSITE", "false").With("VGE_LUMON_ENABLE_SHORT_RANGE_AO", "false"));
         return LumOnDebugShaderProgramFamily.Register(api);
     }
     #endregion

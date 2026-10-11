@@ -1,6 +1,5 @@
 using System;
 using VanillaGraphicsExpanded.Rendering.Contracts;
-using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -8,27 +7,13 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class GpuComputePipeline
 {
     private Func<GpuComputePipeline?>? prepare;
+    internal Func<GpuComputePipeline?>? Rebuild { get; set; }
+    internal Func<string>? RebuildDiagnostic { get; set; }
+    internal Integration.ClientRenderingLifetime? RenderingLifetime { get; set; }
     private bool preparationFailed;
     private string preparationLog = string.Empty;
 
     #region Declaration and preparation
-    /// <summary>Declares immutable compute inputs without reading assets or issuing GL commands.</summary>
-    internal static GpuComputePipeline DeclareFromAssets(ICoreAPI api, ShaderSettings settings,
-        string? debugName = null, GpuProgramLayout? layout = null)
-    {
-        ArgumentNullException.ThrowIfNull(api);
-        var plan = new ShaderLoadPlan(settings);
-        if (plan.Stages.Count != 1 || plan.Stages[0].Stage.Kind != ShaderStageKind.Compute)
-            throw new ArgumentException("A compute declaration requires one compute stage.", nameof(settings));
-        var owner = new GpuComputePipeline(0, layout?.CreateCandidate() ?? new GpuProgramLayout(), message => api.Logger.Warning(message));
-        owner.prepare = () =>
-        {
-            TryCreateFromAssets(api, settings, out var candidate, out owner.preparationLog, debugName, layout: layout);
-            return candidate;
-        };
-        return owner;
-    }
-
     /// <summary>Prepares a complete executable once, suppressing repeated failed dispatch attempts.</summary>
     internal bool EnsureReady()
     {

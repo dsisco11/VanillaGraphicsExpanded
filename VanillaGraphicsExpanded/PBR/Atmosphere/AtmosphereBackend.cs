@@ -49,6 +49,12 @@ internal sealed class AtmosphereBackend : IDisposable
     }
     #endregion
 
+    /// <summary>Withdraws pending transport without reconstructing GPU program wrappers or their retained inputs.</summary>
+    internal void Reload()
+    {
+        gpu?.Reload();
+        if (cpu is not null) { cpu.Dispose(); cpu = new(); }
+    }
     #region Lifetime
     /// <summary>Discards old-generation work; the caller retains its independently published lighting and texture.</summary>
     public void Dispose()

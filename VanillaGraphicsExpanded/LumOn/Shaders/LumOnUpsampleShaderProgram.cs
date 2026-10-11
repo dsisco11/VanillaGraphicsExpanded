@@ -55,12 +55,12 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
     /// <summary>Declares the persistent upsample owner with the shader registry.</summary>
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnUpsampleShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new LumOnUpsampleShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
+        });
+
     }
 
     #endregion

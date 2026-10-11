@@ -145,7 +145,7 @@ public static partial class VgeBuiltInDebugViews
 
             if (GBufferOverlayViewState.Mode is GBufferOverlayMode.Normals or GBufferOverlayMode.Material)
             {
-                var surface = GpuShaderPrograms.Get<DebugSurfaceShaderProgram>(capi, "debug_surface");
+                var surface = GpuShaderProgramLibraries.Get<DebugSurfaceShaderProgram>(capi, "debug_surface");
                 if (surface is null || gBufferManager.SurfaceTexture is null) return;
                 surface.MaterialLayer = GBufferOverlayViewState.Mode == GBufferOverlayMode.Material;
                 surface.Scene = gBufferManager.SurfaceTexture;
@@ -158,7 +158,7 @@ public static partial class VgeBuiltInDebugViews
                 return;
             }
 
-            var shader = GpuShaderPrograms.Get<DebugTextureShaderProgram>(capi, "debug_texture");
+            var shader = GpuShaderProgramLibraries.Get<DebugTextureShaderProgram>(capi, "debug_texture");
             if (shader is null) return;
             shader.Scene = textureId;
             submission.Draw("GBufferOverlay", shader, geometry, EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);

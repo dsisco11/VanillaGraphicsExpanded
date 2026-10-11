@@ -21,7 +21,7 @@ internal sealed class RetainedPostprocessRenderer : IDisposable
     internal IEnumerable<GraphicsPipeline> Prepare(ICoreClientAPI api,PostprocessDraw draw)
     {
         var primary=api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        luma=GpuShaderPrograms.Get<PostLumaShaderProgram>(api,"pbr_post_luma");
+        luma=GpuShaderProgramLibraries.Get<PostLumaShaderProgram>(api,"pbr_post_luma");
         if(luma?.EnsureReady()!=true) throw new InvalidOperationException("Owned luminance shader unavailable.");
         lumaTarget??=CreateTarget(resources,primary.Width,primary.Height,"Luma",out lumaImage);
         yield return lumaPipeline=draw.Prepare(luma,lumaTarget);

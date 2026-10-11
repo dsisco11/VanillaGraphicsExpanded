@@ -14,10 +14,10 @@ public partial class LumOnRenderer
         var programs = ImmutableArray.CreateBuilder<GpuProgram>();
         foreach (string name in new[] { "lumon_velocity", "lumon_probe_anchor", "lumon_probe_atlas_project_sh9", "lumon_probe_atlas_filter", "lumon_upsample" })
         {
-            var program = GpuShaderPrograms.Get<GpuProgram>(capi, name);
+            var program = GpuShaderProgramLibraries.Get<GpuProgram>(capi, name);
             if (program != null) programs.Add(program);
         }
-        if (!GpuShaderPrograms.Preload(capi, programs.ToImmutable()))
+        if (!GpuShaderProgramLibraries.Preload(capi, programs.ToImmutable()))
             capi.Logger.Warning("[LumOn] Required shader preload failed; rendering will retain readiness checks.");
     }
     #endregion

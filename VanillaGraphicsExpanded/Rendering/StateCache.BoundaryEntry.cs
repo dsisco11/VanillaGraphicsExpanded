@@ -56,6 +56,9 @@ internal sealed partial class StateCache
         finally { resolvingBoundary = false; }
     }
 
+    /// <summary>Withdraws the existing boundary authority when its native lifetime is irreversibly retired.</summary>
+    internal void AbandonEngineBoundary((nint Handle, long Generation) context) => activeBoundary?.AbandonContext(context);
+
     /// <summary>Releases the entry token after its owning restoration operation has finished.</summary>
     /// <remarks>Does not restore native state. Only the cache restoration owner may use this handoff.</remarks>
     internal void ReleaseEngineBoundary(EngineBoundaryScope scope)

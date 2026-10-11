@@ -44,11 +44,11 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             Assert.True(VgeShaderPrograms.RegisterAll(assets.Api), string.Join('\n', assets.Logs));
             Assert.Empty(assets.Reads);
             Assert.Empty(assets.PreparedPrograms);
-            var selected = GpuShaderPrograms.GetAll(assets.Api).Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray();
+            var selected = GpuShaderProgramLibraries.GetAll(assets.Api).Where(program => program is not LumOnDebugShaderProgram).ToImmutableArray();
             Assert.NotEmpty(selected);
             Assert.DoesNotContain(selected,program=>program.PassName.StartsWith("tests/",StringComparison.Ordinal));
             Assert.Equal(selected.Length,selected.Select(program=>program.PassName).Distinct().Count());
-            Assert.True(GpuShaderPrograms.Preload(assets.Api, selected));
+            Assert.True(GpuShaderProgramLibraries.Preload(assets.Api, selected));
             double startup = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double startupUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Startup driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
@@ -67,7 +67,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             Assert.Empty(assets.ScheduledTasks);
             assets.ScheduledTasks.Clear();
             started = Stopwatch.GetTimestamp();
-            Assert.True(GpuShaderPrograms.Preload(assets.Api, changed.ToImmutableArray()));
+            Assert.True(GpuShaderProgramLibraries.Preload(assets.Api, changed.ToImmutableArray()));
             double configuration = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double configurationUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Configuration driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
@@ -82,7 +82,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
 
             started = Stopwatch.GetTimestamp();
             Assert.True(VgeShaderPrograms.RegisterAll(assets.Api), string.Join('\n', assets.Logs));
-            Assert.True(GpuShaderPrograms.Preload(assets.Api, selected));
+            Assert.True(GpuShaderProgramLibraries.Preload(assets.Api, selected));
             double reload = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double reloadUse = ObserveHzb(assets, depth, target);
             output.WriteLine($"Re-registration driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");

@@ -10,7 +10,6 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
-using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
 
@@ -23,20 +22,19 @@ public abstract partial class GpuProgram
     /// <summary>Prepares every stage from one plan, preserving the installed program and interface on failure.</summary>
     private bool CompileSpirv(ShaderLoadPlan plan, ulong assets)
     {
-        if (capi == null) throw new InvalidOperationException("Shader API is unavailable.");
+        if (assetSource == null) throw new InvalidOperationException("Shader API is unavailable.");
 #if DEBUG
         using var errors = new GlDebug.ErrorScope($"{ShaderName}: SPIR-V graphics loading/linking");
 #endif
         var context = Integration.RenderContextRegistry.Current();
         string domain = string.IsNullOrWhiteSpace(AssetDomain) ? ShaderImportsSystem.DefaultDomain : AssetDomain;
-        ReadOnlySpan<byte> Read(string path) => capi.Assets.TryGet(AssetLocation.Create("shaders/" + path, domain), loadAsset: true)?.Data
-            ?? throw new InvalidOperationException("Missing built shader asset: " + domain + ":shaders/" + path);
+
         var stages = new List<(ShaderStageKind Kind, int Shader, GpuBindingContract Contract)>();
         int program = 0;
         try
         {
-            using var pending = ShaderLinkBatch.Take(capi.Assets, domain, plan);
-            var inputs = pending?.Inputs ?? DriverProgramCache.Prepare(plan, Read, () => ShaderDigestIndexCache.ForAssets(capi.Assets, domain));
+            using var pending = ShaderLinkBatch.Take(assetSource.Identity, domain, plan);
+            var inputs = pending?.Inputs ?? DriverProgramCache.Prepare(plan, assetSource.Read, assetSource.Digest);
             // Synchronous asset callbacks must not allocate or transfer names on a changed context.
             if (context != Integration.RenderContextRegistry.Current())
                 throw new InvalidOperationException("Preparation requires its originating native context generation.");
@@ -82,7 +80,7 @@ public abstract partial class GpuProgram
             // A configuration edit can arrive while the driver works. Never publish superseded inputs.
             lock (settingsLock)
             {
-                if (lifetime.IsRetired || !RequestedPlan.SameInputs(plan) || assets != assetGeneration ||
+                if (lifetime.IsRetired || PreparationAdmission?.Invoke() == false || !RequestedPlan.SameInputs(plan) || assets != assetGeneration ||
                     context != Integration.RenderContextRegistry.Current())
                 {
                     PreparationFailure = new InvalidOperationException("Preparation was superseded by retirement, changed settings, assets or context.");

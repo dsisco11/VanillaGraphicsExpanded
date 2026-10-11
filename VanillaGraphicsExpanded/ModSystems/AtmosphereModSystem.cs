@@ -11,6 +11,7 @@ namespace VanillaGraphicsExpanded.ModSystems;
 /// <summary>Schedules background atmosphere builds and publishes matching sky and lighting inputs before scene rendering.</summary>
 public sealed class AtmosphereModSystem : ModSystem, IRenderer
 {
+    private System.IDisposable? reloadRegistration;
     private ICoreClientAPI? api;
     private AtmosphereBackend? computation;
     private AtmosphereSeasonInputs seasonInputs = new();
@@ -40,7 +41,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         computation = new(api);
         api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_atmosphere");
         api.Event.LeaveWorld += Reset;
-        api.Event.ReloadShader += Reload;
+        reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload);
     }
 
     /// <summary>Releases the last world's snapshot and owned GPU texture.</summary>
@@ -51,27 +52,33 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         AerialRadianceTexture = null; AerialAttenuationTexture = null;
         Lighting = null; SkyTextureId = 0; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
         seasonInputs = new();
-        computation?.Dispose(); computation = api is null ? null : new(api);
-        textures?.Dispose(); stagingTextures?.Dispose(); textures = null; stagingTextures = null;
+        Rendering.Integration.RenderingCleanup.Run(
+            () => { var owner = computation; computation = null; owner?.Dispose(); },
+            () => { var owner = textures; textures = null; owner?.Dispose(); },
+            () => { var owner = stagingTextures; stagingTextures = null; owner?.Dispose(); });
+        computation = api is null ? null : new(api);
     }
 
     /// <summary>Invalidates pending shader generations while keeping the last complete display snapshot.</summary>
     private bool Reload()
     {
-        computation?.Dispose(); computation = api is null ? null : new(api);
+        computation?.Reload();
+        Lighting = null; SkyTextureId = 0; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
+        AerialRadianceTexture = null; AerialAttenuationTexture = null;
+        ambientPublication?.Dispose();
         return true;
     }
 
     /// <summary>Unregisters callbacks and releases atmosphere resources.</summary>
     public override void Dispose()
     {
-        if (api is not null)
-        {
-            api.Event.UnregisterRenderer(this, EnumRenderStage.Before);
-            api.Event.LeaveWorld -= Reset;
-            api.Event.ReloadShader -= Reload;
-        }
-        Reset(); computation?.Dispose(); computation = null; api = null; base.Dispose();
+        var client = api; api = null;
+        Rendering.Integration.RenderingCleanup.Run(
+            () => { if (client is not null) client.Event.UnregisterRenderer(this, EnumRenderStage.Before); },
+            () => { if (client is not null) client.Event.LeaveWorld -= Reset; },
+            () => { var owner = reloadRegistration; reloadRegistration = null; owner?.Dispose(); },
+            Reset,
+            () => base.Dispose());
     }
     #endregion
 

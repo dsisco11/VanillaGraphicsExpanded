@@ -77,13 +77,13 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
         if (particleProgram is null
             || !ShaderCapabilities.Has(particleProgram, ShaderCapability.SceneColorConvention)
             || !particleProgram.HasUniform("vge_sceneLinear")) return false;
-        resolve = GpuShaderPrograms.Get<SceneColorParticleShaderProgram>(api, "scene_color_particles");
+        resolve = GpuShaderProgramLibraries.Get<SceneColorParticleShaderProgram>(api, "scene_color_particles");
         if (resolve?.EnsureReady() != true) return false;
         var primary = api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         bool hasSsao = primary?.ColorTextureIds is { Length: >= 4 } colors && colors[2] != 0 && colors[3] != 0;
         if (hasSsao)
         {
-            ssaoRestore = GpuShaderPrograms.Get<SceneColorParticleSsaoShaderProgram>(api, "scene_color_particle_ssao");
+            ssaoRestore = GpuShaderProgramLibraries.Get<SceneColorParticleSsaoShaderProgram>(api, "scene_color_particle_ssao");
             if (ssaoRestore?.EnsureReady() != true) return false;
         }
         targets ??= new SceneColorParticleTargets(gbuffer.PrimaryFramebuffer, hasSsao);

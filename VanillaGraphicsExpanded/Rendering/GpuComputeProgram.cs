@@ -5,9 +5,16 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Owns retained compute inputs and publishes them before executing work.</summary>
-internal abstract class GpuComputeProgram : IGpuProgram
+internal abstract partial class GpuComputeProgram : IGpuProgram
 {
-    protected readonly GpuComputePipeline pipeline;
+    protected GpuComputePipeline pipeline;
+    private readonly Func<GpuComputePipeline?>? rebuild;
+    private readonly Func<string>? rebuildDiagnostic;
+    private readonly Integration.ClientRenderingLifetime? renderingLifetime;
+    private readonly IDisposable? reloadRegistration;
+    private bool reloadRequired, reloadFailed;
+    private string? reloadFailure;
+    private ulong executableRevision, assetGeneration;
     private readonly GpuProgramLifetime lifetime = new();
 
     #region Public API
@@ -17,9 +24,9 @@ internal abstract class GpuComputeProgram : IGpuProgram
     /// <summary>Gets the installed binding layout.</summary>
     public GpuProgramLayout ProgramLayout => pipeline.ProgramLayout;
     /// <summary>Reports whether the owned executable remains available.</summary>
-    public bool IsValid => !lifetime.IsRetired && pipeline.IsValid;
+    public bool IsValid => !lifetime.IsRetired && !reloadRequired && pipeline.IsValid;
     /// <summary>Reports the owned executable's last preparation failure.</summary>
-    public string PreparationLog => pipeline.PreparationLog;
+    public string PreparationLog => reloadRequired ? reloadFailure ?? rebuildDiagnostic?.Invoke() ?? pipeline.PreparationLog : pipeline.PreparationLog;
     /// <summary>Prepares the executable without publishing inputs or executing work.</summary>
     public bool EnsureReady() => ((IGpuProgram)this).Prepare();
     #endregion
@@ -64,6 +71,12 @@ internal abstract class GpuComputeProgram : IGpuProgram
     {
         this.pipeline = pipeline ?? throw new ArgumentNullException(nameof(pipeline));
         lifetime.NativeExecutable = pipeline;
+        rebuild = pipeline.Rebuild;
+        rebuildDiagnostic = pipeline.RebuildDiagnostic;
+        renderingLifetime = pipeline.RenderingLifetime;
+        lifetime.SubmissionAdmission = () => renderingLifetime is not ({ IsClosed: true } or { Reloading: true });
+        executableRevision = pipeline.ExecutableRevision;
+        if (rebuild is not null) reloadRegistration = renderingLifetime?.RegisterCompute(RequireReloadBoundary, InvalidateAssets);
     }
     /// <summary>Allows derived resource owners to preserve idempotent disposal.</summary>
     protected bool IsDisposed => lifetime.IsRetired;
@@ -80,9 +93,6 @@ internal abstract class GpuComputeProgram : IGpuProgram
 
     #region Private
     #region Workflow hooks
-    /// <summary>Preserves compute's eager or deferred one-time preparation policy.</summary>
-    bool IGpuProgram.PrepareExecutable() => pipeline.EnsureReady();
-
     /// <summary>Admits compute ownership without consulting engine shader state.</summary>
     void IGpuProgram.BindExecutable() => StateCache.Current.ActivateProgram(this);
     /// <summary>Publishes the complete authored or generated input set.</summary>
@@ -93,9 +103,9 @@ internal abstract class GpuComputeProgram : IGpuProgram
         if (bindingEntered) StateCache.Current.StopProgram(this);
     }
     /// <summary>Identifies the installed compute executable generation.</summary>
-    ulong IGpuProgram.ExecutableRevision => pipeline.ExecutableRevision;
-    /// <summary>Preserves one-time compute preparation while allowing already borrowed native reuse.</summary>
-    bool IGpuProgram.RequiresPreparation => !pipeline.IsValid;
+    ulong IGpuProgram.ExecutableRevision => executableRevision;
+    /// <summary>Reports whether current compute assets require initial preparation or executable replacement.</summary>
+    bool IGpuProgram.RequiresPreparation => reloadRequired || !pipeline.IsValid;
     /// <summary>Identifies the compute executable's originating context.</summary>
     (nint Handle, long Generation) IGpuProgram.ExecutableContext => pipeline.ExecutableContext;
     /// <summary>Exposes stable lifecycle data solely to the common workflow.</summary>
@@ -109,6 +119,7 @@ internal abstract class GpuComputeProgram : IGpuProgram
     /// <summary>Releases the single compute executable owner after all activation borrows end.</summary>
     void IGpuProgram.ReleaseExecutable()
     {
+        reloadRegistration?.Dispose();
         pipeline.Dispose();
     }
     /// <summary>Invokes extra-resource cleanup independently of native executable cleanup.</summary>

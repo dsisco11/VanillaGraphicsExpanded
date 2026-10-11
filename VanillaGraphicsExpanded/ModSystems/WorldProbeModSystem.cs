@@ -257,28 +257,16 @@ public sealed class WorldProbeModSystem : ModSystem, ILiveConfigurable
         }
     }
 
+    /// <summary>Withdraws world callbacks and retires independent probe consumers before their shared clipmap storage.</summary>
     public override void Dispose()
     {
-        base.Dispose();
-
-        if (capi is not null)
-        {
-            capi.Event.BlockChanged -= OnClientBlockChanged;
-        }
-
-        if (commonEvents is not null)
-        {
-            commonEvents.ChunkDirty -= OnChunkDirty;
-            commonEvents = null;
-        }
-
-        worldProbeUpdateRenderer?.Dispose();
-        worldProbeUpdateRenderer = null;
-
-        clipmapBufferManager?.Dispose();
-        clipmapBufferManager = null;
-        capi = null;
-        lastSnapshot = null;
+        var api = capi; capi = null; var events = commonEvents; commonEvents = null; lastSnapshot = null;
+        Rendering.Integration.RenderingCleanup.Run(
+            () => { if (api is not null) api.Event.BlockChanged -= OnClientBlockChanged; },
+            () => { if (events is not null) events.ChunkDirty -= OnChunkDirty; },
+            () => { var owner = worldProbeUpdateRenderer; worldProbeUpdateRenderer = null; owner?.Dispose(); },
+            () => { var owner = clipmapBufferManager; clipmapBufferManager = null; owner?.Dispose(); },
+            () => base.Dispose());
     }
 
     private void OnClientBlockChanged(BlockPos pos, Block oldBlock)

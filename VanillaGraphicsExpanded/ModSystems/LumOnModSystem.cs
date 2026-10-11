@@ -417,47 +417,20 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         clientApi.ModLoader.GetModSystem<WorldProbeModSystem>().SetSurfaceLightingProvider(lumonSceneRelightUpdateRenderer, traceGeometryRenderer);
     }
 
+    /// <summary>Releases all independent consumers before their shared lighting storage, even after cleanup failures.</summary>
     public override void Dispose()
     {
-        base.Dispose();
-
-        if (capi is not null)
-        {
-        }
-
-        if (commonEvents is not null)
-        {
-            commonEvents = null;
-        }
-
-        lumOnStatsPanel?.Dispose();
-        lumOnStatsPanel = null;
-
-        lumOnDebugRenderer?.Dispose();
-        lumOnDebugRenderer = null;
-
-        lumonSceneFeedbackUpdateRenderer?.Dispose();
-        lumonSceneFeedbackUpdateRenderer = null;
-
-        traceGeometryRenderer?.Dispose();
-        traceGeometryRenderer = null;
-
-        lumonSceneRelightUpdateRenderer?.Dispose();
-        lumonSceneRelightUpdateRenderer = null;
-
-
-
-
-        lumOnRenderer?.Dispose();
-        lumOnRenderer = null;
-
-        lumOnBufferManager?.Dispose();
-        lumOnBufferManager = null;
-
-        gBufferManager = null;
-        directLightingBufferManager = null;
-        capi = null;
+        commonEvents = null; capi = null; gBufferManager = null; directLightingBufferManager = null;
         lastLiveConfigSnapshot = null;
+        Rendering.Integration.RenderingCleanup.Run(
+            () => { var owner = lumOnStatsPanel; lumOnStatsPanel = null; owner?.Dispose(); },
+            () => { var owner = lumOnDebugRenderer; lumOnDebugRenderer = null; owner?.Dispose(); },
+            () => { var owner = lumonSceneFeedbackUpdateRenderer; lumonSceneFeedbackUpdateRenderer = null; owner?.Dispose(); },
+            () => { var owner = traceGeometryRenderer; traceGeometryRenderer = null; owner?.Dispose(); },
+            () => { var owner = lumonSceneRelightUpdateRenderer; lumonSceneRelightUpdateRenderer = null; owner?.Dispose(); },
+            () => { var owner = lumOnRenderer; lumOnRenderer = null; owner?.Dispose(); },
+            () => { var owner = lumOnBufferManager; lumOnBufferManager = null; owner?.Dispose(); },
+            () => base.Dispose());
     }
 
     private void EnsureLumOnStatsPanelInitialized(string reason)

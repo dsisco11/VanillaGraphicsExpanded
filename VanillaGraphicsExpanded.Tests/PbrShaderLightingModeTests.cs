@@ -25,12 +25,14 @@ public sealed class PbrShaderLightingModeTests
             Assert.False(PbrShaderLightingMode.LumOnEnabled);
             ConfigModSystem.Config.LumOn.Enabled = true;
             Assert.False(PbrShaderLightingMode.LumOnEnabled);
-            ShaderDigestReloadHook.Prefix();
+            ShaderDigestReloadHook.Prefix(out _);
+            ShaderDigestReloadHook.Finalizer(true);
             Assert.True(PbrShaderLightingMode.LumOnEnabled);
             // Reload entry establishes the new generation; there is no success-only commit or old-program rollback.
             ConfigModSystem.Config.LumOn.Enabled = false;
             Assert.True(PbrShaderLightingMode.LumOnEnabled);
-            ShaderDigestReloadHook.Prefix();
+            ShaderDigestReloadHook.Prefix(out _);
+            ShaderDigestReloadHook.Finalizer(true);
             Assert.False(PbrShaderLightingMode.LumOnEnabled);
         }
         finally
@@ -53,7 +55,8 @@ public sealed class PbrShaderLightingModeTests
             PbrShaderLightingMode.GenerationLumOnEnabled = false;
             ConfigModSystem.Config.LumOn.Enabled = true;
             ShaderRegistry.SupressShaderAndBufferReloads = true;
-            ShaderDigestReloadHook.Prefix();
+            ShaderDigestReloadHook.Prefix(out _);
+            ShaderDigestReloadHook.Finalizer(true);
             Assert.False(PbrShaderLightingMode.LumOnEnabled);
         }
         finally

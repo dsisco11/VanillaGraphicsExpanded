@@ -73,13 +73,12 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderPro
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnProbeAtlasPisMaskShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new LumOnProbeAtlasPisMaskShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
+        });
 
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
     }
 
     #endregion

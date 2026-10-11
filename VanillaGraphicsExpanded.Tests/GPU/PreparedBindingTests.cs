@@ -22,7 +22,7 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
-        using var shader = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        using var shader = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
         Assert.True(shader.EnsureReady(), string.Join("\n", assets.Logs));
         var installed = shader.ProgramLayout.BinaryInterface!;
         int waves = installed.GetUniformBlockIndex(LiquidWaveParamsUbo.BlockName);
@@ -122,7 +122,7 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
-        using var shader = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram { CaptureMode = 3 });
+        using var shader = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram { CaptureMode = 3 }, new VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(LiquidShaderProgram.Contract).With("VGE_LIQUID_CAPTURE_MODE", "3"));
         Assert.True(shader.EnsureReady(), string.Join("\n", assets.Logs));
         var contract = CopyResources(LiquidShaderProgram.Contract.Bindings);
         var original = contract.Samplers["terrainTex"];
@@ -142,7 +142,7 @@ public sealed class PreparedBindingTests(HeadlessGLFixture fixture) : RenderTest
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
-        using var shader = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        using var shader = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
         Assert.True(shader.EnsureReady(), string.Join("\n", assets.Logs));
         int executable = shader.ProgramId;
         var wrong = CopyResources(LiquidShaderProgram.Contract.Bindings);

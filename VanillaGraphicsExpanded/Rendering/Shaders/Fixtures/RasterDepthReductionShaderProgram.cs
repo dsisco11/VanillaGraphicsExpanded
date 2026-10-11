@@ -22,12 +22,12 @@ public sealed partial class RasterDepthReductionShaderProgram : GpuProgram, IRas
     /// <summary>Declares the shared reduction program.</summary>
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new RasterDepthReductionShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new RasterDepthReductionShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
-        GpuShaderPrograms.Declare(api, instance);
+        });
+
     }
 
     /// <summary>Supplies the mipmapped R32F minimum-depth texture.</summary>

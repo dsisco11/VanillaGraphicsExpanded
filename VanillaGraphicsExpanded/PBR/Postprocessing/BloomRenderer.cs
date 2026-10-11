@@ -47,7 +47,7 @@ internal sealed class BloomRenderer : IDisposable
             }
             catch { Dispose(); throw; }
         }
-        shader = GpuShaderPrograms.Get<BloomShaderProgram>(api, "pbr_bloom");
+        shader = GpuShaderProgramLibraries.Get<BloomShaderProgram>(api, "pbr_bloom");
         if (shader?.EnsureReady() != true) throw new InvalidOperationException("Owned bloom shader unavailable.");
         return pipeline = draw.Prepare(shader, levels[0].Target);
     }

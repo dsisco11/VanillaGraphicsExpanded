@@ -7,6 +7,15 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuProgramLifetime
 {
     #region Internal API
+    /// <summary>Supplies the owning registry or client admission without duplicating scope ownership.</summary>
+    internal Func<bool>? SubmissionAdmission { get; set; }
+    /// <summary>Reports whether native preparation, scoped use and replay remain admitted.</summary>
+    internal bool IsSubmissionAdmitted => SubmissionAdmission?.Invoke() != false;
+    /// <summary>Rejects closed or reloading client work before native scope capture or publication.</summary>
+    internal void RequireSubmissionAdmission()
+    {
+        if (!IsSubmissionAdmitted) throw new InvalidOperationException("GPU program submission admission is closed.");
+    }
     /// <summary>Counts current and suspended scope references to the installed generation.</summary>
     internal int BorrowCount { get; private set; }
     /// <summary>Reuses the native resource borrow contract when the family already has a resource owner.</summary>

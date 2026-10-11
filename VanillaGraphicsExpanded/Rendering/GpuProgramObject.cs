@@ -12,6 +12,8 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuProgramObject : GpuResource, IDisposable
 {
     private int programId;
+    private readonly (nint Handle, long Generation) context = Integration.RenderContextRegistry.Current();
+    protected override (nint Handle, long Generation) NativeProgramContext => context;
     private string? debugName;
     private GpuProgramLayout bindingCache = GpuProgramLayout.Empty;
 

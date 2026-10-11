@@ -6,18 +6,19 @@ using System.Threading;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
-using Vintagestory.API.Common;
+
 
 namespace VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 
 /// <summary>Bounds render-thread submissions and transfers completed candidates to their existing program owners.</summary>
-internal sealed class ShaderLinkBatch : IDisposable
+internal sealed partial class ShaderLinkBatch : IDisposable
 {
     [ThreadStatic] private static ShaderLinkBatch? current;
     [ThreadStatic] private static bool forceSynchronous;
     [ThreadStatic] private static Action<ShaderLinkBatch>? observation;
     private readonly ShaderLinkBatch? previous;
-    private readonly IAssetManager assets;
+    private readonly ShaderAssetSource source;
+    private readonly object assets;
     private readonly string domain;
     private readonly CancellationToken cancellation;
     private readonly GetProgramParameterName completionQuery;
@@ -38,13 +39,14 @@ internal sealed class ShaderLinkBatch : IDisposable
 
     #region Submission and consumption
     /// <summary>Submits a bounded window of exact settings; unsupported contexts retain ordinary synchronous loading.</summary>
-    internal ShaderLinkBatch(IAssetManager assets, string domain, IEnumerable<ShaderSettings> settings,
+    internal ShaderLinkBatch(ShaderAssetSource source, IEnumerable<ShaderSettings> settings,
         int maximumOutstanding = 8, CancellationToken cancellation = default, bool disable = false)
     {
         if (maximumOutstanding < 1) throw new ArgumentOutOfRangeException(nameof(maximumOutstanding));
         cancellation.ThrowIfCancellationRequested();
-        this.assets = assets;
-        this.domain = domain;
+        this.source = source;
+        this.assets = source.Identity;
+        this.domain = source.Domain;
         this.cancellation = cancellation;
         limit = maximumOutstanding;
         waiting = new Queue<ShaderLoadPlan>(settings.Select(value => new ShaderLoadPlan(value)));
@@ -62,7 +64,7 @@ internal sealed class ShaderLinkBatch : IDisposable
     }
 
     /// <summary>Consumes only an exact plan from the same asset owner and domain, without publishing its handle.</summary>
-    internal static PendingShaderProgram? Take(IAssetManager assets, string domain, ShaderLoadPlan plan)
+    internal static PendingShaderProgram? Take(object assets, string domain, ShaderLoadPlan plan)
     {
         var batch = current;
         if (batch == null) return null;
@@ -109,7 +111,7 @@ internal sealed class ShaderLinkBatch : IDisposable
     }
 
     /// <summary>Withdraws pending asset snapshots in existing batch scopes without creating another asset registry.</summary>
-    internal static void InvalidateAssets(IAssetManager assets, string domain)
+    internal static void InvalidateAssets(object assets, string domain)
     {
         for (var batch = current; batch != null; batch = batch.previous)
             if (ReferenceEquals(batch.assets, assets) && batch.domain == domain)
@@ -140,8 +142,6 @@ internal sealed class ShaderLinkBatch : IDisposable
     /// <summary>Reads captured assets and submits independent work while recording failures for the requesting owner.</summary>
     private void Fill()
     {
-        ReadOnlySpan<byte> Read(string path) => assets.TryGet(AssetLocation.Create("shaders/" + path, domain), loadAsset: true)?.Data
-            ?? throw new InvalidOperationException("Missing built shader asset: " + domain + ":shaders/" + path);
         while (!assetsInvalidated && submitted.Count < limit && waiting.TryDequeue(out var plan))
         {
             cancellation.ThrowIfCancellationRequested();
@@ -150,7 +150,7 @@ internal sealed class ShaderLinkBatch : IDisposable
                 // Each asset callback can change context; never let the next plan adopt that context.
                 RequireOriginatingContext();
                 long started = Stopwatch.GetTimestamp();
-                var pending = new PendingShaderProgram(plan, Read, () => ShaderDigestIndexCache.ForAssets(assets, domain), completionQuery);
+                var pending = new PendingShaderProgram(plan, source.Read, source.Digest, completionQuery);
                 SubmissionMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
                 submitted.Add((plan, pending, null));
             }

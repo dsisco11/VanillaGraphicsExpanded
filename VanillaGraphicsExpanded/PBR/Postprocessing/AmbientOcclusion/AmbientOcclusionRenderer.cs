@@ -8,6 +8,7 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 /// <summary>Publishes current opaque visibility before ambient lighting, independently of LumOn availability.</summary>
 internal sealed class AmbientOcclusionRenderer : IRenderer
 {
+    private System.IDisposable? reloadRegistration;
     private static AmbientOcclusionRenderer? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager buffers;
@@ -30,7 +31,7 @@ internal sealed class AmbientOcclusionRenderer : IRenderer
         unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,Retire);
         api.Event.RegisterRenderer(this,EnumRenderStage.Before,"vge_ao_reset");
         api.Event.RegisterRenderer(this,EnumRenderStage.Opaque,"vge_ambient_occlusion");
-        api.Event.ReloadShader+=Reload;api.Event.LeaveWorld+=Retire;
+        reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload);api.Event.LeaveWorld+=Retire;
     }
     /// <summary>Captures native quality and completed receiver inputs, then publishes only after all spatial passes succeed.</summary>
     public void OnRenderFrame(float deltaTime,EnumRenderStage stage) {
@@ -42,8 +43,8 @@ internal sealed class AmbientOcclusionRenderer : IRenderer
         var primary=api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if(buffers.SurfaceTexture is not {} surface) throw new InvalidOperationException("AO requires the owned surface G-buffer.");
         draw??=new();depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
-        var horizon=GpuShaderPrograms.Get<PostSsaoShaderProgram>(api,"pbr_post_ssao")??throw new InvalidOperationException("AO program missing.");
-        var filter=GpuShaderPrograms.Get<AmbientOcclusionFilterShaderProgram>(api,"pbr_ao_filter")??throw new InvalidOperationException("AO filter program missing.");
+        var horizon=GpuShaderProgramLibraries.Get<PostSsaoShaderProgram>(api,"pbr_post_ssao")??throw new InvalidOperationException("AO program missing.");
+        var filter=GpuShaderProgramLibraries.Get<AmbientOcclusionFilterShaderProgram>(api,"pbr_ao_filter")??throw new InvalidOperationException("AO filter program missing.");
         var receiverDepth=SceneColor.SceneColorParticleCapture.ReceiverDepthTexture(api)??depth;
         var hierarchy=DepthHierarchyRenderer.Texture??throw new InvalidOperationException("AO requires the current corrected-depth hierarchy.");
         if(!ReferenceEquals(DepthHierarchyRenderer.View,VgeFrameRenderer.Current) ||
@@ -59,7 +60,7 @@ internal sealed class AmbientOcclusionRenderer : IRenderer
         if(disposed) return;disposed=true;
         if(ReferenceEquals(active,this)) active=null;
         api.Event.UnregisterRenderer(this,EnumRenderStage.Before);api.Event.UnregisterRenderer(this,EnumRenderStage.Opaque);
-        api.Event.ReloadShader-=Reload;api.Event.LeaveWorld-=Retire;unregisterResize();Retire();
+        reloadRegistration?.Dispose();api.Event.LeaveWorld-=Retire;unregisterResize();Retire();
     }
     #endregion
     #region Private

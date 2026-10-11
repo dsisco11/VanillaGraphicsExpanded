@@ -11,6 +11,7 @@ namespace VanillaGraphicsExpanded.PBR.SceneColor;
 /// <summary>Prepares the mandatory HDR scene producers and tracks their pending display input.</summary>
 internal sealed class SceneColorPipeline : IRenderer
 {
+    private System.IDisposable? reloadRegistration;
     private static SceneColorPipeline? active;
     private readonly ICoreClientAPI api;
     private readonly PBRCompositeRenderer composite;
@@ -53,7 +54,7 @@ internal sealed class SceneColorPipeline : IRenderer
         unregisterResize = ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder, Reset);
         api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_scene_color");
         api.Event.LeaveWorld += RetireScene;
-        api.Event.ReloadShader += Reload;
+        reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload);
     }
 
     /// <summary>Runs after existing Before-stage resource and atmospheric publication.</summary>
@@ -70,7 +71,7 @@ internal sealed class SceneColorPipeline : IRenderer
         // This tracks the input to final composition, not an optional HDR mode. Even
         // failed preparation must never cause subsequent scene draws to emit display RGB.
         hasSceneInput = true;
-        var final = GpuShaderPrograms.Get<Postprocessing.FinalDisplayShaderProgram>(api, "pbr_final");
+        var final = GpuShaderProgramLibraries.Get<Postprocessing.FinalDisplayShaderProgram>(api, "pbr_final");
         if (final?.EnsureReady() != true)
             throw new InvalidOperationException($"VGE HDR requires pbr_final: {final?.PreparationFailure?.Message ?? "declaration unavailable or not ready"}.", final?.PreparationFailure);
         if (!targets.Prepare(api.Render.FrameBuffers, out string? failure))
@@ -98,7 +99,7 @@ internal sealed class SceneColorPipeline : IRenderer
         if (ReferenceEquals(active, this)) active = null;
         api.Event.UnregisterRenderer(this, EnumRenderStage.Before);
         api.Event.LeaveWorld -= RetireScene;
-        api.Event.ReloadShader -= Reload;
+        reloadRegistration?.Dispose();
         unregisterResize();
         RetireScene();
     }
@@ -118,7 +119,7 @@ internal sealed class SceneColorPipeline : IRenderer
     /// <summary>Requires fresh producer preparation following shader reload.</summary>
     private bool Reload()
     {
-        Reset();
+        RetireScene();
         return true;
     }
     #endregion

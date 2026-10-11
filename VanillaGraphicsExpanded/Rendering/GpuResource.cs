@@ -10,6 +10,9 @@ public abstract class GpuResource : IDisposable
 {
     private int disposed;
     private int activePassReferences;
+    private readonly GpuResourceManager? deletionManager = GpuResourceManagerSystem.CurrentManager;
+    private readonly (nint Handle, long Generation) nativeContext = Integration.RenderContextRegistry.Current();
+    protected virtual (nint Handle, long Generation) NativeProgramContext => default;
 
 
 
@@ -68,7 +71,8 @@ public abstract class GpuResource : IDisposable
 
         if (id != 0 && OwnsResource)
         {
-            DeleteOrEnqueue(ResourceKind, id);
+            var origin = NativeProgramContext != default ? NativeProgramContext : nativeContext;
+            RetireResource(ResourceKind, id, origin, deletionManager);
         }
 
         OnAfterDelete();
@@ -105,6 +109,22 @@ public abstract class GpuResource : IDisposable
 
     protected virtual void OnAfterDelete()
     {
+    }
+
+    /// <summary>Retires a resource only in its originating namespace, independently of other resource owners.</summary>
+    private static void RetireResource(GpuResourceKind kind, nint id,
+        (nint Handle, long Generation) origin, GpuResourceManager? manager)
+    {
+        // Context-free CPU declarations retain the existing service policy. Native owners
+        // abandon dead namespaces or defer to their captured manager while another context is current.
+        if (origin == default) { DeleteOrEnqueue(kind, id); return; }
+        if (!Integration.RenderContextRegistry.IsAlive(origin)) return;
+        if (origin != Integration.RenderContextRegistry.Current())
+        {
+            manager?.EnqueueResourceDeletion(kind, id, origin);
+            return;
+        }
+        DeleteOrEnqueue(kind, id);
     }
 
     /// <summary>Retires an externally owned handle through the same deletion policy as owned resources.</summary>

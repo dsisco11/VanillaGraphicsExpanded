@@ -23,7 +23,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
             var store = new VanillaGraphicsExpanded.Rendering.ProgramBinaries.ProgramBinaryStore(directory);
             using var cache = VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.UseStoreForTesting(store);
             using var assets = new BinaryShaderApiFixture();
-            var shader = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(assets.Api, new FinalDisplayShaderProgram());
+            var shader = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Declare(assets.Api, FinalDisplayShaderProgram.Contract.Identity, () => new FinalDisplayShaderProgram());
             using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [4f, 4f, 4f, .37f]);
             using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 0f]);
             using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
@@ -41,7 +41,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
                     store.Write(key, -1, [1, 2, 3, 4]);
                 }
                 bool ready = path == 3
-                    ? VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Preload(assets.Api, [shader])
+                    ? VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Preload(assets.Api, [shader])
                     : shader.EnsureReady();
                 Assert.True(ready, string.Join("\n", assets.Logs));
                 Assert.Equal(path is 1 or 3, VanillaGraphicsExpanded.Rendering.ProgramBinaries.DriverProgramCache.LastLoadWasHit);

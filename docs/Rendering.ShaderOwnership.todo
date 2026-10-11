@@ -3,8 +3,8 @@ VGE shader ownership and engine separation
 
 Source proposal
   Rendering.ShaderOwnership.Proposal.md (sibling of this file) is authoritative.
-  Status: Phases 1-4 complete; independent executable ownership and cached/uncached rendering validated.
-  Registry/reload migration, ordered shutdown and final acceptance remain unchecked.
+  Status: Phases 1-5 complete; independent executable ownership, registry/reload and ordered shutdown validated.
+  Documentation reconciliation and user-run final acceptance remain unchecked.
 
 Scope and shared contracts
   Establish IGpuProgram with default implementation methods, implemented by independent
@@ -261,35 +261,83 @@ Phase 5: Establish registry, reload and context lifetime
   Depends on Phase 4. Outcome: VGE ownership remains correct across assets, worlds and context retirement.
   Proposal: Concrete registry responsibilities; Reload and lifecycle sequencing.
 
-  ☐ Make GpuShaderPrograms an instance owned by client rendering lifetime with explicit composition.
+  ☑ Make GpuShaderPrograms an instance owned by client rendering lifetime with explicit composition.
     - Decouple core identity from ICoreClientAPI; preserve typed lookup and useful mismatch diagnostics.
     - Enforce the selected duplicate-declaration policy without silently discarding incompatible
       types/contracts/settings or constructing throwaway replacement owners on asset reload.
     - Keep declarations/lookup free of binary reads and GL work; selected preload follows configuration.
       Preserve demand preparation, failed-input suppression and observable readiness/failure details.
     - Own removal, shutdown and callback invalidation so retired worlds/registries cannot revive.
-  ☐ Adapt assets/logging through ShaderAssetReader, digest access and diagnostic sinks at integration.
+  ☑ Adapt assets/logging through ShaderAssetReader, digest access and diagnostic sinks at integration.
     - Include ShaderLinkBatch's engine asset-manager boundary; preserve shared source identity and
       asset generation without duplicating import/digest/binary-cache services.
-  ☐ Replace delayed RegisterAll invalidation with a synchronous reload transaction.
+  ☑ Replace delayed RegisterAll invalidation with a synchronous reload transaction.
     - At a safe boundary withdraw old readiness, mark reload, clear digest/import caches and capture
       coherent settings. Let the engine refresh/rebuild native shaders before completing VGE invalidation.
     - Withdraw dependent render publications, reopen demand preparation and preload only selected
       mandatory sets when configured. Handle native exceptions, suppressed reload and compile failure.
     - Report native API reload status separately from VGE lazy/mandatory readiness; eliminate any
       window where old assets appear current because a callback has not executed yet.
-  ☐ Apply the chosen compute reload policy to feature owners and test successful-executable reload.
+  ☑ Apply the chosen compute reload policy to feature owners and test successful-executable reload.
     - Preserve CPU input state required by the policy; do not treat failure retry as executable reload.
-  ☐ Wire actual shutdown order: stop submissions, dispose renderer/PSO borrowers, retire registry
+  ☑ Wire actual shutdown order: stop submissions, dispose renderer/PSO borrowers, retire registry
     programs and drain native deletion on the live originating context.
     - Keep configuration, asset reload, world leave/re-entry and native context retirement distinct.
       Withdraw owner knowledge before context reuse; abandon deletion with a destroyed context
       rather than delete a matching numeric handle on another context.
-  ☐ Validate duplicate/mismatched declarations, demand/preload failures, reload ordering/failures,
+  ☑ Validate duplicate/mismatched declarations, demand/preload failures, reload ordering/failures,
     settings edits, feature compute reload, world re-entry, queued callbacks and retired-context reuse.
     - Prove CPU blocks survive executable reload and retire once; verify targeted cache deletion.
-  ☐ Completion: no delayed registration dependency remains; lifecycle checks establish coherent
+  ☑ Completion: no delayed registration dependency remains; lifecycle checks establish coherent
     readiness, no owner resurrection and correct borrower/resource retirement ordering.
+
+  Traceability: explicit registry composition and duplicate policy -> proposal Concrete registry
+    responsibilities and Resolved migration contracts / Registry and shutdown policy ->
+    instance GpuShaderPrograms, immutable GpuProgramDeclaration, explicit client adapter and strict
+    declaration/demand fixtures. Asset isolation -> proposal Concrete registry responsibilities;
+    GPU.ShaderDemandLoading.md / Graphics and Compute ownership -> ShaderAssetSource plus engine
+    adapters for graphics, compute and ShaderLinkBatch, preserving shared digest/import/cache services.
+    Reload -> proposal Reload and lifecycle sequencing; Rendering.ShaderBindingState.md / Prepared
+    resource submission and Generated desired state -> synchronous native prefix/finalizer admission,
+    coherent configuration snapshot, publication withdrawal, selected mandatory preloads, retained
+    compute wrapper replacement and CPU-input replay. Registry/lifetime regressions cover suppression,
+    native failure completion, failed-asset retry and supersession without admitting old allocations.
+    Retirement -> proposal Reload and lifecycle sequencing and Resolved migration contracts /
+    Registry and shutdown policy; Rendering.AuthoritativePipelineState.md / Scoped restoration,
+    borrowed bindings and failure guarantees; Rendering.EngineStateSwitching.md / Selective invalidation ->
+    actual composition ordering, closed submission admission, feature cleanup aggregation, existing
+    scope/boundary/pass CPU abandonment and originating-context stamped program deletion.
+    Composition regressions exercise configuration callback supersession and root-owned shutdown
+    despite an early engine manager callback and a feature failure; lifetime/resource regressions
+    exercise world epochs, terminal registries,
+    forced/dead registration retirement, render-pass target borrowing and targeted native deletion.
+
+  Review correction: root owns GPU manager shutdown through explicit teardown; early engine manager
+    Dispose callbacks cannot dispose the root or close its deletion service. Removed the thread-wide
+    deletion suppression flag and engine deletion guards. Resource retirement uses originating-context
+    identity and its captured manager; immediate and queued buffer/program regression cases preserve
+    retired-registration sentinels while live-context retirement still deletes normally. Targeted
+    validation passed 71/71 with no skips; receipts: ../artifacts/shader-ownership-targeted-retirement-build.log
+    and ../artifacts/shader-ownership-targeted-retirement-tests.log. Fullscreen engine mesh retirement
+    uses the same originating-context queue at its owning adapter, preserving engine cleanup and
+    abandoning retired names. Registered current context authority permits final draining before
+    the first renderer tick; mesh and startup-shutdown regressions cover both corrections.
+
+  Verification: Debug Rebuild passed with production/fixture shader producers enabled; final
+    incremental build passed (0 errors, 126 warnings). Focused ownership/admission suite 147/147,
+    core contracts/state suite 99/99 and final retirement/geometry/composition suite 78/78 passed.
+    Affected rendering 245/245, packaged shader lifecycle 452/452 and generator 178/178 receipts
+    remain applicable; seven nonvariant lifecycle regressions were also rerun successfully. All
+    reported suites had no skips. Counts overlap and are not a unique-test total. Earlier failed
+    investigation receipts are superseded by the final clean runs. Receipts:
+    ../artifacts/shader-ownership-phase5-build.log, ../artifacts/shader-ownership-phase5-focused-tests.log,
+    ../artifacts/shader-ownership-phase5-core-tests.log, ../artifacts/shader-ownership-phase5-affected-tests.log,
+    ../artifacts/shader-ownership-phase5-lifecycle-tests.log, ../artifacts/shader-ownership-phase5-generator-tests.log,
+    ../artifacts/shader-ownership-phase5-lifecycle-regression-tests.log,
+    ../artifacts/shader-ownership-targeted-geometry-build.log and
+    ../artifacts/shader-ownership-targeted-geometry-tests.log. Second implementation review completed
+    2026-10-10; independent audit-stage-completion passed with no unresolved findings. No game execution or performance claim.
+    Documentation reconciliation and user-run game acceptance remain Phase 6.
 
 Phase 6: Reconcile documentation and final acceptance
   Depends on Phase 5. Outcome: the migration is documented and qualified at each required evidence level.

@@ -947,7 +947,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
         if (shader is null || !shader.EnsureReady())
         {
             RateLimitedClipmapDebugLog("World-probe bounds: shader missing/load error");
@@ -997,7 +997,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
         if (shader is null || !shader.EnsureReady())
         {
             return;
@@ -1391,7 +1391,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<VanillaGraphicsExpanded.Rendering.Shaders.VgeWorldProbeOrbsPointsShaderProgram>(capi, "vge_worldprobe_orbs_points");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<VanillaGraphicsExpanded.Rendering.Shaders.VgeWorldProbeOrbsPointsShaderProgram>(capi, "vge_worldprobe_orbs_points");
         if (shader is null || !shader.EnsureReady())
         {
             RateLimitedClipmapDebugLog("World-probe orbs: shader missing/load error");
@@ -1463,7 +1463,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             pointSize: 18, programPointSize: true, depthWrite: true, blending: OrbBlending);
         if (hasClosestProbeMarker && closestProbeMarkerGeometry is not null)
         {
-            var markerShader = GpuShaderPrograms.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
+            var markerShader = GpuShaderProgramLibraries.Get<VgeDebugLinesShaderProgram>(capi, "vge_debug_lines");
             if (markerShader.EnsureReady())
             {
                 markerShader.WorldOffset = new Vec3f(0, 0, 0);
@@ -1938,7 +1938,7 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
             return;
         }
 
-        var shader = GpuShaderPrograms.Get<DebugTextureShaderProgram>(capi, "debug_texture");
+        var shader = GpuShaderProgramLibraries.Get<DebugTextureShaderProgram>(capi, "debug_texture");
         shader.Scene = texId;
         debugSubmission.Draw("LumOn.NormalDepthAtlas", shader, quadMeshRef,
             EngineFullscreenGeometry.Layout, new(0, 6), PrimitiveType.Triangles);

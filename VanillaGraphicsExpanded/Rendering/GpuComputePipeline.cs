@@ -10,7 +10,6 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 
-using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -22,6 +21,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
 {
     private int programId;
+    protected override (nint Handle, long Generation) NativeProgramContext => ExecutableContext;
     /// <summary>Identifies the single installed native generation.</summary>
     internal ulong ExecutableRevision { get; private set; }
     /// <summary>Identifies the native context owning that generation.</summary>
@@ -213,13 +213,14 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
                 () => ShaderDigestIndexCache.ForFile(Path.Combine(manifestRoot, Spirv.ShaderBinaryDigest.FileName)));
         }
         catch (Exception ex) { infoLog = ex.Message; return false; }
+
     }
 
     /// <summary>Resolves and validates all compute settings before reading a borrowed binary or allocating GL objects.</summary>
     private static bool TryCreateFromBinaryContract(ShaderSettings settings,
         Spirv.ShaderAssetReader read, out GpuComputePipeline? pipeline, out string infoLog,
         string? debugName, GpuProgramLayout? layout, Action<string>? warn,
-        Func<Spirv.ShaderBinaryDigest.Manifest?> digestIndex, IAssetManager? assets = null)
+        Func<Spirv.ShaderBinaryDigest.Manifest?> digestIndex, object? assets = null)
     {
         pipeline = null;
         infoLog = string.Empty;
@@ -229,7 +230,9 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
             if (plan.Stages.Count != 1 || plan.Stages[0].Stage.Kind != ShaderStageKind.Compute)
                 throw new ArgumentException($"Program '{settings.Contract.Identity}' is not a compute program.");
             using var pending = assets == null ? null : ShaderLinkBatch.Take(assets, PBR.ShaderImportsSystem.DefaultDomain, plan);
+            var context = Integration.RenderContextRegistry.Current();
             var inputs = pending?.Inputs ?? DriverProgramCache.Prepare(plan, read, digestIndex);
+            if (context != Integration.RenderContextRegistry.Current()) throw new InvalidOperationException("Compute preparation requires its originating context.");
             int candidate = pending?.DetachProgram() ?? GL.CreateProgram();
             try
             {
@@ -268,80 +271,6 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
         }
     }
 
-    /// <summary>Loads a typed, explicitly declared compute program from packaged assets.</summary>
-    public static bool TryCreateFromAssets(ICoreAPI api, ShaderSettings settings,
-        out GpuComputePipeline? pipeline, out string infoLog, string? debugName = null,
-        ILogger? log = null, CancellationToken ct = default, GpuProgramLayout? layout = null)
-    {
-        ct.ThrowIfCancellationRequested();
-        ReadOnlySpan<byte> Read(string path) => api.Assets.TryGet(AssetLocation.Create("shaders/" + path,
-            PBR.ShaderImportsSystem.DefaultDomain), loadAsset: true)?.Data
-            ?? throw new InvalidOperationException("Missing built compute shader asset: " + path);
-        return TryCreateFromBinaryContract(settings, Read, out pipeline, out infoLog,
-            debugName, layout, message => (log ?? api.Logger)?.Warning(message),
-            () => ShaderDigestIndexCache.ForAssets(api.Assets, PBR.ShaderImportsSystem.DefaultDomain), api.Assets);
-    }
-    /// <summary>
-    /// Creates a compute pipeline from a required packaged SPIR-V binary. The legacy preference parameter is ignored; GLSL fallback is never used.
-    /// </summary>
-    /// <remarks>
-    /// This is the recommended runtime entry point for VGE-owned compute shaders.
-    /// </remarks>
-    public static bool TryCreateFromAssets(
-        ICoreAPI api,
-        string shaderName,
-        out GpuComputePipeline? pipeline,
-        out global::VanillaGraphicsExpanded.ShaderSourceCode? sourceCode,
-        out string infoLog,
-        bool preferSpirv = true,
-        string stageExtension = "csh",
-        IReadOnlyDictionary<string, string?>? defines = null,
-        string? debugName = null,
-        ILogger? log = null,
-        CancellationToken ct = default,
-        GpuProgramLayout? layout = null)
-    {
-        ArgumentNullException.ThrowIfNull(api);
-        ArgumentException.ThrowIfNullOrWhiteSpace(shaderName);
-        ArgumentException.ThrowIfNullOrWhiteSpace(stageExtension);
-
-        pipeline = null;
-        sourceCode = null;
-        infoLog = string.Empty;
-
-        ct.ThrowIfCancellationRequested();
-        try
-        {
-            if (stageExtension != "csh") throw new ArgumentException("Compute programs require a compute stage.");
-            var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram(shaderName), defines);
-            return TryCreateFromAssets(api, settings, out pipeline, out infoLog, debugName, log, ct, layout);
-        }
-        catch (Exception ex) { infoLog = ex.Message; return false; }
-    }
-    [Obsolete("Use TryCreateFromAssets(..., preferSpirv: true/false, ...) instead.")]
-    public static bool TryCreateFromAssetsPreferSpirv(
-        ICoreAPI api,
-        string shaderName,
-        out GpuComputePipeline? pipeline,
-        out global::VanillaGraphicsExpanded.ShaderSourceCode? sourceCode,
-        out string infoLog,
-        string stageExtension = "csh",
-        IReadOnlyDictionary<string, string?>? defines = null,
-        string? debugName = null,
-        ILogger? log = null,
-        CancellationToken ct = default)
-        => TryCreateFromAssets(
-            api: api,
-            shaderName: shaderName,
-            pipeline: out pipeline,
-            sourceCode: out sourceCode,
-            infoLog: out infoLog,
-            preferSpirv: true,
-            stageExtension: stageExtension,
-            defines: defines,
-            debugName: debugName,
-            log: log,
-            ct: ct);
     /// <summary>
     /// Uses this compute pipeline via <c>glUseProgram</c>.
     /// </summary>
@@ -469,9 +398,17 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
     }
 
     /// <summary>Pairs binding-only restoration with the existing native resource borrow contract.</summary>
-    private sealed class ComputeScope(GpuComputePipeline owner, StateCache.ProgramScope scope) : IDisposable
+    private sealed class ComputeScope : IDisposable
     {
+        private readonly GpuComputePipeline owner;
+        private readonly StateCache.ProgramScope scope;
         private bool ended;
+        /// <summary>Registers the native borrow with the existing scope abandonment path.</summary>
+        internal ComputeScope(GpuComputePipeline owner, StateCache.ProgramScope scope)
+        {
+            this.owner = owner; this.scope = scope;
+            scope.OnAbandon(() => { if (ended) return; ended = true; owner.ReleasePassReference(); });
+        }
         /// <summary>Restores the binding once and releases the originating native owner's borrow.</summary>
         public void Dispose()
         {

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.Integration;
 using System.Collections.Immutable;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using System.Numerics;
@@ -70,10 +71,22 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         api.SetupGet(value => value.World.SeaLevel).Returns(0);
         programs.Initialize(api.Object);
         using var frameCamera = TestFrameCamera.CreateIdentity(2, 2);
-        GpuShaderPrograms.Get<AtmosphereSkyShaderProgram>(api.Object, "pbr_sky")!.FrameInputs = frameCamera;
+        GpuShaderProgramLibraries.Get<AtmosphereSkyShaderProgram>(api.Object, "pbr_sky")!.FrameInputs = frameCamera;
         using var gbuffer = new GBufferManager(api.Object);
         Assert.True(gbuffer.EnsureBuffers(2, 2));
         using var sky = new AtmosphereSkyRenderer(api.Object, gbuffer);
+        var lifetime = ClientRenderingLifetime.Find(api.Object)!;
+        lifetime.Attach(sky.Dispose);
+        // Exercise actual synchronous withdrawal around the native engine event.
+        void Reload()
+        {
+            ClientRenderingLifetime.BeginNativeReload();
+            Assert.True(lifetime.Reloading);
+            Assert.Null(lifetime.ReloadFailure);
+            Assert.False((bool)typeof(AtmosphereSkyRenderer).GetField("failed", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sky)!);
+            try { events.Raise(value => value.ReloadShader += null!); }
+            finally { ClientRenderingLifetime.CompleteNativeReload(); }
+        }
         try
         {
             long startup = StateCache.Current.DrawSubmissions;
@@ -87,7 +100,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
             for (int cycle = 0; cycle < 4; cycle++)
             {
                 if (cycle == 1) ScreenResourceManager.HandleScreenResize();
-                if (cycle == 2) events.Raise(value => value.ReloadShader += null!);
+                if (cycle == 2) Reload();
                 if (cycle == 3) events.Raise(value => value.LeaveWorld += null!);
                 Assert.False(AtmosphereSkyDrawHook.Prefix());
                 Assert.True(gbuffer.EnsureBuffers(2, 2));
@@ -159,16 +172,16 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
             Assert.False(AtmosphereSkyDrawHook.Prefix());
             // A resource exception latches owned drawing until reload without reviving vanilla.
             frames[(int)EnumFrameBuffer.LiquidDepth] = new FrameBufferRef { DepthTextureId = liquidDepth.TextureId, Width = 2, Height = 2 };
-            events.Raise(value => value.ReloadShader += null!);
+            Reload();
             // Camera inversion belongs to the shared frame owner; fail the sky-owned effect capture instead.
             Mock.Get(render).SetupGet(value => value.ShaderUniforms).Throws(new InvalidOperationException("Fixture sky capture failure."));
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.Equal(missing, StateCache.Current.DrawSubmissions);
             Assert.False(AtmosphereSkyDrawHook.Prefix());
             Mock.Get(render).SetupGet(value => value.ShaderUniforms).Returns(uniforms);
-            events.Raise(value => value.ReloadShader += null!);
+            Reload();
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
-            Assert.Equal(missing + 1, StateCache.Current.DrawSubmissions);
+            Assert.True(missing + 1 == StateCache.Current.DrawSubmissions, string.Join(Environment.NewLine, assets.Logs));
             Assert.False(AtmosphereSkyDrawHook.Prefix());
             sky.Dispose();
             events.Verify(value => value.UnregisterRenderer(sky, EnumRenderStage.Opaque), Times.Once);
@@ -179,6 +192,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         }
         finally
         {
+            lifetime.Shutdown();
             ShaderProgramBase.CurrentShaderProgram = null;
             StateCache.Current.UseProgram(0);
         }

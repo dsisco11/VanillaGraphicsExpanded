@@ -31,8 +31,8 @@ public sealed class LiquidProductionPipelineTests(HeadlessGLFixture fixture) : R
         try
         {
             GpuProgram shader = route == "depth"
-                ? GpuShaderPrograms.Get<LiquidDepthShaderProgram>(assets.Api, "pbr_liquid_depth")!
-                : GpuShaderPrograms.Get<LiquidShaderProgram>(assets.Api,
+                ? GpuShaderProgramLibraries.Get<LiquidDepthShaderProgram>(assets.Api, "pbr_liquid_depth")!
+                : GpuShaderProgramLibraries.Get<LiquidShaderProgram>(assets.Api,
                     route == "surface" ? "pbr_liquid" : LiquidShaderProgram.VolumePassName)!;
             if (shader is LiquidDepthShaderProgram depthShader) depthShader.FrameInputs = frameCamera;
             else ((LiquidShaderProgram)shader).FrameInputs = frameCamera;
@@ -59,7 +59,7 @@ public sealed class LiquidProductionPipelineTests(HeadlessGLFixture fixture) : R
             pipeline.ValidateTargets(targets.Signature);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { GpuShaderPrograms.Dispose(assets.Api); }
+        finally { GpuShaderProgramLibraries.Dispose(assets.Api); }
     }
     #endregion
 }

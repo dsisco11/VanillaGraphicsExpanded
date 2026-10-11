@@ -40,12 +40,12 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new PBRDirectLightingShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new PBRDirectLightingShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
+        });
+
     }
 
     #endregion

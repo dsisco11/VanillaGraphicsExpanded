@@ -44,13 +44,12 @@ public sealed partial class LumOnWorldProbeRadianceTileResolveShaderProgram : Gp
 
     public static void Register(ICoreClientAPI api)
     {
-        var instance = new LumOnWorldProbeRadianceTileResolveShaderProgram
+        GpuShaderProgramLibraries.Declare(api, Contract.Identity, () => new LumOnWorldProbeRadianceTileResolveShaderProgram
         {
             PassName = Contract.Identity,
             AssetDomain = "vanillagraphicsexpanded"
-        };
+        });
 
-        global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Declare(api, instance);
     }
 
     #endregion

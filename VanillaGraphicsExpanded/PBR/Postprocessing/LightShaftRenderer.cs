@@ -35,7 +35,7 @@ internal sealed class LightShaftRenderer : IDisposable
         }
         passes=quality>=2?3:2;
         samples=Math.Clamp(Math.Min(sampleLimit,quality>=3?64:quality>=2?32:16),1,64);
-        shader=GpuShaderPrograms.Get<LightShaftShaderProgram>(api,"pbr_lightshafts");
+        shader=GpuShaderProgramLibraries.Get<LightShaftShaderProgram>(api,"pbr_lightshafts");
         if(shader?.EnsureReady()!=true) throw new InvalidOperationException("Owned solar-shaft shader unavailable.");
         return pipeline=draw.Prepare(shader,first.Target);
     }

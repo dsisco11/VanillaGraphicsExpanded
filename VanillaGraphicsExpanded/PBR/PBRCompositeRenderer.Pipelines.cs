@@ -40,7 +40,7 @@ public sealed partial class PBRCompositeRenderer
             PreparePipeline(ref compositePipeline, shader, CompositeTargets),
             PreparePipeline(ref receiverPipeline, shader, ReceiverTargets)
         };
-        var display = GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
+        var display = GpuShaderProgramLibraries.Get<PBRDisplayResolveShaderProgram>(capi, "pbr_display_resolve");
         if (display?.EnsureReady() != true) return null;
         var primaryColor = gBufferManager.PrimaryFramebuffer.GetAttachment(FramebufferAttachment.ColorAttachment0)
             ?? throw new InvalidOperationException("Primary color metadata is unavailable.");
@@ -50,7 +50,7 @@ public sealed partial class PBRCompositeRenderer
         if (ssao is not null) pipelines.Add(ssao);
         if (ConfigModSystem.Config.WaterRefractionEnabled && ConfigModSystem.Config.WaterRefractionBackgroundScale == 1)
         {
-            var reduction = GpuShaderPrograms.Get<Liquids.WaterRefractionReductionShaderProgram>(capi, "water_refraction_reduce");
+            var reduction = GpuShaderProgramLibraries.Get<Liquids.WaterRefractionReductionShaderProgram>(capi, "water_refraction_reduce");
             if (reduction?.EnsureReady() == true)
                 pipelines.Add(PreparePipeline(ref reductionPipeline, reduction, ReductionTargets));
         }

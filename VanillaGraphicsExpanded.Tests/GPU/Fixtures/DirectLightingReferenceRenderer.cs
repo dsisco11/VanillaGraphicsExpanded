@@ -58,8 +58,8 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
         this.gBufferManager = gBufferManager;
         this.bufferManager = bufferManager;
 
-        var shader = Rendering.Shaders.GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
-        if (shader != null) Rendering.Shaders.GpuShaderPrograms.Preload(capi, [shader]);
+        var shader = Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
+        if (shader != null) Rendering.Shaders.GpuShaderProgramLibraries.Preload(capi, [shader]);
 
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);
         quadMesh.Rgba = null;
@@ -93,7 +93,7 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
     /// <summary>Prepares the executable before its resource footprint is captured.</summary>
     internal PBRDirectLightingShaderProgram? PrepareBoundaryProgram()
     {
-        var shader = GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
+        var shader = GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
         return shader?.EnsureReady() == true ? shader : null;
     }
 
@@ -131,7 +131,7 @@ internal sealed class DirectLightingReferenceRenderer : IRenderer, IDisposable
         MatrixHelper.Invert(capi.Render.CameraMatrixOriginf, invModelViewMatrix);
 
         // Shader program
-        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
+        var shader = global::VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(capi, "pbr_direct_lighting");
         if (shader is null || shader.RequiresPreparation || shader.IsRetired)
         {
             return false;

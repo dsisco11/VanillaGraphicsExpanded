@@ -78,6 +78,56 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
+    /// <summary>Owned engine mesh cleanup defers live origins and abandons retired names before native engine deletion.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public unsafe void MeshRetirementUsesOriginatingContext(bool retired)
+    {
+        EnsureContextValid();
+        using var native = new NativeMesh();
+        var manager = new GpuResourceManager();
+        GpuResourceManagerSystem.Initialize(manager);
+        object replacement = new();
+        EngineFullscreenGeometry? geometry = null;
+        try
+        {
+            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            geometry = EngineFullscreenGeometry.Upload(native.Render.Object, native.Data);
+            native.Render.Setup(render => render.DeleteMesh(native.Mesh)).Callback(() =>
+            {
+                native.Deletes++;
+                DeleteNativeMesh(native.Mesh);
+            });
+            if (retired)
+            {
+                Rendering.Integration.RenderContextRegistry.Retire(fixture);
+                Rendering.Integration.RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
+            }
+            else OpenTK.Windowing.GraphicsLibraryFramework.GLFW.MakeContextCurrent(null);
+            geometry.Dispose(); geometry.Dispose();
+            Assert.Equal(0, native.Deletes);
+            fixture.MakeCurrent();
+            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            Assert.Equal(retired ? 0 : 1, native.Deletes);
+            Assert.Equal(retired, GL.IsVertexArray(native.Mesh.VaoId));
+            Assert.Equal(retired, GL.IsBuffer(native.Mesh.xyzVboId));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            fixture.MakeCurrent();
+            if (retired)
+            {
+                Rendering.Integration.RenderContextRegistry.Retire(replacement);
+                Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            }
+            geometry?.Dispose();
+            DeleteNativeMesh(native.Mesh);
+            manager.Dispose(); GpuResourceManagerSystem.Shutdown();
+        }
+    }
+
     /// <summary>Native attribute mismatches are rejected before the adapter can publish and release the upload.</summary>
     [Fact]
     public void InvalidNativeLayoutDeletesRejectedUpload()
@@ -109,6 +159,15 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
     #endregion
 
     #region Private
+    /// <summary>Releases fixture native names after the test restores its actual namespace.</summary>
+    private static void DeleteNativeMesh(VAO mesh)
+    {
+        StateCache.Current.DeleteVertexArray(mesh.VaoId);
+        StateCache.Current.DeleteBuffer(mesh.xyzVboId);
+        StateCache.Current.DeleteBuffer(mesh.uvVboId);
+        StateCache.Current.DeleteBuffer(mesh.vboIdIndex);
+    }
+
     /// <summary>Owns native engine-layout storage while invoking the installed no-window RenderMesh implementation.</summary>
     private sealed class NativeMesh : IDisposable
     {

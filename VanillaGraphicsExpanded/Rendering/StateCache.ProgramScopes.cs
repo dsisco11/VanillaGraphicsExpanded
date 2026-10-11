@@ -23,12 +23,16 @@ internal sealed partial class StateCache
         internal ProgramScope(IDisposable scope) => this.scope = scope;
         /// <summary>Restores only while this token owns the top scoped lifetime.</summary>
         public void Dispose() => scope?.Dispose();
+        /// <summary>Registers existing native-resource borrowing cleanup for irreversible context loss.</summary>
+        internal void OnAbandon(Action cleanup) { if (scope is ProgramScopeTracker.Frame frame) frame.AbandonedCleanup = cleanup; }
         /// <summary>Reports consumption so native borrowers can distinguish failed cleanup from rejected ordering.</summary>
         internal bool IsEnded => scope is ProgramScopeTracker.Frame frame && frame.IsEnded;
     }
     #endregion
 
     #region Internal API
+    /// <summary>Withdraws the existing tracker chain before irreversible context retirement, without native restoration.</summary>
+    internal static void AbandonProgramContext((nint Handle, long Generation) context) => ProgramScopeTracker.AbandonContext(context);
     /// <summary>Returns an admitted owner only when its binding and native context still match.</summary>
     internal static IGpuProgram? ActiveProgram => ProgramScopeTracker.CurrentOwner();
     /// <summary>Captures managed restoration in the existing tracker.</summary>
@@ -48,6 +52,15 @@ internal sealed partial class StateCache
 
         #region Internal API
         #region Activation and capture
+        /// <summary>Releases current and suspended borrows owned by a context whose native lifetime is ending.</summary>
+        internal static void AbandonContext((nint Handle, long Generation) context)
+        {
+            if (current?.Context == context) ForgetCurrent();
+            while (top?.Context == context)
+            {
+                var frame = top; top = frame.Parent; frame.Abandon();
+            }
+        }
         /// <summary>Withdraws direct owner admission when raw code explicitly selects a binding.</summary>
         internal static void ForgetCurrent()
         {
@@ -168,6 +181,7 @@ internal sealed partial class StateCache
             private bool abandoned;
             private bool rawRetired;
             private bool ended;
+            internal Action? AbandonedCleanup;
 
             #region Public API
             /// <summary>Rejects stale/out-of-order tokens before they can unbind a later activation.</summary>
@@ -243,6 +257,7 @@ internal sealed partial class StateCache
                 if (ended) return;
                 abandoned = ended = true;
                 previous?.Release(); entered?.Release(); entered = null;
+                var cleanup = AbandonedCleanup; AbandonedCleanup = null; cleanup?.Invoke();
             }
             /// <summary>Reports consumed metadata without touching native state.</summary>
             internal bool IsEnded => ended;

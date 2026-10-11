@@ -107,6 +107,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
             lightingResources ? gbuffer : null, null, lightingResources ? probes : null,
             () => new LumOnCameraState(0, 0, 0, 0, 0, 0, 0));
         if (publishedGeometry) renderer.SetNearFieldSceneProvider(new GeometryProvider(geometry.Scene.Backend));
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Create(api);
         LumOnDebugShaderProgramFamily.Register(api);
         var probeView = VgeBuiltInDebugViews.ProbesDebugViewState.Instance;
         bool previousHeatmap = probeView.GetImportanceSurfaceHeatmapEnabled();
@@ -126,7 +127,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
             if (selectedFailure)
             {
                 Assert.Equal(0, draws);
-                Assert.Empty(VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.GetAll(api).Where(program => program.IsLinked));
+                Assert.Empty(VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.GetAll(api).Where(program => program.IsLinked));
                 Assert.Equal(1, assets.Reads.Count(path => path.Contains("lumon_debug_view_near_field_geometry", StringComparison.Ordinal)));
                 return;
             }
@@ -178,7 +179,7 @@ public sealed class LumOnDebugRendererFunctionalTests : LumOnShaderFunctionalTes
         {
             probeView.SetImportanceSurfaceHeatmapEnabled(previousHeatmap);
             LumOnDebugShaderProgramFamily.Dispose(api);
-            foreach (var program in VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.GetAll(api)) program.Dispose();
+            foreach (var program in VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.GetAll(api)) program.Dispose();
         }
     }
     #endregion

@@ -137,7 +137,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
                 assets.Overrides[path] = File.ReadAllBytes(binary);
             };
         }
-        var program = GpuShaderPrograms.Declare(assets.Api, new LiquidShaderProgram());
+        var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
         using var sharedLights = new VgeLightsUniformBuffer();
         program.LightsInputs = sharedLights;
         program.ConfigureOptions(() =>
@@ -283,7 +283,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         using var reductionTarget = backgroundScale == 2 ? GpuFramebuffer.CreateMRT([reducedColor!, reducedDepth!]) : null;
         if (backgroundScale == 2)
         {
-            var reduction = GpuShaderPrograms.Declare(assets.Api, new WaterRefractionReductionShaderProgram());
+            var reduction = GpuShaderProgramLibraries.Declare(assets.Api, WaterRefractionReductionShaderProgram.Contract.Identity, () => new WaterRefractionReductionShaderProgram());
             reduction.SourceColor = sceneColor; reduction.SourceDepth = sceneDepth;
             using var drawing = new VanillaGraphicsExpanded.Tests.GPU.Helpers.ShaderTestFramework();
             drawing.RenderQuadTo(reduction, reductionTarget!);
@@ -382,7 +382,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             {
                 // Replay the same center ray through the production diagnostic binary;
                 // this reports rejection without replacing the liquid integration assertion.
-                var diagnostic = GpuShaderPrograms.Declare(assets.Api, new WaterRefractionDiagnosticShaderProgram());
+                var diagnostic = GpuShaderProgramLibraries.Declare(assets.Api, WaterRefractionDiagnosticShaderProgram.Contract.Identity, () => new WaterRefractionDiagnosticShaderProgram());
                 var diagnosticInputs = (IWaterRefractionDiagnosticBindings)diagnostic;
                 diagnosticInputs.Scenario = 12;
                 Assert.True(Matrix4x4.Invert(projection, out var inverse));

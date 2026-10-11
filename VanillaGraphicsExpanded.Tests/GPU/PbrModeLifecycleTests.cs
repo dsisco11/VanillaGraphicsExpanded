@@ -42,8 +42,8 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         programs.Initialize(api);
         // These renderer-level fixtures own their camera snapshot instead of running the world's publication callback.
         using var frameCamera=TestFrameCamera.CreateIdentity(1,1);
-        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api,"pbr_composite")!.FrameInputs=frameCamera;
-        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api,PBRCompositeShaderProgram.PreOverlayPassName)!.FrameInputs=frameCamera;
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api,"pbr_composite")!.FrameInputs=frameCamera;
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api,PBRCompositeShaderProgram.PreOverlayPassName)!.FrameInputs=frameCamera;
         var config = new VgeConfig();
         config.LumOn.Enabled = false; config.LumOn.EnablePbrComposite = false;
         config.LumOn.Intensity = 1; config.LumOn.IndirectTint = [1,1,1];
@@ -79,7 +79,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
             {
                 config.LumOn.Enabled = enabled;
                 Assert.True(composite.PrepareFrame());
-                var prepared = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
+                var prepared = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
                 Assert.Equal(enabled ? "1" : "0", prepared.InstalledSettings!.Values["VGE_LUMON_ENABLED"].Canonical);
             }
             Assert.Equal(terrain.Output.FboId, StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer));
@@ -128,7 +128,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         Assert.False(beforeResize.IsValid);
         Assert.Null(resolveField.GetValue(composite));
         Assert.InRange(Compose(), .249f, .251f);
-        var shader = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
+        var shader = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
         Assert.Equal("0", shader.InstalledSettings!.Values["VGE_LUMON_ENABLED"].Canonical);
         config.LumOn.Enabled = true;
         Assert.InRange(Compose(), 0, .001f);

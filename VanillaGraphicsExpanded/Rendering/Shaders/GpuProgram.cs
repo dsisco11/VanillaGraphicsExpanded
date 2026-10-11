@@ -39,8 +39,7 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
     /// <summary>Selects the built asset domain.</summary>
     public string AssetDomain { get; set; } = string.Empty;
 
-    private ICoreClientAPI? capi;
-    private ILogger? log;
+    private ShaderCompilation.ShaderAssetSource? assetSource;
 
 
 
@@ -82,7 +81,7 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
     /// Optional warning sink for layout/contract guardrails.
     /// </summary>
     protected Action<string>? LayoutWarn
-        => log is null ? null : msg => log.Warning($"[VGE][{ShaderName}] {msg}");
+        => assetSource?.Warning;
 
     #endregion
 
@@ -96,7 +95,7 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
         ArgumentException.ThrowIfNullOrWhiteSpace(blockName);
         ArgumentNullException.ThrowIfNull(buffer);
 
-        return ProgramLayout.TryBindUniformBlock(ProgramId, blockName, buffer, msg => log?.Warning($"[VGE][{ShaderName}] {msg}"));
+        return ProgramLayout.TryBindUniformBlock(ProgramId, blockName, buffer, assetSource?.Warning);
     }
 
 
@@ -115,20 +114,11 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
 
     #region Initialization and Defines
 
-    /// <summary>
-    /// Associates a declaration with its application without reading binaries or creating an executable.
-    /// </summary>
-    public void Initialize(ICoreClientAPI api, ILogger? logger = null)
+    /// <summary>Associates a declaration with narrow compilation services without engine identity.</summary>
+    internal void Initialize(ShaderCompilation.ShaderAssetSource source)
     {
-        capi = api ?? throw new ArgumentNullException(nameof(api));
-        log = logger ?? api.Logger;
-
-        // Keep AssetDomain aligned with the import system default unless a derived program explicitly overrides it.
-        if (string.IsNullOrWhiteSpace(AssetDomain))
-        {
-            AssetDomain = ShaderImportsSystem.DefaultDomain;
-        }
-
+        assetSource = source ?? throw new ArgumentNullException(nameof(source));
+        AssetDomain = source.Domain;
     }
 
     #endregion
@@ -179,9 +169,9 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
     public bool CompileAndLink()
     {
         RequireOutsideSubmission();
-        if (lifetime.IsRetired) return false;
+        if (lifetime.IsRetired || PreparationAdmission?.Invoke() == false) return false;
         lifetime.RequireUnborrowed();
-        if (capi is null)
+        if (assetSource is null)
         {
             throw new InvalidOperationException("GpuProgram was not initialized. Call Initialize(api) first.");
         }
@@ -201,7 +191,7 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
                 GlDebug.TryLabel(ObjectLabelIdentifier.Program, ProgramId, ShaderName);
                 // Owner notifications run after installation and cannot turn a committed link into a failed candidate.
                 try { OnAfterCompile(); }
-                catch (Exception ex) { log?.Error($"[VGE][{ShaderName}] Post-link notification failed: {ex}"); }
+                catch (Exception ex) { assetSource?.Error?.Invoke($"[VGE][{ShaderName}] Post-link notification failed: {ex}"); }
             }
             return ok;
         }
@@ -209,7 +199,7 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
         {
             // Never let shader compilation exceptions bring down the client.
             PreparationFailure = ex;
-            log?.Error($"[VGE][{ShaderName}] Exception during CompileAndLink(): {ex}");
+            assetSource?.Error?.Invoke($"[VGE][{ShaderName}] Exception during CompileAndLink(): {ex}");
             return false;
         }
     }

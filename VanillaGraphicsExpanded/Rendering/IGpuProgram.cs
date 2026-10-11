@@ -38,7 +38,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     bool Prepare()
     {
         Lifetime.RequireOutsidePublication();
-        if (Lifetime.IsRetired) return false;
+        if (Lifetime.IsRetired || !Lifetime.IsSubmissionAdmitted) return false;
         return PrepareExecutable();
     }
 
@@ -47,6 +47,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     {
         // Reject recursion before this call owns cleanup of an activation.
         Lifetime.RequireMutation();
+        Lifetime.RequireSubmissionAdmission();
         if (RequiresPreparation) Lifetime.RequireUnborrowed();
         bool bindingEntered = false;
         try
@@ -70,6 +71,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     void ReplayInputs()
     {
         Lifetime.RequireMutation();
+        Lifetime.RequireSubmissionAdmission();
         try { PublishGuardedInputs(); }
         catch (Exception failure)
         {
@@ -84,6 +86,7 @@ internal interface IGpuProgram : IShaderSubmissionTarget, IDisposable
     IDisposable BeginUse(bool replayInputs = true)
     {
         Lifetime.RequireMutation();
+        Lifetime.RequireSubmissionAdmission();
         if (RequiresPreparation) Lifetime.RequireUnborrowed();
         var scope = OpenUseScope(replayInputs);
         try { Activate(); return scope; }

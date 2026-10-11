@@ -11,6 +11,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Publishes corrected opaque depth once before AO and indirect lighting, independently of either consumer.</summary>
 internal sealed class DepthHierarchyRenderer : IRenderer
 {
+    private System.IDisposable? reloadRegistration;
     private static DepthHierarchyRenderer? active;
     private readonly ICoreClientAPI api;
     private readonly Action unregisterResize;
@@ -37,7 +38,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
         unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,Retire);
         api.Event.RegisterRenderer(this,EnumRenderStage.Before,"vge_depth_reset");
         api.Event.RegisterRenderer(this,EnumRenderStage.Opaque,"vge_depth_hierarchy");
-        api.Event.ReloadShader+=Reload;api.Event.LeaveWorld+=Retire;
+        reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload);api.Event.LeaveWorld+=Retire;
     }
     /// <summary>Builds only for enabled consumers, then atomically publishes the completed current-view hierarchy.</summary>
     public void OnRenderFrame(float deltaTime,EnumRenderStage stage) {
@@ -60,7 +61,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     public void Dispose() {
         if(disposed)return;disposed=true;if(ReferenceEquals(active,this))active=null;
         api.Event.UnregisterRenderer(this,EnumRenderStage.Before);api.Event.UnregisterRenderer(this,EnumRenderStage.Opaque);
-        api.Event.ReloadShader-=Reload;api.Event.LeaveWorld-=Retire;unregisterResize();Retire();
+        reloadRegistration?.Dispose();api.Event.LeaveWorld-=Retire;unregisterResize();Retire();
     }
     #endregion
     #region Private
@@ -68,6 +69,6 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     /// <summary>Withdraws frame identity and retires executable references before attachments.</summary>
     private void Retire() {published=false;view=null;pass.Dispose();compute?.Dispose();compute=null;resources.Dispose();resources=new();depth=null;}
     /// <summary>Rejects stale executable generations.</summary>
-    private bool Reload() {Retire();return true;}
+    private bool Reload() {published=false;view=null;pass.Dispose();return true;}
     #endregion
 }

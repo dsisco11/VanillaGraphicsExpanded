@@ -13,6 +13,7 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 /// <summary>Owns procedural fullscreen geometry and drawing while consuming atmospheric publication.</summary>
 internal sealed class AtmosphereSkyRenderer : IRenderer
 {
+    private System.IDisposable? reloadRegistration;
     private static AtmosphereSkyRenderer? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
@@ -22,6 +23,7 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
     private ArrayGraphicsGeometry? geometry;
     private GraphicsPipeline? pipeline;
     private bool failed;
+    private bool disposed;
     /// <summary>Draws at the original opaque sky position after the night sky.</summary>
     public double RenderOrder => .2;
     /// <summary>The sky is camera relative and does not use terrain range culling.</summary>
@@ -35,7 +37,7 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
         this.gbuffer = gbuffer;
         unregisterResize = ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder, Reset);
         api.Event.LeaveWorld += Reset;
-        api.Event.ReloadShader += Reload;
+        reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload);
         active = this;
         api.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "vge_sky");
     }
@@ -56,11 +58,13 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
     /// <summary>Withdraws ownership before retiring pipeline and owned geometry.</summary>
     public void Dispose()
     {
+        if (disposed) return;
+        disposed = true;
         if (ReferenceEquals(active, this)) active = null;
         api.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
         unregisterResize();
         api.Event.LeaveWorld -= Reset;
-        api.Event.ReloadShader -= Reload;
+        reloadRegistration?.Dispose();
         Reset(); lifetime.Dispose();
     }
     /// <summary>Prepares owned drawing resources without changing sky-system ownership.</summary>
@@ -70,7 +74,7 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
             || api.Render.WireframeDebugRender.Vertex) return false;
         try
         {
-            if (GpuShaderPrograms.Get<AtmosphereSkyShaderProgram>(api, "pbr_sky")?.EnsureReady() != true) return false;
+            if (GpuShaderProgramLibraries.Get<AtmosphereSkyShaderProgram>(api, "pbr_sky")?.EnsureReady() != true) return false;
             // A private empty VAO supplies the core-profile draw contract; vertices come from gl_VertexID.
             geometry ??= new ArrayGraphicsGeometry(Layout, PrimitiveType.Triangles,
                 new System.Collections.Generic.Dictionary<int, GpuVbo>(), proceduralVertices: 3);
@@ -101,7 +105,7 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
             || render.CurrentFrameBuffer?.FboId != primary.FboId) return;
         try
         {
-            var shader = GpuShaderPrograms.Get<AtmosphereSkyShaderProgram>(api, "pbr_sky");
+            var shader = GpuShaderProgramLibraries.Get<AtmosphereSkyShaderProgram>(api, "pbr_sky");
             if (shader?.EnsureReady() != true) return;
             var target = gbuffer.PrimaryFramebuffer;
             if (target.FboId != primary.FboId || !target.HasRenderPassMetadata) return;

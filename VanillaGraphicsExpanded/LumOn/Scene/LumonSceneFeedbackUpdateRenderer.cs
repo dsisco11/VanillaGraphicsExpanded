@@ -26,6 +26,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// </summary>
 internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDisposable
 {
+    private IDisposable? reloadRegistration;
     private readonly System.Func<LumOnCameraState?> readCamera;
     private long diagnosticCaptureAttempts, diagnosticCaptureFailures, diagnosticCaptureReadFailures;
     private const double RenderOrderValue = 0.9998;
@@ -434,6 +435,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
 
         capi.Event.RegisterRenderer(this, EnumRenderStage.Done, "vge_lumonscene_feedback");
         capi.Event.LeaveWorld += OnLeaveWorld;
+        reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(capi, Reload);
     }
 
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
@@ -563,11 +565,24 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
     {
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Done);
         capi.Event.LeaveWorld -= OnLeaveWorld;
+        reloadRegistration?.Dispose();
         OnLeaveWorld();
         pageUsageStamp?.Dispose();
         pageUsageStamp = null;
         nearGpu.Dispose();
         physicalPools.Dispose();
+    }
+
+    /// <summary>Withdraws capture history and requests recapture without retiring compute wrappers or CPU inputs.</summary>
+    private bool Reload()
+    {
+        irradianceHistory?.InvalidateAssets();
+        ClearCaptureAdmission();
+        captureIdentities.Clear(); unavailableCaptures.Clear(); checkedGeometryRevision = -1;
+        GeometryHistoryRevision++;
+        ResetRecaptureList();
+        System.Threading.Interlocked.Exchange(ref recaptureAllRequested, 1);
+        return true;
     }
 
     private void OnLeaveWorld()

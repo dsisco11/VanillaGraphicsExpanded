@@ -46,10 +46,10 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
         programs.Initialize(api);
         // These renderer-level fixtures own their camera snapshot instead of running the world's publication callback.
         using var frameCamera=TestFrameCamera.CreateIdentity(1,1);
-        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api,"pbr_composite")!.FrameInputs=frameCamera;
-        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api,PBRCompositeShaderProgram.PreOverlayPassName)!.FrameInputs=frameCamera;
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api,"pbr_composite")!.FrameInputs=frameCamera;
+        VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api,PBRCompositeShaderProgram.PreOverlayPassName)!.FrameInputs=frameCamera;
         using var lights=new VgeLightsUniformBuffer();
-        var directProgram=GpuShaderPrograms.Get<PBRDirectLightingShaderProgram>(api,"pbr_direct_lighting")!;
+        var directProgram=GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(api,"pbr_direct_lighting")!;
         directProgram.FrameInputs=frameCamera;directProgram.LightsInputs=lights;
         var config = new VanillaGraphicsExpanded.LumOn.VgeConfig();
         config.LumOn.Enabled = lumon; config.LumOn.EnablePbrComposite = false;
@@ -63,7 +63,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
         using var callerTarget = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var readTarget = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
         terrain.UploadTerrain(gbuffer, [.75f], [.5f, .5f, 1, 1], [.5f, 0, 0, 0], [.5f, .5f, .5f, 1]);
-        var caller = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderPrograms.Get<PBRDisplayResolveShaderProgram>(api, "pbr_display_resolve")!;
+        var caller = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRDisplayResolveShaderProgram>(api, "pbr_display_resolve")!;
         caller.PrimaryScene = terrain.Color.TextureId;
         caller.PrimaryDepth = terrain.Depth.TextureId;
         bool prior = VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled;
@@ -143,8 +143,8 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
                 Assert.Equal(new float[] { .75f, .5f, .5f, 1 }, composite.RefractionScene.Depth.ReadPixels());
             Assert.Equal(.01f, terrain.Depth.ReadPixels()[0]);
 
-            var ordinary = GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
-            var preOverlay = GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName)!;
+            var ordinary = GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!;
+            var preOverlay = GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName)!;
             Assert.NotSame(ordinary, preOverlay);
             Assert.NotEqual(ordinary.ProgramId, preOverlay.ProgramId);
             int retainedCapture = preOverlay.ProgramId;
@@ -277,8 +277,8 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             StateCache.Current.UnbindProgram();
             Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
             Assert.True(VgeShaderPrograms.RegisterAll(api));
-            Assert.Same(ordinary, GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, "pbr_composite"));
-            Assert.Same(preOverlay, GpuShaderPrograms.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName));
+            Assert.Same(ordinary, GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, "pbr_composite"));
+            Assert.Same(preOverlay, GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName));
             Assert.True(composite.PrepareFrame());
             // Reload also invalidates direct/reduction programs; warm the complete
             // production path before checking for recurring executable preparation.
@@ -337,7 +337,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             caller.Stop();
             ordinaryId = ordinary.ProgramId;
             retainedCapture = preOverlay.ProgramId;
-            GpuShaderPrograms.Dispose(api);
+            GpuShaderProgramLibraries.Dispose(api);
             Assert.False(GL.IsProgram(ordinaryId));
             Assert.False(GL.IsProgram(retainedCapture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
