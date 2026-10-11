@@ -174,6 +174,60 @@ cost before selection; preserve the shared R32F depth contract used by LumOn. Co
 the captured scene and the workloads that rejected the arithmetic candidates. Diagnostic variants
 that omit source recovery or integration may help attribute cost, but cannot establish equivalent quality.
 
+Source-recovery and integration attribution used temporary test-only diagnostics over the exported
+capture and the nine existing synthetic qualification workloads. Each workload compared four variants:
+the frozen full shader; coarse depth without source descent but with integration; full source recovery
+with an output checksum replacing angular integration; and coarse depth with that checksum. Checksums
+retain recovered depth/UV and material reads under the original validity predicates so those operations
+cannot simply disappear. Coarse depth changes source position and downstream eligibility; checksum
+output changes register lifetimes and scheduling. These are non-equivalent ablations, not candidate AO
+implementations or additive causal cost measurements. Compiled SPIR-V inspection confirmed retained
+depth/material operations; static instruction sites are not dynamic execution counts.
+
+Two Release batches passed all ten cases on an RTX 4090, using four warm-ups and 24 measured rounds
+with rotating variant order. Hierarchy generation, preparation, allocation, readback and query waits
+were excluded from timed submissions. Vintage Story remained running at the user's request; GPU load
+and clocks varied, and both reports explicitly identify contention. Captured median GPU times were:
+
+| Diagnostic variant | Batch 1 (ms) | Batch 2 (ms) |
+| --- | ---: | ---: |
+| Full shader | 3.4934 | 2.7489 |
+| Coarse depth with integration | 1.4541 | 0.4521 |
+| Full recovery with checksum | 3.2041 | 2.8570 |
+| Coarse depth with checksum | 1.5529 | 0.4419 |
+
+Removing source descent reduced time in both batches across all ten workloads; removing angular
+integration alone had mixed effects, including regressions. This makes source recovery the strongest
+next investigation lead, but does not prove that a mask implementation will improve total AO cost,
+identify a percentage of time spent in each operation, or establish live frame-time savings.
+
+A separate untimed RGBA32F diagnostic counts on-screen requests before source-recovery early exits,
+preserving receiver selection, fade, slice degeneracy and sampling order. Its exact reuse key includes
+the requested full-resolution pixel and selected mip; a coarse-cell key alone cannot preserve
+query-dependent leaf ties. The captured workload has 549,546 active receivers and 35,075,998 requests:
+67,442 exact duplicate requests (0.1923%) versus 2,384,668 coarse-cell repeats (6.7986%). Across all
+workloads, exact duplicate rates were 0-0.2023%, versus coarse repeat rates of 2.32-9.54%. Counts,
+per-receiver histograms and all variant image checksums matched exactly between batches; the full
+baseline also matched the captured original output bit-for-bit. These count requests, not texture
+traffic, and do not quantify reuse across different receivers.
+
+Prioritize minimum-child masks for an equivalent-output prototype, measuring added hierarchy build,
+storage and complete AO cost. Deprioritize per-receiver whole-lookup caching given the small exact
+duplicate opportunity. Integration math remains a secondary numerical investigation; the checksum
+ablation does not show a reliable isolated saving. Defer tiling until locality/bandwidth/occupancy
+evidence warrants it: these experiments do not separate source-recovery arithmetic from memory cost.
+Retain the current sampling and visibility contracts when evaluating any candidate.
+
+Evidence is retained in `artifacts/AoAttribution`: `batch1` and `batch2` contain raw 24-round samples,
+TRX, output hashes, request histograms and GPU/game metadata; `repeated-summary.json` records ranges,
+paired differences and interaction; `spirv-operations.json` records compiled dependencies. Archived
+sources, hashes and `reproduce.ps1` preserve the experiment without adding diagnostics to normal runs.
+Temporary diagnostic sources, registrations and output files were removed; shared fixture source
+blobs match the tracked baseline. The restored Release build passed, and default AO comparisons
+passed 15 cases with 19 optional skips and no failures. Receipts: `restored-build.log` and
+`restoration/restored-default.trx` under that artifact directory. No production AO change was retained;
+the parent optimization still requires a measured improvement and live visual acceptance.
+
 `AmbientOcclusionPerformanceTests` compares every RGBA16F horizon channel with a frozen copy of
 the previous shader using identical inputs and a shared completed hierarchy. The first Debug run
 passed all 80 AO cases, including 18 exact full-image comparisons. Receipts:

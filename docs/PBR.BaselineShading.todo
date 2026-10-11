@@ -56,7 +56,17 @@ Tasks
       Record measured costs, output differences and a retain/reject decision; an evaluation may finish
       with rejection, but the parent optimization task still requires a measured, accepted improvement.
 
-      ☐ Attribute source-recovery, integration and repeated-lookup costs before selecting candidates.
+      ☑ Attribute source-recovery, integration and repeated-lookup costs before selecting candidates.
+        - Evidence: two Release diagnostic batches passed all ten captured/synthetic workloads, with
+          identical request histograms and image checksums. At the user's request the game stayed open;
+          timings are contended attribution leads, not additive costs or performance qualification.
+          Source-descent removal consistently reduced cost; integration removal had mixed effects.
+          Exact repeated requests were only 0-0.2023% of calls. Prioritize minimum-child masks,
+          deprioritize per-receiver whole-lookup caching, and retain integration math as secondary.
+          Tiling needs further locality/bandwidth evidence. Results: docs/PBR.Postprocessing.md;
+          reproducible sources, raw samples and metadata: artifacts/AoAttribution.
+          Temporary diagnostics removed; restored Release build passed and default AO comparisons
+          passed 15 cases with 19 optional skips. Parent optimization acceptance remains open.
         - Use temporary diagnostic variants to estimate source-recovery versus integration cost and
           count repeated quantized sample coordinates per receiver across representative workloads.
         - Treat omitted-work timings as diagnostic leads, not additive cost decomposition or proof of
