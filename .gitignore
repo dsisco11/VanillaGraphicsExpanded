@@ -683,3 +683,4 @@ fabric.properties
 
 # Shader debug includes are source assets, not compiler output directories.
 !VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/includes/debug/
+/%SystemDrive%/
