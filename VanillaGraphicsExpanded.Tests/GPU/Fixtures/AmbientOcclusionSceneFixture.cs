@@ -49,16 +49,18 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
         float[] depths=new float[width*height],normals=new float[width*height*4],colors=new float[width*height*4],positions=new float[width*height*4];
         materialData=new float[width*height*4];
         int edge=(int)(width*edgeFraction);
-        // Intersect authored view rays with z planes and the corner at x=.5, then project the real point into hardware depth.
+        // Intersect authored view rays with z planes, the corner at x=.5 or a ground plane,
+        // then project the real point into hardware depth. Ground rays above the horizon are sky.
         for(int y=0;y<height;y++) for(int x=0;x<width;x++) {
             int i=y*width+x;
             float rayX=((x+.5f)/width*2-1)*aspect*tanHalf,rayY=((y+.5f)/height*2-1)*tanHalf;
             bool front=((scene==4||scene==8)&&x<edge)||(scene==9&&x>=edge-2&&x<edge);
             float z=scene==7?97:front?receiverDistance-.3f:scene==1?receiverDistance/(1-.2f*rayX):receiverDistance;
+            if(scene==10) z=rayY<0?1.6f/-rayY:far;
             bool sideWall=scene==5&&rayX>0&&.5f/rayX<z;
             if(sideWall)z=.5f/rayX;
-            depths[i]=scene==2||(scene==6&&x%4<2)?1:.5f*(-a+b/z)+.5f;
-            Vector3 n=sideWall?-Vector3.UnitX:scene==1?Vector3.Normalize(new(.2f,0,1)):Vector3.UnitZ;
+            depths[i]=scene==2||(scene==6&&x%4<2)||(scene==10&&z>=far)?1:.5f*(-a+b/z)+.5f;
+            Vector3 n=scene==10?Vector3.UnitY:sideWall?-Vector3.UnitX:scene==1?Vector3.Normalize(new(.2f,0,1)):Vector3.UnitZ;
             normals[i*4]=n.X*.5f+.5f;normals[i*4+1]=n.Y*.5f+.5f;normals[i*4+2]=n.Z*.5f+.5f;
             normals[i*4+3]=scene==3||(scene==8&&front)?-1:1;
             materialData[i*4]=roughness;materialData[i*4+1]=metallic;
@@ -96,6 +98,26 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
         var filtered=Assert.IsType<DynamicTexture2D>(AccessTools.Field(typeof(AmbientOcclusionPass),"filtered").GetValue(owner));
         var output=Assert.IsType<DynamicTexture2D>(owner.Texture);
         return(raw.ReadPixels(),filtered.ReadPixels(),output.ReadPixels());
+    }
+
+    /// <summary>Prepares matched horizon-only submissions sharing one completed hierarchy and unchanged scene inputs.</summary>
+    internal (Action Reference, Action Current) PrepareHorizonComparison(AoHorizonReferenceProgram reference,
+        PostprocessDraw draw, GpuFramebuffer referenceTarget, GpuFramebuffer currentTarget, int nativeQuality)
+    {
+        hierarchy.Render(Depth);
+        reference.Capture(Depth, Surface, hierarchy.Texture!, Camera, nativeQuality);
+        var quality = AmbientOcclusionQuality.FromNative(nativeQuality);
+        horizon.DepthImage = Depth; horizon.SurfaceImage = Surface; horizon.DepthHierarchy = hierarchy.Texture;
+        horizon.Capture(Camera, new(0, 0, quality.Divisor, 0),
+            new(1.25f, .25f, quality.Directions, quality.Steps), new(64, 96, 0, 0));
+        var referencePipeline = draw.Prepare(reference, referenceTarget);
+        var currentPipeline = draw.Prepare(horizon, currentTarget);
+        // Preparation, hierarchy generation and descriptor mutation are excluded from both timed actions.
+        return (
+            () => Assert.True(GraphicsCommandContext.TryRun("Tests.AoReference", [referencePipeline], true,
+                commands => draw.Submit(commands, referencePipeline, referenceTarget))),
+            () => Assert.True(GraphicsCommandContext.TryRun("Tests.AoCurrent", [currentPipeline], true,
+                commands => draw.Submit(commands, currentPipeline, currentTarget))));
     }
 
     /// <summary>Measures matched, prepared GPU work and CPU submission, excluding target creation, readback and query waits.</summary>

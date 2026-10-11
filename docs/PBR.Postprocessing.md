@@ -149,6 +149,93 @@ world-radius bound. At most one coarse read plus four nine-tap descent steps occ
 one-dimensional and even-sized footprints use fewer taps. This bounds hierarchy work without
 substituting a coarse synthetic surface for the real occluder.
 
+Evaluated performance candidates removed integer division from those child bounds. For a parent
+axis of size `s`, its child has size `2s` or `2s+1`, except an already collapsed one-texel axis.
+For valid parent coordinate `p`, the proportional first child is exactly `2p`; the exclusive end
+is `min(2p+2+(childSize & 1), childSize)`. The latter also yields one for a collapsed axis.
+Odd-axis overlap, child visitation order, nearest-depth ties and all texture reads are preserved;
+sampling density, integration, filtering, resource formats and storage are unchanged.
+
+These bounds replacements were rejected and the original production bounds restored. With the game
+closed, two independent runs improved the captured horizon from 2.6220 to 2.2825 ms and from
+2.6353 to 2.2661 ms, but full-resolution flat, thin, wall and corner cases consistently regressed
+about 11-50%. An arithmetic-remainder expression produced the same tradeoff. Receipts:
+`artifacts/AoPerformance/uncontended-measurements`, `uncontended-repeat` and `remainder-measurements`.
+The ceiling-only variant passed 22 exact-image cases in `ceiling-validation`; it was not timed.
+The earlier validation below describes those experiments, not a retained production optimization.
+
+The next approach to evaluate is reducing source-recovery fetches. At mip 4 in the captured extent,
+a non-sky lookup reads one coarse depth plus 4+4+4+6 child depths. A sidecar minimum-child mask
+could replace each child-depth scan with one mask read while retaining the same distance calculations,
+visitation order and sample-dependent tie-breaking. A single preselected source coordinate would
+not preserve that behavior. This is a proposal, not an implemented or measured improvement.
+Evaluate mask construction, binding limits, physical storage and bandwidth, and total hierarchy-plus-AO
+cost before selection; preserve the shared R32F depth contract used by LumOn. Comparisons must include
+the captured scene and the workloads that rejected the arithmetic candidates. Diagnostic variants
+that omit source recovery or integration may help attribute cost, but cannot establish equivalent quality.
+
+`AmbientOcclusionPerformanceTests` compares every RGBA16F horizon channel with a frozen copy of
+the previous shader using identical inputs and a shared completed hierarchy. The first Debug run
+passed all 80 AO cases, including 18 exact full-image comparisons. Receipts:
+`artifacts/AoPerformance/candidate/ao-candidate.trx` and `test-output.log` in the same directory.
+The timing samples were collected while Vintage Story was running: 1280x720 medians improved,
+but several 3440x1377 medians worsened with substantial noise. These results establish neither a
+speedup nor suitability for retention. The uncontended comparisons above subsequently rejected
+these candidates; matched live frame measurements and user visual acceptance remain required for
+any retained optimization under `PBR.BaselineShading.todo`.
+
+Independent review verified the footprint identity and frozen-source provenance. Release shader
+inspection found zero integer-division instructions in the candidate versus two in the reference;
+this is compiler evidence, not a GPU speedup measurement. The Release correctness/lifecycle batch
+passed 142 cases without failures or skips, covering AO, shared hierarchy, owned postprocessing,
+engine inputs, scene-color bindings and composition. Receipts:
+`artifacts/AoPerformance/release-validation/ao-release-validation.trx`, `test-output.log` and
+`integer-divisions.json` in the same directory. The latest fixture validation passed 21 exact
+complete-image comparisons, including narrow-FOV collapsed axes and capture-sized ground at both
+native qualities. Receipts: `artifacts/AoPerformance/release-equivalence/ao-release-equivalence.trx`
+and `test-output.log` in the same directory. These synthetic geometric cases do not establish
+live appearance, representative foliage behavior or overall frame-time improvement.
+
+Captured-workload validation imports the exact event-7091 textures, complete hierarchy and uniform
+blocks from `performance-issue.rdc`, checking their lengths, hashes and uploaded texture contents.
+The bound receiver is `SceneColor.Particles.ReceiverDepth` (R32F), with the three-layer RGBA16F
+surface array. The frozen reference reproduces every channel bit of the captured RGBA16F raw AO
+output; the candidate reproduces the reference identically. The Release batch passed this captured
+case and all 21 synthetic comparisons, including signed-zero bit checks: **22 passed, no failures
+or skips**. Receipt: `artifacts/AoPerformance/captured-validation/ao-captured-validation.trx`.
+Inputs and their manifest are retained in `artifacts/AoPerformance/captured-inputs`; they are local
+profiling artifacts, not shipped assets. This validates the captured workload's fidelity, not speed.
+
+CPU analysis of those inputs classifies 1,185,080 half-resolution receivers: 625,097 sky,
+10,437 distance-faded and 549,546 active, with no invalid receivers. The active/neutral counts
+agree with the captured raw output's depth channel. Of the active receivers, 463,841 (84.40%)
+select hierarchy mip 4 from sample spacing. This supports investigating four-level source descent;
+it is not an executed-sample count, since slice degeneracy, off-screen samples and missing depth
+can skip work. Receipt and reproducible script: `receiver-profile.json` and `profile-receivers.cjs`
+in the exported-input directory. These CPU counts provide no GPU cost or speedup measurement.
+
+Routine reference comparisons use 15 small synthetic cases, retaining every scene type and both
+native qualities. Nine display-sized image comparisons are opt-in through
+`VGE_RUN_AO_FULL_RESOLUTION=1`; filter to
+`AmbientOcclusionPerformanceTests.FullResolutionHorizonImageMatchesReference` (category
+`AOFullResolution`). Keep these comparisons in optimization qualification, including the workloads
+that rejected the bounds rewrites. The gate runs before scene allocation or GPU submission.
+Captured inputs and timing measurements retain their separate explicit gates below.
+Release validation passed all 15 default cases with 19 optional cases skipped, then all nine
+full-resolution cases with their gate enabled. Receipts: `artifacts/AoPerformance/lightweight-default`.
+
+Matched horizon measurements are opt-in through `VGE_RUN_AO_MEASUREMENTS=1`. Set
+`VGE_AO_MEASUREMENT_DIR` to retain per-workload JSON GPU/CPU samples; filter tests to
+`AmbientOcclusionPerformanceTests.MatchedHorizonCosts`. Timing excludes hierarchy generation,
+preparation, allocations, readback and query waits. Synthetic costs do not establish live frame costs.
+CPU samples include the distinct reference fixture and production shader facades; they are diagnostic
+submission measurements and cannot attribute a managed shader-lifecycle regression.
+
+To compare the captured workload, set `VGE_AO_CAPTURE_INPUT_DIR` to that exported-input directory
+and filter to `AmbientOcclusionPerformanceTests.CapturedSceneMatchesOriginalAndReference`.
+With `VGE_RUN_AO_MEASUREMENTS=1`, the same alternating measurement sequence runs after captured
+output validation; without it, only correctness runs. Close competing GPU workloads before timing.
+
 Raw visibility stores (visibility, positive view depth, octahedral normal XY) in RGBA16F. A 3x3
 spatial filter rejects depth/normal disagreement; a second 3x3 joint reconstruction compares those
 samples against the full-resolution receiver. Depth weights use a 0.02 + 0.01*depth scale, a hard

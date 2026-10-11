@@ -1,4 +1,6 @@
 using System.Numerics;
+using System.Runtime.InteropServices;
+using VanillaGraphicsExpanded.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.MathTools;
 
@@ -8,6 +10,27 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal static class TestFrameCamera
 {
     #region Public API
+    #region Captured frame inputs
+    /// <summary>Recaptures a complete exported frame through the owner's validation while preserving every AO camera field.</summary>
+    internal static VgeFrameUniformBuffer CreateFromPacked(ReadOnlySpan<byte> bytes)
+    {
+        if (bytes.Length != VgeFrameUniformBuffer.PackedSize) throw new ArgumentException("Captured frame layout must match the current contract.", nameof(bytes));
+        var values = MemoryMarshal.Cast<byte, float>(bytes);
+        var origin = UboPacking.ReadIVec4(bytes, 512);
+        var camera = new VgeFrameUniformBuffer();
+        // Decode typed scalars instead of mutating protected storage. Capture recomputes only
+        // the inverse view-projection matrix; AO borrows the exact view and inverse projection.
+        camera.Capture(values[..16], values.Slice(16, 16), values.Slice(32, 16), values.Slice(48, 16),
+            values.Slice(64, 16), values.Slice(80, 16), new(values[96], values[97]), values[98],
+            UboPacking.ReadUInt32(bytes, 396), new(values[100], values[101], values[102]),
+            new(values[104], values[105], values[106]), values[107], new(values[124], values[125]),
+            new VectorInt3(origin.x, origin.y, origin.z), new(values[132], values[133], values[134]),
+            values[126], (UboPacking.ReadUInt32(bytes, 508) & 1u) != 0, values[103]);
+        return camera;
+    }
+    #endregion
+
+    #region Analytic camera construction
     /// <summary>Inverts the supplied transforms and captures a consistent current and previous camera generation.</summary>
     internal static VgeFrameUniformBuffer Create(float[] inverseProjection, float[] view, int width = 1, int height = 1, float near = .1f, float far = 100, Vector3 fogColor = default, float fogDensity = 0, float fogMinimum = 0)
     {
@@ -70,5 +93,6 @@ internal static class TestFrameCamera
         Mat4f.Invert(view, inverseView);
         return Create(inverseProjection, view, width, height, near, far);
     }
+    #endregion
     #endregion
 }

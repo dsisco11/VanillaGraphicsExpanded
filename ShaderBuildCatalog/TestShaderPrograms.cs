@@ -31,6 +31,11 @@ internal static class TestShaderPrograms
         integration.FragmentOutputLocations.Add("result",0);
         programs.Add(new("tests/ao-integral",[Fixture("complete-state","vsh",ShaderStageKind.Vertex),
             new ShaderStageContract("tests/ao-integral.fsh","tests/ao-integral.fsh",ShaderStageKind.Fragment,integration)],1));
+        // Freeze the previous horizon executable for equivalent-work image and timing comparisons.
+        var ao = GpuShaderContracts.Registry.Programs["pbr_post_ssao"];
+        programs.Add(new("tests/ao-horizon-reference", [ao.Stages[0],
+            new ShaderStageContract("tests/ao-horizon-reference.fsh", "tests/ao-horizon-reference.fsh",
+                ShaderStageKind.Fragment, ao.Stages[1].Bindings)], 1));
         foreach (bool adaptation in new[] { false, true })
         {
             var bindings = new GpuBindingContract();
