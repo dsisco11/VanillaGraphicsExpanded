@@ -1,5 +1,6 @@
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -29,9 +30,10 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         using var scene=TestFramework.CreateTexture(65,33,PixelInternalFormat.Rgba32f,radiance);
         using var mask=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,1000f,0f,1f]);
         using var depth=TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[1f]);
-        using var history=TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[ev]);
+        using var neutralExposure = ExposureTestStorage.Create(0);
+        using var history = ExposureTestStorage.Create(ev);
         using var target=TestFramework.CreateTestGBuffer(65,33,PixelInternalFormat.Rgba32f);
-        shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureImage=history;
+        shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureBuffer=history;
         shader.Capture(new(0,0,0,automatic?1:0),new(1,2,.5f,automatic?-ev:ev),new(.5f,.5f,1,65f/33),new(1,1,1,10));
         Draw(shader,target);
         float[] actual=target[0].ReadPixels().Skip((16*65+32)*4).Take(4).ToArray();float expected=MathF.Pow(2,-ev);
@@ -52,10 +54,11 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         using var scene=TestFramework.CreateTexture(65,33,PixelInternalFormat.Rgba32f,Enumerable.Repeat(new[]{1000f,500f,250f,1f},65*33).SelectMany(x=>x).ToArray());
         using var mask=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,1f,0f,1f]);
         using var depth=TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[depthValue]);
+        using var neutralExposure = ExposureTestStorage.Create(0);
         using var extracted=TestFramework.CreateTestGBuffer(65,33,PixelInternalFormat.Rgba32f);
         using var bloom=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         using var visibility=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
-        shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureImage=depth;
+        shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureBuffer=neutralExposure;
         var sun=new Vector4(.5f,.5f,daylight,65f/33);
         shader.Capture(new(0,0,0,0),new(1,2,.5f,0),sun,new(1,1,1,10));Draw(shader,extracted);
         float[] source=extracted[0].ReadPixels().Skip((16*65+32)*4).Take(4).ToArray();
@@ -77,8 +80,9 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
     {
         EnsureShaderTestAvailable();var shader=Programs.Create<LightShaftShaderProgram>();
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[4f,2f,1f,.25f]);
+        using var neutralExposure = ExposureTestStorage.Create(0);
         using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
-        shader.SourceImage=source;shader.VisibilityImage=source;shader.DepthImage=source;shader.ExposureImage=source;
+        shader.SourceImage=source;shader.VisibilityImage=source;shader.DepthImage=source;shader.ExposureBuffer=neutralExposure;
         shader.Capture(new(0,0,1,3),new(1,0,0,0),new(.5f,.5f,1,2));Draw(shader,target);
         Assert.Equal(new[]{4f,2f,1f,.25f},target[0].ReadPixels());
         shader.Capture(new(0,0,1,3),new(1,0,0,0),new(3,.5f,1,2));Draw(shader,target);
@@ -93,8 +97,9 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         const int width=65,height=33;float[] pixels=new float[width*height*4];
         for(int y=0;y<height;y++)for(int x=0;x<width;x++){int i=(y*width+x)*4;pixels[i+3]=1;if(Math.Abs(x-32)<=2&&Math.Abs(y-16)<=2)pixels[i]=8;}
         using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,pixels);
+        using var neutralExposure = ExposureTestStorage.Create(0);
         using var target=TestFramework.CreateTestGBuffer(width,height,PixelInternalFormat.Rgba32f);
-        shader.SourceImage=source;shader.VisibilityImage=source;shader.DepthImage=source;shader.ExposureImage=source;
+        shader.SourceImage=source;shader.VisibilityImage=source;shader.DepthImage=source;shader.ExposureBuffer=neutralExposure;
         shader.Capture(new(0,0,1,32),new(.75f,0,0,0),new(.5f,.5f,1,(float)width/height));Draw(shader,target);
         float[] result=target[0].ReadPixels();Assert.True(result[(16*width+38)*4]>0);Assert.True(result[(22*width+32)*4]>0);
         for(int y=0;y<height;y++)for(int x=0;x<width;x++){float value=result[(y*width+x)*4];Assert.InRange(value,0,8);Assert.InRange(result[(y*width+64-x)*4],value-.0001f,value+.0001f);Assert.InRange(result[((32-y)*width+x)*4],value-.0001f,value+.0001f);}
@@ -134,12 +139,13 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
     {
         EnsureShaderTestAvailable();var shader=Programs.Create<LightShaftShaderProgram>();
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[1000f,500f,250f,1f]);
+        using var neutralExposure = ExposureTestStorage.Create(0);
         using var mask=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,1f,0f,1f]);
         using var depth=TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[1f]);
         using var a=TestFramework.CreateTestGBuffer(320,180,PixelInternalFormat.Rgba16f);
         using var b=TestFramework.CreateTestGBuffer(320,180,PixelInternalFormat.Rgba16f);
         using var published=TestFramework.CreateTestGBuffer(320,180,PixelInternalFormat.Rgba16f);
-        shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureImage=depth;
+        shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureBuffer=neutralExposure;
         var sun=new Vector4(.5f,.5f,1,16f/9);var solar=new Vector4(1,1,1,128);var timings=new List<double>();
         for(int sample=-1;sample<5;sample++)
         {

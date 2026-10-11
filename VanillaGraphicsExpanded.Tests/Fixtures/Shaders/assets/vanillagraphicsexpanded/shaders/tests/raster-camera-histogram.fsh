@@ -1,5 +1,5 @@
 #version 330 core
-@import "./includes/camera_exposure_inputs.glsl"
+@import "../includes/camera_exposure_inputs.glsl"
 uniform sampler2D sceneRadiance;
 layout(location=0) out vec2 histogram;
 /** Bins a fixed stratified grid without atomics, compute shaders or CPU readback. */

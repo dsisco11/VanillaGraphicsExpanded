@@ -1,4 +1,5 @@
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -10,36 +11,36 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CameraExposureTargetsTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
-    /// <summary>Only successful publication swaps stable images; disposing the owner deletes all owned textures.</summary>
+    /// <summary>Only successful publication swaps stable buffers; disposing the owner deletes all owned storage.</summary>
     [Fact]
-    public void PublicationSwapsDistinctPersistentHistoryImages()
+    public void PublicationSwapsDistinctPersistentHistoryBuffers()
     {
         EnsureContextValid();
         var targets = new CameraExposureTargets();
-        int histogram = targets.Histogram.TextureId;
-        int original = targets.Exposure.TextureId;
-        int pending = targets.WriteTarget[0].TextureId;
+        int histogram = targets.Histogram.BufferId;
+        int original = targets.Exposure.BufferId;
+        int pending = targets.WriteTarget.BufferId;
         try
         {
             Assert.NotEqual(original, pending);
-            Assert.Equal(64, targets.HistogramTarget.Width);
-            Assert.Equal(1, targets.HistogramTarget.Height);
-            targets.WriteTarget.BindWithViewport();
-            GL.ClearBuffer(ClearBuffer.Color, 0, new[] { 2f, 0f, 0f, 0f });
-            Assert.Equal(original, targets.Exposure.TextureId);
+            Assert.Equal(18432, targets.Histogram.SizeBytes);
+            Assert.Equal(4, targets.Exposure.SizeBytes);
+
+            targets.WriteTarget.UploadData(new[] { 2f });
+            Assert.Equal(original, targets.Exposure.BufferId);
             targets.Publish();
-            Assert.Equal(pending, targets.Exposure);
-            Assert.Equal(original, targets.WriteTarget[0].TextureId);
-            Assert.Equal(histogram, targets.Histogram.TextureId);
+            Assert.Equal(pending, targets.Exposure.BufferId);
+            Assert.Equal(original, targets.WriteTarget.BufferId);
+            Assert.Equal(histogram, targets.Histogram.BufferId);
             targets.Publish();
-            Assert.Equal(original, targets.Exposure);
-            Assert.Equal(pending, targets.WriteTarget[0].TextureId);
+            Assert.Equal(original, targets.Exposure.BufferId);
+            Assert.Equal(pending, targets.WriteTarget.BufferId);
             AssertNoGLError("exposure history publication");
         }
         finally { targets.Dispose(); }
-        Assert.False(GL.IsTexture(histogram));
-        Assert.False(GL.IsTexture(original));
-        Assert.False(GL.IsTexture(pending));
+        Assert.False(GL.IsBuffer(histogram));
+        Assert.False(GL.IsBuffer(original));
+        Assert.False(GL.IsBuffer(pending));
     }
     #endregion
 }

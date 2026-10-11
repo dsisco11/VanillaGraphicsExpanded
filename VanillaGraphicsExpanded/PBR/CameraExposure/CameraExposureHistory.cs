@@ -18,7 +18,7 @@ internal sealed class CameraExposureHistory
         previousSettings = settings;
         return reset;
     }
-    /// <summary>Invalidates history when its image storage or world is retired.</summary>
+    /// <summary>Invalidates history when its buffer storage or world is retired.</summary>
     internal void Reset() { previousSettings = null; continuity.Reset(); }
     #endregion
 }

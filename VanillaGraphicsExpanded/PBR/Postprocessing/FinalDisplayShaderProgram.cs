@@ -27,8 +27,8 @@ internal sealed partial class FinalDisplayShaderProgram : GpuProgram, IFinalDisp
     public partial GpuTexture? BloomImage { set; }
     /// <summary>Stages the ShaftImage sampler.</summary>
     public partial GpuTexture? ShaftImage { set; }
-    /// <summary>Stages the ExposureImage sampler.</summary>
-    public partial GpuTexture? ExposureImage { set; }
+    /// <summary>Stages the published exposure buffer.</summary>
+    public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
     /// <summary>Borrows a camera/frame snapshot for alternate views and fixtures.</summary>
     internal VgeFrameUniformBuffer? FrameInputs
     {

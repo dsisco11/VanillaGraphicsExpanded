@@ -31,6 +31,15 @@ internal static class TestShaderPrograms
         integration.FragmentOutputLocations.Add("result",0);
         programs.Add(new("tests/ao-integral",[Fixture("complete-state","vsh",ShaderStageKind.Vertex),
             new ShaderStageContract("tests/ao-integral.fsh","tests/ao-integral.fsh",ShaderStageKind.Fragment,integration)],1));
+        foreach (bool adaptation in new[] { false, true })
+        {
+            var bindings = new GpuBindingContract();
+            bindings.RegisterUniformBlockBinding("CameraExposureInputs", 28);
+            if (adaptation) { bindings.RegisterUniformBlockBinding("VgeFrameUBO", 12); bindings.RegisterSamplerUnit("histogram", 0); bindings.RegisterSamplerUnit("previousExposure", 1); bindings.FragmentOutputLocations.Add("exposureEV", 0); }
+            else { bindings.RegisterSamplerUnit("sceneRadiance", 0); bindings.FragmentOutputLocations.Add("histogram", 0); }
+            string name = adaptation ? "raster-camera-adapt" : "raster-camera-histogram";
+            programs.Add(new("tests/" + name, [new("tests/raster-camera.vsh", "tests/raster-camera.vsh", ShaderStageKind.Vertex, new()), new("tests/" + name + ".fsh", "tests/" + name + ".fsh", ShaderStageKind.Fragment, bindings)], 1));
+        }
         return new(programs);
     }
     #endregion

@@ -146,6 +146,8 @@ public static partial class GpuSupport
             MaxVertexTextureImageUnits = maxVertexTextureImageUnits,
             MaxUniformBufferBindings = maxUniformBufferBindings,
             MaxUniformBlockSize = maxUniformBlockSize,
+            MaxFragmentShaderStorageBlocks = capabilities.SupportsArbShaderStorageBufferObject ? SafeGetInt((GetPName)All.MaxFragmentShaderStorageBlocks) : 0,
+            MaxComputeShaderStorageBlocks = capabilities.SupportsArbShaderStorageBufferObject && capabilities.SupportsArbComputeShader ? SafeGetInt((GetPName)All.MaxComputeShaderStorageBlocks) : 0,
             MaxShaderStorageBufferBindings = maxShaderStorageBufferBindings,
             MaxShaderStorageBlockSize = maxShaderStorageBlockSize,
             MaxAtomicCounterBufferBindings = maxAtomicCounterBufferBindings,

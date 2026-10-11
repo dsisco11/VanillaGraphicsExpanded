@@ -6,6 +6,7 @@ using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Moq;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR;
@@ -223,23 +224,17 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             post.OnRenderFrame(0, EnumRenderStage.Before);
             post.Render(new(true, true, ssaoQuality > 0, true, ssaoQuality));
             Assert.Equal(earlyOcclusion, LightShaftOcclusionRenderer.Texture!.TextureId);
-            int publishedExposure = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
-            Assert.True(GL.IsTexture(publishedExposure));
+            int publishedExposure = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
+            Assert.True(GL.IsBuffer(publishedExposure));
             int ownedBloom = ((GpuTexture)AccessTools.Field(typeof(PostprocessPipeline), "bloomTexture").GetValue(post)!).TextureId;
             int ownedRays = ((GpuTexture)AccessTools.Field(typeof(PostprocessPipeline), "rayTexture").GetValue(post)!).TextureId;
             Assert.NotEqual(postStorage.TextureId, ownedBloom);
             Assert.NotEqual(postStorage.TextureId, ownedRays);
             Assert.True(GL.IsTexture(ownedBloom)); Assert.True(GL.IsTexture(ownedRays));
-            using (var borrowed = GpuFramebufferAttachment.FromTextureId(publishedExposure))
-            using (var readback = GpuFramebuffer.Create([borrowed]))
-            {
-                float luma = handedOff[0] * .2126f + handedOff[1] * .7152f + handedOff[2] * .0722f;
-                float expectedEv = Math.Clamp(MathF.Log2(.18f / luma), -4, 4);
-                readback.BindWithViewport();
-                float[] evPixel = new float[1];
-                GL.ReadPixels(0, 0, 1, 1, PixelFormat.Red, PixelType.Float, evPixel);
-                Assert.InRange(evPixel[0], expectedEv - .002f, expectedEv + .002f);
-            }
+            float luma = handedOff[0] * .2126f + handedOff[1] * .7152f + handedOff[2] * .0722f;
+            float expectedEv = Math.Clamp(MathF.Log2(.18f / luma), -4, 4);
+            float ev = ExposureTestStorage.Read<float>(CameraExposureRenderer.DisplayExposure().Buffer!)[0];
+            Assert.InRange(ev, expectedEv - .002f, expectedEv + .002f);
             // Device queries surround both warmed passes, with no per-frame image readback.
             var milliseconds = new List<double>();
             for (int sample = 0; sample < 8; sample++)
@@ -250,13 +245,13 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
                 milliseconds.Add(timer.GetResultNanoseconds() / 1e6);
             }
             output.WriteLine($"Synthetic camera metering (2x2 uniform scene, fixed 64x36 grid), 8 warmed GPU samples: min={milliseconds.Min():F4} ms, median={milliseconds.Order().ElementAt(4):F4} ms, max={milliseconds.Max():F4} ms. This is not in-game frame cost.");
-            int beforeRetire = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
+            int beforeRetire = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
             ConfigModSystem.Config.CameraExposure = new() { Enabled = false };
             camera.OnRenderFrame(0, EnumRenderStage.Before);
             CameraExposureRenderer.MeterScene();
-            Assert.Null(CameraExposureRenderer.DisplayExposure().Texture);
+            Assert.Null(CameraExposureRenderer.DisplayExposure().Buffer);
             Assert.Equal(0, CameraExposureRenderer.DisplayExposure().ManualEV);
-            Assert.False(GL.IsTexture(beforeRetire));
+            Assert.False(GL.IsBuffer(beforeRetire));
 
             // The owned final reads owned luma and writes primary once, without the engine final program.
             post.OnRenderFrame(0, EnumRenderStage.Before);
@@ -306,9 +301,9 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             ConfigModSystem.Config.CameraExposure = new() { Enabled = true };
             camera.OnRenderFrame(0, EnumRenderStage.Before);
             CameraExposureRenderer.MeterScene();
-            int beforeResize = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
+            int beforeResize = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
             ScreenResourceManager.HandleScreenResize();
-            Assert.False(GL.IsTexture(beforeResize));
+            Assert.False(GL.IsBuffer(beforeResize));
             Assert.False(GL.IsTexture(earlyOcclusion));
             Assert.Null(LightShaftOcclusionRenderer.Texture);
             Assert.False(GL.IsTexture(ownedBloom));
@@ -321,7 +316,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             // Recreate borrowed luma resources after resize and verify collection retirement never owns engine storage.
             post.OnRenderFrame(0, EnumRenderStage.Before);
             post.Render(new(false, false, false, true, 0));
-            int beforeReload = CameraExposureRenderer.DisplayExposure().Texture!.TextureId;
+            int beforeReload = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             int beforeNativeDisable = LightShaftOcclusionRenderer.Texture!.TextureId;
             api.SetupGet(value => value.Settings.Int["godRays"]).Returns(0);
@@ -337,7 +332,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             finally { ClientRenderingLifetime.CompleteNativeReload(); }
             Assert.Null(LightShaftOcclusionRenderer.Texture);
             Assert.False(GL.IsTexture(beforeShaftReload));
-            Assert.False(GL.IsTexture(beforeReload));
+            Assert.False(GL.IsBuffer(beforeReload));
             Assert.True(GL.IsTexture(material.TextureId));
             Assert.True(GL.IsTexture(postStorage.TextureId));
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.DisplayExposure());

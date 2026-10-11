@@ -28,9 +28,9 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         EnsureShaderTestAvailable();
         var shader = Programs.Create<BloomShaderProgram>();
         using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [1f,1f,1f,.3f]);
-        using var exposure = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [ev,0f,0f,1f]);
+        using var exposure = ExposureTestStorage.Create(ev);
         using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
-        shader.SourceImage=source; shader.SecondaryImage=exposure;
+        shader.SourceImage=source; shader.SecondaryImage=source; shader.ExposureBuffer=exposure;
         shader.Capture(new(0,0,0,automatic?1:0),new(2,.5f,1,automatic?-8:ev)); Draw(shader,target);
         Assert.InRange(target[0].ReadPixels()[0],weight-.00001f,weight+.00001f);
         Assert.Equal(new[]{1f,1f,1f,.3f},source.ReadPixels());

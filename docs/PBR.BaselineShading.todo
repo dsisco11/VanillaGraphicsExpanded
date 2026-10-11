@@ -1061,7 +1061,7 @@ Tasks
         
   ☐ Analyze the current PBR MRT textures and evaluate which can be combined together to just use individual channels of the same texture-layer in the G-Buffer array.
 
-  ☐ Refactor camera exposure to use compute shaders and GPU buffer storage.
+  ☑ Refactor camera exposure to use compute shaders and GPU buffer storage.
     - Replace the raster histogram and one-pixel adaptation passes with independently authored
       compute shaders through existing GPU program, typed binding, dispatch and resource APIs.
       Follow docs/PBR.CameraExposure.md and docs/PBR.SharedDisplay.md; update both contracts
@@ -1088,6 +1088,14 @@ Tasks
       Measure histogram/adaptation GPU cost at matched sample counts and record storage, sampler
       and dispatch changes separately from timing. Retire obsolete raster shaders and tests only
       after their behavioral coverage is preserved; retain deferred user-run visual acceptance.
+
+    - Completed: GLSL 430 shared-integer histogram and GPU percentile/adaptation dispatches;
+      persistent SSBO history and typed buffer inputs for bloom, LightShafts, luma and final.
+      Shader-enabled build and 109/109 focused cases passed without skips; independent review
+      and 21-case GPU audit passed. At matched 2,304 samples on RTX 4090, compute pair median
+      GPU cost was 0.0164–0.0174 ms versus raster 0.6892–0.6922 ms. Storage, encoding bounds,
+      ownership, synthetic timing limits and receipts are in docs/PBR.CameraExposure.md and
+      docs/PBR.Postprocessing.md. User-run visual acceptance remains deferred.
 
   ☐ Profile and optimize cached material-atlas restoration with batched uploads.
     - Establish a matched warm-cache world-load baseline, separating cache reads/decompression,

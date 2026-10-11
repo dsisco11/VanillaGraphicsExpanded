@@ -26,8 +26,8 @@ internal sealed partial class LightShaftShaderProgram : GpuProgram, ILightShaftS
     public partial GpuTexture? DepthImage { set; }
     /// <summary>Stages the current scene or radial input.</summary>
     public partial GpuTexture? SourceImage { set; }
-    /// <summary>Stages the camera exposure image.</summary>
-    public partial GpuTexture? ExposureImage { set; }
+    /// <summary>Stages the published camera exposure buffer.</summary>
+    public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
     /// <summary>Captures the complete draw parameters for the shader contract.</summary>
     internal void Capture(Vector4 pass, Vector4 effect, Vector4 sun = default, Vector4 solar = default)
         => inputs.Capture(pass, effect, sun, solar);

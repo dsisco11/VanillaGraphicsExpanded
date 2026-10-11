@@ -1,5 +1,6 @@
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -25,11 +26,12 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
             using var assets = new BinaryShaderApiFixture();
             var shader = VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Declare(assets.Api, FinalDisplayShaderProgram.Contract.Identity, () => new FinalDisplayShaderProgram());
             using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [4f, 4f, 4f, .37f]);
+        using var neutralExposure = ExposureTestStorage.Create(0);
             using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 0f]);
             using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
             using var camera = TestFrameCamera.CreateIdentity(1, 1);
             shader.FrameInputs = camera;
-            shader.SceneImage = source; shader.BloomImage = zero; shader.ShaftImage = zero; shader.ExposureImage = zero;
+            shader.SceneImage = source; shader.BloomImage = zero; shader.ShaftImage = zero; shader.ExposureBuffer=neutralExposure;
             shader.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), Vector4.Zero);
             ulong revision = 0;
             for (int path = 0; path < 4; path++)
@@ -77,12 +79,12 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var scene = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[4f,4f,4f,.37f]);
         using var bloom = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[1f,1f,1f,1f]);
         using var shafts = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[2f,2f,2f,1f]);
-        using var history = TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[ev]);
+        using var history = ExposureTestStorage.Create(ev);
         using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
         shader.FrameInputs = camera;
         shader.SceneImage=scene; shader.BloomImage=bloom; shader.ShaftImage=shafts;
-        shader.ExposureImage=history;
+        shader.ExposureBuffer=history;
         shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),new(automatic?-ev:ev,automatic?1:0,0,0));
         Draw(shader,target);
         float radiance=(4f+3f)*MathF.Pow(2,ev);
@@ -102,11 +104,12 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         EnsureShaderTestAvailable();
         var shader=Programs.Create<FinalDisplayShaderProgram>();
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[4f,2f,1f,.5f]);
+        using var neutralExposure = ExposureTestStorage.Create(0);
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var target=TestFramework.CreateTestGBuffer(width,height,PixelInternalFormat.Rgba16f);
         using var camera = TestFrameCamera.CreateIdentity(width, height);
         shader.FrameInputs = camera;
-        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureImage=zero;
+        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureBuffer=neutralExposure;
         shader.Capture(true,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
         Draw(shader,target);
         var samples=new List<double>();
@@ -127,11 +130,12 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         EnsureShaderTestAvailable();
         var shader=Programs.Create<FinalDisplayShaderProgram>();
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.18f,.18f,.18f,.3f]);
+        using var neutralExposure = ExposureTestStorage.Create(0);
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var target=TestFramework.CreateTestGBuffer(17,9,PixelInternalFormat.Rgba32f);
         using var camera = TestFrameCamera.CreateIdentity(17, 9);
         shader.FrameInputs = camera;
-        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureImage=zero;
+        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureBuffer=neutralExposure;
         shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);Draw(shader,target);
         float[] baseline=target[0].ReadPixels();
         var controls=treatment==0?new FinalDisplayParameters(new(2,1,1,0),Vector4.Zero,Vector4.Zero):

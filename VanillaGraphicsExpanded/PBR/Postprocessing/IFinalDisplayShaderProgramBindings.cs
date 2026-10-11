@@ -21,8 +21,8 @@ internal interface IFinalDisplayShaderProgramBindings
     /// <summary>Supplies the ShaftImage texture without transferring ownership.</summary>
     [ShaderBinding("shaftImage", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
     GpuTexture? ShaftImage { set; }
-    /// <summary>Supplies the ExposureImage texture without transferring ownership.</summary>
-    [ShaderBinding("exposureImage", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? ExposureImage { set; }
+    /// <summary>Supplies the published exposure buffer without transferring ownership.</summary>
+    [ShaderBinding("CameraExposure", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Fragment, Required = false)]
+    GpuShaderStorageBuffer? ExposureBuffer { set; }
     #endregion
 }

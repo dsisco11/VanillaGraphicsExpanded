@@ -21,8 +21,8 @@ internal sealed partial class PostLumaShaderProgram : GpuProgram, IPostLumaShade
     }
     /// <summary>Stages the SourceImage image.</summary>
     public partial GpuTexture? SourceImage { set; }
-    /// <summary>Stages the SecondaryImage image.</summary>
-    public partial GpuTexture? SecondaryImage { set; }
+    /// <summary>Stages the published exposure buffer.</summary>
+    public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
     /// <summary>Captures the complete draw parameters for the shader contract.</summary>
     internal void Capture(Vector4 pass, Vector4 effect, Vector4 sun = default, Vector4 solar = default)
         => inputs.Capture(pass, effect, sun, solar);

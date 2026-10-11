@@ -15,5 +15,8 @@ internal interface IBloomShaderProgramBindings
     /// <summary>Supplies secondaryImage with explicit edge-clamped sampling.</summary>
     [ShaderBinding("secondaryImage", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
     GpuTexture? SecondaryImage { set; }
+    /// <summary>Supplies published exposure when automatic camera control is enabled.</summary>
+    [ShaderBinding("CameraExposure", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Fragment, Required = false)]
+    GpuShaderStorageBuffer? ExposureBuffer { set; }
     #endregion
 }

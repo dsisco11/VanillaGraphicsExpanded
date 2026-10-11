@@ -20,8 +20,6 @@ internal static class VgeShaderPrograms
         GpuShaderProgramLibraries.Declare(api, VgeWorldProbeOrbsPointsShaderProgram.Contract.Identity, () => new VgeWorldProbeOrbsPointsShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBRDirectLightingShaderProgram.Contract.Identity, () => new PBRDirectLightingShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Atmosphere.AtmosphereSkyShaderProgram.Contract.Identity, () => new PBR.Atmosphere.AtmosphereSkyShaderProgram());
-        GpuShaderProgramLibraries.Declare(api, PBR.CameraExposure.CameraHistogramShaderProgram.Contract.Identity, () => new PBR.CameraExposure.CameraHistogramShaderProgram());
-        GpuShaderProgramLibraries.Declare(api, PBR.CameraExposure.CameraAdaptShaderProgram.Contract.Identity, () => new PBR.CameraExposure.CameraAdaptShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.FinalDisplayShaderProgram.Contract.Identity, () => new PBR.Postprocessing.FinalDisplayShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.BloomShaderProgram.Contract.Identity, () => new PBR.Postprocessing.BloomShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.LightShaftShaderProgram.Contract.Identity, () => new PBR.Postprocessing.LightShaftShaderProgram());

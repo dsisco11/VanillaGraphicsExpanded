@@ -1,5 +1,6 @@
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
@@ -34,6 +35,7 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         using var material = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.5f,0f,0f,0f]);
         using var position = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[receiverX,0f,-2f,1f]);
         using var depth = TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[.75f]);
+        using var neutralExposure = ExposureTestStorage.Create(0);
         using var lighting = LayeredTestTexture.Create(direct,specular,emission);
         using var surface = LayeredTestTexture.Create(normal,material,indirect);
         using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.R11fG11fB10f,PixelInternalFormat.Rgba16f,PixelInternalFormat.R32f);
@@ -89,7 +91,7 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         var display=Programs.Create<FinalDisplayShaderProgram>();
         using var output=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
-        display.FrameInputs=frameCamera;display.SceneImage=target[0];display.BloomImage=zero;display.ShaftImage=zero;display.ExposureImage=zero;
+        display.FrameInputs=frameCamera;display.SceneImage=target[0];display.BloomImage=zero;display.ShaftImage=zero;display.ExposureBuffer=neutralExposure;
         display.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
         using var draw=new PostprocessDraw();
         var displayPipeline=draw.Prepare(display,output);

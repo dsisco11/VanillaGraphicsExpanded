@@ -1,6 +1,7 @@
 using System.Numerics;
 using Moq;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
@@ -17,6 +18,31 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Luma preparation reads buffer EV only for automatic mode and preserves scene RGB.</summary>
+    [Theory]
+    [InlineData(-2f,false)]
+    [InlineData(2f,true)]
+    public void LumaPreparationPreservesRadianceAndUsesCameraBuffer(float ev,bool automatic)
+    {
+        EnsureShaderTestAvailable();
+        var shader=Programs.Create<PostLumaShaderProgram>();
+        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.18f,.18f,.18f,.3f]);
+        using var exposure=ExposureTestStorage.Create(ev);
+        using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
+        using var draw=new PostprocessDraw();
+        shader.SourceImage=source;shader.ExposureBuffer=exposure;
+        shader.Capture(new(0,0,1,automatic?1:0),new(0,0,0,automatic?-8:ev));
+        var pipeline=draw.Prepare(shader,target);
+        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureLuma",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+        float[] actual=target[0].ReadPixels();
+        Assert.Equal(new[]{.18f,.18f,.18f},actual[..3]);
+        float radiance=.18f*MathF.Pow(2,ev),linear=radiance/(1+radiance);
+        float srgb=linear<=.0031308f?12.92f*linear:1.055f*MathF.Pow(linear,1f/2.4f)-.055f;
+        Assert.InRange(actual[3],srgb-.00001f,srgb+.00001f);
+        shader.Capture(Vector4.Zero,Vector4.Zero);
+        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureLumaBypass",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+        Assert.Equal(new[]{.18f,.18f,.18f,.3f},target[0].ReadPixels());
+    }
     /// <summary>Native default grading must retain the already encoded single display transfer.</summary>
     [Fact]
     public void NativeDefaultGradingPreservesSingleDisplayTransfer()
@@ -31,8 +57,9 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         using var target=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         using var draw=new PostprocessDraw();
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
+        using var neutralExposure = ExposureTestStorage.Create(0);
         shader.FrameInputs = camera;
-        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureImage=zero;
+        shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureBuffer=neutralExposure;
         var pipeline=draw.Prepare(shader,target);
         shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
         Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureNeutral",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
@@ -68,36 +95,33 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
     public void DefaultMeteringAndNativeDisplayRespectConfiguredBounds(float luminance)
     {
         EnsureShaderTestAvailable();
-        var meter=Programs.Create<CameraHistogramShaderProgram>();var adapt=Programs.Create<CameraAdaptShaderProgram>();
+        var meter=Programs.CreateCompute(CameraHistogramShaderProgram.Create);var adapt=Programs.CreateCompute(CameraAdaptShaderProgram.Create);
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[luminance,luminance,luminance,1f]);
-        using var previous=TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[0f]);
-        using var histogram=TestFramework.CreateTestGBuffer(64,1,PixelInternalFormat.Rg32f);
-        using var result=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.R32f);
+        using var targets = new CameraExposureTargets();
         using var draw=new PostprocessDraw();
         var settings=new CameraExposureSettings().Snapshot();
         meter.SceneRadiance=source;meter.Capture(settings,true);
-        var meterPipeline=draw.Prepare(meter,histogram);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureMeter",[meterPipeline],true,commands=>draw.Submit(commands,meterPipeline,histogram)));
-        float count=histogram[0].ReadPixels().Where((_,i)=>i%2==0).Sum();
+        meter.Histogram=targets.Histogram; meter.Dispatch(36);
+        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+        uint count=ExposureTestStorage.Read<uint>(targets.Histogram).Where((_,i)=>i%2==0).Aggregate(0u,(a,v)=>a+v);
         using var adaptationCamera = TestFrameCamera.CreateIdentity(1, 1);
         adapt.FrameInputs = adaptationCamera;
-        adapt.Histogram=histogram[0];adapt.PreviousExposure=previous;adapt.Capture(settings,true);
-        var adaptPipeline=draw.Prepare(adapt,result);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureAdapt",[adaptPipeline],true,commands=>draw.Submit(commands,adaptPipeline,result)));
-        float ev=result[0].ReadPixels()[0];
+        adapt.Histogram=targets.Histogram;adapt.PreviousExposure=targets.Exposure;adapt.OutputExposure=targets.WriteTarget;adapt.Capture(settings,true);
+        adapt.Dispatch(1); GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit); targets.Publish();
+        float ev=ExposureTestStorage.Read<float>(targets.Exposure)[0];
         var final=Programs.Create<FinalDisplayShaderProgram>();
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var display=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
         final.FrameInputs = camera;
-        final.SceneImage=source;final.BloomImage=zero;final.ShaftImage=zero;final.ExposureImage=result[0];
+        final.SceneImage=source;final.BloomImage=zero;final.ShaftImage=zero;final.ExposureBuffer=targets.Exposure;
         var finalPipeline=draw.Prepare(final,display);
         var api=new Mock<ICoreClientAPI>{DefaultValue=DefaultValue.Mock};
         api.SetupGet(value=>value.Render.ShaderUniforms).Returns(new DefaultShaderUniforms {DropShadowIntensity=0});
         final.Capture(false,FinalDisplayParameters.Capture(api.Object),new(0,1,0,0));
         Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureFinal",[finalPipeline],true,commands=>draw.Submit(commands,finalPipeline,display)));
         float expectedEv=Math.Clamp(MathF.Log2(settings.MiddleGray/luminance),settings.MinEV,settings.MaxEV);
-        Assert.InRange(ev,expectedEv-.00001f,expectedEv+.00001f);
+        Assert.InRange(ev,expectedEv-.0003f,expectedEv+.0003f);
         Assert.True(count>0);
         float exposed=luminance*MathF.Pow(2,expectedEv);
         float linear=exposed/(1+exposed);

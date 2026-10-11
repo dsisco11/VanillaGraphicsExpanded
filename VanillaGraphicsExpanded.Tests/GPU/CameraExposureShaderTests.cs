@@ -13,12 +13,22 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Admission accepts the exact minimum contract and rejects every missing capability or insufficient limit.</summary>
+    [Fact]
+    public void CapabilityAdmissionRequiresCompleteComputeAndConsumerContract()
+    {
+        EnsureShaderTestAvailable();
+        var supported=GpuSupport.Graphics with {MaxComputeWorkGroupInvocations=64,MaxComputeWorkGroupSize=System.Collections.Immutable.ImmutableArray.Create(64,1,1),MaxComputeWorkGroupCount=System.Collections.Immutable.ImmutableArray.Create(36,1,1),MaxComputeSharedMemorySize=512,MaxShaderStorageBufferBindings=3,MaxFragmentShaderStorageBlocks=1,MaxComputeShaderStorageBlocks=3,MaxShaderStorageBlockSize=18432};
+        Assert.True(CameraExposureDispatch.Supports(supported));
+        GraphicsCapabilities[] insufficient=[supported with {SupportsArbComputeShader=false},supported with {SupportsArbShaderImageLoadStore=false},supported with {SupportsArbShaderStorageBufferObject=false},supported with {SupportsArbGlSpirv=false},supported with {MaxComputeWorkGroupInvocations=63},supported with {MaxComputeWorkGroupSize=System.Collections.Immutable.ImmutableArray.Create(63,1,1)},supported with {MaxComputeWorkGroupCount=System.Collections.Immutable.ImmutableArray.Create(35,1,1)},supported with {MaxComputeSharedMemorySize=511},supported with {MaxShaderStorageBufferBindings=2},supported with {MaxFragmentShaderStorageBlocks=0},supported with {MaxComputeShaderStorageBlocks=2},supported with {MaxShaderStorageBlockSize=18431}];
+        Assert.All(insufficient,value=>Assert.False(CameraExposureDispatch.Supports(value)));
+    }
     /// <summary>Generic borrowed metadata still rejects a 3D texture at a production 2D sampler boundary.</summary>
     [Fact]
     public void BorrowedTextureTargetMismatchIsRejected()
     {
         EnsureShaderTestAvailable();
-        var shader=Programs.Create<CameraHistogramShaderProgram>();
+        var shader=Programs.CreateCompute(CameraHistogramShaderProgram.Create);
         Assert.True(shader.EnsureReady());
         using var external=Texture3D.Create(2,2,2,PixelInternalFormat.Rgba16f,TextureFilterMode.Nearest,TextureTarget.Texture3D,"Borrowed.Mismatch");
         using var borrowed=new BorrowedTexture(external.TextureId);
@@ -27,6 +37,38 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         Assert.True(binding.Active);
         var error=Assert.Throws<InvalidOperationException>(()=>ShaderPreparedSubmission.ValidateSampler(binding,borrowed));
         Assert.Contains("Incompatible texture target",error.Message);
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    /// <summary>Compute interruptions restore all borrowed storage slots and leave publication unchanged when admission fails.</summary>
+    [Fact]
+    public void ComputeBoundaryRestoresStorageAndRejectsUnknownProgram()
+    {
+        EnsureShaderTestAvailable();
+        var meter=Programs.CreateCompute(CameraHistogramShaderProgram.Create);
+        var adapt=Programs.CreateCompute(CameraAdaptShaderProgram.Create);
+        using var targets=new CameraExposureTargets();
+        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.18f,.18f,.18f,1f]);
+        using var camera=TestFrameCamera.CreateIdentity(1,1);
+        using var external=ExposureTestStorage.Create(7);
+        meter.SceneRadiance=source;meter.Histogram=targets.Histogram;meter.Capture(Settings(),true);
+        adapt.Histogram=targets.Histogram;adapt.PreviousExposure=targets.Exposure;adapt.OutputExposure=targets.WriteTarget;adapt.FrameInputs=camera;adapt.Capture(Settings(),true);
+        int published=targets.Exposure.BufferId;
+        for(int slot=0;slot<3;slot++)external.BindBase(slot);
+        try
+        {
+            Assert.True(CameraExposureDispatch.TryRun(meter,adapt));
+            for(int slot=0;slot<3;slot++)
+            {
+                GL.GetInteger((GetIndexedPName)All.ShaderStorageBufferBinding,slot,out int selected);
+                Assert.Equal(external.BufferId,selected);
+            }
+            AssertClose(0,ExposureTestStorage.Read<float>(targets.WriteTarget)[0]);
+            StateCache.Current.UseProgram(meter.ProgramId);
+            Assert.False(CameraExposureDispatch.TryRun(meter,adapt));
+            Assert.Equal(published,targets.Exposure.BufferId);
+            Assert.Equal(meter.ProgramId,GL.GetInteger(GetPName.CurrentProgram));
+        }
+        finally { StateCache.Current.UnbindProgram();for(int slot=0;slot<3;slot++)GpuShaderStorageBuffer.UnbindBase(slot); }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #region Metering
@@ -40,16 +82,64 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         float[] pixels = Pixels(index => levels[index % levels.Length]);
         using var source = TestFramework.CreateTexture(64, 36, PixelInternalFormat.Rgba32f, pixels);
         rig.Meter(source, Settings());
-        float[] histogram = rig.Histogram[0].ReadPixels();
+        float[] histogram = rig.ReadHistogram();
         AssertClose(384, histogram.Where((_, i) => i % 2 == 0).Sum(), .001f);
-        AssertClose(384 * MathF.Log2(.18f), histogram.Where((_, i) => i % 2 == 1).Sum(), .02f);
+        AssertClose(384 * MathF.Log2(.18f), histogram.Where((_, i) => i % 2 == 1).Sum(), .06f);
         float[] unchanged = source.ReadPixels();
         for (int i = 0; i < pixels.Length; i++)
             if (float.IsNaN(pixels[i])) Assert.True(float.IsNaN(unchanged[i]));
             else Assert.Equal(pixels[i], unchanged[i]);
         AssertClose(0, rig.Adapt(Settings(), 3, 0, true));
+        using var empty=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,1f]);
+        rig.Meter(empty,Settings());
+        Assert.All(rig.ReadHistogram(),value=>Assert.Equal(0,value));
     }
 
+    /// <summary>Every weighted bin agrees with an independent double-precision scene population within declared encoding bounds.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void HistogramMatchesIndependentWeightedPopulation(bool weighted)
+    {
+        EnsureShaderTestAvailable();
+        using var rig=CreateRig();
+        float[] pixels=Pixels(i=>MathF.Pow(2,-10+(i%61)*.4f));
+        using var source=TestFramework.CreateTexture(64,36,PixelInternalFormat.Rgba32f,pixels);
+        rig.Meter(source,Settings() with {CenterWeighted=weighted});
+        float[] actual=rig.ReadHistogram();
+        double[] counts=new double[64],sums=new double[64];int[] population=new int[64];
+        for(int i=0;i<2304;i++)
+        {
+            double level=Math.Log2(pixels[i*4]);int bin=Math.Clamp((int)((level+12)*64/28),0,63);
+            double x=2*(i%64+.5)/64-1,y=2*(i/64+.5)/36-1;
+            double weight=weighted?.25+.75*Math.Exp(-2*(x*x+y*y)):1;
+            counts[bin]+=weight;sums[bin]+=weight*level;population[bin]++;
+        }
+        for(int bin=0;bin<64;bin++)
+        {
+            double count=0,sum=0;
+            for(int group=0;group<36;group++){count+=actual[(group*64+bin)*2];sum+=actual[(group*64+bin)*2+1];}
+            double weightBound=population[bin]/8192.0+.0001;
+            Assert.InRange(count,counts[bin]-weightBound,counts[bin]+weightBound);
+            double sumBound=population[bin]*.002+.001;
+            Assert.InRange(sum,sums[bin]-sumBound,sums[bin]+sumBound);
+        }
+    }
+    /// <summary>Maximum valid luminance filling a local bin cannot overflow integer atomics or contaminate adjacent bins.</summary>
+    [Fact]
+    public void UpperRangeUniformPopulationDoesNotOverflow()
+    {
+        EnsureShaderTestAvailable();using var rig=CreateRig();
+        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[65535f,65535f,65535f,1f]);
+        rig.Meter(source,Settings());float[] bins=rig.ReadHistogram();
+        for(int group=0;group<36;group++)
+        {
+            int last=(group*64+63)*2;Assert.Equal(64,bins[last]);
+            AssertClose(64*MathF.Log2(65535),bins[last+1],.002f);
+            for(int bin=0;bin<63;bin++){Assert.Equal(0,bins[(group*64+bin)*2]);Assert.Equal(0,bins[(group*64+bin)*2+1]);}
+        }
+        AssertClose(-12,rig.Adapt(Settings(),0,0,true));
+    }
     /// <summary>Percentile trimming removes sparse sun/dark outliers and retains the geometric scene mean.</summary>
     [Fact]
     public void PercentilesRejectSolarOutliersAndWeightPartialBins()
@@ -117,9 +207,9 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         AssertClose(4 - MathF.Exp(-1), full);
         AssertClose(full, split, .00003f);
         AssertClose(-2, rig.Adapt(settings, -2, -1, false));
-        rig.PublishTarget(20);
+        rig.PublishTarget(8);
         AssertClose(3, rig.Adapt(settings with { MaxEV = 3 }, 0, 0, true));
-        rig.PublishTarget(-20);
+        rig.PublishTarget(-8);
         AssertClose(-3, rig.Adapt(settings with { MinEV = -3 }, 0, 0, true));
     }
 
@@ -175,77 +265,74 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         return result;
     }
     /// <summary>Asserts independent floating-point expectations with a narrowly scoped numerical tolerance.</summary>
-    private static void AssertClose(float expected, float actual, float tolerance = .0001f)
+    private static void AssertClose(float expected, float actual, float tolerance = .0003f)
         => Assert.InRange(actual, expected - tolerance, expected + tolerance);
-    /// <summary>Combines production shader owners with retained numerical render targets.</summary>
-    private ExposureRig CreateRig() => new(Programs.Create<CameraHistogramShaderProgram>(), Programs.Create<CameraAdaptShaderProgram>(), TestFramework);
+    /// <summary>Combines production shader owners with retained numerical buffers.</summary>
+    private ExposureRig CreateRig() => new(Programs.CreateCompute(CameraHistogramShaderProgram.Create), Programs.CreateCompute(CameraAdaptShaderProgram.Create));
 
-    /// <summary>Submits the real histogram and adaptation programs with typed input capture and explicit history images.</summary>
+    /// <summary>Submits the real histogram and adaptation programs with typed input capture and explicit history buffers.</summary>
     private sealed class ExposureRig : IDisposable
     {
         private readonly CameraHistogramShaderProgram meter;
         private readonly CameraAdaptShaderProgram adapt;
-        private readonly ShaderTestFramework framework;
-        private readonly GpuVao vao = GpuVao.Create();
-        private readonly GpuFramebuffer output;
-        private GpuTexture histogramTexture;
-        internal GpuFramebuffer Histogram { get; }
+        private readonly CameraExposureTargets targets = new();
 
         #region Public API
-        /// <summary>Allocates the production-sized histogram and single-pixel adaptation target.</summary>
-        internal ExposureRig(CameraHistogramShaderProgram meter, CameraAdaptShaderProgram adapt, ShaderTestFramework framework)
+        /// <summary>Allocates the production-sized histogram and scalar adaptation storage.</summary>
+        internal ExposureRig(CameraHistogramShaderProgram meter, CameraAdaptShaderProgram adapt)
         {
-            this.meter = meter; this.adapt = adapt; this.framework = framework;
-            Histogram = framework.CreateTestGBuffer(64, 1, PixelInternalFormat.Rg32f);
-            output = framework.CreateTestGBuffer(1, 1, PixelInternalFormat.R32f);
-            histogramTexture = Histogram[0];
+            this.meter = meter; this.adapt = adapt;
+
         }
         /// <summary>Runs fixed-grid scene metering without modifying its source image.</summary>
         internal void Meter(GpuTexture texture, CameraExposureParameters settings)
         {
             meter.SceneRadiance = texture; meter.Capture(settings, false);
-            Histogram.BindWithViewport(); ConfigureDraw();
-            using (meter.UseScope()) using (vao.BindScope()) GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
-            histogramTexture = Histogram[0];
+            meter.Histogram = targets.Histogram;
+            meter.Dispatch(36);
+            GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         /// <summary>Publishes an independent single-bin population whose mean implies the requested exposure target.</summary>
         internal void PublishTarget(float target)
         {
-            float[] values = new float[128]; values[64] = 1; values[65] = MathF.Log2(.18f) - target;
-            histogramTexture = framework.CreateTexture(64, 1, PixelInternalFormat.Rg32f, values);
+            uint[] values = new uint[36 * 128];
+            values[64] = 4096; values[65] = (uint)MathF.Round((MathF.Log2(.18f) - target + 12) * 1048576);
+            targets.Histogram.UploadData(values);
         }
         /// <summary>Publishes an empty population to exercise missing scene statistics.</summary>
         internal void PublishEmpty()
         {
-            histogramTexture = framework.CreateTexture(64, 1, PixelInternalFormat.Rg32f, new float[128]);
+            targets.Histogram.UploadData(new uint[36 * 128]);
         }
         /// <summary>Runs one production adaptation step with explicit previous EV, frame time and reset semantics.</summary>
         internal float Adapt(CameraExposureParameters settings, float previous, float dt, bool reset, VgeFrameUniformBuffer? sharedFrame = null)
         {
-            using var history = framework.CreateTexture(1, 1, PixelInternalFormat.R32f, [previous]);
+            using var history = ExposureTestStorage.Create(previous);
             // The world publisher normalizes negative elapsed time before the shared snapshot is captured.
             using var camera = sharedFrame is null ? TestFrameCamera.CreateIdentity(1, 1, Math.Max(dt, 0)) : null;
             adapt.FrameInputs = sharedFrame ?? camera!;
-            adapt.Histogram = histogramTexture; adapt.PreviousExposure = history; adapt.Capture(settings, reset);
-            output.BindWithViewport(); ConfigureDraw();
-            using (adapt.UseScope()) using (vao.BindScope()) GL.DrawArrays(PrimitiveType.Triangles, 0, 3);
+            adapt.Histogram = targets.Histogram; adapt.PreviousExposure = history; adapt.OutputExposure = targets.WriteTarget; adapt.Capture(settings, reset);
+            adapt.Dispatch(1);
+            GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            return output[0].ReadPixels()[0];
+            return ExposureTestStorage.Read<float>(targets.WriteTarget)[0];
         }
-        /// <summary>Releases the fixture-owned vertex array; the framework owns images and framebuffer targets.</summary>
-        public void Dispose() => vao.Dispose();
+        /// <summary>Releases all retained histogram and temporal storage.</summary>
+        public void Dispose() => targets.Dispose();
         #endregion
-        #region Private
-        /// <summary>Declares the deterministic fullscreen state shared by both exposure passes.</summary>
-        private static void ConfigureDraw()
+        /// <summary>Decodes every workgroup bin for independent population and log-sum checks.</summary>
+        internal float[] ReadHistogram()
         {
-            GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-            GL.Disable(EnableCap.ScissorTest); GL.Disable(EnableCap.FramebufferSrgb);
-            GL.ColorMask(true, true, true, true);
-            StateCache.Current.InvalidateAll();
+            uint[] encoded = ExposureTestStorage.Read<uint>(targets.Histogram);
+            float[] decoded = new float[encoded.Length];
+            for (int i = 0; i < encoded.Length; i += 2)
+            {
+                decoded[i] = encoded[i] / 4096f;
+                decoded[i + 1] = encoded[i + 1] / 1048576f - 12 * decoded[i];
+            }
+            return decoded;
         }
-        #endregion
     }
     #endregion
 }

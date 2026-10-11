@@ -99,8 +99,8 @@ internal sealed class PostprocessPipeline : IRenderer
         }
         var exposure=CameraExposureRenderer.DisplayExposure();
         shader.SceneImage=retained.Luma; shader.BloomImage=bloomTexture; shader.ShaftImage=rayTexture;
-        shader.ExposureImage=exposure.Texture??neutral!.Texture;
-        shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualEV,exposure.Texture is null?0:1,0,0));
+        shader.ExposureBuffer=exposure.Buffer;
+        shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualEV,exposure.Buffer is null?0:1,0,0));
         var pipeline=draw!.Prepare(shader,finalTarget);
         if(!GraphicsCommandContext.TryRun("Postprocess.Final",[pipeline],true,
             commands=>draw.Submit(commands,pipeline,finalTarget)))

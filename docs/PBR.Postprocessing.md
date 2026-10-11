@@ -32,9 +32,9 @@ PostprocessPipeline coordinates separate algorithm owners:
 5. The owned final shader applies optional edge smoothing, adds owned glare, applies camera
    exposure and the shared tone curve once, then retains grading, vignettes and dithering.
 
-All scene postprocess draws use typed VGE programs, GLSL 330, PSOs, render passes and one
+All scene postprocess draws use typed VGE programs, GLSL 330 (with the required SSBO extension for exposure consumers), PSOs, render passes and one
 restoring GraphicsCommandContext boundary. Camera metering and final composition each have
-their own restoring boundary before and after the effects. No original engine findbright, blur, light-shaft, SSAO, bilateral or luma
+their own restoring boundary before and after the effects. Camera metering uses two GLSL 430 compute dispatches and buffer-backed EV history; ShaderStorageBarrierBit publishes histogram and exposure writes. See PBR.CameraExposure.md for numeric encoding, overflow bounds, runtime admission and ownership. No original engine findbright, blur, light-shaft, SSAO, bilateral or luma
 shader is invoked by the replaced HDR pass. The copied SSAO implementation and its kernel
 adapter have been removed. The owned horizon integration and joint spatial filter described below
 replace the earlier neutral placeholder.
@@ -467,7 +467,7 @@ shader reload and world teardown. Three to six scales are configurable; five is 
 
 For L allocated levels and A total level texels, cost is 4L fullscreen draws, 4A fragment outputs
 and 16A bytes of logical color storage. Sampling work is four taps per reduction, five to nine
-fetches per filter axis (covering seven to seventeen texels), and one/two per reconstruction (plus one exposure fetch per extraction fragment in automatic
+fetches per filter axis (covering seven to seventeen texels), and one/two per reconstruction (plus one exposure buffer read per extraction fragment in automatic
 mode). These count shader samples, not physical memory traffic or measured bandwidth. At 1920×1080,
 the default five levels occupy 10.54 MiB and issue 20 draws; six levels occupy 10.55 MiB and issue
 24 draws. GPU timing and visual validation are recorded separately from these analytical counts.
@@ -586,7 +586,7 @@ where d is the native quality divisor (4 or 2), before dimension rounding. A blo
 pyramid with scale/scratch storage approaches 16WH/3 bytes (RGBA16F), with exact size
 depending on level count and rounded dimensions. Bloom uses four fetches per reduction,
 five to nine per Gaussian axis and one/two per additive reconstruction pixel. Each shaft radial pass uses one packed fetch per selected tap;
-early extraction uses depth, and late extraction uses four scene/depth/visibility/exposure samples.
+early extraction uses depth, and late extraction uses four scene/depth/visibility samples and an exposure buffer read.
 These are logical storage/work counts, not measured driver allocation or physical bandwidth.
 
 The independent final shader measured median GPU times of 0.0164 ms at 720p, 0.0338 ms at
@@ -660,7 +660,7 @@ precision reduction, padding or mandatory allocation of disabled features is ass
 | [WaterVolumeRenderer](../VanillaGraphicsExpanded/PBR/Liquids/WaterVolumeRenderer.cs) | Optical depth and illumination/source: W×H RGBA32F, N | Signed additive boundary integration MRT → composite. **Recommended two-layer array**, retaining independent outputs, blend state and clears. Not RGBA16F: signed accumulation precision is intentional. |
 | [WaterRefractionScene](../VanillaGraphicsExpanded/PBR/Liquids/WaterRefractionScene.cs) | SourceColor: W×H RGBA16F; SourceDepth: W×H R32F; optional reducedColor: ceil(W/2)×ceil(H/2) RGBA16F; reducedDepth: same reduced size RGBA32F. Sampling policies remain per consumer | Pre-overlay capture and final opaque publication have distinct instances; reduction → liquid refraction. Color/depth formats mismatch. Do not merge pre-overlay and final publications: final composite reads the former while writing the latter. compositeColor and final SourceColor are co-produced outputs with different formats, but have different publication consumers/lifetimes and give no reduction to the 17-input composite. Keep separate. |
 | [AtmosphereTextureSet](../VanillaGraphicsExpanded/PBR/Atmosphere/AtmosphereTextureSet.cs) | Sky: a×2b RGBA16F; aerial Radiance: a×2b×d RGBA16F 3D; Attenuation: a×b×d RGBA16F 3D. L, repeat azimuth/clamp other axes; disabled aerial uses reduced neutral dimensions | Atmosphere publication uploads → sky, direct/forward lighting, composite, liquids and LumOn. **Exclude from a mechanical 2D-array conversion**: 3D distance interpolation and packed angular lobes are part of lookup semantics, and the dimensions differ. Combining them needs a separate LUT-layout/interpolation redesign, not just new bindings. |
-| [CameraExposureTargets](../VanillaGraphicsExpanded/PBR/CameraExposure/CameraExposureTargets.cs) | Histogram: 64×1 RG32F; two EV histories: 1×1 R32F, N | Meter → adapt(previous EV) → current EV/final and glare thresholds. Keep histogram and histories separate. Histories match physically but only one is sampled per adaptation draw, so one array adds feedback handling without sampler savings. Auto-exposure owns reset/cut/enable lifetime. |
+| [CameraExposureTargets](../VanillaGraphicsExpanded/PBR/CameraExposure/CameraExposureTargets.cs) | Histogram: 36 x 64 unsigned count/sum pairs (18,432 bytes); two four-byte EV SSBOs | Compute meter → storage barrier → reduce/adapt(previous EV) → storage barrier → current EV/final and glare thresholds. Distinct history buffers publish only after successful submission. No exposure images, samplers or FBOs. Auto-exposure owns reset/cut/enable lifetime. |
 | [BloomRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/BloomRenderer.cs) | Two RGBA16F images per Gaussian scale; start ceil half-size, clamp each dimension to 1; 3–6 levels | Extract/downsample → horizontal/vertical Gaussian → weighted additive reconstruction → final. Different scales cannot be different layers without padding. Same-size scale/scratch images alternate read/write roles and remain separate objects to avoid feedback. |
 | [LightShaftRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/LightShaftRenderer.cs) | Two RGBA16F reduced ping-pong images per early/late instance; early output W×H RGBA16F; late output ceil(W/d)×ceil(H/d) RGBA16F, d=4 or 2 | Depth/radiance extraction → radial passes → early aerial occlusion or late final glare. Keep each ping-pong pair separate by default: each pass samples one while writing the other, and currently uses only one working-image sampler. Grouping them saves allocations, not sampler inputs, and adds feedback requirements. Early/late scratch reuse is a separate lifetime optimization, not array consolidation. |
 | [RetainedPostprocessRenderer](../VanillaGraphicsExpanded/PBR/Postprocessing/RetainedPostprocessRenderer.cs), [PostprocessPipeline](../VanillaGraphicsExpanded/PBR/Postprocessing/PostprocessPipeline.cs) | Full-size RGBA16F luma/scene; persistent black glare 1×1 RGBA16F | Completed scene → luma → final. Black is a disabled-effect identity. Horizon AO has a separate pre-lighting owner for filter/visibility allocations and borrows the shared depth hierarchy, as documented above. |
@@ -858,3 +858,24 @@ The final opaque PBR composite stores nonnegative scene-linear RGB in `R11F_G11F
 This image uses four logical bytes per pixel instead of eight: a reduction of 7.91 MiB at 1920×1080 or 31.64 MiB at 3840×2160. Red/green have six mantissa bits and blue five, so repeated color quantization and smooth dark or sky gradients require visual evaluation. Direct-lighting transmission payloads, particle coverage and postprocess FXAA luminance retain their alpha storage. Live visual acceptance and matched frame-time measurements remain outstanding; storage savings alone do not establish a speedup.
 
 Focused GPU validation passed 21 cases: two packed-composite cases (standalone and LumOn), six ambient-composition cases, nine final-display cases, and four water capture lifecycle cases. The packed cases verify HDR channel precision, retained receiver validity/depth, exact RGB handoff with sampled alpha one, and display conversion. Capture lifecycle checks exercise toggles, shader reload and resize. Receipts: `artifacts/packed-composite-final-validation.log` and `artifacts/packed-composite-water-validation.log`. These headless checks do not establish live gradient quality or frame-time improvement.
+
+## Compute camera exposure validation
+
+Camera metering now classifies each fixed-grid sample once with shared uint histograms, then
+reduces percentile statistics and adapts GPU buffer history. Bloom, LightShafts, luma and final
+borrow the published typed EV SSBO. The restored compute boundary and two storage barriers
+preserve scene scheduling, settings/reset semantics and exactly-once final exposure. See
+[PBR.CameraExposure.md](PBR.CameraExposure.md) for encoding precision, integer overflow bounds,
+capability admission, buffer ownership and complete measurements.
+
+The shader-enabled build and 109/109 focused cases passed without skips or failures, including
+standalone/LumOn runtime lifecycles and histogram/EV reference agreement. Authoritative receipts:
+artifacts/exposure-final-validation.log and artifacts/CameraExposure/exposure-final.trx.
+An independent 21-case GPU recheck also passed without skips; receipts:
+artifacts/exposure-independent-validation.log and artifacts/CameraExposure/exposure-independent.trx.
+At the matched 2,304-sample workload on RTX 4090, median compute-pair GPU costs were
+0.0164/0.0164/0.0174 ms for 720p/1080p/2160p sources, versus raster
+0.6892/0.6922/0.6912 ms. These are warm synthetic device-query measurements, not live-frame
+performance. Two dispatches replace two draws; three FBOs and the metering VAO disappear;
+logical storage grows from 520 image bytes to 18,440 buffer bytes. Exposure samplers are
+removed from all four graphics consumers. User-run visual acceptance remains deferred.

@@ -141,7 +141,7 @@ and artifacts/NoSunBloom/blur-destination-ab.json. User-run appearance remains t
 ## Display and validation limits
 
 The SDR operator remains unchanged; dynamic camera exposure now precedes it at final display.
-See PBR.CameraExposure.md for metering, history, controls and validation. Alpha, revealage, depth, glow
+See PBR.CameraExposure.md for compute metering, buffer history, controls and validation. Owned bloom, shafts, luma and final display borrow the published read-only EV SSBO; final applies its multiplier once to scene plus glare. Their GLSL 330 shaders require the storage-buffer extension at runtime; compute metering uses GLSL 430 and cached GpuSupport admission. Alpha, revealage, depth, glow
 and SSAO metadata are not color-transfer inputs. Sky spatial perception effects stay at
 their existing location; authored underwater/night-vision tints are decoded on the linear
 route. Native HDR monitor presentation remains separate work.

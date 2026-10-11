@@ -22,7 +22,7 @@ internal interface ILightShaftShaderProgramBindings
     [ShaderBinding("sourceImage", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
     GpuTexture? SourceImage { set; }
     /// <summary>Supplies the shared camera exposure without exposing the stored scene.</summary>
-    [ShaderBinding("exposureImage", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? ExposureImage { set; }
+    [ShaderBinding("CameraExposure", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Fragment, Required = false)]
+    GpuShaderStorageBuffer? ExposureBuffer { set; }
     #endregion
 }

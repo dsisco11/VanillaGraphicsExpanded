@@ -180,6 +180,10 @@ public static partial class GpuSupport
     public static int MaxUniformBufferBindings => graphics.MaxUniformBufferBindings;
     public static int MaxUniformBlockSize => graphics.MaxUniformBlockSize;
 
+    /// <summary>Cached fragment-stage storage block limit.</summary>
+    public static int MaxFragmentShaderStorageBlocks => graphics.MaxFragmentShaderStorageBlocks;
+    /// <summary>Cached compute-stage storage block limit.</summary>
+    public static int MaxComputeShaderStorageBlocks => graphics.MaxComputeShaderStorageBlocks;
     public static int MaxShaderStorageBufferBindings => graphics.MaxShaderStorageBufferBindings;
     public static long MaxShaderStorageBlockSize => graphics.MaxShaderStorageBlockSize;
 

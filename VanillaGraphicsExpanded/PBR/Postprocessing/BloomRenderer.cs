@@ -54,14 +54,15 @@ internal sealed class BloomRenderer : IDisposable
 
     /// <summary>Extracts once, filters independent scales, then accumulates their normalized tinted energy.</summary>
     internal void Render(GraphicsCommandContext commands, PostprocessDraw draw, GpuTexture scene,
-        (GpuTexture? Texture, float ManualEV) exposure, PostprocessParameters settings)
+        (GpuShaderStorageBuffer? Buffer, float ManualEV) exposure, PostprocessParameters settings)
     {
         // Finish reduction before overwriting any level with its Gaussian result.
         for (int i = 0; i < levels.Count; i++)
         {
             shader!.SourceImage = i == 0 ? scene : levels[i - 1].Texture;
-            shader.SecondaryImage = exposure.Texture ?? scene;
-            shader.Capture(new(0, 0, i == 0 ? 0 : 1, exposure.Texture is not null ? 1 : 0),
+            shader.SecondaryImage = scene;
+            shader.ExposureBuffer = exposure.Buffer;
+            shader.Capture(new(0, 0, i == 0 ? 0 : 1, exposure.Buffer is not null ? 1 : 0),
                 new(settings.BloomThreshold, settings.BloomKnee, settings.BloomStrength, exposure.ManualEV));
             draw.Submit(commands, pipeline!, levels[i].Target);
         }

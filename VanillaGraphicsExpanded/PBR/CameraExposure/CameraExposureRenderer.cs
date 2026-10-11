@@ -1,12 +1,8 @@
 using System;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.Rendering;
-using VanillaGraphicsExpanded.Rendering.Pipeline;
-using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
-using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
-using VanillaGraphicsExpanded.Rendering.Shaders;
+
 using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.PBR.CameraExposure;
@@ -16,15 +12,13 @@ internal sealed class CameraExposureRenderer : IRenderer
 {
     private System.IDisposable? reloadRegistration;
     private static CameraExposureRenderer? active;
-    private static readonly VertexLayoutDesc Layout = new([]);
     private readonly ICoreClientAPI api;
-    private readonly GraphicsPipelineLifetime lifetime = new();
     private readonly CameraExposureHistory history = new();
     private readonly Action unregisterResize;
     private CameraExposureTargets? targets;
     private BorrowedTexture? sceneTexture;
-    private ArrayGraphicsGeometry? geometry;
-    private GraphicsPipeline? histogramPipeline, adaptationPipeline;
+    private CameraHistogramShaderProgram? histogram;
+    private CameraAdaptShaderProgram? adaptation;
     private CameraExposureParameters settings;
     private bool reset = true;
     private bool published, captured, disposed;
@@ -54,7 +48,7 @@ internal sealed class CameraExposureRenderer : IRenderer
         api.Event.UnregisterRenderer(this, EnumRenderStage.Before);
         api.Event.LeaveWorld -= Retire;
         reloadRegistration?.Dispose();
-        unregisterResize(); Retire(); lifetime.Dispose();
+        unregisterResize(); Retire();
     }
     #endregion
 
@@ -79,7 +73,7 @@ internal sealed class CameraExposureRenderer : IRenderer
         renderer.Meter();
     }
     /// <summary>Returns one coherent publication; automatic mode never silently substitutes manual exposure.</summary>
-    internal static (GpuTexture? Texture, float ManualEV) DisplayExposure()
+    internal static (GpuShaderStorageBuffer? Buffer, float ManualEV) DisplayExposure()
     {
         if (active is not { } renderer)
             throw new InvalidOperationException("VGE HDR camera exposure owner is unavailable.");
@@ -97,18 +91,17 @@ internal sealed class CameraExposureRenderer : IRenderer
     {
         if (published) return;
         if (!captured) throw new InvalidOperationException("Camera exposure frame inputs were not captured.");
+        CameraExposureDispatch.RequireSupport();
         if (!settings.Enabled)
         {
-            // Manual mode has no metering draws or retained histogram/history allocation.
+            // Manual mode has no metering dispatches or retained histogram/history allocation.
             DisposeResources(); reset = true; published = true; return;
         }
-        var histogram = GpuShaderProgramLibraries.Get<CameraHistogramShaderProgram>(api, "pbr_camera_histogram");
-        var adaptation = GpuShaderProgramLibraries.Get<CameraAdaptShaderProgram>(api, "pbr_camera_adapt");
-        if (histogram?.EnsureReady() != true || adaptation?.EnsureReady() != true)
-            throw new InvalidOperationException("VGE camera exposure shaders are unavailable.");
+        histogram ??= CameraHistogramShaderProgram.Create(api);
+        adaptation ??= CameraAdaptShaderProgram.Create(api);
+        if (!histogram.EnsureReady() || !adaptation.EnsureReady())
+            throw new InvalidOperationException("VGE camera exposure compute shaders are unavailable.");
         targets ??= new CameraExposureTargets();
-        geometry ??= new ArrayGraphicsGeometry(Layout, PrimitiveType.Triangles,
-            new System.Collections.Generic.Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         var primary = api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primary?.ColorTextureIds is not { Length: > 0 } colors || colors[0] == 0)
             throw new InvalidOperationException("VGE camera metering requires the completed HDR primary scene.");
@@ -117,44 +110,22 @@ internal sealed class CameraExposureRenderer : IRenderer
         histogram.Capture(settings, reset); histogram.SceneRadiance = sceneTexture;
         adaptation.Capture(settings, reset);
         adaptation.Histogram = targets.Histogram; adaptation.PreviousExposure = targets.Exposure;
-        PreparePipeline(ref histogramPipeline, histogram, targets.HistogramTarget);
-        PreparePipeline(ref adaptationPipeline, adaptation, targets.WriteTarget);
-        if (!GraphicsCommandContext.TryRun("Camera.Exposure", [histogramPipeline!, adaptationPipeline!], true, commands =>
-        {
-            Submit(commands, histogramPipeline!, targets.HistogramTarget);
-            Submit(commands, adaptationPipeline!, targets.WriteTarget);
-        })) throw new InvalidOperationException("VGE camera exposure graphics boundary was rejected.");
+        adaptation.OutputExposure = targets.WriteTarget;
+        histogram.Histogram = targets.Histogram;
+        if (!CameraExposureDispatch.TryRun(histogram, adaptation))
+            throw new InvalidOperationException("VGE camera exposure compute boundary was rejected.");
         targets.Publish(); reset = false; published = true;
-    }
-    /// <summary>Refreshes PSOs only when their executable or target contract changes.</summary>
-    private void PreparePipeline(ref GraphicsPipeline? pipeline, GpuProgram shader, GpuFramebuffer target)
-    {
-        using var metadata = new RenderPassTargets(new RenderPassDesc(target, [new(0)]));
-        var description = new GraphicsPipelineDesc(shader.GraphicsIdentity!, Layout, metadata.Signature, DynamicPipelineState.Viewport);
-        if (pipeline is not null && pipeline.Description == description && pipeline.ExecutableRevision == shader.ExecutableRevision) return;
-        var candidate = new GraphicsPipeline(lifetime, description, shader);
-        pipeline?.Dispose(); pipeline = candidate;
-    }
-    /// <summary>Overwrites one complete reduction target using the pass viewport and declarative graphics state.</summary>
-    private void Submit(GraphicsCommandContext commands, GraphicsPipeline pipeline, GpuFramebuffer target)
-    {
-        commands.BeginPass(new RenderPassDesc(target, [new(0)]));
-        commands.SetPipeline(pipeline);
-        commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-        commands.Draw(geometry!, new(0, 3));
-        commands.EndPass();
     }
     #endregion
 
     #region Retirement
-    /// <summary>Releases pipelines before their borrowed targets and owned procedural geometry.</summary>
+    /// <summary>Releases executable inputs before owned buffers and the borrowed scene texture.</summary>
     private void DisposeResources()
     {
-        histogramPipeline?.Dispose(); histogramPipeline = null;
-        adaptationPipeline?.Dispose(); adaptationPipeline = null;
+        histogram?.Dispose(); histogram = null;
+        adaptation?.Dispose(); adaptation = null;
         targets?.Dispose(); targets = null;
         sceneTexture?.Dispose(); sceneTexture = null;
-        geometry?.Dispose(); geometry = null;
     }
     /// <summary>Invalidates history and frame publication on world, storage and shader lifecycle changes.</summary>
     private void Retire()

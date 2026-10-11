@@ -107,6 +107,10 @@ public sealed record GraphicsCapabilities
     public int MaxUniformBufferBindings { get; init; }
     /// <summary>Maximum size of a uniform block, in bytes.</summary>
     public int MaxUniformBlockSize { get; init; }
+    /// <summary>Maximum storage blocks available to the fragment stage.</summary>
+    public int MaxFragmentShaderStorageBlocks { get; init; }
+    /// <summary>Maximum storage blocks available to the compute stage.</summary>
+    public int MaxComputeShaderStorageBlocks { get; init; }
     /// <summary>Number of shader-storage-buffer binding points.</summary>
     public int MaxShaderStorageBufferBindings { get; init; }
     /// <summary>Maximum size of a shader-storage block, in bytes.</summary>

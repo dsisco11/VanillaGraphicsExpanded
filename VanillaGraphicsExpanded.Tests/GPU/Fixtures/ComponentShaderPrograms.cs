@@ -35,6 +35,15 @@ internal sealed class ComponentShaderPrograms : IDisposable
         return program;
     }
 
+    /// <summary>Creates and owns a production compute facade inside the fixture asset boundary.</summary>
+    internal T CreateCompute<T>(Func<Vintagestory.API.Client.ICoreClientAPI, T> create) where T : GpuComputeProgram
+    {
+        var program = create(Api);
+        computePrograms.Add(program);
+        Assert.True(program.EnsureReady(), program.PreparationLog);
+        return program;
+    }
+
     /// <summary>Loads and owns the production depth compute executable for component tests.</summary>
     internal DepthHierarchyComputeShader CreateDepthHierarchy()
     {

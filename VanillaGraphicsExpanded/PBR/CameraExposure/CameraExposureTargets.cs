@@ -1,53 +1,45 @@
 using System;
-using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR.CameraExposure;
 
-/// <summary>Owns bounded histogram storage and two distinct temporal exposure images.</summary>
+/// <summary>Owns persistent workgroup statistics and two distinct GPU exposure history buffers.</summary>
 internal sealed class CameraExposureTargets : IDisposable
 {
-    private DynamicTexture2D? histogram;
-    private readonly DynamicTexture2D?[] history = new DynamicTexture2D?[2];
-    private readonly GpuFramebuffer?[] historyTargets = new GpuFramebuffer?[2];
-    private GpuFramebuffer? histogramTarget;
+    internal const int HistogramBytes = 36 * 64 * 8;
+    private GpuShaderStorageBuffer? histogram;
+    private readonly GpuShaderStorageBuffer?[] history = new GpuShaderStorageBuffer?[2];
     private int published;
     #region Public API
-    /// <summary>Allocates persistent storage, retiring partially created resources on failure.</summary>
+    /// <summary>Allocates bounded storage once and retires partial allocations on failure.</summary>
     internal CameraExposureTargets()
     {
         try
         {
-            histogram = DynamicTexture2D.Create(64, 1, PixelInternalFormat.Rg32f, debugName: "Camera.Histogram");
-            histogramTarget = GpuFramebuffer.CreateSingle(histogram, debugName: "Camera.Histogram");
+            histogram = GpuShaderStorageBuffer.Create(debugName: "Camera.Histogram");
+            histogram.Allocate(HistogramBytes);
             for (int i = 0; i < 2; i++)
             {
-                history[i] = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f, debugName: $"Camera.Exposure.{i}");
-                historyTargets[i] = GpuFramebuffer.CreateSingle(history[i], debugName: $"Camera.Exposure.{i}");
+                history[i] = GpuShaderStorageBuffer.Create(debugName: $"Camera.Exposure.{i}");
+                // Reset adaptation does not read undefined initial history.
+                history[i]!.Allocate(sizeof(float));
             }
         }
         catch { Dispose(); throw; }
     }
-    /// <summary>Receives weighted counts and log-luminance sums.</summary>
-    internal GpuFramebuffer HistogramTarget => histogramTarget!;
-    /// <summary>Receives the next exposure without overwriting the sampled previous exposure.</summary>
-    internal GpuFramebuffer WriteTarget => historyTargets[1 - published]!;
-    /// <summary>Supplies the histogram to adaptation.</summary>
-    internal DynamicTexture2D Histogram => histogram!;
-    /// <summary>Supplies the last successfully completed exposure.</summary>
-    internal DynamicTexture2D Exposure => history[published]!;
-    /// <summary>Publishes the write image only after both passes complete.</summary>
+    /// <summary>Receives the next exposure without overwriting the published history.</summary>
+    internal GpuShaderStorageBuffer WriteTarget => history[1 - published]!;
+    /// <summary>Supplies disjoint workgroup histograms to the reduction.</summary>
+    internal GpuShaderStorageBuffer Histogram => histogram!;
+    /// <summary>Supplies the last successfully submitted exposure.</summary>
+    internal GpuShaderStorageBuffer Exposure => history[published]!;
+    /// <summary>Publishes only after dispatches and their visibility barriers complete submission.</summary>
     internal void Publish() { published = 1 - published; }
-    /// <summary>Retires borrowing FBOs before the images they reference.</summary>
+    /// <summary>Retires all owned buffers; none borrows a framebuffer or texture.</summary>
     public void Dispose()
     {
-        histogramTarget?.Dispose(); histogramTarget = null;
-        for (int i = 0; i < 2; i++)
-        {
-            historyTargets[i]?.Dispose(); historyTargets[i] = null;
-            history[i]?.Dispose(); history[i] = null;
-        }
         histogram?.Dispose(); histogram = null;
+        for (int i = 0; i < 2; i++) { history[i]?.Dispose(); history[i] = null; }
     }
     #endregion
 }
