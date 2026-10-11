@@ -17,6 +17,16 @@ Scope and shared contracts
 Tasks
 
   ☐ Profile and optimize ambient-occlusion GPU cost while preserving visibility quality.
+    - Bounds-arithmetic candidates were rejected: uncontended captured-scene horizon cost improved
+      about 13-15%, but full-resolution synthetic cases consistently regressed about 10-50%.
+      Original production bounds are restored; captured-input and synthetic comparison fixtures remain.
+      The reference reproduces event 7091's original output bit-for-bit. Two full bounds replacements
+      passed exact-image checks but failed performance qualification; the ceiling-only variant passed
+      22 image cases and was not timed before changing investigation direction.
+      Evaluate reducing hierarchy source-recovery fetches, including per-parent minimum-child masks
+      that preserve query-dependent ties. Measure added build/storage cost and the full AO path before
+      selecting an implementation. Matched live scenes, both lighting modes and user acceptance remain open.
+      Implementation/evidence: docs/PBR.Postprocessing.md / Horizon-integrated ambient visibility.
     - Starting evidence: the 2026-10-11 performance-issue.rdc capture at 3440x1377 has repeatable
       AO replay timings of 2.71-2.72 ms, dominated by the half-resolution horizon pass at event 7091
       (~2.61 ms). These are optimization leads, not proof of the reported 120+ to 90 FPS regression;
@@ -39,6 +49,65 @@ Tasks
     - Record matched before/after pass and live frame costs, bandwidth/storage changes and remaining
       limits. Remove temporary profiling instrumentation; mark complete only with measured improvement
       and preserved output contracts. Contract: docs/PBR.Postprocessing.md / Horizon-integrated ambient visibility.
+
+    Optimization evaluations
+      Each evaluation inherits the parent task's settings, lifecycle, lighting and acceptance contracts.
+      Evaluate alternatives independently against the frozen reference before combining successful changes.
+      Record measured costs, output differences and a retain/reject decision; an evaluation may finish
+      with rejection, but the parent optimization task still requires a measured, accepted improvement.
+
+      ☐ Attribute source-recovery, integration and repeated-lookup costs before selecting candidates.
+        - Use temporary diagnostic variants to estimate source-recovery versus integration cost and
+          count repeated quantized sample coordinates per receiver across representative workloads.
+        - Treat omitted-work timings as diagnostic leads, not additive cost decomposition or proof of
+          equivalent quality; instrumentation can change shader scheduling, register use and caching.
+        - Prioritize masks, repeated-lookup reuse and integration math from the evidence; evaluate
+          tiling if memory access warrants it. Remove temporary instrumentation after recording results.
+
+      ☐ Evaluate minimum-child masks for hierarchy source recovery.
+        - Build masks of all minimum-depth children and preserve query-dependent nearest-child ties,
+          visitation order and conservative odd/collapsed-axis footprints. Keep the shared R32F
+          hierarchy contract used by LumOn; do not substitute one preselected source coordinate.
+        - Measure mask generation, physical storage, bindings and bandwidth alongside saved lookup
+          cost. Respect existing hardware limits and retire optional resources when no longer needed.
+        - Require bit-identical horizon images against the reference and measure hierarchy-plus-AO
+          cost, including the captured scene and synthetic cases that rejected the bounds rewrites.
+
+      ☐ Evaluate reuse of repeated sample lookups within each AO receiver.
+        - Measure duplicate rates first. Reuse source recovery only for equivalent quantized sample
+          coordinates, footprint levels and inputs; preserve ordered horizon updates for every sample.
+        - Compare saved reads against lookup overhead, added registers and spills. Keep reuse bounded
+          and local to the current receiver; validate bit-identical output and total pass cost.
+
+      ☐ Evaluate horizon integration math using vector projections.
+        - Investigate eliminating redundant angle/trigonometric conversions while preserving signed
+          horizon selection, limits, relaxation, transmission weighting and integration behavior.
+        - Cover grazing angles, zero/near-zero vectors, horizon boundaries and both quality settings.
+          Quantify numerical and complete-image differences against the reference; define and justify
+          any nonzero tolerance explicitly and obtain visual acceptance before retaining changed output.
+
+      ☐ Evaluate spatially tiled AO processing for data reuse and locality.
+        - Measure depth/material locality and footprint reach before selecting tile size or execution
+          layout. Account for wide footprints, tile halos, odd extents, boundaries and background work.
+        - Compare shared-memory/register pressure, occupancy, synchronization and extra preparation
+          against saved reads. Preserve sampling and output contracts; include every added pass in
+          timing and test hardware limits and resource lifecycle through the existing owners.
+
+      ☐ Evaluate adaptive sampling with explicit visibility-quality bounds.
+        - Investigate reducing samples in smooth regions while retaining evidence near discontinuities;
+          validate the classifier itself against thin geometry, foliage, corners and distant receivers.
+        - Measure classification overhead and complete AO cost against the fixed-sample reference.
+          Record quality differences, spatial instability and missed occluders; require user acceptance
+          and retain native quality authority. Do not report reduced sampling as equivalent-work savings.
+
+      ☐ Evaluate temporal accumulation with reduced per-frame sampling.
+        - Assess motion/reprojection inputs and history ownership before selecting a design. Include
+          depth/normal rejection, disocclusion, camera cuts, moving geometry and confidence handling.
+        - Measure history storage, reprojection/filter cost and total AO savings; check ghosting,
+          flicker, convergence and responsiveness against the current-frame reference in motion.
+        - Specify invalidation for resize, reload, world changes and runtime settings, plus behavior
+          when valid history is unavailable. Require explicit visual acceptance of the temporal tradeoff
+          and reconcile the current no-history contract in docs/PBR.Postprocessing.md before adoption.
 
   ☐ Optimize owned postprocessing submission and pass scheduling.
     - Starting evidence: the same capture's postprocessing interval contains 25 fullscreen draws,
