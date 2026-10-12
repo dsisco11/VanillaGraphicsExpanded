@@ -1,0 +1,280 @@
+Photometric lighting and block-light calibration
+================================================
+
+Source proposal: docs/PBR.PhotometricLighting.Proposal.md
+Status: planning requested; implementation has not started. Every task below is unchecked.
+The proposal remains authoritative. Unresolved design choices are prerequisite tasks, not
+settled defaults or authorization for speculative systems.
+
+Goal and scope
+  Express source output, incident illumination and outgoing brightness in compatible photometric
+  quantities before display conversion. Calibrate the existing engine block-light field entirely
+  in shared VGE shader code. Reuse existing lighting, atmosphere, LumOn, binding, resource and
+  exposure owners; preserve standalone PBR and both lighting modes.
+  This is an RGB approximation with physical units. Keep engine light generation, propagation,
+  attenuation, enclosure behavior and light data unchanged. Existing VGE shader injection may
+  change how those inputs are interpreted; do not add CPU lighting/propagation patches.
+  Exclude spectral rendering, new voxel propagation, source discovery, source-based replacement
+  of block lighting, area-light transport, photographic EV100 authoring and unrelated attachment
+  redesign. Pre-exposure is conditional on a failed fixed-storage-scale qualification and requires
+  an explicit design before its implementation. Do not strengthen AO to hide lighting errors.
+  Do not release an intermediate mix of legacy and physical lighting quantities.
+
+Assumptions and open decisions
+  - Confirm one metre per world block from actual engine coordinate/binding behavior; keep
+    atmosphere kilometres explicit at shared spatial boundaries.
+  - Confirm the proposed direct-solar reference: 100,000 lux at perpendicular incidence with
+    zenith sun, altitude 0.001 km and aerosol setting 1. Record reference chromaticity/settings.
+    This is a chosen VGE calibration condition, not a universal real-world measurement.
+  - Select a nominated lamp fixture, target illumination, reference block-field lux value,
+    engine-point-light mapping and emissive reference nits from documented reference evidence.
+    Current engine light levels do not establish individual lamp output in lumens.
+  - Start with the identity block-field response candidate; choose a nonlinear response only
+    with measurements and explicit reconciliation against the proposal.
+  - Resolve fixed HDR storage scaling versus a separately specified pre-exposure design using
+    the full bright/dark range, not daylight surfaces alone.
+  - Establish each actual LumOn producer/consumer quantity before modifying its representation.
+  - Define analytical, quantization and approximate-transport tolerances before qualification.
+    In-game appearance is user-run evidence; do not launch the game for visual acceptance.
+
+Phase 1: Resolve calibration, boundary contracts and storage prerequisites
+------------------------------------------------------------------------
+Outcome: A measurable design and an accepted storage representation permit coherent conversion
+of sources and consumers without guessing intensity constants or buffer meanings.
+
+  ☐ Reconcile the full proposal with current rendering owners and linked runtime documentation.
+    - Inspect PbrTerrainColorPatches, PbrSurfaceShaderPatches, pbr_direct_lighting,
+      pbr_forward_surface, pbr_environment, lumon_pbr, atmosphere lookup/model, held lights,
+      emission, camera exposure and final composition.
+    - Record source-to-consumer quantities for direct inputs, environment E/pi, outgoing scene
+      luminance, LumOn capture/probe/gather/composite, water and other scene contributors.
+    - Distinguish engine brightness/color/range payloads from source power and physical RGB.
+      Identify hidden scales, artistic multipliers and possible held-light double counting.
+    - Use source and fresh receipts as authority. Old ignored capture artifacts are optional
+      diagnostic context, not a required portable input or proof of current behavior.
+
+  ☐ Specify the photometric/color/spatial contract and quantitative tolerances.
+    - Declare lumens for authored source output, lux for incident illumination, candela for
+      evaluated directional source intensity, and nits for sky/emission/outgoing luminance.
+    - Specify linear Rec.709 RGB and Y=(0.2126,0.7152,0.0722); normalize authored source color
+      to unit Y after one display-color decode, with finite zero/invalid-input handling.
+    - Define engine-field encoding separately; do not assume the texture sRGB decoder applies.
+      Keep reflectance, visibility, coverage, roughness, metallicity and transmission dimensionless.
+    - Confirm the spatial and solar reference decisions above and document conversions.
+    - Establish fixed-exposure, neutral-grading fixtures and independent expected results for
+      L=reflectance*E/pi and I=lumens/(4*pi), including orientation, distance and visibility.
+
+  ☐ Collect reference evidence and select engine-light/emission compatibility mappings.
+    - Nominate the block-light fixture, specify lamp/receiver placement and target illumination,
+      and record raw engine field values and settings at fixed exposure.
+    - Fit reference lux for the identity shader conversion; check additional distances, enclosed
+      scenes, colors and overlap. Record limitations of the aggregate field and any curve decision.
+    - Document engine point-light color/intensity/range interpretation, near-source regularization
+      and finite influence window in metres. Select conversion independently of the block field.
+    - Select emissive reference nits and preserve the intended dimensionless material authoring
+      convention. Keep emission brightness distinct from glow/bloom eligibility.
+    - Obtain missing live fixture evidence through user-run captures where engine inputs are
+      needed; synthetic data alone must not claim an observed engine-field calibration.
+
+  ☐ Audit and qualify HDR storage before selecting a representation.
+    - Inventory floating-point textures and intermediates, including half-float and R11G11B10,
+      atmosphere LUTs/disk, direct/environment targets, emission, LumOn histories/caches and water.
+    - Establish the accepted daylight, disk, bright-emitter, lamp, interior and night envelope;
+      evaluate overflow, underflow and quantization against stated tolerances.
+    - Prefer one documented fixed scale for unexposed physical luminance if all required cases pass.
+      Specify how incident inputs, storage, metering, glare and diagnostics use that representation.
+    - If fixed scaling fails, specify and resolve a pre-exposure design covering common frame scale,
+      temporal rescaling, persistent probes/caches, sky LUTs, water and metering before implementing it.
+      Do not substitute per-pass clamps, independent exposure scales or an attachment redesign.
+    - Reconcile the selected representation and calibration decisions into the proposal before
+      downstream implementation. Preserve any genuinely unresolved prerequisites explicitly.
+
+  ☐ Verify completion of Phase 1.
+    - Unit/boundary inventory, fixture measurements, references and tolerances are recorded.
+    - Block/point/emission mapping choices and the storage decision have supporting receipts.
+    - Downstream work has no unresolved quantity or storage assumption; larger conditional
+      pre-exposure work has an explicit accepted design rather than implicit scope expansion.
+
+Phase 2: Establish shared quantities, shader conversion and storage support
+-------------------------------------------------------------------------
+Depends on Phase 1. Outcome: Existing owners can supply calibrated parameters and store/diagnose
+physical lighting consistently; producers can migrate without introducing new lighting systems.
+
+  ☐ Add narrowly scoped quantity/conversion contracts to existing lighting owners and bindings.
+    - Identify units in CPU parameters, generated interfaces and shader contracts; keep composition
+      roots thin and avoid general-purpose unit frameworks or new propagation infrastructure.
+    - Supply block-light reference lux/selected response parameters through existing shader bindings.
+      Do not transform the propagated field or rewrite engine light data on the CPU.
+    - Provide one shared GLSL block conversion. The identity candidate is
+      blockIlluminance=max(legacyBlockRgb,0)*referenceLux; integrated block input is E/pi.
+    - Separate block conversion from atmospheric illumination and apply any storage representation
+      at the declared boundary. Prevent duplicated conversion or division by pi.
+
+  ☐ Implement the selected storage representation through existing resource owners.
+    - For fixed scaling, expose the common decode convention to consumers, metering and diagnostics.
+    - Implement pre-exposure only if Phase 1 selected its explicit design; follow its required
+      temporal/cache/water/LUT handling and verify scale transitions before integrating producers.
+    - Preserve engine framebuffer ownership, demand loading, reload, resize and world teardown.
+      Do not introduce per-frame source discovery or reallocation for calibration.
+
+  ☐ Add proportionate numerical and shader-contract validation.
+    - Check normalized RGB Y versus scalar intensity, zero/invalid inputs and stored-unit round trips.
+    - Check block conversion monotonicity, zero preservation and independence from exposure.
+    - Compile affected shader contracts/variants using the existing catalog and installed sources.
+    - Expose physical quantities/storage scale and active artistic departures through existing
+      diagnostics without leaving temporary investigation logging in production.
+
+  ☐ Verify completion of Phase 2.
+    - Shared bindings/helper and selected storage support pass stated numerical/precision checks.
+    - No new base-game lighting logic patch exists; standalone operation needs no LumOn resources.
+    - All production/test methods and classes follow repository comments/layout conventions.
+
+Phase 3: Calibrate lighting producers and normalize receiver response
+--------------------------------------------------------------------
+Depends on Phase 2. Outcome: Atmosphere, block field, punctual lights and emission produce the
+declared quantities and use consistent receiver response in deferred and forward paths.
+
+  ☐ Anchor atmosphere amplitude to the confirmed reference through existing model/lookup owners.
+    - Derive solar amplitude once for the reference condition; preserve extinction, horizon/weather
+      behavior and chromaticity. Do not normalize anew as the sun moves or weather changes.
+    - Scale solar irradiance, sky luminance, integrated sky E/pi, disk and aerial in-scattering together.
+      Keep attenuation dimensionless and direct sunlight out of the scattered-sky environment term.
+    - Verify reference lux, the disk's integrated solar contribution and solar-elevation/weather cases.
+
+  ☐ Convert propagated block illumination at existing VGE shader publication/evaluation points.
+    - Use the shared helper in PbrTerrainColorPatches environment publication and applicable
+      PbrSurfaceShaderPatches/forward routes before material response.
+    - Bind the confirmed reference/curve consistently; preserve atmospheric contribution separately.
+    - Preserve generation, propagation, attenuation, enclosure, interpolation and overlap behavior.
+      Confirm raw engine data is unchanged and no source identity/direction is fabricated.
+    - Verify each contribution is converted once and fixture outputs match the selected mapping.
+
+  ☐ Convert punctual lights and material emission without relabeling legacy payloads.
+    - Author VGE punctual output in lumens, convert to evaluated intensity, and use metre-based
+      receiver illumination with the documented distance regularization/influence window.
+    - Apply the selected compatibility mapping to engine/held payloads; resolve double-counting
+      identified in Phase 1 without adding source discovery or replacing block propagation.
+    - Convert dimensionless emissive coefficients to declared RGB luminance/reference nits.
+      Preserve authoring compatibility and separate glow eligibility from emitted brightness.
+
+  ☐ Unify direct and integrated-environment receiver normalization.
+    - Update pbr_direct_lighting, pbr_forward_surface and shared BRDF/environment helpers so
+      converted sun and punctual inputs receive consistent diffuse normalization.
+    - Remove the legacy point-light omission of pi only alongside its converted input contract.
+    - Preserve Fresnel/metallic energy partition, transmission and shadow ownership; validate units.
+    - Keep indirect AO on environment lighting and direct visibility on sun/point lighting.
+
+  ☐ Verify completion of Phase 3.
+    - Numerical diffuse-reference and installed deferred/forward tests meet stated tolerances.
+    - A synthetic isotropic 1,000-lumen source matches one-/two-metre expected illumination
+      outside regularization; doubling distance quarters illumination.
+    - Atmosphere/source-isolation/block/emission tests pass without exposure compensation masking
+      source-ratio errors. Unsupported physical claims about engine propagation are absent.
+
+Phase 4: Reconcile LumOn and all scene-lighting consumers
+-------------------------------------------------------
+Depends on Phase 3. Outcome: Both lighting modes and other scene contributors use compatible
+quantities without double material weighting, duplicate environment light or unscaled effects.
+
+  ☐ Apply the audited quantity contract at LumOn capture, probe, gather and composite boundaries.
+    - Trace real consumers and explicitly convert outgoing luminance versus incident estimates
+      where required. Do not infer compatible units from RGB format or variable naming alone.
+    - Apply receiver response and calibration exactly once; preserve justified transport steps.
+    - Remove hidden calibration scales or classify them as artistic controls with neutral defaults.
+    - Prevent re-addition of environment light represented by GI; retain the established unavailable-
+      GI behavior and forward local block fallback, with no sampling of unrelated opaque receivers.
+
+  ☐ Reconcile remaining scene contributions with existing owners and publication boundaries.
+    - Cover water reflection/refraction, underwater in-scattering, transparent/late and held
+      receivers, particles, fog, celestial inputs and glare.
+    - Convert legacy effect inputs explicitly; document remaining approximations instead of
+      injecting unscaled display colors into physical scene buffers.
+    - Preserve UI/offscreen isolation and existing alpha, depth, glow and material-data meanings.
+
+  ☐ Retire differently calibrated cached/history lighting through existing lifecycle owners.
+    - Invalidate dependent data when calibration or storage conventions change; implement any
+      temporal rescaling required by the selected storage design.
+    - Verify resize, shader reload, world teardown, lighting-mode changes and calibration changes
+      cannot mix stale and current quantities or expose incomplete publications.
+
+  ☐ Verify completion of Phase 4.
+    - Deterministic isolated/combined-source tests cover LumOn on/off, fallback and unavailable-GI cases.
+    - Material weighting, source calibration and indirect AO occur once at their declared boundaries.
+    - Other scene inputs and persistent data meet unit, finite-value and lifecycle contracts.
+
+Phase 5: Integrate camera exposure, glare and configuration compatibility
+------------------------------------------------------------------------
+Depends on Phase 4. Outcome: Physical lighting reaches the display through a coherent camera
+response, and existing settings/material/source inputs have documented migration behavior.
+
+  ☐ Rebase existing exposure/metering to the selected physical/storage scale.
+    - Update histogram bounds, accepted range and exposure limits from the qualified scene envelope.
+    - Keep stops as log2 display multiplier and compensation separate from physical source output.
+      Do not introduce or claim EV100 camera calibration.
+    - Preserve metering after scene/OIT/late composition and before generated glare/display conversion.
+      Account for fixed scaling or selected pre-exposure explicitly.
+    - Retain the existing global tone curve initially; apply display exposure once and keep UI outside it.
+
+  ☐ Reconcile bloom/shaft thresholds and artistic controls.
+    - State whether thresholds are physical or exposed quantities and convert consistently.
+    - Prevent generated bloom/shafts feeding back into metering or camera exposure changing source
+      power, emission, AO, material data or propagation.
+    - Verify fixed-exposure ratios first, then automatic adaptation and existing display grading.
+
+  ☐ Version and migrate settings and material/source mappings through existing configuration owners.
+    - Specify finite defaults and migration for block calibration, source/emission mappings and
+      exposure values whose previous scene-relative interpretation no longer applies.
+    - Preserve existing saves and third-party input compatibility through explicit conversions.
+      Do not promise exact reproduction of uncalibrated old screenshots.
+    - Remove superseded conversion paths and temporary instrumentation after replacement is
+      verified. Retain intentional compatibility adapters and document their limits.
+
+  ☐ Verify completion of Phase 5.
+    - Source ratios, metering, display conversion and glare behavior pass independent checks.
+    - Migration/default/invalid-input tests cover persisted settings and compatible engine sources.
+    - No mixed-scale cache state, duplicate exposure or camera-to-source feedback remains.
+
+Phase 6: Qualify the integrated candidate and reconcile documentation
+--------------------------------------------------------------------
+Depends on Phase 5. Outcome: A reviewable candidate has numerical, integration, package and
+live-runtime evidence; accepted defaults and approximation limits are documented.
+
+  ☐ Run focused and required integrated validation through subagents.
+    - Validate unit arithmetic, fixture agreement, generated/installed shader contracts and
+      both lighting modes. Expand testing only for actual changed contracts or unresolved failures.
+    - Qualify accepted HDR extremes and precision, scale changes, configuration migrations,
+      resource lifecycle and complete scene/display routing against the fixed tolerances.
+    - Record build/settings, source/candidate provenance and numerical results. Analytical,
+      texture-quantization and approximate-transport tolerances remain separately reported.
+
+  ☐ Package an isolated candidate for user-run reference and appearance checks.
+    - Record package identity and tested-source correspondence; exclude fixture/debug instrumentation.
+      Do not install or launch the game for visual acceptance.
+    - Obtain fixed-exposure neutral-grading checks of isolated and combined sun, sky and lamp sources.
+    - Obtain automatic-exposure checks of lamp-versus-sun balance, indoor/outdoor transitions,
+      night visibility, transparent/held surfaces, water and LumOn enabled/disabled.
+    - Reconcile observed problems with numerical receipts; do not use automatic exposure or stronger
+      AO as a substitute for calibration. Record user acceptance and actual coverage honestly.
+
+  ☐ Update linked documentation to describe the retained implementation.
+    - Reconcile the proposal, PBR.MaterialColorAndDisplay.md, PBR.LightingModes.md,
+      PBR.CameraExposure.md, PBR.SharedDisplay.md and PBR.Postprocessing.md with verified behavior.
+    - Document units, references, spatial conversions, storage representation, settings migration,
+      neutral artistic defaults and aggregate-field/transport limitations in the appropriate owners.
+    - Update baseline planning references/status only after linked scope and evidence agree.
+      Do not treat the absence of previously referenced documentation as proof of completion.
+
+  ☐ Review the complete implementation and evidence against the proposal before marking complete.
+    - Map each proposal requirement to retained code, tests, documentation or its explicit exclusion.
+    - Check shader-only block conversion and the exclusion of engine logic patches/new lighting systems.
+    - Resolve remaining discrepancies; distinguish headless numerical/package receipts from live
+      appearance acceptance and avoid unsupported physical/performance claims.
+
+Final acceptance
+----------------
+  ☐ All prerequisites and conditional storage decisions are resolved in the governing design.
+  ☐ Sun, sky, block, point, emission, LumOn and other scene contributions share declared quantities.
+  ☐ Existing propagation/light data, render ownership and UI/offscreen isolation remain intact.
+  ☐ Required numerical, shader, integration, lifecycle, migration and package checks pass.
+  ☐ User-run appearance/adaptation acceptance and its actual coverage are recorded.
+  ☐ Linked documents, cleanup and final review agree with the retained implementation and scope.
