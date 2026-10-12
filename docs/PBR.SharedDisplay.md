@@ -90,6 +90,16 @@ engine effects. Both owners require matching primary/OIT targets in Opaque, OIT 
 offscreen/UI calls remain display-referred. Owned scene programs supply HDR through their
 typed inputs. There is no additional global shader-use patch.
 
+`EngineOitAccumulationFormatHook` changes the engine's original three-layer accumulation
+allocation to RGBA32F. Texture names, attachment layers, depth weights, weighted alpha,
+revealage, resolve and resource retirement remain engine-owned. Weighted RGBA sums can exceed
+the final normalized color, so their intermediates need the wider storage even when the result
+fits the scene target. The disconnected initial 2D accumulation allocation is not promoted.
+The three layers add 24 logical bytes per pixel over RGBA16F, about 47.46 MiB at 1920x1080;
+GPU bandwidth and live frame-time impact remain unmeasured. This does not replace the
+transparency algorithm; its possible later refactor is described in
+[PBR.Transparency.Proposal.md](PBR.Transparency.Proposal.md).
+
 Scene postprocessing and final composition are replaced at their existing engine invocation
 boundaries by OwnedPostprocessHook and OwnedFinalCompositionHook. SceneColorPipeline requires
 the owned final executable; engine final/colorgrade/luma/light-shaft programs are untouched for

@@ -89,7 +89,7 @@ void main()
     pbrComputeSunShadowVisibility(worldPosRel, sunVis, sunPcfVis);
     // Match forward lighting: propagated sunlight supplements geometric shadow visibility.
     float skyVisibility = texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).a;
-    addDirectLight(
+    addFiniteDiskDirectLight(
         baseColor,
         N,
         V,
@@ -97,6 +97,7 @@ void main()
         rgbaLightIn * skyVisibility,
         roughness,
         metallic,
+        VGE_SOLAR_ANGULAR_RADIUS,
         accumDiffuse,
         accumSpecular);
 

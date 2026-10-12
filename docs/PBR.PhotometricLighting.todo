@@ -2,7 +2,9 @@ Photometric lighting and block-light calibration
 ================================================
 
 Source proposal: docs/PBR.PhotometricLighting.Proposal.md
-Status: planning requested; implementation has not started. Every task below is unchecked.
+Status: Phase 1 complete after second review and completion audit (2026-10-12).
+Runtime conversion has not started.
+Only Phase 1 completion markers are checked; runtime migration and its verification remain open.
 The proposal remains authoritative. Unresolved design choices are prerequisite tasks, not
 settled defaults or authorization for speculative systems.
 
@@ -15,26 +17,37 @@ Goal and scope
   attenuation, enclosure behavior and light data unchanged. Existing VGE shader injection may
   change how those inputs are interpreted; do not add CPU lighting/propagation patches.
   Exclude spectral rendering, new voxel propagation, source discovery, source-based replacement
-  of block lighting, area-light transport, photographic EV100 authoring and unrelated attachment
-  redesign. Pre-exposure is conditional on a failed fixed-storage-scale qualification and requires
-  an explicit design before its implementation. Do not strengthen AO to hide lighting errors.
+  of block lighting, general area-light transport, photographic EV100 authoring and unrelated attachment
+  redesign. Use the approved pre-exposed frame lighting, bounded visible solar disk and fixed-scale
+  persistent lighting contract in the proposal. The approved solar-only finite-angular specular
+  refinement is the narrow exception to general area-light transport. Do not strengthen AO to hide lighting errors.
+  The approved bounded water-source refinement is the narrow exception to retaining the existing
+  heterogeneous scattering estimator; preserve medium coefficients, transmission and capture ownership.
   Do not release an intermediate mix of legacy and physical lighting quantities.
 
-Assumptions and open decisions
-  - Confirm one metre per world block from actual engine coordinate/binding behavior; keep
-    atmosphere kilometres explicit at shared spatial boundaries.
-  - Confirm the proposed direct-solar reference: 100,000 lux at perpendicular incidence with
-    zenith sun, altitude 0.001 km and aerosol setting 1. Record reference chromaticity/settings.
-    This is a chosen VGE calibration condition, not a universal real-world measurement.
-  - Select a nominated lamp fixture, target illumination, reference block-field lux value,
-    engine-point-light mapping and emissive reference nits from documented reference evidence.
+Design decisions and remaining prerequisites
+  - Retain one metre per world block, verified at existing atmosphere/water/coordinate boundaries;
+    keep atmosphere kilometres explicit at shared spatial boundaries.
+  - Retain 100,000 lux at perpendicular incidence with zenith sun, altitude 0.001 km and aerosol
+    setting 1, preserving existing solar chromaticity. This is a chosen VGE calibration condition,
+    not a universal real-world measurement; downstream CPU/GPU qualification remains required.
+  - Use the normal torch and documented nominal 44 lm isotropic equivalent as the reference
+    candidate. Fit reference block-field lux, engine-point-light mapping and emissive reference
+    nits from source-derived engine-field and compatibility evidence.
     Current engine light levels do not establish individual lamp output in lumens.
-  - Start with the identity block-field response candidate; choose a nonlinear response only
-    with measurements and explicit reconciliation against the proposal.
-  - Resolve fixed HDR storage scaling versus a separately specified pre-exposure design using
-    the full bright/dark range, not daylight surfaces alone.
-  - Establish each actual LumOn producer/consumer quantity before modifying its representation.
-  - Define analytical, quantization and approximate-transport tolerances before qualification.
+  - Remove the source-verified neutral floor with the proposal's chroma-preserving shader toe,
+    then apply referenceLux=8.982904808459303 for the nominated active-table torch fixture.
+    Retain engine falloff; this is a compatibility mapping, not inverse-square propagation.
+  - Use one frozen frame pre-exposure, a 64,000 stored-unit visible-disk cap and a fixed persistent
+    scale 1/16 within the qualified admission domain. Retain current texture formats except
+    the approved RGBA32F storage for the three existing OIT accumulation layers.
+    The 0.001-nit/1% stress interval is not an accepted precision requirement.
+  - Follow the reconciled LumOn boundary inventory before modifying its representation.
+  - The user approved finite-angular solar surface specular response using the existing visible
+    disk radius. Select and qualify its concrete approximation and bound before storage acceptance;
+    preserve punctual lights, diffuse irradiance, visibility and existing ownership.
+  - Apply the recorded analytical/quantization tolerances; establish approximate-transport
+    integration/variance receipts before qualification.
     In-game appearance is user-run evidence; do not launch the game for visual acceptance.
 
 Phase 1: Resolve calibration, boundary contracts and storage prerequisites
@@ -42,7 +55,198 @@ Phase 1: Resolve calibration, boundary contracts and storage prerequisites
 Outcome: A measurable design and an accepted storage representation permit coherent conversion
 of sources and consumers without guessing intensity constants or buffer meanings.
 
-  ☐ Reconcile the full proposal with current rendering owners and linked runtime documentation.
+Completion boundary
+  This phase settles the conversion equations, reference mappings, supported storage domains,
+  publication/failure rules and numerical qualification of the design. It does not require the
+  later pipeline migration to exist. Integrated GPU arithmetic, resource transitions and full
+  scene/appearance acceptance remain verification gates of the implementation phases below.
+  Their absence is not itself a prerequisite design failure. An unspecified source bound,
+  unselected range safeguard or a failed design fixture is still a prerequisite failure;
+  do not defer those decisions or relabel conditional receipts as complete qualification.
+
+Current prerequisite evidence (2026-10-12)
+  - The proposal's "Prerequisite source reconciliation" records the source/consumer and storage
+    inventories, spatial/solar decisions, fixture protocol and separate quantitative tolerances.
+  - User selected the normal torch and requested a research-backed wood/fat reference. The
+    inspected experiment supports a nominal 44 lm isotropic equivalent, about 3.5 lux at one
+    metre; this is not measured total flux or an observed engine-field calibration.
+  - Fresh source-linked numerical and installed-engine IL receipts are under
+    artifacts/PhotometricLightingPrerequisites. The illustrative 0.001-nit-to-solar-disk envelope
+    has no fixed scale satisfying that illustrative dark precision bound in current scene formats;
+    this is not a gate for the subsequently approved bounded pre-exposed representation.
+  - Current source and document review plus independent numerical recheck (148 assertions)
+    support the investigation. User approval selects the proposal's pre-exposure/disk-cap/cache
+    design; a live torch capture is no longer mandatory when source evidence establishes the field.
+    Fresh installed-source fixtures and numerical receipts now establish block/point/emission
+    compatibility choices. Storage diagnostics passed 806,905 bounded-storage, 2,103 calibration/
+    safety and 313 postprocessing assertions; these are CPU/source receipts, not integrated proof.
+    Qualification remains unresolved for half-float transparent overdraw and transient range/
+    precision. The tighter joint SH bound passes seven numerical assertions; 630 format/display/
+    visibility and 45 world-fallback assertions distinguish arithmetic from lighting acceptance.
+    The candidate global worst-case pre-exposure guard is rejected: in daylight it rounds the
+    calibrated torch on an 18% receiver to zero in packed scene storage. Do not implement it.
+    A 120-case preliminary transparent accumulation receipt confirms overflow at eight full-
+    coverage layers with stored RGB 16,000; FP32 buckets survive the tested 1,024-layer envelope.
+    The user approved the narrow three-bucket RGBA32F exception on 2026-10-11. The allocation hook
+    changes the original engine array allocation. Two focused installed/GPU tests pass for
+    exact operand selection, actual three-layer storage, resize/clear/sample/retirement and finite
+    normalized eight-layer HDR accumulation. Receipts: artifacts/PhotometricLightingPrerequisites/
+    OitFormatTests. Full production appearance and live bandwidth/frame costs remain unmeasured.
+    The algorithm replacement is a separate future review in docs/PBR.Transparency.Proposal.md,
+    tracked by PBR.BaselineShading.todo rather than this photometric implementation plan.
+    The 77 conditional numerical checks inform the approved finite-angular solar refinement:
+    an ideal passive-reflection bound preserves the reference torch. Approval reconciles
+    the scope exclusion; the selected response still needs its own range/precision qualification,
+    since an ideal passive-reflection proof does not establish it. The user approved implementing
+    representative-direction evaluation with view-dependent energy compensation. The shared
+    pbr_finite_disk_brdf helper now supplies deferred, forward and separate liquid surface solar
+    reflection, retaining center-direction diffuse/masking and punctual response. Its focused
+    validation and photometric storage qualification are separate; the ideal bound is not assumed.
+    The selected four-iteration source passes 182 CPU arithmetic/domain checks, with maximum
+    half-vector alignment gap 2.89e-8 in 24 independent boundary comparisons. Its conservative
+    initial specular bound is six times maximum disk RGB, not an assumed passive bound;
+    the subsequent geometry-coupled certificate below supersedes this loose bound.
+    Receipts: artifacts/PhotometricLightingPrerequisites/representative-solar-validation.json.
+    Recorded exact-disk comparison differences remain approximation limits; full scene storage
+    qualification and in-game appearance are not established by these CPU checks.
+    Focused installed/GPU validation passes 142 tests with no failures or skips, covering
+    directional limits, emitter-radius agreement, independent cone geometry, minimum-roughness
+    peak precision, grazing cases and existing deferred/forward/shadow/liquid contracts.
+    Production Release build passes. These receipts do not establish live appearance or GPU cost.
+    Explicit solar/punctual call routing also passes the same 142 tests and Release build;
+    angular radius no longer selects the light type. Receipt:
+    artifacts/PhotometricLightingPrerequisites/solar-routing-validation.json.
+    Generic finite-disk helper/file names pass the same 142 tests and Release build without
+    changing the equations. Receipt:
+    artifacts/PhotometricLightingPrerequisites/finite-disk-renaming-validation.json.
+    Independent centered normal-view integration reproduces the roughness-0.1 deficit of
+    42.17%, primarily from the mixed roughness/source-extent compensation term. Masking,
+    dielectric Fresnel and irradiance normalization do not explain the difference. No runtime
+    equation changed; term-removal diagnostics do not qualify an off-normal replacement.
+    Receipt: artifacts/PhotometricLightingPrerequisites/finite-disk-discrepancy-results.json.
+    Geometry-coupled real-arithmetic certificates now bound opaque finite-disk response at
+    0.9 times maximum disk RGB and coverage-normalized water reflection at twice disk RGB.
+    Punctual bounds are 66,560 times incident RGB for opaque surfaces and 200,000 for
+    coverage-normalized water. No runtime equation changed. Receipts:
+    artifacts/PhotometricLightingPrerequisites/finite-disk-range-coupling-results.json and
+    artifacts/PhotometricLightingPrerequisites/water-punctual-range-coupling-results.json.
+    Conditional assembled frame experiments pass 45,238 CPU arithmetic assertions across
+    both modes, 0–100 maximum installed-table points and GI gains 1 and 16. All reference
+    torch RGB channels survive; worst daylight packed luminance error is 7.35% standalone
+    and 7.10% with LumOn, versus 0.56% and 0.34% in half-float. Single-store format tolerances
+    pass, but accumulated lighting/color precision and appearance are not established.
+    Atmosphere/environment admission, GI tint, transport episode limits, custom point inputs,
+    history provenance and GPU arithmetic were unresolved by this original experiment. The
+    subsequent selection-rule receipt below does not itself qualify all producer admissions.
+    Receipt: artifacts/PhotometricLightingPrerequisites/complete-frame-coupled-water-supplement.json.
+    Owner reconciliation finds the homogeneous water budget does not cover signed boundary
+    capture with different entry/exit illumination. A valid one-metre interval before a
+    100-metre receiver produces blue scattering 62.3394 from endpoint sources bounded by 1;
+    the homogeneous control is 0.62969. This is an arithmetic witness, not live appearance.
+    Qualification must bound signed source accumulation separately from optical depth/length.
+    Receipt: artifacts/PhotometricLightingPrerequisites/water-signed-boundary-range-results.json.
+    A narrow signed-water frame supplement passes 99 arithmetic/source-identity assertions.
+    At a 1,000-metre daylight receiver, its conditional budget rounds the reference torch's
+    packed blue to zero in both modes, with about 55.8% luminance error; half-float retains RGB
+    but has about 1.1% error. This is not observed gameplay. Format absolute tolerances pass,
+    yet calibrated-lamp precision remains unqualified; do not adopt the tested global guard.
+    Receipt: artifacts/PhotometricLightingPrerequisites/complete-frame-signed-water-supplement.json.
+    The approved bounded water-source estimator preserves homogeneous behavior and limits
+    scattering using admitted source illumination and accepted optical depth. Its proposal-only
+    receipt passes 310 CPU assertions; conditional frame fixtures retain all torch channels.
+    The user approved this narrow refinement on 2026-10-12; it is not completed runtime work or
+    full range/precision acceptance. See proposal "Approved bounded water-source estimator" and
+    artifacts/PhotometricLightingPrerequisites/passive-boundary-envelope-proposal-results.json.
+    The water-source convention is now explicit: solar lux times phase plus isotropic
+    (blockLux+pi*EnvironmentEOverPi)/(4*pi); the camera route has no direct-solar term.
+    A 273-check source receipt qualifies U=64*Solar+(Bmax+pi*EnvironmentEOverPi)/(4*pi)
+    under the recorded FP32 arithmetic model. Source-expression rounding, publication and
+    capture-product validity remain implementation checks; assembled producer admission is open.
+    Receipt: artifacts/PhotometricLightingPrerequisites/water-source-upper-qualification.json.
+    Select the revised source-informed frame scale rule within its documented arithmetic
+    domain. The 20-check receipt covers outward metadata/downward scale rounding, calibrated
+    torch RGB retention, per-component originating history bounds and actual artistic/source
+    gains. It does not close admission for all producers; do not reuse fixed experimental
+    ceilings as actual source bounds. See proposal "Selected scale rule and supported arithmetic
+    domain" and artifacts/PhotometricLightingPrerequisites/frame-scale-domain-qualification.json.
+    Five source/real-arithmetic OIT checks cover valid negative depths and weight<1.011;
+    FP32 accumulation has ample range in the recorded count domain. Rounded logarithm inputs
+    and GPU blend precision remain implementation checks, not proof from this range receipt:
+    artifacts/PhotometricLightingPrerequisites/oit-real-range-qualification.json.
+    Fixed C=1/16 is selected within explicit scalar and directional admission domains.
+    Ten checks verify finite endpoints, overflow rejection, signed SH coefficient allowances,
+    current certificate sources and convex histories. The proposal's producer-boundary table
+    assigns validation/failure ownership; it does not claim legacy runtime enforcement.
+    Receipt: artifacts/PhotometricLightingPrerequisites/persistent-admission-qualification.json.
+    The explicit assembled B equation now passes nine arithmetic checks across standalone/LumOn
+    day/night fixtures. All retain nominated torch RGB and store below 16,000. Actual legacy
+    additive bounds are required; the fixture's 32-nit allowance is not a universal effect bound.
+    See proposal "Selected scale rule and supported arithmetic domain" and
+    artifacts/PhotometricLightingPrerequisites/assembled-frame-budget-qualification.json.
+    Fresh held-source inspection covers five installed assemblies and six narrow checks.
+    Standard player-held sources publish dynamic arrays; the propagated field reads stored
+    chunk lighting seeded by placed blocks. No standard held-to-field feed was found in the
+    inspected owner chains. Custom registered/indirect paths remain potentially overlapping;
+    no new accounting policy is selected. Receipt:
+    artifacts/PhotometricLightingPrerequisites/EngineFieldReceipt/held-source-routing-receipt.json.
+    Atmosphere owner/source extraction passes 43 assertions over seven existing complete
+    quality-zero fixtures. Packed components fit candidate C=1/16; independent smooth/Mie
+    maxima cannot certify the experimental directional ceiling over all accepted inputs.
+    Existing completed arrays and packing/upload owners can publish matching-generation bounds
+    without a new GPU pass/readback. Fixed-scale range, reconstructed phase/interpolation,
+    stored rounding and retained-history bounds still require qualification.
+    Receipt: artifacts/PhotometricLightingPrerequisites/atmosphere-publication-range-qualification.json.
+    Independent angular references cover nine constant/linear/quadratic cases at three normals.
+    Maximum SH9 approximation error is 1.42%; legacy gather errors reach 5.46% at stride one
+    and 6.50% at stride two. Controlled 64-ray sampling with history cap four compares measured
+    mean/variance with its analytical model; neither diagnostic establishes runtime transport error.
+    These receipts preserve existing tolerances and the separate 1.28 joint SH range certificate:
+    artifacts/PhotometricLightingPrerequisites/angular-reference-results.json and
+    artifacts/PhotometricLightingPrerequisites/angular-variance-results.json.
+    A solar-only widened-GGX candidate passes 89 bounded arithmetic checks, with a certified
+    2.1-times-disk specular bound. It is not selected: converged finite-disk comparisons show
+    substantial off-normal differences, and minimum-roughness references have not converged.
+    Storage survival alone does not qualify its material response.
+    The final additive inventory resolves the prerequisite gap identified by second review:
+    concrete unit adapters and source-expression bounds replace the experimental R=32 allowance.
+    Earlier unresolved/rejected receipts above remain historical diagnostics; the selected
+    supported domain, producer admissions and current proposal govern implementation.
+    The proposal's "Additive compatibility contributors" now selects the existing 32-nit neutral
+    reference for authored scene approximations and separates physical producers. Installed
+    clouds/particles/celestial/aurora and transparent-compose sources establish explicit expression,
+    integration and alpha-normalization boundaries. Volumetric clouds integrate at most 200 samples
+    and bypass ordinary OIT premultiplication; the resolve returns black below weighted alpha
+    0.0001 and divides otherwise. Nine targeted arithmetic checks pass for traversal, resolve and
+    the selected HDR display-noise bypass. The original transform can push alpha above one;
+    PBR.OutputDithering.md already requires final-output dithering instead. Actual input bounds
+    are now explicit in the proposal. Receipt:
+    artifacts/PhotometricLightingPrerequisites/additive-cloud-bound-qualification.json.
+    Fifteen final source-linked checks cover those formulas, corrected moon fog ordering,
+    night-sky alpha 1.1 and invalid legacy point divisions. The combined conditional cloud/star/
+    frame fixture fits the selected retention domain. Receipt:
+    artifacts/PhotometricLightingPrerequisites/additive-input-formulas-qualification.json.
+    Second review reconciled these findings into the proposal and downstream scene tasks.
+    Independent completion audit checked the full task/document mapping against the governing
+    proposal and linked contracts: design prerequisites are satisfied within the explicit admitted
+    domain. Actual metadata enforcement, integrated GPU conversion/precision, resource transition
+    execution and live appearance remain downstream verification, as the completion boundary states.
+
+  Task/document traceability for the current investigation
+    - Owner inventory -> proposal "Prerequisite source reconciliation" and its linked current
+      material/display, lighting-mode, camera, shared-display, cache, atmosphere and water
+      contracts -> source inventory, installed IL and fresh publication/field receipts.
+    - Units/fixtures and compatibility mappings -> proposal "Unit and color contract", "Confirmed
+      spatial and color decisions", "Reference fixture and tolerances", and "Fresh source-derived
+      calibration and storage receipts" -> analytical and installed-field numerical receipts.
+    - Storage qualification -> proposal "HDR storage and camera response", "Storage inventory
+      and open qualification", "Finite-angular solar specular response" and fresh receipts;
+      camera/shared-display/postprocessing ownership
+      contracts -> bounded-storage, calibration-safety, postprocess and OIT diagnostics.
+    - Completion -> all preceding contracts -> second review and independent completion audit;
+      unresolved storage decisions prevent acceptance. These mappings describe investigation
+      evidence and do not claim future runtime conversion or integrated validation.
+
+  ☑ Reconcile the full proposal with current rendering owners and linked runtime documentation.
     - Inspect PbrTerrainColorPatches, PbrSurfaceShaderPatches, pbr_direct_lighting,
       pbr_forward_surface, pbr_environment, lumon_pbr, atmosphere lookup/model, held lights,
       emission, camera exposure and final composition.
@@ -53,7 +257,7 @@ of sources and consumers without guessing intensity constants or buffer meanings
     - Use source and fresh receipts as authority. Old ignored capture artifacts are optional
       diagnostic context, not a required portable input or proof of current behavior.
 
-  ☐ Specify the photometric/color/spatial contract and quantitative tolerances.
+  ☑ Specify the photometric/color/spatial contract and quantitative tolerances.
     - Declare lumens for authored source output, lux for incident illumination, candela for
       evaluated directional source intensity, and nits for sky/emission/outgoing luminance.
     - Specify linear Rec.709 RGB and Y=(0.2126,0.7152,0.0722); normalize authored source color
@@ -64,36 +268,46 @@ of sources and consumers without guessing intensity constants or buffer meanings
     - Establish fixed-exposure, neutral-grading fixtures and independent expected results for
       L=reflectance*E/pi and I=lumens/(4*pi), including orientation, distance and visibility.
 
-  ☐ Collect reference evidence and select engine-light/emission compatibility mappings.
-    - Nominate the block-light fixture, specify lamp/receiver placement and target illumination,
-      and record raw engine field values and settings at fixed exposure.
-    - Fit reference lux for the identity shader conversion; check additional distances, enclosed
+  ☑ Collect reference evidence and select engine-light/emission compatibility mappings.
+    - Nominate the block-light fixture, specify lamp/receiver placement and target illumination;
+      derive raw field values from assets, propagation, brightness/color tables and interpolation.
+      Record versions/settings and distinguish source-derived values from live observations.
+    - Calculate reference lux for the floor-corrected shader conversion; check additional distances, enclosed
       scenes, colors and overlap. Record limitations of the aggregate field and any curve decision.
     - Document engine point-light color/intensity/range interpretation, near-source regularization
       and finite influence window in metres. Select conversion independently of the block field.
     - Select emissive reference nits and preserve the intended dimensionless material authoring
       convention. Keep emission brightness distinct from glow/bloom eligibility.
-    - Obtain missing live fixture evidence through user-run captures where engine inputs are
-      needed; synthetic data alone must not claim an observed engine-field calibration.
+    - Obtain user-run capture evidence only for mappings source evidence cannot establish.
+      Synthetic/derived data must not claim an observed live engine-field calibration.
 
-  ☐ Audit and qualify HDR storage before selecting a representation.
+  ☑ Audit and qualify the approved HDR storage representation.
     - Inventory floating-point textures and intermediates, including half-float and R11G11B10,
       atmosphere LUTs/disk, direct/environment targets, emission, LumOn histories/caches and water.
-    - Establish the accepted daylight, disk, bright-emitter, lamp, interior and night envelope;
+    - Establish the qualification daylight, disk, bright-emitter, lamp, interior and night envelope;
       evaluate overflow, underflow and quantization against stated tolerances.
-    - Prefer one documented fixed scale for unexposed physical luminance if all required cases pass.
-      Specify how incident inputs, storage, metering, glare and diagnostics use that representation.
-    - If fixed scaling fails, specify and resolve a pre-exposure design covering common frame scale,
-      temporal rescaling, persistent probes/caches, sky LUTs, water and metering before implementing it.
-      Do not substitute per-pass clamps, independent exposure scales or an attachment redesign.
+    - Select and qualify the approved solar-only finite-angular specular response and its actual
+      radiance bound using the existing visible disk radius and matching atmosphere generation.
+      Do not substitute the ideal passive-reflection theorem for proof of the selected approximation.
+    - Qualify stored=P*physical with P frozen before scene drawing from previous automatic or current
+      manual exposure; cover startup, camera cuts, exposure changes and failed publication.
+    - Check the explicit visible-disk cap of 64,000 stored units and combined-output headroom;
+      verify direct solar/sky illumination and uncapped physical disk diagnostics remain unchanged.
+      Account for glare strengths when reserving disk headroom and qualify weighted transparent
+      accumulation before normalization. Do not assume the primary-light bound protects overdraw.
+    - Qualify fixed persistent cache/lookup scale (initially 1/16), P/C handoffs, temporal
+      P_current/P_history correction, atomic generations, water and scale-change invalidation.
+    - Check physical metering via stored/P and display/glare via currentExposure/P.
+      Keep metadata unscaled and UI isolated. No CPU exposure readback or per-frame allocation.
+      Do not substitute undocumented clamps, unrelated per-pass exposure or attachment redesign.
     - Reconcile the selected representation and calibration decisions into the proposal before
       downstream implementation. Preserve any genuinely unresolved prerequisites explicitly.
 
-  ☐ Verify completion of Phase 1.
-    - Unit/boundary inventory, fixture measurements, references and tolerances are recorded.
+  ☑ Verify completion of Phase 1.
+    - Unit/boundary inventory, source-derived fixture receipts, references and tolerances are recorded.
     - Block/point/emission mapping choices and the storage decision have supporting receipts.
-    - Downstream work has no unresolved quantity or storage assumption; larger conditional
-      pre-exposure work has an explicit accepted design rather than implicit scope expansion.
+    - Downstream work has no unresolved quantity or storage assumption; the approved pre-exposure
+      design and its bounded disk approximation are explicit rather than implicit scope expansion.
 
 Phase 2: Establish shared quantities, shader conversion and storage support
 -------------------------------------------------------------------------
@@ -105,16 +319,25 @@ physical lighting consistently; producers can migrate without introducing new li
       roots thin and avoid general-purpose unit frameworks or new propagation infrastructure.
     - Supply block-light reference lux/selected response parameters through existing shader bindings.
       Do not transform the propagated field or rewrite engine light data on the CPU.
-    - Provide one shared GLSL block conversion. The identity candidate is
-      blockIlluminance=max(legacyBlockRgb,0)*referenceLux; integrated block input is E/pi.
+    - Provide one shared GLSL block conversion: B=max(legacyBlockRgb,0), m=maxComponent(B),
+      correctedRgb=B*max(m-neutralFloor,0)/m for m>0, otherwise zero.
+      blockIlluminance=correctedRgb*referenceLux; integrated block input is E/pi.
     - Separate block conversion from atmospheric illumination and apply any storage representation
       at the declared boundary. Prevent duplicated conversion or division by pi.
 
   ☐ Implement the selected storage representation through existing resource owners.
-    - For fixed scaling, expose the common decode convention to consumers, metering and diagnostics.
-    - Implement pre-exposure only if Phase 1 selected its explicit design; follow its required
-      temporal/cache/water/LUT handling and verify scale transitions before integrating producers.
+    - Implement the approved frame pre-exposure and fixed persistent encoding/decoding contract.
+      Account for physical quantities and frame/cache/lookup storage scales in typed interfaces
+      and diagnostics.
+    - Follow the required temporal/cache/water/LUT handling, freeze the frame scale before draws,
+      and verify scale transitions before integrating producers.
     - Preserve engine framebuffer ownership, demand loading, reload, resize and world teardown.
+    - Integrate the approved water-source refinement in the existing signed-boundary evaluator:
+      min(max(sourceIntegral,0),sourceUpper*opticalDepth) times the retained integral factor.
+      Publish a bound covering every contributing boundary and initial camera source through
+      existing bindings; do not substitute receiver-local illumination. Reject unsupported
+      bound metadata/products through the existing transport validity/fallback path.
+      Preserve homogeneous response, transmission, medium coefficients and resource ownership.
       Do not introduce per-frame source discovery or reallocation for calibration.
 
   ☐ Add proportionate numerical and shader-contract validation.
@@ -145,6 +368,10 @@ declared quantities and use consistent receiver response in deferred and forward
     - Use the shared helper in PbrTerrainColorPatches environment publication and applicable
       PbrSurfaceShaderPatches/forward routes before material response.
     - Bind the confirmed reference/curve consistently; preserve atmospheric contribution separately.
+      Decode dimensionless sky availability with active-table, decoder-specific zero/full
+      endpoints; terrain's encoded level-zero alpha and the world accessor differ.
+      Reuse the Surface Cache's normalized light RGBA input for the same block conversion;
+      retire its differently decoded legacy level/32 palette route.
     - Preserve generation, propagation, attenuation, enclosure, interpolation and overlap behavior.
       Confirm raw engine data is unchanged and no source identity/direction is fabricated.
     - Verify each contribution is converted once and fixture outputs match the selected mapping.
@@ -163,6 +390,9 @@ declared quantities and use consistent receiver response in deferred and forward
     - Remove the legacy point-light omission of pi only alongside its converted input contract.
     - Preserve Fresnel/metallic energy partition, transmission and shadow ownership; validate units.
     - Keep indirect AO on environment lighting and direct visibility on sun/point lighting.
+    - Implement the qualified solar-only finite-angular specular response in the shared deferred/
+      forward direct-light boundary and separate pbr_liquid solar-reflection call. Preserve punctual response,
+      calibrated solar irradiance, existing shadows and volume-scattering/transmission contracts.
 
   ☐ Verify completion of Phase 3.
     - Numerical diffuse-reference and installed deferred/forward tests meet stated tolerances.
@@ -180,6 +410,8 @@ quantities without double material weighting, duplicate environment light or uns
     - Trace real consumers and explicitly convert outgoing luminance versus incident estimates
       where required. Do not infer compatible units from RGB format or variable naming alone.
     - Apply receiver response and calibration exactly once; preserve justified transport steps.
+      Convert world-probe diffuse incident lux to E/pi at the shared gather fallback boundary;
+      retain its separate directional-radiance route. Verify constant-input screen/world agreement.
     - Remove hidden calibration scales or classify them as artistic controls with neutral defaults.
     - Prevent re-addition of environment light represented by GI; retain the established unavailable-
       GI behavior and forward local block fallback, with no sampling of unrelated opaque receivers.
@@ -189,6 +421,11 @@ quantities without double material weighting, duplicate environment light or uns
       receivers, particles, fog, celestial inputs and glare.
     - Convert legacy effect inputs explicitly; document remaining approximations instead of
       injecting unscaled display colors into physical scene buffers.
+    - Follow proposal "Additive compatibility contributors": use the selected 32-nit reference
+      only for authored/prelit approximations, publish expression/input/submission bounds through
+      existing owners, and include their actual contributions in B. Keep physical lighting separate.
+      Disable volumetric-cloud post-traversal RGBA display noise on scene draws under
+      PBR.OutputDithering.md; preserve final encoded dithering and offscreen behavior.
     - Preserve UI/offscreen isolation and existing alpha, depth, glow and material-data meanings.
 
   ☐ Retire differently calibrated cached/history lighting through existing lifecycle owners.
@@ -212,7 +449,7 @@ response, and existing settings/material/source inputs have documented migration
     - Keep stops as log2 display multiplier and compensation separate from physical source output.
       Do not introduce or claim EV100 camera calibration.
     - Preserve metering after scene/OIT/late composition and before generated glare/display conversion.
-      Account for fixed scaling or selected pre-exposure explicitly.
+      Decode the frozen frame scale for metering and apply currentExposure/P at final display.
     - Retain the existing global tone curve initially; apply display exposure once and keep UI outside it.
 
   ☐ Reconcile bloom/shaft thresholds and artistic controls.
@@ -272,7 +509,7 @@ live-runtime evidence; accepted defaults and approximation limits are documented
 
 Final acceptance
 ----------------
-  ☐ All prerequisites and conditional storage decisions are resolved in the governing design.
+  ☐ All calibration prerequisites and selected storage qualification are resolved in the governing design.
   ☐ Sun, sky, block, point, emission, LumOn and other scene contributions share declared quantities.
   ☐ Existing propagation/light data, render ownership and UI/offscreen isolation remain intact.
   ☐ Required numerical, shader, integration, lifecycle, migration and package checks pass.

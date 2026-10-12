@@ -162,6 +162,45 @@ Tasks
       allocation/storage changes. Do not use reduced call counts alone as completion evidence.
       Contract: docs/PBR.Postprocessing.md; retain results there and remove temporary diagnostics.
 
+  ☐ Implement microfacet multiple-scattering energy compensation consistently across the PBR pipeline.
+    - Use a directional-albedo lookup indexed by material roughness and NdotV, with reflectance E
+      and its Fresnel-weighted term Ef. Apply the compensation W = 1 + F0 * (1 - E) / E and
+      estimate compensated lobe reflectance as W * (E * F0 + Ef * (F90 - F0)). Retain explicit
+      dielectric/metallic and grazing-reflectance contracts; bound low-E divisions and invalid inputs.
+    - Generate and validate the lookup independently against the selected owned GGX distribution
+      and masking model. Resolve any masking-model change explicitly; a lookup for a different
+      BRDF must not silently compensate the existing one. Define resolution, precision, filtering,
+      domain limits and integration error before choosing storage or an analytical replacement.
+    - Share the compensation and lobe-energy partition across deferred, forward/late/OIT and
+      liquid surface specular shading, including punctual and finite-disk emitters. Keep emitter-size
+      compensation distinct from microfacet multiple scattering; neither replaces the other.
+    - Reconcile environment/reflection shading and both LumOn modes with the same material energy
+      model. Inventory cached versus receiver-evaluated responses so compensation is applied once.
+      Replace or explicitly qualify the current approximate environment response where needed;
+      do not blindly multiply already-integrated or compensated lighting by the direct-light factor.
+    - Account for compensated specular reflectance when weighting diffuse, layered response and
+      surface transmission, avoiding duplicated energy or inconsistent dielectric/metal behavior.
+      Preserve separate water-volume scattering, atmosphere transport and source calibration.
+    - Own the lookup through existing shader/binding/resource infrastructure, preserving GLSL 330,
+      coherent publication, reload and retirement. Avoid new fullscreen passes or per-frame CPU
+      integration; measure lookup bandwidth, shader cost and any persistent resource overhead.
+    - Requalify photometric HDR/pre-exposure and persistent-lighting storage bounds and precision
+      after compensation increases reflected radiance. Coordinate with docs/PBR.PhotometricLighting.todo;
+      do not claim this corrects the centered finite-disk integration discrepancy without evidence.
+    - Run focused subagent numerical/GPU and lifecycle checks for white-furnace energy, reflectance
+      extremes, roughness/grazing limits, lookup convergence and matching direct/environment response.
+      Validate supported liquid/transmission and both lighting modes, then obtain user-run appearance
+      acceptance. Document approximation and reciprocity limits, measured costs and retained behavior
+      in docs/PBR.MaterialColorAndDisplay.md and the affected lighting/water ownership documents.
+
+  ☐ Revisit the bounded depth-sorted transparency proposal after photometric lighting qualification.
+    - Review docs/PBR.Transparency.Proposal.md against current OIT, forward/late/particle/liquid
+      consumers and water/refraction transport before deriving implementation tasks.
+    - Resolve ordered per-pixel access capabilities, sample precision/capacity, excess-layer merging,
+      unsupported-hardware fallback and existing resource/resolve ownership.
+    - Compare correctness, memory and measured GPU costs with the approved RGBA32F weighted buckets.
+      Obtain explicit proposal approval before implementing the transparency algorithm replacement.
+
   ☐ Optimize water rendering and composition performance. See docs/PBR.WaterPerformance.todo.
     - Remove recurring executable preparation, reduce redundant receiver/scattering work, and
       gate unnecessary background capture while preserving the established water rendering contracts.

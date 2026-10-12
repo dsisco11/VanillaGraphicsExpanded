@@ -69,6 +69,20 @@ function state afterwards. The new GPU scope is `PBR.DisplayResolve`.
 
 ## Remaining ownership
 
+Solar surface specular reflection uses `includes/pbr_finite_disk_brdf.glsl` in deferred, forward and
+liquid surface paths. The finite emitter uses the existing visible disk angular radius. A
+representative direction within that extent determines half-vector alignment, while a
+view-dependent energy factor compensates the larger reflection footprint. Material roughness,
+center-direction diffuse and masking, solar irradiance and shadow ownership retain their
+existing meaning. Punctual lights continue to use the directional Cook-Torrance response.
+Deferred and forward sunlight call `addFiniteDiskDirectLight` explicitly; `addDirectLight` retains
+the punctual response. Angular radius describes source extent and does not select the light type.
+This finite-source approximation does not establish completed photometric calibration or
+change the disk's display policy, water volume scattering or transmission models.
+Focused installed/GPU validation passes 142 tests, including independent cone-boundary and
+normal-incidence references, grazing/minimum-roughness precision and existing surface/shadow/liquid
+contracts. Production Release compilation passes. Live appearance and performance remain unmeasured.
+
 This document owns opaque material capture and its color boundary. Entity, forward-surface
 and late-item coverage is documented in [PBR.EntityAndLateCoverage.md](PBR.EntityAndLateCoverage.md).
 Runtime scene-HDR ownership is implemented as specified in `PBR.SharedDisplay.md`; owned sky

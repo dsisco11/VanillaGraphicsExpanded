@@ -75,7 +75,10 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             .Replace("@import \"./atmosphere_sky_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_sky_mapping.glsl")))
             .Replace("@import \"./atmosphere_aerial_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_aerial_mapping.glsl")));
         string source = header + "\n" + aerial + "\n" + File.ReadAllText(Path.Combine(directory, "pbr_color.glsl")) + "\n" + common + "\n"
-            + File.ReadAllText(Path.Combine(directory, "pbr_direct_brdf.glsl")).Replace("@import \"./pbr_transmission.glsl\"", File.ReadAllText(Path.Combine(directory, "pbr_transmission.glsl"))) + "\n"
+            + File.ReadAllText(Path.Combine(directory, "pbr_direct_brdf.glsl"))
+                .Replace("@import \"./pbr_transmission.glsl\"", File.ReadAllText(Path.Combine(directory, "pbr_transmission.glsl")))
+                .Replace("@import \"./pbr_finite_disk_brdf.glsl\"", File.ReadAllText(Path.Combine(directory, "pbr_finite_disk_brdf.glsl"))
+                    .Replace("@import \"./pbr_common.glsl\"", "")) + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_environment.glsl")).Replace("@import \"./pbr_common.glsl\"", "") + "\n"
             + File.ReadAllText(Path.Combine(directory, "pbr_forward_surface.glsl"))
             .Replace("@import \"./vge_lights_ubo.glsl\"", File.ReadAllText(Path.Combine(directory, "vge_lights_ubo.glsl")).Replace("@import \"./vge_ubo_bindings.glsl\"", File.ReadAllText(Path.Combine(directory, "vge_ubo_bindings.glsl"))))
@@ -129,10 +132,10 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
                 if (scenario is 2 or 3 or 8 or 14)
                     linear = (.96f * (channel + 1) * .2f + normalSpecular) * factor;
                 if (scenario == 4)
-                    linear = (.96f * (channel + 1) * .2f / MathF.PI + normalSpecular)
+                    linear = (.96f * (channel + 1) * .2f / MathF.PI + PbrSolarBrdfTests.NormalIncidenceExpected(.04f, .5f))
                         * new[] { .2f, .4f, .8f }[channel];
                 if (scenario == 6) linear = new[] { .2f,.4f,.8f }[channel] * .35f * (.96f * (channel + 1) * .2f + .02f);
-                if (scenario == 10) linear = (.96f * (channel + 1) * .2f / MathF.PI + normalSpecular) * (.3f + channel * .2f);
+                if (scenario == 10) linear = (.96f * (channel + 1) * .2f / MathF.PI + PbrSolarBrdfTests.NormalIncidenceExpected(.04f, .5f)) * (.3f + channel * .2f);
                 if (scenario == 12) linear = new[]{.04f,.09f,.16f}[channel];
                 radiance[channel] = linear;
             }

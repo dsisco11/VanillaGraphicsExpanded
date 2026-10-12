@@ -1,5 +1,6 @@
 #ifndef VGE_PBR_LIQUID_GLSL
 #define VGE_PBR_LIQUID_GLSL
+@import "./pbr_finite_disk_brdf.glsl"
 
 
 
@@ -51,7 +52,8 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     vec3 F0 = vec3(water ? .02037 : .04);
     vec3 L = normalize(vge_atmosphereSunDirection);
     vec3 solar = max(vge_atmosphereSolar, vec3(0)) * vge_skyVisibility * VgeLiquidVisibility();
-    vec3 reflected = cookTorranceBRDF(N, V, L, F0, roughness) * solar * max(dot(N,L), 0.0);
+    vec3 reflected = VgeFiniteDiskSpecularBRDF(N, V, L, F0, roughness, VGE_SOLAR_ANGULAR_RADIUS)
+        * solar * max(dot(N,L), 0.0);
 #if VGE_LIQUID_CAPTURE_MODE == 1
     // The GPU test captures this direct-sun term before medium and OIT composition.
     return vec4(VgeSceneOutput(reflected, gl_FragCoord.xy, liquidMediumControl.w > .5), 1.0);

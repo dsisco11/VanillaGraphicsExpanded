@@ -236,14 +236,14 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         var diffuse = ReadPixelFromAttachment(output, 0);
 
         // At N=V=L, G=1 and F=F0. Roughness=.5 gives D=16/pi,
-        // so outgoing specular radiance is 4*F0/pi for unit incident irradiance.
+        // Finite solar extent adds the view-dependent footprint normalization to this directional limit.
         float[] colors = [.75f, .25f, .125f];
         float[] actualSpecular = [specular.R, specular.G, specular.B];
         float[] actualDiffuse = [diffuse.R, diffuse.G, diffuse.B];
         for (int channel = 0; channel < colors.Length; channel++)
         {
             float f0 = .04f * (1f - metallic) + colors[channel] * metallic;
-            AssertNear(4f * f0 / MathF.PI, actualSpecular[channel], .001f);
+            AssertNear(PbrSolarBrdfTests.NormalIncidenceExpected(f0, .5f), actualSpecular[channel], .001f);
             AssertNear((1f - f0) * (1f - metallic) * colors[channel] / MathF.PI,
                 actualDiffuse[channel], .001f);
         }
