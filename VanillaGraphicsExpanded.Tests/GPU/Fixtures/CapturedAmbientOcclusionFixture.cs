@@ -18,6 +18,8 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
     private readonly Texture3D surface;
     private readonly VgeFrameUniformBuffer camera;
     private readonly PostSsaoShaderProgram horizon;
+    private readonly MinimumChildMaskShaderProgram maskShader;
+    private readonly MinimumChildMaskPass comparisonMasks=new();
 
     #region Public API
     /// <summary>Gets the captured receiver extent.</summary>
@@ -63,6 +65,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
             Assert.Equal((Height + 1) / 2, output.GetProperty("height").GetInt32());
             CapturedOutput = DecodeHalf(ReadPayload(output, checked((Width + 1) / 2 * ((Height + 1) / 2) * 8)));
             horizon = programs.Create<PostSsaoShaderProgram>();
+            maskShader = programs.Create<MinimumChildMaskShaderProgram>();
         }
         catch { Dispose(); throw; }
     }
@@ -71,12 +74,16 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
     internal (Action Reference, Action Current) PrepareComparison(AoHorizonReferenceProgram reference,
         PostprocessDraw draw, GpuFramebuffer referenceTarget, GpuFramebuffer currentTarget)
     {
+        var maskPipeline=comparisonMasks.Prepare(draw,Width,Height,maskShader);
+        Assert.True(GraphicsCommandContext.TryRun("Tests.CapturedAoMasks",[maskPipeline],true,
+            commands=>comparisonMasks.Render(commands,draw,hierarchy)));
         reference.Capture(depth, surface, hierarchy, camera, Quality);
         horizon.DepthImage = depth; horizon.SurfaceImage = surface; horizon.DepthHierarchy = hierarchy;
+        horizon.MinimumChildren=comparisonMasks.Texture;
         horizon.Capture(camera, new(0, 0, 2, 0), new(1.25f, .25f, 6, 6), new(64, 96, 0, 0));
         var referencePipeline = draw.Prepare(reference, referenceTarget);
         var currentPipeline = draw.Prepare(horizon, currentTarget);
-        // Native uploads, verification, preparation and descriptor mutation precede all timing.
+        // Native uploads, verification, hierarchy masks, preparation and descriptor mutation precede horizon-only timing.
         return (
             () => Assert.True(GraphicsCommandContext.TryRun("Tests.CapturedAoReference", [referencePipeline], true,
                 commands => draw.Submit(commands, referencePipeline, referenceTarget))),
@@ -85,7 +92,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
     }
 
     /// <summary>Retires all restored GPU inputs and parsed metadata together.</summary>
-    public void Dispose() { camera?.Dispose(); resources.Dispose(); manifest.Dispose(); }
+    public void Dispose() { comparisonMasks.Dispose();camera?.Dispose(); resources.Dispose(); manifest.Dispose(); }
     #endregion
 
     #region Private

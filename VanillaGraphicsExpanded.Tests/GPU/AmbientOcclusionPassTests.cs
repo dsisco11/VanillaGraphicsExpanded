@@ -123,14 +123,30 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         using var draw = new PostprocessDraw();
         Render(owner, draw, 65, 37, 1, 0);
         var first = owner.Texture;
+        var masks=Assert.IsType<MinimumChildMaskPass>(HarmonyLib.AccessTools.Field(typeof(AmbientOcclusionPass),"minimumChildren").GetValue(owner));
+        var firstMasks=masks.Texture;
         long expected = 8L * (2 * 33 * 19 + 65 * 37);
+        for(int level=1;level<=4;level++) expected+=2L*Math.Max(1,65>>level)*Math.Max(1,37>>level);
         Assert.Equal(expected, owner.StorageBytes);
         Render(owner, draw, 65, 37, 2, 0);
         Assert.Same(first, owner.Texture);
+        Assert.Same(firstMasks,masks.Texture);
         Render(owner, draw, 17, 9, 2, 0);
         Assert.NotSame(first, owner.Texture);
+        Assert.NotSame(firstMasks,masks.Texture);
+        // OpenGL may recycle numeric names during replacement; the retired object is the lifetime authority.
+        Assert.True(firstMasks!.IsDisposed);
         Assert.Equal(17, owner.Texture!.Width); Assert.Equal(9, owner.Texture.Height);
+        var resizedMasks=masks.Texture!;
+        Render(owner,draw,1,1,1,0);
+        Assert.True(resizedMasks.IsDisposed);
+        var collapsedMasks=masks.Texture;
+        Render(owner,draw,1,1,2,0);
+        Assert.Same(collapsedMasks,masks.Texture);
+        int collapsedMaskId=masks.Texture!.TextureId;
         owner.Dispose(); Assert.Null(owner.Texture); Assert.Equal(0, owner.StorageBytes);
+        Assert.Null(masks.Texture);Assert.Equal(0,masks.StorageBytes);Assert.True(resizedMasks.IsDisposed);
+        Assert.False(GL.IsTexture(collapsedMaskId));
         Assert.Equal(new AmbientOcclusionQuality(2, 3, 4), AmbientOcclusionQuality.FromNative(1));
         Assert.Equal(new AmbientOcclusionQuality(2, 6, 6), AmbientOcclusionQuality.FromNative(2));
     }
@@ -157,7 +173,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         inputs.Render(owner,draw,quality);
         if(measure) {
             var samples=inputs.Measure(owner,draw,quality).Gpu;
-            log.WriteLine($"Synthetic AO {width}x{height} quality{quality}, hierarchy plus three AO draws, five warm GPU samples: min={samples.Min():F4}ms median={samples.Order().ElementAt(2):F4}ms max={samples.Max():F4}ms; AO payload={owner.StorageBytes} bytes, shared hierarchy={inputs.HierarchyBytes} bytes. Not live cost or physical bandwidth.");
+            log.WriteLine($"Synthetic AO {width}x{height} quality{quality}, hierarchy plus up to four mask draws + three AO draws, five warm GPU samples: min={samples.Min():F4}ms median={samples.Order().ElementAt(2):F4}ms max={samples.Max():F4}ms; AO payload={owner.StorageBytes} bytes, shared hierarchy={inputs.HierarchyBytes} bytes. Not live cost or physical bandwidth.");
         }
         return ((DynamicTexture2D)owner.Texture!).ReadPixels();
     }

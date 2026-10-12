@@ -97,7 +97,7 @@ public sealed class AmbientOcclusionHorizonBehaviorTests(HeadlessGLFixture fixtu
         for(int repeat=0;repeat<3;repeat++)foreach(int quality in new[]{1,2,2,1}) {
             var sample=inputs.Measure(owner,draw,quality,1);gpu[quality-1].Add(sample.Gpu[0]);cpu[quality-1].Add(sample.Cpu[0]);
         }
-        for(int quality=1;quality<=2;quality++)log.WriteLine($"Matched AO {width}x{height} quality{quality}: six ABBA samples GPU median={gpu[quality-1].Order().Skip(2).Take(2).Average():F4}ms range={gpu[quality-1].Min():F4}..{gpu[quality-1].Max():F4}; CPU submission median={cpu[quality-1].Order().Skip(2).Take(2).Average():F4}ms; AO bytes={owner.StorageBytes}; HZB bytes={inputs.HierarchyBytes}; one hierarchy dispatch + three AO draws; candidates={(quality==1?24:72)} per half-resolution pixel. Excludes target creation/readback/query waits; not live frame cost.");
+        for(int quality=1;quality<=2;quality++)log.WriteLine($"Matched AO {width}x{height} quality{quality}: six ABBA samples GPU median={gpu[quality-1].Order().Skip(2).Take(2).Average():F4}ms range={gpu[quality-1].Min():F4}..{gpu[quality-1].Max():F4}; CPU submission median={cpu[quality-1].Order().Skip(2).Take(2).Average():F4}ms; AO bytes={owner.StorageBytes}; HZB bytes={inputs.HierarchyBytes}; one hierarchy dispatch + up to four mask draws + three AO draws; candidates={(quality==1?24:72)} per half-resolution pixel. Excludes target creation/readback/query waits; not live frame cost.");
         AssertStage(AmbientOcclusionSceneFixture.ReadStages(owner).Reconstructed);
     }
     #endregion

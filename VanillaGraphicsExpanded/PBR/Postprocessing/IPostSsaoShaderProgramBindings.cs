@@ -21,5 +21,8 @@ internal interface IPostSsaoShaderProgramBindings
     /// <summary>Supplies the shared hardware-depth hierarchy with explicit shader LOD selection.</summary>
     [ShaderBinding("depthHierarchy", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTexture? DepthHierarchy { set; }
+    /// <summary>Supplies all-minimum membership for query-dependent source recovery.</summary>
+    [ShaderBinding("minimumChildren", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? MinimumChildren { set; }
     #endregion
 }

@@ -15,6 +15,8 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     private readonly ShaderTestFramework framework;
     private readonly PostSsaoShaderProgram horizon;
     private readonly AmbientOcclusionFilterShaderProgram filter;
+    private readonly MinimumChildMaskShaderProgram maskShader;
+    private readonly MinimumChildMaskPass comparisonMasks=new();
     private readonly DepthHierarchyComputeShader compute;
     private readonly DepthHierarchyPass hierarchy=new();
     private readonly DynamicTexture2D normal,material,environment;
@@ -40,6 +42,7 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     {
         this.framework=framework;Width=width;Height=height;originalRoughness=roughness;this.availability=availability;
         horizon=programs.Create<PostSsaoShaderProgram>();filter=programs.Create<AmbientOcclusionFilterShaderProgram>();compute=programs.CreateDepthHierarchy();
+        maskShader=programs.Create<MinimumChildMaskShaderProgram>();
         float aspect=(float)width/height,tanHalf=MathF.Tan(verticalFov*MathF.PI/360);
         const float near=.1f,far=100f;
         float a=-(far+near)/(far-near),b=-2*far*near/(far-near);
@@ -84,7 +87,7 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     /// <summary>Runs the actual hierarchy, horizon, denoising and full-resolution reconstruction in their restoring boundaries.</summary>
     internal void Render(AmbientOcclusionPass owner,PostprocessDraw draw,int quality)
     {
-        var pipelines=owner.Prepare(draw,Width,Height,quality,horizon,filter);
+        var pipelines=owner.Prepare(draw,Width,Height,quality,horizon,filter,maskShader);
         hierarchy.Render(Depth);
         Assert.True(GraphicsCommandContext.TryRun("Tests.AmbientOcclusionScene",pipelines,true,
             commands=>owner.Render(commands,draw,Depth,Surface,hierarchy.Texture!,Camera)));
@@ -105,14 +108,18 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
         PostprocessDraw draw, GpuFramebuffer referenceTarget, GpuFramebuffer currentTarget, int nativeQuality)
     {
         hierarchy.Render(Depth);
+        var maskPipeline=comparisonMasks.Prepare(draw,Width,Height,maskShader);
+        Assert.True(GraphicsCommandContext.TryRun("Tests.AoComparisonMasks",[maskPipeline],true,
+            commands=>comparisonMasks.Render(commands,draw,hierarchy.Texture!)));
         reference.Capture(Depth, Surface, hierarchy.Texture!, Camera, nativeQuality);
         var quality = AmbientOcclusionQuality.FromNative(nativeQuality);
         horizon.DepthImage = Depth; horizon.SurfaceImage = Surface; horizon.DepthHierarchy = hierarchy.Texture;
+        horizon.MinimumChildren=comparisonMasks.Texture;
         horizon.Capture(Camera, new(0, 0, quality.Divisor, 0),
             new(1.25f, .25f, quality.Directions, quality.Steps), new(64, 96, 0, 0));
         var referencePipeline = draw.Prepare(reference, referenceTarget);
         var currentPipeline = draw.Prepare(horizon, currentTarget);
-        // Preparation, hierarchy generation and descriptor mutation are excluded from both timed actions.
+        // Preparation, hierarchy/mask generation and descriptor mutation are excluded from horizon-only timing.
         return (
             () => Assert.True(GraphicsCommandContext.TryRun("Tests.AoReference", [referencePipeline], true,
                 commands => draw.Submit(commands, referencePipeline, referenceTarget))),
@@ -124,7 +131,7 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     internal (double[] Gpu,double[] Cpu) Measure(AmbientOcclusionPass owner,PostprocessDraw draw,int quality,int count=5)
     {
         Render(owner,draw,quality);
-        var pipelines=owner.Prepare(draw,Width,Height,quality,horizon,filter);
+        var pipelines=owner.Prepare(draw,Width,Height,quality,horizon,filter,maskShader);
         double[] gpu=new double[count],cpu=new double[count];
         for(int sample=0;sample<count;sample++) {
             using var timer=GpuTimerQuery.Create();
@@ -157,7 +164,7 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     /// <summary>Retires dependent hierarchy views and layered inputs before their source storage.</summary>
     public void Dispose()
     {
-        hierarchy.Dispose();Surface.Dispose();Camera.Dispose();Position.Dispose();Albedo.Dispose();
+        comparisonMasks.Dispose();hierarchy.Dispose();Surface.Dispose();Camera.Dispose();Position.Dispose();Albedo.Dispose();
         environment.Dispose();material.Dispose();normal.Dispose();Depth.Dispose();
     }
     #endregion

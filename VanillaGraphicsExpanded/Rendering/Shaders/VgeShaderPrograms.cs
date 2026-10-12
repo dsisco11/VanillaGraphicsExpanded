@@ -26,6 +26,7 @@ internal static class VgeShaderPrograms
         GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.PostLumaShaderProgram.Contract.Identity, () => new PBR.Postprocessing.PostLumaShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.PostSsaoShaderProgram.Contract.Identity, () => new PBR.Postprocessing.PostSsaoShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.AmbientOcclusionFilterShaderProgram.Contract.Identity, () => new PBR.Postprocessing.AmbientOcclusionFilterShaderProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.MinimumChildMaskShaderProgram.Contract.Identity, () => new PBR.Postprocessing.MinimumChildMaskShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Liquids.LiquidShaderProgram.Contract.Identity, () => new PBR.Liquids.LiquidShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Liquids.LiquidDepthShaderProgram.Contract.Identity, () => new PBR.Liquids.LiquidDepthShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Liquids.WaterRefractionReductionShaderProgram.Contract.Identity, () => new PBR.Liquids.WaterRefractionReductionShaderProgram());

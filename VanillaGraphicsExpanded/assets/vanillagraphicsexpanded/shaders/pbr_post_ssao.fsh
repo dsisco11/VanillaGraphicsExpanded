@@ -1,9 +1,10 @@
-#version 330 core
+#version 430 core
 @import "./includes/ambient_occlusion.glsl"
 @import "./includes/gbuffer_layers.glsl"
 uniform sampler2D depthImage;
 uniform sampler2DArray surfaceImage;
 uniform sampler2D depthHierarchy;
+uniform usampler2D minimumChildren;
 layout(location=0) out vec4 outOcclusion;
 /** Samples a footprint-sized minimum, then locates its real source receiver to preserve geometry and material identity. */
 float VgeAoDepth(inout vec2 uv, float footprint) {
@@ -14,29 +15,31 @@ float VgeAoDepth(inout vec2 uv, float footprint) {
     ivec2 pixel=min(ivec2(uv*vec2(size)),size-1);
     float nearest=texelFetch(depthHierarchy,pixel,level).r;
     if(nearest>=1.0) return 1.0;
-    // Coarse nearest depth has no source coordinate. Follow conservative proportional footprints
-    // to one matching leaf; tie-break by distance to the requested sample for spatial stability.
+    if(level==0) return nearest;
+    // The sidecar retains all minimum children, so strict distance comparisons in the original
+    // row-major order preserve query-dependent ties without fetching every child's depth.
     for(int iteration=0;iteration<4;iteration++) {
         if(level==0) break;
         ivec2 childSize=textureSize(depthHierarchy,level-1);
         ivec2 first=pixel*childSize/size;
-        ivec2 end=((pixel+1)*childSize+size-1)/size;
         ivec2 selected=first;
-        float bestDepth=1.0,bestDistance=1e20;
-        for(int y=0;y<3;y++) for(int x=0;x<3;x++) {
-            ivec2 child=first+ivec2(x,y);
-            if(any(greaterThanEqual(child,end))) continue;
-            float depth=texelFetch(depthHierarchy,child,level-1).r;
+        float bestDistance=1e20; uint mask=texelFetch(minimumChildren,pixel,level-1).r;
+        // Ascending set-bit visitation has the original row-major order, with no nonminimum slot work.
+        while(mask!=0u) {
+            int childIndex=findLSB(mask);
+            mask&=mask-1u;
+            ivec2 child=first+ivec2(childIndex%3,childIndex/3);
             vec2 delta=(vec2(child)+0.5)/vec2(childSize)-uv;
             float distanceSquared=dot(delta,delta);
-            if(depth<bestDepth || (depth==bestDepth && distanceSquared<bestDistance)) {
-                bestDepth=depth;bestDistance=distanceSquared;selected=child;
+            if(distanceSquared<bestDistance) {
+                bestDistance=distanceSquared;selected=child;
             }
         }
-        pixel=selected;size=childSize;nearest=bestDepth;level--;
+        pixel=selected;size=childSize;level--;
     }
     uv=(vec2(pixel)+0.5)/vec2(baseSize);
-    return nearest;
+    // Fetch the selected leaf's actual representation, including an equal-depth signed-zero tie.
+    return texelFetch(depthHierarchy,pixel,0).r;
 }
 /** Integrates paired horizons in view-space slices; off-screen and missing geometry remain unoccluded. */
 void main() {

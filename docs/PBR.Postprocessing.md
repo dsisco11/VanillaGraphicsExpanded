@@ -164,15 +164,83 @@ about 11-50%. An arithmetic-remainder expression produced the same tradeoff. Rec
 The ceiling-only variant passed 22 exact-image cases in `ceiling-validation`; it was not timed.
 The earlier validation below describes those experiments, not a retained production optimization.
 
-The next approach to evaluate is reducing source-recovery fetches. At mip 4 in the captured extent,
+The minimum-child evaluation reduces source-recovery fetches. At mip 4 in the captured extent,
 a non-sky lookup reads one coarse depth plus 4+4+4+6 child depths. A sidecar minimum-child mask
 could replace each child-depth scan with one mask read while retaining the same distance calculations,
 visitation order and sample-dependent tie-breaking. A single preselected source coordinate would
-not preserve that behavior. This is a proposal, not an implemented or measured improvement.
+not preserve that behavior. The production implementation was accepted by the user on 2026-10-11
+and retained after exact-output, lifecycle and complete-owner cost qualification.
 Evaluate mask construction, binding limits, physical storage and bandwidth, and total hierarchy-plus-AO
 cost before selection; preserve the shared R32F depth contract used by LumOn. Comparisons must include
 the captured scene and the workloads that rejected the arithmetic candidates. Diagnostic variants
 that omit source recovery or integration may help attribute cost, but cannot establish equivalent quality.
+
+The sidecar stores all minimum children in nine low bits of R16UI. Each mask texel corresponds to
+one R32F hierarchy parent; mip zero represents hierarchy level one. Conservative proportional bounds
+cover up to three children on each odd axis and preserve collapsed axes. Ascending set-bit visitation
+preserves the original row-major order and strict query-distance tie-breaking. A final selected-leaf
+depth fetch preserves its exact floating-point representation. Horizon integration, sample counts,
+receiver selection, transmission, filtering and reconstruction are unchanged.
+
+The first prototype tested each of nine slots before skipping nonminimum children. Although its
+images matched exactly, complete-AO paired median costs regressed by 2.3859/2.4141 ms on the flat
+3440x1377 workload and 0.4997/1.0793 ms on the thin-strip workload in two batches. This traversal was
+rejected. The ascending `findLSB`/clear-bit traversal passed 15 small image cases and all ten full
+captured/synthetic workloads in both batches, with bit-identical raw, filtered and reconstructed
+images. All ten workloads had positive paired median savings in both batches. Captured complete-AO
+reference/candidate medians were 3.2922/1.9564 ms and 3.2993/1.9625 ms; paired median savings were
+1.3373 and 1.3368 ms. Vintage Story remained open at the user's request, so these are contended
+comparisons rather than evidence of live frame-time improvement. The prototype used separate
+prepared filter facades; actual-owner measurements must additionally exercise production's mutable
+single-filter publication policy before selection. Those actual-owner comparisons subsequently
+passed all ten workloads in each of two batches. Every paired median improved in both; captured
+reference/candidate medians were 3.7868/2.4632 ms and 3.2947/1.9594 ms, with paired median savings
+of 1.3322/1.3327 ms and 24/24 positive paired differences each. These remain game-open measurements.
+All three output stages matched bit-for-bit, every generated mask matched independently reconstructed
+CPU footprints, and captured inputs reproduced the original raw output and shared hierarchy mips.
+
+At 3440x1377 the four masks contain 3,143,300 bytes of R16UI texel storage, versus 25,258,340 bytes
+for the unchanged shared hierarchy. Mask generation adds four raster draws and horizon sampling
+adds one sampler at unit three; no image or SSBO binding is added. The AO owner retires the candidate
+sidecar on native disable, resize, shader reload and world teardown; LumOn-only hierarchy generation
+does not allocate masks. Context-limit checks cover texture extents, four sampler units and one color
+attachment/draw buffer. Physical driver allocation padding is unknown.
+
+An untimed instrumented captured workload counted 616,467,202 original-equivalent depth requests,
+69,547,996 candidate depth requests, 128,111,802 mask requests and 10,224,970 mask-build depth reads.
+Their nominal uncached texel payload is 2,465,868,808 bytes before, versus 534,415,588 bytes for
+candidate lookup plus 40,899,880 read bytes and 3,143,300 written bytes for mask generation. These
+logical requests are not measured DRAM traffic or bandwidth; cache behavior and compression are
+unknown, and the local RenderDoc NVIDIA performance-counter SDK is unavailable.
+
+Prototype sources, binary hashes, raw samples and metadata are archived under
+`artifacts/AoMinimumChildMasks`: `slot-scan-full-summary.json`, `bitwalk-full-summary.json` and
+`traffic-summary.json` summarize the measurements. `sources/slot-scan` and `sources/set-bit-walk`
+preserve both traversals. `reproduce.ps1` requires the original baseline commit
+`47c3e5da477b0cf0f328c86ad9be2a01138849e0` in a separate clean checkout and restores its source
+preimages and environment; it has only been statically parsed, not executed. Production correctness,
+lifecycle and matched complete-owner qualification passed 23 small/runtime/lifecycle cases and two
+ten-case full batches. `production-summary.json`, `production1`, `production2` and
+`production-small-runtime-retry` record these receipts. The cleaned Release build and independent
+source review passed; the final focused suite passed 76 cases with 29 optional skips in
+`final-focused/focused.trx`. Normalized production horizon integration matches the frozen source;
+no source-contract discrepancy was found. Temporary prototype sources and registrations have been
+removed. The archived actual-owner timings establish source-equivalent submission behavior; their
+original production DLL was not frozen before the final rebuild, so exact package-binary identity
+with those earlier measurements is not claimed. The reviewable candidate is
+`artifacts/AoMinimumChildMasks/candidate.zip`; isolated Release publish was supplemented with the
+verified built shader binaries. Archive inventory verifies root modinfo, compiled mask/horizon
+shaders and no test instrumentation; hashes are in `package-verification.json` and
+`candidate-hashes.json`. The agent did not install or launch the game. On 2026-10-11 the user reported
+that the candidate looked like an improvement and produced around 90-110 FPS, compared with the
+earlier approximately 90 FPS report. This is informal live evidence, not a controlled frame-time
+comparison; exact scene/settings and both-mode/both-quality coverage were not specified.
+The user also reported no visible difference in the areas checked and explicitly accepted the
+candidate on 2026-10-11. Acceptance uses that partial live inspection together with bit-identical
+outputs and automated coverage of both lighting modes, native qualities and lifecycle handling;
+it does not claim an exhaustive manual matrix. Retain the mask implementation and complete its
+evaluation checkbox. Controlled live frame-time distributions and broader outdoor/interior/foliage
+coverage remain with the open parent AO optimization task.
 
 Source-recovery and integration attribution used temporary test-only diagnostics over the exported
 capture and the nine existing synthetic qualification workloads. Each workload compared four variants:

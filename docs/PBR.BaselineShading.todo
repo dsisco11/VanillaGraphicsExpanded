@@ -74,7 +74,24 @@ Tasks
         - Prioritize masks, repeated-lookup reuse and integration math from the evidence; evaluate
           tiling if memory access warrants it. Remove temporary instrumentation after recording results.
 
-      ☐ Evaluate minimum-child masks for hierarchy source recovery.
+      ☑ Evaluate minimum-child masks for hierarchy source recovery.
+        - Candidate evaluation: a nine-slot mask scan passed image checks but regressed flat and thin
+          workloads. Ascending set-bit visitation passed the same checks and improved complete-AO
+          paired timings across all ten workloads in two game-open batches. Captured paired median
+          savings were 1.3373/1.3368 ms; these are contended prototype leads, not live FPS proof.
+          Retain the accepted production implementation: the AO owner owns R16UI masks, leaving the
+          shared LumOn R32F hierarchy unchanged. Actual-owner comparisons passed all ten workloads
+          in both batches, with bit-identical raw/filtered/reconstructed output and captured paired
+          savings of 1.3322/1.3327 ms. Small image/lifecycle/runtime checks passed 23 cases, including
+          native disable and both LumOn modes. Cleaned Release build and independent source review
+          passed; final focused suite passed 76 tests with 29 optional skips. Temporary diagnostics
+          removed. On 2026-10-11 the user reported an improvement to around 90-110 FPS, versus
+          the earlier approximately 90 FPS report, and no visible difference in the areas checked.
+          The user explicitly accepted the candidate, supported by exact-image and automated lifecycle
+          coverage, without an exhaustive manual matrix. This completes the mask evaluation; controlled
+          live frame-time distributions and broader scene coverage remain with the parent task.
+          Evidence: artifacts/AoMinimumChildMasks /
+          production-summary.json and final-focused; user report in the task conversation.
         - Build masks of all minimum-depth children and preserve query-dependent nearest-child ties,
           visitation order and conservative odd/collapsed-axis footprints. Keep the shared R32F
           hierarchy contract used by LumOn; do not substitute one preselected source coordinate.

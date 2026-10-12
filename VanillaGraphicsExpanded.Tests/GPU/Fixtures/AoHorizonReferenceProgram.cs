@@ -14,6 +14,14 @@ internal sealed class AoHorizonReferenceProgram : GpuProgram
     private GpuTexture? depth, surface, hierarchy;
 
     #region Public API
+    /// <summary>Exposes borrowed receiver depth for equivalent-work complete-owner comparisons.</summary>
+    internal GpuTexture ReceiverDepth => depth ?? throw new InvalidOperationException("AO input depth is missing.");
+    /// <summary>Exposes the borrowed hierarchy for exact mip comparisons before measurement.</summary>
+    internal GpuTexture Hierarchy => hierarchy ?? throw new InvalidOperationException("AO hierarchy is missing.");
+    /// <summary>Exposes unchanged borrowed material layers for complete-owner comparisons.</summary>
+    internal GpuTexture Surface => surface ?? throw new InvalidOperationException("AO surface is missing.");
+    /// <summary>Exposes the shared view snapshot without changing its lifetime.</summary>
+    internal VgeFrameUniformBuffer Camera => camera ?? throw new InvalidOperationException("AO camera is missing.");
     /// <summary>Registers the unchanged production resource contract and owns retained sampling parameters.</summary>
     public AoHorizonReferenceProgram()
     {

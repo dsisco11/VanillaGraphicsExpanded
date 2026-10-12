@@ -164,12 +164,18 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.True(ambientOcclusion.RenderOrder < composite.RenderOrder);
             ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.Equal(ssaoQuality > 0, AmbientOcclusionRenderer.Texture is not null);
+            var aoPass=Assert.IsType<AmbientOcclusionPass>(AccessTools.Field(typeof(AmbientOcclusionRenderer),"pass").GetValue(ambientOcclusion));
+            var aoMasks=Assert.IsType<MinimumChildMaskPass>(AccessTools.Field(typeof(AmbientOcclusionPass),"minimumChildren").GetValue(aoPass));
+            Assert.Equal(ssaoQuality>0,aoMasks.Texture is not null);
+            int maskBeforeDisable=aoMasks.Texture?.TextureId??0;
             ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.Null(AmbientOcclusionRenderer.Texture);
             ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             api.SetupGet(value => value.Settings.Int["ssaoQuality"]).Returns(0);
             ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.Null(AmbientOcclusionRenderer.Texture);
+            Assert.Null(aoMasks.Texture);Assert.Equal(0,aoMasks.StorageBytes);
+            if(maskBeforeDisable!=0)Assert.False(GL.IsTexture(maskBeforeDisable));
             api.SetupGet(value => value.Settings.Int["ssaoQuality"]).Returns(ssaoQuality);
 
             Assert.Equal(2, LightShaftOcclusionRenderer.Texture.Width);
@@ -327,12 +333,17 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             api.SetupGet(value => value.Settings.Int["godRays"]).Returns(2);
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             int beforeShaftReload = LightShaftOcclusionRenderer.Texture!.TextureId;
+            hierarchy.OnRenderFrame(0,EnumRenderStage.Opaque);
+            ambientOcclusion.OnRenderFrame(0,EnumRenderStage.Opaque);
+            int maskBeforeReload=aoMasks.Texture?.TextureId??0;
             ClientRenderingLifetime.BeginNativeReload();
             try { events.Raise(value => value.ReloadShader += null!); }
             finally { ClientRenderingLifetime.CompleteNativeReload(); }
             Assert.Null(LightShaftOcclusionRenderer.Texture);
             Assert.False(GL.IsTexture(beforeShaftReload));
             Assert.False(GL.IsBuffer(beforeReload));
+            Assert.Null(aoMasks.Texture);Assert.Equal(0,aoMasks.StorageBytes);
+            if(maskBeforeReload!=0)Assert.False(GL.IsTexture(maskBeforeReload));
             Assert.True(GL.IsTexture(material.TextureId));
             Assert.True(GL.IsTexture(postStorage.TextureId));
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.DisplayExposure());
