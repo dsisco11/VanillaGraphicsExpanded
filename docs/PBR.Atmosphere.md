@@ -20,12 +20,22 @@ metre above the world's sea level. Underground viewpoints clamp to the ground at
 altitudes above 99 km clamp below the atmosphere top. This is a local Earth-like model, not a
 mapping of the game's terrain onto a spherical planet.
 
+Near-ground ray intersections factor the squared radial difference and rationalize the short
+quadratic root. GPU coordinate calculations preserve FP32 operation order so metre-scale
+segments and horizon visibility agree with the CPU reference at planet-scale coordinates.
+Solar transmission treats an inward zero-distance planet intersection as occluded, including
+integration samples that round onto the surface; tangent-coordinate rounding cannot admit sunlight.
+
 Rayleigh coefficients are (0.005802, 0.013558, 0.033100) km^-1 with an 8 km scale height.
 Aerosol scattering/extinction are 0.003996/0.004440 km^-1 with a 1.2 km scale height and
 Henyey-Greenstein asymmetry 0.76. Ozone absorption is (0.000650, 0.001881, 0.000085) km^-1,
 with triangular density centred at 25 km and zero below 10/above 40 km. RGB solar irradiance
-is (1.474, 1.8504, 1.91198) in relative scene-linear irradiance units. These are three-band
-approximations, not a spectral or photometric calibration of the engine.
+uses chromaticity (1.474, 1.8504, 1.91198) multiplied by one fixed reference amplitude.
+The amplitude establishes 100,000 lux at perpendicular incidence for zenith sun,
+altitude 0.001 km and aerosol setting 1. Solar illuminance, sky luminance, integrated
+sky E/pi and aerial luminance share this amplitude; extinction remains dimensionless.
+These are calibrated three-band RGB approximations, not spectral transport. Lookup and
+scene storage integration is tracked in the photometric lighting plan.
 
 The implementation follows the radiative-transfer decomposition described by
 [Bruneton's atmospheric scattering reference](https://ebruneton.github.io/precomputed_atmospheric_scattering/atmosphere/functions.glsl.html):

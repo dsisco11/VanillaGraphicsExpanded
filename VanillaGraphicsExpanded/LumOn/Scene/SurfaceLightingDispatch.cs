@@ -19,6 +19,8 @@ internal sealed class SurfaceLightingDispatch : IDisposable
     private readonly byte[] bytes = new byte[144];
     private readonly GpuShaderStorageBuffer disabledFallback = GpuShaderStorageBuffer.Create(debugName: "SurfaceLighting.DisabledFallback");
     public SurfaceWorkDiagnostics Diagnostics { get; } = new();
+    /// <summary>Supplies isolated frame calibration for fixture submission; runtime uses the shared world publication.</summary>
+    internal VgeFrameUniformBuffer FrameInputs { set => pipeline.FrameInputs = value; }
 
     #region Execution
     /// <summary>Loads the packaged SPIR-V producer through its shader-owned contract.</summary>
@@ -62,6 +64,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             parameters.SetBytes(bytes);
             pipeline.SurfaceLightingParameters = parameters;
             pipeline.BindSharedGeometry(scene);
+            pipeline.NormalizedLight = scene.Light;
             pipeline.SurfaceWork = work;
             pipeline.SurfacePatches = input.Patches; pipeline.SurfaceSlots = input.Slots; pipeline.SurfaceReady = input.Readiness;
             pipeline.SurfaceFallbackRequests = fallbackRequests ?? disabledFallback;

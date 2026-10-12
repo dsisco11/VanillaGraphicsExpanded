@@ -48,7 +48,7 @@ public sealed class PbrTerrainColorPatchesTests
         var tree = SyntaxTree.Parse(ReadShader(name), GlslSchema.Instance);
         string before = tree.ToText();
         PbrTerrainColorPatches.ApplyVertex(tree, name);
-        string insertion = "\n    // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.\n    rgba.rgb = vec3(1.0);\n    vge_environment = vec4(max(rgbaLightIn.rgb, vec3(0.0)) + vge_atmosphereEnvironment * clamp(rgbaLightIn.a, 0.0, 1.0), clamp(rgbaLightIn.a, 0.0, 1.0));\n";
+        string insertion = "\n    // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.\n    rgba.rgb = vec3(1.0);\n    float vge_skyAvailability = VgeSkyAvailability(rgbaLightIn.a, false);\n    vge_environment = vec4(VgeDiffuseIncident(VgeBlockIlluminance(rgbaLightIn.rgb))\n        + vge_atmosphereEnvironment * vge_skyAvailability, vge_skyAvailability);\n";
         Assert.Contains(insertion, tree.ToText().ReplaceLineEndings("\n"));
         Assert.Equal(before.ReplaceLineEndings("\n"), tree.ToText().ReplaceLineEndings("\n").Replace(insertion, "", StringComparison.Ordinal).Replace("\nuniform vec3 vge_atmosphereEnvironment;\nout vec4 vge_environment;\n", "", StringComparison.Ordinal));
     }

@@ -104,8 +104,6 @@ void main()
     accumDiffuse *= sunVis;
     accumSpecular *= sunPcfVis;
 
-    // Atmosphere supplies irradiance rather than the legacy pre-scaled lighting convention.
-    accumDiffuse /= 3.14159265359;
     vec3 transmission = VgeTransmission(baseColor, N, V, Lsun, rgbaLightIn * skyVisibility,
         metallic, m.a, sunPcfVis);
     accumDiffuse += transmission;
@@ -116,22 +114,18 @@ void main()
     for (int i = 0; i < count; i++)
     {
         vec3 lp = vgeLights.positions[i].xyz;
-        vec3 lc = vgeLights.colors[i].xyz;
 
         vec3 toLightVS = lp - viewPos;
         float distSq = max(dot(toLightVS, toLightVS), 0.0001);
         vec3 toLightWS = (invModelViewMatrix * vec4(toLightVS, 0.0)).xyz;
         vec3 L = toLightWS * inversesqrt(max(dot(toLightWS, toLightWS), 0.0001));
 
-        // Simple inverse-square attenuation (clamped)
-        float att = min(1.0 / distSq, 1.0);
-
         addDirectLight(
             baseColor,
             N,
             V,
             L,
-            lc * att,
+            VgePointIlluminance(vgeLights.colors[i], distSq),
             roughness,
             metallic,
             accumDiffuse,
@@ -141,7 +135,7 @@ void main()
     // No fog in this pass (fog applied in final composite)
 
     // Emissive stored separately
-    vec3 emissive = baseColor * emissiveScalar;
+    vec3 emissive = VgeEmissionLuminance(baseColor, emissiveScalar);
 
     // Preserve isolated transmission RGB in the otherwise unused attachment alpha channels.
     outDirectDiffuse = vec4(accumDiffuse, transmission.r);

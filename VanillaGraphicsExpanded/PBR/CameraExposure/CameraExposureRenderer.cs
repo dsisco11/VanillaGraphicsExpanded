@@ -113,8 +113,8 @@ internal sealed class CameraExposureRenderer : IRenderer
         float BlockReferenceLux, float EmissionReferenceNits) LightingDiagnostics =>
         (active?.lightingFrozen ?? false, active?.lightingFrozen == true ? active.lightingBound : 0,
             active?.lightingFrozen == true ? active.lightingGeneration : 0, LightingStorage.PersistentScale,
-            LightingCalibration.Default.BlockReferenceLux, LightingCalibration.EmissionReferenceNits);
-    /// <summary>Formats existing runtime diagnostics while distinguishing inactive legacy units from physical storage.</summary>
+            Rendering.VgeFrameRenderer.CurrentLightingCalibration.BlockReferenceLux, LightingCalibration.EmissionReferenceNits);
+    /// <summary>Formats calibrated source references separately from completed frame storage integration.</summary>
     internal static string LightingDiagnosticText
     {
         get
@@ -123,7 +123,8 @@ internal sealed class CameraExposureRenderer : IRenderer
             var indirect = ConfigModSystem.Config.LumOn;
             string departures = indirect.Enabled && (indirect.Intensity != 1 || indirect.IndirectTint[0] != 1
                 || indirect.IndirectTint[1] != 1 || indirect.IndirectTint[2] != 1) ? "; artistic GI gain/tint" : string.Empty;
-            if (!state.Frozen) return "Light: legacy scene units; physical conversion inactive" + departures;
+            if (!state.Frozen) return $"Light: calibrated sources; frame storage integration pending; block {state.BlockReferenceLux:G3} lx, "
+                + $"emission {state.EmissionReferenceNits:G3} nits" + departures;
             return $"Light: B {state.PhysicalBoundNits:G4} nits, P GPU, C {state.PersistentScale:G3}; "
                 + $"block {state.BlockReferenceLux:G3} lx, emission {state.EmissionReferenceNits:G3} nits" + departures;
         }

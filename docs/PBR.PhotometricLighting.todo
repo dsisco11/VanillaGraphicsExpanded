@@ -2,10 +2,10 @@ Photometric lighting and block-light calibration
 ================================================
 
 Source proposal: docs/PBR.PhotometricLighting.Proposal.md
-Status: Phases 1 and 2 complete after second review and completion audit (2026-10-12).
-Shared shader conversion and storage support are implemented; physical producer migration remains open.
-Only Phase 1 and Phase 2 completion markers are checked; integrated migration and its verification remain open.
-The approved defensive storage-clamping amendment is unchecked work in Phases 3-6; it does not
+Status: Phases 1-3 complete after second review and independent completion audit (2026-10-12).
+Shared shader conversion, storage support, physical producer calibration and receiver normalization are implemented.
+Only Phase 1-3 completion markers are checked; integrated transport/storage/display migration remains open.
+The approved defensive storage helper is complete; its write-boundary integration remains open in Phases 4-6. It does not
 retroactively claim that completed Phase 2 support already implements those safeguards.
 The proposal remains authoritative. Unresolved design choices are prerequisite tasks, not
 settled defaults or authorization for speculative systems.
@@ -389,14 +389,35 @@ Phase 3: Calibrate lighting producers and normalize receiver response
 Depends on Phase 2. Outcome: Atmosphere, block field, punctual lights and emission produce the
 declared quantities and use consistent receiver response in deferred and forward paths.
 
-  ☐ Anchor atmosphere amplitude to the confirmed reference through existing model/lookup owners.
+Task-to-document traceability
+  - Atmosphere task -> proposal "Sunlight and atmosphere" / PBR.Atmosphere.md /
+    PBR.Atmosphere.Publication.md / PBR.Atmosphere.SolarDisk.md -> one fixed 100,000-lux
+    reference, dimensionless attenuation and common solar/sky/aerial amplitude; CPU reference
+    and actual GPU publication comparisons cover reference, weather, elevation and disk identity.
+  - Block task -> proposal block calibration and decoder inventory / PBR.LightingModes.md /
+    PBR.EntityAndLateCoverage.md -> shader-only active-table conversion, distinct terrain/accessor
+    endpoints and unchanged engine inputs; installed vertex publication, shared helper and actual
+    cache producer fixtures establish zero/full and reference output with both emission policies.
+  - Point/emission and receiver tasks -> proposal punctual/emission/receiver contracts /
+    PBR.MaterialColorAndDisplay.md / PBR.LightingModes.md -> separate authored lumens and raw
+    engine compatibility payloads, metre falloff, emission 32 nits and one diffuse pi division;
+    installed deferred/forward GPU fixtures evaluate 1,000/2,000 lm at one/two metres and emission.
+  - Storage-helper task -> proposal "Defensive storage clamping" / PBR.SharedDisplay.md /
+    PBR.CameraExposure.md -> destination limits, signed/nonnegative rules and explicit invalid
+    containment; GPU fixtures cover finite limits, clipping, infinity and NaN validity. Integration
+    at later transport, scene and postprocessing writes remains in Phases 4 and 5.
+  - Verification task -> all sources above plus proposal "Validation and acceptance" -> focused
+    numerical and installed shader receipts, second review and independent completion audit.
+    This producer milestone does not establish full-pipeline appearance or performance.
+
+  ☑ Anchor atmosphere amplitude to the confirmed reference through existing model/lookup owners.
     - Derive solar amplitude once for the reference condition; preserve extinction, horizon/weather
       behavior and chromaticity. Do not normalize anew as the sun moves or weather changes.
     - Scale solar irradiance, sky luminance, integrated sky E/pi, disk and aerial in-scattering together.
       Keep attenuation dimensionless and direct sunlight out of the scattered-sky environment term.
     - Verify reference lux, the disk's integrated solar contribution and solar-elevation/weather cases.
 
-  ☐ Convert propagated block illumination at existing VGE shader publication/evaluation points.
+  ☑ Convert propagated block illumination at existing VGE shader publication/evaluation points.
     - Use the shared helper in PbrTerrainColorPatches environment publication and applicable
       PbrSurfaceShaderPatches/forward routes before material response.
     - Bind the confirmed reference/curve consistently; preserve atmospheric contribution separately.
@@ -408,7 +429,7 @@ declared quantities and use consistent receiver response in deferred and forward
       Confirm raw engine data is unchanged and no source identity/direction is fabricated.
     - Verify each contribution is converted once and fixture outputs match the selected mapping.
 
-  ☐ Convert punctual lights and material emission without relabeling legacy payloads.
+  ☑ Convert punctual lights and material emission without relabeling legacy payloads.
     - Author VGE punctual output in lumens, convert to evaluated intensity, and use metre-based
       receiver illumination with the documented distance regularization/influence window.
     - Apply the selected compatibility mapping to engine/held payloads; resolve double-counting
@@ -416,7 +437,7 @@ declared quantities and use consistent receiver response in deferred and forward
     - Convert dimensionless emissive coefficients to declared RGB luminance/reference nits.
       Preserve authoring compatibility and separate glow eligibility from emitted brightness.
 
-  ☐ Unify direct and integrated-environment receiver normalization.
+  ☑ Unify direct and integrated-environment receiver normalization.
     - Update pbr_direct_lighting, pbr_forward_surface and shared BRDF/environment helpers so
       converted sun and punctual inputs receive consistent diffuse normalization.
     - Remove the legacy point-light omission of pi only alongside its converted input contract.
@@ -426,7 +447,7 @@ declared quantities and use consistent receiver response in deferred and forward
       forward direct-light boundary and separate pbr_liquid solar-reflection call. Preserve punctual response,
       calibrated solar irradiance, existing shadows and volume-scattering/transmission contracts.
 
-  ☐ Add shared defensive storage helpers under proposal "Defensive storage clamping".
+  ☑ Add shared defensive storage helpers under proposal "Defensive storage clamping".
     - Keep source calibration, frame bounds and admission intact; protect scaled writes before
       narrowing/packing using destination-specific limits, with separate nonnegative/signed rules.
     - Define explicit infinity containment and NaN invalid/fallback handling. Do not rely on
@@ -434,13 +455,29 @@ declared quantities and use consistent receiver response in deferred and forward
     - Preserve alpha, weights, depth and metadata contracts and the separate visible-disk cap.
       Check intermediate arithmetic independently; a final clamp cannot repair invalid shading.
 
-  ☐ Verify completion of Phase 3.
+  ☑ Verify completion of Phase 3.
     - Numerical diffuse-reference and installed deferred/forward tests meet stated tolerances.
     - A synthetic isotropic 1,000-lumen source matches one-/two-metre expected illumination
       outside regularization; doubling distance quarters illumination.
     - Atmosphere/source-isolation/block/emission tests pass without exposure compensation masking
       source-ratio errors. Unsupported physical claims about engine propagation are absent.
 
+Completion evidence (2026-10-12)
+  - Second review and independent completion audit found no unresolved requirement or evidence gap
+    for producer calibration, receiver normalization and shared defensive helpers.
+  - Current-production Release catalogs compile 434 production and 512 test shader variants.
+    Focused validation qualifies 448 cases with no remaining failures or skips: 442 broad-matrix
+    passes plus six superseding runtime-fixture passes after supplying actual engine light tables.
+    No production code changed between those receipts. The targeted atmosphere/geometry matrix
+    additionally passes 48/48 with the existing 1% publication tolerance unchanged.
+  - Near-ground qualification exposed cancellation in short planetary ray segments and erroneous
+    sunlight admission at a zero-distance inward surface hit. Stable equivalent roots, FP32 shader
+    coordinate ordering and consistent surface occlusion resolve the CPU/GPU discrepancies.
+  - Receipts: artifacts/photometric-producers.log, artifacts/photometric-runtime.log and
+    artifacts/photometric-source-diagnosis.log, with corresponding artifacts/TestResults/*.trx.
+    git diff --check passes. These are numerical/integration receipts, not live appearance or timing.
+  - Source conversion is an intermediate milestone. Remaining transport, persistent/scene storage,
+    postprocessing and camera adoption must complete before releasing the photometric pipeline.
 Phase 4: Reconcile LumOn and all scene-lighting consumers
 -------------------------------------------------------
 Depends on Phase 3. Outcome: Both lighting modes and other scene contributors use compatible

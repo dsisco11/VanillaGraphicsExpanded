@@ -18,6 +18,36 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 {
     public PbrDirectLightingFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
+    /// <summary>Authored flux reaches the installed deferred receiver with inverse-square lux and Lambertian normalization.</summary>
+    [Theory]
+    [InlineData(1f, 1000f)]
+    [InlineData(2f, 1000f)]
+    [InlineData(1f, 2000f)]
+    public void AuthoredPointMatchesAbsoluteDeferredUnits(float distance, float lumens)
+    {
+        EnsureShaderTestAvailable();
+        var program = CompilePbrDirectLightingProgram();
+        using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f,
+            PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
+        using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, .25f, .125f, 1f]);
+        using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [0f]);
+        using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, .5f, 1f, 1f]);
+        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, 0f, 0f, 0f]);
+        using var shadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [1f]);
+        RenderDirectLighting(program, output, albedo, depth, normal, material, shadow, shadow,
+            (0, 0, 1), (0, 0, 0), 0, default, default,
+            authored: [new(new(0, 0, distance - 1), Vector3.One, lumens, 100)]);
+        var diffuse = ReadPixelFromAttachment(output, 0);
+        var specular = ReadPixelFromAttachment(output, 1);
+        double lux = lumens / (4 * Math.PI * distance * distance);
+        float[] actual = [diffuse.R, diffuse.G, diffuse.B];
+        double[] colors = [.5, .25, .125];
+        for (int channel = 0; channel < 3; channel++)
+            Assert.InRange(actual[channel], .96 * colors[channel] * lux / Math.PI * .99999,
+                .96 * colors[channel] * lux / Math.PI * 1.00001);
+        Assert.InRange(specular.R, .16 * lux / Math.PI * .99999, .16 * lux / Math.PI * 1.00001);
+    }
+
     /// <summary>Backlit dielectric leaves transmit colored sunlight without creating specular or emissive light.</summary>
     [Theory]
     [InlineData(0f, 0f)]
@@ -136,9 +166,9 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             float expectedG = kd * baseColor.g;
             float expectedB = kd * baseColor.b;
 
-            AssertNear(expectedR, dd.R, 3e-2f);
-            AssertNear(expectedG, dd.G, 3e-2f);
-            AssertNear(expectedB, dd.B, 3e-2f);
+            AssertNear(expectedR, dd.R, 5e-4f);
+            AssertNear(expectedG, dd.G, 2e-4f);
+            AssertNear(expectedB, dd.B, 1e-4f);
         }
     }
 
@@ -317,9 +347,11 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             Assert.True(dd.R < 1e-3f && dd.G < 1e-3f && dd.B < 1e-3f);
             Assert.True(ds.R < 1e-3f && ds.G < 1e-3f && ds.B < 1e-3f);
 
-            AssertNear(baseColor.r * emissiveScalar, em.R, 2e-2f);
-            AssertNear(baseColor.g * emissiveScalar, em.G, 2e-2f);
-            AssertNear(baseColor.b * emissiveScalar, em.B, 2e-2f);
+            // Authored inputs and outputs use binary16; evaluate the actual quantized albedo
+            // and allow one destination quantization step separately from the source contract.
+            AssertNear((float)(Half)baseColor.r * emissiveScalar * 32, em.R, Math.Max(.0001f, Math.Abs(em.R) * .001f));
+            AssertNear((float)(Half)baseColor.g * emissiveScalar * 32, em.G, Math.Max(.0001f, Math.Abs(em.G) * .001f));
+            AssertNear((float)(Half)baseColor.b * emissiveScalar * 32, em.B, Math.Max(.0001f, Math.Abs(em.B) * .001f));
         }
     }
 
@@ -382,7 +414,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             var ddB = ReadPixelFromAttachment(outputB, 0);
             var dsB = ReadPixelFromAttachment(outputB, 1);
 
-            Assert.True(ddA.R > .5f && dsA.R > .001f, "The comparison requires a lit receiver.");
+            Assert.True(ddA.R > .05f && dsA.R > .001f, "The calibrated comparison requires a lit receiver.");
             AssertNear(ddA.R, ddB.R, 2e-2f);
             AssertNear(ddA.G, ddB.G, 2e-2f);
             AssertNear(ddA.B, ddB.B, 2e-2f);
@@ -472,7 +504,8 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         (float x, float y, float z) pointLightPos0,
         (float r, float g, float b) pointLightColor0,
         (float x, float y, float z) inverseViewTranslation = default,
-        float inverseViewYaw = 0)
+        float inverseViewYaw = 0,
+        PunctualLight[]? authored = null)
     {
         output.BindWithViewport();
         GL.ClearColor(0f, 0f, 0f, 0f);
@@ -533,7 +566,8 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         programId.SetSolarIrradiance(new(rgbaLightIn.r, rgbaLightIn.g, rgbaLightIn.b));
         programId.RgbaAmbientIn = new(0,0,0);
         using var sharedLights = new VgeLightsUniformBuffer();
-        sharedLights.Capture(pointLightCount, pointLightPositions3, pointLightColors3);
+        if (authored is null) sharedLights.Capture(pointLightCount, pointLightPositions3, pointLightColors3);
+        else sharedLights.CaptureAuthored(authored);
         programId.LightsInputs = sharedLights;
 
         // Draw

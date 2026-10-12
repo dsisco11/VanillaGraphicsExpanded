@@ -9,6 +9,12 @@ namespace VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 internal interface ILumonSceneSurfaceLightingShaderBindings : ISurfaceLightingInputs
 {
     #region Public API
+    /// <summary>Supplies the shared engine-field calibration independently of LumOn transport.</summary>
+    [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Compute)]
+    CpuUniformBuffer FrameInputs { get; }
+    /// <summary>Supplies the engine's normalized accessor light field for calibrated direct seeding.</summary>
+    [ShaderBinding("nearFieldLight", ShaderBindingKind.Sampler, 12, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? NormalizedLight { set; }
     /// <summary>Declares the lightColors Sampler slot.</summary>
     [ShaderBinding("lightColors", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTexture? LightColors { set; }

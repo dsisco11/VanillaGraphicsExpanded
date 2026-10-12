@@ -68,9 +68,10 @@ identities. The automatic seed reads the previous completed EV buffer; startup, 
 and manual mode use the bounded manual seed. Subsequent metering writes a separate exposure
 buffer and leaves the frozen scale unchanged. Initial freezing after metering is rejected.
 
-Physical consumers explicitly adopt `IPhotometricFrameBindings`. The current scene producers
-retain their existing scene units until their coordinated conversion; these storage APIs do
-not activate physical shading. The capability gate admits the frozen slot and simultaneous
+Physical consumers explicitly adopt `IPhotometricFrameBindings`. Sun, sky, block, punctual
+and material-emission sources are calibrated; transport, scene storage and camera integration
+remain pending. These storage APIs do not by themselves activate the complete physical pipeline.
+The capability gate admits the frozen slot and simultaneous
 fragment reads of exposure and frame scale. Resize, reload and world retirement withdraw and
 dispose both publications through the existing camera owner. Stable submissions reuse storage;
 there is no CPU exposure readback. Shared diagnostics identify the active unit convention,

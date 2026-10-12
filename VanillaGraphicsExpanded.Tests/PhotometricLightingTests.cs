@@ -11,6 +11,52 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class PhotometricLightingTests
 {
     #region Public API
+    /// <summary>Changes to actual decoder inputs refresh calibration without mutating the engine tables.</summary>
+    [Fact]
+    public void ActiveDecoderTablesRefreshCalibrationAtomically()
+    {
+        float[] block = Enumerable.Range(0, 32).Select(i => .04f + i * .03f).ToArray();
+        float[] sun = Enumerable.Range(0, 32).Select(i => .03f + i * .03f).ToArray();
+        byte[] hues = [0, 0, 0, 0, 8], saturations = [0, 0, 0, 0, 128];
+        float[] original = block.ToArray();
+        var owner = new EngineLightingCalibration();
+        LightingCalibration first = owner.Capture(block, sun, hues, saturations);
+        Assert.Equal(first, owner.Capture(block, sun, hues, saturations));
+        Assert.Equal(original, block);
+        block[13] *= .8f;
+        LightingCalibration second = owner.Capture(block, sun, hues, saturations);
+        Assert.True(second.BlockReferenceLux > first.BlockReferenceLux);
+        Assert.Equal(first.PointCandelaPerUnit, second.PointCandelaPerUnit);
+        block[13] = float.NaN;
+        Assert.Throws<ArgumentOutOfRangeException>(() => owner.Capture(block, sun, hues, saturations));
+        block[13] = original[13] * .8f;
+        Assert.Equal(second, owner.Capture(block, sun, hues, saturations));
+        float[] extendedSun = [.. sun, .99f];
+        LightingCalibration extended = owner.Capture(block, extendedSun, hues, saturations);
+        Assert.Equal(sun[31], extended.AccessorSkyFull);
+        Assert.Equal((int)(sun[31] * 255.999f) / 255f, extended.TerrainSkyFull);
+    }
+
+    /// <summary>Active table calibration reproduces the nominated reference and rejects unusable source tables.</summary>
+    [Fact]
+    public void DecodedTorchFitsBlockAndPointReferences()
+    {
+        Vector3 block = new(145f / 255, 99f / 255, 71f / 255);
+        Vector3 point = new(9, 6, 4);
+        LightingCalibration calibration = LightingCalibration.FromDecodedTorch(block, point,
+            10f / 255, 7f / 255, 1, .03f, 1);
+        double peak = block.X;
+        double blockY = (.2126 * block.X + .7152 * block.Y + .0722 * block.Z)
+            * (peak - calibration.BlockNeutralFloor) / peak * calibration.BlockReferenceLux;
+        double pointY = (.2126 * point.X + .7152 * point.Y + .0722 * point.Z) * calibration.PointCandelaPerUnit;
+        Assert.InRange(blockY, 3.501407, 3.501411);
+        Assert.InRange(pointY, 3.501407, 3.501411);
+        Assert.Throws<ArgumentException>(() => LightingCalibration.FromDecodedTorch(Vector3.Zero, point,
+            10f / 255, 7f / 255, 1, .03f, 1));
+        Assert.Throws<ArgumentOutOfRangeException>(() => LightingCalibration.FromDecodedTorch(block, point,
+            10f / 255, 1, 1, .03f, 1));
+    }
+
     /// <summary>Source normalization preserves chromaticity while matching authored Rec.709 luminance.</summary>
     [Theory]
     [InlineData(1f, 1f, 1f, 100000f)]
@@ -103,9 +149,12 @@ public sealed class PhotometricLightingTests
         Assert.Equal(LightingCalibration.Default.BlockReferenceLux, initial.X);
         Assert.Equal(LightingCalibration.Default.BlockNeutralFloor, initial.Y);
         Assert.Equal(32, initial.Z);
+        LightingCalibration initialCalibration = frame.LightingCalibration;
         Assert.Throws<ArgumentOutOfRangeException>(() => frame.SetLightingCalibration(new(float.NaN, 0)));
         Assert.Equal(initial, MemoryMarshal.Read<Vector4>(frame.Bytes.Slice(544, 16)));
+        Assert.Equal(initialCalibration, frame.LightingCalibration);
         frame.SetLightingCalibration(new(10, .1f));
+        Assert.Equal(new LightingCalibration(10, .1f), frame.LightingCalibration);
         Assert.Equal(new Vector4(10, .1f, 32, LightingCalibration.EnginePointCandelaPerUnit),
             MemoryMarshal.Read<Vector4>(frame.Bytes.Slice(544, 16)));
     }

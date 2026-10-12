@@ -15,8 +15,9 @@ advance frame counters, calculate ambient lighting, or reproduce `calcSunColor`.
 
 `AtmosphereModel`, `AtmosphereLookup`, and `AtmosphereBackend` already calculate atmospheric
 transport with GPU computation and asynchronous CPU fallback. `AtmosphereLighting` carries
-direct solar irradiance, diffuse environment response (irradiance divided by pi), horizontal
-sky radiance, local extinction, and sky/aerial lookup data in relative scene-linear units.
+direct solar illuminance in lux, diffuse environment response (E/pi), horizontal sky luminance
+and sky/aerial luminance in nits. Local extinction remains inverse metres; lookup transmission
+is dimensionless. All illuminated products share one fixed source amplitude.
 `AtmosphereModSystem` publishes matching textures and lighting before scene rendering.
 Direct lighting, composite, liquids and LumOn already consume this publication.
 
@@ -64,9 +65,12 @@ they overwrite the new publication. Do not manually run the ambient blend a seco
 `AtmosphereLighting` carries `LookupStorageScale` and `CalibrationGeneration` with its immutable
 CPU snapshot. `AtmosphereTextureSet` supports admitted fixed 1/16 light encoding, validates both
 smooth/Mie sky and aerial arrays before upload, and commits its scale/identity after every upload
-succeeds. Coverage and attenuation remain dimensionless. The current atmosphere producer retains
-scale 1 and legacy scene quantities; calibrated producers and consumer decoding are subsequent
-photometric migration work. A camera exposure change does not rebuild these persistent lookups.
+succeeds. Coverage and attenuation remain dimensionless. The atmosphere producer now derives one
+amplitude for the declared 100,000-lux zenith reference and supplies physical solar lux,
+sky/disk/aerial nits and environment E/pi. Runtime lookup encoding retains scale 1 until fixed-scale
+upload and consumer decoding are adopted together; complete scene/storage migration remains
+tracked in `PBR.PhotometricLighting.todo`. Source conversion alone is not a releasable photometric
+pipeline. A camera exposure change does not rebuild these persistent lookups.
 
 Keep `AtmosphereModSystem` as lifecycle/scheduling composition. Put environmental derivation
 and engine adaptation in separate atmosphere-domain files with explicit input/output contracts.

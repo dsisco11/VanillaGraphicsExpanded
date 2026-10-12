@@ -38,8 +38,6 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog, float t
     vec3 diffuse = vec3(0.0), specular = vec3(0.0);
     addFiniteDiskDirectLight(baseColor, N, V, normalize(vge_atmosphereSunDirection), (vge_atmosphereSolar * vge_skyVisibility) * visibility,
         roughness, metallic, VGE_SOLAR_ANGULAR_RADIUS, diffuse, specular);
-    // Normalize only physical sunlight; existing engine point-light units retain their calibration.
-    diffuse /= 3.14159265359;
     diffuse += VgeTransmission(baseColor, N, V, normalize(vge_atmosphereSunDirection),
         vge_atmosphereSolar * vge_skyVisibility, metallic, transmission, clamp(1.0 - occlusion, 0.0, 1.0));
     #if DYNLIGHTS > 0
@@ -49,7 +47,7 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog, float t
         float distanceSquared = max(dot(delta, delta), 0.0001);
         vec3 direction = toWorld * delta;
         direction *= inversesqrt(max(dot(direction, direction), 0.0001));
-        addDirectLight(baseColor, N, V, direction, vgeLights.colors[i].xyz * min(1.0 / distanceSquared, 1.0),
+        addDirectLight(baseColor, N, V, direction, VgePointIlluminance(vgeLights.colors[i], distanceSquared),
             roughness, metallic, diffuse, specular);
     }
     #endif
@@ -61,7 +59,7 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog, float t
     vec3 localDiffuse = VgeEnvironmentResponse(VgeLocalEnvironment(vge_blockIrradiance, vge_sunIrradiance),
         baseColor, metallic, roughness, dot(N, V));
     #endif
-    vec3 radiance = diffuse + specular + localDiffuse + baseColor * max(material.b, 0.0);
+    vec3 radiance = diffuse + specular + localDiffuse + VgeEmissionLuminance(baseColor, material.b);
     // Atmosphere owns air transport. Retain the engine's separate underwater medium,
     // but do not blend its distance haze over the atmospheric result a second time.
     if (vge_atmosphereAerialParams.z > .7)

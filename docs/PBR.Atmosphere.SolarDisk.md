@@ -38,8 +38,10 @@ sun texture has an approximately 48-pixel bright-core radius; `prepareSunMat` us
 and a -128-pixel depth offset, while the calendar places the sun at distance 50. The reference is
 therefore `0.5 * atan(48 * 0.04 / (50 - 128 * 0.04))`. This is a nominal visual reference;
 vanilla eye-height/altitude offsets and texture replacements can alter its apparent size. Solar
-irradiance outside the atmosphere remains `(1.474, 1.8504, 1.91198)` in the existing relative
-scene-linear units. A circular emitter with uniform radiance L supplies normal irradiance
+irradiance outside the atmosphere retains chromaticity `(1.474, 1.8504, 1.91198)`, multiplied by
+the single `AtmosphereModel.SolarAmplitude` reference. The zenith model at 0.001 km and aerosol
+one supplies 100,000 lux. This same amplitude applies to CPU/GPU sky and aerial transport;
+weather and elevation do not refit it. A circular emitter with uniform luminance L supplies normal illuminance
 `E = L * pi * sin(radius)^2` when fully visible.
 
 Let centre elevation be e, observer geometric horizon h and radius r. Set

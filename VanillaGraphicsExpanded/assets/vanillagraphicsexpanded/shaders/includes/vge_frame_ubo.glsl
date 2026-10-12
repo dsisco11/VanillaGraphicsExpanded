@@ -31,5 +31,7 @@ layout(std140, binding = VGE_UBO_FRAME_BINDING) uniform VgeFrameUBO
     ivec4 renderOriginChunkCoord;
     vec4 renderOriginBlockRemainder;
     vec4 lightCalibration; // block reference lux, neutral field floor, emission reference nits, engine point cd/unit
+    vec4 skyCalibration; // terrain zero/full endpoints, world-accessor zero/full endpoints
+    vec4 blockDecoderCalibration; // accessor block reference lux and neutral floor; zw reserved
 } vgeFrame;
 #endif

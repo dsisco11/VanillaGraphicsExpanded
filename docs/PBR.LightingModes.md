@@ -9,6 +9,14 @@ sky response and solar RGB from a complete lookup initialized before the first s
 
 ## Standalone environment
 
+The photometric producer conversion now publishes local block lux divided by pi plus the
+atmosphere's scattered-sky E/pi multiplied by decoded sky availability. Terrain and forward
+publishers use shared `pbr_photometric` conversion once, with active decoder-specific floor/full
+endpoints. `VgeLocalEnvironment` adds these two already integrated inputs without a 0.35 factor.
+Shared environment material response and indirect AO ownership remain unchanged. The historical
+approximation below predates this conversion; full scene/cache storage and exposure integration
+remain tracked in `PBR.PhotometricLighting.todo`, so this intermediate state is not a release candidate.
+
 Opaque terrain and supported entity/late shader families publish local environment irradiance
 to primary attachment 7 (`RGBA16F`). The value combines the engine's local block-light RGB
 with 0.35 times its ambient sun RGB multiplied by local sky-light availability. The shared

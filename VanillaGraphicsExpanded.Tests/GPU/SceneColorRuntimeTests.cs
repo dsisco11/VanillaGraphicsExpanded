@@ -91,8 +91,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         api.SetupGet(value => value.Event).Returns(events.Object);
         api.SetupGet(value => value.Render).Returns(render);
         api.SetupGet(value => value.Shader).Returns(programs.Api);
-        api.SetupGet(value => value.World.Player).Returns(CreatePlayer());
-        api.SetupGet(value => value.World.SeaLevel).Returns(0);
+        api.SetupGet(value => value.World).Returns(CreateWorld());
         programs.Initialize(api.Object);
         using var frameCamera = new VgeFrameRenderer(api.Object);
         using var lights = new VgeLightsRenderer(api.Object);
@@ -402,6 +401,28 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
     #endregion
 
     #region Private
+    /// <summary>Provides the installed camera clock and active lighting tables without initializing a native client.</summary>
+    private static ClientMain CreateWorld()
+    {
+        var world = (ClientMain)RuntimeHelpers.GetUninitializedObject(typeof(ClientMain));
+        var map = (ClientWorldMap)RuntimeHelpers.GetUninitializedObject(typeof(ClientWorldMap));
+        var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));
+        GC.SuppressFinalize(world); GC.SuppressFinalize(map); GC.SuppressFinalize(platform);
+        world.player = CreatePlayer(); world.WorldMap = map; world.Platform = platform;
+        // The client clock delegates to its platform stopwatch; native construction is unnecessary.
+        var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        for (Type? type = typeof(ClientPlatformWindows); type != null; type = type.BaseType)
+            foreach (var field in type.GetFields(flags | BindingFlags.DeclaredOnly))
+                if (field.FieldType == typeof(System.Diagnostics.Stopwatch)) field.SetValue(platform, new System.Diagnostics.Stopwatch());
+        typeof(ClientWorldMap).GetField("BlockLightLevels", flags)!.SetValue(map,
+            Enumerable.Range(0, 32).Select(i => .04f + i * .03f).ToArray());
+        typeof(ClientWorldMap).GetField("SunLightLevels", flags)!.SetValue(map,
+            Enumerable.Range(0, 32).Select(i => .03f + i * .03f).ToArray());
+        typeof(ClientWorldMap).GetField("hueLevels", flags)!.SetValue(map, new byte[32]);
+        typeof(ClientWorldMap).GetField("satLevels", flags)!.SetValue(map, new byte[32]);
+        return world;
+    }
+
     /// <summary>Reads the actual linked uniform instead of trusting managed routing metadata.</summary>
     private static void AssertMode(ShaderProgramBase program, int expected)
     {

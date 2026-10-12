@@ -2,10 +2,10 @@
 #define VGE_PBR_ENVIRONMENT_GLSL
 @import "./pbr_common.glsl"
 
-/** Bounded local approximation: engine sky propagation supplies enclosure visibility, not direct shadow visibility. */
+/** Combines calibrated block and scattered-sky E/pi; availability is supplied by the publisher. */
 vec3 VgeLocalEnvironment(vec3 blockLight, vec3 exposedSky)
 {
-    return max(blockLight, vec3(0.0)) + max(exposedSky, vec3(0.0)) * 0.35;
+    return max(blockLight, vec3(0.0)) + max(exposedSky, vec3(0.0));
 }
 
 /** Splits integrated environment response into diffuse and roughness-attenuated specular before visibility is applied. */

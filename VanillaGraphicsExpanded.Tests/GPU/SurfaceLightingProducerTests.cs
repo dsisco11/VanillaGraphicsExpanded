@@ -56,7 +56,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
         AssertClose(12*MathF.PI,room.Read(room.Snapshot.IndirectIrradiance)[0]);
         AssertClose(12,room.Read(room.Snapshot.OutgoingRadiance)[0]);
         room.SunLight=16; room.Geometry.Dirty();room.Geometry.Publish();room.Seed();
-        AssertClose(16,room.Read(room.Snapshot.DirectIrradiance)[0]);
+        AssertClose(32 * (128f / 255),room.Read(room.Snapshot.DirectIrradiance)[0]);
         AssertClose(12,room.Read(room.Snapshot.OutgoingRadiance)[0]);
     }
 

@@ -1,5 +1,6 @@
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -13,6 +14,30 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public SurfaceLightingEnvironmentTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Environment completion
+    /// <summary>The installed cache decodes calibrated block RGB once and removes byte-stored accessor sky zero.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void CalibratedFieldReachesInstalledCacheProducer(bool emissionPolicy)
+    {
+        EnsureContextValid();
+        using var room = new SurfaceLightingEnclosureFixture(blockLight: 0, emission: 32, skyFloor: true, worldHeight: 34);
+        room.EmissionPolicy = emissionPolicy;
+        room.SetCalibration(LightingCalibration.Default);
+        // The synthetic normalized source publishes exactly white RGB and the accessor's rounded zero byte.
+        var original = room.Geometry.Sample;
+        room.Geometry.Sample = (x, y, z) => original(x, y, z) with
+        { NormalizedLight = TraceGeometryVoxel.PackLight(new(1, 1, 1, .03f)) };
+        room.Geometry.Dirty(); room.Geometry.Publish(); room.Seed();
+        float expectedLux = emissionPolicy ? 0 : LightingCalibration.Default.BlockReferenceLux * (1 - LightingCalibration.Default.BlockNeutralFloor);
+        float[] direct = room.Read(room.Snapshot.DirectIrradiance);
+        for (int channel = 0; channel < 3; channel++)
+            Assert.InRange(direct[channel], expectedLux - .01f, expectedLux + .01f);
+        Assert.Equal(1, direct[3]);
+        if (emissionPolicy)
+            Assert.InRange(room.Read(room.Snapshot.OutgoingRadiance)[0], 31.99f, 32.01f);
+    }
+
     /// <summary>Published physical sky and solar inputs reach the real dispatch and remain gated by local sky availability.</summary>
     [Theory]
     [InlineData(0)]
@@ -33,7 +58,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
             float[] direct = floor.Read(floor.Snapshot.DirectIrradiance);
             for (int channel = 0; channel < 3; channel++)
             {
-                float expected = skyLevel / 32f * ((channel + 1) * .2f * MathF.PI + .3f + channel * .2f);
+                float expected = MathF.Round(skyLevel / 32f * 255) / 255 * ((channel + 1) * .2f * MathF.PI + .3f + channel * .2f);
                 Assert.InRange(direct[channel], expected - .002f, expected + .002f);
             }
             Assert.True(floor.BounceSample());
@@ -71,7 +96,8 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
         floor.Geometry.Dirty(); floor.Geometry.Publish(); floor.Seed();
         var direct=floor.Read(floor.Snapshot.DirectIrradiance);
         var outgoing=floor.Read(floor.Snapshot.OutgoingRadiance);
-        Assert.InRange(direct[0],emissionPolicy?15.99f:47.99f,emissionPolicy?16.01f:48.01f);
+        float expectedDirect = 32 * (128f / 255) + (emissionPolicy ? 0 : 32);
+        Assert.InRange(direct[0], expectedDirect - .04f, expectedDirect + .04f);
         Assert.True(floor.BounceSample());
         Assert.Equal(new float[]{0,0,0,1},floor.Read(floor.Snapshot.IndirectIrradiance));
         Assert.Equal(direct,floor.Read(floor.Snapshot.DirectIrradiance));

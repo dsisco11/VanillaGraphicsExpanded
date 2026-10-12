@@ -12,6 +12,155 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>An inward solar ray beginning on the planet surface is occluded even when its intersection distance is zero.</summary>
+    [Fact]
+    public void SurfaceInwardSunlightIsOccluded()
+    {
+        EnsureContextValid();
+        using var parameters = GpuShaderStorageBuffer.Create();
+        parameters.EnsureCapacity(64, growExponentially: false);
+        System.Numerics.Vector4[] inputs = [new(0, 1, 0, .001f), new(1, .1f, 32, 24), new(32, 16, 128, 24), new(12, 0, 0, 1)];
+        parameters.UploadSubData<System.Numerics.Vector4>(inputs, 0, 64);
+        parameters.BindBase(0);
+        try
+        {
+            string include = Expand(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/atmosphere_transport.glsl"));
+            float[] pixels = Render("#version 430 core\n" + include + """
+                layout(location=0) out vec4 result;
+                void main(){
+                    vec3 origin=vec3(0,atmGround,0);
+                    vec3 sun=normalize(vec3(1,-.002,0));
+                    result=vec4(atmTransmission(origin,sun,12),atmGroundDistance(origin,sun));
+                }
+                """);
+            Assert.Equal(new float[] { 0, 0, 0, 0 }, pixels[..4]);
+        }
+        finally { GpuShaderStorageBuffer.UnbindBase(0); }
+    }
+
+    /// <summary>Planet intersections retain metre-scale segments from the actual stored Float32 position.</summary>
+    [Fact]
+    public void GroundGeometryUsesDeclaredFloatPosition()
+    {
+        EnsureContextValid();
+        string include = Expand(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/atmosphere_transport.glsl"));
+        string fragment = "#version 430 core\n" + include + """
+            layout(location=0) out vec4 result;
+            void main(){
+                precise vec3 origin=vec3(0,atmGround+.001,0);
+                float ground=atmGroundDistance(origin,vec3(0,-1,0));
+                result=vec4(ground,origin.y-atmGround,0,1);
+            }
+            """;
+        float[] pixels = Render(fragment);
+        float representedHeight = (float)(6360f + .001f) - 6360f;
+        Assert.InRange(pixels[0], representedHeight * .99999, representedHeight * 1.00001);
+        Assert.Equal(representedHeight, pixels[1]);
+    }
+
+    /// <summary>Distinct installed byte decoders retain equal calibrated torch illumination when a table value crosses their truncation boundary.</summary>
+    [Fact]
+    public void ActiveBlockDecoderCalibrationMatchesBothPublicationRoutes()
+    {
+        EnsureContextValid();
+        float[] block = Enumerable.Repeat(.03f, 32).ToArray();
+        block[13] = .501f; block[14] = .701f;
+        float[] sun = Enumerable.Range(0, 32).Select(i => .03f + i * .03f).ToArray();
+        LightingCalibration calibration = new EngineLightingCalibration().Capture(block, sun, new byte[8], new byte[8]);
+        Assert.NotEqual(calibration.BlockReferenceLux, calibration.AccessorBlockReferenceLux);
+        string include = Expand(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_photometric.glsl"));
+        string fragment = "#version 430 core\n" + include + """
+            layout(location=0) out vec4 result;
+            void main(){bool accessor=int(gl_FragCoord.x)%2==1;
+                result=vec4(VgeBlockIlluminance(vec3(accessor?127.0/255.0:128.0/255.0),accessor),1);}
+            """;
+        float[] pixels = Render(fragment, calibration: calibration);
+        for (int pixel = 0; pixel < 16; pixel++)
+            for (int channel = 0; channel < 3; channel++) Close(44 / (4 * Math.PI), pixels[pixel * 4 + channel]);
+    }
+
+    /// <summary>Terrain and accessor decoders remove their distinct neutral floors and preserve full availability.</summary>
+    [Fact]
+    public void SkyAvailabilityUsesDecoderSpecificEndpoints()
+    {
+        EnsureContextValid();
+        string include = Expand(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_photometric.glsl"));
+        string fragment = "#version 430 core\n" + include + """
+            layout(location=0) out vec4 result;
+            void main(){
+                int column=int(gl_FragCoord.x),row=int(gl_FragCoord.y);
+                float floor=row==0?7.0/255.0:8.0/255.0;
+                float raw=column==0?0.0:column==1?floor:column==2?(floor+1.0)*.5:column==3?1.0:2.0;
+                result=vec4(vec3(row==1?VgeStoredSkyAvailability(raw):VgeSkyAvailability(raw,false)),1);
+            }
+            """;
+        float[] pixels = Render(fragment);
+        for (int row = 0; row < 2; row++)
+        for (int column = 0; column < 8; column++)
+            Close(column < 2 ? 0 : column == 2 ? .5 : 1, pixels[(row * 8 + column) * 4]);
+    }
+
+    /// <summary>Physical punctual output obeys inverse-square illumination and engine inputs retain an explicit adapter.</summary>
+    [Fact]
+    public void PointAndEmissionHelpersMatchIndependentUnits()
+    {
+        EnsureContextValid();
+        string include = Expand(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_photometric.glsl"));
+        string fragment = "#version 430 core\n" + include + """
+            layout(location=0) out vec4 result;
+            void main(){
+                int column=int(gl_FragCoord.x);
+                if(column<2)result=vec4(VgePointIlluminance(vec4(vec3(1000.0/(4.0*VGE_PHOTOMETRIC_PI)),100),column==0?1.0:4.0),1);
+                else if(column==2)result=vec4(VgePointIlluminance(vec4(4,4,4,0),1.0),1);
+                else if(column==3)result=vec4(VgePointIlluminance(vec4(4,4,4,0),100.0),1);
+                else if(column==4)result=vec4(VgeEmissionLuminance(vec3(.25,.5,1),2),1);
+                else result=vec4(VgeEmissionLuminance(vec3(.25,.5,1),-1),1);
+            }
+            """;
+        float[] pixels = Render(fragment);
+        for (int channel = 0; channel < 3; channel++)
+        {
+            Close(1000 / (4 * Math.PI), pixels[channel]);
+            Close(1000 / (16 * Math.PI), pixels[4 + channel]);
+            Close(4 * LightingCalibration.EnginePointCandelaPerUnit, pixels[8 + channel]);
+            Assert.Equal(0, pixels[12 + channel]);
+            Close(new[] { 16d, 32d, 64d }[channel], pixels[16 + channel]);
+            Assert.Equal(0, pixels[20 + channel]);
+        }
+    }
+
+    /// <summary>Storage containment keeps exceptional payloads finite without declaring NaN data valid.</summary>
+    [Fact]
+    public void StorageProtectionPreservesValidityAndDestinationLimits()
+    {
+        EnsureContextValid();
+        string include = Expand(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_storage_safety.glsl"));
+        string fragment = "#version 430 core\n" + include + """
+            layout(location=0) out vec4 result;
+            void main(){
+                int column=int(gl_FragCoord.x),row=int(gl_FragCoord.y);
+                float inf=uintBitsToFloat(0x7f800000u),nan=uintBitsToFloat(0x7fc00000u);
+                vec3 inputValue=column==0?vec3(1,2,3):column==1?vec3(65504):column==2?vec3(70000):
+                    column==3?vec3(inf,-inf,1):column==4?vec3(nan,2,3):column==5?vec3(-70000):vec3(65024);
+                float lower=row==0?0.0:-65504.0;
+                float upper=column==6?65024.0:column==7?64512.0:65504.0;
+                vec3 value;bool clipped;
+                bool valid=VgeProtectLightingStorage(inputValue,lower,upper,value,clipped);
+                result=vec4(value,valid?(clipped?2.0:1.0):0.0);
+            }
+            """;
+        float[] pixels = Render(fragment);
+        Assert.Equal(1, pixels[3]); Assert.Equal(1, pixels[7]);
+        Assert.Equal(65504, pixels[8]); Assert.Equal(2, pixels[11]);
+        Assert.Equal(65504, pixels[12]); Assert.Equal(0, pixels[13]); Assert.Equal(0, pixels[15]);
+        Assert.Equal(0, pixels[19]); Assert.Equal(0, pixels[20]);
+        Assert.Equal(-65504, pixels[(8 + 3) * 4 + 1]);
+        Assert.Equal(-65504, pixels[(8 + 5) * 4]);
+        Assert.Equal(65024, pixels[24]); Assert.Equal(1, pixels[27]);
+        Assert.Equal(64512, pixels[28]); Assert.Equal(2, pixels[31]);
+        Assert.All(pixels, value => Assert.True(float.IsFinite(value)));
+    }
+
     /// <summary>Block conversion retains chroma, neutral zero and monotonic intensity without camera exposure.</summary>
     [Fact]
     public void BlockAndPersistentHelpersMatchPhysicalContracts()
@@ -164,7 +313,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
 
     #region Private
     /// <summary>Evaluates the current production includes using the real shared frame block layout.</summary>
-    private float[] Render(string fragment, byte[]? frozenStorage = null)
+    private float[] Render(string fragment, byte[]? frozenStorage = null, LightingCalibration? calibration = null)
     {
         int vertex = Compile(ShaderType.VertexShader, "#version 430 core\nlayout(location=0) in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
         int pixel = Compile(ShaderType.FragmentShader, fragment);
@@ -179,6 +328,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             using var frame = new VgeFrameUniformBuffer();
+            if (calibration.HasValue) frame.SetLightingCalibration(calibration.Value);
             byte[] bytes = frame.Bytes.ToArray();
             GL.BindBuffer(BufferTarget.UniformBuffer, buffer);
             GL.BufferData(BufferTarget.UniformBuffer, bytes.Length, bytes, BufferUsageHint.StaticDraw);

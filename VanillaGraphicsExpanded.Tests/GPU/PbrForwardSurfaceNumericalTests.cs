@@ -1,5 +1,7 @@
 using System.Collections.Immutable;
 using System.Numerics;
+using System.Text.RegularExpressions;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using OpenTK.Graphics.OpenGL;
@@ -36,6 +38,9 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
     [InlineData(13)]
     [InlineData(14)]
     [InlineData(15)]
+    [InlineData(16)]
+    [InlineData(17)]
+    [InlineData(18)]
     public void ForwardBoundaryMatchesIndependentRadiance(int scenario)
     {
         EnsureContextValid();
@@ -69,21 +74,17 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             """;
         if (scenario == 5 || scenario >= 7) header = header.Replace("vec3(0.2,0.4,0.8)", "vec3(0.0)");
         if (scenario >= 10) header = header.Replace("vec3 vge_atmosphereSolar = vec3(0.0)", "vec3 vge_atmosphereSolar = vec3(0.3,0.5,0.7)");
+        if (scenario >= 16) header = header.Replace("vec3 vge_atmosphereSolar = vec3(0.3,0.5,0.7)", "vec3 vge_atmosphereSolar = vec3(0.0)");
         if (scenario == 13) header = header.Replace("float vge_skyVisibility = 1.0", "float vge_skyVisibility = 0.0");
         header += $"\n#define VGE_PBR_FORWARD_LUMON {(scenario is >= 6 and <= 9 ? 0 : 1)}\n";
         string aerial = File.ReadAllText(Path.Combine(directory, "atmosphere_aerial.glsl"))
             .Replace("@import \"./atmosphere_sky_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_sky_mapping.glsl")))
             .Replace("@import \"./atmosphere_aerial_mapping.glsl\"", File.ReadAllText(Path.Combine(directory, "atmosphere_aerial_mapping.glsl")));
         string source = header + "\n" + aerial + "\n" + File.ReadAllText(Path.Combine(directory, "pbr_color.glsl")) + "\n" + common + "\n"
-            + File.ReadAllText(Path.Combine(directory, "pbr_direct_brdf.glsl"))
-                .Replace("@import \"./pbr_transmission.glsl\"", File.ReadAllText(Path.Combine(directory, "pbr_transmission.glsl")))
-                .Replace("@import \"./pbr_finite_disk_brdf.glsl\"", File.ReadAllText(Path.Combine(directory, "pbr_finite_disk_brdf.glsl"))
-                    .Replace("@import \"./pbr_common.glsl\"", "")) + "\n"
-            + File.ReadAllText(Path.Combine(directory, "pbr_environment.glsl")).Replace("@import \"./pbr_common.glsl\"", "") + "\n"
-            + File.ReadAllText(Path.Combine(directory, "pbr_forward_surface.glsl"))
-            .Replace("@import \"./vge_lights_ubo.glsl\"", File.ReadAllText(Path.Combine(directory, "vge_lights_ubo.glsl")).Replace("@import \"./vge_ubo_bindings.glsl\"", File.ReadAllText(Path.Combine(directory, "vge_ubo_bindings.glsl"))))
-            .Replace("@import \"./pbr_environment.glsl\"", "")
-            .Replace("@import \"./atmosphere_aerial.glsl\"", "")
+            + Expand(Path.Combine(directory, "pbr_photometric.glsl")) + "\n"
+            + Expand(Path.Combine(directory, "pbr_direct_brdf.glsl")) + "\n"
+            + Expand(Path.Combine(directory, "pbr_environment.glsl")) + "\n"
+            + Expand(Path.Combine(directory, "pbr_forward_surface.glsl"))
             + $"\nvoid main() {{ outColor = vec4(VgeForwardSurface(vec3(0.2,0.4,0.6), {(scenario == 3 ? "vec3(1,0,0)" : "vec3(0,0,1)")}, vec3(0.5,0,{(scenario is 1 or 9 or 15 ? "2.0" : "0.0")}), 0.0), 0.37); }}";
         int vertex = Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0) in vec2 position; void main(){gl_Position=vec4(position,0,1);}");
         int fragment = Compile(ShaderType.FragmentShader, source);
@@ -93,6 +94,8 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            using var frame = new VgeFrameUniformBuffer();
+            Assert.True(frame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
             using var inputs = new FixtureUniformInputs(program, 64);
             GL.UseProgram(program);
             GL.Uniform1(GL.GetUniformLocation(program, "vge_pbrRoute"), 2);
@@ -100,7 +103,9 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             inputs.Matrix(0, view);
             inputs.Publish();
             using var lights = new VgeLightsUniformBuffer();
-            lights.Capture(scenario is 2 or 3 or 8 or 14 ? 1 : 0, [0, 0, 0], [1, 1, 1]);
+            lights.Capture(scenario is 2 or 3 or 8 or 14 ? 1 : 0, [0, 0, 0], [4, 4, 4]);
+            if (scenario >= 16) lights.CaptureAuthored([new(new(0, 0, scenario == 17 ? 0 : -1), Vector3.One,
+                scenario == 18 ? 2000 : 1000, 100)]);
             Assert.True(lights.TryBindToSlot(GpuBindingRegistry.Ubo.Lights));
             GL.Uniform1(GL.GetUniformLocation(program, "shadowMapFar"), 0);
             using var atmosphereOwner = new AtmosphereModSystem();
@@ -120,7 +125,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             GpuSamplers.ShadowCompareLinearClamp.Bind(0);
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
-            float factor = scenario is 1 or 9 or 15 ? 2f : scenario is 2 or 3 or 8 or 14 ? 0.25f : 0f;
+            float factor = scenario is 1 or 9 or 15 ? 64f : scenario is 2 or 3 or 8 or 14 ? LightingCalibration.EnginePointCandelaPerUnit : 0f;
             float[] radiance = new float[3];
             for (int channel = 0; channel < 3; channel++)
             {
@@ -130,13 +135,18 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
                 // Direct diffuse retains 1-F0; emission and environment use their separate contracts.
                 float normalSpecular = .16f / MathF.PI;
                 if (scenario is 2 or 3 or 8 or 14)
-                    linear = (.96f * (channel + 1) * .2f + normalSpecular) * factor;
+                    linear = (.96f * (channel + 1) * .2f / MathF.PI + normalSpecular) * factor;
                 if (scenario == 4)
                     linear = (.96f * (channel + 1) * .2f / MathF.PI + PbrSolarBrdfTests.NormalIncidenceExpected(.04f, .5f))
                         * new[] { .2f, .4f, .8f }[channel];
-                if (scenario == 6) linear = new[] { .2f,.4f,.8f }[channel] * .35f * (.96f * (channel + 1) * .2f + .02f);
+                if (scenario == 6) linear = new[] { .2f,.4f,.8f }[channel] * (.96f * (channel + 1) * .2f + .02f);
                 if (scenario == 10) linear = (.96f * (channel + 1) * .2f / MathF.PI + PbrSolarBrdfTests.NormalIncidenceExpected(.04f, .5f)) * (.3f + channel * .2f);
                 if (scenario == 12) linear = new[]{.04f,.09f,.16f}[channel];
+                if (scenario >= 16)
+                {
+                    double lux = (scenario == 18 ? 2000 : 1000) / (4 * Math.PI * (scenario == 17 ? 4 : 1));
+                    linear = (float)((.96 * (channel + 1) * .2 / Math.PI + .16 / Math.PI) * lux);
+                }
                 radiance[channel] = linear;
             }
             // Forward scene lighting is unexposed radiance; the final pass owns display conversion.
@@ -149,6 +159,9 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
     #endregion
 
     #region Driver compilation
+    /// <summary>Expands guarded production imports without changing their lighting equations.</summary>
+    private static string Expand(string path) => Regex.Replace(File.ReadAllText(path), "@import \"([^\"]+)\"",
+        match => Expand(Path.GetFullPath(Path.Combine(Path.GetDirectoryName(path)!, match.Groups[1].Value))));
     /// <summary>Compiles production helper text at the engine runtime GLSL boundary.</summary>
     private static int Compile(ShaderType type, string source)
     {

@@ -13,6 +13,21 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Source transport
+    /// <summary>The default vectorized lookup preserves scalar transport around the ground-level horizon.</summary>
+    [Fact]
+    public void GroundHorizonVectorizedSourceMatchesScalarReference()
+    {
+        var scalar = AtmosphereMultipleScattering.Build(1, useScalarReference: true);
+        var vectorized = AtmosphereMultipleScattering.Build(1);
+        foreach (float cosine in new[] { -.002f, .002f, -1f / 31f, 1f / 31f })
+        {
+            Vector3 expected = scalar.Sample(.001f, cosine) * AtmosphereModel.SolarAmplitude;
+            Vector3 actual = vectorized.Sample(.001f, cosine) * AtmosphereModel.SolarAmplitude;
+            Assert.True(Vector3.Distance(expected, actual) <= 1e-4f + .01f * expected.Length(),
+                $"horizon cosine={cosine:G9}, scalar={expected}, vectorized={actual}");
+        }
+    }
+
     /// <summary>Uses real SPIR-V and SSBO owners to compare selected cells at every quality without building enormous CPU tables.</summary>
     [Theory]
     [InlineData(0, .1f)] [InlineData(1, .1f)] [InlineData(2, .1f)] [InlineData(3, .1f)]
@@ -28,10 +43,12 @@ public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : Re
         using var source = GpuShaderStorageBuffer.Create();
         var budget = AtmosphereScatteringBudget.FromQuality(quality);
         source.EnsureCapacity(budget.Width * budget.Height * 16, growExponentially: false);
-        foreach (int cell in new[] { budget.Width - 1, (budget.Height / 2) * budget.Width + budget.Width / 2, budget.Width * budget.Height - 1 })
+        // The ground-level cells on either side of the horizon qualify the visibility
+        // transition used by the full twilight publication, in addition to broad transport.
+        foreach (int cell in new[] { budget.Width / 2 - 1, budget.Width / 2, budget.Width - 1, (budget.Height / 2) * budget.Width + budget.Width / 2, budget.Width * budget.Height - 1 })
         {
             Vector4[] inputs = [new(0, 1, 0, .001f), new(2.4f, groundAlbedo, 32, 24),
-                new(budget.Width, budget.Height, budget.DirectionSamples, budget.RaySamples), new(budget.LightSamples, cell, 0, 0)];
+                new(budget.Width, budget.Height, budget.DirectionSamples, budget.RaySamples), new(budget.LightSamples, cell, 0, AtmosphereModel.SolarAmplitude)];
             parameters.UploadSubData<Vector4>(inputs, 0, 64);
             parameters.BindBase(0); source.BindBase(1);
             try
@@ -44,7 +61,10 @@ public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : Re
                 Assert.True(mapped.IsMapped);
                 Vector3 expected = Reference(cell, budget, groundAlbedo);
                 Vector4 actual = mapped.Span[0];
-                Assert.True(Vector3.Distance(expected, new(actual.X, actual.Y, actual.Z)) <= 1e-4f + .01f * expected.Length(), $"quality={quality}, cell={cell}, expected={expected}, actual={actual}");
+                Vector3 physicalExpected = expected * AtmosphereModel.SolarAmplitude;
+                Vector3 physicalActual = new Vector3(actual.X, actual.Y, actual.Z) * AtmosphereModel.SolarAmplitude;
+                Assert.True(Vector3.Distance(physicalExpected, physicalActual) <= 1e-4f + .01f * physicalExpected.Length(),
+                    $"quality={quality}, cell={cell}, expected={physicalExpected}, actual={physicalActual}");
             }
             finally { GpuShaderStorageBuffer.UnbindBase(0); GpuShaderStorageBuffer.UnbindBase(1); }
         }

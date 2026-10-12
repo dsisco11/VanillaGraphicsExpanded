@@ -3,10 +3,13 @@ using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Moq;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.CameraExposure;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
 using Vintagestory.Client.NoObf;
+using Vintagestory.Client;
 
 namespace VanillaGraphicsExpanded.Tests;
 
@@ -29,6 +32,12 @@ public sealed class VgeFrameRendererTests
         Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
         renderer.OnRenderFrame(.016f, EnumRenderStage.Before);
         byte[] published = VgeFrameRenderer.Current.Bytes.ToArray();
+        Assert.Equal(VgeFrameRenderer.CurrentLightingCalibration.BlockReferenceLux,
+            CameraExposureRenderer.LightingDiagnostics.BlockReferenceLux);
+        Assert.NotEqual(LightingCalibration.Default.BlockReferenceLux,
+            CameraExposureRenderer.LightingDiagnostics.BlockReferenceLux);
+        Assert.Contains("calibrated sources", CameraExposureRenderer.LightingDiagnosticText);
+        Assert.DoesNotContain("inactive", CameraExposureRenderer.LightingDiagnosticText);
         Assert.Equal(1u, MemoryMarshal.Read<uint>(published.AsSpan(396)));
         Assert.Equal(new float[] { .125f, 2048, .016f }, MemoryMarshal.Cast<byte, float>(published.AsSpan(496, 12)).ToArray());
         Assert.Equal(1u, MemoryMarshal.Read<uint>(published.AsSpan(508)));
@@ -165,7 +174,26 @@ public sealed class VgeFrameRendererTests
         var worldData = (ClientWorldPlayerData)RuntimeHelpers.GetUninitializedObject(typeof(ClientWorldPlayerData));
         typeof(ClientWorldPlayerData).GetField("entityplayer", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(worldData, entity);
         typeof(ClientPlayer).GetField("worlddata", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(player, worldData);
-        api.SetupGet(a => a.World.Player).Returns(player);
+        var game = (ClientMain)RuntimeHelpers.GetUninitializedObject(typeof(ClientMain));
+        var map = (ClientWorldMap)RuntimeHelpers.GetUninitializedObject(typeof(ClientWorldMap));
+        GC.SuppressFinalize(game); GC.SuppressFinalize(map);
+        game.player = player; game.WorldMap = map;
+        var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));
+        GC.SuppressFinalize(platform);
+        // The installed clock getter reads its retained stopwatch. Avoid platform construction,
+        // which would initialize native windows, and initialize only that concrete dependency.
+        for (Type? type = typeof(ClientPlatformWindows); type != null; type = type.BaseType)
+            foreach (var field in type.GetFields(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly))
+                if (field.FieldType == typeof(System.Diagnostics.Stopwatch)) field.SetValue(platform, new System.Diagnostics.Stopwatch());
+        game.Platform = platform;
+        var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        typeof(ClientWorldMap).GetField("BlockLightLevels", flags)!.SetValue(map,
+            Enumerable.Range(0, 32).Select(i => .04f + i * .03f).ToArray());
+        typeof(ClientWorldMap).GetField("SunLightLevels", flags)!.SetValue(map,
+            Enumerable.Range(0, 32).Select(i => .03f + i * .03f).ToArray());
+        typeof(ClientWorldMap).GetField("hueLevels", flags)!.SetValue(map, Enumerable.Range(0, 32).Select(i => (byte)i).ToArray());
+        typeof(ClientWorldMap).GetField("satLevels", flags)!.SetValue(map, Enumerable.Range(0, 32).Select(i => (byte)(i * 4)).ToArray());
+        api.SetupGet(a => a.World).Returns(game);
         api.SetupGet(a => a.Render.CurrentProjectionMatrix).Returns(projection);
         api.SetupGet(a => a.Render.CameraMatrixOriginf).Returns(Mat4f.Create());
         api.SetupGet(a => a.Render.FrameWidth).Returns(1920);

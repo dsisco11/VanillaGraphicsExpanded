@@ -10,7 +10,10 @@ internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
 {
     #region Public API
     /// <summary>Size of seven column-major matrices, frame scalars, render-origin bridge and source calibration.</summary>
-    internal const int PackedSize = 560;
+    internal const int PackedSize = 592;
+
+    /// <summary>Identifies the calibration retained by this complete CPU publication.</summary>
+    internal PBR.LightingCalibration LightingCalibration { get; private set; } = PBR.LightingCalibration.Default;
 
     /// <summary>Creates retained CPU packing with versioned publication through the existing uniform allocator.</summary>
     internal VgeFrameUniformBuffer() : base(PackedSize) { SetLightingCalibration(PBR.LightingCalibration.Default); }
@@ -20,7 +23,12 @@ internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
     {
         calibration.Validate();
         WriteVector4(544, new(calibration.BlockReferenceLux, calibration.BlockNeutralFloor,
-            PBR.LightingCalibration.EmissionReferenceNits, PBR.LightingCalibration.EnginePointCandelaPerUnit));
+            PBR.LightingCalibration.EmissionReferenceNits, calibration.PointCandelaPerUnit));
+        WriteVector4(560, new(calibration.TerrainSkyFloor, calibration.TerrainSkyFull,
+            calibration.AccessorSkyFloor, calibration.AccessorSkyFull));
+        WriteVector4(576, new(calibration.AccessorBlockReferenceLux > 0 ? calibration.AccessorBlockReferenceLux : calibration.BlockReferenceLux,
+            calibration.AccessorBlockReferenceLux > 0 ? calibration.AccessorBlockNeutralFloor : calibration.BlockNeutralFloor, 0, 0));
+        LightingCalibration = calibration;
     }
 
     /// <summary>Captures one view's complete frame data without allocating GPU storage or publishing partial writes.</summary>

@@ -34,7 +34,9 @@ internal static class PbrTerrainColorPatches
 
                 // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.
                 rgba.rgb = vec3(1.0);
-                vge_environment = vec4(max(rgbaLightIn.rgb, vec3(0.0)) + vge_atmosphereEnvironment * clamp(rgbaLightIn.a, 0.0, 1.0), clamp(rgbaLightIn.a, 0.0, 1.0));
+                float vge_skyAvailability = VgeSkyAvailability(rgbaLightIn.a, false);
+                vge_environment = vec4(VgeDiffuseIncident(VgeBlockIlluminance(rgbaLightIn.rgb))
+                    + vge_atmosphereEnvironment * vge_skyAvailability, vge_skyAvailability);
 
             """);
     }

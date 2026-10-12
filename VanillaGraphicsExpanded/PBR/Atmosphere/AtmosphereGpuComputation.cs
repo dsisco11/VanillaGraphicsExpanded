@@ -123,7 +123,7 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         values[0] = new(request.Sun, Math.Clamp(request.Altitude, .001f, 99));
         values[1] = new(1f + 7f * (request.Weather / 20f), request.Albedo / 50f, request.Width, request.Height);
         values[2] = new(budget.Width, budget.Height, budget.DirectionSamples, budget.RaySamples);
-        values[3] = new(budget.LightSamples, nextCell, AtmosphereSkyMapping.Horizon(request.Altitude), 0);
+        values[3] = new(budget.LightSamples, nextCell, AtmosphereSkyMapping.Horizon(request.Altitude), AtmosphereModel.SolarAmplitude);
         parameters.UploadSubData<Vector4>(values, 0, 64);
         scattering.AtmosphereParameters = parameters; scattering.AtmosphereScattering = source;
         sky.AtmosphereParameters = parameters; sky.AtmosphereScattering = source;

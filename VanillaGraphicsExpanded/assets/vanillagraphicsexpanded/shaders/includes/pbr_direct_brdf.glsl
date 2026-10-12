@@ -2,6 +2,7 @@
 #define VGE_PBR_DIRECT_BRDF_GLSL
 @import "./pbr_transmission.glsl"
 @import "./pbr_finite_disk_brdf.glsl"
+@import "./pbr_photometric.glsl"
 /** Computes the shared metallic material response using the emitter's center direction. */
 vec3 VgeDirectDiffuseBRDF(vec3 baseColor, vec3 V, vec3 L, float metallic, out vec3 F0)
 {
@@ -10,8 +11,8 @@ vec3 VgeDirectDiffuseBRDF(vec3 baseColor, vec3 V, vec3 L, float metallic, out ve
     F0 = mix(vec3(0.04), baseColor, metallic);
     vec3 H = normalize(V + L);
     vec3 F = fresnelSchlick(max(dot(H, V), 0.0), F0);
-    // Callers normalize solar diffuse by pi; engine point lights retain their existing calibration.
-    return pbrDiffuseFactorFromFresnel(F, metallic) * baseColor;
+    // Every direct source supplies incident lux before orientation; diffuse response is per steradian.
+    return pbrDiffuseFactorFromFresnel(F, metallic) * baseColor / VGE_PHOTOMETRIC_PI;
 }
 
 /** Accumulates a punctual source using the shared Cook-Torrance material BRDF. */

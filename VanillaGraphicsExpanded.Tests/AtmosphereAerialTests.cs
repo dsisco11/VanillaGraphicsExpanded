@@ -24,7 +24,7 @@ public sealed class AtmosphereAerialTests
             AtmosphereModel.AerialRay(directions[i], Vector3.UnitY, 2, 1, null, scalar, scalarTrans);
             for (int z = 0; z < scalar.Length; z++)
             {
-                Assert.InRange(Vector4.Distance(scalar[z], batched[z * count + i]), 0, 1e-5f);
+                Assert.InRange(Vector4.Distance(scalar[z], batched[z * count + i]), 0, 1e-5f + 2e-6f * scalar[z].Length());
                 Assert.InRange(Vector4.Distance(scalarTrans[z], trans[z * count + i]), 0, 1e-5f);
             }
         }

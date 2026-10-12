@@ -3,6 +3,7 @@ using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -16,6 +17,52 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
     public PbrSurfaceInstalledShaderTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Variant validation
+    /// <summary>Installed forward vertex publishers select the actual uniform/accessor or terrain decoder before interpolation.</summary>
+    [Theory]
+    [InlineData("standard", false)]
+    [InlineData("standard", true)]
+    [InlineData("chunktransparent", false)]
+    [InlineData("chunktransparent", true)]
+    public void InstalledVertexPublishesCalibratedSource(string family, bool fullSky)
+    {
+        EnsureContextValid();
+        int vertex = Compile(ShaderType.VertexShader, Build(family + ".vsh", 0, family == "chunktransparent" ? 1 : 0, 0, 0, 0));
+        int program = GL.CreateProgram(), buffer = GL.GenBuffer(), vao = GL.GenVertexArray();
+        try
+        {
+            GL.AttachShader(program, vertex);
+            GL.TransformFeedbackVaryings(program, 2, ["vge_blockIrradiance", "vge_skyVisibility"], TransformFeedbackMode.InterleavedAttribs);
+            GL.LinkProgram(program);
+            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
+            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            using var frame = new VgeFrameUniformBuffer();
+            Assert.True(frame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
+            GL.UseProgram(program); GL.BindVertexArray(vao);
+            float alpha = fullSky ? 1 : family == "standard" ? .03f : 7f / 255;
+            if (family == "standard") GL.Uniform4(GL.GetUniformLocation(program, "rgbaLightIn"), 1f, 1f, 1f, alpha);
+            else GL.VertexAttrib4(2, 1f, 1f, 1f, alpha);
+            GL.Uniform1(GL.GetUniformLocation(program, "dontWarpVertices"), 1);
+            GL.BindBuffer(BufferTarget.TransformFeedbackBuffer, buffer);
+            GL.BufferData(BufferTarget.TransformFeedbackBuffer, 16, IntPtr.Zero, BufferUsageHint.StreamRead);
+            GL.BindBufferBase(BufferRangeTarget.TransformFeedbackBuffer, 0, buffer);
+            GL.Enable(EnableCap.RasterizerDiscard);
+            GL.BeginTransformFeedback(TransformFeedbackPrimitiveType.Points);
+            GL.DrawArrays(PrimitiveType.Points, 0, 1); GL.EndTransformFeedback();
+            GL.Disable(EnableCap.RasterizerDiscard);
+            float[] actual = new float[4];
+            GL.GetBufferSubData(BufferTarget.TransformFeedbackBuffer, IntPtr.Zero, 16, actual);
+            double expected = LightingCalibration.Default.BlockReferenceLux * (1 - LightingCalibration.Default.BlockNeutralFloor) / Math.PI;
+            for (int channel = 0; channel < 3; channel++) Assert.InRange(actual[channel], expected * .99999, expected * 1.00001);
+            Assert.InRange(actual[3], fullSky ? .99999f : 0, fullSky ? 1 : .00001f);
+        }
+        finally
+        {
+            GL.Disable(EnableCap.RasterizerDiscard); GL.BindBufferBase(BufferRangeTarget.TransformFeedbackBuffer, 0, 0);
+            GL.DeleteBuffer(buffer); GL.DeleteVertexArray(vao); GL.DeleteProgram(program); GL.DeleteShader(vertex);
+            StateCache.Current.InvalidateAll();
+        }
+    }
+
     /// <summary>Covers opaque, late and OIT families with cascades and first-person depth offsets.</summary>
     public static IEnumerable<object[]> Variants()
     {

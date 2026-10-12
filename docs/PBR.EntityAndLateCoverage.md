@@ -61,11 +61,15 @@ independent. Forward sunlight includes the engine ambient/sun RGB multiplied by 
 exposure; sky exposure alone must not produce daytime white lighting at night. Fog is blended
 in linear color before the existing display transform.
 
+The forward fallback converts the supplied block field to lux with the active accessor calibration,
+then E/pi before material response. Dimensionless sky availability uses decoder-specific zero/full
+endpoints. Sun and sky share the fixed atmospheric reference; engine point payloads use the
+compatibility candela mapping and material emission uses a 32-nit reference.
 The forward fallback uses the mesh's supplied block irradiance and sunlight availability. It does
 not sample screen-space LumOn illumination belonging to an opaque surface behind glass or hands.
 Adding a shared environmental/radiance-cache policy for these receivers belongs with the next
 LumOn-compatible/standalone lighting-mode task. This is not a claim of traced GI on transparent
-receivers or physically calibrated engine light units.
+receivers or source-resolved physical propagation by the engine.
 
 ## Transparency and display boundary
 

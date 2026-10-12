@@ -23,7 +23,7 @@ public sealed class AtmosphereMieTransportTests(ITestOutputHelper output)
         for (int i = 0; i < total.Length; i++)
         {
             background[i] = total[i] - mie[i] * AtmosphereMieTransport.Factor(Vector3.Dot(directions[i], sun));
-            Assert.InRange(Vector3.Distance(total[i], background[i] + mie[i] * AtmosphereMieTransport.Factor(Vector3.Dot(directions[i], sun))), 0, 1e-5f);
+            Assert.InRange(Vector3.Distance(total[i], background[i] + mie[i] * AtmosphereMieTransport.Factor(Vector3.Dot(directions[i], sun))), 0, 1e-5f + 2e-6f * total[i].Length());
         }
         double originalError = 0, splitError = 0;
         for (int y = 18; y < height - 1; y++)

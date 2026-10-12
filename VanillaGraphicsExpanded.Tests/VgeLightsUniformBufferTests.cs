@@ -1,4 +1,6 @@
 using System.Runtime.InteropServices;
+using System.Numerics;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
 using Xunit;
 
@@ -8,6 +10,26 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class VgeLightsUniformBufferTests
 {
     #region Public API
+    /// <summary>Authored flux is packed as chromaticity-normalized candela with a distinct positive influence radius.</summary>
+    [Fact]
+    public void AuthoredSourcesPublishCandelaAndRejectPartialInvalidUpdates()
+    {
+        using var lights = new VgeLightsUniformBuffer();
+        lights.CaptureAuthored([new(new(1, 2, 3), new(1, .4f, .1f), 1000, 20)]);
+        Vector4 position = MemoryMarshal.Read<Vector4>(lights.Bytes.Slice(16, 16));
+        Vector4 intensity = MemoryMarshal.Read<Vector4>(lights.Bytes.Slice(1616, 16));
+        Assert.Equal(new Vector4(1, 2, 3, 0), position);
+        Assert.Equal(20, intensity.W);
+        double y = .2126 * intensity.X + .7152 * intensity.Y + .0722 * intensity.Z;
+        Assert.InRange(y, 1000 / (4 * Math.PI) - .0001, 1000 / (4 * Math.PI) + .0001);
+        Assert.InRange(intensity.Y / intensity.X, .399999, .400001);
+        byte[] prior = lights.Bytes.ToArray();
+        Assert.Throws<ArgumentOutOfRangeException>(() => lights.CaptureAuthored([
+            new(Vector3.Zero, Vector3.One, 1000, 10), new(Vector3.Zero, Vector3.One, float.NaN, 10)]));
+        Assert.Throws<ArgumentOutOfRangeException>(() => lights.CaptureAuthored([new(Vector3.Zero, Vector3.One, 1, 0)]));
+        Assert.Equal(prior, lights.Bytes.ToArray());
+    }
+
     /// <summary>Every supported entry retains original view coordinates and colors with std140 padding.</summary>
     [Theory]
     [InlineData(0)]

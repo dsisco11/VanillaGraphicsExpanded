@@ -22,6 +22,17 @@ public sealed class AtmosphereModelTests
         AssertFinite(AtmosphereModel.SolarIrradiance(Vector3.UnitY, altitude, aerosol));
     }
 
+    /// <summary>The reference condition has the declared illuminance without per-frame normalization.</summary>
+    [Fact]
+    public void ReferenceSolarIlluminanceMatchesCalibration()
+    {
+        Vector3 solar = AtmosphereModel.SolarIrradiance(Vector3.UnitY, .001f, 1);
+        double illuminance = .2126 * solar.X + .7152 * solar.Y + .0722 * solar.Z;
+        Assert.InRange(illuminance, 99999, 100001);
+        Vector3 hazy = AtmosphereModel.SolarIrradiance(Vector3.UnitY, .001f, 8);
+        Assert.True(.2126 * hazy.X + .7152 * hazy.Y + .0722 * hazy.Z < illuminance);
+    }
+
     /// <summary>Molecular scattering produces a blue zenith away from the forward solar peak.</summary>
     [Fact]
     public void MiddayZenithIsBlue()
@@ -66,7 +77,7 @@ public sealed class AtmosphereModelTests
         for (int channel = 0; channel < 3; channel++)
         {
             // The triangular ozone layer has an exact 15 km integrated column.
-            double expected = solar[channel] * Math.Exp(-rayleigh[channel] * rayleighColumn - .004440 * aerosol * aerosolColumn - ozone[channel] * 15);
+            double expected = solar[channel] * AtmosphereModel.SolarAmplitude * Math.Exp(-rayleigh[channel] * rayleighColumn - .004440 * aerosol * aerosolColumn - ozone[channel] * 15);
             Assert.InRange(Math.Abs(actual[channel] / expected - 1), 0, .01);
         }
     }
@@ -82,7 +93,7 @@ public sealed class AtmosphereModelTests
         Quaternion rotation = Quaternion.CreateFromAxisAngle(Vector3.UnitY, 1.1f);
         Vector3 expected = AtmosphereModel.Radiance(view, sun, 1, 2);
         Vector3 actual = AtmosphereModel.Radiance(Vector3.Transform(view, rotation), Vector3.Transform(sun, rotation), 1, 2);
-        Assert.InRange(Vector3.Distance(expected, actual), 0, .0001f);
+        Assert.InRange(Vector3.Distance(expected, actual), 0, .0001f * Math.Max(1, expected.Length()));
     }
 
     /// <summary>Rejects nonfinite or negative RGB outputs without allowing NaN through comparisons.</summary>

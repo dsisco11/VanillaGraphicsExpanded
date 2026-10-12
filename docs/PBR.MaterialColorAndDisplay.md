@@ -42,6 +42,13 @@ final-statement workaround and test normalization for those duplicate delimiters
 
 ## Lighting and display
 
+Source evaluation now uses calibrated atmosphere lux/nits, shared block E/pi, explicitly adapted
+engine point candela and a 32-nit emission reference. Shared direct diffuse response divides by pi
+for sun and punctual sources alike. This source conversion preserves material capture, Fresnel/
+metallic partition and shadow ownership. Integrated frame/cache storage, remaining transport
+consumers and display migration are still pending in `PBR.PhotometricLighting.todo`; existing
+storage/display descriptions below must not be read as completed photometric integration.
+
 Direct diffuse/specular, emission, Surface Cache and indirect lighting remain unexposed linear
 signals. `pbr_composite` adds their contributions and blends fog after decoding the engine fog
 color to linear. It does not clamp radiance to one or apply a display transform.

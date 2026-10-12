@@ -5,8 +5,9 @@ only the current final presentation target: the exposed HDR scene is tone-mapped
 sRGB-encoded for display. This is separate from native HDR monitor presentation.
 
 Photometric support supplies shared lux/nits conversions and explicit frame/persistent storage
-helpers, including visible-disk headroom. Producers currently retain their existing scene units
-until the coordinated physical-source migration. The camera's frozen-scale binding is adopted
+helpers, including visible-disk headroom. Sun, sky, block, punctual and material-emission
+sources now have calibrated physical quantities. Remaining transport, scene storage and
+camera migration must finish before releasing the combined pipeline. The camera's frozen-scale binding is adopted
 explicitly by migrated scene programs; UI/offscreen shaders remain outside that contract.
 
 `includes/pbr_color.glsl` owns the display policy for atmospheric sky, the solar

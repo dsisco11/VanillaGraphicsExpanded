@@ -12,8 +12,9 @@ internal static partial class AtmosphereModel
     private const int LightSamples = 12;
     private static readonly Vector3 Rayleigh = new(.005802f, .013558f, .0331f);
     private static readonly Vector3 Ozone = new(.000650f, .001881f, .000085f);
-    // Relative solar irradiance: one scene-linear unit is the chosen reference extraterrestrial irradiance.
-    private static readonly Vector3 Solar = new(1.474f, 1.8504f, 1.91198f);
+    // A single reference amplitude scales every transport product; extinction remains dimensionless.
+    internal static readonly float SolarAmplitude = ReferenceSolarAmplitude();
+    private static readonly Vector3 Solar = new Vector3(1.474f, 1.8504f, 1.91198f) * SolarAmplitude;
 
     #region Integration
     /// <summary>Integrates sky radiance excluding the separately rendered solar disk and ground reflection.</summary>
@@ -69,7 +70,8 @@ internal static partial class AtmosphereModel
     /// <summary>Integrates optical depth to space; a ray intercepted by the solid planet has zero transmission.</summary>
     private static Vector3 Transmittance(Vector3 origin, Vector3 direction, float aerosol, int samples = LightSamples)
     {
-        if (GroundDistance(origin, direction) > 0) return Vector3.Zero;
+        // A surface-origin ray directed into the planet is occluded even at a zero-distance hit.
+        if (GroundDistance(origin, direction) >= 0) return Vector3.Zero;
         float distance = Boundary(origin, direction, TopRadius);
         Vector3 optical = Vector3.Zero;
         for (int i = 0; i < samples; i++)
@@ -86,6 +88,17 @@ internal static partial class AtmosphereModel
     /// <summary>Local extinction per metre for the bounded homogeneous aerial-perspective approximation.</summary>
     internal static Vector3 LocalExtinction(float altitudeKm, float aerosol) => Extinction(Density(MathF.Max(0, altitudeKm)), aerosol) * .001f;
 
+    #region Private calibration
+    /// <summary>Anchors zenith illumination at 0.001 km and aerosol one to 100,000 lux once.</summary>
+    private static float ReferenceSolarAmplitude()
+    {
+        Vector3 reference = new Vector3(1.474f, 1.8504f, 1.91198f)
+            * Transmittance(new(0, GroundRadius + .001f, 0), Vector3.UnitY, 1);
+        double luminance = .2126 * reference.X + .7152 * reference.Y + .0722 * reference.Z;
+        return (float)(100000 / luminance);
+    }
+    #endregion
+
     /// <summary>Exponential molecular/aerosol densities and a triangular ozone layer centred at 25 km.</summary>
     private static Vector3 Density(float altitude) => new(MathF.Exp(-altitude / 8f), MathF.Exp(-altitude / 1.2f), MathF.Max(0, 1f - MathF.Abs(altitude - 25f) / 15f));
 
@@ -100,15 +113,20 @@ internal static partial class AtmosphereModel
     private static float Boundary(Vector3 origin, Vector3 direction, float radius)
     {
         float b = Vector3.Dot(origin, direction);
-        return MathF.Max(0, -b + MathF.Sqrt(MathF.Max(0, b * b - (origin.LengthSquared() - radius * radius))));
+        // Factor the radial difference and rationalize the short outward root near the shell.
+        float c = (origin.Y - radius) * (origin.Y + radius) + origin.X * origin.X + origin.Z * origin.Z;
+        float root = MathF.Sqrt(MathF.Max(0, b * b - c));
+        return MathF.Max(0, b >= 0 && b + root > 0 ? -c / (b + root) : -b + root);
     }
 
     /// <summary>Returns the nearest positive planet intersection, or -1 when the ray remains in air.</summary>
     private static float GroundDistance(Vector3 origin, Vector3 direction)
     {
         float b = Vector3.Dot(origin, direction);
-        float discriminant = b * b - (origin.LengthSquared() - GroundRadius * GroundRadius);
-        return b < 0 && discriminant >= 0 ? -b - MathF.Sqrt(discriminant) : -1f;
+        // The conjugate avoids subtracting two planet-scale values to obtain a metre-scale segment.
+        float c = (origin.Y - GroundRadius) * (origin.Y + GroundRadius) + origin.X * origin.X + origin.Z * origin.Z;
+        float discriminant = b * b - c;
+        return b < 0 && discriminant >= 0 ? c / (-b + MathF.Sqrt(discriminant)) : -1f;
     }
     #endregion
 }

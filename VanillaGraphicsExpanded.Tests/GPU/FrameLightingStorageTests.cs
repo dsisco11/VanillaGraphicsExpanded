@@ -19,11 +19,11 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         var supported = GpuSupport.Graphics with { MaxShaderStorageBufferBindings = 4,
-            MaxFragmentShaderStorageBlocks = 2, MaxUniformBlockSize = 560 };
+            MaxFragmentShaderStorageBlocks = 2, MaxUniformBlockSize = VgeFrameUniformBuffer.PackedSize };
         Assert.True(CameraExposureDispatch.SupportsLighting(supported));
         Assert.False(CameraExposureDispatch.SupportsLighting(supported with { MaxShaderStorageBufferBindings = 3 }));
         Assert.False(CameraExposureDispatch.SupportsLighting(supported with { MaxFragmentShaderStorageBlocks = 1 }));
-        Assert.False(CameraExposureDispatch.SupportsLighting(supported with { MaxUniformBlockSize = 559 }));
+        Assert.False(CameraExposureDispatch.SupportsLighting(supported with { MaxUniformBlockSize = VgeFrameUniformBuffer.PackedSize - 1 }));
     }
 
     /// <summary>Automatic exposure is sampled once; later metering cannot modify the frozen publication.</summary>

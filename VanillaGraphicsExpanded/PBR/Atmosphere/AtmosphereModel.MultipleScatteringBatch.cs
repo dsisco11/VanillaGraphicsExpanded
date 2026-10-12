@@ -61,7 +61,7 @@ internal static partial class AtmosphereModel
                     steps[lane] = end - start;
                     Vector3 point = origin + directions[lane] * ((start + end) * .5f);
                     radii[lane] = point.LengthSquared(); offsets[lane] = -1;
-                    if (GroundDistance(point, sun) > 0) continue;
+                    if (GroundDistance(point, sun) >= 0) continue;
                     offsets[lane] = occupied;
                     float distance = Boundary(point, sun, TopRadius);
                     for (int light = 0; light < lightSamples; light++, occupied++)

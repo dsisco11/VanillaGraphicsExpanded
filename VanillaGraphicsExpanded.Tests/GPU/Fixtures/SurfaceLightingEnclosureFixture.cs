@@ -5,6 +5,7 @@ using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.LumOn.Scene.Fallback;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.Fixtures.WorldProbes;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -17,6 +18,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     private readonly ScopedPbrMaterialFixture material = new();
     private readonly BinaryShaderApiFixture assets = new();
     private readonly SurfaceLightingDispatch producer;
+    private readonly VgeFrameUniformBuffer lightingFrame = new();
     private readonly GpuShaderStorageBuffer work, metadata, slots, readiness;
     private readonly SurfaceAtlasTextures textures = new(AtlasEdge,AtlasEdge,1,"Tests.SurfaceEnclosure");
     private readonly Texture3D depth, captured, direct, indirect, pages;
@@ -92,6 +94,11 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         pages.UploadDataImmediate(entries,0,0,0,128,128,chunkCount);
         Capture();
         producer = new(assets.Api);
+        // Transport fixtures author a 32-lux full field and a floorless synthetic sky decoder.
+        // Real default calibration is covered separately by the installed source fixture.
+        lightingFrame.SetLightingCalibration(new(32f / (1 - 10f / 255), 10f / 255,
+            TerrainSkyFloor: 0, AccessorSkyFloor: 0));
+        producer.FrameInputs = lightingFrame;
     }
 
     /// <summary>Recaptures the authored faces after geometry changes, retaining the physical atlas allocation.</summary>
@@ -127,7 +134,9 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         if (DividedRoom && z==5 && (!DoorOpen || x<offsetX+2 || x>offsetX+5 || y<34 || y>37)) wall=true;
         bool exterior=x<offsetX || x>offsetX+7 || y<32 || y>39 || z<0 || z>7;
         int light=DividedRoom ? (z>=6 ? 32 : 0) : exterior ? ExteriorBlockLight ?? BlockLight : BlockLight;
-        return new(wall ? 2u | materialId<<2 : 1u, LumonSceneOccupancyPacking.PackClamped(light,SunLight,0,0),0);
+        float normalized = Math.Clamp(light / 32f, 0, 1);
+        uint rgba = TraceGeometryVoxel.PackLight(new(normalized, normalized, normalized, Math.Clamp(SunLight / 32f, 0, 1)));
+        return new(wall ? 2u | materialId<<2 : 1u, LumonSceneOccupancyPacking.PackClamped(light,SunLight,0,0),rgba);
     }
 
 
@@ -141,6 +150,8 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     #endregion
 
     #region Lighting execution and readback
+    /// <summary>Supplies an isolated source calibration while retaining real capture, dispatch and transport ownership.</summary>
+    public void SetCalibration(LightingCalibration calibration) => lightingFrame.SetLightingCalibration(calibration);
     /// <summary>Copies only initialized measured pages after timed work, excluding unallocated atlas storage.</summary>
     public float[] ReadDiagnosticPixels(SurfaceWorkStage stage)
     {
@@ -320,7 +331,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     /// <summary>Releases fixture resources in producer-before-input order.</summary>
     public void Dispose()
     {
-        producer.Dispose(); work.Dispose();metadata.Dispose();slots.Dispose();readiness.Dispose();
+        producer.Dispose(); lightingFrame.Dispose(); work.Dispose();metadata.Dispose();slots.Dispose();readiness.Dispose();
         textures.Dispose(); pageStorage.Dispose();
         Geometry.Dispose(); assets.Dispose(); material.Dispose();
     }

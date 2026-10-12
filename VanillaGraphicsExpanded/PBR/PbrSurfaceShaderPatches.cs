@@ -30,11 +30,17 @@ internal static class PbrSurfaceShaderPatches
             editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
                 """
                 @import "./includes/vge_uvrect.glsl"
+                @import "./includes/pbr_photometric.glsl"
 
                 """);
             return true;
         }
-        if (name.EndsWith(".vsh", StringComparison.Ordinal)) return false;
+        if (name.EndsWith(".vsh", StringComparison.Ordinal))
+        {
+            editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
+                "@import \"./includes/pbr_photometric.glsl\"\n");
+            return true;
+        }
         string terrainImports = "";
         if (name == "chunktransparent.fsh")
         {
@@ -106,15 +112,19 @@ internal static class PbrSurfaceShaderPatches
             string tint = chunk || instanced ? "vec3(1.0)" : entity ? "renderColor.rgb * colorIn.rgb" : "rgbaTint.rgb * colorIn.rgb";
             string color = chunk ? "rgba" : "color";
             string lights = instanced ? "rgbaLightIn * rgbaBlockIn" : "rgbaLightIn";
-            // Retain applyLight's alpha/glow/shadow side outputs, but never divide by lit RGB to recover tint.
+            string blockDecoder = chunk ? "false" : "true";
+            string skyAvailability = instanced
+                ? "VgeSkyAvailability(rgbaLightIn.a, true) * VgeSkyAvailability(rgbaBlockIn.a, false)"
+                : $"VgeSkyAvailability(vge_localLight.a, {blockDecoder})";
+                // Retain applyLight's alpha/glow/shadow side outputs, but never divide by lit RGB to recover tint.
             editor.InsertBefore(mainQuery, declarations)
                 .InsertBefore(mainQuery.InnerEnd("body"), $"""
 
                     vge_viewPosition = ({matrix} * worldPos).xyz;
                     vec4 vge_localLight = {lights};
-                    vge_blockIrradiance = max(vge_localLight.rgb, vec3(0.0));
-                    vge_skyVisibility = clamp(vge_localLight.a, 0.0, 1.0);
-                    vge_sunIrradiance = (vge_atmosphereEnvironment / 0.35) * vge_skyVisibility;
+                    vge_blockIrradiance = VgeDiffuseIncident(VgeBlockIlluminance(vge_localLight.rgb, {blockDecoder}));
+                    vge_skyVisibility = {skyAvailability};
+                    vge_sunIrradiance = vge_atmosphereEnvironment * vge_skyVisibility;
                     if (vge_pbrRoute != 0) {color}.rgb = {tint};
 
                 """);

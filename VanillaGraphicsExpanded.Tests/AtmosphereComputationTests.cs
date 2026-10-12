@@ -22,7 +22,7 @@ public sealed class AtmosphereComputationTests
             Assert.Equal(value % 4 == 3 ? 1f : 0f, lookup.Current.AerialRadiance[value]);
             Assert.Equal(value % 4 == 3 ? 1f : 0f, lookup.Current.AerialAttenuation[value]);
             float terminal = lookup.Current.AerialRadiance[(AtmosphereAerialPerspective.Depth - 1) * layer + value];
-            Assert.InRange(Math.Abs(terminal - lookup.Current.Sky[value]), 0, 1e-6f);
+            Assert.InRange(Math.Abs(terminal - lookup.Current.Sky[value]), 0, 1e-6f + 2e-6f * Math.Abs(lookup.Current.Sky[value]));
         }
     }
 

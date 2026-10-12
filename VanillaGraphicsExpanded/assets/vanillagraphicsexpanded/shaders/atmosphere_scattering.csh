@@ -17,7 +17,8 @@ void main()
     float altitude = .001 + 99.0 * v * v;
     float cosine = 2.0 * float(cell % width) / float(width - 1) - 1.0;
     vec3 sun = vec3(sqrt(max(0.0, 1.0 - cosine * cosine)), cosine, 0.0);
-    vec3 origin = vec3(0.0, atmGround + altitude, 0.0);
+    // Match the stored FP32 planetary coordinate before evaluating near-ground intersections.
+    precise vec3 origin = vec3(0.0, atmGround + altitude, 0.0);
     vec3 source = vec3(0.0), feedback = vec3(0.0);
     for (int d = lane; d < directions; d += 64)
     {
@@ -32,7 +33,7 @@ void main()
         {
             float start = distance * float(i * i) / float(steps * steps);
             float end = distance * float((i + 1) * (i + 1)) / float(steps * steps);
-            vec3 p = origin + direction * ((start + end) * .5);
+            precise vec3 p = origin + direction * ((start + end) * .5);
             vec3 density = atmDensity(max(0.0, length(p) - atmGround));
             vec3 extinction = atmExtinction(density);
             vec3 integral = vec3(atmSegment(extinction.x, end - start),

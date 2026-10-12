@@ -18,6 +18,7 @@ internal sealed class VgeFrameRenderer : IRenderer
     private readonly float[] currentViewProjection = new float[16];
     private readonly FrameCameraHistory history = new();
     private readonly FrameCameraContinuity continuity = new();
+    private readonly PBR.EngineLightingCalibration lightingCalibration = new();
     private uint frameIndex;
     private bool published, disposed;
 
@@ -31,6 +32,10 @@ internal sealed class VgeFrameRenderer : IRenderer
     /// <summary>Returns the current world snapshot, rejecting consumers that run before publication.</summary>
     internal static VgeFrameUniformBuffer Current => active is { published: true, disposed: false } owner
         ? owner.inputs : throw new InvalidOperationException("The shared world camera has not been published.");
+
+    /// <summary>Reports the active source reference, using the nominated defaults before world publication.</summary>
+    internal static PBR.LightingCalibration CurrentLightingCalibration => active is { published: true, disposed: false } owner
+        ? owner.inputs.LightingCalibration : PBR.LightingCalibration.Default;
 
     /// <summary>Registers early withdrawal and post-camera publication under the shared frame owner.</summary>
     internal VgeFrameRenderer(ICoreClientAPI api)
@@ -48,6 +53,9 @@ internal sealed class VgeFrameRenderer : IRenderer
     {
         if (disposed || stage != EnumRenderStage.Before || published) return;
         var render = api.Render;
+        var map = ((Vintagestory.Client.NoObf.ClientMain)api.World).WorldMap;
+        inputs.SetLightingCalibration(lightingCalibration.Capture(map.BlockLightLevels, map.SunLightLevels,
+            map.hueLevels, map.satLevels));
         // The current-matrix getters share engine scratch storage. Copy the projection immediately,
         // and use the dedicated world-camera view rather than any active pass's model-view stack.
         render.CurrentProjectionMatrix.AsSpan().CopyTo(projection);

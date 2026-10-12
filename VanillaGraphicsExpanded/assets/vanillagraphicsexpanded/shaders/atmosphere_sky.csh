@@ -25,7 +25,9 @@ void main()
     float elevation = atmSkyElevation(float(index / width) / float(height - 1), work.z);
     float azimuth = (float(index % width) + .5) / float(width) * (2.0 * atmPi);
     vec3 direction = normalize(vec3(cos(elevation) * cos(azimuth), sin(elevation), cos(elevation) * sin(azimuth)));
-    vec3 sun = sunAltitude.xyz, origin = vec3(0.0, atmGround + sunAltitude.w, 0.0);
+    vec3 sun = sunAltitude.xyz;
+    // Retain FP32 coordinate rounding before short ground segments are solved.
+    precise vec3 origin = vec3(0.0, atmGround + sunAltitude.w, 0.0);
     float distance = atmBoundary(origin, direction), ground = atmGroundDistance(origin, direction);
     if (ground > 0.0) distance = min(distance, ground);
     float cosine = clamp(dot(direction, sun), -1.0, 1.0);
@@ -37,7 +39,7 @@ void main()
     {
         float start = distance * float(i * i) / 576.0;
         float end = distance * float((i + 1) * (i + 1)) / 576.0;
-        vec3 p = origin + direction * ((start + end) * .5);
+        precise vec3 p = origin + direction * ((start + end) * .5);
         float radius = length(p);
         vec3 density = atmDensity(max(0.0, radius - atmGround));
         vec3 extinction = atmExtinction(density);
@@ -65,7 +67,7 @@ void main()
         float end = vgeAerialDistance(slice, distance), step = (end - previous) * .5;
         for (int sampleIndex = 0; sampleIndex < 2 && step > 0.0; ++sampleIndex)
         {
-            vec3 p = origin + direction * (previous + (float(sampleIndex) + .5) * step);
+            precise vec3 p = origin + direction * (previous + (float(sampleIndex) + .5) * step);
             float radius = length(p);
             vec3 density = atmDensity(max(0.0, radius - atmGround));
             vec3 extinction = atmExtinction(density);

@@ -2,7 +2,7 @@ using System;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Retains the engine point-light list in its original view space and color units.</summary>
+/// <summary>Retains original engine payloads or explicitly authored candela in the shared view-space light list.</summary>
 internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
 {
     #region Public API
@@ -30,6 +30,20 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
             int source = light * 3;
             WriteVector4(16 + light * 16, new(positions[source], positions[source + 1], positions[source + 2], 0));
             WriteVector4(16 + Capacity * 16 + light * 16, new(colors[source], colors[source + 1], colors[source + 2], 0));
+        }
+    }
+    /// <summary>Publishes VGE-authored luminous flux through the retained list without relabeling engine RGB.</summary>
+    internal void CaptureAuthored(ReadOnlySpan<PBR.PunctualLight> sources)
+    {
+        if (sources.Length > Capacity) throw new ArgumentOutOfRangeException(nameof(sources));
+        Span<System.Numerics.Vector4> payloads = stackalloc System.Numerics.Vector4[sources.Length];
+        // Validate the complete generation before mutating its count or any exposed vector.
+        for (int i = 0; i < sources.Length; i++) payloads[i] = sources[i].IntensityPayload();
+        WriteUInt32(0, (uint)sources.Length);
+        for (int i = 0; i < sources.Length; i++)
+        {
+            WriteVector4(16 + i * 16, new(sources[i].Position, 0));
+            WriteVector4(16 + Capacity * 16 + i * 16, payloads[i]);
         }
     }
     #endregion

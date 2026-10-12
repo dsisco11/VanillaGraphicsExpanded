@@ -4,6 +4,7 @@
 @import "./includes/lumon_trace_scene_trace.glsl"
 @import "./includes/lumonscene_material_packing.glsl"
 @import "./includes/lumon_surface_lighting.glsl"
+@import "./includes/pbr_photometric.glsl"
 #define SURFACE_DIAGNOSTICS_ENABLED (lighting.policy.w != 0u)
 @import "./includes/surface_work_diagnostics.glsl"
 layout(local_size_x=8, local_size_y=8, local_size_z=1) in;
@@ -129,10 +130,11 @@ void main()
         uint geometry;
         if (lumonTraceSceneReadGeometry(cell, TRACE_SCENE_SURFACE, geometry) != TRACE_SCENE_READY || !finiteLight(emission))
         { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }
-        uint light = texelFetch(traceSceneLegacy, lumonNearFieldWrap(cell, nearFieldOriginResolution.w), 0).r;
-        float block = lighting.policy.x == 0u ? texelFetch(blockLevels, ivec2(int(min(light & 63u, 32u)),0),0).r : 0.0;
-        float sun = texelFetch(sunLevels, ivec2(int(min((light >> 6u) & 63u,32u)),0),0).r;
-        vec3 direct = 32.0 * block * texelFetch(lightColors, ivec2(int((light >> 12u) & 63u),0),0).rgb
+        vec4 rawLight = texelFetch(nearFieldLight, lumonNearFieldWrap(cell, nearFieldOriginResolution.w), 0);
+        vec3 block = lighting.policy.x == 0u ? VgeBlockIlluminance(rawLight.rgb, true) : vec3(0);
+        // Geometry publishes byte-normalized block RGB and byte-stored accessor sky availability.
+        float sun = VgeStoredSkyAvailability(rawLight.a);
+        vec3 direct = block
                 + sun * (lighting.atmosphereEnvironment.rgb * 3.14159265359
                 + lighting.atmosphereSolar.rgb * max(0.0, dot(n, lighting.atmosphereSun.xyz)));
         if (!finiteLight(direct)) { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }

@@ -2,8 +2,10 @@
 
 Status: the user approved pre-exposed frame lighting, a bounded visible solar disk and fixed-scale
 persistent lighting and a narrow finite-angular solar specular refinement on 2026-10-11.
-Shared quantity, shader conversion and admitted storage support are implemented; the complete
-physical-source/consumer migration remains pending. Source-derived calibration and numerical qualification
+Shared quantity, shader conversion and admitted storage support are implemented. Atmosphere amplitude,
+block-field publication, punctual evaluation, emission and shared direct diffuse normalization now use
+the declared source quantities; remaining transport, integrated scene storage and camera migration
+remain pending. Source-derived calibration and numerical qualification
 of the supported design domain are recorded below and in `PBR.PhotometricLighting.todo`.
 These prerequisite receipts do not establish completed runtime migration, integrated GPU
 precision, live appearance or performance.
@@ -11,8 +13,9 @@ precision, live appearance or performance.
 The retained support lives in `LightingCalibration`, the shared frame calibration binding,
 `pbr_photometric`, `LightingStorage` and component/history generation metadata. The existing
 camera owner provides a frozen GPU scale publication, and atmosphere texture ownership supports
-fixed-scale encoding with matching metadata. Legacy producers retain their current units until
-the coordinated migration. The approved bounded signed-water estimator is integrated using a
+fixed-scale encoding with matching metadata. Producer conversion is an intermediate implementation,
+not a releasable complete photometric pipeline: scene/cache writes and remaining display consumers
+still need coordinated scale adoption. The approved bounded signed-water estimator is integrated using a
 global bound from the same published source convention; physical source adapters follow with
 their producers. These support contracts have focused CPU/GPU and lifecycle checks, rather
 than complete-scene photometric acceptance.
@@ -35,7 +38,9 @@ engine's existing voxel light propagation becomes physically accurate.
 
 ## Current implementation and capture evidence
 
-The relevant current owners are:
+The following owner inventory records the pre-conversion behavior that motivated this proposal.
+The source implementation notes above and below describe the retained conversions; storage and
+complete scene integration remain open.
 
 | Owner | Current behavior relevant to this proposal |
 | --- | --- |
@@ -95,6 +100,13 @@ See [Filament's punctual-light equations](https://google.github.io/filament/main
 
 ## Sunlight and atmosphere
 
+The retained producer uses `AtmosphereModel.SolarAmplitude`, derived once from its zenith
+transmission at 0.001 km and aerosol one. The GPU parameter owner submits the same amplitude;
+unit-solar multiple-scattering tables retain their dimensionless convention. Direct solar RGB is
+lux, sky/disk/aerial RGB is nits and integrated environment RGB is E/pi. Sun motion and weather
+change transport, without refitting source power. Lookup encoding and full scene storage adoption
+retain their separate integration obligations.
+
 Retain the existing atmosphere model and its relationships between extinction, direct solar
 illumination, sky scattering, the solar disk and aerial transport. Replace its arbitrary
 amplitude with one declared photometric reference, applied consistently to every derived signal.
@@ -116,6 +128,20 @@ The visible disk's capped output is a documented rendering approximation, not a 
 amplitude. Aerial in-scattering uses the same amplitude; attenuation remains dimensionless.
 
 ## Propagated block light
+
+`EngineLightingCalibration` fits the nominated torch against the active engine tables when its
+decoder inputs change. It fits terrain's truncation after multiplication by 255.999 and the
+accessor/dynamic truncation after multiplication by 255 independently. It publishes matching block
+reference lux, neutral field floors, point candela
+per payload unit and terrain/accessor sky endpoints through the shared frame owner. Terrain and
+forward publishers convert each block input once before material response. Surface Cache direct
+seeding reads its existing normalized RGBA geometry field, with nearest-byte accessor endpoints;
+its differently decoded level/32 palette route no longer supplies block illumination. Standard/
+entity/held meshes use accessor endpoints; transparent terrain uses terrain endpoints. Instanced
+sky availability decodes its per-instance accessor and per-vertex terrain factors separately before
+multiplication. Raw RGB products retain the engine's existing supplied-field compatibility semantics.
+No CPU
+light generation, field rewriting or source-resolved propagation is added.
 
 Retain the engine's light generation, propagation, attenuation and enclosure behavior without
 patching its lighting logic or rewriting its light data. Perform the block-light unit conversion
@@ -181,6 +207,17 @@ The calibrated adapter establishes coherent brightness while retaining a bounded
 approximation.
 
 ## Point lights, emission and receiver response
+
+`PunctualLight` authors linear chromaticity and lumens, while the retained light list's explicit
+authored capture converts isotropic flux to candela. Its positive payload W carries influence radius;
+engine captures retain their original RGB and W zero. `VgePointIlluminance` adapts the latter using
+the active reference, retains one-metre inverse-square saturation and fades smoothly from 80% of
+`min(25,length(rawPayload))` to that radius. All direct diffuse sources share BRDF division by pi.
+Direct/forward emission multiplies authored base RGB and coefficient by the 32-nit reference;
+the cache retains its neutral emission and exclusive block-versus-emission policy.
+Standard held-source collection retains innate plus separately admitted hands, rather than adding
+the combined player payload again. Custom registered emitters can still overlap the voxel field;
+this compatibility adapter does not infer identities or subtract fabricated source contributions.
 
 Provide an explicit lumens contract for VGE-authored punctual lights. For engine-provided lights,
 keep compatibility conversion separate: engine color/intensity/range payloads must not simply
@@ -841,7 +878,8 @@ on 2026-10-11. That supersedes the earlier unresolved fixed-scale-versus-pre-exp
 Numerical qualification must now test that selected representation, including its explicit disk
 approximation, fixed cache/lookup range, scale transitions and accumulated consumer error.
 The 148-assertion fixed-format receipt remains useful arithmetic evidence; it is not a passing
-receipt for this newly selected representation. No runtime conversion has been implemented.
+receipt for this newly selected representation. No runtime conversion existed when those
+prerequisite receipts were collected; the source conversions described above now supersede that state.
 
 ### Fresh source-derived calibration and storage receipts
 

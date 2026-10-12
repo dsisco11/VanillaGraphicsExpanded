@@ -252,6 +252,8 @@ flat in uint vge_faceId;
                 Tessellation.TerrainDisplacementPatches.Apply(editor, sourceName);
                 editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
                     "@import \"./includes/vge_uvrect.glsl\"\n");
+                editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"),
+                    "@import \"./includes/pbr_photometric.glsl\"\n");
                 editor.Commit();
 
                 log?.Audit($"[VGE] Applied pre-processing to shader: {sourceName}");

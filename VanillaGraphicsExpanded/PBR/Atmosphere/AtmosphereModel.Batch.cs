@@ -112,7 +112,7 @@ internal static partial class AtmosphereModel
                         indirect[lane] = multipleScattering.Sample(radius - GroundRadius, Vector3.Dot(point, sun) / radius);
                     }
                     lightOffsets[lane] = -1;
-                    if (steps[lane] <= 0 || GroundDistance(point, sun) > 0) continue;
+                    if (steps[lane] <= 0 || GroundDistance(point, sun) >= 0) continue;
                     lightOffsets[lane] = samples;
                     float distance = Boundary(point, sun, TopRadius);
                     for (int light = 0; light < LightSamples; light++, samples++)
