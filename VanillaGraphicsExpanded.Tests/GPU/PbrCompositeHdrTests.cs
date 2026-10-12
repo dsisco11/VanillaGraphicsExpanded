@@ -218,9 +218,10 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         program.SetUnderwater(underwater);
         program.RefractionSourceEnabled = true;
         using var waterArray = LayeredTestTexture.Create(optical, source);
-        program.SetWaterVolume(new WaterVolumeFrame(waterArray, underwater && mappedCamera ? medium : null));
+        program.SetWaterVolume(new WaterVolumeFrame(waterArray, underwater && mappedCamera ? medium : null,
+            SourceUpper: Vector3.One));
         var cpuParameters = ((IPBRCompositeShaderProgramBindings)program).Parameters.Bytes.ToArray();
-        Assert.Equal(128, cpuParameters.Length);
+        Assert.Equal(144, cpuParameters.Length);
         Assert.Equal(1f, BitConverter.ToSingle(cpuParameters, 92));
         Assert.Equal(underwater && mappedCamera ? 1f : 0f, BitConverter.ToSingle(cpuParameters, 108));
         TestFramework.RenderQuadTo(program, output);

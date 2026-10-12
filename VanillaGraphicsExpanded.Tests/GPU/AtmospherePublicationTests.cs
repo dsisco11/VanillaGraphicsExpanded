@@ -3,6 +3,7 @@ using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -63,6 +64,39 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         Assert.Equal(radiance, AtmosphereModSystem.AerialRadianceTextureId);
         Assert.Equal(attenuation, AtmosphereModSystem.AerialAttenuationTextureId);
         AssertTexture(previous);
+    }
+
+    /// <summary>Physical LUT encoding preserves dimensionless attenuation and commits metadata only after valid upload.</summary>
+    [Fact]
+    public void PhysicalLookupEncodingPublishesMatchingMetadata()
+    {
+        EnsureContextValid();
+        var snapshot = new AtmosphereLighting(Vector3.UnitY, Vector3.Zero, Vector3.Zero,
+            Vector3.Zero, Vector3.Zero, ImmutableArray.Create(32f, 64f, 128f, 1f))
+            { Width = 1, Height = 1, LookupStorageScale = LightingStorage.PersistentScale, CalibrationGeneration = 7 };
+        using var textures = new AtmosphereTextureSet(snapshot);
+        textures.Upload(snapshot);
+        Assert.Equal(LightingStorage.PersistentScale, textures.StorageScale);
+        Assert.Equal(7u, textures.CalibrationGeneration);
+        using (var scope = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, textures.Sky.TextureId))
+        {
+            float[] pixels = new float[8];
+            GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
+            Assert.Equal(new float[] { 2, 4, 8, 1, 0, 0, 0, 1 }, pixels);
+        }
+        using (var scope = StateCache.Current.BindTextureScope(TextureTarget.Texture3D, 0, textures.Attenuation.TextureId))
+        {
+            float[] pixels = new float[4];
+            GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
+            Assert.Equal(new float[] { 0, 0, 0, 1 }, pixels);
+        }
+        Assert.Throws<ArgumentOutOfRangeException>(() => textures.Upload(snapshot with
+            { Sky = ImmutableArray.Create(1048065f, 0f, 0f, 1f), CalibrationGeneration = 8 }));
+        Assert.Equal(7u, textures.CalibrationGeneration);
+        Assert.Equal(LightingStorage.PersistentScale, textures.StorageScale);
+        Assert.Throws<ArgumentException>(() => textures.Upload(snapshot with { CalibrationGeneration = 0 }));
+        Assert.Equal(7u, textures.CalibrationGeneration);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     /// <summary>Reads driver allocation and contents to verify upload completed before shared publication.</summary>

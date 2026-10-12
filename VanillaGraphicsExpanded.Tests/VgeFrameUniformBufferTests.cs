@@ -18,7 +18,7 @@ public sealed class VgeFrameUniformBufferTests
         const uint frameIndex = 16_777_217;
         Capture(buffer, matrices, frameIndex);
 
-        Assert.Equal(544, buffer.SizeBytes);
+        Assert.Equal(560, buffer.SizeBytes);
         for (int matrix = 0; matrix < 6; matrix++)
             Assert.Equal(matrices[matrix], MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(matrix * 64, 64)).ToArray());
         Assert.Equal(new float[] { 1920, 1080, 12.5f }, MemoryMarshal.Cast<byte, float>(buffer.Bytes.Slice(384, 12)).ToArray());

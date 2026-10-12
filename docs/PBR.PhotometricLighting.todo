@@ -2,9 +2,11 @@ Photometric lighting and block-light calibration
 ================================================
 
 Source proposal: docs/PBR.PhotometricLighting.Proposal.md
-Status: Phase 1 complete after second review and completion audit (2026-10-12).
-Runtime conversion has not started.
-Only Phase 1 completion markers are checked; runtime migration and its verification remain open.
+Status: Phases 1 and 2 complete after second review and completion audit (2026-10-12).
+Shared shader conversion and storage support are implemented; physical producer migration remains open.
+Only Phase 1 and Phase 2 completion markers are checked; integrated migration and its verification remain open.
+The approved defensive storage-clamping amendment is unchecked work in Phases 3-6; it does not
+retroactively claim that completed Phase 2 support already implements those safeguards.
 The proposal remains authoritative. Unresolved design choices are prerequisite tasks, not
 settled defaults or authorization for speculative systems.
 
@@ -314,7 +316,25 @@ Phase 2: Establish shared quantities, shader conversion and storage support
 Depends on Phase 1. Outcome: Existing owners can supply calibrated parameters and store/diagnose
 physical lighting consistently; producers can migrate without introducing new lighting systems.
 
-  ☐ Add narrowly scoped quantity/conversion contracts to existing lighting owners and bindings.
+Implementation traceability (2026-10-12)
+  - Quantity/binding task -> proposal "Unit and color contract" / "Propagated block light" ->
+    LightingCalibration, VgeFrameUniformBuffer.lightCalibration and pbr_photometric provide the
+    selected references, normalized source RGB and one shader-only block-to-lux/E/pi boundary.
+  - Storage task -> proposal "Selected scale rule", "Persistent lighting" and "Visible solar-disk
+    protection" / PBR.CameraExposure.md / PBR.Atmosphere.Publication.md -> LightingStorage,
+    component/history/calibration metadata, the camera-owned frozen GPU publication, generated
+    read/write contracts and atmosphere fixed-scale packing. Physical producers adopt these
+    contracts during their later migration; current producer units and display behavior remain coherent.
+  - Water task -> proposal "Approved bounded water-source estimator" / PBR.WaterMedium.md ->
+    global source metadata from the completed atmosphere/active block decoder, the composite
+    binding and bounded signed evaluator. Current legacy source units are preserved together;
+    calibrated block/environment adapters follow their producer conversion.
+  - Validation/diagnostics task -> proposal "Validation and acceptance" / PBR.SharedDisplay.md ->
+    focused CPU/GPU quantities, rounding/retention, temporal compatibility, actual frozen compute,
+    lookup uploads and lifecycle checks; existing diagnostic output identifies units/storage and
+    active artistic GI departures. No temporary production logging or new light-propagation patch.
+
+  ☑ Add narrowly scoped quantity/conversion contracts to existing lighting owners and bindings.
     - Identify units in CPU parameters, generated interfaces and shader contracts; keep composition
       roots thin and avoid general-purpose unit frameworks or new propagation infrastructure.
     - Supply block-light reference lux/selected response parameters through existing shader bindings.
@@ -325,7 +345,7 @@ physical lighting consistently; producers can migrate without introducing new li
     - Separate block conversion from atmospheric illumination and apply any storage representation
       at the declared boundary. Prevent duplicated conversion or division by pi.
 
-  ☐ Implement the selected storage representation through existing resource owners.
+  ☑ Implement the selected storage representation through existing resource owners.
     - Implement the approved frame pre-exposure and fixed persistent encoding/decoding contract.
       Account for physical quantities and frame/cache/lookup storage scales in typed interfaces
       and diagnostics.
@@ -340,17 +360,29 @@ physical lighting consistently; producers can migrate without introducing new li
       Preserve homogeneous response, transmission, medium coefficients and resource ownership.
       Do not introduce per-frame source discovery or reallocation for calibration.
 
-  ☐ Add proportionate numerical and shader-contract validation.
+  ☑ Add proportionate numerical and shader-contract validation.
     - Check normalized RGB Y versus scalar intensity, zero/invalid inputs and stored-unit round trips.
     - Check block conversion monotonicity, zero preservation and independence from exposure.
     - Compile affected shader contracts/variants using the existing catalog and installed sources.
     - Expose physical quantities/storage scale and active artistic departures through existing
       diagnostics without leaving temporary investigation logging in production.
 
-  ☐ Verify completion of Phase 2.
+  ☑ Verify completion of Phase 2.
     - Shared bindings/helper and selected storage support pass stated numerical/precision checks.
     - No new base-game lighting logic patch exists; standalone operation needs no LumOn resources.
     - All production/test methods and classes follow repository comments/layout conventions.
+
+Completion evidence (2026-10-12)
+  - Second review and independent completion audit reconciled the tasks against the linked
+    proposal and owner documentation. No unresolved requirement or evidence gap remains for
+    shared support; subsequent producer/consumer migration retains its separate completion gates.
+  - Current-source Release build compiled catalogs containing 434 production and 512 test shader
+    variants. Focused CPU/GPU regression: 87 passed, 0 failed, 0 skipped, including the extreme
+    disk cap, history underflow rejection, frozen publication/lifecycle, atmosphere packing,
+    bounded water transport, captured AO correctness and light-binding regressions.
+  - Receipts: artifacts/photometric-support-regression.log and
+    artifacts/TestResults/photometric-support-regression.trx. git diff --check passes.
+    These checks establish support correctness, not full-scene photometric appearance or performance.
 
 Phase 3: Calibrate lighting producers and normalize receiver response
 --------------------------------------------------------------------
@@ -394,6 +426,14 @@ declared quantities and use consistent receiver response in deferred and forward
       forward direct-light boundary and separate pbr_liquid solar-reflection call. Preserve punctual response,
       calibrated solar irradiance, existing shadows and volume-scattering/transmission contracts.
 
+  ☐ Add shared defensive storage helpers under proposal "Defensive storage clamping".
+    - Keep source calibration, frame bounds and admission intact; protect scaled writes before
+      narrowing/packing using destination-specific limits, with separate nonnegative/signed rules.
+    - Define explicit infinity containment and NaN invalid/fallback handling. Do not rely on
+      min/max NaN semantics or make contained invalid data eligible for cache/history publication.
+    - Preserve alpha, weights, depth and metadata contracts and the separate visible-disk cap.
+      Check intermediate arithmetic independently; a final clamp cannot repair invalid shading.
+
   ☐ Verify completion of Phase 3.
     - Numerical diffuse-reference and installed deferred/forward tests meet stated tolerances.
     - A synthetic isotropic 1,000-lumen source matches one-/two-metre expected illumination
@@ -428,6 +468,15 @@ quantities without double material weighting, duplicate environment light or uns
       PBR.OutputDithering.md; preserve final encoded dithering and offscreen behavior.
     - Preserve UI/offscreen isolation and existing alpha, depth, glow and material-data meanings.
 
+  ☐ Apply targeted storage protection under proposal "Defensive storage clamping".
+    - Audit atmosphere lookup, cache/probe, reflection/refraction, temporal history and scene
+      composition writes. Record format, range, scale, validity behavior and blending headroom.
+    - Apply shared helpers where required; retain rejection of unsupported persistent updates.
+      Surface unexpected clipping through existing diagnostics or focused test instrumentation.
+    - Qualify additive and weighted OIT sums/weights/resolve independently of fragment clamps,
+      retaining the approved RGBA32F accumulator and current ownership. Protect intermediates;
+      post-resolve clamping alone is insufficient. No additional format/pass redesign is implied.
+
   ☐ Retire differently calibrated cached/history lighting through existing lifecycle owners.
     - Invalidate dependent data when calibration or storage conventions change; implement any
       temporal rescaling required by the selected storage design.
@@ -458,6 +507,12 @@ response, and existing settings/material/source inputs have documented migration
       power, emission, AO, material data or propagation.
     - Verify fixed-exposure ratios first, then automatic adaptation and existing display grading.
 
+  ☐ Protect postprocessing storage under proposal "Defensive storage clamping".
+    - Audit exposure rescaling, bloom, shafts and temporal output for intermediate overflow and
+      destination limits; apply targeted clamps before narrowing/writes where required.
+    - Preserve disk/glare headroom, metering order and invalid-value handling. Verify ordinary
+      supported values remain unchanged and contain exceptional outputs without hiding defects.
+
   ☐ Version and migrate settings and material/source mappings through existing configuration owners.
     - Specify finite defaults and migration for block calibration, source/emission mappings and
       exposure values whose previous scene-relative interpretation no longer applies.
@@ -483,6 +538,15 @@ live-runtime evidence; accepted defaults and approximation limits are documented
       resource lifecycle and complete scene/display routing against the fixed tolerances.
     - Record build/settings, source/candidate provenance and numerical results. Analytical,
       texture-quantization and approximate-transport tolerances remain separately reported.
+
+  ☐ Qualify defensive storage clamping against proposal "Defensive storage clamping".
+    - Test actual destination-format boundaries, over-range finite inputs, positive/negative
+      infinity, NaN and signed coefficients; verify finite payloads and preserved validity/fallback.
+    - Cover history/scale changes, additive blends and OIT accumulation/resolve, including cases
+      where individually finite fragments could overflow their sum. Check intermediate arithmetic.
+    - Confirm no unexpected clamp activation for ordinary supported lighting; retain separate
+      disk-cap expectations. Report clipping defects even when the final payload is finite.
+    - Use lightweight default fixtures; reserve full-scene stress/performance runs for qualification.
 
   ☐ Package an isolated candidate for user-run reference and appearance checks.
     - Record package identity and tested-source correspondence; exclude fixture/debug instrumentation.

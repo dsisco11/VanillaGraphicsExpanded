@@ -14,7 +14,8 @@ internal static class TestFrameCamera
     /// <summary>Recaptures a complete exported frame through the owner's validation while preserving every AO camera field.</summary>
     internal static VgeFrameUniformBuffer CreateFromPacked(ReadOnlySpan<byte> bytes)
     {
-        if (bytes.Length != VgeFrameUniformBuffer.PackedSize) throw new ArgumentException("Captured frame layout must match the current contract.", nameof(bytes));
+        if (bytes.Length != 544 && bytes.Length != VgeFrameUniformBuffer.PackedSize)
+            throw new ArgumentException("Captured camera prefix must match a supported frame layout.", nameof(bytes));
         var values = MemoryMarshal.Cast<byte, float>(bytes);
         var origin = UboPacking.ReadIVec4(bytes, 512);
         var camera = new VgeFrameUniformBuffer();
@@ -26,6 +27,8 @@ internal static class TestFrameCamera
             new(values[104], values[105], values[106]), values[107], new(values[124], values[125]),
             new VectorInt3(origin.x, origin.y, origin.z), new(values[132], values[133], values[134]),
             values[126], (UboPacking.ReadUInt32(bytes, 508) & 1u) != 0, values[103]);
+        if (bytes.Length == VgeFrameUniformBuffer.PackedSize)
+            camera.SetLightingCalibration(new(values[136], values[137]));
         return camera;
     }
     #endregion

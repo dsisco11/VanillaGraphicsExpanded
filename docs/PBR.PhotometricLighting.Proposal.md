@@ -2,10 +2,20 @@
 
 Status: the user approved pre-exposed frame lighting, a bounded visible solar disk and fixed-scale
 persistent lighting and a narrow finite-angular solar specular refinement on 2026-10-11.
-Physical lighting is not implemented. Source-derived calibration and numerical qualification
+Shared quantity, shader conversion and admitted storage support are implemented; the complete
+physical-source/consumer migration remains pending. Source-derived calibration and numerical qualification
 of the supported design domain are recorded below and in `PBR.PhotometricLighting.todo`.
 These prerequisite receipts do not establish completed runtime migration, integrated GPU
 precision, live appearance or performance.
+
+The retained support lives in `LightingCalibration`, the shared frame calibration binding,
+`pbr_photometric`, `LightingStorage` and component/history generation metadata. The existing
+camera owner provides a frozen GPU scale publication, and atmosphere texture ownership supports
+fixed-scale encoding with matching metadata. Legacy producers retain their current units until
+the coordinated migration. The approved bounded signed-water estimator is integrated using a
+global bound from the same published source convention; physical source adapters follow with
+their producers. These support contracts have focused CPU/GPU and lifecycle checks, rather
+than complete-scene photometric acceptance.
 
 ## Problem and intended result
 
@@ -418,7 +428,8 @@ cache range/precision at their separate admission boundaries.
 
 The selected persistent representation admits finite nonnegative scalar signals through
 `65504/C=1,048,064` in their declared physical quantity. Validate before conversion and before
-publication, including intermediate products; do not use saturation to disguise overflow.
+publication, including intermediate products; defensive storage saturation must not disguise
+failed admission or establish validity (see "Defensive storage clamping").
 The current jointly projected SH9 route admits nonnegative directional inputs through
 131,072 nits per component. Its conservative signed coefficient bound including the recorded
 arithmetic/storage allowances is 1,039,487.351, below the scalar ceiling. Signed coefficients
@@ -457,6 +468,49 @@ Water reflection/refraction snapshots inherit the current frame's `P`. Cross-fra
 their own scale metadata or existing invalidation. Camera-medium inputs remain raw engine data
 until shader calibration; signed optical depth remains unscaled. UI and offscreen display routes
 do not participate in these scene-storage conversions.
+
+### Defensive storage clamping
+
+Use pre-exposure and conservative source/history bounds as the primary range control, with
+targeted shader clamps as a final storage safeguard. This amendment was approved on 2026-10-12.
+It supplements the selected storage contract; it does not change source calibration, frame-scale
+selection, fixed persistent scaling or the existing admission/failure rules.
+
+At each selected lighting write, apply the storage scale and contain the result before narrowing,
+packing or writing the destination. Document the actual destination format, channel semantics,
+clamp range and any remaining blending headroom. Nonnegative binary16 lighting uses [0,65504];
+signed binary16 lighting coefficients use [-65504,65504]. Packed float and FP32 targets require
+their own representable limits and arithmetic allowances; do not apply the half-float ceiling
+universally. Alpha, depth, optical depth, weights and validity metadata retain their own contracts.
+Retain the separate visible-disk cap and its reserved glare/composition headroom.
+
+Shared shader helpers must explicitly handle exceptional values rather than depending on min/max
+NaN behavior. Positive infinity maps to the upper storage endpoint; negative infinity maps to
+zero for nonnegative lighting or the lower endpoint for signed lighting. NaN uses the existing
+owner's invalid-sample/fallback path; a neutral finite payload, if needed for a write, must not
+turn an invalid cache/history publication into valid black lighting. Source inputs and metadata
+remain subject to admission before shading. A finite contained output does not prove that its
+original calculation was valid. Keep intermediate products, sums and rescaling safe independently.
+
+Audit and protect atmosphere lookup packing, cache/probe encoding, reflection/refraction,
+temporal history and scene-composition writes, then exposure/glare/postprocessing outputs where
+their formats and arithmetic require it. Place protection at documented boundaries rather than
+after every BRDF operation. Existing publication owners continue rejecting unsupported persistent
+updates; clamps contain exceptional payloads without authorizing their reuse as valid history.
+Use existing diagnostics or focused test instrumentation to expose unexpected clipping, with no
+per-frame CPU readbacks or new diagnostic manager. Supported ordinary lighting must remain
+unchanged by these clamps; intentional visible-disk clipping remains separately documented.
+
+A fragment clamp cannot guarantee that additive blending or weighted OIT accumulation stays
+finite. Qualify accumulated sums, weights and resolve arithmetic separately using the existing
+bounds and approved RGBA32F accumulation. Reserve headroom before blending; a clamp after resolve
+cannot repair overflow that already occurred. This amendment authorizes no further target-format
+changes, new passes or transparency-algorithm replacement.
+
+Validation must exercise destination limits, over-range finite values, both infinities, NaN,
+signed coefficients, scale/history transitions and combined accumulation. Verify finite stored
+payloads, preserved validity/fallback behavior and unchanged ordinary supported values. Unexpected
+clipping remains a reported range defect even when containment prevents visible infinity artifacts.
 
 ### Visible solar-disk protection
 
@@ -524,6 +578,8 @@ Automated validation must cover the following independent properties:
   response once; deterministic source-isolation cases cover both lighting modes.
 - Storage and temporal data remain finite and sufficiently precise for the accepted daylight,
   solar-disk, lamp, interior and night range, including resize/reload and calibration changes.
+- Defensive storage clamps satisfy the format, exceptional-value, validity and accumulation
+  requirements in "Defensive storage clamping"; ordinary supported lighting does not clip.
 - Metering and final display preserve source ratios; changing exposure does not change light
   output or feed generated bloom and shafts back into metering.
 

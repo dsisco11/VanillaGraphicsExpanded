@@ -14,5 +14,9 @@ internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 En
     internal float Altitude { get; init; } = .001f;
     internal ImmutableArray<float> AerialRadiance { get; init; } = ImmutableArray<float>.Empty;
     internal ImmutableArray<float> AerialAttenuation { get; init; } = ImmutableArray<float>.Empty;
+    /// <summary>Encoding of this generation's light textures; immutable CPU quantities remain unscaled.</summary>
+    internal float LookupStorageScale { get; init; } = 1;
+    /// <summary>Physical generations carry their calibration identity; zero retains the legacy scene-unit publication.</summary>
+    internal uint CalibrationGeneration { get; init; }
 }
 

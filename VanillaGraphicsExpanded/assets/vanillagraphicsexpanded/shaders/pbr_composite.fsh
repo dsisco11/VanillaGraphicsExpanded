@@ -65,6 +65,7 @@ bool VgeCompositeWaterTransport(vec3 receiverVS, bool sky, out vec3 transmission
     inScattering = vec3(0);
     waterLength = 0.0;
     float terminal = source.w + (startsInWater ? 1.0 : 0.0);
+    if (vgePbrCompositeParams.waterSourceUpper.w < .5) return false;
     // An absent exit is unknown coverage, not an arbitrarily deep water volume.
     if (sky)
     {
@@ -73,7 +74,7 @@ bool VgeCompositeWaterTransport(vec3 receiverVS, bool sky, out vec3 transmission
     source.rgb += vgePbrCompositeParams.waterCameraSource.rgb * length(receiverVS);
     return VgeWaterBoundaryTransport(texelFetch(vge_waterTransport, ivec3(ivec2(gl_FragCoord.xy), VGE_WATER_OPTICAL), 0),
         source, vgePbrCompositeParams.waterAbsorption.rgb + vgePbrCompositeParams.waterScattering.rgb,
-        startsInWater, length(receiverVS), transmission, inScattering, waterLength);
+        vgePbrCompositeParams.waterSourceUpper.rgb, startsInWater, length(receiverVS), transmission, inScattering, waterLength);
 }
 #endif
 

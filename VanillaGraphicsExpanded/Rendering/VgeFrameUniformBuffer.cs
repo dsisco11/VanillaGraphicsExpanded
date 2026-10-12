@@ -9,11 +9,19 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
 {
     #region Public API
-    /// <summary>Size of seven column-major matrices, frame scalars and the precise render-origin bridge.</summary>
-    internal const int PackedSize = 544;
+    /// <summary>Size of seven column-major matrices, frame scalars, render-origin bridge and source calibration.</summary>
+    internal const int PackedSize = 560;
 
     /// <summary>Creates retained CPU packing with versioned publication through the existing uniform allocator.</summary>
-    internal VgeFrameUniformBuffer() : base(PackedSize) { }
+    internal VgeFrameUniformBuffer() : base(PackedSize) { SetLightingCalibration(PBR.LightingCalibration.Default); }
+
+    /// <summary>Publishes source calibration through the existing shared frame binding without changing engine fields.</summary>
+    internal void SetLightingCalibration(PBR.LightingCalibration calibration)
+    {
+        calibration.Validate();
+        WriteVector4(544, new(calibration.BlockReferenceLux, calibration.BlockNeutralFloor,
+            PBR.LightingCalibration.EmissionReferenceNits, PBR.LightingCalibration.EnginePointCandelaPerUnit));
+    }
 
     /// <summary>Captures one view's complete frame data without allocating GPU storage or publishing partial writes.</summary>
     internal void Capture(ReadOnlySpan<float> projection, ReadOnlySpan<float> view,
@@ -67,6 +75,8 @@ internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
     }
     /// <summary>Indicates that temporal consumers must reject the previous camera generation.</summary>
     internal bool CameraCut => (MemoryMarshal.Read<uint>(Bytes.Slice(508, 4)) & 1u) != 0;
+    /// <summary>Identifies the exact captured world frame for frozen-lighting publication and diagnostics.</summary>
+    internal uint FrameIndex => MemoryMarshal.Read<uint>(Bytes.Slice(396, 4));
     /// <summary>Exposes the retained projection for CPU consumers without recapturing the engine camera.</summary>
     internal ReadOnlySpan<float> Projection => MemoryMarshal.Cast<byte, float>(Bytes.Slice(0, 64));
     /// <summary>Exposes the exact shared view transform for CPU consumers.</summary>

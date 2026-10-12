@@ -30,5 +30,6 @@ layout(std140, binding = VGE_UBO_FRAME_BINDING) uniform VgeFrameUBO
     // Absolute render origin split into 32-block chunks and a bounded remainder.
     ivec4 renderOriginChunkCoord;
     vec4 renderOriginBlockRemainder;
+    vec4 lightCalibration; // block reference lux, neutral field floor, emission reference nits, engine point cd/unit
 } vgeFrame;
 #endif

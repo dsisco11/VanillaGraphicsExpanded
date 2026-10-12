@@ -20,6 +20,6 @@ void main()
     vec3 scattered;
     float waterLength;
     bool valid = VgeWaterBoundaryTransport(optical, source, underwater ? extinction : vec3(0),
-        underwater, 10.0, transmission, scattered, waterLength);
+        vec3(1), underwater, 10.0, transmission, scattered, waterLength);
     result = vec4(row == 2 ? scattered : transmission, valid ? waterLength : -1.0);
 }

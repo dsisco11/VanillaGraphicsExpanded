@@ -22,6 +22,11 @@ internal sealed class CameraExposureRenderer : IRenderer
     private CameraExposureParameters settings;
     private bool reset = true;
     private bool published, captured, disposed;
+    private FrameLightingShaderProgram? frameLighting;
+    private GpuShaderStorageBuffer? frozenLighting;
+    private bool lightingFrozen;
+    private uint lightingGeneration;
+    private float lightingBound;
 
     #region Public API
     #region Lifetime
@@ -58,6 +63,7 @@ internal sealed class CameraExposureRenderer : IRenderer
     {
         if (disposed || stage != EnumRenderStage.Before) return;
         published = false;
+        lightingFrozen = false;
         settings = ConfigModSystem.Config.CameraExposure.Snapshot();
         var position = api.World.Player.Entity.Pos;
         reset |= history.Capture(settings, dt, position.X, position.Y, position.Z,
@@ -81,11 +87,73 @@ internal sealed class CameraExposureRenderer : IRenderer
         return (renderer.settings.Enabled ? renderer.targets!.Exposure : null,
             Math.Clamp(renderer.settings.ManualEV + renderer.settings.Compensation, renderer.settings.MinEV, renderer.settings.MaxEV));
     }
+    /// <summary>Freezes admitted physical-light metadata after current light publication and before the first consuming draw.</summary>
+    internal static void FreezeLightingStorage(FrameLightingBounds bounds, uint calibrationGeneration)
+    {
+        if (active is not { captured: true, disposed: false } renderer)
+            throw new InvalidOperationException("Camera inputs are unavailable for physical lighting.");
+        // Access proves the current light-list publication has completed; never borrow a stale list.
+        _ = VgeLightsRenderer.Current;
+        float bound = bounds.Total;
+        if (renderer.lightingFrozen)
+        {
+            if (renderer.lightingBound != bound || renderer.lightingGeneration != calibrationGeneration)
+                throw new InvalidOperationException("Physical lighting cannot change after the frame scale is frozen.");
+            return;
+        }
+        if (renderer.published)
+            throw new InvalidOperationException("Frame lighting storage must be frozen before scene metering.");
+        renderer.FreezeLighting(bound, calibrationGeneration);
+    }
+    /// <summary>Supplies the frozen scale to typed physical-light consumers; legacy producers never request it.</summary>
+    internal static GpuShaderStorageBuffer FrozenLighting => active is { lightingFrozen: true, disposed: false } renderer
+        ? renderer.frozenLighting! : throw new InvalidOperationException("Physical frame storage was not frozen before drawing.");
+    /// <summary>Exposes admitted physical units, scale ownership and compatibility references without GPU readback or logging.</summary>
+    internal static (bool Frozen, float PhysicalBoundNits, uint CalibrationGeneration, float PersistentScale,
+        float BlockReferenceLux, float EmissionReferenceNits) LightingDiagnostics =>
+        (active?.lightingFrozen ?? false, active?.lightingFrozen == true ? active.lightingBound : 0,
+            active?.lightingFrozen == true ? active.lightingGeneration : 0, LightingStorage.PersistentScale,
+            LightingCalibration.Default.BlockReferenceLux, LightingCalibration.EmissionReferenceNits);
+    /// <summary>Formats existing runtime diagnostics while distinguishing inactive legacy units from physical storage.</summary>
+    internal static string LightingDiagnosticText
+    {
+        get
+        {
+            var state = LightingDiagnostics;
+            var indirect = ConfigModSystem.Config.LumOn;
+            string departures = indirect.Enabled && (indirect.Intensity != 1 || indirect.IndirectTint[0] != 1
+                || indirect.IndirectTint[1] != 1 || indirect.IndirectTint[2] != 1) ? "; artistic GI gain/tint" : string.Empty;
+            if (!state.Frozen) return "Light: legacy scene units; physical conversion inactive" + departures;
+            return $"Light: B {state.PhysicalBoundNits:G4} nits, P GPU, C {state.PersistentScale:G3}; "
+                + $"block {state.BlockReferenceLux:G3} lx, emission {state.EmissionReferenceNits:G3} nits" + departures;
+        }
+    }
     #endregion
     #endregion
 
     #region Private
     #region Submission
+    /// <summary>Uses the prior published automatic EV or a bounded manual seed and preserves the result throughout postprocessing.</summary>
+    private void FreezeLighting(float physicalBound, uint calibrationGeneration)
+    {
+        CameraExposureDispatch.RequireSupport();
+        frameLighting ??= FrameLightingShaderProgram.Create(api);
+        if (!frameLighting.EnsureReady()) throw new InvalidOperationException("Frame lighting scale shader is unavailable.");
+        float manual = MathF.Pow(2, Math.Clamp(settings.ManualEV + settings.Compensation, settings.MinEV, settings.MaxEV));
+        reset |= VgeFrameRenderer.Current.CameraCut;
+        bool automaticHistory = settings.Enabled && targets is not null && !reset;
+        frameLighting.Capture(physicalBound, manual, automaticHistory, VgeFrameRenderer.Current.FrameIndex, calibrationGeneration);
+        if (frozenLighting is null)
+        {
+            frozenLighting = GpuShaderStorageBuffer.Create(debugName: "Camera.FrozenLighting");
+            frozenLighting.Allocate(32);
+        }
+        frameLighting.PreviousExposure = automaticHistory ? targets!.Exposure : null;
+        frameLighting.Output = frozenLighting;
+        if (!CameraExposureDispatch.TryFreeze(frameLighting))
+            throw new InvalidOperationException("Frame lighting scale publication was rejected.");
+        lightingBound = physicalBound; lightingGeneration = calibrationGeneration; lightingFrozen = true;
+    }
     /// <summary>Submits fixed-size metering and temporal reduction, then atomically publishes the completed result.</summary>
     private void Meter()
     {
@@ -130,7 +198,9 @@ internal sealed class CameraExposureRenderer : IRenderer
     /// <summary>Invalidates history and frame publication on world, storage and shader lifecycle changes.</summary>
     private void Retire()
     {
-        published = captured = false; reset = true; history.Reset(); DisposeResources();
+        published = captured = lightingFrozen = false; reset = true; history.Reset(); DisposeResources();
+        frameLighting?.Dispose(); frameLighting = null;
+        frozenLighting?.Dispose(); frozenLighting = null;
     }
     /// <summary>Retires executable-dependent resources before accepting a shader reload.</summary>
     private bool Reload() { Retire(); return true; }

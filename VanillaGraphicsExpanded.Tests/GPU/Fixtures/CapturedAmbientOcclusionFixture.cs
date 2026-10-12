@@ -48,7 +48,8 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
             surface = resources.Own(LoadSurface(textures.Single(record => record.GetProperty("binding").GetString() == "surfaceImage")));
 
             var blocks = root.GetProperty("uniformBuffers").EnumerateArray().ToArray();
-            byte[] frameBytes = ReadPayload(blocks.Single(block => block.GetProperty("binding").GetString() == "vgeFrame"), VgeFrameUniformBuffer.PackedSize);
+            // This immutable capture predates source calibration; its camera prefix remains exact.
+            byte[] frameBytes = ReadPayload(blocks.Single(block => block.GetProperty("binding").GetString() == "vgeFrame"), 544);
             camera = TestFrameCamera.CreateFromPacked(frameBytes);
             // AO reads these two matrices directly. Other frame fields are recaptured by their typed owner.
             Assert.True(camera.Bytes.Slice(64, 128).SequenceEqual(frameBytes.AsSpan(64, 128)));

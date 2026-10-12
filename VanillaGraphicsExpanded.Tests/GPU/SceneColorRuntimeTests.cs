@@ -226,6 +226,14 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             ConfigModSystem.Config.CameraExposure = new() { Enabled = true, CenterWeighted = false };
             camera.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.DisplayExposure());
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FrozenLighting);
+            var physicalBounds = new FrameLightingBounds(100, 0, 0, 0, 0, 0);
+            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 1);
+            int initialFrozen = CameraExposureRenderer.FrozenLighting.BufferId;
+            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 1);
+            Assert.Equal(initialFrozen, CameraExposureRenderer.FrozenLighting.BufferId);
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 2));
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FreezeLightingStorage(physicalBounds with { Surface = 101 }, 1));
             var postprocess = AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderPostprocessingEffects));
             post.OnRenderFrame(0, EnumRenderStage.Before);
             post.Render(new(true, true, ssaoQuality > 0, true, ssaoQuality));
@@ -257,6 +265,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             CameraExposureRenderer.MeterScene();
             Assert.Null(CameraExposureRenderer.DisplayExposure().Buffer);
             Assert.Equal(0, CameraExposureRenderer.DisplayExposure().ManualEV);
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 1));
             Assert.False(GL.IsBuffer(beforeRetire));
 
             // The owned final reads owned luma and writes primary once, without the engine final program.
@@ -306,10 +315,14 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.True(SceneColorPipeline.HasSceneInput, string.Join(Environment.NewLine, assets.Logs));
             ConfigModSystem.Config.CameraExposure = new() { Enabled = true };
             camera.OnRenderFrame(0, EnumRenderStage.Before);
+            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 1);
             CameraExposureRenderer.MeterScene();
             int beforeResize = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
+            int frozenBeforeResize = CameraExposureRenderer.FrozenLighting.BufferId;
             ScreenResourceManager.HandleScreenResize();
             Assert.False(GL.IsBuffer(beforeResize));
+            Assert.False(GL.IsBuffer(frozenBeforeResize));
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FrozenLighting);
             Assert.False(GL.IsTexture(earlyOcclusion));
             Assert.Null(LightShaftOcclusionRenderer.Texture);
             Assert.False(GL.IsTexture(ownedBloom));
@@ -318,11 +331,13 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.True(GL.IsTexture(postStorage.TextureId));
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.DisplayExposure());
             camera.OnRenderFrame(0, EnumRenderStage.Before);
+            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 1);
             CameraExposureRenderer.MeterScene();
             // Recreate borrowed luma resources after resize and verify collection retirement never owns engine storage.
             post.OnRenderFrame(0, EnumRenderStage.Before);
             post.Render(new(false, false, false, true, 0));
             int beforeReload = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
+            int frozenBeforeReload = CameraExposureRenderer.FrozenLighting.BufferId;
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             int beforeNativeDisable = LightShaftOcclusionRenderer.Texture!.TextureId;
             api.SetupGet(value => value.Settings.Int["godRays"]).Returns(0);
@@ -342,6 +357,8 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.Null(LightShaftOcclusionRenderer.Texture);
             Assert.False(GL.IsTexture(beforeShaftReload));
             Assert.False(GL.IsBuffer(beforeReload));
+            Assert.False(GL.IsBuffer(frozenBeforeReload));
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FrozenLighting);
             Assert.Null(aoMasks.Texture);Assert.Equal(0,aoMasks.StorageBytes);
             if(maskBeforeReload!=0)Assert.False(GL.IsTexture(maskBeforeReload));
             Assert.True(GL.IsTexture(material.TextureId));
@@ -354,6 +371,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             AssertMode(cube.Engine, 1);
             cube.Engine.Stop();
             events.Raise(value => value.LeaveWorld += null!);
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FrozenLighting);
             Assert.False(SceneColorPipeline.HasSceneInput);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

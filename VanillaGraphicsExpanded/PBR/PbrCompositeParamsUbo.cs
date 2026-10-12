@@ -3,15 +3,15 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR;
 
-/// <summary>Packs composition-specific controls into eight std140 vectors; camera and fog data remain shared.</summary>
+/// <summary>Packs composition controls and water source admission into nine std140 vectors; camera and fog remain shared.</summary>
 internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
 {
     public const string BlockName = "VgePbrCompositeParamsUBO";
     private bool underwater, refractionSource, preOverlaySource, ambientOcclusion;
 
     #region Public API
-    /// <summary>Allocates the 128-byte composition contract.</summary>
-    public PbrCompositeParamsUbo() : base(128) { }
+    /// <summary>Allocates the 144-byte composition contract.</summary>
+    public PbrCompositeParamsUbo() : base(144) { }
 
     /// <summary>Enables the clean pre-overlay pair only after successful current-frame capture.</summary>
     internal bool PreOverlaySourceEnabled
@@ -39,9 +39,11 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     internal void SetWaterVolume(Liquids.WaterVolumeFrame? frame)
     {
         var medium = frame?.CameraMedium;
-        WriteVector4(80, new(medium?.AbsorptionPerMetre ?? Vector3.Zero, frame.HasValue ? 1 : 0));
+        bool admitted = frame?.SourceUpper is { } upper && LightingCalibration.FiniteNonnegative(upper);
+        WriteVector4(80, new(medium?.AbsorptionPerMetre ?? Vector3.Zero, admitted ? 1 : 0));
         WriteVector4(96, new(medium?.EffectiveScatteringPerMetre ?? Vector3.Zero, medium.HasValue ? 1 : 0));
         WriteVector4(112, new(frame?.CameraScatteringSource ?? Vector3.Zero, 0));
+        WriteVector4(128, new(frame?.SourceUpper ?? Vector3.Zero, admitted ? 1 : 0));
     }
     /// <summary>Sets the effect's indirect-lighting tint and scale.</summary>
     public (Vector3 tint, float intensity) IndirectTintAndIntensity

@@ -61,6 +61,13 @@ they overwrite the new publication. Do not manually run the ambient blend a seco
 
 ## Publication contract
 
+`AtmosphereLighting` carries `LookupStorageScale` and `CalibrationGeneration` with its immutable
+CPU snapshot. `AtmosphereTextureSet` supports admitted fixed 1/16 light encoding, validates both
+smooth/Mie sky and aerial arrays before upload, and commits its scale/identity after every upload
+succeeds. Coverage and attenuation remain dimensionless. The current atmosphere producer retains
+scale 1 and legacy scene quantities; calibrated producers and consumer decoding are subsequent
+photometric migration work. A camera exposure change does not rebuild these persistent lookups.
+
 Keep `AtmosphereModSystem` as lifecycle/scheduling composition. Put environmental derivation
 and engine adaptation in separate atmosphere-domain files with explicit input/output contracts.
 Move the `AtmosphereLighting` record to its own file when extending it, keeping lookup integration

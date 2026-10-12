@@ -26,6 +26,10 @@ internal static class CameraExposureDispatch
         && capabilities.MaxComputeSharedMemorySize >= 512 && capabilities.MaxShaderStorageBufferBindings >= 3
         && capabilities.MaxFragmentShaderStorageBlocks >= 1 && capabilities.MaxComputeShaderStorageBlocks >= 3
         && capabilities.MaxShaderStorageBlockSize >= CameraExposureTargets.HistogramBytes;
+    /// <summary>Admits the frozen read slot and simultaneous display-exposure/frame-scale fragment consumers.</summary>
+    internal static bool SupportsLighting(GraphicsCapabilities capabilities) => Supports(capabilities)
+        && capabilities.MaxShaderStorageBufferBindings >= 4 && capabilities.MaxFragmentShaderStorageBlocks >= 2
+        && capabilities.MaxUniformBlockSize >= VgeFrameUniformBuffer.PackedSize;
     /// <summary>Restores prepared resource slots and publishes writes to reduction and subsequent graphics consumers.</summary>
     internal static bool TryRun(CameraHistogramShaderProgram histogram, CameraAdaptShaderProgram adaptation)
     {
@@ -37,6 +41,19 @@ internal static class CameraExposureDispatch
             histogram.Dispatch(36);
             GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
             adaptation.Dispatch(1);
+            GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+        });
+    }
+    /// <summary>Publishes frozen scale writes through the existing prepared resource and restoration boundary.</summary>
+    internal static bool TryFreeze(FrameLightingShaderProgram program)
+    {
+        GpuSupport.EnsureCurrentContext();
+        if (!SupportsLighting(GpuSupport.Graphics))
+            throw new InvalidOperationException("Physical frame storage requires four SSBO slots, two fragment storage blocks and the shared frame UBO.");
+        var resources = EngineBoundaryResources.From(program.ProgramLayout.BinaryInterface!.PreparedBindings);
+        return EngineBoundaryExecution.TryRun(new("Camera.FrozenLighting"), resources, _ =>
+        {
+            program.Dispatch(1);
             GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
         });
     }

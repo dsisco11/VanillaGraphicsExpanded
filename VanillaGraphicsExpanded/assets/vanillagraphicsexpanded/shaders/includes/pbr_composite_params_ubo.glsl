@@ -23,6 +23,7 @@ layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUB
     vec4 waterAbsorption; // camera absorption (m^-1), capture enabled
     vec4 waterScattering; // camera scattering (m^-1), starts in water
     vec4 waterCameraSource; // camera block/environment source times scattering coefficient, reserved.w
+    vec4 waterSourceUpper; // source envelope covering all boundaries and the camera, metadata validity.w
 } vgePbrCompositeParams;
 
 // Matrices

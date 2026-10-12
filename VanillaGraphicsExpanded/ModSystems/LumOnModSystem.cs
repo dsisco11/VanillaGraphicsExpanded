@@ -166,11 +166,13 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
         }
     }
 
+    /// <summary>Combines existing transport counters and shared lighting-unit diagnostics without GPU readback.</summary>
     internal string[] GetLumOnStatsOverlayLines()
     {
         if (!readConfig().LumOn.Enabled)
         {
-            return ["LumOn: Disabled", string.Empty, string.Empty, string.Empty, string.Empty, string.Empty];
+            return ["LumOn: Disabled", string.Empty, string.Empty, string.Empty, string.Empty,
+                PBR.CameraExposure.CameraExposureRenderer.LightingDiagnosticText];
         }
 
         if (lumOnRenderer is null)
@@ -199,9 +201,9 @@ public sealed class LumOnModSystem : ModSystem, ILiveConfigurable
             lines[i] = (uint)i < (uint)baseLines.Length ? baseLines[i] : string.Empty;
         }
 
-        // TraceScene (Phase 23) status as a dedicated line (row 5), keep row 6 free for future.
+        // Retain the trace status and use the existing spare row for the shared unit/storage contract.
         lines[4] = GetTraceSceneStatusLineSafe();
-        lines[5] = string.Empty;
+        lines[5] = PBR.CameraExposure.CameraExposureRenderer.LightingDiagnosticText;
 
         return lines;
     }

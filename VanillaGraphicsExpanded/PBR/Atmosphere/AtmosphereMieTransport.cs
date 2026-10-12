@@ -6,6 +6,7 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 /// <summary>Separates concentrated solar scattering from smoothly interpolated atmospheric transport.</summary>
 internal static class AtmosphereMieTransport
 {
+    #region Public API
     #region Angular reconstruction
     /// <summary>Evaluates the normalized angular factor shared by integration and display reconstruction.</summary>
     internal static float Factor(float cosine)
@@ -26,8 +27,10 @@ internal static class AtmosphereMieTransport
     #region Texture layout
     /// <summary>Packs smooth background and unweighted Mie transport into separate elevation bands per distance slice.</summary>
     internal static void Pack(ReadOnlySpan<float> total, ReadOnlySpan<float> mie, Span<float> destination,
-        int width, int height, int depth, Vector3 sun, float horizon)
+        int width, int height, int depth, Vector3 sun, float horizon, float storageScale = 1)
     {
+        if (storageScale != 1 && storageScale != LightingStorage.PersistentScale)
+            throw new ArgumentOutOfRangeException(nameof(storageScale));
         int sliceLength = checked(width * height * 4);
         if (total.Length != sliceLength * depth || (!mie.IsEmpty && mie.Length != total.Length)
             || destination.Length != total.Length * 2) throw new ArgumentException("Atmospheric transport dimensions differ.");
@@ -43,12 +46,26 @@ internal static class AtmosphereMieTransport
                 for (int channel = 0; channel < 3; channel++)
                 {
                     float transport = mie.IsEmpty ? 0 : mie[source + channel];
-                    destination[target + channel] = MathF.Max(0, total[source + channel] - transport * factor);
-                    destination[target + sliceLength + channel] = transport;
+                    if (!float.IsFinite(total[source + channel]))
+                        throw new ArgumentException("Atmosphere components must be finite lighting.");
+                    float smooth = MathF.Max(0, total[source + channel] - transport * factor);
+                    if (!float.IsFinite(smooth) || !float.IsFinite(transport) || transport < 0)
+                        throw new ArgumentException("Atmosphere components must be finite nonnegative lighting.");
+                    if (storageScale == LightingStorage.PersistentScale)
+                    {
+                        destination[target + channel] = LightingStorage.EncodePersistent(smooth);
+                        destination[target + sliceLength + channel] = LightingStorage.EncodePersistent(transport);
+                    }
+                    else
+                    {
+                        destination[target + channel] = smooth;
+                        destination[target + sliceLength + channel] = transport;
+                    }
                 }
                 destination[target + 3] = destination[target + sliceLength + 3] = 1;
             }
         }
     }
+    #endregion
     #endregion
 }

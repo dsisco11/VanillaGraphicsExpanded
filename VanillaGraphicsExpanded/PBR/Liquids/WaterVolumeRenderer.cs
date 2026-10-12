@@ -116,7 +116,13 @@ internal sealed class WaterVolumeRenderer : IRenderer
                 }
             })) return;
             if (!TryGetCameraMedium(out var medium, out var cameraSource)) return;
-            completed = new(transport!, medium, cameraSource);
+            var lighting = ModSystems.AtmosphereModSystem.Lighting;
+            float blockMaximum = WaterSourceBounds.EngineFieldMaximum(((ClientMain)api.World).WorldMap.BlockLightLevels);
+            // Legacy source units remain coherent until all producers migrate. The physical route
+            // supplies converted Bmax + pi*Environment E/pi to this same incident-bound contract.
+            var sourceUpper = WaterSourceBounds.FromIncident(lighting?.Solar ?? Vector3.Zero,
+                new Vector3(blockMaximum) + (lighting?.Environment ?? Vector3.Zero));
+            completed = new(transport!, medium, cameraSource, sourceUpper);
         }
         catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {

@@ -58,6 +58,24 @@ scene display endpoint.
 
 ## Scheduling and ownership
 
+### Physical-light storage support
+
+The camera owner also provides `FreezeLightingStorage` for calibrated scene producers. It
+requires the current frame and completed point-light publication, admits an outward physical
+component bound, and dispatches `pbr_frame_lighting` once before the first consuming draw.
+The retained 32-byte SSBO contains P, 1/P, the physical bound, validity and frame/calibration
+identities. The automatic seed reads the previous completed EV buffer; startup, camera cuts
+and manual mode use the bounded manual seed. Subsequent metering writes a separate exposure
+buffer and leaves the frozen scale unchanged. Initial freezing after metering is rejected.
+
+Physical consumers explicitly adopt `IPhotometricFrameBindings`. The current scene producers
+retain their existing scene units until their coordinated conversion; these storage APIs do
+not activate physical shading. The capability gate admits the frozen slot and simultaneous
+fragment reads of exposure and frame scale. Resize, reload and world retirement withdraw and
+dispose both publications through the existing camera owner. Stable submissions reuse storage;
+there is no CPU exposure readback. Shared diagnostics identify the active unit convention,
+physical bound, GPU-owned P, fixed C and selected compatibility references.
+
 CameraExposureRenderer captures timing and a finite settings snapshot at Before order 1001.
 The VGE-owned PostprocessPipeline invokes metering at the RenderPostprocessingEffects
 replacement boundary before its owned bloom and solar-shaft passes. Metering samples primary after scene/OIT/late composition,
