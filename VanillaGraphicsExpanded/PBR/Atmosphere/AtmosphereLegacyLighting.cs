@@ -12,7 +12,7 @@ internal readonly record struct AtmosphereLegacyLighting(Vector3 Ambient, Vector
     {
         // Legacy voxel sunlight already supplies visibility. Supply combined color/intensity,
         // without applying voxel visibility, weather brightness or engine ambient modifiers twice.
-        Vector3 response = Vector3.Max(Vector3.Zero, lighting.Environment + lighting.Solar / MathF.PI);
+        Vector3 response = Vector3.Max(Vector3.Zero, lighting.Environment + lighting.DirectIrradiance / MathF.PI);
         Vector3 ambient = ResolveDisplay(response);
         float daylight = Math.Clamp(Vector3.Dot(ambient, new(.2126f, .7152f, .0722f)), 0, 1);
         return new(ambient, ResolveDisplay(lighting.Horizon), daylight);

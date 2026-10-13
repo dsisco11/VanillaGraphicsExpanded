@@ -3,7 +3,7 @@ using System.Numerics;
 
 namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 
-/// <summary>Separates concentrated solar scattering from smoothly interpolated atmospheric transport.</summary>
+/// <summary>Separates concentrated celestial scattering from smoothly interpolated atmospheric transport.</summary>
 internal static class AtmosphereMieTransport
 {
     #region Public API
@@ -27,42 +27,51 @@ internal static class AtmosphereMieTransport
     #region Texture layout
     /// <summary>Packs smooth background and unweighted Mie transport into separate elevation bands per distance slice.</summary>
     internal static void Pack(ReadOnlySpan<float> total, ReadOnlySpan<float> mie, Span<float> destination,
-        int width, int height, int depth, Vector3 sun, float horizon, float storageScale = 1)
+        int width, int height, int depth, Vector3 sun, float horizon, float storageScale = 1,
+        ReadOnlySpan<float> moonMie = default, Vector3 moon = default)
     {
         if (storageScale != 1 && storageScale != LightingStorage.PersistentScale)
             throw new ArgumentOutOfRangeException(nameof(storageScale));
         int sliceLength = checked(width * height * 4);
+        int bands = moonMie.IsEmpty ? 2 : 3;
         if (total.Length != sliceLength * depth || (!mie.IsEmpty && mie.Length != total.Length)
-            || destination.Length != total.Length * 2) throw new ArgumentException("Atmospheric transport dimensions differ.");
+            || (!moonMie.IsEmpty && moonMie.Length != total.Length)
+            || destination.Length != total.Length * bands) throw new ArgumentException("Atmospheric transport dimensions differ.");
         // Separate before FP16 conversion, so the narrow angular lobe is never interpolated.
         for (int y = 0; y < height; y++)
         for (int x = 0; x < width; x++)
         {
             float factor = Factor(Vector3.Dot(Direction(x, y, width, height, horizon), sun));
+            float moonFactor = Factor(Vector3.Dot(Direction(x, y, width, height, horizon), moon));
             for (int z = 0; z < depth; z++)
             {
                 int source = z * sliceLength + (y * width + x) * 4;
-                int target = z * sliceLength * 2 + (y * width + x) * 4;
+                int target = z * sliceLength * bands + (y * width + x) * 4;
                 for (int channel = 0; channel < 3; channel++)
                 {
                     float transport = mie.IsEmpty ? 0 : mie[source + channel];
+                    float lunar = moonMie.IsEmpty ? 0 : moonMie[source + channel];
                     if (!float.IsFinite(total[source + channel]) || total[source + channel] < 0)
                         throw new ArgumentException("Atmosphere components must be finite lighting.");
-                    float smooth = MathF.Max(0, total[source + channel] - transport * factor);
-                    if (!float.IsFinite(smooth) || !float.IsFinite(transport) || transport < 0)
+                    float smooth = MathF.Max(0, total[source + channel] - transport * factor - lunar * moonFactor);
+                    if (!float.IsFinite(smooth) || !float.IsFinite(transport) || transport < 0
+                        || !float.IsFinite(lunar) || lunar < 0)
                         throw new ArgumentException("Atmosphere components must be finite nonnegative lighting.");
                     if (storageScale == LightingStorage.PersistentScale)
                     {
                         destination[target + channel] = LightingStorage.EncodePersistent(smooth);
                         destination[target + sliceLength + channel] = LightingStorage.EncodePersistent(transport);
+                        if (bands == 3) destination[target + 2 * sliceLength + channel] = LightingStorage.EncodePersistent(lunar);
                     }
                     else
                     {
                         destination[target + channel] = smooth;
                         destination[target + sliceLength + channel] = transport;
+                        if (bands == 3) destination[target + 2 * sliceLength + channel] = lunar;
                     }
                 }
                 destination[target + 3] = destination[target + sliceLength + 3] = 1;
+                if (bands == 3) destination[target + 2 * sliceLength + 3] = 1;
             }
         }
     }

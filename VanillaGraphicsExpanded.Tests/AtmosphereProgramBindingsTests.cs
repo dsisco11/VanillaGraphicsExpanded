@@ -29,10 +29,10 @@ public sealed class AtmosphereProgramBindingsTests
     [InlineData("sky", AtmosphereBindings.None)]
     [InlineData("chunkopaque", AtmosphereBindings.Environment)]
     [InlineData("chunktopsoil", AtmosphereBindings.Environment)]
-    [InlineData("standard", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk)]
-    [InlineData("entityanimated", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection)]
-    [InlineData("instanced", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection)]
-    [InlineData("chunktransparent", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection)]
+    [InlineData("standard", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk | AtmosphereBindings.DirectRadius)]
+    [InlineData("entityanimated", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.DirectRadius)]
+    [InlineData("instanced", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.DirectRadius)]
+    [InlineData("chunktransparent", AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.DirectRadius)]
     public void PatchedFamiliesDeclareExpectedInputs(string family, object expected)
     {
         Assert.Equal((AtmosphereBindings)expected, AtmosphereProgramBindings.Expected(family));
@@ -60,7 +60,7 @@ public sealed class AtmosphereProgramBindingsTests
             return name is "vge_atmosphereSolar";
         });
         Assert.Equal(AtmosphereBindings.Solar, active);
-        Assert.Equal(new[] { "vge_atmosphereEnvironment", "vge_atmosphereSolar", "vge_atmosphereAerialParams", "vge_atmosphereAerialRadiance", "vge_atmosphereAerialAttenuation", "vge_atmosphereSunDirection", "vge_atmosphereSunDraw", "vge_lightShaftOcclusion" }, inspected);
+        Assert.Equal(new[] { "vge_atmosphereEnvironment", "vge_atmosphereSolar", "vge_atmosphereAerialParams", "vge_atmosphereAerialRadiance", "vge_atmosphereAerialAttenuation", "vge_atmosphereSunDirection", "vge_atmosphereDirectRadius", "vge_atmosphereSunDraw", "vge_lightShaftOcclusion", "vge_atmosphereScatteringSun" }, inspected);
     }
     #endregion
 

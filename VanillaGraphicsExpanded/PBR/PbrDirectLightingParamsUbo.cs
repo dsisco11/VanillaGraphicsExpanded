@@ -73,6 +73,9 @@ internal sealed class PbrDirectLightingParamsUbo : CpuUniformBuffer
 
     #region Lighting
 
+    /// <summary>Stages the selected disk radius in the existing direction vector's fourth component.</summary>
+    internal float DirectAngularRadius { set => WriteFloat(OffsetLightDirection + 12, value); }
+
     public Vector3 LightDirection
     {
         set

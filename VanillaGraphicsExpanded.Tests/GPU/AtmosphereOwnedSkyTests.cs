@@ -60,8 +60,8 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         using var inputs = new AtmosphereSkyInputs();
         inputs.Capture(api.Object, lighting, true);
         float[] actual = MemoryMarshal.Cast<byte, float>(inputs.Bytes).ToArray();
-        Assert.Equal(96, inputs.SizeBytes);
-        Assert.Equal(new float[] { 1, 0, 0, 0 }, actual[20..24]);
+        Assert.Equal(112, inputs.SizeBytes);
+        Assert.Equal(new float[] { 1, 2, 0, 0 }, actual[20..24]);
         Assert.Equal(originalView, view);
         view[12] = -345; view[13] = 900; view[14] = 12;
         inputs.Capture(api.Object, lighting, true);
@@ -85,6 +85,23 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
 
     #endregion
     #region Color and effects
+    /// <summary>The installed owned shader independently reconstructs solar and lunar angular lobes from three bands.</summary>
+    [Fact]
+    public void BinarySkyReconstructsIndependentCelestialDirections()
+    {
+        EnsureShaderTestAvailable();
+        using var sky = new FullscreenSky(Programs.Create<AtmosphereSkyShaderProgram>(), TestFramework);
+        sky.PublishNight();
+        foreach (Vector3 direction in new[] {Vector3.UnitX, Vector3.UnitY, Vector3.UnitZ})
+        {
+            float[] actual = sky.Draw(direction, true);
+            Vector3 expected = new Vector3(.001f) + new Vector3(.01f, 0, 0) * AtmosphereMieTransport.Factor(Vector3.Dot(direction, Vector3.UnitX))
+                + new Vector3(0, .02f, 0) * AtmosphereMieTransport.Factor(Vector3.Dot(direction, Vector3.UnitY));
+            for (int channel = 0; channel < 3; channel++)
+                Assert.InRange(Math.Abs(actual[channel] - new[] {expected.X, expected.Y, expected.Z}[channel]), 0, .00002f);
+        }
+    }
+
     /// <summary>The installed owned shader retains physical sky and bounds only its authored effect additions.</summary>
     [Theory]
     [InlineData(0f, 0f)] [InlineData(1f, 0f)] [InlineData(0f, 2f)] [InlineData(1f, 2f)]
@@ -364,7 +381,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
     {
         private readonly AtmosphereSkyShaderProgram program;
         private readonly AtmosphereModSystem atmosphere = new();
-        private readonly FixtureUniformInputs inputs = new(96);
+        private readonly FixtureUniformInputs inputs = new(112);
         private readonly VgeFrameUniformBuffer cameraInputs = new();
         private readonly GpuVao vao = GpuVao.Create();
 
@@ -391,6 +408,30 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             { pixels[i] = radiance.X; pixels[i + 1] = radiance.Y; pixels[i + 2] = radiance.Z; pixels[i + 3] = 1; }
             Publish(pixels, new float[pixels.Length], 4, 2, 0);
         }
+        /// <summary>Publishes distinguishable fixed transport coefficients for independent solar and lunar directions.</summary>
+        internal void PublishNight()
+        {
+            const int width = 4, height = 2;
+            float[] pixels = new float[width * height * 4];
+            float[] solar = new float[pixels.Length], lunar = new float[pixels.Length];
+            for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+            {
+                var direction = AtmosphereMieTransport.Direction(x, y, width, height, 0);
+                int index = (y * width + x) * 4;
+                pixels[index] = .001f + .01f * AtmosphereMieTransport.Factor(Vector3.Dot(direction, Vector3.UnitX));
+                pixels[index + 1] = .001f + .02f * AtmosphereMieTransport.Factor(Vector3.Dot(direction, Vector3.UnitY));
+                pixels[index + 2] = .001f; pixels[index + 3] = 1;
+                solar[index] = .01f; solar[index + 3] = 1;
+                lunar[index + 1] = .02f; lunar[index + 3] = 1;
+            }
+            atmosphere.Publish(new(Vector3.UnitX, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero, ImmutableArray.Create(pixels))
+            {
+                Width = width, Height = height, HasNightSources = true, Moon = Vector3.UnitY,
+                SkyMie = ImmutableArray.Create(solar), SkyMoonMie = ImmutableArray.Create(lunar),
+                AerialMoonMie = ImmutableArray.Create(0f, 0f, 0f, 1f)
+            });
+        }
         /// <summary>Uses the real atmosphere owner to publish its split lookup and sampler policy.</summary>
         internal void Publish(float[] pixels, float[] mie, int width, int height, float horizon, Vector3? sun = null)
         {
@@ -408,13 +449,15 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
                 Elements(viewProjection), Elements(viewProjection), new(width, height), 0, 0,
                 Vector3.Zero, Vector3.Zero, 0, new(.1f, 100));
             program.FrameInputs = cameraInputs;
-            Vector3 source = sun ?? Vector3.UnitY;
+            Vector3 source = sun ?? AtmosphereModSystem.Lighting.Sun;
             inputs.Vector(0, source.X, source.Y, source.Z); inputs.Float(12, horizon);
             inputs.Vector(16, 0, fogMin, flatFogDensity); inputs.Float(28, flatFogStart);
             inputs.Vector(32, daylight, 0, 0); inputs.Float(44, 0);
             inputs.Vector(48, .5f, .25f, .125f); inputs.Float(60, underwater);
             inputs.Vector(64, nightVision, psychedelic, 0); inputs.Float(76, linear ? 1 : 0);
-            inputs.Vector(80, 1 / AtmosphereModSystem.Lighting.LookupStorageScale, 0, 0);
+            inputs.Vector(80, 1 / AtmosphereModSystem.Lighting.LookupStorageScale, AtmosphereModSystem.Lighting.HasNightSources ? 3 : 2, 0);
+            Vector3 moon = AtmosphereModSystem.Lighting.Moon;
+            inputs.Vector(96, moon.X, moon.Y, moon.Z);
             program.SkyLookup = AtmosphereModSystem.SkyTextureId;
             program.LiquidDepth = depth.TextureId;
             Target.BindWithViewport();

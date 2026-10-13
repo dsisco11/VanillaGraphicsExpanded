@@ -56,8 +56,8 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             UboPacking.WriteUVec4(bytes, 80, emission ? 1u : 0u, (uint)Math.Max(0, scene.Coverage?.WorldHeight ?? 0), (uint)Math.Clamp(maxFramesAccumulated, 1, 255), measured ? 1u : 0u);
             var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
             var environment = atmosphere?.Environment ?? System.Numerics.Vector3.Zero;
-            var solar = atmosphere?.Solar ?? System.Numerics.Vector3.Zero;
-            var sun = atmosphere?.Sun ?? System.Numerics.Vector3.UnitY;
+            var solar = atmosphere?.DirectIrradiance ?? System.Numerics.Vector3.Zero;
+            var sun = atmosphere?.DirectDirection ?? System.Numerics.Vector3.UnitY;
             UboPacking.WriteVec4(bytes, 96, environment.X, environment.Y, environment.Z, 0f);
             UboPacking.WriteVec4(bytes, 112, solar.X, solar.Y, solar.Z, 0f);
             UboPacking.WriteVec4(bytes, 128, sun.X, sun.Y, sun.Z, 0f);

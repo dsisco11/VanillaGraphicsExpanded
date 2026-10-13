@@ -576,7 +576,7 @@
         "name": "CameraExposure/MaxEV",
         "ingui": "vanillagraphicsexpanded:config-camera-maxev",
         "comment": "vanillagraphicsexpanded:config-camera-maxev-tooltip",
-        "default": 8,
+        "default": 2,
         "weight": 23.25,
         "range": {
           "min": -48,

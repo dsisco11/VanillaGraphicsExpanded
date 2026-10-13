@@ -31,8 +31,9 @@ public sealed partial class DirectLightingRenderer
         // Lighting
         shader.RgbaAmbientIn = capi.Render.AmbientColor;
         var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
-        shader.SetSolarLighting(atmosphere?.Sun ?? System.Numerics.Vector3.UnitY,
-            atmosphere?.Solar ?? System.Numerics.Vector3.Zero);
+        shader.SetSolarLighting(atmosphere?.DirectDirection ?? System.Numerics.Vector3.UnitY,
+            atmosphere?.DirectIrradiance ?? System.Numerics.Vector3.Zero,
+            atmosphere?.DirectAngularRadius ?? Atmosphere.AtmosphereSolarDisk.AngularRadius);
 
         // Shadow params
         shader.ShadowRangeNear = capi.Render.ShaderUniforms.ShadowRangeNear;

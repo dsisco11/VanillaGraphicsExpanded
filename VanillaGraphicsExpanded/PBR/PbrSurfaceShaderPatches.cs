@@ -92,6 +92,10 @@ internal static class PbrSurfaceShaderPatches
         uniform vec3 vge_atmosphereEnvironment;
         uniform vec3 vge_atmosphereSolar;
         uniform vec3 vge_atmosphereSunDirection;
+        uniform float vge_atmosphereDirectRadius;
+        #define VGE_ATMOSPHERE_SCATTERING_DIRECTIONS
+        uniform vec3 vge_atmosphereScatteringSun;
+        uniform vec3 vge_atmosphereScatteringMoon;
         uniform vec4 vge_atmosphereAerialParams;
 
         """;

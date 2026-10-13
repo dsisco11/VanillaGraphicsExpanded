@@ -1,4 +1,5 @@
 using System.Numerics;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.PBR;
@@ -16,6 +17,38 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Moonless background remains representable in the real packed scene format under the assembled frame envelope.</summary>
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void MoonlessBackgroundSurvivesFrameEncodingAndDisplay(bool lumon)
+    {
+        EnsureShaderTestAvailable();
+        const float background = .0008f / MathF.PI;
+        using var lights = new VgeLightsUniformBuffer();
+        var atmosphere = new AtmosphereLighting(-Vector3.UnitY, Vector3.Zero, new Vector3(background),
+            Vector3.Zero, Vector3.Zero, []) { HasNightSources = true, Moon = Vector3.UnitY,
+            LookupStorageScale = LightingStorage.PersistentScale, CalibrationGeneration = 1,
+            ReconstructionMaximumNits = background };
+        float bound = FrameLightingBounds.FromPublications(atmosphere, lights, LightingCalibration.Default,
+            lumon, 1, Vector3.One, LightingCalibration.EmissionReferenceNits, 0).Total;
+        float scale = LightingStorage.FrameScale(256, bound);
+        using var publication = new TestFrameLightingPublication(); publication.Capture(scale);
+        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R11fG11fB10f,
+            new[] { background * scale, background * scale, background * scale });
+        float[] stored = source.ReadPixels();
+        foreach (float component in stored.Take(3)) Assert.True(component > 0, $"LumOn={lumon}: scale={scale:R}, bound={bound:R}");
+        using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 0f]);
+        using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
+        using var camera = TestFrameCamera.CreateIdentity(1, 1);
+        using var exposure = ExposureTestStorage.Create(8);
+        using var draw = new PostprocessDraw();
+        var final = Programs.Create<FinalDisplayShaderProgram>(); final.FrameLightingInputs = publication.Buffer;
+        final.FrameInputs = camera; final.SceneImage = source; final.BloomImage = zero;
+        final.ShaftImage = zero; final.ExposureBuffer = exposure;
+        final.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(0, 1, 0, 0));
+        Submit(draw, final, target);
+        foreach (float component in target[0].ReadPixels().Take(3)) Assert.InRange(component, .2f, .4f);
+    }
     /// <summary>Maximum admitted display exposure and reciprocal storage scale keep three half-float inputs finite.</summary>
     [Theory]
     [InlineData(24f, 1f)]

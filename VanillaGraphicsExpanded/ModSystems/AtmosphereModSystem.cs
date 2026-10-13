@@ -97,10 +97,10 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
             if (Lighting is null)
                 Publish(new(Vector3.UnitY, Vector3.Zero, Vector3.Zero, Vector3.Zero, Vector3.Zero,
                     ImmutableArray.Create(0f, 0f, 0f, 1f)) { Width = 1, Height = 1 });
-            var direction = calendar.SunPositionNormalized;
+            var sources = AtmosphereCelestialInputs.Capture(calendar);
             var settings = ConfigModSystem.Config.Atmosphere;
             var seasonal = seasonInputs.Capture(api, player.Pos.AsBlockPos);
-            var ready = computation!.Update(new((float)direction.X, (float)direction.Y, (float)direction.Z),
+            var ready = computation!.Update(sources,
                 (float)(player.Pos.Y - api.World.SeaLevel) * .001f, api.Ambient.BlendedCloudDensity,
                 width: settings.LookupWidth, height: settings.LookupHeight, quality: (int)settings.SkyLutQuality,
                 groundAlbedo: seasonal.GroundAlbedo);

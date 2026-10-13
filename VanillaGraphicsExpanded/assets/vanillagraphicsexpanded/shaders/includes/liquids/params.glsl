@@ -23,6 +23,8 @@ layout(std140, binding = 28) uniform VgeLiquidFrameParams
     vec4 colorMapRects[40];
     float fogSpheres[24];
     vec4 liquidMediumControl; // material lookup, composed volume, immutable refraction source, scene-linear output
+    vec4 liquidScatteringSun;
+    vec4 liquidScatteringMoon;
 };
 layout(std140, binding = 14) uniform VgeLiquidDrawParams
 {
@@ -53,6 +55,9 @@ layout(std140, binding = 14) uniform VgeLiquidDrawParams
 #define vge_atmosphereSunDirection liquidSun.xyz
 #define vge_atmosphereSolar liquidSolar.xyz
 #define vge_atmosphereEnvironment liquidEnvironment.xyz
+#define VGE_ATMOSPHERE_SCATTERING_DIRECTIONS
+#define vge_atmosphereScatteringSun liquidScatteringSun.xyz
+#define vge_atmosphereScatteringMoon liquidScatteringMoon.xyz
 #define vge_atmosphereAerialParams liquidAerial
 #define cameraUnderwater liquidAerial.z
 #define pointLightQuantity int(vgeLights.lightCount)

@@ -7,7 +7,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 
 /// <summary>Selects atmospheric transport once per resource generation and retains asynchronous CPU fallback.</summary>
-internal sealed class AtmosphereBackend : IDisposable
+internal sealed partial class AtmosphereBackend : IDisposable
 {
     private readonly ICoreAPI api;
     private AtmosphereComputation? cpu;
@@ -52,6 +52,7 @@ internal sealed class AtmosphereBackend : IDisposable
     /// <summary>Withdraws pending transport without reconstructing GPU program wrappers or their retained inputs.</summary>
     internal void Reload()
     {
+        ResetCelestial();
         gpu?.Reload();
         if (cpu is not null) { cpu.Dispose(); cpu = new(); }
     }
@@ -61,6 +62,7 @@ internal sealed class AtmosphereBackend : IDisposable
     {
         if (disposed) return;
         disposed = true; gpu?.Dispose(); cpu?.Dispose();
+        ResetCelestial();
     }
     #endregion
 }

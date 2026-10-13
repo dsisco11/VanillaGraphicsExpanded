@@ -711,7 +711,7 @@ Implementation evidence and traceability (2026-10-12; qualified)
 
   ☑ Reconcile settings and material/source defaults through existing configuration owners.
     - Preserve saved camera stops without automatic migration/versioning, as requested by the user.
-      New/missing exposure bounds use -20/+8; default manual exposure remains zero.
+      New/missing exposure bounds use -20/+2; default manual exposure remains zero.
     - Specify finite defaults and compatibility for block calibration, source/emission mappings and
       exposure values whose previous scene-relative interpretation no longer applies.
     - Preserve existing saves and third-party input compatibility through explicit conversions.
@@ -832,20 +832,124 @@ Current integration findings (2026-10-12)
     package-receipt.json. No installation or game launch was performed.
 
   ☐ Define and integrate a shared, calibrated nighttime illumination source.
-    - Record the current solar-only atmosphere limitation: bright-night.rdc publishes zero
-      atmospheric environment/solar lighting, while the crock has zero decoded block light
-      and correctly zero emission. Visible stars/moon/embers do not themselves establish
-      incident light on neighboring non-GI receivers. Reference artifacts/BrightNight/findings.md.
-    - Establish the intended night source(s), physical reference intensities, chromaticity and
-      visibility behavior; reconcile the proposal and atmosphere contract before implementation.
-      Distinguish lunar illumination from any separately selected night-background contribution.
-    - Integrate the agreed source through existing lighting/publication owners, sharing declared
-      quantities across terrain, standard/forward items, liquids and LumOn consumers. Include
-      source bounds and storage/cache identity requirements; avoid object-specific brightness
-      floors, artificial material emission or changes to native block-light propagation.
-    - Verify fixed-exposure source ratios and receiver consistency before automatic exposure;
-      cover twilight/night transitions, outdoor/interior sky availability, atmospheric tint,
-      LumOn enabled/disabled and user-run appearance acceptance with its actual coverage recorded.
+    ☑ Establish and document the lunar and moonless-background source contracts.
+      - Retain bright-night.rdc's zero atmospheric environment/solar result as the baseline;
+        visible celestial objects do not currently supply incident light. Reference
+        artifacts/BrightNight/findings.md and the corrected terrain-emission diagnosis.
+      - Inspect installed calendar moon direction, phase, brightness and size semantics;
+        do not assume artistic phase brightness or apparent size is a physical calibration.
+      - Select source-backed full-moon illuminance, chromaticity and a documented phase curve.
+        Specify whether the reference is above-atmosphere or ground-level to avoid counting
+        extinction twice. Use the calendar's actual moon direction rather than negating the sun.
+      - Specify a simple moonless-background approximation for unresolved starlight/airglow.
+        Evaluate the NPS reference of 0.0008 lux horizontal illuminance and record its chosen
+        angular distribution and chromaticity. Reference:
+        https://www.nps.gov/subjects/nightskies/NSQmetrics.html.
+      - Reconcile PBR.PhotometricLighting.Proposal.md and PBR.Atmosphere.Publication.md before
+        implementation. Detailed airglow simulation remains outside this bounded extension.
+      Source decision (2026-10-12): clear-zenith full moon is 0.1 lux at the existing calibration
+      observer; reflected sunlight retains the atmospheric RGB spectral approximation. Native
+      phase/direction semantics and the opaque moon-sprite angular footprint were inspected in
+      artifacts/NightLighting/Inspection/installed-night-lighting.json. Native artistic phase
+      brightness is excluded. The neutral unresolved background is 0.0008 lux horizontal,
+      distributed over the upper hemisphere, with the documented cloud suppression proxy.
+      Source equations, approximations and references are in the proposal's nighttime section.
+
+    ☑ Extend the existing atmospheric transport to include moonlight.
+      - Parameterize directional source amplitude/chromaticity and evaluate solar and lunar
+        transport through the same medium, extinction and scattering equations on CPU and GPU.
+        Reuse existing scheduling and medium tables; do not introduce another atmosphere system.
+      - Retain separate concentrated scattering components and reconstruction directions for
+        sun and moon. Sum smooth radiance and hemispherical environment integrals correctly;
+        do not reconstruct lunar scattering with the solar angular factor.
+      - Include lunar phase, direction and source identity in refresh/cache admission, and
+        publish sky, aerial radiance, source quantities and bounds as one completed generation.
+        Preserve the existing failure retention, reload and teardown behavior.
+
+    ☑ Integrate the calibrated moonless background into sky and environment lighting.
+      - Derive visible background radiance and receiver illumination from the same declared
+        distribution. Handle horizon/ground visibility, aerial transport and weather according
+        to the documented approximation; do not add an independent material brightness floor.
+      - Avoid counting individually rendered stars twice if their energy is represented in
+        the unresolved background. Keep visual celestial visibility separate from light power.
+
+    ☑ Hand the existing celestial shadow map between the sun and moon.
+      - Inspect the engine's shadow camera and publication owners, then define a narrow
+        integration that reuses existing targets, cascades, resolution and rendering passes.
+        Do not allocate a separate lunar shadow map or add a second celestial shadow pass.
+      - Select the sun while it is visible; once it is gone, select the visible, illuminated
+        moon. When neither supplies direct illumination, disable direct celestial lighting
+        and retain only the available diffuse environment contribution.
+      - Switch shadow camera direction, matrices, selected-source identity and consumer
+        visibility bindings coherently. Never apply solar shadow visibility to lunar lighting.
+      - Define twilight overlap and horizon-transition behavior explicitly, including how
+        the unselected source is handled and how flicker/stale-map sampling is prevented.
+
+    ☑ Reconcile all lighting consumers with the shared nighttime publication.
+      - Carry separately directed lunar light and the combined environment through terrain,
+        standard/forward items, liquids, transmission, LumOn and engine compatibility bindings.
+        Use the existing finite-disk BRDF where appropriate; retain source-specific visibility.
+      - Preserve sky availability/interior occlusion and ambient AO. Account for directional
+        and background contributions in source/storage bounds and persistent identities.
+        Avoid artificial emission, object-specific brightness floors and changes to native
+        block-light propagation. Do not use exposure or a forced blue tint as calibration.
+
+    ☐ Qualify nighttime transport, storage and shadow handover through focused tests.
+      - Check source linearity, zero/new/full-moon phase cases, horizon visibility, shared
+        medium attenuation, distinct scattering directions and CPU/GPU agreement.
+      - Verify faint background and lunar lighting survive actual persistent/scene texture
+        formats, pre-scaling, exposure and display. Cover simultaneous twilight sources,
+        complete publication, failed refresh, resize, shader reload and world teardown.
+      - Verify shadow ownership transitions, no stale matrices and no added shadow target/pass.
+        Check fixed-exposure receiver ratios/tint and ambient AO with LumOn enabled/disabled.
+        Run build/test tools through subagents; keep routine fixtures lightweight.
+
+    ☐ Obtain user-run nighttime appearance acceptance and reconcile documentation.
+      - Cover moonlit and moonless nights, phases and horizon crossings, twilight overlap,
+        outdoor/interior receivers, terrain/items/water, weather and LumOn enabled/disabled.
+      - Check fixed exposure before automatic exposure; record actual coverage, remaining
+        approximations and source/candidate identity before marking this work complete.
+
+    Implementation/qualification notes (2026-10-12): sun and moon are admitted as one pair
+    through the existing backend. Medium bucket representatives prevent mixed observer geometry
+    when one directional result is reused. Phase-only changes reuse transport. The persistent
+    sky/aerial publication carries smooth, solar-Mie and lunar-Mie bands, with separate source
+    directions and a combined reconstruction bound. Native shadow gating runs at Before order
+    0, after VGE publication at -0.5; four narrow installed-owner getter substitutions supply
+    the selected emitter to the existing gate, camera and cascade depth extent. No additional
+    shadow target or pass was added. Scene bounds also include finite lunar emitter radiance
+    for specular response; a dark solar disk cannot remove that bound.
+
+    Release build and the final focused union passed: 187 tests, zero failures or skips,
+    recorded in artifacts/NightLighting/night-lighting-qualified.trx and .log. Checks cover
+    phase/reference arithmetic, actual CPU/GPU pair publication, pending-pair coherence, cache
+    reuse, geometry-bucket jitter, reload, installed Harmony shadow substitutions, actual
+    three-band sky/aerial decoding, lunar radius/bounds admission, and faint background through
+    packed scene storage, exposure and final display with LumOn off/on. Existing direct/forward,
+    shadow, native-frame and liquid contracts also passed. Isolated liquid fixtures now supply
+    an explicit physical frame publication; the punctual diffuse positive control now uses
+    its independently calculated calibrated value instead of a pre-calibration threshold.
+
+    These receipts establish headless correctness, not live scene appearance, frame performance
+    or the complete nighttime weather/receiver/lifecycle acceptance matrix. The broader
+    qualification subtask and user-run appearance gate remain unchecked until their remaining
+    coverage is recorded. See the proposal's nighttime section and PBR.Atmosphere.Publication.md
+    for retained approximations. The frozen candidate and provenance are recorded under
+    artifacts/NightLighting; no game launch or installation was performed. Candidate:
+    artifacts/NightLighting/candidate.zip, SHA256
+    60485C891B5322A0002B4696F48D842014DF2789AB52EB785ACC572051FB9D31.
+    package-receipt.json records the exact test filter, source/catalog/DLL identities and all
+    757 verified package files; its production DLL matches the tested assembly.
+
+    Follow-up (2026-10-13): the user reported excessive automatic brightening in dark/night
+    scenes. Maximum exposure now defaults to +2 multiplier stops (4x), replacing +8 (256x),
+    in the settings owner, malformed-value fallback and ConfigLib definition. Existing saved
+    values remain unchanged by design; set CameraExposure.MaxEV to 2 in the current profile.
+    Lunar/background calibration and adaptation rates are unchanged. Focused validation and
+    the updated candidate receipt are recorded under artifacts/NightExposure. Release build
+    passed; night-exposure-qualified.trx records 24 tests with zero failures or skips, including
+    default/ConfigLib parity, malformed maximum recovery, explicit saved-value preservation
+    and GPU adaptation contracts. Nighttime appearance with the tighter cap remains user-run.
 
   ☐ Run focused and required integrated validation through subagents.
     - Validate unit arithmetic, fixture agreement, generated/installed shader contracts and

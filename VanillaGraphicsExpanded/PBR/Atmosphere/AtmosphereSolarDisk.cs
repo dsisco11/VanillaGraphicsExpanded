@@ -14,9 +14,9 @@ internal static class AtmosphereSolarDisk
 
     #region Disk geometry
     /// <summary>Returns the visible circular segment area divided by the full disk area.</summary>
-    internal static float Visibility(float elevation, float horizon)
+    internal static float Visibility(float elevation, float horizon, float angularRadius = AngularRadius)
     {
-        float q = Math.Clamp((elevation - horizon) / AngularRadius, -1f, 1f);
+        float q = Math.Clamp((elevation - horizon) / angularRadius, -1f, 1f);
         if (q < -.9f) return SmallSegment(1f + q);
         if (q > .9f) return 1f - SmallSegment(1f - q);
         return (MathF.Acos(-q) + q * MathF.Sqrt(MathF.Max(0, 1f - q * q))) / MathF.PI;
@@ -27,12 +27,12 @@ internal static class AtmosphereSolarDisk
         * height * MathF.Sqrt(height) * (1f - height * (3f / 20f + height * (3f / 224f + height / 384f)));
 
     /// <summary>Locates the centroid of the unoccluded segment for bounded atmospheric transmission evaluation.</summary>
-    internal static float VisibleElevation(float elevation, float horizon, float visibility)
+    internal static float VisibleElevation(float elevation, float horizon, float visibility, float angularRadius = AngularRadius)
     {
-        float q = Math.Clamp((elevation - horizon) / AngularRadius, -1f, 1f);
+        float q = Math.Clamp((elevation - horizon) / angularRadius, -1f, 1f);
         // Factor the chord to retain thin-segment precision on both fused and unfused hardware.
         float chord = MathF.Max(0, (1f - q) * (1f + q));
-        return elevation + AngularRadius * (2f / (3f * MathF.PI)) * chord * MathF.Sqrt(chord) / visibility;
+        return elevation + angularRadius * (2f / (3f * MathF.PI)) * chord * MathF.Sqrt(chord) / visibility;
     }
 
     /// <summary>Converts disk-integrated normal irradiance to uniform visible disk radiance.</summary>

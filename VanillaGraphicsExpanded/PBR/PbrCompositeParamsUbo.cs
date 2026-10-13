@@ -11,7 +11,7 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
 
     #region Public API
     /// <summary>Allocates ten std140 vectors for composition and raw camera-medium light conversion.</summary>
-    public PbrCompositeParamsUbo() : base(160) { }
+    public PbrCompositeParamsUbo() : base(192) { }
 
     /// <summary>Enables the clean pre-overlay pair only after successful current-frame capture.</summary>
     internal bool PreOverlaySourceEnabled
@@ -37,6 +37,8 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
         WriteVector4(48, new(lighting?.Altitude ?? .001f, lighting?.HorizonElevation ?? 0f, 0, 1 / (lighting?.LookupStorageScale ?? 1)));
         WriteVector4(64, new(lighting?.Sun.X ?? 0, lighting?.Sun.Y ?? 1, lighting?.Sun.Z ?? 0, 0));
         WriteVector4(144, new(lighting?.Environment ?? Vector3.Zero, 0));
+        WriteVector4(160, new(lighting?.Sun ?? Vector3.UnitY, 0));
+        WriteVector4(176, new(lighting?.Moon ?? Vector3.UnitY, 0));
     }
     /// <summary>Publishes boundary capture and the camera's starting water medium in SI units.</summary>
     internal void SetWaterVolume(Liquids.WaterVolumeFrame? frame)

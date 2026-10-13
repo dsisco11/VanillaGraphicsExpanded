@@ -51,18 +51,19 @@ internal static partial class AtmosphereModel
         return Vector3.Max(Vector3.Zero, result * Solar);
     }
 
-    /// <summary>Returns direct solar irradiance, including extinction and the planet's horizon occlusion.</summary>
-    internal static Vector3 SolarIrradiance(Vector3 sun, float altitudeKm, float aerosol)
+    /// <summary>Evaluates reference solar-spectrum irradiance for a finite directional source, including horizon occlusion.</summary>
+    internal static Vector3 SolarIrradiance(Vector3 sun, float altitudeKm, float aerosol,
+        float angularRadius = AtmosphereSolarDisk.AngularRadius)
     {
         sun = Vector3.Normalize(sun);
         float altitude = Math.Clamp(altitudeKm, .001f, 99f);
         float elevation = MathF.Asin(Math.Clamp(sun.Y, -1, 1));
         float horizon = AtmosphereSkyMapping.Horizon(altitude);
-        float visible = AtmosphereSolarDisk.Visibility(elevation, horizon);
+        float visible = AtmosphereSolarDisk.Visibility(elevation, horizon, angularRadius);
         if (visible <= 0) return Vector3.Zero;
         // The atmosphere is rotationally symmetric. Evaluate extinction at the visible
         // segment centroid, retaining analytic continuous coverage rather than binary rays.
-        float sample = AtmosphereSolarDisk.VisibleElevation(elevation, horizon, visible);
+        float sample = AtmosphereSolarDisk.VisibleElevation(elevation, horizon, visible, angularRadius);
         return Solar * Transmittance(new(0, GroundRadius + altitude, 0),
             new(MathF.Cos(sample), MathF.Sin(sample), 0), aerosol) * visible;
     }

@@ -91,7 +91,10 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         var pointOnly = RenderReceiver(1f, 100f, 0f, sunlight: 0f, pointLight: true, emission: .8f);
         var shadowedSunAndPoint = RenderReceiver(0f, 100f, 0f, pointLight: true, emission: .8f);
 
-        Assert.True(pointOnly[0] > .4f && pointOnly[4] > .001f && pointOnly[8] > .3f);
+        // The unit engine point payload is calibrated candela, evaluated one metre from this normal-incidence receiver.
+        float expectedDiffuse = .6f * .96f / MathF.PI * LightingCalibration.EnginePointCandelaPerUnit;
+        Assert.InRange(pointOnly[0], expectedDiffuse - .0001f, expectedDiffuse + .0001f);
+        Assert.True(pointOnly[4] > .001f && pointOnly[8] > .3f);
         for (int attachment = 0; attachment < 3; attachment++)
         for (int channel = 0; channel < 3; channel++)
         {

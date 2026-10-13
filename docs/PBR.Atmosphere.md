@@ -286,10 +286,13 @@ display conversion on the retained legacy route. Its selectable scene-linear rou
 above one and omits display conversion and dithering. Runtime always emits scene-linear HDR; see PBR.SharedDisplay.md. The engine's night/fog alpha calculation is retained, as are subsequent
 underwater/night-vision effects. Stars remain the separate engine night-sky draw before the atmosphere;
 the sun reuses the engine quad with atmospheric disk shading, while the moon retains its textured
-draw afterward. See [solar disk integration](PBR.Atmosphere.SolarDisk.md). Moonlight is not a second atmospheric light
-source in this implementation. At night only residual solar twilight is integrated; no artificial
-ambient floor is added. Lunar texture photometry and adaptive night exposure are not calibrated
-by this model.
+draw afterward. See [solar disk integration](PBR.Atmosphere.SolarDisk.md). Solar and lunar
+transport share the existing backend and medium table. A complete publication retains separate
+solar and lunar Mie bands, their directions, and a calibrated unresolved moonless background.
+The selected direct emitter also drives the existing shadow cascades. See
+[nighttime source calibration](PBR.PhotometricLighting.Proposal.md#calibrated-nighttime-celestial-lighting)
+and [publication contract](PBR.Atmosphere.Publication.md). Lunar texture photometry remains
+an artistic raster compatibility input; live acceptance of the nighttime extension is pending.
 
 ### Owned fullscreen submission
 

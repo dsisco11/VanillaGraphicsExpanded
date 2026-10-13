@@ -13,7 +13,7 @@ internal sealed class AtmosphereSkyInputs : CpuUniformBuffer
         AccessTools.FieldRefAccess<DefaultShaderUniforms, float>("SkyDaylight");
     #region Public API
     /// <summary>Allocates effect vectors and matching lookup-encoding metadata.</summary>
-    internal AtmosphereSkyInputs() : base(96) { }
+    internal AtmosphereSkyInputs() : base(112) { }
     /// <summary>Matches admitted authored sky additions to the current immutable effect input slice.</summary>
     internal float CompatibilityMaximumNits { get; private set; }
 
@@ -37,7 +37,8 @@ internal sealed class AtmosphereSkyInputs : CpuUniformBuffer
             new(murk.R, murk.G, murk.B, uniforms.CameraUnderwater),
             new(uniforms.NightVisionStrength, uniforms.PsychedelicStrength,
                 uniforms.WindWaveCounter * 5, sceneLinear ? 1 : 0),
-            new(1 / lighting.LookupStorageScale, 0, 0, 0)
+            new(1 / lighting.LookupStorageScale, lighting.HasNightSources ? 3 : 2, 0, 0),
+            new(lighting.Moon, 0)
         };
         // Validate the complete expression inputs before changing either the packed
         // slice or its envelope. Overflowing derived wind/altitude is not a new generation.

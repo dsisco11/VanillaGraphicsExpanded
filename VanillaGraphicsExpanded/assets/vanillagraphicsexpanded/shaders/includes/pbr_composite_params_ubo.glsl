@@ -25,6 +25,8 @@ layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUB
     vec4 waterCameraSource; // raw accessor RGBA when mediumFlags.z, otherwise physical camera source
     vec4 waterSourceUpper; // source envelope covering all boundaries and the camera, metadata validity.w
     vec4 waterCameraEnvironment; // physical E/pi for camera-medium shader evaluation
+    vec4 scatteringSun;
+    vec4 scatteringMoon;
 } vgePbrCompositeParams;
 
 // Matrices
@@ -39,5 +41,8 @@ layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUB
 #define indirectIntensity (vgePbrCompositeParams.indirectTint_intensity.w)
 #define diffuseAOStrength (vgePbrCompositeParams.aoStrengths.x)
 #define specularAOStrength (vgePbrCompositeParams.aoStrengths.y)
+#define VGE_ATMOSPHERE_SCATTERING_DIRECTIONS
+#define vge_atmosphereScatteringSun (vgePbrCompositeParams.scatteringSun.xyz)
+#define vge_atmosphereScatteringMoon (vgePbrCompositeParams.scatteringMoon.xyz)
 
 #endif // PBR_COMPOSITE_PARAMS_UBO_GLSL

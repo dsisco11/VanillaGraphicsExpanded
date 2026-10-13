@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 internal sealed class LiquidFrameParamsUbo : CpuUniformBuffer
 {
     internal const string BlockName = "VgeLiquidFrameParams";
-    internal const int BlockSize = 1360;
+    internal const int BlockSize = 1392;
     #region Public API
     /// <summary>Allocates the block declared by liquids/params.glsl.</summary>
     internal LiquidFrameParamsUbo() : base(BlockSize, Rendering.Uniforms.UniformBufferUsage.SingleFrame) { }
@@ -46,6 +46,10 @@ internal sealed class LiquidFrameParamsUbo : CpuUniformBuffer
     internal bool RefractionEnabled { set => WriteFloat(1352, value ? 1 : 0); }
     /// <summary>Selects unexposed scene-linear RGB for the shared HDR handoff.</summary>
     internal bool SceneLinear { set => WriteFloat(1356, value ? 1 : 0); }
+    /// <summary>Stages the solar scattering direction independently of the selected direct emitter.</summary>
+    internal Vector4 ScatteringSun { set => WriteVector4(1360, value); }
+    /// <summary>Stages the independent lunar scattering direction.</summary>
+    internal Vector4 ScatteringMoon { set => WriteVector4(1376, value); }
     /// <summary>Sets the bounded number of active fog spheres; dynamic lights use the shared block.</summary>
     internal void SetFogSphereCount(int spheres) => WriteUInt32(272, (uint)spheres);
     /// <summary>Stages one ColorMapRect array element with std140 stride.</summary>

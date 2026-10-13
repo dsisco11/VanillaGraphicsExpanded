@@ -65,8 +65,11 @@ internal sealed partial class LiquidShaderProgram
         PlayerPosition = new(u.PlayerPos.X, u.PlayerPos.Y, u.PlayerPos.Z, 0);
         AtlasMetrics = new(tileSize.X, tileSize.Y, api.BlockTextureAtlas.Size.Width, api.BlockTextureAtlas.Size.Height);
         Season = new(u.SeasonRel, u.SeaLevel, u.BlockAtlasHeight, u.SeasonTemperature);
-        SunDirection = new(atmosphere?.Sun ?? Vector3.UnitY, 0);
-        SolarIrradiance = new(atmosphere?.Solar ?? Vector3.Zero, 0);
+        SunDirection = new(atmosphere?.DirectDirection ?? Vector3.UnitY,
+            atmosphere?.DirectAngularRadius ?? Atmosphere.AtmosphereSolarDisk.AngularRadius);
+        SolarIrradiance = new(atmosphere?.DirectIrradiance ?? Vector3.Zero, 0);
+        frame.ScatteringSun = new(atmosphere?.Sun ?? Vector3.UnitY, 0);
+        frame.ScatteringMoon = new(atmosphere?.Moon ?? Vector3.UnitY, 0);
         EnvironmentIrradiance = new(atmosphere?.Environment ?? Vector3.Zero, 0);
         AerialParameters = new(atmosphere?.Altitude ?? 0, atmosphere?.HorizonElevation ?? 0, u.CameraUnderwater,
             1 / (atmosphere?.LookupStorageScale ?? 1));

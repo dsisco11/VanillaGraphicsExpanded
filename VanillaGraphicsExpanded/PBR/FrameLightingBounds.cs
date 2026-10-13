@@ -20,11 +20,12 @@ internal readonly record struct FrameLightingBounds(double Surface, double Water
         calibration.Validate();
         Validate(indirectIntensity); Validate(emissionMaximumNits); Validate(compatibilityMaximumNits);
         if (!LightingCalibration.FiniteNonnegative(atmosphere.Solar)
+            || !LightingCalibration.FiniteNonnegative(atmosphere.Lunar)
             || !LightingCalibration.FiniteNonnegative(atmosphere.Environment)
             || !LightingCalibration.FiniteNonnegative(indirectTint)
             || atmosphere.CalibrationGeneration == 0 || atmosphere.LookupStorageScale != LightingStorage.PersistentScale)
             throw new ArgumentException("Frame bounds require matching admitted physical source publications.");
-        Vector3 disk = AtmosphereSolarDisk.Radiance(atmosphere);
+        Vector3 disk = CelestialDiskBound(atmosphere);
         if (!LightingCalibration.FiniteNonnegative(disk))
             throw new ArgumentException("The completed atmosphere has unsupported disk radiance.", nameof(atmosphere));
         // Both engine decoders preserve a unit normalized field. Its positive toe can
@@ -41,7 +42,7 @@ internal readonly record struct FrameLightingBounds(double Surface, double Water
                 * indirectIntensity * Peak(indirectTint))
             : environment + block / Math.PI;
         const double arithmeticGuard = 1 + 256.0 / (1 << 23);
-        return FromSources(Peak(atmosphere.Solar) * arithmeticGuard, Peak(disk) * arithmeticGuard,
+        return FromSources(Peak(atmosphere.DirectIrradiance) * arithmeticGuard, Peak(disk) * arithmeticGuard,
             lights.SummedCandelaMaximum, environment * arithmeticGuard, block * arithmeticGuard,
             indirect * arithmeticGuard, emissionMaximumNits * arithmeticGuard,
             atmosphere.ReconstructionMaximumNits, compatibilityMaximumNits);
@@ -81,6 +82,22 @@ internal readonly record struct FrameLightingBounds(double Surface, double Water
     }
     #endregion
     #region Private
+    /// <summary>Bounds the visible solar raster and the selected finite lunar emitter's specular response.</summary>
+    private static Vector3 CelestialDiskBound(AtmosphereLighting atmosphere)
+    {
+        Vector3 disk = AtmosphereSolarDisk.Radiance(atmosphere);
+        if (!atmosphere.MoonIsDirect) return disk;
+        float radius = atmosphere.MoonAngularRadius;
+        if (!float.IsFinite(radius) || radius < AtmosphereSolarDisk.AngularRadius || radius > .04f)
+            throw new ArgumentException("Lunar source radius is outside its admitted response domain.", nameof(atmosphere));
+        float visible = AtmosphereSolarDisk.Visibility(MathF.Asin(Math.Clamp(atmosphere.Moon.Y, -1, 1)),
+            atmosphere.HorizonElevation, radius);
+        if (visible <= 0) throw new ArgumentException("Lunar illuminance requires a visible emitter.", nameof(atmosphere));
+        // This equivalent emitter radiance bounds finite-disk reflections. It does not
+        // recalibrate the separately rendered compatibility moon sprite.
+        float sine = MathF.Sin(radius);
+        return Vector3.Max(disk, atmosphere.Lunar / (visible * MathF.PI * sine * sine));
+    }
     /// <summary>Extracts a component bound without treating RGB luminance as a storage-component maximum.</summary>
     private static double Peak(Vector3 value) => Math.Max(value.X, Math.Max(value.Y, value.Z));
     /// <summary>Rejects missing arithmetic domains rather than manufacturing a valid black bound.</summary>

@@ -98,7 +98,7 @@ void main()
         rgbaLightIn * skyVisibility,
         roughness,
         metallic,
-        VGE_SOLAR_ANGULAR_RADIUS,
+        vgePbrDirect.lightDir0.w > 0.0 ? vgePbrDirect.lightDir0.w : VGE_SOLAR_ANGULAR_RADIUS,
         accumDiffuse,
         accumSpecular);
 

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Immutable;
 using System.Numerics;
 
@@ -6,6 +7,28 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 /// <summary>A coherent sky lookup and its hemispherical lighting integrals, expressed in scene-linear units.</summary>
 internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 Environment, Vector3 Horizon, Vector3 Extinction, ImmutableArray<float> Sky)
 {
+    /// <summary>Identifies the extended coherent solar/lunar/background publication.</summary>
+    internal bool HasNightSources { get; init; }
+    /// <summary>Independent lunar direction; never inferred from the solar direction.</summary>
+    internal Vector3 Moon { get; init; } = Vector3.UnitY;
+    /// <summary>Extinguished lunar direct illuminance in lux.</summary>
+    internal Vector3 Lunar { get; init; }
+    /// <summary>Equivalent luminous lunar disk radius, matching the installed sprite footprint.</summary>
+    internal float MoonAngularRadius { get; init; } = .03252f;
+    /// <summary>Unweighted lunar Mie transport for the sky lookup.</summary>
+    internal ImmutableArray<float> SkyMoonMie { get; init; } = ImmutableArray<float>.Empty;
+    /// <summary>Unweighted lunar Mie transport for finite aerial paths.</summary>
+    internal ImmutableArray<float> AerialMoonMie { get; init; } = ImmutableArray<float>.Empty;
+    /// <summary>The sun owns direct lighting while visible; otherwise an illuminated visible moon takes over.</summary>
+    internal bool MoonIsDirect => HasNightSources
+        && AtmosphereSolarDisk.Visibility(MathF.Asin(Math.Clamp(Sun.Y, -1, 1)), HorizonElevation) <= 0
+        && Lunar != Vector3.Zero;
+    /// <summary>Direction of the single direct emitter sharing the existing shadow map.</summary>
+    internal Vector3 DirectDirection => MoonIsDirect ? Moon : Sun;
+    /// <summary>Selected direct illuminance; other celestial contributions remain in the sky environment.</summary>
+    internal Vector3 DirectIrradiance => MoonIsDirect ? Lunar : Solar;
+    /// <summary>Radius of the selected finite disk; the larger lunar disk retains conservative solar BRDF bounds.</summary>
+    internal float DirectAngularRadius => MoonIsDirect ? MoonAngularRadius : AtmosphereSolarDisk.AngularRadius;
     internal ImmutableArray<float> SkyMie { get; init; } = ImmutableArray<float>.Empty;
     internal ImmutableArray<float> AerialMie { get; init; } = ImmutableArray<float>.Empty;
     internal int Width { get; init; } = AtmosphereLookup.DefaultWidth;

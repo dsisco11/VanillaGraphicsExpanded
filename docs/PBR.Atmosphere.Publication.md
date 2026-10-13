@@ -17,22 +17,25 @@ advance frame counters, calculate ambient lighting, or reproduce `calcSunColor`.
 transport with GPU computation and asynchronous CPU fallback. `AtmosphereLighting` carries
 direct solar illuminance in lux, diffuse environment response (E/pi), horizontal sky luminance
 and sky/aerial luminance in nits. Local extinction remains inverse metres; lookup transmission
-is dimensionless. All illuminated products share one fixed source amplitude.
+is dimensionless. Each directional source uses a declared amplitude, and all products in a
+completed publication share the same admitted medium and celestial inputs.
 `AtmosphereModSystem` publishes matching textures and lighting before scene rendering.
 Direct lighting, composite, liquids and LumOn already consume this publication.
 
 Keep these owners and their atomic publication. Do not create a second atmospheric integrator
-or run transport in a draw callback. The model is RGB, solar-driven, and approximate; physical
-lunar illumination and cloud-volume transport are not supplied by the current model.
+or run transport in a draw callback. The RGB model now admits solar and lunar sources through
+the same transport backend and retained medium table. A completed celestial pair also carries
+a calibrated unresolved moonless background. Cloud-volume transport remains outside this model.
 
-The implemented compatibility ambient reference is `Environment + Solar / pi`, representing a
-white sun-facing Lambertian surface, with no additional visibility or incidence factor. Apply
+The compatibility ambient reference is `Environment + DirectIrradiance / pi`, representing a
+white surface facing the selected celestial source, with no additional visibility or incidence factor. Apply
 the shared unit-exposure peak-preserving shoulder and sRGB transfer for legacy color consumers.
 Fog uses the same transfer on `Horizon`. Compatibility daylight is clamped Rec.709-weighted
 luminance of that encoded ambient reference; it is an artistic visibility scalar, not physical
 irradiance or photometric luminance. No nighttime floor is added. Physical VGE consumers still
 read the original snapshot. The replacement's appearance was accepted by the user on 2026-10-11;
-this mapping remains an artistic approximation, without calibrated lunar illumination.
+this mapping remains an artistic approximation. The lunar/background extension has focused
+qualification tracked in PBR.PhotometricLighting.todo; its in-game appearance acceptance is pending.
 
 ## Verified engine consumers and ordering
 
@@ -64,9 +67,10 @@ they overwrite the new publication. Do not manually run the ambient blend a seco
 
 `AtmosphereLighting` carries `LookupStorageScale` and `CalibrationGeneration` with its immutable
 CPU snapshot. `AtmosphereTextureSet` supports admitted fixed 1/16 light encoding, validates both
-smooth/Mie sky and aerial arrays before upload, and commits its scale/identity after every upload
+smooth/solar-Mie/lunar-Mie sky and aerial arrays before upload, and commits its scale/identity after every upload
 succeeds. Coverage and attenuation remain dimensionless. The atmosphere producer now derives one
-amplitude for the declared 100,000-lux zenith reference and supplies physical solar lux,
+amplitude for the declared 100,000-lux solar zenith reference, scales reflected lunar transport
+to the 0.1-lux full-moon reference, and supplies physical celestial lux,
 sky/disk/aerial nits and environment E/pi. Runtime lookup upload now encodes lighting with fixed
 C=1/16, and sky/aerial consumers decode the matching generation once. The uploaded band maxima,
 maximum Mie phase, interpolation and narrowing allowances produce `ReconstructionMaximumNits`;
@@ -93,7 +97,7 @@ Engine ambient RGB is a combined sunlight tint/brightness multiplier: installed
 `fogandlight.vsh` multiplies it by voxel sunlight brightness. Ambient blending linearly mixes
 ordered modifiers, then scales ambient by scene brightness and fog by scene and fog brightness;
 it does not apply a color transfer. Therefore do not assign diffuse-only `Environment` directly.
-Derive a documented compatibility response from `Solar` and `Environment`, accounting for the
+Derive a documented compatibility response from `DirectIrradiance` and `Environment`, accounting for the
 consumer's existing sunlight factor and avoiding double lighting in patched PBR paths. Derive
 fog approximation from `Horizon` or a documented directional sky sample.
 Never reinterpret irradiance as display RGB. The engine adapter must
@@ -108,10 +112,10 @@ Never clear the ambient modifier collection wholesale.
 
 `SkyDaylight` needs an explicit dimensionless compatibility mapping and independently specified
 star-visibility behavior. Do not silently copy the engine's daylight-minus-moonlight formula or
-introduce a night irradiance floor. Night appearance must be validated against the solar-only
-model's limits before claiming equivalent lunar illumination.
+introduce a receiver brightness floor. Night appearance must be validated against the declared
+lunar/background source quantities, independently of compatibility daylight.
 
-Do not bind the VGE two-lobe sky LUT to vanilla sky/glow samplers: their coordinates, channels
+Do not bind the VGE atmospheric sky LUT to vanilla sky/glow samplers: its coordinates, channels
 and interpretation differ. Retain valid legacy handles during migration, then migrate actual
 remaining consumers to physical atmospheric inputs. `SunsetMod` is not a physical-model input.
 

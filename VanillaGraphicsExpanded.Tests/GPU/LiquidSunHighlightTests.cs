@@ -19,9 +19,11 @@ public sealed class LiquidSunHighlightTests(HeadlessGLFixture fixture) : RenderT
     public void FixedReceiverRetainsSunlightAcrossViewportEdge()
     {
         EnsureContextValid();
+        using var publication = new TestFrameLightingPublication();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
+        program.FrameLightingInputs = publication.Buffer;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
 

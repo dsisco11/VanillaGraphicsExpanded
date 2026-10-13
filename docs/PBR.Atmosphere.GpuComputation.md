@@ -10,6 +10,16 @@ A shader reload permits a fresh capability/backend selection.
 
 ## Transport and scheduling
 
+The celestial wrapper admits sun, moon, phase and medium as one request. It evaluates both
+directions sequentially through the same backend and retained medium table, then scales lunar
+transport and combines the completed pair with the declared moonless background. Phase-only
+changes reuse completed directional transport. The displayed sky retains its prior complete
+generation until both sources are ready; separate solar/lunar Mie bands retain their own
+reconstruction directions. See [nighttime calibration](PBR.PhotometricLighting.Proposal.md#calibrated-nighttime-celestial-lighting).
+Celestial admission evaluates the existing altitude/weather bucket representatives, so reusing
+one direction while refreshing the other cannot combine different raw observer geometries
+inside a shared cache bucket.
+
 Three asset-backed compute programs are compiled by the normal SPIR-V build and use declared shader
 contracts, `GpuComputePipeline`, `GpuShaderStorageBuffer`, `GpuFence`, and `GpuQueue<Vector4>`:
 
@@ -47,8 +57,8 @@ Maximum GPU buffer payload is 14680192 bytes: 64-byte parameters, 131072-byte so
 are additional. See [aerial perspective](PBR.Atmosphere.AerialPerspective.md) for detailed bounds.
 Historical measurements below precede finite-path volume construction and do not describe its cost.
 
-Shader reload disposes the pending backend and its programs, preserving the displayed sky and
-lighting until a new generation completes. World teardown also clears the displayed resources and
+Shader reload withdraws pending transport and celestial admission caches, preserving the
+displayed sky and lighting until a new generation completes. World teardown also clears the displayed resources and
 replaces the owner. GPU resources retire through existing resource abstractions; discarded owners
 cannot publish later. CPU fallback cancellation follows its existing worker lifetime.
 

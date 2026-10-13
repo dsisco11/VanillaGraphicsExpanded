@@ -61,6 +61,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             // A newer engine direction must not replace the published atmospheric generation.
             vec3 lightPosition = vec3(0,0,-1);
             vec3 vge_atmosphereSunDirection = vec3(0,0,1);
+            float vge_atmosphereDirectRadius = 0.0;
             vec3 vge_viewPosition = vec3(0,0,-2);
             vec3 vge_blockIrradiance = vec3(0);
             vec3 vge_sunIrradiance = vec3(0.2,0.4,0.8);

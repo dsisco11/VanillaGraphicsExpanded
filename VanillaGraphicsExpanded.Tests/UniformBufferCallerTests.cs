@@ -34,6 +34,7 @@ public sealed class UniformBufferCallerTests
     public void AtmosphereChecksBothVectors()
     {
         using var buffer = new PbrCompositeParamsUbo();
+        Assert.Equal(192, buffer.SizeBytes);
         var lighting = new AtmosphereLighting(Vector3.UnitY, default, default, default, default, []);
         buffer.SetAtmosphere(lighting);
         ResetDirty(buffer);
@@ -42,6 +43,12 @@ public sealed class UniformBufferCallerTests
         buffer.SetAtmosphere(lighting with { Sun = Vector3.UnitX });
         Assert.True(buffer.IsDirty);
         Assert.Equal(1f, UboPacking.ReadFloat(buffer.Bytes, 64));
+        ResetDirty(buffer);
+        buffer.SetAtmosphere(lighting with { HasNightSources = true, Moon = Vector3.UnitZ });
+        Assert.True(buffer.IsDirty);
+        Assert.Equal(0f, UboPacking.ReadFloat(buffer.Bytes, 56));
+        Assert.Equal(0f, UboPacking.ReadFloat(buffer.Bytes, 180));
+        Assert.Equal(1f, UboPacking.ReadFloat(buffer.Bytes, 184));
     }
 
     /// <summary>A shared disabled mapping does not create temporary domain changes on repeated calls.</summary>

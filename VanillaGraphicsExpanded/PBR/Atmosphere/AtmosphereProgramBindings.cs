@@ -18,7 +18,9 @@ internal enum AtmosphereBindings
     AerialRadiance = 512,
     AerialAttenuation = 1024,
     LightShaftOcclusion = 2048,
-    Aerial = AerialParams | AerialRadiance | AerialAttenuation | LightShaftOcclusion
+    ScatteringDirections = 4096,
+    DirectRadius = 8192,
+    Aerial = AerialParams | AerialRadiance | AerialAttenuation | LightShaftOcclusion | ScatteringDirections
 }
 
 /// <summary>Stores the active atmospheric interface once per linked engine program.</summary>
@@ -38,9 +40,9 @@ internal static class AtmosphereProgramBindings
     {
         "chunkopaque" or "chunktopsoil" => AtmosphereBindings.Environment,
         "standard" => AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial
-            | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk,
+            | AtmosphereBindings.SunDirection | AtmosphereBindings.SunDisk | AtmosphereBindings.DirectRadius,
         "entityanimated" or "instanced" or "chunktransparent" =>
-            AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection,
+            AtmosphereBindings.Environment | AtmosphereBindings.Solar | AtmosphereBindings.Aerial | AtmosphereBindings.SunDirection | AtmosphereBindings.DirectRadius,
         _ => AtmosphereBindings.None
     };
 
@@ -55,10 +57,13 @@ internal static class AtmosphereProgramBindings
         if ((expected & AtmosphereBindings.AerialRadiance) != 0 && hasUniform("vge_atmosphereAerialRadiance")) active |= AtmosphereBindings.AerialRadiance;
         if ((expected & AtmosphereBindings.AerialAttenuation) != 0 && hasUniform("vge_atmosphereAerialAttenuation")) active |= AtmosphereBindings.AerialAttenuation;
         if ((expected & AtmosphereBindings.SunDirection) != 0 && hasUniform("vge_atmosphereSunDirection")) active |= AtmosphereBindings.SunDirection;
+        if ((expected & AtmosphereBindings.DirectRadius) != 0 && hasUniform("vge_atmosphereDirectRadius")) active |= AtmosphereBindings.DirectRadius;
         if ((expected & AtmosphereBindings.SunDisk) != 0 && hasUniform("vge_atmosphereSunDraw")
             && hasUniform("vge_atmosphereSun") && hasUniform("vge_atmosphereDisk")
             && hasUniform("vge_atmosphereDiskStorageScale")) active |= AtmosphereBindings.SunDisk;
         if ((expected & AtmosphereBindings.LightShaftOcclusion) != 0 && hasUniform("vge_lightShaftOcclusion")) active |= AtmosphereBindings.LightShaftOcclusion;
+        if ((expected & AtmosphereBindings.ScatteringDirections) != 0 && hasUniform("vge_atmosphereScatteringSun")
+            && hasUniform("vge_atmosphereScatteringMoon")) active |= AtmosphereBindings.ScatteringDirections;
         return active;
     }
     #endregion

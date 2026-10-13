@@ -125,7 +125,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
             float blockLuxMaximum = LightingStorage.UpperBound(blockMaximum *
                 Math.Max(calibration.BlockReferenceLux, calibration.AccessorBlockReferenceLux));
             // Budget the maximum decoder output; actual field conversion stays in shaders.
-            var sourceUpper = WaterSourceBounds.FromIncident(lighting?.Solar ?? Vector3.Zero,
+            var sourceUpper = WaterSourceBounds.FromIncident(lighting?.DirectIrradiance ?? Vector3.Zero,
                 new Vector3(blockLuxMaximum) + MathF.PI * (lighting?.Environment ?? Vector3.Zero));
             completed = new(transport!, medium, SourceUpper: sourceUpper, RawCameraLight: cameraLight);
         }

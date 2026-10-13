@@ -45,10 +45,13 @@ vec3 skyRadiance(vec3 direction)
 {
     float azimuth = dot(direction.xz,direction.xz) > .0000001 ? atan(direction.z,direction.x) : 0;
     float row = atmSkyCoordinate(asin(clamp(direction.y,-1,1)), skySunHorizon.w);
-    float rows = float(textureSize(skyLookup,0).y / 2);
-    vec2 uv = vec2(azimuth / 6.28318530718, (row * (rows-1) + .5) / (2*rows));
-    return (texture(skyLookup,uv).rgb + texture(skyLookup,uv+vec2(0,.5)).rgb
-        * atmMieFactor(direction,skySunHorizon.xyz)) * (skyEncoding.x > 0.0 ? skyEncoding.x : 1.0);
+    float bands = skyEncoding.y > 2.5 ? 3.0 : 2.0;
+    float rows = float(textureSize(skyLookup,0).y) / bands;
+    vec2 uv = vec2(azimuth / 6.28318530718, (row * (rows-1) + .5) / (bands*rows));
+    vec3 radiance = texture(skyLookup,uv).rgb + texture(skyLookup,uv+vec2(0,1.0/bands)).rgb
+        * atmMieFactor(direction,skySunHorizon.xyz);
+    if (bands > 2.5) radiance += texture(skyLookup,uv+vec2(0,2.0/bands)).rgb * atmMieFactor(direction,skyMoon.xyz);
+    return radiance * (skyEncoding.x > 0.0 ? skyEncoding.x : 1.0);
 }
 /** Uses the engine normalized linear-depth convention for the three shoreline samples. */
 float skyLiquidDistance(float offset)

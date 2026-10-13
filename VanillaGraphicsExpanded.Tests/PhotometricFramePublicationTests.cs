@@ -9,6 +9,23 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class PhotometricFramePublicationTests
 {
     #region Public API
+    /// <summary>A visible lunar disk contributes its finite-source radiance bound even when the solar raster is absent.</summary>
+    [Fact]
+    public void NightEnvelopeIncludesFiniteLunarResponse()
+    {
+        using var lights = new VgeLightsUniformBuffer();
+        var night = Snapshot() with { Sun = -Vector3.UnitY, Solar = Vector3.Zero, Moon = Vector3.UnitY,
+            HasNightSources = true, Lunar = new Vector3(.1f), MoonAngularRadius = .03252f };
+        var dark = FrameLightingBounds.FromPublications(night with { Lunar = Vector3.Zero }, lights,
+            LightingCalibration.Default, false, 1, Vector3.One, 0, 0);
+        var moon = FrameLightingBounds.FromPublications(night, lights, LightingCalibration.Default, false, 1, Vector3.One, 0, 0);
+        double equivalent = .1f / (MathF.PI * MathF.Pow(MathF.Sin(night.MoonAngularRadius), 2));
+        double guard = 1 + 256.0 / (1 << 23);
+        Assert.InRange(Math.Abs(moon.WaterReflection - dark.WaterReflection - 2 * equivalent * guard), 0, .0001);
+        Assert.True(moon.Surface > dark.Surface);
+        Assert.Throws<ArgumentException>(() => FrameLightingBounds.FromPublications(night with { MoonAngularRadius = .001f },
+            lights, LightingCalibration.Default, false, 1, Vector3.One, 0, 0));
+    }
     /// <summary>Indirect mode, gain and tint enter once, while source peaks and both decoder endpoints remain explicit.</summary>
     [Theory]
     [InlineData(false, 0f)] [InlineData(false, 2f)]

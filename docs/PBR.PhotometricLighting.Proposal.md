@@ -601,7 +601,8 @@ do not add per-frame source discovery or resource reallocation to establish cali
 
 Existing saves and third-party sources receive documented compatibility defaults through the
 existing owners. The user approved retaining saved camera stops without automatic conversion or
-a configuration version marker; new or missing settings use updated exposure limits -20/+8.
+a configuration version marker; new or missing settings use exposure limits -20/+2. The
+maximum limits dark-scene amplification to four times; explicit saved values remain authored settings.
 Saved values may require user adjustment because the physical scene scale changes brightness. The goal
 is coherent lighting, not exact preservation of the previously uncalibrated screenshots.
 Calibration or storage changes invalidate dependent cached lighting and histories through
@@ -1447,3 +1448,84 @@ inventory during migration; do not replace actual producer bounds with the 32-ni
 allowance. Reuse the
 existing camera, atmosphere, cache and lifecycle owners; no general lighting or exposure framework
 is required by the selected approach.
+
+## Calibrated nighttime celestial lighting
+
+The nighttime extension reuses the atmospheric transport backend, medium table and atomic
+publication. Sun and moon are evaluated sequentially against one admitted medium generation;
+only a complete pair may replace the visible sky and surface-lighting snapshot. Lunar phase
+changes can reuse completed directional transport. CPU fallback follows the same composition.
+Aerial attenuation remains dimensionless and is not added twice.
+
+The lunar reference is **0.1 lux direct normal illuminance at clear zenith**, at the existing
+0.001-km observer and aerosol-one calibration point. This is a selected representative value,
+not the maximum possible terrestrial moonlight. The source uses the existing RGB solar spectral
+approximation for reflected sunlight, scaled by 0.1/100,000; atmospheric extinction and tint
+are therefore applied once. A lunar reflectance spectrum is not separately simulated.
+[Kyba et al., How bright is moonlight?](https://academic.oup.com/astrogeo/article/58/1/1.31/2938119)
+discuss typical full-moon illumination around 0.05–0.1 lux and approximately 0.3 lux under rare
+ideal conditions. The calibration is not derived from native calendar brightness.
+
+The installed calendar phase coordinate has a period of eight and full moon at four. Convert
+it to phase angle alpha = abs(phase - 4) * 45 degrees. Use the normalized magnitude-fit response
+10^(-0.4 * (0.026 * alpha + 4e-9 * alpha^4)), subtracting its new-moon endpoint and renormalizing
+so new moon is exactly zero and full moon exactly one. This excludes an independent earthshine
+source and keeps the wrapped transition continuous. The empirical phase model is approximate;
+see [MoonShine, Poon et al.](https://besjournals.onlinelibrary.wiley.com/doi/10.1111/2041-210X.14299).
+Native MoonPhaseBrightness interpolates an artistic table, including -0.1 at new moon, and is
+not used as illuminance. Normalize the actual native MoonPosition; do not assume opposition.
+
+Use an equivalent lunar disk radius matching the installed moon sprite's opaque footprint:
+atan(64 * 0.023100002 * (1.1 + e) / 50), where
+ e = clamp((dot(sunDirection, moonDirection) - 0.99) * 40, 0, 0.2).
+The opaque full-moon image spans approximately half the billboard width; its transparent halo
+is excluded. The apparent emitter is deliberately larger than the terrestrial moon, as drawn
+by the game. Keep physical integrated illuminance independent of this artistic angular size.
+This radius supplies finite-disk direct shading and horizon coverage. It exceeds the retained
+solar radius, so the existing solar specular-response bound remains conservative. Native moon
+sprite display brightness is still a compatibility representation, not a separately calibrated
+physical disk-radiance image.
+
+The unresolved moonless background reference is **0.0008 lux horizontal illuminance**, represented
+by a neutral uniform upper hemisphere (radiance E/pi). This combines unresolved starlight and
+airglow rather than simulating either in detail. The reference is from the
+[NPS night-sky measurement guide](https://www.nps.gov/subjects/nightskies/NSQmetrics.html).
+Use the same sampled background for sky radiance and environment integration. Its finite-path
+in-scattering approximation is backgroundRadiance * (1 - transmittance). A documented cloud-cover
+proxy reduces its power by 1 - 0.9 * coverage; this is not a physical cloud-volume solution.
+The contribution exists alongside daylight and becomes negligible there without a day/night
+brightness toggle. Individually rendered stars are compatibility images; they do not add a
+second calibrated incident-light contribution. No receiver emission or minimum brightness is added.
+
+Sky and aerial textures retain their existing formats and storage scale, with three elevation
+bands: combined smooth lighting, solar Mie transport and lunar Mie transport. Each concentrated
+band is reconstructed with its own source direction. The uploaded generation's conservative
+reconstruction bound includes both bands. Two-band standalone fixtures and neutral startup
+publications retain their existing interpretation. Solar, lunar, background, attenuation and
+source identities are published together; faint-light precision requires actual-format checks.
+Scene bounds include the selected lunar emitter's equivalent radiance,
+Lunar / (visibleFraction * pi * sin(radius)^2), for finite-disk specular response as well as
+the actual solar raster radiance. A zero solar disk at night must not remove the lunar
+reflection bound. This bound does not change the moon sprite's compatibility brightness.
+
+The sun owns the single direct celestial path while any part of its disk remains visible.
+After it disappears, an illuminated visible moon takes over. During overlap, the unselected
+moon's direct term is omitted, while both sources' scattered sky contributions remain. This
+bounded approximation avoids an unshadowed secondary direct light or another shadow pass.
+When neither emitter supplies direct light, only the available diffuse environment remains.
+
+Reuse the installed shadow owner's near/far targets, passes, projection and matrix publication.
+Its native camera already chooses between sun and moon, but its artistic selection and phase
+gating do not define the physical source. Narrow getter substitutions in the four inspected
+shadow-owner callbacks feed the selected completed emitter to the camera, cascade depth extent
+and elevation gate. Retain native fog suppression, intensity fading and render order. Phase
+modulates source energy once, rather than additionally weakening lunar shadow contrast. Existing
+shadow visibility bindings remain valid for terrain, forward receivers and liquids. No new
+shadow map, cascade, resolution increase or extra celestial shadow rendering is introduced.
+
+The selected direct direction, radius and illuminance are shared by deferred/forward receivers,
+liquids, water source admission, LumOn lighting and shafts. Combined environment lighting remains
+subject to receiver sky availability, interior occlusion and ambient AO. Visible solar disk
+rendering retains the actual solar source rather than the selected celestial source. Fixed-
+exposure numerical checks precede user-run moonlit/moonless, phase, horizon, interior, weather,
+LumOn and automatic-exposure appearance acceptance.

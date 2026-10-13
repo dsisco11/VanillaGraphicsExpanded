@@ -5,6 +5,11 @@
 uniform sampler3D vge_atmosphereAerialRadiance;
 uniform sampler3D vge_atmosphereAerialAttenuation;
 uniform sampler2D vge_lightShaftOcclusion;
+#ifndef VGE_ATMOSPHERE_SCATTERING_DIRECTIONS
+// Legacy two-band fixtures need only the function's supplied source direction.
+#define vge_atmosphereScatteringSun sun
+#define vge_atmosphereScatteringMoon sun
+#endif
 
 // Angular coordinates share the sky. Distance slices share fixed metre ranges across
 // every direction, preventing ground/space neighbours from mixing different ray lengths.
@@ -19,9 +24,14 @@ vec3 VgeApplyAerial(vec3 radiance, vec3 worldDisplacement, float skyVisibility, 
     vec3 size = vec3(textureSize(vge_atmosphereAerialAttenuation, 0));
     vec3 uvw = vec3(azimuth / 6.28318530718, (row * (size.y - 1.0) + .5) / size.y,
         (slice * (size.z - 1.0) + .5) / size.z);
-    vec3 packedUv = vec3(uvw.x, uvw.y * .5, uvw.z);
+    float bands = float(textureSize(vge_atmosphereAerialRadiance, 0).y) / size.y;
+    vec3 packedUv = vec3(uvw.x, uvw.y / bands, uvw.z);
     vec3 scatter = texture(vge_atmosphereAerialRadiance, packedUv).rgb
-        + texture(vge_atmosphereAerialRadiance, packedUv + vec3(0.0, .5, 0.0)).rgb * atmMieFactor(direction, sun);
+        + texture(vge_atmosphereAerialRadiance, packedUv + vec3(0.0, 1.0 / bands, 0.0)).rgb
+            * atmMieFactor(direction, bands > 2.5 ? vge_atmosphereScatteringSun : sun);
+    if (bands > 2.5)
+        scatter += texture(vge_atmosphereAerialRadiance, packedUv + vec3(0.0, 2.0 / bands, 0.0)).rgb
+            * atmMieFactor(direction, vge_atmosphereScatteringMoon);
     scatter *= parameters.z > 0.0 ? parameters.z : 1.0;
     vec3 loss = clamp(texture(vge_atmosphereAerialAttenuation, uvw).rgb, 0.0, 1.0);
     // Receiver sky availability gates both terms: closed interiors cannot absorb

@@ -46,7 +46,7 @@ internal sealed class LightShaftRenderer : IDisposable
         var lighting=AtmosphereModSystem.Lighting??throw new InvalidOperationException("Atmospheric lighting is unavailable for solar shafts.");
         var transform=frame.CurrentViewProjection;
         shader!.FrameInputs=frame;
-        Vector3 direction=lighting.Sun;
+        Vector3 direction=lighting.DirectDirection;
         float x=transform[0]*direction.X+transform[4]*direction.Y+transform[8]*direction.Z;
         float y=transform[1]*direction.X+transform[5]*direction.Y+transform[9]*direction.Z;
         float w=transform[3]*direction.X+transform[7]*direction.Y+transform[11]*direction.Z;
@@ -54,8 +54,8 @@ internal sealed class LightShaftRenderer : IDisposable
         float edge=Math.Max(Math.Abs(screen.X-.5f),Math.Abs(screen.Y-.5f));
         float visibility=w>1e-5f?Math.Clamp((.65f-edge)/.15f,0,1):0;
         visibility*=Math.Clamp((direction.Y+.03f)/.06f,0,1)*(1-Math.Clamp(api.Render.ShaderUniforms.CameraUnderwater,0,1));
-        // The scene already contains atmospheric solar extinction. Only normalize its tint here.
-        Vector3 tint=Vector3.Max(Vector3.Zero,lighting.Solar);
+        // The scene already contains the selected emitter's atmospheric extinction. Only normalize its tint here.
+        Vector3 tint=Vector3.Max(Vector3.Zero,lighting.DirectIrradiance);
         float peak=Math.Max(tint.X,Math.Max(tint.Y,tint.Z));
         tint=peak>1e-6f?tint/peak:Vector3.Zero;
         if(peak<=1e-6f) visibility=0;

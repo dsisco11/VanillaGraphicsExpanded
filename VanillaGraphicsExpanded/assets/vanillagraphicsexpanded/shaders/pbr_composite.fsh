@@ -22,12 +22,12 @@ layout(location = 2) out float outRefractionDepth;
 @import "./includes/lumon_pbr.glsl"
 @import "./includes/pbr_color.glsl"
 @import "./includes/pbr_environment.glsl"
+@import "./includes/pbr_composite_params_ubo.glsl"
 @import "./includes/atmosphere_aerial.glsl"
 
 // Import global defines (feature toggles with defaults)
 @import "./includes/vge_global_defines.glsl"
 
-@import "./includes/pbr_composite_params_ubo.glsl"
 @import "./includes/liquids/boundary_transport.glsl"
 uniform sampler2DArray vge_waterTransport;
 const int VGE_WATER_OPTICAL = 0;

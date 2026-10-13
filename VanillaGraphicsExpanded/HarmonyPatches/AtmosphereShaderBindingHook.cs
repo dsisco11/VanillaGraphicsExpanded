@@ -66,9 +66,16 @@ internal static class AtmosphereShaderBindingHook
         if ((bindings & AtmosphereBindings.Environment) != 0)
             __instance.Uniform("vge_atmosphereEnvironment", lighting.Environment.X, lighting.Environment.Y, lighting.Environment.Z);
         if ((bindings & AtmosphereBindings.Solar) != 0)
-            __instance.Uniform("vge_atmosphereSolar", lighting.Solar.X, lighting.Solar.Y, lighting.Solar.Z);
+            __instance.Uniform("vge_atmosphereSolar", lighting.DirectIrradiance.X, lighting.DirectIrradiance.Y, lighting.DirectIrradiance.Z);
         if ((bindings & AtmosphereBindings.SunDirection) != 0)
-            __instance.Uniform("vge_atmosphereSunDirection", lighting.Sun.X, lighting.Sun.Y, lighting.Sun.Z);
+            __instance.Uniform("vge_atmosphereSunDirection", lighting.DirectDirection.X, lighting.DirectDirection.Y, lighting.DirectDirection.Z);
+        if ((bindings & AtmosphereBindings.DirectRadius) != 0)
+            __instance.Uniform("vge_atmosphereDirectRadius", lighting.DirectAngularRadius);
+        if ((bindings & AtmosphereBindings.ScatteringDirections) != 0)
+        {
+            __instance.Uniform("vge_atmosphereScatteringSun", lighting.Sun.X, lighting.Sun.Y, lighting.Sun.Z);
+            __instance.Uniform("vge_atmosphereScatteringMoon", lighting.Moon.X, lighting.Moon.Y, lighting.Moon.Z);
+        }
         if ((bindings & AtmosphereBindings.AerialParams) != 0)
         {
             __instance.Uniform("vge_atmosphereAerialParams", lighting.Altitude, lighting.HorizonElevation,

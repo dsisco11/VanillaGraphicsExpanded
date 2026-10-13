@@ -23,6 +23,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
     public void RepeatedLiquidActivationReportsUploadCopies()
     {
         EnsureContextValid();
+        using var publication = new TestFrameLightingPublication();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
@@ -30,6 +31,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
         var surface = GpuShaderProgramLibraries.Get<LiquidShaderProgram>(assets.Api, "pbr_liquid")!;
         var volume = GpuShaderProgramLibraries.Get<LiquidShaderProgram>(assets.Api, LiquidShaderProgram.VolumePassName)!;
+        surface.FrameLightingInputs = publication.Buffer; volume.FrameLightingInputs = publication.Buffer;
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var atmosphere = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
         AssignTextures(surface, texture, atmosphere, sharedCamera, sharedLights); AssignTextures(volume, texture, atmosphere, sharedCamera, sharedLights);
@@ -68,6 +70,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
     public void FrameCaptureRetainsCommonInputsAcrossArrayLoads(int mode, int lights, int spheres)
     {
         EnsureContextValid();
+        using var publication = new TestFrameLightingPublication();
         using var platform = new EngineShaderPlatformScope();
         var uniforms = new DefaultShaderUniforms
         {
@@ -110,11 +113,13 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
     public void ProjectionUpdatesPublishMatchingInverseForAsymmetricCamera()
     {
         EnsureContextValid();
+        using var publication = new TestFrameLightingPublication();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
         var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
+        program.FrameLightingInputs = publication.Buffer;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
@@ -164,6 +169,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
     public void RegisteredVolumeAndSurfaceRetainIndependentExecutables()
     {
         EnsureContextValid();
+        using var publication = new TestFrameLightingPublication();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
@@ -171,6 +177,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
         var surface = Assert.IsType<LiquidShaderProgram>(GpuShaderProgramLibraries.Get<GpuProgram>(assets.Api, "pbr_liquid"));
         var volume = Assert.IsType<LiquidShaderProgram>(GpuShaderProgramLibraries.Get<GpuProgram>(assets.Api, LiquidShaderProgram.VolumePassName));
+        surface.FrameLightingInputs = publication.Buffer; volume.FrameLightingInputs = publication.Buffer;
         Assert.NotSame(surface, volume);
         Assert.Equal(0, surface.CaptureMode);
         Assert.Equal(3, volume.CaptureMode);
@@ -290,11 +297,13 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
     public void WaterOptionsSelectPrecompiledFragmentsBeforePreparation()
     {
         EnsureContextValid();
+        using var publication = new TestFrameLightingPublication();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
         var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
+        program.FrameLightingInputs = publication.Buffer;
         Assert.Equal(3, program.RefractionQuality);
         Assert.Equal(2, program.RefractionBackgroundScale);
         Assert.DoesNotContain("vge_waterRefractionQuality", LiquidShaderProgram.Contract.Bindings.UniformLocations.Keys);
@@ -358,11 +367,13 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
     public void PoolWritesPublishAndRestoreActualGpuParameters()
     {
         EnsureContextValid();
+        using var publication = new TestFrameLightingPublication();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
         var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
+        program.FrameLightingInputs = publication.Buffer;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
@@ -419,11 +430,13 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
     public void TypedImagesBindDeclaredTargetsAndSamplers(bool useInterface)
     {
         EnsureContextValid();
+        using var publication = new TestFrameLightingPublication();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
         var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
+        program.FrameLightingInputs = publication.Buffer;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
         using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);
@@ -482,11 +495,13 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
     public void UsePublishesTypedFrameFields()
     {
         EnsureContextValid();
+        using var publication = new TestFrameLightingPublication();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var sharedCamera = TestFrameCamera.CreateIdentity(512, 512);
         using var sharedLights = new VgeLightsUniformBuffer();
         var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram());
+        program.FrameLightingInputs = publication.Buffer;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
