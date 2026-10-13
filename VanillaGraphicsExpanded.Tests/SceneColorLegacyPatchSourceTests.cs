@@ -37,14 +37,17 @@ public sealed class SceneColorLegacyPatchSourceTests
         Assert.True(declared.HasFlag(ShaderCapability.SceneColorConvention));
         string patchedBody = tree.Select(Query.Syntax<GlFunctionNode>().Named("drawPixel"))
             .OfType<GlFunctionNode>().Single().Body.ToText();
-        const string decode = "if (vge_sceneLinear != 0) color.rgb = VgeCompatibilityLuminance(color.rgb);";
+        const string decode = "color.rgb = VgeStoreSceneLighting(VgeCompatibilityLuminance(color.rgb));";
         Assert.Equal(1, patchedBody.Split(decode).Length - 1);
         Assert.True(patchedBody.IndexOf(decode, StringComparison.Ordinal)
             < patchedBody.IndexOf("float alpha = color.a;", StringComparison.Ordinal));
-        // Apart from the new straight-color decode, retain every original alpha,
-        // depth-weight, accumulation and revealage statement and comment.
+        Assert.Contains("if (!VgeOitInputsValid(color, 0.0, 0.0)) discard;", patchedBody);
+        // The safety/conversion prefix precedes all original alpha, depth-weight,
+        // accumulation and revealage statements without changing their arithmetic.
+        int originalStart = patchedBody.IndexOf("float alpha = color.a;", StringComparison.Ordinal);
+        int originalBodyStart = originalBody.IndexOf("float alpha = color.a;", StringComparison.Ordinal);
         Assert.Equal(Regex.Replace(originalBody, @"\s+", ""),
-            Regex.Replace(patchedBody.Replace(decode, "", StringComparison.Ordinal), @"\s+", ""));
+            Regex.Replace(originalBody[..originalBodyStart] + patchedBody[originalStart..], @"\s+", ""));
     }
     #endregion
 }

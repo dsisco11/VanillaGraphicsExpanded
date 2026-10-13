@@ -200,6 +200,25 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     }
     #endregion
     #region Adaptation
+    /// <summary>Physical-lighting defaults settle a twelve-stop transition without a long exposure wait.</summary>
+    [Theory]
+    [InlineData(12f, 3.5f)]
+    [InlineData(-12f, 1.75f)]
+    public void DefaultRatesSettleLargeLightingTransitions(float target, float seconds)
+    {
+        EnsureShaderTestAvailable();
+        using var rig = CreateRig();
+        rig.PublishTarget(target);
+        var settings = new CameraExposureSettings().Snapshot() with { MinEV = -20, MaxEV = 20 };
+        // Eleven stops use the bounded linear response; the last stop settles exponentially.
+        float actual = rig.Adapt(settings, 0, seconds, false);
+        Assert.InRange(MathF.Abs(target - actual), 0, .051f);
+        float split = 0;
+        for (int frame = 0; frame < 100; frame++)
+            split = rig.Adapt(settings, split, seconds / 100, false);
+        AssertClose(actual, split, .00005f);
+    }
+
     /// <summary>Separate response rates bound distant changes and converge exponentially within one stop.</summary>
     [Theory]
     [InlineData(2f, .5f, .5f)]

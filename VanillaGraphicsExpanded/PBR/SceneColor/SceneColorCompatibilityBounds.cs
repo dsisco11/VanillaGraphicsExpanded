@@ -28,28 +28,24 @@ internal static class SceneColorCompatibilityBounds
         Validate(shadowIntensity); Validate(fogMaximum); Validate(underwaterTintMaximum);
         ConvexMurk(minimumMurk, maximumMurk);
         double ambientMean = ((double)ambient.X + ambient.Y + ambient.Z) / 3;
-        // The shader floors the per-particle sun field to .001. A brightness-only
-        // floor cannot certify normalization when every RGB source remains zero.
-        // Require a representable ambient contribution in both native variants;
-        // the branch without dynamic lights returns before night-vision injection.
+        // Scene particle/decal shaders guard the weighted denominator and normalize
+        // chromaticity before restoring brightness. Black ambient is a supported
+        // source, including startup and nights without lunar illumination.
         double pointStrength = pointBounds.CloudMaximum > 0
             ? 1 + (25.0 / 15) * Math.Max(25, Math.Max(1, Math.Abs(1 - ambientMean))) : 0;
         double brightness = Math.Max(1, Math.Max(minimumBrightness,
             Math.Max(ambientMean + nightVision, pointStrength + .45 * nightVision)));
-        double ambientPeak = Math.Max(ambient.X, Math.Max(ambient.Y, ambient.Z));
         const double rounding = 256.0 / (1 << 23);
-        double sunMinimum = (.001 * ambientMean + nightVision) * (1 - rounding);
-        double colorMinimum = (.001 * ambientPeak * (1 - nightVision) + .1 * nightVision) * (1 - rounding);
         double denominatorMaximum = 2 * (ambientMean + nightVision) + Math.Max(1, minimumBrightness)
             + pointStrength + .45 * nightVision;
-        double meanMinimum = 2 * sunMinimum * colorMinimum / (3 * denominatorMaximum);
-        double staticMeanMinimum = 2 * (.001 * ambientMean) * (.001 * ambientPeak)
-            / (3 * (2 * ambientMean + 1)) * (1 - rounding);
-        meanMinimum = Math.Min(meanMinimum, staticMeanMinimum);
-        // A mathematically positive source can still underflow the weighted mean
-        // or overflow bMax/mean before the final finite normalization. Certify both
-        // operations, including implementations that flush subnormal arithmetic.
-        if (meanMinimum < 1.1754943508222875e-38 || brightness / meanMinimum * (1 + rounding) > float.MaxValue)
+        double ambientPeak = Math.Max(ambient.X, Math.Max(ambient.Y, ambient.Z));
+        // Certify sums/products separately; dark inputs no longer require a
+        // positive ambient-only lower bound for the final brightness reciprocal.
+        double numeratorMaximum = 2 * (ambientMean + nightVision) * Math.Max(ambientPeak, .5)
+            + Math.Max(1, minimumBrightness) + (pointStrength + .45 * nightVision) * (1 + .5 * nightVision);
+        if (denominatorMaximum * (1 + rounding) > float.MaxValue
+            || numeratorMaximum * (1 + rounding) > float.MaxValue
+            || 3 * brightness * (1 + rounding) > float.MaxValue)
             throw new ArgumentException("Native particle RGB normalization exceeds its finite arithmetic domain.");
         // Nonnegative RGB normalized to mean bMax has component maximum 3*bMax.
         // Glow/contrast add at most 1.25*1.05, and shadow RGB has its separate gain.

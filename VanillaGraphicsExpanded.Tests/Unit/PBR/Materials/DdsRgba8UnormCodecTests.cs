@@ -5,9 +5,30 @@ using VanillaGraphicsExpanded.PBR.Materials.Cache;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials;
 
+/// <summary>Verifies the exact linear byte payload and standard DDS container contract.</summary>
 public sealed class DdsRgba8UnormCodecTests
 {
-    [Fact(Skip = "Material params cache switched to BC7; uncompressed RGBA8 DDS codec is no longer used by the cache.")]
+    /// <summary>The standard DDS pixel-format offsets describe an exact linear RGBA8 payload.</summary>
+    [Fact]
+    public void HeaderUsesStandardDx10PixelFormatAndExactPayloadLength()
+    {
+        using var stream = new MemoryStream();
+        DdsRgba8UnormCodec.WriteRgba8Unorm(stream, 2, 1, new byte[] {0, 1, 2, 255, 254, 253, 252, 255});
+        byte[] bytes = stream.ToArray();
+        Assert.Equal(156, bytes.Length);
+        Assert.Equal(32u, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(76, 4)));
+        Assert.Equal(4u, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(80, 4)));
+        Assert.Equal(0x30315844u, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(84, 4)));
+        Assert.Equal(28u, System.Buffers.Binary.BinaryPrimitives.ReadUInt32LittleEndian(bytes.AsSpan(128, 4)));
+        stream.Position = 0;
+        DdsRgba8UnormCodec.ReadRgba8UnormHeader(stream, out int width, out int height);
+        Assert.Equal(2, width);
+        Assert.Equal(1, height);
+        Assert.Equal(148, stream.Position);
+    }
+
+    /// <summary>Round trips arbitrary byte channels without loss or dimension changes.</summary>
+    [Fact]
     public void RoundTrip_PreservesDimensions_AndExactValues()
     {
         string dir = Path.Combine(Path.GetTempPath(), "VGE", "DdsTests");

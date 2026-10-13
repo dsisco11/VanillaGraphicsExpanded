@@ -208,7 +208,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             Assert.False(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
             Assert.Equal(unpatched, tree.ToText());
         }
-        else if (name is not ("final.fsh" or "luma.fsh" or "godrays.fsh" or "colorgrade.fsh" or "blur.fsh" or "particlescube.vsh" or "particlesquad2d.vsh" or "final.vsh" or "chunkshadowmap.fsh" or "chunkshadowmap.vsh" or "chunkliquid.vsh" or "chunkliquid.fsh")) Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
+        else if (name is not ("final.fsh" or "luma.fsh" or "godrays.fsh" or "colorgrade.fsh" or "blur.fsh" or "particlesquad2d.vsh" or "final.vsh" or "chunkshadowmap.fsh" or "chunkshadowmap.vsh" or "chunkliquid.vsh" or "chunkliquid.fsh")) Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, declare));
         if (name == "standard.fsh")
         {
             string main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single().ToText();

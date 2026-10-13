@@ -439,9 +439,9 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
     }
     #endregion
 
-    #region Private
+    #region Public API
     /// <summary>Provides the installed camera clock and active lighting tables without initializing a native client.</summary>
-    private static ClientMain CreateWorld()
+    internal static ClientMain CreateWorld()
     {
         var world = (ClientMain)RuntimeHelpers.GetUninitializedObject(typeof(ClientMain));
         var map = (ClientWorldMap)RuntimeHelpers.GetUninitializedObject(typeof(ClientWorldMap));
@@ -463,6 +463,9 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         return world;
     }
 
+    #endregion
+
+    #region Private
     /// <summary>Reads the actual linked uniform instead of trusting managed routing metadata.</summary>
     private static void AssertMode(ShaderProgramBase program, int expected)
     {

@@ -12,7 +12,7 @@
 The material system cache persists per-texture-rect bake results to disk so the
 PBR material atlas can skip recomputation across sessions. The cache covers:
 
-- Material params (RGB in BC7-compressed RGBA8) for each atlas rect
+- Material params (RGB in lossless RGBA8) for each atlas rect
 - Normal + depth (RGBA16_UNORM) for each atlas rect
 
 The cache is designed to be deterministic, low-risk, and aware of asset
@@ -154,15 +154,21 @@ All keys include:
 
 ### 5.2 Material Params Key Fields
 
+- Disk encoding identity (`storage=rgba8-unorm-v1`), immediately after `kind`
 - Roughness, metallic, emissive (resolved)
 - Noise (roughness, metallic, emissive)
 - Scale (roughness, metallic, emissive)
 - Override identity + override scale (if any)
 - Bake version stamp (blue-noise seed/size, algorithm constants)
 
+The encoding identity applies to both generated and overridden material tiles. It
+retires earlier lossy material entries without changing normal+depth keys or the
+shared schema version. A miss rebuilds the tile through the existing pipeline;
+unused old entries remain subject to normal cache pruning.
+
 ### 5.3 Normal + Depth Key Fields
 
-All material params fields plus:
+Normal+depth keys retain their existing inputs and omit the material storage identity:
 
 - Normal + depth scale
 - NormalDepthBakeConfig values
@@ -188,6 +194,7 @@ Key structure:
 Per-tile fields are appended in this order:
 
 - `kind=...`
+- For material params only: `storage=rgba8-unorm-v1`
 - `page=<atlasTextureId>`
 - `rect=(x,y,width,height)`
 - `tex=<asset location or (unknown)>`
@@ -235,7 +242,7 @@ policy hints).
 ```text
 meta.json            -> meta index for all entries (atomic write)
 
-<key>.material.dds   -> material params payload (BC7, DX10 DDS container)
+<key>.material.dds   -> material params payload (RGBA8_UNORM, DX10 DDS container)
 <key>.norm.dds       -> normal+depth payload (RGBA16_UNORM, DX10 DDS container)
 ```
 
@@ -284,8 +291,14 @@ Entry record (optional policy fields):
 
 The `.dds` payload stores UNORM channels:
 
-- Material params are stored as BC7-compressed `RGBA8` (DX10 DDS) with `A=1`, and consumers ignore alpha.
+- Material params are stored as uncompressed `R8G8B8A8_UNORM` (DX10 DDS) with `A=1`, and consumers ignore alpha. Channels retain their existing independent 8-bit quantization, and those bytes are preserved exactly on disk. Authored zero metallic/emission stays zero; authored weak positive emission is not removed by a threshold.
 - Normal+depth is stored as uncompressed `R16G16B16A16_UNORM` (DX10 DDS) (RGB = normalXYZ_01, A = height01).
+
+Lossy color compression is unsuitable for independent material coefficients: BC7
+can turn zero emission and metallic into `1/255` while fitting the roughness
+channel. Legacy BC7 material payloads are rejected on read and regenerated.
+RGBA8 uses four payload bytes per texel instead of BC7's approximately one; the
+existing disk cap and pruning policy still apply. GPU atlas formats are unchanged.
 
 ### 7.2 Atomic Writes
 

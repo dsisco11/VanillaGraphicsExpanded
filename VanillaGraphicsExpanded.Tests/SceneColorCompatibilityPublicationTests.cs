@@ -6,6 +6,19 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class SceneColorCompatibilityPublicationTests
 {
     #region Public API
+    /// <summary>A completely dark ambient publication still admits the current native scene frame.</summary>
+    [Theory]
+    [InlineData(0)] [InlineData(1e-30f)]
+    public void DarkAmbientPublishesCurrentFiniteScene(float ambient)
+    {
+        var fog = SceneColorFogEnvelope.FromInputs(42, new(0), new(0), new(0), 0, []);
+        var actual = SceneColorCompatibilityPublication.FromInputs(42, fog, 0, false, 0,
+            new(ambient), 0, 0, 0, 0, 1, SceneColorPointLightBounds.FromEngine(0, []));
+        Assert.Equal(42u, actual.FrameIndex);
+        Assert.True(float.IsFinite(actual.MaximumNits) && actual.MaximumNits >= 0);
+        actual.RequireWithin(actual);
+    }
+
     /// <summary>Concrete fog, cloud geometry, native point and normalized asset endpoints produce one finite physical budget.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]

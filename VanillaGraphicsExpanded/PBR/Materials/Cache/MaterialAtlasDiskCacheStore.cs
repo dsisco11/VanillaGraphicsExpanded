@@ -218,6 +218,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
         return true;
     }
 
+    /// <summary>Validates the payload format and atomically publishes its bytes and index metadata.</summary>
     public bool TryWriteAtomic(string entryId, ReadOnlySpan<byte> bytes)
     {
         if (string.IsNullOrWhiteSpace(entryId))
@@ -243,7 +244,7 @@ internal sealed class MaterialAtlasDiskCacheStore : ICacheStore, IDisposable
             {
                 if (channels == 3)
                 {
-                    DdsBc7Rgba8Codec.ReadBc7Header(ms, out width, out height);
+                    DdsRgba8UnormCodec.ReadRgba8UnormHeader(ms, out width, out height);
                 }
                 else
                 {

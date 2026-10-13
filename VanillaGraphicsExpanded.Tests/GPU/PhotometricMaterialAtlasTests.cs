@@ -11,6 +11,37 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class PhotometricMaterialAtlasTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Warm disk-cached terrain uploads retain zero emission and authored weak sources in the actual GPU atlas.</summary>
+    [Fact]
+    public void CachedMaterialPublicationRetainsZeroAndWeakEmission()
+    {
+        EnsureContextValid();
+        var fs = new VanillaGraphicsExpanded.Tests.TestSupport.InMemoryMaterialAtlasFileSystem();
+        string root = $"memcache/{Guid.NewGuid():N}";
+        var cache = new VanillaGraphicsExpanded.PBR.Materials.Cache.MaterialAtlasDiskCache(root, 64L * 1024 * 1024, fs);
+        var key = AtlasCacheKey.FromUtf8(1, "cached-gpu-zero-positive");
+        float[] source = Enumerable.Range(0, 64).SelectMany(pixel => new[]
+            { pixel / 63f, 0f, (pixel % 4) switch { 0 => 0f, 1 => 1f / 255f, 2 => .25f, _ => 1f } }).ToArray();
+        cache.StoreMaterialParamsTile(key, 8, 8, source);
+        var reopened = new VanillaGraphicsExpanded.PBR.Materials.Cache.MaterialAtlasDiskCache(root, 64L * 1024 * 1024, fs);
+        Assert.True(reopened.TryLoadMaterialParamsTile(key, out var loaded));
+        using var store = new MaterialAtlasTextureStore();
+        store.SyncToAtlasPages([(7, 8, 8)], false);
+        Assert.True(store.TryUploadMaterialParamsTile(7, new(0, 0, 8, 8), loaded, 0));
+        for (int tick = 0; tick < 8 && TextureStreamingSystem.GetDiagnosticsSnapshot().Pending > 0; tick++)
+            TextureStreamingSystem.TickOnRenderThread();
+        Assert.Equal(0, TextureStreamingSystem.GetDiagnosticsSnapshot().Pending);
+        Assert.True(store.TryGetPageTextures(7, out var page));
+        float[] actual = page.MaterialParamsTexture.ReadPixels();
+        for (int pixel = 0; pixel < 64; pixel++)
+        {
+            Assert.Equal(0, actual[pixel * 4 + 1]);
+            float expected = (float)(Half)loaded[pixel * 3 + 2];
+            Assert.Equal(expected, actual[pixel * 4 + 2]);
+        }
+        Assert.Equal(LightingCalibration.EmissionReferenceNits, store.MaximumEmissionNits);
+    }
+
     /// <summary>Uploaded rounding is included in the bound, lower replacements retain history, and retirement releases it.</summary>
     [Theory]
     [InlineData(1.0006f, 1.0009765625f)]

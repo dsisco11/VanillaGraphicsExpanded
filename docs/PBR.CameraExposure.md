@@ -38,10 +38,14 @@ limited influence; large bright/dark regions deliberately affect the camera. An 
 histogram retains the previous EV, or uses bounded manual exposure when initializing.
 
 Adaptation moves linearly at at most the selected stops/second while more than one stop
-from the target, then eases exponentially within one stop. The transition is integrated
+from the target, then eases exponentially within one stop. Defaults are 4 stops/second toward
+brighter exposure and 8 toward darker exposure. A constant twelve-stop target change settles
+within 0.05 stop in approximately 3.5 seconds when brightening and 1.75 seconds when darkening.
+These timings describe a fixed metered target; scene changes can keep moving that target.
+Explicitly saved adaptation rates are retained. The transition is integrated
 analytically, including a step crossing the one-stop boundary. With a constant target, split
-time steps produce the same result within floating-point tolerance. Defaults brighten at
-1 stop/s and darken at 3 stops/s. This temporal filter suppresses pumping; it does not promise
+time steps produce the same result within floating-point tolerance. This temporal filter
+suppresses pumping; it does not promise
 complete immunity to spatial undersampling or genuinely changing illumination.
 
 ## Tone curve and display

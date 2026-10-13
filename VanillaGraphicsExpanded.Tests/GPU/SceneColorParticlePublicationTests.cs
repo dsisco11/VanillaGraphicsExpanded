@@ -2,6 +2,7 @@ using HarmonyLib;
 using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -58,13 +59,11 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         var renderMock = Mock.Get(render);
         renderMock.SetupGet(value => value.CurrentRenderStage).Returns(EnumRenderStage.Opaque);
         renderMock.SetupGet(value => value.CurrentFrameBuffer).Returns(primary);
-        var world = new Mock<IClientWorldAccessor> { DefaultValue = DefaultValue.Mock };
-        world.SetupGet(value => value.Player).Returns(
-            RuntimeEngineServices.CameraPlayer(() => new VanillaGraphicsExpanded.LumOn.LumOnCameraState(0,0,0,0,0,0,0)));
+        var world = SceneColorRuntimeTests.CreateWorld();
         var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
         {
             "get_Render" => render,
-            "get_World" => world.Object,
+            "get_World" => world,
             "get_Event" => events.Api,
             "get_Shader" => programs.Api,
             _ => method.Invoke(assets.Api, args)
@@ -72,6 +71,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         programs.Initialize(api);
         using var frameCamera = new VgeFrameRenderer(api);
         using var lights = new VgeLightsRenderer(api);
+        using var camera = new CameraExposureRenderer(api);
         using var gbuffer = new GBufferManager(api);
         Assert.True(gbuffer.EnsureBuffers(2, 2));
         using var capture = new SceneColorParticleCapture(api, gbuffer);
@@ -113,6 +113,11 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
                 events.Render(EnumRenderStage.Before);
                 frameCamera.OnRenderFrame(.016f, EnumRenderStage.Opaque);
                 lights.OnRenderFrame(.016f, EnumRenderStage.Opaque);
+                // The isolated compositor consumes the same current frame/calibration
+                // scale as the scene owner; its zero-light fixture needs no global scene.
+                camera.OnRenderFrame(.016f, EnumRenderStage.Before);
+                CameraExposureRenderer.FreezeLightingStorage(new FrameLightingBounds(1e6f, 0, 0, 0, 0, 0),
+                    VgeFrameRenderer.Current.CalibrationGeneration);
                 Assert.Null(SceneColorParticleCapture.Layer(api));
                 Assert.Equal(depth.TextureId, SceneColorParticleCapture.ReceiverDepth(api, depth.TextureId));
                 Assert.True(cube.HasUniform("vge_sceneLinear"));

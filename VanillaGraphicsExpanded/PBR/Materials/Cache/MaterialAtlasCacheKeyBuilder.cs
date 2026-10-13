@@ -9,6 +9,7 @@ namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
 /// </summary>
 internal sealed class MaterialAtlasCacheKeyBuilder
 {
+    /// <summary>Identifies generated material data and its zero-preserving disk encoding.</summary>
     public AtlasCacheKey BuildMaterialParamsTileKey(
         in MaterialAtlasCacheKeyInputs inputs,
         int atlasTextureId,
@@ -19,7 +20,7 @@ internal sealed class MaterialAtlasCacheKeyBuilder
     {
         string stableKey = string.Format(
             CultureInfo.InvariantCulture,
-            "{0}|kind=matparams|size=({1},{2})|tex={3}|def=({4:R},{5:R},{6:R})|noise=({7:R},{8:R},{9:R},{10:R},{11:R})|scale=({12:R},{13:R},{14:R},{15:R},{16:R})",
+            "{0}|kind=matparams|storage=rgba8-unorm-v1|size=({1},{2})|tex={3}|def=({4:R},{5:R},{6:R})|noise=({7:R},{8:R},{9:R},{10:R},{11:R})|scale=({12:R},{13:R},{14:R},{15:R},{16:R})",
             inputs.StablePrefix,
             rect.Width,
             rect.Height,
@@ -41,6 +42,7 @@ internal sealed class MaterialAtlasCacheKeyBuilder
         return AtlasCacheKey.FromUtf8(inputs.SchemaVersion, stableKey);
     }
 
+    /// <summary>Identifies override material data independently of superseded lossy cache entries.</summary>
     public AtlasCacheKey BuildMaterialParamsOverrideTileKey(
         in MaterialAtlasCacheKeyInputs inputs,
         int atlasTextureId,
@@ -53,7 +55,7 @@ internal sealed class MaterialAtlasCacheKeyBuilder
     {
         string stableKey = string.Format(
             CultureInfo.InvariantCulture,
-            "{0}|kind=matparams_override|size=({1},{2})|target={3}|override={4}|rule={5}|ruleSrc={6}|scale=({7:R},{8:R},{9:R})",
+            "{0}|kind=matparams_override|storage=rgba8-unorm-v1|size=({1},{2})|target={3}|override={4}|rule={5}|ruleSrc={6}|scale=({7:R},{8:R},{9:R})",
             inputs.StablePrefix,
             rect.Width,
             rect.Height,

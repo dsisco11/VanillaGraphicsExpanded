@@ -32,7 +32,7 @@ public sealed class MaterialAtlasDiskCacheRoundTripTests
             Assert.True(cache.TryLoadMaterialParamsTile(key, out float[] loaded));
             Assert.Equal(rgb.Length, loaded.Length);
 
-                // Material params are quantized to RGBA8 then BC7-compressed; allow a small error budget.
+                // Material params retain the exact quantized RGBA8 values in the lossless cache.
                 // Compare against the quantized reference (what we *intend* to store).
                 float[] quantized = new float[rgb.Length];
                 for (int i = 0; i < rgb.Length; i++)
@@ -46,7 +46,7 @@ public sealed class MaterialAtlasDiskCacheRoundTripTests
                     quantized[i] = b / 255f;
                 }
 
-                const float Eps = (16f / 255f) + 1e-6f;
+                const float Eps = 1e-7f;
                 for (int i = 0; i < rgb.Length; i++)
                 {
                     Assert.InRange(MathF.Abs(loaded[i] - quantized[i]), 0f, Eps);
@@ -156,7 +156,7 @@ public sealed class MaterialAtlasDiskCacheRoundTripTests
                     quantized[i] = b / 255f;
                 }
 
-                const float Eps = (16f / 255f) + 1e-6f;
+                const float Eps = 1e-7f;
                 for (int i = 0; i < cached.Length; i++)
                 {
                     Assert.InRange(MathF.Abs(cached[i] - quantized[i]), 0f, Eps);

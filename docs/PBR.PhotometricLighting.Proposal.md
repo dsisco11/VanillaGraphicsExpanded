@@ -1355,8 +1355,12 @@ Admission requires finite intermediate expressions and the declared coverage/fog
   actual particle color and the normal/shadow multiplier, then apply fog/underwater bounds.
   bMax includes actual sun/block brightness, MINBRIGHT, glow and point strength. The installed
   point strength is bounded by `1+(25/15)*max(25,abs(1-sunlightIntensity))`, plus 0.45 times
-  night vision in its alpha/brightness channel. Zero normalization denominators and invalid
-  raw point-color range divisions fail admission; these bounds do not certify legacy NaNs.
+  night vision in its alpha/brightness channel. Scene-only particle/decal shader normalization
+  scales source colors and weights before restoring brightness; an all-zero source returns
+  neutral RGB. The intermediate weighted denominator has a normal positive guard, so dark
+  ambient is admitted without an artificial illumination floor. Offscreen arithmetic remains
+  native. Invalid raw point-color range divisions still fail admission; finite storage fallback
+  alone does not certify unsupported sources.
 - Night-sky cube sampling, with display noise removed, is bounded by
   `max(0,2*(CubeTextureMax-0.03))+0.5*nightVisionStrength`, followed by underwater mixing.
   Moon texture/color and initial fog bounds first pass through the phase multiplier, at most

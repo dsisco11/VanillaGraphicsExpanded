@@ -27,7 +27,7 @@ public sealed class CameraExposureSettingsTests
         Assert.InRange(snapshot.LowPercentile, 0, .49f);
         Assert.InRange(snapshot.HighPercentile, .51f, 1);
         Assert.True(snapshot.BrightenRate > 0 && float.IsFinite(snapshot.BrightenRate));
-        Assert.True(snapshot.DarkenRate > 0 && float.IsFinite(snapshot.DarkenRate));
+        Assert.Equal(8, snapshot.DarkenRate);
         settings.Compensation = 3;
         Assert.Equal(0, snapshot.Compensation);
         Assert.Equal(3, settings.Snapshot().Compensation);
@@ -36,11 +36,13 @@ public sealed class CameraExposureSettingsTests
     [Fact]
     public void ConfigurationRoundtripPreservesExposureAndSanitizesNull()
     {
-        var config = new VgeConfig { CameraExposure = new() { Enabled = false, Compensation = 1.75f, ManualEV = -2 } };
+        var config = new VgeConfig { CameraExposure = new() { Enabled = false, Compensation = 1.75f, ManualEV = -2, BrightenRate = 2, DarkenRate = 5 } };
         var restored = JsonConvert.DeserializeObject<VgeConfig>(JsonConvert.SerializeObject(config))!;
         Assert.False(restored.CameraExposure.Enabled);
         Assert.Equal(1.75f, restored.CameraExposure.Compensation);
         Assert.Equal(-2, restored.CameraExposure.ManualEV);
+        Assert.Equal(2, restored.CameraExposure.BrightenRate);
+        Assert.Equal(5, restored.CameraExposure.DarkenRate);
         restored.CameraExposure = null!;
         restored.Sanitize();
         Assert.NotNull(restored.CameraExposure);
@@ -55,6 +57,8 @@ public sealed class CameraExposureSettingsTests
         Assert.Equal(0, config.CameraExposure.ManualEV);
         Assert.Equal(-20, config.CameraExposure.MinEV);
         Assert.Equal(8, config.CameraExposure.MaxEV);
+        Assert.Equal(4, config.CameraExposure.BrightenRate);
+        Assert.Equal(8, config.CameraExposure.DarkenRate);
         Assert.Null(JObject.FromObject(config)["PhotometricVersion"]);
 
         var definition = JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
@@ -72,8 +76,18 @@ public sealed class CameraExposureSettingsTests
                 Assert.Equal(8, setting.Value["default"]!.Value<float>());
                 bounds++;
             }
+            if (setting.Value["code"]?.Value<string>() == "CameraExposure.BrightenRate")
+            {
+                Assert.Equal(4, setting.Value["default"]!.Value<float>());
+                bounds++;
+            }
+            if (setting.Value["code"]?.Value<string>() == "CameraExposure.DarkenRate")
+            {
+                Assert.Equal(8, setting.Value["default"]!.Value<float>());
+                bounds++;
+            }
         }
-        Assert.Equal(2, bounds);
+        Assert.Equal(4, bounds);
     }
     #endregion
 }

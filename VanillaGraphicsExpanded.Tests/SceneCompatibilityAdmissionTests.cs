@@ -18,17 +18,27 @@ public sealed class SceneCompatibilityAdmissionTests
         Assert.ThrowsAny<ArgumentException>(() => SceneColorCompatibilityBounds.CloudVertexColor(day, 1, 2, mode, radius, length));
     }
 
-    /// <summary>Native particle normalization requires positive normal intermediates rather than merely a finite theoretical final bound.</summary>
+    /// <summary>Invalid sources and overflowing native particle intermediates remain unsupported.</summary>
     [Theory]
-    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)] [InlineData(4)] [InlineData(5)] [InlineData(6)]
+    [InlineData(2)] [InlineData(3)] [InlineData(4)] [InlineData(5)]
     public void CubeParticleArithmeticRejectsUnsupportedDomains(int kind)
     {
-        System.Numerics.Vector3 ambient = kind switch { 0 or 6 => new(0), 1 => new(1e-30f), 2 => new(float.MaxValue), _ => new(1, 3, 2) };
+        System.Numerics.Vector3 ambient = kind == 2 ? new(float.MaxValue) : new(1, 3, 2);
         var points = SceneColorPointLightBounds.FromEngine(0, []);
         float minimumBrightness = kind == 3 ? float.MaxValue : 1;
-        float night = kind == 4 ? 1.01f : kind == 6 ? 1 : 0;
+        float night = kind == 4 ? 1.01f : 0;
         if (kind == 5) points = default;
         Assert.ThrowsAny<ArgumentException>(() => SceneColorCompatibilityBounds.CubeParticles(ambient, night, minimumBrightness, 1, 1, 1, 1, points, 0, 1));
+    }
+
+    /// <summary>Dark native ambient values admit a finite bound without requiring an artificial illumination floor.</summary>
+    [Theory]
+    [InlineData(0, 0)] [InlineData(0, 1)] [InlineData(1e-30f, 0)] [InlineData(1e-30f, 1)]
+    public void DarkCubeParticleInputsPublishFiniteBounds(float ambient, float night)
+    {
+        var points = SceneColorPointLightBounds.FromEngine(0, []);
+        float bound = SceneColorCompatibilityBounds.CubeParticles(new(ambient), night, 0, 1, 1, 0, 0, points, 0, 1);
+        Assert.True(float.IsFinite(bound) && bound >= 0);
     }
 
     /// <summary>An active red component too small to survive normalization cannot qualify legacy range division.</summary>

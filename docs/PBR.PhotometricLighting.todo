@@ -729,6 +729,124 @@ Phase 6: Qualify the integrated candidate and reconcile documentation
 Depends on Phase 5. Outcome: A reviewable candidate has numerical, integration, package and
 live-runtime evidence; accepted defaults and approximation limits are documented.
 
+Current integration findings (2026-10-12)
+  - Subsequent user-run observations: daytime clouds appear black but gain expected color around
+    sunrise/sunset; nighttime sky is pitch black; camera adaptation is too slow; block lighting
+    is not apparent in daytime shadows. These are unresolved appearance findings, not acceptance.
+    Source inspection shows native cloud output still receives the fixed 32-nit authored-effect
+    reference, independently of calibrated outdoor illumination. This can suppress clouds under
+    daylight exposure and requires a cloud-specific quantity reconciliation before acceptance.
+    The user clarified that LumOn was disabled and both stars and the moon were absent at night.
+    Solar-only atmospheric transport does not explain missing celestial rendering; this remains
+    a rendering finding independent of adding lunar or airglow sources. Replay of the user's
+    black-night-sky.rdc now confirms back-face culling rejects the inward-facing star cube at
+    event 347: original/native-color/constant-magenta fragment controls all produce zero RGB;
+    reversing only vertex winding restores the unchanged original star shader and its final
+    display contribution (final-stars-winding-control.png; diagnostic reflected geometry, not
+    an implementation candidate). The restored star draw has stored RGB
+    maximum 237.25/228.5/228.5. Captured daylight, cubemap RGB, storage publication, viewport,
+    output routing and write masks are valid. The moon at event 590 is behind the camera (all
+    four post-vertex clip w values negative), so this frame does not establish its reported
+    disappearance. Temporary replay replacements were restored. The celestial invalidation
+    workaround was removed after review: state tracking must cover native mutations itself.
+    Installed IL identifies 19 callers of the platform culling helpers; the existing render-API
+    and GUI recompilation list omitted 16 of them, including ClientMain.MainRenderLoop and
+    the native celestial callbacks. EngineRenderApiStatePatches now explicitly rebuilds those
+    audited methods after native-helper routing, without a transitive call graph or per-frame
+    invalidation. The capture establishes the effective state fault, not the original JIT's
+    precise inlining decisions. Release validation passed 47 focused checks with default runtime
+    settings, including an optimized warmed-caller reproduction, all 19 installed targets and
+    repeated owner rebuilds without duplicate transpilers (state-recompilation-fix.trx under
+    artifacts/BlackNightSky). Live star visibility remains pending; the moon finding remains
+    unverified. The earlier celestial-cull-fix candidate is superseded.
+    Receipts are under artifacts/BlackNightSky, including winding-replacement-results.json,
+    moon-postvs.json and cull-state-trace.json.
+    A CPU diagnostic of the compiled clear-weather atmosphere at 1 m altitude found legacy
+    daylight 0.6682 at solar elevation -6 degrees, 0.1005 at -12, 0.000424 at -18, and nearly zero
+    at -30. Deriving visibility from tone-mapped physical light overstates twilight coverage,
+    but does not establish the cause of missing deep-night celestial bodies. Full values are in
+    artifacts/AtmosphereLegacyDiagnostic/results.json; this is not a live draw receipt.
+    Recorded automation settings use -20/+8 stops. The reported slow exposure used brighten/
+    darken rates 1/3 stops per second. The timing correction raises code and ConfigLib defaults
+    to 4/8; the two local profiles with exactly the old rates were updated explicitly, with
+    backups in artifacts/ExposureTimingFix. Saved custom rates remain unchanged by runtime code.
+    Linear response outside one stop and exponential settling inside one stop remain unchanged;
+    a twelve-stop transition should settle within 0.05 stop in about 3.5/1.75 seconds.
+    Focused Release validation passed 30 tests with zero failures/skips, covering default/UI
+    parity, saved custom rates, history, display routing and both twelve-stop transitions
+    including split-frame timing (artifacts/TestResults/exposure-adaptation-defaults.trx).
+    User-run timing acceptance remains pending.
+    The 44-lumen torch fixture gives about 3.5 lux
+    at its reference receiver; its contrast against daytime scattered sky needs scene evidence.
+    Do not infer a lost block contribution or raise source power from appearance alone.
+  - A user-run startup crash reached CubeParticles' ambient-only normalization certificate.
+    That certificate incorrectly required positive ambient for the whole frame, including
+    black startup/night inputs. Scene cube-particle/decal vertex patches now guard the weighted
+    denominator and restore brightness from scaled source colors/weights; zero lighting remains
+    finite black without adding illumination. Native offscreen arithmetic is retained.
+    CPU admission still rejects unsupported source/intermediate/output bounds. Regression checks
+    exercise complete installed vertex stages before fragment fallback, rather than relying on
+    the earlier test which classified zero ambient as unsupported. Live restart confirmation and
+    the complete appearance matrix remain outstanding; this finding is not phase acceptance.
+    The final affected scene/particle/installed-shader regression run passes 179/179 with no skips;
+    artifacts/TestResults/photometric-dark-fix-final.trx supersedes the four earlier stale fixture
+    failures. Release production/test compilation and both shader catalogs pass. Second source
+    review and independent review found no remaining issue in this narrow crash fix.
+    Eighteen additional stage-selection checks pass without skips (197 distinct cases total).
+    Isolated candidate: artifacts/PhotometricDarkAmbientFix/candidate.zip, SHA256
+    70E03A025D021F0838C6C210A79498C3B9A5FC62972A2EDA8A04FBD47316C214.
+    The adjacent receipt.json records source, assembly, catalog and package-content hashes;
+    packaged, test-output and development Release production DLLs match. The package excludes
+    test fixtures and automation hooks; no installation or game launch was performed.
+
+  ☐ Trace and correct unintended emission on non-emissive terrain materials.
+    - Reproduce bright-night.rdc's sampled sand/cobblestone contrast: environment and direct
+      illumination are zero, but the material emission coefficient is approximately 1/255.
+      Reference artifacts/BrightNight/findings.md and lighting-split.json; do not treat this
+      self-emission as ambient skylight or compensate through exposure/block-light intensity.
+    - Trace the affected material channels through generation, overrides, disk-cache encoding/
+      loading, GPU publication and sampling. Identify where intended zero emission becomes
+      nonzero; investigate the matching small metallic value without assuming a shared cause.
+    - Correct the responsible path and handle affected cached artifacts as needed, preserving
+      authored emitting materials. Verify exact-zero emission survives relevant round trips
+      and shader publication, while intended ember/lamp emission remains intact.
+    - Validate nighttime terrain and item consistency with LumOn enabled/disabled, and verify
+      non-emissive receivers respond to incident-light tint and ambient AO where applicable.
+
+    Implementation evidence: a controlled BC7 disk-cache round trip introduced 1/255
+    metallic and emission into all 4,096 tested texels whose authored channels were zero,
+    spanning all 256 quantized roughness levels. This matches the captured terrain values;
+    generation and lighting must not compensate for it. Material cache payloads now use
+    lossless RGBA8 with the existing independent 8-bit quantization. Generated and override
+    keys carry storage=rgba8-unorm-v1; old material entries miss and rebuild, and BC7 payloads
+    are rejected on read. Normal/depth identities and GPU atlas formats are unchanged.
+    Focused Release validation passes 122/122 with no skips, including exact-zero, authored
+    weak-positive emission, legacy-cache rebuild, encoding identities, actual GPU atlas
+    publication and existing forward/installed surface checks. Receipt:
+    artifacts/MaterialEmission/lossless-material-cache-final.trx. The original failing BC7
+    values are retained in artifacts/MaterialEmission/zero-channel-bc7-baseline.txt.
+    The user confirmed that this fixed the reported terrain-emission issue on 2026-10-12;
+    the complete LumOn/receiver appearance matrix was not reported. The separate zero nighttime
+    illumination source is not corrected by this change. Isolated candidate:
+    artifacts/MaterialEmission/candidate.zip, with build/catalog/source/package identities in
+    package-receipt.json. No installation or game launch was performed.
+
+  ☐ Define and integrate a shared, calibrated nighttime illumination source.
+    - Record the current solar-only atmosphere limitation: bright-night.rdc publishes zero
+      atmospheric environment/solar lighting, while the crock has zero decoded block light
+      and correctly zero emission. Visible stars/moon/embers do not themselves establish
+      incident light on neighboring non-GI receivers. Reference artifacts/BrightNight/findings.md.
+    - Establish the intended night source(s), physical reference intensities, chromaticity and
+      visibility behavior; reconcile the proposal and atmosphere contract before implementation.
+      Distinguish lunar illumination from any separately selected night-background contribution.
+    - Integrate the agreed source through existing lighting/publication owners, sharing declared
+      quantities across terrain, standard/forward items, liquids and LumOn consumers. Include
+      source bounds and storage/cache identity requirements; avoid object-specific brightness
+      floors, artificial material emission or changes to native block-light propagation.
+    - Verify fixed-exposure source ratios and receiver consistency before automatic exposure;
+      cover twilight/night transitions, outdoor/interior sky availability, atmospheric tint,
+      LumOn enabled/disabled and user-run appearance acceptance with its actual coverage recorded.
+
   ☐ Run focused and required integrated validation through subagents.
     - Validate unit arithmetic, fixture agreement, generated/installed shader contracts and
       both lighting modes. Expand testing only for actual changed contracts or unresolved failures.

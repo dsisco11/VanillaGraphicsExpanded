@@ -4,11 +4,13 @@ using System.IO;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
 
+/// <summary>Reads and writes lossless RGBA8 UNORM tiles in the standard DX10 DDS container.</summary>
 internal static class DdsRgba8UnormCodec
 {
     private const uint DdsMagic = 0x20534444; // "DDS "
     private const int DdsHeaderSize = 124;
     private const int DdsPixelFormatSize = 32;
+    private const int DdsPixelFormatOffset = 72;
 
     private const uint DdsdCaps = 0x1;
     private const uint DdsdHeight = 0x2;
@@ -27,6 +29,8 @@ internal static class DdsRgba8UnormCodec
     // D3D10_RESOURCE_DIMENSION_TEXTURE2D
     private const uint ResourceDimensionTexture2D = 3;
 
+    #region Public API
+    /// <summary>Writes an exact RGBA8 tile and flushes its file contents.</summary>
     public static void WriteRgba8Unorm(string filePath, int width, int height, ReadOnlySpan<byte> rgba)
     {
         if (width <= 0) throw new ArgumentOutOfRangeException(nameof(width));
@@ -45,6 +49,7 @@ internal static class DdsRgba8UnormCodec
         fs.Flush(flushToDisk: true);
     }
 
+    /// <summary>Writes the DX10 DDS header followed by unmodified RGBA8 bytes.</summary>
     public static void WriteRgba8Unorm(Stream stream, int width, int height, ReadOnlySpan<byte> rgba)
     {
         ArgumentNullException.ThrowIfNull(stream);
@@ -66,8 +71,8 @@ internal static class DdsRgba8UnormCodec
         uint pitchBytes = checked((uint)width * 4u);
         BinaryPrimitives.WriteUInt32LittleEndian(h[16..20], pitchBytes);
 
-        // ddspf at offset 76
-        Span<byte> pf = h.Slice(76, DdsPixelFormatSize);
+        // DDS_PIXELFORMAT starts at byte 72 of DDS_HEADER (76 including the magic).
+        Span<byte> pf = h.Slice(DdsPixelFormatOffset, DdsPixelFormatSize);
         BinaryPrimitives.WriteUInt32LittleEndian(pf[0..4], DdsPixelFormatSize);
         BinaryPrimitives.WriteUInt32LittleEndian(pf[4..8], DdpfFourCc);
         BinaryPrimitives.WriteUInt32LittleEndian(pf[8..12], FourCcDx10);
@@ -87,13 +92,15 @@ internal static class DdsRgba8UnormCodec
         stream.Write(rgba);
     }
 
+    /// <summary>Loads an exact RGBA8 payload from a validated file.</summary>
     public static byte[] ReadRgba8Unorm(string filePath, out int width, out int height)
     {
         using var fs = new FileStream(filePath, FileMode.Open, FileAccess.Read, FileShare.Read);
         return ReadRgba8Unorm(fs, out width, out height);
     }
 
-    public static byte[] ReadRgba8Unorm(Stream stream, out int width, out int height)
+    /// <summary>Validates RGBA8 DDS metadata without allocating or reading its pixel payload.</summary>
+    public static void ReadRgba8UnormHeader(Stream stream, out int width, out int height)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
@@ -122,7 +129,7 @@ internal static class DdsRgba8UnormCodec
             throw new InvalidDataException("DDS had invalid dimensions.");
         }
 
-        Span<byte> pf = h.Slice(76, DdsPixelFormatSize);
+        Span<byte> pf = h.Slice(DdsPixelFormatOffset, DdsPixelFormatSize);
         uint pfSize = BinaryPrimitives.ReadUInt32LittleEndian(pf[0..4]);
         uint pfFlags = BinaryPrimitives.ReadUInt32LittleEndian(pf[4..8]);
         uint fourCc = BinaryPrimitives.ReadUInt32LittleEndian(pf[8..12]);
@@ -141,11 +148,17 @@ internal static class DdsRgba8UnormCodec
         {
             throw new InvalidDataException("DDS DX10 header does not describe a 2D R8G8B8A8_UNORM texture.");
         }
+    }
 
+    /// <summary>Validates the container and loads the independently quantized material bytes exactly.</summary>
+    public static byte[] ReadRgba8Unorm(Stream stream, out int width, out int height)
+    {
+        ReadRgba8UnormHeader(stream, out width, out height);
         int bytes = checked(width * height * 4);
         byte[] payload = new byte[bytes];
         stream.ReadExactly(payload);
 
         return payload;
     }
+    #endregion
 }

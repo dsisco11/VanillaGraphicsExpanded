@@ -121,6 +121,12 @@ shader patches are no longer registered or present in production. Copied display
 SSAO/filter algorithms were removed; native controls now drive original display code, with
 horizon-integrated AO applied to deferred ambient/indirect light before atmospheric transport. No native visual-equivalence claim is made.
 
+Native cube-particle and decal vertex lighting keeps black ambient as a supported scene input.
+Its scene-only brightness normalization scales colors and weights before mixing, guards the
+weighted denominator and returns neutral RGB for an all-zero source. This avoids rejecting
+the entire frame when ambient is black or very dark; the original offscreen response remains.
+Finite source/accumulation admission and destination safeguards still apply.
+
 Third-party scene contributors must honor the HDR target contract. Merely registering an
 unclassified program does not affect VGE ownership, including programs used only for UI.
 The registry-wide compatibility gate has been removed. Missing required patched color

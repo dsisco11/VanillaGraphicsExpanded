@@ -37,6 +37,7 @@ internal static class VanillaShaderPatches
         || PatchedChunkVertexShaders.Contains(sourceName)
         || PatchedChunkShaders.Contains(sourceName)
         || SceneColor.SceneColorLegacyPatches.Supports(sourceName)
+        || SceneColor.SceneColorParticleLightingPatches.Supports(sourceName)
         || PbrSurfaceShaderPatches.Supports(sourceName);
 
     #endregion
@@ -226,6 +227,7 @@ flat in uint vge_faceId;
     {
         try
         {
+            if (SceneColor.SceneColorParticleLightingPatches.Supports(sourceName)) return true;
             if (SceneColor.SceneColorLegacyPatches.Supports(sourceName))
             {
                 SceneColor.SceneColorLegacyPatches.Preprocess(tree);
@@ -365,6 +367,12 @@ flat in uint vge_faceId;
     {
         try
         {
+            if (SceneColor.SceneColorParticleLightingPatches.Supports(sourceName))
+            {
+                SceneColor.SceneColorParticleLightingPatches.Apply(tree);
+                declare?.Invoke(ShaderCapability.SceneColorConvention);
+                return true;
+            }
             if (SceneColor.SceneColorLegacyPatches.Supports(sourceName))
             {
                 SceneColor.SceneColorLegacyPatches.Apply(tree, sourceName);

@@ -157,6 +157,8 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         int fragment = shaders.Compile(ShaderType.FragmentShader,
             PbrSurfaceInstalledShaderTests.Build("particlescube.fsh", 0, 0, ssao, 0, 0));
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        using var lighting = new TestFrameLightingPublication();
+        lighting.Bind();
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "cameraUnderwater"), 1f);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "shadowIntensity"), 0f);
@@ -167,7 +169,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         float[] authored = [.5f, .25f, .75f];
         for (int channel = 0; channel < 3; channel++)
         {
-            float expected = linearScene == 0 ? authored[channel] : MathF.Pow((authored[channel] + .055f) / 1.055f, 2.4f);
+            float expected = linearScene == 0 ? authored[channel] : 32 * MathF.Pow((authored[channel] + .055f) / 1.055f, 2.4f);
             Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
         }
         Assert.Equal(.4f, actual[3]);

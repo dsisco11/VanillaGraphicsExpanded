@@ -99,14 +99,17 @@ public sealed class MaterialAtlasCacheKeyStabilityTests
 
             Assert.Equal(k1, k3);
 
-            // Output-affecting config should change inputs => change key.
+            // Other consumers retain the normal/depth atlas requirement when normal mapping is disabled.
             var cfg3 = new VgeConfig();
             cfg3.MaterialAtlas.EnableAsync = true;
             cfg3.MaterialAtlas.EnableNormalMaps = false;
 
             var inputs3 = MaterialAtlasCacheKeyInputs.Create(cfg3, snapshot, PbrMaterialRegistry.Instance);
             AtlasCacheKey k4 = builder.BuildMaterialParamsTileKey(inputs3, 101, rect, texture, def, scale);
-            Assert.NotEqual(k1, k4);
+            Assert.Equal(k1, k4);
+            // An authored roughness change does alter the material output identity.
+            AtlasCacheKey changed = builder.BuildMaterialParamsTileKey(inputs3, 101, rect, texture, def with { Roughness = .7f }, scale);
+            Assert.NotEqual(k1, changed);
         }
         finally
         {

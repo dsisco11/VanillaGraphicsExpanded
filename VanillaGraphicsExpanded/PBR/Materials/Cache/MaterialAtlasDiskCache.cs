@@ -14,6 +14,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.Cache;
 
+/// <summary>Persists quantized material and normal/depth tiles without cross-channel compression error.</summary>
 internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
 {
     private readonly string root;
@@ -139,6 +140,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             EvictedBytes: Interlocked.Read(ref evictedBytes));
     }
 
+    /// <summary>Loads exact quantized material channels, rejecting superseded lossy payloads.</summary>
     public bool TryLoadMaterialParamsTile(AtlasCacheKey key, out float[] rgbTriplets)
     {
         if (!TryLoadTile(PayloadKind.MaterialParams, key, out TileInfo info, out float[] rgba))
@@ -158,7 +160,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             return false;
         }
 
-        // Stored as BC7-compressed DDS (8-bit RGBA); strip A when serving RGB callers.
+        // Lossless RGBA8 preserves zero emission/metallic after quantization; alpha is padding.
         rgbTriplets = new float[checked(pixels * 3)];
 
         int si = 0;
@@ -176,6 +178,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         return true;
     }
 
+    /// <summary>Quantizes material channels independently and preserves those bytes exactly on disk.</summary>
     public void StoreMaterialParamsTile(AtlasCacheKey key, int width, int height, float[] rgbTriplets)
     {
         ArgumentNullException.ThrowIfNull(rgbTriplets);
@@ -201,7 +204,7 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             rgbaU8[di++] = 255;
         }
 
-        StoreTileBc7(PayloadKind.MaterialParams, key, width, height, channels: 3, rgbaU8);
+        StoreTileRgba8(PayloadKind.MaterialParams, key, width, height, rgbaU8);
     }
 
     public bool HasNormalDepthTile(AtlasCacheKey key)
@@ -315,7 +318,9 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
             if (kind == PayloadKind.MaterialParams)
             {
                 using Stream s = new MemoryStream(ddsBytes, writable: false);
-                byte[] rgbaU8 = DdsBc7Rgba8Codec.ReadRgba8FromDds(s, out int w, out int h);
+                // Lossy color compression can introduce light into a zero emission channel.
+                // Reject old BC7 entries instead of decoding their already-corrupted values.
+                byte[] rgbaU8 = DdsRgba8UnormCodec.ReadRgba8Unorm(s, out int w, out int h);
 
                 rgba = new float[rgbaU8.Length];
                 for (int i = 0; i < rgbaU8.Length; i++)
@@ -400,14 +405,15 @@ internal sealed class MaterialAtlasDiskCache : IMaterialAtlasDiskCache
         }
     }
 
-    private void StoreTileBc7(PayloadKind kind, AtlasCacheKey key, int width, int height, int channels, byte[] rgbaU8)
+    /// <summary>Writes an exact RGBA8 DDS tile through the existing atomic/indexed cache owner.</summary>
+    private void StoreTileRgba8(PayloadKind kind, AtlasCacheKey key, int width, int height, byte[] rgbaU8)
     {
         try
         {
             string entryId = GetFileStem(key) + GetKindSuffix(kind);
 
             using var ms = new MemoryStream(capacity: 1024);
-            DdsBc7Rgba8Codec.WriteBc7Dds(ms, width, height, rgbaU8);
+            DdsRgba8UnormCodec.WriteRgba8Unorm(ms, width, height, rgbaU8);
             byte[] ddsBytes = ms.ToArray();
 
             if (store.TryWriteAtomic(entryId, ddsBytes))
