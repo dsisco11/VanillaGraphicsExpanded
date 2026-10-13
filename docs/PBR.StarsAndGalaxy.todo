@@ -1,10 +1,12 @@
 VGE-owned HDR stars and galaxy
 =============================
 
-Status: Planned; implementation and acceptance remain open.
+Status: Phase 1 contracts complete after second review and independent completion audit (2026-10-13). Runtime implementation and acceptance remain open.
 Authority: User-approved hybrid HDR direction and refinements (2026-10-13).
-Related plan: docs/PBR.PhotometricLighting.todo, shared nighttime illumination work.
-Diagnostic evidence: artifacts/LightingImbalance/findings.md.
+Related plan: PBR.PhotometricLighting.todo, shared nighttime illumination work.
+Diagnostic evidence: ../artifacts/LightingImbalance/findings.md.
+Linked contracts: PBR.PhotometricLighting.Proposal.md (calibrated nighttime celestial
+lighting) and PBR.Atmosphere.Publication.md (publication and draw ownership).
 
 Goal and approved constraints
   Replace the native stars/galaxy draw with VGE-owned rendering and shader code.
@@ -23,17 +25,17 @@ Research references
     Reference for angular-area normalization and stable subpixel star filtering;
     its atomic compute rasterizer is not the selected implementation.
   - A Physically-Based Nightsky Model (2001):
-    https://lightfield.stanford.edu/papers/nightsky/
+    https://graphics.stanford.edu/papers/nightsky/nightsky.pdf
     Reference for consistent source appearance, illumination and atmospheric transport.
 
 Phase 1: Define source, quality and publication contracts
 -------------------------------------------------------
-☐ Identify the authoritative global sky quality option and its supported levels.
+☑ Identify the authoritative global sky quality option and its supported levels.
   - Reconcile the existing Atmosphere.SkyLutQuality option with the requested global
     setting before wiring consumers; do not introduce an independent star-quality knob.
   - Record exact per-level star caps, cubemap resolutions and generation budgets.
     Keep the highest cap within a few thousand and lower levels strict subsets.
-☐ Specify deterministic star and procedural galaxy inputs.
+☑ Specify deterministic star and procedural galaxy inputs.
   - Choose a compact licensed catalog or deterministic generated distribution;
     document direction, magnitude, linear color and stable seed/orientation conventions.
   - Define the galaxy shader's broad band, bulge, dust attenuation and multiscale
@@ -41,7 +43,7 @@ Phase 1: Define source, quality and publication contracts
     not a measured reconstruction of the Milky Way.
   - Split resolved stars from unresolved background without duplicate energy. Account
     for stars omitted at lower quality so quality changes do not change total illumination.
-☐ Define physical units, normalization, HDR encoding and conservative source bounds.
+☑ Define physical units, normalization, HDR encoding and conservative source bounds.
   - Convert star magnitudes to integrated photometric contributions and normalize
     their filtered angular footprints. Define the diffuse map's luminance budget.
   - Keep airglow separate; replace only the corresponding existing stellar background
@@ -49,7 +51,7 @@ Phase 1: Define source, quality and publication contracts
   - Specify scaled floating-point cubemap storage, mip filtering and precision checks.
     Do not apply legacy black subtraction, display-space processing or the generic
     compatibility brightness conversion to generated celestial radiance.
-☐ Specify complete publication and failure behavior with existing resource owners.
+☑ Specify complete publication and failure behavior with existing resource owners.
   - Galaxy generation is a world-loading operation, not per-frame work. Rebuild only
     for relevant quality/source changes, context recovery or shader reload as required.
   - Retain the last complete publication on failed replacement; define first-load
@@ -133,3 +135,169 @@ Completion criterion
   shader code or galaxy imagery. A bounded instanced star set and load-generated HDR
   galaxy share a qualified lighting calibration, preserve smooth gradients and stable
   star energy, meet recorded performance budgets and receive user appearance acceptance.
+
+Resolved source, quality and publication contract (2026-10-13)
+-------------------------------------------------------------
+This section specifies the design to implement; it does not claim runtime qualification.
+It governs the tasks above. Existing runtime behavior remains unchanged until implementation.
+
+Quality and bounded work
+  Use Atmosphere.SkyLutQuality as the single VGE sky quality setting: integer 0..3,
+  default 0, sanitized by AtmosphereSettings.Sanitize. Keep its JSON key and existing
+  atmosphere LUT scaling; update its UI label/tooltip to describe global sky quality
+  when wiring the new consumers. No second selector or config migration is needed.
+  Confirmed in AtmosphereSettings.cs and configlib-patches.json.
+
+  Level   Instanced stars   Galaxy face size   Max noise octaves   Cubemap with mips
+    0          1024              512                  4                 8 MiB
+    1          2048             1536                  5                72 MiB
+    2          3072             2048                  6               128 MiB
+    3          4096             2048                  7               128 MiB
+
+  Memory figures are rounded up for six R11G11B10F faces and a complete mip chain.
+  Allow two final-format maps during replacement (retained and candidate), plus one
+  RGBA16F scratch map and 8 MiB for source buffers, reduction and lighting data: 40/296/520/520 MiB.
+  Resolution revision (2026-10-13): user selected 512 pixels per face for the lowest
+  level and 2048 for the highest. Use 512/1536/2048/2048; these replace
+  the sizes reviewed originally. Highest-quality resident map storage is bounded by
+  128 MiB; the conservative replacement budget is 520 MiB. Reuse/tile scratch where
+  possible during implementation; do not assume a full-size scratch map is necessary.
+  Qualify allocation support (including non-power-of-two faces and partial edge tiles), peak memory
+  and loading time at these revised sizes before accepting the implementation.
+  Rasterize six faces with a GLSL 330 generation program through existing resource APIs;
+  do not require a new compute capability. Generate at most 128x128 texels per submitted
+  tile, seven bounded noise octaves, then bounded mip/reduction passes. Never spin-wait
+  on completion. Schedule on the existing render-context owner during world loading.
+  Qualification targets: <=1 second aggregate generation GPU time at highest quality,
+  <=0.5 ms steady-state at 2560x1440 on the qualification machine. Record that machine;
+  these are acceptance targets, not measurements or promises for every GPU. Do not
+  silently reduce selected quality on failure. Resize/exposure changes never regenerate.
+
+Deterministic source and orientation
+  Choose a generated fictional sky, avoiding external catalog licensing and native assets.
+  Source version 1 has exactly 4096 stable IDs, a fixed seed 0x56474531, and independent
+  unsigned integer hash streams keyed by (version, ID, purpose); specify the exact hash
+  implementation with fixtures when implementing. No world RNG or frame seed is consumed.
+  Distribute directions uniformly over the unit sphere using z=1-2u, azimuth=2*pi*v.
+  Assign raw magnitude m=-1+8*u^(1/3); sort by increasing magnitude, breaking ties by ID.
+  Every quality level selects a prefix of this same list. Use a separate random stream
+  to interpolate a bounded warm/neutral/cool linear RGB palette; normalize Rec.709 Y to
+  one. Palette endpoints before normalization: (1,.65,.35), (1,1,1), (.55,.70,1).
+  This is a controlled artistic distribution, not a real star catalog or spectral model.
+
+  Store directions and the cubemap in one right-handed celestial frame (+Y pole,
+  +X zero longitude, +Z positive longitude). Define the procedural galaxy plane tilted
+  60 degrees about +X, with its bulge at galaxy longitude zero. Use a normalized
+  celestial-to-world rotation derived from calendar time and latitude for both stars
+  and map; derive inverse sampling from that same matrix. Do not read matrices produced
+  as a side effect of the suppressed callback. Verify installed calendar axes/time
+  conventions against fixed reference directions during draw integration. World position
+  translation never enters this rotation; no galaxy parallax or per-world seed changes.
+
+  Galaxy shape is positive: a broad Gaussian latitude band (sigma 12 degrees), a
+  localized bulge (longitude sigma 25 degrees, latitude sigma 8 degrees), attenuated
+  by bounded procedural dust, with direction-space multiscale value noise. Define
+  W=.05 + (band + 2*bulge)*D*M, D in [exp(-2),1], M in [.5,1.5]; hence .05<=W<=4.55.
+  Band and bulge are each in [0,1]. Evaluate continuous unit directions across faces;
+  attenuate noise frequencies beyond the pixel footprint. No native texture lookup,
+  photographic input, hard black subtraction or thresholded display-space gradients.
+  Normalize a warm-neutral bounded color field to Y=1 using the same palette envelope.
+
+Energy partition and atmospheric treatment
+  Retain 0.0008 lux as the chosen clear-reference, orientation-averaged horizontal
+  moonless total. Allocate 0.0004 to neutral airglow, 0.0003 to unresolved galaxy and
+  0.0001 to the full discrete star set. This split is an explicit VGE artistic calibration,
+  not a measured astronomical breakdown or a claim from the papers. No additional floor.
+  Reference altitude is 0.001 km, aerosol 1, cloud cover zero. Normalize celestial source
+  amplitudes once against the existing transport at this reference, averaged over uniform
+  rotations; do not renormalize each night, current orientation, weather or exposure.
+  Actual directional sky brightness and horizontal illuminance are allowed to vary.
+
+  For a star, raw integrated illuminance E_i=E0*10^(-0.4*m_i), where
+  E0=108000/(206264.806247^2) lux follows the 2025 paper's magnitude/area convention.
+  A single shared positive scale brings the complete star set to its declared reference
+  budget. Store the resulting E_i and equivalent calibrated magnitude explicitly;
+  raw magnitude controls relative brightness and does not claim Earth calibration.
+  Normalize the galaxy independently against its declared budget. Reference transport
+  responses must be finite and positive; otherwise reject generation, never divide by zero.
+  Airglow remains the existing uniform upper-hemisphere approximation at .0004/pi nits,
+  already ground-level; do not extinguish it as an extraterrestrial source a second time.
+
+  Visible star pixel radiance is E_i*w_p/Omega_p, with nonnegative footprint weights
+  summing to one over the full unoccluded footprint and pixel solid angle Omega_p.
+  Use a minimum two-pixel-wide filtered core; retain full-footprint normalization at
+  screen/terrain edges (do not renormalize the surviving clipped pixels). Normalize
+  before atmospheric transmittance and visibility, which physically reduce received flux.
+  Instanced quads use additive linear RGB and no independent brightness-scaled halo.
+
+  The base galaxy has no discrete catalog contribution. For low quality, splat only
+  omitted stars into the generated background with a normalized spherical kernel;
+  remove exactly those IDs from the instance draw. Keep RGB energy and direction in
+  the residual, rather than adding a uniform brightness floor. Use a fixed 2-degree
+  kernel, integrated over texel solid angles, with explicit cross-face support.
+  Lighting integrates the base galaxy plus all 4096 stars exactly once, independently
+  of the display split. Use a quality-independent 64x64-per-face source quadrature
+  and analytic star directions through existing atmospheric transport. Cached lighting
+  is approximate spatially; target <=1% integrated RGB error against refined quadrature.
+  Display residuals and map resolution must preserve source integrated RGB within 1%.
+
+  Apply atmosphere transmission once to visible external sources and to their incident
+  environment integral. Reuse existing medium data and publication scheduling, not a
+  second atmospheric integrator. Retain the bounded cloud factor 1-.9*coverage once
+  for background illumination; reconcile the visible cloud path to avoid applying its
+  occlusion twice. Finite-path background scattering remains the documented isotropic
+  approximation derived from the same attenuated environment E/pi, not a separate source.
+  Remove the previous combined .0008/pi background when activating this complete source;
+  retain lunar transport and sun/moon shadow handover unchanged.
+
+HDR representation, bounds and qualification obligations
+  Generate and normalize with float32 arithmetic. Store the galaxy plus omitted-star
+  residual as R11G11B10F (GL_R11F_G11F_B10F), RGB = physical nits * C, with no alpha.
+  This is the user-selected initial format. C is a fixed power
+  of two per completed source generation, independent of camera exposure. Choose the
+  largest such C with C*B<=32000 for the proven per-channel map bound B; decode once.
+  This new resource's own encoding does not change existing atmosphere's fixed 1/16 scale.
+  Derive B conservatively from W<=4.55, palette maxima, positive normalization factors
+  and the sum of omitted-star E_i times the residual kernel's maximum density. Mips are
+  nonnegative solid-angle-weighted averages and cannot increase B. Retain safety clamping
+  at storage boundaries, but reject an out-of-domain source instead of relying on clipping.
+
+  Bound billboard radiance by sum(E_i*maxRGB_i)/minimum admitted pixel solid angle;
+  derive that minimum from the actual projection/viewport and filtered footprint. Include
+  overlap of all admitted stars, galaxy maximum and existing celestial/atmospheric terms
+  in frame-lighting admission. A zero/invalid angular area rejects the draw. Never reuse
+  the galaxy map bound for star peaks. Use existing defensive scene-storage conversion.
+  Required later tests: no NaN/Inf, <=1% integrated energy drift, <=1% red/green and <=2% blue storage error
+  for positive map samples >=1e-5 of peak, and absolute error <=1e-7 of peak below that.
+  Failure of these criteria is a storage-design issue to resolve before release; no
+  broad framebuffer-format or GLSL-version change is authorized by this contract.
+
+Publication and recovery
+  AtmosphereModSystem remains the scheduling/composition owner. Separate celestial source
+  generation, resource storage and instanced drawing responsibilities within that domain.
+  Publish map/mips, instance subset, source quadrature, encoding, conservative bounds and
+  source identity as one immutable completed source set. Source identity includes algorithm
+  version, seed, quality and calibration. Atmospheric results also identify the source set,
+  rotation and admitted medium; commit visible and lighting consumers together at the
+  existing pre-scene publication boundary. A pending rotation/medium result retains its
+  matching completed source/rotation; never pair new stars with stale illumination.
+  Quality changes rebuild off to the side. Reload invalidates pending work; retain valid
+  completed resources until replacement succeeds. Context loss invalidates all GPU handles
+  and returns to startup behavior. Generation/upload errors discard only the candidate.
+  Before first success, supply zero stellar/galactic contribution and no owned star draw;
+  keep solar/lunar and the separately defined airglow valid. Suppress native stars for the
+  owned renderer lifetime, including failure; log failure and retry only on reload/reset
+  or relevant input change. Do not silently fall back to native assets or mismatched light.
+  Retire old resources only after outstanding GPU use is safe. World unload cancels work,
+  clears publication and disposes resources on the owning context. No per-frame readback.
+
+Phase 1 verification boundary
+  This is a design-contract phase. GPU generation, exact hash fixtures, native calendar
+  adapter verification, numeric tolerances, timing and appearance are obligations of the
+  subsequent implementation tasks, not measurements established by these decisions.
+  Traceability: quality -> AtmosphereSettings.cs/configlib-patches.json; source/units ->
+  cited 2025 paper section 3.2 and 2001 paper source decomposition; diagnostics ->
+  ../artifacts/LightingImbalance/findings.md; transport/publication ->
+  PBR.PhotometricLighting.Proposal.md, calibrated nighttime celestial lighting, and
+  PBR.Atmosphere.Publication.md, publication/draw ownership. The selected split and
+  procedural shape are VGE design decisions, not inferred numerical results from papers.

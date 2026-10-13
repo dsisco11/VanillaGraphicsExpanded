@@ -121,6 +121,12 @@ remaining consumers to physical atmospheric inputs. `SunsetMod` is not a physica
 
 ## Draw ownership
 
+The planned [owned stars and galaxy](PBR.StarsAndGalaxy.todo) extends this lifetime
+and atomic-publication policy to a load-generated HDR source and instanced stars.
+Its source set and derived lighting must publish together; the native night-sky draw
+and its compatibility conversion will be retired only with that integration. Current
+night-sky counter preservation statements describe the existing separate renderer.
+
 The owned sky `IRenderer` runs at Opaque order 0.2. It owns a procedural fullscreen triangle through an empty VAO,
 camera-relative ray transforms, pipeline state and drawing, and reads the completed atmospheric
 publication. The fragment shader reconstructs viewing rays and samples the existing atmospheric

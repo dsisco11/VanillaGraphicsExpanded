@@ -1451,6 +1451,15 @@ is required by the selected approach.
 
 ## Calibrated nighttime celestial lighting
 
+Planned stars/galaxy replacement: [PBR.StarsAndGalaxy.todo](PBR.StarsAndGalaxy.todo)
+defines the replacement source contract. On activation it supersedes the combined
+uniform moonless background and the stars' compatibility-image policy below. It uses
+a procedural HDR galaxy, instanced stars and separately budgeted airglow, retaining
+the 0.0008-lux orientation-averaged reference total. The selected component split is
+an artistic calibration, not a measured breakdown. Existing lunar transport and shadow
+ownership remain unchanged. The following describes the currently implemented model
+until that complete replacement is integrated; do not add both background models.
+
 The nighttime extension reuses the atmospheric transport backend, medium table and atomic
 publication. Sun and moon are evaluated sequentially against one admitted medium generation;
 only a complete pair may replace the visible sky and surface-lighting snapshot. Lunar phase
