@@ -904,6 +904,14 @@ Current integration findings (2026-10-12)
         Check fixed-exposure receiver ratios/tint and ambient AO with LumOn enabled/disabled.
         Run build/test tools through subagents; keep routine fixtures lightweight.
 
+    ☐ Replace native stars/galaxy rendering with the VGE-owned HDR source and reconcile
+      its visible output with nighttime illumination.
+      - Execute docs/PBR.StarsAndGalaxy.todo: shader-generated HDR galaxy cubemap during
+        world loading, a few thousand instanced stars capped by global sky quality,
+        and shared appearance/illumination calibration. No native galaxy texture or shader.
+      - This supersedes the retained stars/galaxy compatibility path, not the existing
+        lunar source or shared shadow ownership. Keep appearance acceptance open.
+
     ☐ Obtain user-run nighttime appearance acceptance and reconcile documentation.
       - Cover moonlit and moonless nights, phases and horizon crossings, twilight overlap,
         outdoor/interior receivers, terrain/items/water, weather and LumOn enabled/disabled.

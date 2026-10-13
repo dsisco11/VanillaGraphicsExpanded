@@ -1,0 +1,135 @@
+VGE-owned HDR stars and galaxy
+=============================
+
+Status: Planned; implementation and acceptance remain open.
+Authority: User-approved hybrid HDR direction and refinements (2026-10-13).
+Related plan: docs/PBR.PhotometricLighting.todo, shared nighttime illumination work.
+Diagnostic evidence: artifacts/LightingImbalance/findings.md.
+
+Goal and approved constraints
+  Replace the native stars/galaxy draw with VGE-owned rendering and shader code.
+  Generate a linear HDR galaxy cubemap with a VGE shader during world loading;
+  do not reuse the base-game galaxy cubemap or its shader implementation.
+  Render individual stars using instanced billboards, limited to a few thousand,
+  with the count controlled by the global sky quality level.
+  Use a common calibrated celestial source for visible appearance and illumination.
+  Reuse atmosphere, GPU resource/publication, storage, exposure and glare owners.
+  Preserve the current shader baseline. No millions-of-stars compute rasterizer,
+  volumetric galaxy simulation, additional shadow maps or block-light changes.
+
+Research references
+  - Smaller than Pixels: Rendering Millions of Stars in Real-Time (2025):
+    https://elib.dlr.de/215930/1/egs20251029.pdf
+    Reference for angular-area normalization and stable subpixel star filtering;
+    its atomic compute rasterizer is not the selected implementation.
+  - A Physically-Based Nightsky Model (2001):
+    https://lightfield.stanford.edu/papers/nightsky/
+    Reference for consistent source appearance, illumination and atmospheric transport.
+
+Phase 1: Define source, quality and publication contracts
+-------------------------------------------------------
+☐ Identify the authoritative global sky quality option and its supported levels.
+  - Reconcile the existing Atmosphere.SkyLutQuality option with the requested global
+    setting before wiring consumers; do not introduce an independent star-quality knob.
+  - Record exact per-level star caps, cubemap resolutions and generation budgets.
+    Keep the highest cap within a few thousand and lower levels strict subsets.
+☐ Specify deterministic star and procedural galaxy inputs.
+  - Choose a compact licensed catalog or deterministic generated distribution;
+    document direction, magnitude, linear color and stable seed/orientation conventions.
+  - Define the galaxy shader's broad band, bulge, dust attenuation and multiscale
+    structure. Treat this as an artistic spatial model with calibrated light output,
+    not a measured reconstruction of the Milky Way.
+  - Split resolved stars from unresolved background without duplicate energy. Account
+    for stars omitted at lower quality so quality changes do not change total illumination.
+☐ Define physical units, normalization, HDR encoding and conservative source bounds.
+  - Convert star magnitudes to integrated photometric contributions and normalize
+    their filtered angular footprints. Define the diffuse map's luminance budget.
+  - Keep airglow separate; replace only the corresponding existing stellar background
+    contribution. Preserve moonlight and avoid adding the old background a second time.
+  - Specify scaled floating-point cubemap storage, mip filtering and precision checks.
+    Do not apply legacy black subtraction, display-space processing or the generic
+    compatibility brightness conversion to generated celestial radiance.
+☐ Specify complete publication and failure behavior with existing resource owners.
+  - Galaxy generation is a world-loading operation, not per-frame work. Rebuild only
+    for relevant quality/source changes, context recovery or shader reload as required.
+  - Retain the last complete publication on failed replacement; define first-load
+    failure handling without reactivating the native stars/galaxy renderer.
+
+Phase 2: Generate the HDR galaxy during world loading
+---------------------------------------------------
+☐ Implement a VGE-owned GPU generation program for all six cubemap faces.
+  - Generate galaxy structure directly from the agreed deterministic inputs. Do not
+    sample native sky textures or copy native shader formulas.
+  - Use continuous directional coordinates, filtered procedural detail and consistent
+    edge treatment to avoid face seams and aliasing in fine dust/stellar structure.
+☐ Allocate the agreed floating-point map, generate seam-consistent linear mips and
+  produce the derived lighting representation before publishing the complete resource set.
+  - Respect GPU context/thread ownership; bound loading cost, scratch memory and work.
+  - Keep resources stable across ordinary frames and release them on world teardown.
+☐ Validate deterministic generation, finite nonnegative values, normalization, seams,
+  mip energy and preservation of faint gradients through the actual texture format.
+
+Phase 3: Render the instanced stars and owned galaxy
+-------------------------------------------------
+☐ Upload the bounded star set to a persistent instance buffer and draw instanced quads.
+  - Select nested quality subsets deterministically; no per-frame catalog rebuild/upload.
+  - Use a normalized footprint with stable subpixel movement. Verify integrated light
+    across resolution, field of view, screen position and overlapping star footprints.
+  - Define edge clipping and culling conservatively so visible footprints do not pop.
+☐ Sample the generated galaxy with a VGE-owned shader and matching sky orientation.
+  - Preserve daily celestial rotation and horizon/terrain occlusion through existing
+    frame inputs. Compose behind atmosphere, clouds and celestial disks correctly.
+☐ Replace the native stars/galaxy draw for the owned renderer lifetime.
+  - Use the existing explicit ownership pattern; remove obsolete compatibility patching
+    for this draw. Avoid duplicate submissions, broad state invalidation or version bumps.
+  - Preserve state tracking, reload behavior and lifecycle disposal contracts.
+☐ Route both contributions through existing frame storage, exposure and glare.
+  - Apply atmospheric transmittance consistently and only once. Let atmospheric
+    radiance and exposure govern daylight visibility without a legacy artistic cutoff.
+  - Filter the star core without a second independently boosted halo. Evaluate existing
+    glare behavior before changing it; document any further required scope separately.
+
+Phase 4: Reconcile celestial appearance and scene illumination
+-----------------------------------------------------------
+☐ Derive a cached diffuse-light representation from the same complete celestial source.
+  - Include the full source budget regardless of the displayed star subset. Integrate
+    with solid-angle and cosine weights; do not infer illuminance from peak texel values.
+  - Rotate and attenuate this source consistently with visible sky, using existing
+    atmosphere transport/publication owners and appropriate refresh dependencies.
+☐ Replace the matching constant stellar background in AtmosphereNightLighting.
+  - Keep separately modeled airglow and lunar contributions explicit. Reconcile weather
+    attenuation and any approximations so they are neither omitted nor applied twice.
+☐ Publish coherent results to standalone PBR and LumOn consumers.
+  - Cover terrain, forward items/entities, liquids, reflection/environment sampling,
+    water transport and probe/cache consumers where applicable.
+  - Preserve interior visibility and AO; update lighting bounds, source identities and
+    invalidation dependencies. Do not brighten terrain through emission or arbitrary floors.
+
+Phase 5: Qualification and appearance acceptance
+-----------------------------------------------
+☐ Run focused CPU/GPU checks through subagents, keeping routine fixtures lightweight.
+  - Verify star flux and color, footprint stability, quality-budget invariance, galaxy
+    continuity, source-to-lighting integration and transmittance consistency.
+  - Verify no overflow or loss of faint gradients at actual storage boundaries, including
+    simultaneous daylight/twilight sources and exposure extremes.
+  - Exercise world load/unload, failed generation, reload, resize, quality changes and
+    complete publication without stale textures or duplicate native rendering.
+☐ Measure generation latency, resident/scratch memory and steady-state frame cost.
+  - Record hardware, resolution and quality; separate loading cost from runtime cost.
+    Confirm galaxy generation does not repeat during ordinary frames. Keep expensive
+    timing/capture qualification opt-in rather than part of routine correctness tests.
+☐ Obtain user-run appearance acceptance.
+  - Check fixed exposure first, then auto exposure: moonless/moonlit nights, twilight,
+    lantern comparisons, galaxy gradients, star movement, FOV/resolution changes,
+    all quality levels, clouds/horizon, terrain/items/water and LumOn on/off.
+  - Assess exposure readability separately from source calibration; do not conceal
+    source mismatch by increasing ambient brightness or glare.
+☐ Reconcile photometric and atmosphere documentation and independently review completion.
+  - Record calibration choices, procedural approximations, quality caps, resources,
+    validation receipts and actual visual coverage before marking the work complete.
+
+Completion criterion
+  VGE owns star/galaxy resources, generation, shaders and drawing without native sky
+  shader code or galaxy imagery. A bounded instanced star set and load-generated HDR
+  galaxy share a qualified lighting calibration, preserve smooth gradients and stable
+  star energy, meet recorded performance budgets and receive user appearance acceptance.
