@@ -121,10 +121,12 @@ void main()
         }
         source = max(vge_atmosphereSolar, vec3(0)) * vge_skyVisibility * VgeLiquidVisibility()
             * phase
-            + max(vge_blockIrradiance + vge_atmosphereEnvironment * vge_skyVisibility, vec3(0)) / 12.56637061436;
+            + max(vge_blockIrradiance + 3.14159265359 * vge_atmosphereEnvironment * vge_skyVisibility, vec3(0)) / 12.56637061436;
     }
     outWaterOpticalDepth = vec4((medium.absorption + medium.scattering) * remaining, remaining) * orientation;
-    outWaterSource = vec4(medium.scattering * source * remaining, 1.0) * orientation;
+    // Lighting alone uses the frozen frame scale. Signed boundary integration
+    // preserves orientation; optical depth and winding remain geometric metadata.
+    outWaterSource = vec4(medium.scattering * VgeStoreFrameLight(source) * remaining, 1.0) * orientation;
     return;
 #else
     vec4 liquid = VgeLiquidSurface(texColor, material, isLava, fullAlpha);

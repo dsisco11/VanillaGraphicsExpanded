@@ -1,5 +1,6 @@
 #version 430 core
 @import "./includes/gbuffer_layers.glsl"
+@import "./includes/pbr_photometric.glsl"
 
 // MRT output to probe atlas
 layout(location = 0) out vec4 outRadiance;  // RGB = radiance, A = log-encoded hit distance
@@ -189,7 +190,7 @@ RayHit traceRay(vec3 originVS, vec3 directionVS) {
             result.hit = true;
             vec3 albedo = texture(surfaceAlbedo, sampleUV).rgb;
             float emissiveStrength = max(texture(gBufferSurface, vec3(sampleUV, VGE_SURFACE_MATERIAL)).b, 0.0);
-            result.color = albedo * emissiveStrength * LUMON_EMISSIVE_BOOST;
+            result.color = VgeEmissionLuminance(albedo, emissiveStrength) * LUMON_EMISSIVE_BOOST;
             result.distance = t;
             return result;
         }
@@ -241,6 +242,12 @@ void main(void)
         vec2 atlasUV = (vec2(atlasCoord) + 0.5) / (probeGridSize * float(LUMON_OCTAHEDRAL_SIZE));
         outRadiance = texture(octahedralHistory, atlasUV);
         outMeta = texture(probeAtlasMetaHistory, atlasUV).xy;
+        if (!VgeStoredDirectionalLightAdmitted(outRadiance.rgb) || isnan(outRadiance.a) || isinf(outRadiance.a)
+            || isnan(outMeta.x) || isinf(outMeta.x) || outMeta.x < 0.0 || outMeta.x > 1.0)
+        {
+            outRadiance = vec4(0);
+            outMeta = lumonEncodeMeta(0.0, 0u);
+        }
         return;
     }
 
@@ -299,7 +306,7 @@ void main(void)
 
     if (hit.hit) {
         // Visible emission is a fallback until a supported near-field hit is resolved.
-        radiance = hit.color * indirectTint;
+        radiance = hit.color;
         hitDistance = hit.distance;
 #if VGE_LUMON_NEAR_FIELD_ENABLED
         localLightingConfidence = any(greaterThan(radiance, vec3(0.0))) ? 1.0 : 0.0;
@@ -373,7 +380,23 @@ void main(void)
     float encodedHitDist = lumonEncodeHitDistance(hitDistance);
 
     // Output radiance + hit distance
-    outRadiance = vec4(radiance, encodedHitDist);
+    vec3 stored;
+    bool admitted = VgeDirectionalLightAdmitted(radiance) && VgeTryStorePersistentLight(radiance, false, stored);
+    if (!admitted)
+    {
+        // Reject an unsupported update without replacing its coherent old direction with
+        // newly valid contained RGB. Existing dependency invalidation owns history lifetime.
+        outRadiance = texelFetch(octahedralHistory, atlasCoord, 0);
+        outMeta = texelFetch(probeAtlasMetaHistory, atlasCoord, 0).xy;
+        if (!VgeStoredDirectionalLightAdmitted(outRadiance.rgb) || isnan(outRadiance.a) || isinf(outRadiance.a)
+            || isnan(outMeta.x) || isinf(outMeta.x) || outMeta.x < 0.0 || outMeta.x > 1.0)
+        {
+            outRadiance = vec4(0);
+            outMeta = lumonEncodeMeta(0.0, 0u);
+        }
+        return;
+    }
+    outRadiance = vec4(stored, encodedHitDist);
 
     // Output meta
     uint flags = 0u;

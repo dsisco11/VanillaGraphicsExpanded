@@ -21,7 +21,7 @@ void computeCompositeSplit(
         return;
     }
 
-    vec3 indirect = texture(indirectDiffuseFull, uv).rgb;
+    vec3 indirect = VgePhysicalFrameLight(texture(indirectDiffuseFull, uv).rgb);
     indirect *= indirectIntensity;
     indirect *= indirectTint;
 

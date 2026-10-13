@@ -14,6 +14,41 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Actual imported sky/cloud noise leaves HDR RGB and coverage unchanged while preserving offscreen display noise.</summary>
+    [Theory]
+    [InlineData("clouds.fsh")]
+    [InlineData("nightsky.fsh")]
+    public void InstalledDisplayNoiseIsIsolatedFromSceneStorage(string name)
+    {
+        EnsureContextValid();
+        using var shaders = new TerrainShaderTestFixture();
+        var tree = SyntaxTree.Parse(PbrSurfaceInstalledShaderTests.Build(name, 1, 1, 0, 0, 0), GlslSchema.Instance);
+        var main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single();
+        bool cloud = name == "clouds.fsh";
+        tree.CreateEditor().Replace(main, "void main(){" + (cloud ? "OITaccumulation0" : "outColor")
+            + "=NoiseFromPixelPosition(ivec2(gl_FragCoord.xy),256,1920);}").Commit();
+        using var program = Link(shaders, tree.ToText());
+        using var framework = new ShaderTestFramework();
+        using var target = CreateMRTRenderTarget(4, 4, Enumerable.Repeat(PixelInternalFormat.Rgba32f, cloud ? 6 : 1).ToArray());
+        foreach (int linearScene in new[] { 0, 1 })
+        {
+            GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
+            framework.RenderQuadTo(program.ProgramId, target);
+            float[] actual = target[cloud ? 3 : 0].ReadPixels();
+            int[] indexFactors = [41, 29, 53, 43], areaFactors = [23, 59, 47, 37];
+            for (int y = 0; y < 4; y++)
+            for (int x = 0; x < 4; x++)
+            for (int channel = 0; channel < 4; channel++)
+            {
+                int index = 1920 * y + x, area = x * y;
+                int hash = (256 + index * indexFactors[channel]) ^ (256 + area * areaFactors[channel]);
+                float expected = linearScene != 0 ? 0 : ((hash % 661) / 330.5f - 1) / 128;
+                Assert.InRange(actual[(y * 4 + x) * 4 + channel], expected - 1e-7f, expected + 1e-7f);
+            }
+        }
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>Every supported installed fragment compiles after imports and production transforms.</summary>
     [Theory]
     [InlineData("particlesquad.fsh")]
@@ -30,9 +65,14 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         shaders.Compile(ShaderType.FragmentShader, source);
         if (name == "cloudvolumetric.fsh")
         {
-            int decode = source.IndexOf("col.rgb = VgeSrgbToLinear(col.rgb)", StringComparison.Ordinal);
+            int decode = source.IndexOf("col.rgb = VgeStoreSceneLighting(VgeCompatibilityLuminance(col.rgb))", StringComparison.Ordinal);
             Assert.True(decode > source.IndexOf("vec4 col = texelFetch(cloudCol", StringComparison.Ordinal));
             Assert.True(decode < source.IndexOf("OITreveal[i] *=", StringComparison.Ordinal));
+            string main = SyntaxTree.Parse(source, GlslSchema.Instance).Select(Query.Syntax<GlFunctionNode>().Named("main"))
+                .OfType<GlFunctionNode>().Single().Body.ToText();
+            // Post-traversal display noise modifies alpha as well as RGB. HDR cloud
+            // coverage must keep the integrated value while offscreen draws retain it.
+            Assert.Matches(@"if\s*\(\s*vge_sceneLinear\s*==\s*0\s*\)\s*k\s*=\s*exp", main);
         }
     }
 
@@ -44,10 +84,9 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
-        string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
-        string bucket = File.ReadAllText(Path.Combine(root, "assets/game/shaderincludes/oit.fsh"));
-        var tree = SyntaxTree.Parse("#version 430 core\n#define USEOIT 1\n" + Helper() + bucket + "\nvoid main(){OIT(vec4(.5,.25,.75,.4),.2,30.0);}", GlslSchema.Instance);
-        SceneColorLegacyPatches.Apply(tree, "particlesquad.fsh");
+        var tree = SyntaxTree.Parse(PbrSurfaceInstalledShaderTests.Build("particlesquad.fsh", 1, 1, 0, 0, 0), GlslSchema.Instance);
+        var main = tree.Select(Query.Syntax<GlFunctionNode>().Named("main")).Single();
+        tree.CreateEditor().Replace(main, "void main(){OIT(vec4(.5,.25,.75,.4),.2,30.0);}").Commit();
         using var program = Link(shaders, tree.ToText());
         using var framework = new ShaderTestFramework();
         using var target = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(PixelInternalFormat.Rgba32f, 6).ToArray());
@@ -59,7 +98,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         float[] straight = [.5f, .25f, .75f];
         for (int channel = 0; channel < 3; channel++)
         {
-            float expected = linearScene == 0 ? straight[channel] : Decode(straight[channel]);
+            float expected = linearScene == 0 ? straight[channel] : 32 * Decode(straight[channel]);
             Assert.InRange(accumulation[channel] / accumulation[3], expected - .00001f, expected + .00001f);
         }
         Assert.InRange(reveal[0], .59999f, .60001f);
@@ -69,9 +108,11 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
 
     /// <summary>The installed traversal integrates decoded cloud samples while retaining extinction and alpha.</summary>
     [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    public void InstalledCloudTraversalDecodesBeforeIntegration(int linearScene)
+    [InlineData(0, .4f)]
+    [InlineData(1, .4f)]
+    [InlineData(0, 1f)]
+    [InlineData(1, 1f)]
+    public void InstalledCloudTraversalDecodesBeforeIntegration(int linearScene, float sampleAlpha)
     {
         EnsureContextValid();
         using var shaders = new TerrainShaderTestFixture();
@@ -83,7 +124,7 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         using var program = Link(shaders, tree.ToText());
         using var framework = new ShaderTestFramework();
         using var map = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { 1f, 0f, 0f, 1f });
-        using var color = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { .5f, .25f, .75f, .4f });
+        using var color = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, new[] { .5f, .25f, .75f, sampleAlpha });
         using var target = CreateMRTRenderTarget(1, 1, Enumerable.Repeat(PixelInternalFormat.Rgba32f, 6).ToArray());
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "vge_sceneLinear"), linearScene);
         GL.ProgramUniform1(program.ProgramId, GL.GetUniformLocation(program.ProgramId, "cloudMap"), 0);
@@ -96,10 +137,10 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
         float[] authored = [.5f, .25f, .75f];
         for (int channel = 0; channel < 3; channel++)
         {
-            float expected = coverage * (linearScene == 0 ? authored[channel] : Decode(authored[channel]));
+            float expected = coverage * (linearScene == 0 ? authored[channel] : 32 * Decode(authored[channel]));
             Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
         }
-        Assert.InRange(actual[3], .4f * coverage - .00001f, .4f * coverage + .00001f);
+        Assert.InRange(actual[3], sampleAlpha * coverage - .00001f, sampleAlpha * coverage + .00001f);
     }
     #endregion
 

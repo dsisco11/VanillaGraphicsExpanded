@@ -1131,7 +1131,7 @@ public class VgeConfig
         /// Lower = less sky influence. Hot-reloadable.
         /// </summary>
         [JsonProperty]
-        public float SkyMissWeight { get; set; } = 0.1f;
+        public float SkyMissWeight { get; set; } = 1.0f;
 
         // ═══════════════════════════════════════════════════════════════
         // Edge-Aware Gather Settings (SPG-007 Section 2.3)

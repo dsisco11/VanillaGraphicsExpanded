@@ -16,7 +16,7 @@ out vec4 outColor;
 /** Implements render probe atlas current radiance debug for its explicit view entrypoint. */
 vec4 renderProbeAtlasCurrentRadianceDebug()
 {
-    vec3 rgb = texture(probeAtlasCurrent, uv).rgb;
+    vec3 rgb = VgeDecodePersistentLight(texture(probeAtlasCurrent, uv).rgb);
     return vec4(rgb, 1.0);
 }
 

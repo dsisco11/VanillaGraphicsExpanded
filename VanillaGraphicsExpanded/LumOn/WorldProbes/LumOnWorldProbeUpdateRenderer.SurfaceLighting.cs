@@ -20,6 +20,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
     private readonly List<LumOnWorldProbeTraceResult> surfaceRetries = new();
     private readonly List<SurfaceLightingQuery> surfaceQueryWork = new();
     private long surfaceRevision = -1;
+    private PBR.LightingCalibration? surfaceCalibration;
     private LumOnWorldProbeClipmapGpuResources? lightingProbeResources;
     private TraceGeometryGpuScene? queriedGeometry;
     private long queriedGeometryInvalidation;
@@ -33,9 +34,11 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
     private void PrepareSurfaceLighting(Gpu.LumOnWorldProbeClipmapGpuResources resources)
     {
         long revision=surfaceProvider != null && surfaceProvider.TryGetSurfaceLighting(out var value) ? value.DependencyRevision : -1;
-        if (revision==surfaceRevision && ReferenceEquals(resources,lightingProbeResources)) return;
+        var calibration = Rendering.VgeFrameRenderer.CurrentLightingCalibration;
+        if (revision==surfaceRevision && surfaceCalibration == calibration && ReferenceEquals(resources,lightingProbeResources)) return;
         lightingProbeResources=resources;
         surfaceRevision=revision;
+        surfaceCalibration=calibration;
         surfaceQueries?.Dispose(); surfaceQueries=null; RetireSurfaceResults();
         queriedGeometry = null;
         // Retiring the service prevents obsolete workers from publishing into the new scheduler generation.
@@ -49,6 +52,7 @@ internal sealed partial class LumOnWorldProbeUpdateRenderer
         surfaceQueries?.Dispose(); surfaceQueries=null;
         RetireSurfaceResults(); surfaceRetries.Clear(); surfaceQueryWork.Clear(); surfaceRevision=-1; lightingProbeResources=null;
         queriedGeometry = null;
+        surfaceCalibration = null;
     }
     #endregion
 

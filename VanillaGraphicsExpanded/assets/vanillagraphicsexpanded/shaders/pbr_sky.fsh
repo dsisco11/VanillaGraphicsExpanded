@@ -1,5 +1,6 @@
 #version 330 core
 #extension GL_ARB_separate_shader_objects : require
+@import "./includes/pbr_scene_storage.glsl"
 @import "./includes/atmosphere_sky_inputs.glsl"
 @import "./includes/pbr_color.glsl"
 @import "./includes/atmosphere_sky_mapping.glsl"
@@ -46,8 +47,8 @@ vec3 skyRadiance(vec3 direction)
     float row = atmSkyCoordinate(asin(clamp(direction.y,-1,1)), skySunHorizon.w);
     float rows = float(textureSize(skyLookup,0).y / 2);
     vec2 uv = vec2(azimuth / 6.28318530718, (row * (rows-1) + .5) / (2*rows));
-    return texture(skyLookup,uv).rgb + texture(skyLookup,uv+vec2(0,.5)).rgb
-        * atmMieFactor(direction,skySunHorizon.xyz);
+    return (texture(skyLookup,uv).rgb + texture(skyLookup,uv+vec2(0,.5)).rgb
+        * atmMieFactor(direction,skySunHorizon.xyz)) * (skyEncoding.x > 0.0 ? skyEncoding.x : 1.0);
 }
 /** Uses the engine normalized linear-depth convention for the three shoreline samples. */
 float skyLiquidDistance(float offset)
@@ -73,13 +74,19 @@ void main()
     vec3 radiance = skyRadiance(direction);
     vec4 color = vec4(linearScene ? radiance : VgeResolveDisplay(radiance), skyCoverage(skyPosition, compatibilityDepth));
     // Perception is spatial: preserve its location and alpha before sky blending.
-    if (psychedelicStrength > .001) color = applyPsychedelicEffect(color,skyPosition/2,0);
+    if (psychedelicStrength > .001)
+    {
+        // Preserve the effect's reference-unit operation without decoding physical atmosphere twice.
+        if (linearScene) color.rgb /= 32.0;
+        color = applyPsychedelicEffect(color,skyPosition/2,0);
+        if (linearScene) color.rgb *= 32.0;
+    }
     float murk = skyMurk.w > .7 ? 0 : 1-(skyLiquidDistance(0)+skyLiquidDistance(3)+skyLiquidDistance(6))/3;
     murk = clamp(murk-14*skyFog.x,0,1);
     vec3 tint = skyMurk.rgb * .4;
     vec3 night = vec3(.1,.5,.1) * skyEffects.x;
-    color.rgb = mix(color.rgb,linearScene ? VgeSrgbToLinear(tint) : tint,murk)
-        + (linearScene ? VgeSrgbToLinear(night) : night);
-    outColor = vec4(linearScene ? max(color.rgb,vec3(0)) : VgeDitherDisplay(color.rgb,gl_FragCoord.xy),color.a);
+    color.rgb = mix(color.rgb,linearScene ? VgeCompatibilityLuminance(tint) : tint,murk)
+        + (linearScene ? VgeCompatibilityLuminance(night) : night);
+    outColor = vec4(linearScene ? VgeStoreSceneLighting(color.rgb) : VgeDitherDisplay(color.rgb,gl_FragCoord.xy),color.a);
     outGlow = vec4(0,0,0,1);
 }

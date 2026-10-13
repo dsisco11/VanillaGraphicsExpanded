@@ -9,12 +9,13 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class AtmosphereProgramBindingsTests
 {
     #region Interface ownership
-    /// <summary>The solar draw contract is enabled only when all three linked uniforms are present.</summary>
+    /// <summary>The solar draw contract is enabled only when all four linked uniforms are present.</summary>
     [Theory]
     [InlineData(null, true)]
     [InlineData("vge_atmosphereSunDraw", false)]
     [InlineData("vge_atmosphereSun", false)]
     [InlineData("vge_atmosphereDisk", false)]
+    [InlineData("vge_atmosphereDiskStorageScale", false)]
     public void SolarContractRequiresCompleteLinkedInterface(string? missing, bool expected)
     {
         var inputs = AtmosphereProgramBindings.Resolve("standard", name => name != missing);

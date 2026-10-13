@@ -6,7 +6,8 @@ namespace VanillaGraphicsExpanded.LumOn;
 /// <summary>Declares the GPU binding contract for LumOnScreenProbeAtlasGatherShaderProgram.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-internal interface ILumOnScreenProbeAtlasGatherShaderProgramBindings
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
+internal interface ILumOnScreenProbeAtlasGatherShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings
 {
     #region Public API
     /// <summary>Supplies common camera and frame values from the universal view snapshot.</summary>

@@ -60,7 +60,8 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         using var inputs = new AtmosphereSkyInputs();
         inputs.Capture(api.Object, lighting, true);
         float[] actual = MemoryMarshal.Cast<byte, float>(inputs.Bytes).ToArray();
-        Assert.Equal(80, inputs.SizeBytes);
+        Assert.Equal(96, inputs.SizeBytes);
+        Assert.Equal(new float[] { 1, 0, 0, 0 }, actual[20..24]);
         Assert.Equal(originalView, view);
         view[12] = -345; view[13] = 900; view[14] = 12;
         inputs.Capture(api.Object, lighting, true);
@@ -70,10 +71,36 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.Equal(7, actual[11]);
         Assert.Equal(new float[] { .2f, .3f, .4f, .8f }, actual[12..16]);
         Assert.Equal(new float[] { .5f, .25f, 10, 1 }, actual[16..20]);
+        byte[] admittedBytes = inputs.Bytes.ToArray();
+        float admittedMaximum = inputs.CompatibilityMaximumNits;
+        Assert.True(admittedMaximum > 0);
+        foreach (float invalidWind in new[] { float.NaN, float.PositiveInfinity, float.MaxValue })
+        {
+            uniforms.WindWaveCounter = invalidWind;
+            Assert.Throws<ArgumentException>(() => inputs.Capture(api.Object, lighting, true));
+            Assert.Equal(admittedBytes, inputs.Bytes.ToArray());
+            Assert.Equal(admittedMaximum, inputs.CompatibilityMaximumNits);
+        }
     }
 
     #endregion
     #region Color and effects
+    /// <summary>The installed owned shader retains physical sky and bounds only its authored effect additions.</summary>
+    [Theory]
+    [InlineData(0f, 0f)] [InlineData(1f, 0f)] [InlineData(0f, 2f)] [InlineData(1f, 2f)]
+    public void PhysicalSkyAndAuthoredEffectsFitIndependentEnvelope(float underwater, float perception)
+    {
+        EnsureShaderTestAvailable();
+        using var sky = new FullscreenSky(Programs.Create<AtmosphereSkyShaderProgram>(), TestFramework, liquidDepth: 0);
+        sky.PublishConstant(new(80, 40, 20));
+        float bound = 80 + VanillaGraphicsExpanded.PBR.SceneColor.SceneColorCompatibilityBounds.PhysicalSky(perception, .5f, 2);
+        foreach (Vector3 direction in new[] { Vector3.UnitZ, new Vector3(.3f, .2f, -.9f) })
+        {
+            float[] actual = sky.Draw(Vector3.Normalize(direction), true, underwater: underwater, nightVision: 2, psychedelic: perception);
+            Assert.All(actual[..3], value => Assert.InRange(value, 0, bound));
+        }
+    }
+
     /// <summary>Retains radiance above one in linear mode and resolves and dithers exactly once in legacy mode.</summary>
     [Theory]
     [InlineData(false)]
@@ -165,8 +192,8 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
         {
             float radiance = 2f / (1 << channel);
             float baseColor = linear ? radiance : Encode(radiance / 3);
-            float expected = baseColor * (1 - murk) + (linear ? Decode(tint[channel]) : tint[channel]) * murk
-                + (linear ? Decode(night[channel]) : night[channel]);
+            float expected = baseColor * (1 - murk) + (linear ? 32 * Decode(tint[channel]) : tint[channel]) * murk
+                + (linear ? 32 * Decode(night[channel]) : night[channel]);
             if (!linear) expected = Math.Clamp(expected - .4921875f / 255, 0, 1);
             Assert.InRange(actual[channel], expected - .00005f, expected + .00005f);
         }
@@ -337,7 +364,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
     {
         private readonly AtmosphereSkyShaderProgram program;
         private readonly AtmosphereModSystem atmosphere = new();
-        private readonly FixtureUniformInputs inputs = new(80);
+        private readonly FixtureUniformInputs inputs = new(96);
         private readonly VgeFrameUniformBuffer cameraInputs = new();
         private readonly GpuVao vao = GpuVao.Create();
 
@@ -387,6 +414,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             inputs.Vector(32, daylight, 0, 0); inputs.Float(44, 0);
             inputs.Vector(48, .5f, .25f, .125f); inputs.Float(60, underwater);
             inputs.Vector(64, nightVision, psychedelic, 0); inputs.Float(76, linear ? 1 : 0);
+            inputs.Vector(80, 1 / AtmosphereModSystem.Lighting.LookupStorageScale, 0, 0);
             program.SkyLookup = AtmosphereModSystem.SkyTextureId;
             program.LiquidDepth = depth.TextureId;
             Target.BindWithViewport();

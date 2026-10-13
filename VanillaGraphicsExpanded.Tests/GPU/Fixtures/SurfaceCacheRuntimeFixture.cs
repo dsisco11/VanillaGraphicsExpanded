@@ -25,6 +25,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     private readonly DebugViewController? controller;
     private readonly bool productionOwned;
     private readonly VgeFrameRenderer? frameCamera;
+    private readonly RuntimeCameraWorld? cameraWorld;
     private readonly VgeLightsRenderer? lights;
     private readonly bool enclosure, exposedWall;
     private readonly uint[] feedbackPatches;
@@ -151,7 +152,9 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         Buffers = new(api);
         Assert.True(Buffers.EnsureBuffers(edge, edge));
         if (productionOwned) return;
-        frameCamera = new VgeFrameRenderer(api);
+        cameraWorld = new(RuntimeEngineServices.CameraPlayer(Camera));
+        frameCamera = new VgeFrameRenderer(RuntimeEngineServices.Client(assets.Api, Events.Api,
+            cameraWorld.World, render, shaders.Object));
         lights = new VgeLightsRenderer(api);
         VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Create(api);
         LumOnDebugShaderProgramFamily.Register(api);
@@ -179,7 +182,9 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
         {
             var voxel = new TraceGeometryVoxel(
             (spatial?.Solid(x,y,z) ?? (enclosure ? x<=0 || x>=7 || y<=32 || y>=39 || z<=0 || z>=7 : !exposedWall || x<=0)) ? 2u | id << 2 : 1u,
-            LumonSceneOccupancyPacking.PackClamped(spatial?.Light(x,y,z) ?? BlockLight, 0, 0, (int)id), 0);
+            LumonSceneOccupancyPacking.PackClamped(spatial?.Light(x,y,z) ?? BlockLight, 0, 0, (int)id),
+            TraceGeometryVoxel.PackLight(new System.Numerics.Vector4(
+                new System.Numerics.Vector3(Math.Clamp((spatial?.Light(x,y,z) ?? BlockLight) / 32f, 0, 1)), 0)));
             return TransformVoxel?.Invoke(x,y,z,voxel) ?? voxel;
         },
             () => GeometryAvailable, key => spatial?.Loaded(key) ?? true);
@@ -200,6 +205,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     public void Frame()
     {
         TestUniformRing.BeginFrame();
+        cameraWorld?.RefreshCamera();
         Events.Render(EnumRenderStage.Before);
         Events.Render(EnumRenderStage.Opaque);
         if(spatial!=null)

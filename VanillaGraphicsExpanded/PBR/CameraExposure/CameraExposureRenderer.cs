@@ -26,6 +26,7 @@ internal sealed class CameraExposureRenderer : IRenderer
     private GpuShaderStorageBuffer? frozenLighting;
     private bool lightingFrozen;
     private uint lightingGeneration;
+    private uint lightingFrameIndex;
     private float lightingBound;
 
     #region Public API
@@ -95,6 +96,13 @@ internal sealed class CameraExposureRenderer : IRenderer
         // Access proves the current light-list publication has completed; never borrow a stale list.
         _ = VgeLightsRenderer.Current;
         float bound = bounds.Total;
+        // A frozen dispatch does not read back its validity flag. Reject unsupported
+        // physical bounds on the CPU first; either camera seed then admits the same
+        // minimum-retention domain under the selected scale rule.
+        _ = LightingStorage.FrameScale(1, bound);
+        if (calibrationGeneration == 0) throw new ArgumentOutOfRangeException(nameof(calibrationGeneration));
+        if (calibrationGeneration != VgeFrameRenderer.Current.CalibrationGeneration)
+            throw new InvalidOperationException("Frame storage requires the current lighting calibration.");
         if (renderer.lightingFrozen)
         {
             if (renderer.lightingBound != bound || renderer.lightingGeneration != calibrationGeneration)
@@ -106,8 +114,18 @@ internal sealed class CameraExposureRenderer : IRenderer
         renderer.FreezeLighting(bound, calibrationGeneration);
     }
     /// <summary>Supplies the frozen scale to typed physical-light consumers; legacy producers never request it.</summary>
-    internal static GpuShaderStorageBuffer FrozenLighting => active is { lightingFrozen: true, disposed: false } renderer
-        ? renderer.frozenLighting! : throw new InvalidOperationException("Physical frame storage was not frozen before drawing.");
+    internal static GpuShaderStorageBuffer FrozenLighting
+    {
+        get
+        {
+            if (active is not { lightingFrozen: true, disposed: false } renderer
+                || renderer.lightingFrameIndex != VgeFrameRenderer.Current.FrameIndex
+                || renderer.lightingGeneration != VgeFrameRenderer.Current.CalibrationGeneration)
+                throw new InvalidOperationException("Physical storage does not match the current frame and calibration.");
+            SceneLightingPublicationRenderer.RequirePhysicalInputsWhenActive();
+            return renderer.frozenLighting!;
+        }
+    }
     /// <summary>Exposes admitted physical units, scale ownership and compatibility references without GPU readback or logging.</summary>
     internal static (bool Frozen, float PhysicalBoundNits, uint CalibrationGeneration, float PersistentScale,
         float BlockReferenceLux, float EmissionReferenceNits) LightingDiagnostics =>
@@ -153,7 +171,8 @@ internal sealed class CameraExposureRenderer : IRenderer
         frameLighting.Output = frozenLighting;
         if (!CameraExposureDispatch.TryFreeze(frameLighting))
             throw new InvalidOperationException("Frame lighting scale publication was rejected.");
-        lightingBound = physicalBound; lightingGeneration = calibrationGeneration; lightingFrozen = true;
+        lightingBound = physicalBound; lightingGeneration = calibrationGeneration;
+        lightingFrameIndex = VgeFrameRenderer.Current.FrameIndex; lightingFrozen = true;
     }
     /// <summary>Submits fixed-size metering and temporal reduction, then atomically publishes the completed result.</summary>
     private void Meter()

@@ -130,6 +130,7 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
             raster?.Depth ?? Enumerable.Repeat(depth,edge*edge).ToArray(),
             raster?.Normal ?? Enumerable.Range(0,edge*edge).SelectMany(_=>new[]{.5f,.5f,1f,0f}).ToArray(),
             materials, colors);
+        host.CameraWorld.RefreshCamera();
         Cache.Frame();
         if(Screen.IndirectFullTex!=null) Energy(FinalPixels());
         if(WorldBuffers.Resources!=null) Energy(WorldPixels());

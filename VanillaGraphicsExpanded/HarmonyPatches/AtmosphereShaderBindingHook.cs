@@ -31,6 +31,10 @@ internal static class AtmosphereShaderBindingHook
                 var disk = AtmosphereSolarDisk.Radiance(lighting!);
                 __instance.Uniform("vge_atmosphereSun", lighting!.Sun.X, lighting.Sun.Y, lighting.Sun.Z, lighting.HorizonElevation);
                 __instance.Uniform("vge_atmosphereDisk", disk.X, disk.Y, disk.Z, AtmosphereSolarDisk.AngularRadius);
+                var glare = PBR.SceneColor.SceneColorPipeline.HasSceneInput
+                    ? PBR.Postprocessing.PostprocessPipeline.GlareStrengths : (Bloom: 0f, Shafts: 0f);
+                __instance.Uniform("vge_atmosphereDiskStorageScale",
+                    AtmosphereSolarDiskStorage.MaximumScale(disk, glare.Bloom, glare.Shafts));
             }
         }
         if ((bindings & AtmosphereBindings.AerialRadiance) != 0)
@@ -68,7 +72,7 @@ internal static class AtmosphereShaderBindingHook
         if ((bindings & AtmosphereBindings.AerialParams) != 0)
         {
             __instance.Uniform("vge_atmosphereAerialParams", lighting.Altitude, lighting.HorizonElevation,
-                PbrDrawRouteHook.Api?.Render.ShaderUniforms.CameraUnderwater ?? 0f);
+                PbrDrawRouteHook.Api?.Render.ShaderUniforms.CameraUnderwater ?? 0f, 1 / lighting.LookupStorageScale);
         }
     }
     #endregion

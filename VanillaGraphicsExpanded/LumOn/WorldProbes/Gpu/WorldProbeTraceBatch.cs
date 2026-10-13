@@ -181,7 +181,7 @@ internal sealed class WorldProbeTraceBatch : IDisposable
         answers = builder.MoveToImmutable();
         LastReadbackBytes = 4 + (count << 4) + sparseCount * 80;
         var replacement = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamRead);
-        resident = new WorldProbeResidentAnswers(output, count); output = replacement;
+        resident = new WorldProbeResidentAnswers(output, answers); output = replacement;
         fence.Dispose(); fence = null; count = 0;
         return true;
     }

@@ -112,10 +112,16 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
     /// <summary>Waits for actual refreshed direct values rather than an identity revision that light changes must preserve.</summary>
     private static bool DirectLightEquals(SurfaceCacheRuntimeFixture runtime,float expected)
     {
+        var calibration = VanillaGraphicsExpanded.Rendering.VgeFrameRenderer.CurrentLightingCalibration;
+        float raw = MathF.Round(expected / 32f * 255) / 255;
+        float decoded = Math.Max(0, raw - calibration.AccessorBlockNeutralFloor);
+        float reference = calibration.AccessorBlockReferenceLux > 0
+            ? calibration.AccessorBlockReferenceLux : calibration.BlockReferenceLux;
+        float storedExpected = decoded * reference * VanillaGraphicsExpanded.PBR.LightingStorage.PersistentScale;
         if(!runtime.TryGetLighting(out var snapshot) || !runtime.Feedback.TryGetNearDispatchState(out _,out _,out var pages,out _)) return false;
         using var pixels=SurfaceLightingPageReadback.Read(snapshot.DirectIrradiance,snapshot,pages.Single().Key);
         for(int index=0;index<pixels.Length;index+=4)
-            if(pixels.Span[index+3]!=1 || Math.Abs(pixels.Span[index]-expected)>.01f) return false;
+            if(pixels.Span[index+3]!=1 || Math.Abs(pixels.Span[index]-storedExpected)>.01f) return false;
         return true;
     }
 

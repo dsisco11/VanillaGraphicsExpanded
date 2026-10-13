@@ -1,6 +1,7 @@
 using System.Reflection;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -58,7 +59,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture
                 float value = pixels.Span[index];
                 Assert.True(float.IsFinite(value));
                 if ((index & 3) == 3) maximumWeight = Math.Max(maximumWeight, value);
-                else peak = Math.Max(peak, Math.Abs(value));
+                else peak = Math.Max(peak, Math.Abs(value) / LightingStorage.PersistentScale);
             }
             return peak;
         }

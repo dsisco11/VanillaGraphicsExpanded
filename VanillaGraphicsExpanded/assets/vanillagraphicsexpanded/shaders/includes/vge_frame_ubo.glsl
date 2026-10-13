@@ -32,6 +32,8 @@ layout(std140, binding = VGE_UBO_FRAME_BINDING) uniform VgeFrameUBO
     vec4 renderOriginBlockRemainder;
     vec4 lightCalibration; // block reference lux, neutral field floor, emission reference nits, engine point cd/unit
     vec4 skyCalibration; // terrain zero/full endpoints, world-accessor zero/full endpoints
-    vec4 blockDecoderCalibration; // accessor block reference lux and neutral floor; zw reserved
+    vec4 blockDecoderCalibration; // accessor lux/floor; z contains exact calibration uint bits; w reserved
 } vgeFrame;
+/** Identifies the source interpretation of this complete camera publication without float rounding. */
+uint VgeLightingCalibrationGeneration() { return floatBitsToUint(vgeFrame.blockDecoderCalibration.z); }
 #endif

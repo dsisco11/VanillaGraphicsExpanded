@@ -128,6 +128,8 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     /// <summary>Uploads a completed lookup before swapping dimensions and lighting visible to consumers.</summary>
     internal void Publish(AtmosphereLighting ready)
     {
+        // Integrators retain physical FP32 data; only the immutable uploaded generation is encoded.
+        ready = ready with { LookupStorageScale = PBR.LightingStorage.PersistentScale, CalibrationGeneration = 1 };
         if (stagingTextures is null || !stagingTextures.Matches(ready))
         {
             stagingTextures?.Dispose(); stagingTextures = null;
@@ -142,7 +144,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         SkyTextureId = textures.Sky.TextureId;
         AerialRadianceTextureId = textures.Radiance.TextureId;
         AerialAttenuationTextureId = textures.Attenuation.TextureId;
-        Lighting = ready;
+        Lighting = ready with { ReconstructionMaximumNits = textures.ReconstructionMaximumNits };
     }
     #endregion
 }

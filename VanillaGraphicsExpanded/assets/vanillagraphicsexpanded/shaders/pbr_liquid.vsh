@@ -2,6 +2,7 @@
 #extension GL_ARB_separate_shader_objects : require
 #extension GL_ARB_shading_language_420pack : require
 @import "./includes/liquids/params.glsl"
+@import "./includes/pbr_photometric.glsl"
 layout(location = 0) out vec2 uv;
 layout(location = 1) out vec2 uvSize;
 layout(location = 2) flat out vec2 uvBase;
@@ -56,8 +57,8 @@ void main()
     fragNormal = meshNormal;
     glowLevel = float(renderFlags & GlowLevelBitMask) / 256.0;
     vge_viewPosition = cameraPos.xyz;
-    vge_blockIrradiance = max(rgbaLightIn.rgb, vec3(0));
-    vge_skyVisibility = clamp(rgbaLightIn.a, 0, 1);
+    vge_blockIrradiance = VgeBlockIlluminance(rgbaLightIn.rgb);
+    vge_skyVisibility = VgeSkyAvailability(rgbaLightIn.a, false);
     calcColorMapUvs(colormapData, truePos + vec4(playerpos, 1), rgbaLightIn.a, false);
     gl_Position.w += .0008 / max(.1, gl_Position.z);
 }

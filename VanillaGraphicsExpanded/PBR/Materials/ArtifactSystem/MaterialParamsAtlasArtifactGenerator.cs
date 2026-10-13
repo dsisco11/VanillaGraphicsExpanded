@@ -14,14 +14,19 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.ArtifactSystem;
 
+/// <summary>Schedules material computation and publishes only to the concrete atlas lifetime captured at enqueue.</summary>
 internal sealed class MaterialParamsAtlasArtifactGenerator
 {
     private readonly ICoreClientAPI capi;
     private readonly IMaterialAtlasDiskCache diskCache;
     private readonly MaterialAtlasArtifactBuildTracker tracker;
+    private readonly System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures;
 
     private readonly ArtifactScheduler<WorkKey, Output> scheduler;
 
+    #region Public API
+    #region Lifetime
+    /// <summary>Retains computation, cache and atlas lifetime boundaries under the existing scheduler.</summary>
     public MaterialParamsAtlasArtifactGenerator(
         ICoreClientAPI capi,
         IMaterialAtlasDiskCache diskCache,
@@ -35,6 +40,7 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
         this.diskCache = diskCache ?? throw new ArgumentNullException(nameof(diskCache));
         this.tracker = tracker ?? throw new ArgumentNullException(nameof(tracker));
         _ = tryGetPageTextures ?? throw new ArgumentNullException(nameof(tryGetPageTextures));
+        this.tryGetPageTextures = tryGetPageTextures;
 
         var diskReservations = new ArtifactReservationPool(Math.Max(0, ioCapacity));
         var gpuReservations = new ArtifactReservationPool(Math.Max(0, gpuCapacity));
@@ -42,36 +48,53 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
         scheduler = new ArtifactScheduler<WorkKey, Output>(
             capi,
             new Computer(diskCache),
-            new OutputStage(diskCache, tryGetPageTextures),
+            new OutputStage(diskCache),
             new Applier(tracker),
             maxConcurrency: Math.Max(1, maxConcurrency),
             diskReservations: diskReservations,
             gpuReservations: gpuReservations);
     }
 
+    /// <summary>Starts the retained computation scheduler.</summary>
     public void Start() => scheduler.Start();
 
+    /// <summary>Stops scheduling without transferring atlas ownership.</summary>
     public void Stop() => scheduler.Stop();
 
+    /// <summary>Withdraws work belonging to the preceding material build session.</summary>
     public void BumpSession() => scheduler.BumpSession();
+    #endregion
 
+    #region Diagnostics and completion
+    /// <summary>Reports the existing scheduler's current workload.</summary>
     public ArtifactSchedulerStats GetStatsSnapshot() => scheduler.GetStatsSnapshot();
 
+    /// <summary>Waits for scheduled material computation and output to finish.</summary>
     public Task WaitForIdleAsync(CancellationToken cancellationToken = default)
         => scheduler.WaitForIdleAsync(cancellationToken);
 
+    /// <summary>Drains material work on the current owner thread for synchronous builds.</summary>
     public void FinishOnCurrentThread(CancellationToken cancellationToken = default)
         => scheduler.FinishOnCurrentThread(cancellationToken);
+    #endregion
 
+    #region Scheduling
     /// <summary>Captures current material metadata before scheduling an atlas job.</summary>
     public bool Enqueue(WorkKey key)
     {
+        // Capture the concrete page on the owning thread. Background jobs must neither
+        // traverse the live atlas dictionary nor retarget a replacement texture name.
+        MaterialAtlasPageTextures? page = tryGetPageTextures(key.AtlasTextureId);
+        if (page is null || !page.MaterialParamsTexture.IsValid
+            || page.MaterialParamsTexture.TextureId != key.MaterialParamsTextureId) return false;
+        key = key with { PublicationPage = page };
         // Override-only RGB jobs still require the mapped material transmission at publication.
         if (key.Definition == null && PbrMaterialRegistry.Instance.TryGetMaterial(key.TargetTexture, out var material))
             key = key with { Definition = material };
         return scheduler.Enqueue(new WorkItem(key));
     }
 
+    /// <summary>Identifies computation inputs and the exact receiving page, independent of later atlas replacements.</summary>
     internal readonly record struct WorkKey(
         int GenerationId,
         int AtlasTextureId,
@@ -90,8 +113,10 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
         AssetLocation? RuleSource,
         AtlasCacheKey BaseCacheKey,
         AtlasCacheKey OverrideCacheKey,
-        int Priority);
+        int Priority,
+        MaterialAtlasPageTextures? PublicationPage = null);
 
+    /// <summary>Retains computed material data with the same receiving lifetime and source metadata.</summary>
     internal readonly record struct Output(
         int GenerationId,
         int AtlasTextureId,
@@ -104,10 +129,18 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
         bool StoreOverride,
         AtlasCacheKey OverrideCacheKey,
         int Priority,
-        float Transmission = 0);
+        float Transmission = 0,
+        MaterialAtlasPageTextures? PublicationPage = null);
 
+    #endregion
+    #endregion
+
+    #region Private
+    /// <summary>Adapts immutable material inputs to the scheduler's reservation and priority contract.</summary>
     private sealed class WorkItem : IArtifactWorkItem<WorkKey>
     {
+        #region Public API
+        /// <summary>Retains the already captured receiving page and computation inputs.</summary>
         public WorkItem(WorkKey key) => Key = key;
 
         public WorkKey Key { get; }
@@ -120,18 +153,23 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
 
         // Conservative: reserve both disk and GPU because compute may decide to store.
         public ArtifactOutputKinds RequiredOutputKinds => ArtifactOutputKinds.Disk | ArtifactOutputKinds.Gpu;
+        #endregion
     }
 
+    /// <summary>Computes material coefficients while preserving the captured publication destination.</summary>
     private sealed class Computer : IArtifactComputer<WorkKey, Output>
     {
         private readonly IMaterialAtlasDiskCache diskCache;
         private readonly MaterialOverrideTextureLoader overrideLoader = new();
 
+        #region Public API
+        /// <summary>Retains the optional material cache for procedural and override jobs.</summary>
         public Computer(IMaterialAtlasDiskCache diskCache)
         {
             this.diskCache = diskCache;
         }
 
+        /// <summary>Loads or evaluates a complete tile and carries its exact receiving lifetime to output.</summary>
         public ValueTask<ArtifactComputeResult<Output>> ComputeAsync(ArtifactComputeContext<WorkKey> context)
         {
             WorkKey key = context.Key;
@@ -157,7 +195,8 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
                     StoreOverride: false,
                     OverrideCacheKey: default,
                     Priority: key.Priority,
-                    Transmission: key.Definition?.Transmission ?? 0);
+                    Transmission: key.Definition?.Transmission ?? 0,
+                    PublicationPage: key.PublicationPage);
 
                 return ValueTask.FromResult(new ArtifactComputeResult<Output>(IsNoop: false, Output: new Optional<Output>(output), RequiresApply: true));
             }
@@ -240,23 +279,26 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
                 StoreOverride: storeOverride,
                 OverrideCacheKey: key.OverrideCacheKey,
                 Priority: key.Priority,
-                Transmission: key.Definition?.Transmission ?? 0);
+                Transmission: key.Definition?.Transmission ?? 0,
+                PublicationPage: key.PublicationPage);
 
             return ValueTask.FromResult(new ArtifactComputeResult<Output>(IsNoop: false, Output: new Optional<Output>(outp), RequiresApply: true));
         }
+        #endregion
     }
 
+    /// <summary>Stages admitted GPU data through its captured owner before writing optional disk caches.</summary>
     private sealed class OutputStage : IArtifactOutputStage<WorkKey, Output>
     {
         private readonly IMaterialAtlasDiskCache diskCache;
-        private readonly System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures;
-
-        public OutputStage(IMaterialAtlasDiskCache diskCache, System.Func<int, MaterialAtlasPageTextures?> tryGetPageTextures)
+        #region Public API
+        /// <summary>Retains cache output while each job carries its exact publication owner.</summary>
+        public OutputStage(IMaterialAtlasDiskCache diskCache)
         {
             this.diskCache = diskCache;
-            this.tryGetPageTextures = tryGetPageTextures;
         }
 
+        /// <summary>Rejects retired destinations and unsupported data before reporting publication success.</summary>
         public ValueTask OutputAsync(ArtifactOutputContext<WorkKey, Output> context)
         {
             if (context.Session.CancellationToken.IsCancellationRequested)
@@ -265,28 +307,9 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
             }
 
             float[] rgba = MaterialTransmission.Pack(context.Output.RgbTriplets, context.Output.Transmission);
-            if (context.Session.Mode == ArtifactExecutionMode.InlineCurrentThread)
-            {
-                MaterialAtlasPageTextures? pageTextures = tryGetPageTextures(context.Output.AtlasTextureId);
-                pageTextures?.MaterialParamsTexture.UploadDataImmediate(
-                    rgba,
-                    context.Output.Rect.X,
-                    context.Output.Rect.Y,
-                    context.Output.Rect.Width,
-                    context.Output.Rect.Height);
-            }
-            else
-            {
-                _ = TextureStreamingSystem.StageCopy(
-                    textureId: context.Output.MaterialParamsTextureId,
-                    target: TextureUploadTarget.For2D(),
-                    region: TextureUploadRegion.For2D(context.Output.Rect.X, context.Output.Rect.Y, context.Output.Rect.Width, context.Output.Rect.Height),
-                    pixelFormat: PixelFormat.Rgba,
-                    pixelType: PixelType.Float,
-                    data: rgba,
-                    priority: TextureUploadPriority.Normal,
-                    unpackAlignment: 4);
-            }
+            if (context.Output.PublicationPage?.TryPublishMaterial(context.Output.MaterialParamsTextureId,
+                context.Output.Rect, rgba, context.Session.Mode == ArtifactExecutionMode.InlineCurrentThread) != true)
+                throw new OperationCanceledException("The material atlas publication was retired.");
 
             // Disk cache writes (best-effort; runs off-thread).
             if (context.Output.StoreBase && context.Output.BaseCacheKey.SchemaVersion != 0)
@@ -302,20 +325,27 @@ internal sealed class MaterialParamsAtlasArtifactGenerator
 
             return ValueTask.CompletedTask;
         }
+        #endregion
     }
 
+    /// <summary>Records completion only after the scheduler accepts material output.</summary>
     private sealed class Applier : IArtifactApplier<WorkKey, Output>
     {
         private readonly MaterialAtlasArtifactBuildTracker tracker;
 
+        #region Public API
+        /// <summary>Retains the build generation's completion tracker.</summary>
         public Applier(MaterialAtlasArtifactBuildTracker tracker)
         {
             this.tracker = tracker;
         }
 
+        /// <summary>Completes the matching generation without rebinding a retired publication page.</summary>
         public void Apply(in ArtifactApplyContext<WorkKey, Output> context)
         {
             tracker.CompleteOne(context.Key.GenerationId);
         }
+        #endregion
     }
+    #endregion
 }

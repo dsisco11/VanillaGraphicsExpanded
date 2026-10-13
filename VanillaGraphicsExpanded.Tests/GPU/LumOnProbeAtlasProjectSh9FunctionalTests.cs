@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.LumOn;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.PBR;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -63,6 +64,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         return data;
     }
 
+    /// <summary>Encodes controlled physical directional nits at the fixed persistent scale, preserving hit-distance metadata.</summary>
     private static float[] CreateUniformAtlas(float r, float g, float b, float hitDist = 10f)
     {
         var data = new float[AtlasWidth * AtlasHeight * 4];
@@ -71,9 +73,9 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
         for (int i = 0; i < AtlasWidth * AtlasHeight; i++)
         {
             int idx = i * 4;
-            data[idx + 0] = r;
-            data[idx + 1] = g;
-            data[idx + 2] = b;
+            data[idx + 0] = r * LightingStorage.PersistentScale;
+            data[idx + 1] = g * LightingStorage.PersistentScale;
+            data[idx + 2] = b * LightingStorage.PersistentScale;
             data[idx + 3] = encodedDist;
         }
 
@@ -205,10 +207,10 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests : LumOnShaderFunct
             out var c0, out var c1, out var c2, out var c3, out var c4, out var c5, out var c6, out var c7, out var c8);
 
         // For constant radiance L over the sphere:
-        // c0 = L * ∫ Y00 dΩ = L * (SH9_C0 * 4π)
-        float expectedR0 = 1.0f * SH9_C0 * (4f * Pi);
-        float expectedG0 = 0.5f * SH9_C0 * (4f * Pi);
-        float expectedB0 = 0.25f * SH9_C0 * (4f * Pi);
+        // Stored c0 = C * L * integral(Y00) = C * L * (SH9_C0 * 4pi).
+        float expectedR0 = 1.0f * SH9_C0 * (4f * Pi) * LightingStorage.PersistentScale;
+        float expectedG0 = 0.5f * SH9_C0 * (4f * Pi) * LightingStorage.PersistentScale;
+        float expectedB0 = 0.25f * SH9_C0 * (4f * Pi) * LightingStorage.PersistentScale;
 
         Assert.InRange(c0.r, expectedR0 - 0.05f, expectedR0 + 0.05f);
         Assert.InRange(c0.g, expectedG0 - 0.05f, expectedG0 + 0.05f);

@@ -52,7 +52,7 @@ void main()
     uint surfaceId = uint(round(mat.b * 255.0)) | uint(round(mat.a * 255.0)) << 8u;
     uvec4 material = texelFetch(surfaces, VgeLumonSceneSurfaceLutUv(surfaceId), 0);
     vec3 albedo = clamp(vec3(material.xyz) / 255.0, 0.0, 1.0);
-    vec3 emission = lighting.policy.x != 0u ? vec3(unpackHalf2x16(material.w).y) : vec3(0);
+    vec3 emission = lighting.policy.x != 0u ? VgeDecodePersistentLight(vec3(unpackHalf2x16(material.w).y)) : vec3(0);
     if (operation == 2u)
     {
         // The page was fully captured. Per-texel direct validity distinguishes seeded
@@ -67,9 +67,11 @@ void main()
             imageStore(nextOutgoing, address, vec4(0));
             return;
         }
-        vec3 outgoing = zeroSurface ? vec3(0) : (direct.rgb + indirect.rgb) * albedo / 3.14159265359 + emission;
-        if (!finiteLight(outgoing)) { surfaceCount(SD_NONFINITE); imageStore(nextOutgoing, address, vec4(0)); return; }
-        imageStore(nextOutgoing, address, vec4(clamp(outgoing, vec3(0), vec3(65504)), 1));
+        vec3 outgoing = zeroSurface ? vec3(0) : VgeDecodePersistentLight(direct.rgb + indirect.rgb) * albedo / 3.14159265359 + emission;
+        vec3 stored;
+        if (!VgeTryStorePersistentLight(outgoing, false, stored))
+        { surfaceCount(SD_NONFINITE); imageStore(nextOutgoing, address, vec4(0)); return; }
+        imageStore(nextOutgoing, address, vec4(stored, 1));
         surfaceCount(SD_COMPLETED);
         atomicOr(work[wi].w, 0x40000000u);
         return;
@@ -137,8 +139,10 @@ void main()
         vec3 direct = block
                 + sun * (lighting.atmosphereEnvironment.rgb * 3.14159265359
                 + lighting.atmosphereSolar.rgb * max(0.0, dot(n, lighting.atmosphereSun.xyz)));
-        if (!finiteLight(direct)) { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }
-        imageStore(directIrradiance, address, vec4(clamp(direct, vec3(0), vec3(65504)),1));
+        vec3 stored;
+        if (!VgeTryStorePersistentLight(direct, false, stored))
+        { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }
+        imageStore(directIrradiance, address, vec4(stored,1));
         // Refresh replaces only resolved direct light; retained indirect history adapts separately.
         if (operation == 0u) imageStore(indirectIrradiance, address, vec4(0));
         surfaceCount(SD_COMPLETED);
@@ -202,7 +206,8 @@ void main()
     vec3 estimate = sum / float(rays);
     // A failed/nonfinite batch must not age history or replace valid lighting with an artificial zero.
     if (!finiteLight(estimate)) { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }
-    surfaceAccumulate(address,estimate);
+    if (!surfaceAccumulate(address,estimate))
+    { surfaceCount(SD_NONFINITE); atomicOr(work[wi].w, 0x80000000u); return; }
     surfaceCount(SD_COMPLETED);
     atomicOr(work[wi].w, 0x40000000u);
 }

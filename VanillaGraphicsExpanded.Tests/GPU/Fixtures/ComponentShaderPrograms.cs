@@ -11,6 +11,7 @@ internal sealed class ComponentShaderPrograms : IDisposable
     private readonly EngineShaderPlatformScope platform = new();
     private readonly List<GpuProgram> programs = [];
     private readonly List<GpuComputeProgram> computePrograms = [];
+    private readonly TestFrameLightingPublication frameLighting = new();
 
     /// <summary>Shares the owned engine boundary with scene resources that are disposed before this owner.</summary>
     internal Vintagestory.API.Client.ICoreClientAPI Api => assets.Api;
@@ -32,6 +33,7 @@ internal sealed class ComponentShaderPrograms : IDisposable
         });
         program.Initialize(assets.Api);
         Assert.True(program.CompileAndLink(), string.Join(Environment.NewLine, assets.Logs));
+        frameLighting.Attach(program);
         return program;
     }
 
@@ -41,6 +43,7 @@ internal sealed class ComponentShaderPrograms : IDisposable
         var program = create(Api);
         computePrograms.Add(program);
         Assert.True(program.EnsureReady(), program.PreparationLog);
+        frameLighting.Attach(program);
         return program;
     }
 
@@ -59,6 +62,7 @@ internal sealed class ComponentShaderPrograms : IDisposable
         programs.Clear();
         foreach (var program in computePrograms) { program.Stop(); program.Dispose(); }
         computePrograms.Clear();
+        frameLighting.Dispose();
         platform.Dispose();
         assets.Dispose();
     }

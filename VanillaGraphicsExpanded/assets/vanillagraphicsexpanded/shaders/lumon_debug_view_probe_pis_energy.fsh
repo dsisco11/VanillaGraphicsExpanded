@@ -21,6 +21,8 @@ vec4 renderProbePisEnergyDebug()
     ivec2 atlasCoord = ivec2(clamp(uv * vec2(atlasSize), vec2(0.0), vec2(atlasSize) - vec2(1.0)));
     ivec2 probeCoord = atlasCoord / LUMON_OCTAHEDRAL_SIZE;
 
+    // This is the stored importance-weight sum used by the sampling diagnostics,
+    // not physical irradiance; retain its native confidence/weight convention.
     float e = texelFetch(probePisEnergy, probeCoord, 0).r;
 
     // Log-ish compression to keep ranges visible.

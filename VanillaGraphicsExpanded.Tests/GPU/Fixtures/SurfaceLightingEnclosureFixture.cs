@@ -213,7 +213,8 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
     {
         int local=(int)lightingItems[page].PhysicalPageId-1;
         int x=((local%TilesPerAxis)<<3)+linear%Edge, y=((local/TilesPerAxis)<<3)+linear/Edge;
-        indirect.UploadDataImmediate(new[]{value,value,value,weight},x,y,0,1,1,1);
+        float stored = value * LightingStorage.PersistentScale;
+        indirect.UploadDataImmediate(new[]{stored,stored,stored,weight},x,y,0,1,1,1);
     }
 
     /// <summary>Supplies a uniform previous-generation radiance boundary to isolate temporal response from feedback.</summary>
@@ -223,7 +224,7 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         var pixels=incidentPixels ??= new float[(AtlasEdge*AtlasEdge)<<2];
         for(int index=0;index<pixels.Length;index+=4)
         {
-            pixels[index]=pixels[index+1]=pixels[index+2]=value;
+            pixels[index]=pixels[index+1]=pixels[index+2]=value * LightingStorage.PersistentScale;
             pixels[index+3]=1;
         }
         outgoing[generation%2].UploadDataImmediate(pixels,0,0,0,AtlasEdge,AtlasEdge,1);
@@ -317,8 +318,16 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         Publish();
     }
 
-    /// <summary>Reads a selected physical page texel, defaulting to the first patch interior.</summary>
+    /// <summary>Decodes a selected light-bearing page texel to its declared physical quantity, preserving alpha metadata.</summary>
     public float[] Read(GpuTexture texture, int page = 0, int linear = 27)
+    {
+        float[] pixel = ReadStored(texture, page, linear);
+        for (int channel = 0; channel < 3; channel++) pixel[channel] /= LightingStorage.PersistentScale;
+        return pixel;
+    }
+
+    /// <summary>Reads raw destination-format values to qualify persistent encoding independently of consumers.</summary>
+    public float[] ReadStored(GpuTexture texture, int page = 0, int linear = 27)
     {
         var pixels=new float[AtlasEdge*AtlasEdge*4];
         using var binding=StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,texture.TextureId);

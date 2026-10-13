@@ -241,8 +241,17 @@ factor, transmission and material coefficients. `WaterVolumeFrame` publishes a c
 upper bound covering every boundary and the initial camera source. Missing/nonfinite metadata
 and unsupported products reject transport through the existing validity path. The bound uses
 the completed atmosphere and active block decoder maximum, rather than receiver-local light.
-Current capture inputs remain in their existing scene-unit convention until photometric producer
-migration supplies calibrated block lux and the environment incident-lux adapter.
+Capture illumination uses calibrated block lux, solar lux and environment incident lux. The
+signed source RGB antiderivative uses frozen frame scale P in its RGBA32F layer and is decoded
+once before physical camera-source addition and transport evaluation. Optical depth, distance
+and winding stay unscaled; this storage conversion does not change the estimator approximation.
+The boundary owner admits the captured perspective projection and clip distances before drawing.
+Its conservative ray extent includes the liquid clip-W bias, the depth decoder's denominator
+floor and floating-point headroom, and must remain at most 100 million metres. Effective
+scattering is bounded by the existing coefficient/density contract at 10,000 inverse metres.
+Scaling incident source before multiplying those coefficients and distance bounds each signed
+FP32 increment; even 2^64 additions with conservative rounding growth remain below FP32 range.
+Unsupported camera extents withdraw the whole capture rather than dropping individual boundaries.
 
 Sky transport is accepted only when captured boundaries establish a finite exit from water. The far plane bounds capture without becoming an assumed water depth; unresolved sky paths retain their existing background. Invalid finite/range/winding checks reject transport and retain the existing composite fog behavior. Net winding checks do not prove intermediate topology or mesh closure. Camera classification deliberately uses the existing engine underwater threshold and fluid-block lookup. No additional camera-contact texture or probe pass is allocated. This classification does not follow animated waves or tessellated liquid corner heights; exact animated contact belongs to the waterline work. Shorelines, mini-dimensions, camera crossings and actual production mesh closure require further verification.
 

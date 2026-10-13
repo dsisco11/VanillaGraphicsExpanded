@@ -862,9 +862,10 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         shader.TemporalAlpha = lum.TemporalAlpha;
         shader.DepthRejectThreshold = 0.0f;
         shader.NormalRejectThreshold = 0.0f;
-        // Phase 15 composite params (now compile-time defines)
-        shader.IndirectIntensity = lum.Intensity;
-        shader.IndirectTint = new Vec3f(lum.IndirectTint[0], lum.IndirectTint[1], lum.IndirectTint[2]);
+        // The published gather already includes artistic intensity and tint.
+        // Mirror the scene compositor rather than applying those controls twice.
+        shader.IndirectIntensity = 1;
+        shader.IndirectTint = new Vec3f(1, 1, 1);
         shader.DiffuseAOStrength = Math.Clamp(lum.DiffuseAOStrength, 0f, 1f);
         shader.SpecularAOStrength = Math.Clamp(lum.SpecularAOStrength, 0f, 1f);
         shader.WorldProbeEffectGain = float.IsFinite(lum.WorldProbeEffectGain)

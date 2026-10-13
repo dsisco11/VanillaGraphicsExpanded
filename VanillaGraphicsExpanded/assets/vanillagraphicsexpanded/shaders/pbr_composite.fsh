@@ -1,5 +1,7 @@
 #version 330 core
+@import "./includes/pbr_scene_storage.glsl"
 @import "./includes/gbuffer_layers.glsl"
+@import "./includes/pbr_photometric.glsl"
 
 #if !VGE_COMPOSITE_PRE_OVERLAY_ONLY
 layout(location = 0) out vec3 outColor;
@@ -61,6 +63,9 @@ bool VgeCompositeWaterTransport(vec3 receiverVS, bool sky, out vec3 transmission
 {
     bool startsInWater = vgePbrCompositeParams.waterScattering.w > .5;
     vec4 source = texelFetch(vge_waterTransport, ivec3(ivec2(gl_FragCoord.xy), VGE_WATER_SOURCE), 0);
+    // Restore the signed lighting antiderivative before adding physical camera
+    // illumination. Coverage in alpha never carries a lighting scale.
+    source.rgb = VgePhysicalFrameLight(source.rgb);
     transmission = vec3(1);
     inScattering = vec3(0);
     waterLength = 0.0;
@@ -71,7 +76,16 @@ bool VgeCompositeWaterTransport(vec3 receiverVS, bool sky, out vec3 transmission
     {
         if (abs(terminal) > .01) return false;
     }
-    source.rgb += vgePbrCompositeParams.waterCameraSource.rgb * length(receiverVS);
+    vec3 cameraSource = vgePbrCompositeParams.waterCameraSource.rgb;
+    if (vgePbrCompositeParams.mediumFlags.z > .5)
+    {
+        // Convert the raw accessor field here; bindings never rewrite engine propagation.
+        vec4 raw = vgePbrCompositeParams.waterCameraSource;
+        vec3 incident = VgeBlockIlluminance(raw.rgb, true) + 3.14159265359
+            * vgePbrCompositeParams.waterCameraEnvironment.rgb * VgeSkyAvailability(raw.a, true);
+        cameraSource = vgePbrCompositeParams.waterScattering.rgb * incident / 12.56637061436;
+    }
+    source.rgb += cameraSource * length(receiverVS);
     return VgeWaterBoundaryTransport(texelFetch(vge_waterTransport, ivec3(ivec2(gl_FragCoord.xy), VGE_WATER_OPTICAL), 0),
         source, vgePbrCompositeParams.waterAbsorption.rgb + vgePbrCompositeParams.waterScattering.rgb,
         vgePbrCompositeParams.waterSourceUpper.rgb, startsInWater, length(receiverVS), transmission, inScattering, waterLength);
@@ -95,8 +109,9 @@ void main(void)
     if (lumonIsSky(depth)) return;
 #endif
 
-    vec3 directLight = texture(directLighting, vec3(uv, VGE_DIRECT_DIFFUSE)).rgb + texture(directLighting, vec3(uv, VGE_DIRECT_SPECULAR)).rgb;
-    vec3 emissiveLight = texture(directLighting, vec3(uv, VGE_DIRECT_EMISSIVE)).rgb;
+    vec3 directLight = VgePhysicalFrameLight(texture(directLighting, vec3(uv, VGE_DIRECT_DIFFUSE)).rgb
+        + texture(directLighting, vec3(uv, VGE_DIRECT_SPECULAR)).rgb);
+    vec3 emissiveLight = VgePhysicalFrameLight(texture(directLighting, vec3(uv, VGE_DIRECT_EMISSIVE)).rgb);
     vec3 finalColor = directLight + emissiveLight;
 
     // First-person visibility depth cannot reconstruct a physical lighting or fog receiver.
@@ -110,7 +125,7 @@ void main(void)
     {
         // Direct lighting pass outputs 0 for sky/background by design.
         // Preserve the base scene color here (sky shader output lives in gBufferAlbedo).
-        vec3 skyColor = texture(gBufferAlbedo, uv).rgb;
+        vec3 skyColor = VgePhysicalFrameLight(texture(gBufferAlbedo, uv).rgb);
         bool waterCaptureEnabled = vgePbrCompositeParams.waterAbsorption.w > .5;
         bool cameraAboveWater = vgePbrCompositeParams.mediumFlags.x < .5;
         bool startsInWater = vgePbrCompositeParams.waterScattering.w > .5;
@@ -123,7 +138,7 @@ void main(void)
             bool resolved = VgeCompositeWaterTransport(receiverVS, true, transmission, inScattering, waterLength);
             if (resolved) skyColor = skyColor * transmission + inScattering;
         }
-        outColor = max(skyColor, vec3(0.0));
+        outColor = VgeProtectPackedSceneLighting(VgeStoreFrameLight(skyColor));
         return;
     }
 #endif
@@ -138,7 +153,7 @@ void main(void)
     }
 
 #if VGE_LUMON_ENABLED
-    vec3 indirect = indirectIntensity > 0.0 ? texture(indirectDiffuse, uv).rgb : vec3(0.0);
+    vec3 indirect = indirectIntensity > 0.0 ? VgePhysicalFrameLight(texture(indirectDiffuse, uv).rgb) : vec3(0.0);
 
         vec3 albedo = lumonGetAlbedo(gBufferAlbedo, uv);
         float roughness;
@@ -201,7 +216,9 @@ void main(void)
     // Capture before water/atmospheric transport; the liquid evaluates its bent path once.
     if (VGE_COMPOSITE_PRE_OVERLAY_ONLY != 0 || vgePbrCompositeParams.mediumFlags.y > .5)
     {
-        outRefractionColor = vec4(finalColor, texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).a >= 0.0 ? 1.0 : 0.0);
+        // Eligibility tests the original stored payload, not a clamped fallback.
+        // An overflowing or invalid receiver must not become valid history.
+        outRefractionColor = vec4(VgeStoreFrameLight(finalColor), texture(gBufferSurface, vec3(uv, VGE_SURFACE_NORMAL)).a >= 0.0 ? 1.0 : 0.0);
         outRefractionDepth = depth;
         // Restore both members of the clean pair only where first-person visibility replaced the world.
         // Optional missing captures bind the zero fallback and never establish a physical receiver.
@@ -240,19 +257,19 @@ void main(void)
             vec3 airReceiver = transpose(mat3(viewMatrix)) * receiverVS
                 * max(0.0, 1.0 - waterLength / max(length(receiverVS), .001));
             finalColor = VgeApplyAerial(finalColor, airReceiver, texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).a,
-                vgePbrCompositeParams.atmosphereAerial.xy, vgePbrCompositeParams.atmosphereSun.xyz);
+                vgePbrCompositeParams.atmosphereAerial.xyw, vgePbrCompositeParams.atmosphereSun.xyz);
             finalColor = finalColor * transmission + inScattering;
         }
     }
     if (!waterResolved && vgePbrCompositeParams.mediumFlags.x > .5)
     {
         float fogAmount = clamp(fogMinIn + 1.0 - exp(-length(receiverVS) * fogDensityIn), 0.0, 1.0);
-        finalColor = mix(finalColor, VgeSrgbToLinear(rgbaFogIn.rgb), fogAmount);
+        finalColor = mix(finalColor, VgeCompatibilityLuminance(rgbaFogIn.rgb), fogAmount);
     }
     else if (!waterResolved)
         finalColor = VgeApplyAerial(finalColor, transpose(mat3(viewMatrix)) * receiverVS,
-            texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).a, vgePbrCompositeParams.atmosphereAerial.xy, vgePbrCompositeParams.atmosphereSun.xyz);
+            texture(gBufferSurface, vec3(uv, VGE_SURFACE_ENVIRONMENT)).a, vgePbrCompositeParams.atmosphereAerial.xyw, vgePbrCompositeParams.atmosphereSun.xyz);
 
-    outColor = finalColor;
+    outColor = VgeProtectPackedSceneLighting(VgeStoreFrameLight(finalColor));
 #endif
 }

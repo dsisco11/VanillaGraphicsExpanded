@@ -20,18 +20,6 @@ internal sealed class MaterialAtlasParamsUploader
     {
         ArgumentNullException.ThrowIfNull(rgbTriplets);
 
-        if (!textureStore.TryGetPageTextures(atlasTextureId, out MaterialAtlasPageTextures pageTextures))
-        {
-            return false;
-        }
-
-        pageTextures.MaterialParamsTexture.UploadData(
-            MaterialTransmission.Pack(rgbTriplets, transmission),
-            rect.X,
-            rect.Y,
-            rect.Width,
-            rect.Height);
-
-        return true;
+        return textureStore.TryUploadMaterialParamsTile(atlasTextureId, rect, rgbTriplets, transmission);
     }
 }

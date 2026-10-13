@@ -15,7 +15,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// v1 payload:
 /// - RGBA32UI, one texel per surface id.
 /// - x/y/z: base color (0..255) (linear)
-/// - w: low byte roughness (0..255), upper half binary16 neutral emission in engine units
+/// - w: low byte roughness (0..255), upper half binary16 neutral emission in nits times the fixed persistent scale
 /// </remarks>
 internal sealed class LumonScenePbrSurfaceLutRegistry
 {
@@ -30,12 +30,23 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
     private readonly uint[] lutData = new uint[MaxSurfaceEntries * 4];
 
     private bool lutDirty;
+    private float maximumEmissionNits;
 
+    #region Public API
+    #region Publication
+    /// <summary>Bounds the decoded neutral emission of every material admitted during this LUT lifetime.</summary>
+    internal float MaximumEmissionNits
+    {
+        get { lock (gate) return maximumEmissionNits; }
+    }
+
+    /// <summary>Creates a default material publication with no admitted emission.</summary>
     public LumonScenePbrSurfaceLutRegistry()
     {
         Reset();
     }
 
+    /// <summary>Retires identifiers, material payloads and their source bound together.</summary>
     public void Reset()
     {
         lock (gate)
@@ -43,6 +54,7 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
             idByTexture.Clear();
             Array.Clear(entryState, 0, entryState.Length);
             Array.Clear(lutData, 0, lutData.Length);
+            maximumEmissionNits = 0;
 
             // Surface id 0 is reserved as a default fallback.
             WriteSurfaceUnsafe(
@@ -53,6 +65,7 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
         }
     }
 
+    /// <summary>Copies one complete pending material publication under the registry lock.</summary>
     public bool TryCopyAndClearDirtyLut(uint[] dst)
     {
         if (dst is null) throw new ArgumentNullException(nameof(dst));
@@ -71,6 +84,9 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
         }
     }
 
+    #endregion
+    #region Material resolution
+    /// <summary>Resolves and admits a material before publishing its stable compact identifier.</summary>
     public ushort GetOrAssignSurfaceId(AssetLocation textureKey)
     {
         if (textureKey is null)
@@ -103,7 +119,6 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
             }
 
             ushort id = (ushort)next;
-            idByTexture[textureKey] = id;
 
             if (PbrMaterialRegistry.Instance.TryGetSurface(textureKey, out PbrMaterialSurface resolved))
             {
@@ -117,6 +132,8 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
                 entryState[id] = EntryMissing;
             }
 
+            // Publish the identifier only after the entire material row passes admission.
+            idByTexture[textureKey] = id;
             lutDirty = true;
             return id;
         }
@@ -163,20 +180,29 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
 
         return upgraded;
     }
+    #endregion
+    #endregion
 
+    #region Private
     /// <summary>Packs diffuse reflectance, roughness and HDR neutral emission into one immutable surface row.</summary>
     private void WriteSurfaceUnsafe(int surfaceId, PbrMaterialSurface surface)
     {
+        float emission = PBR.LightingStorage.EncodePersistent(surface.Emissive * PBR.LightingCalibration.EmissionReferenceNits);
         int o = surfaceId * 4;
 
         lutData[o + 0] = Float01ToByte(surface.DiffuseAlbedo.X);
         lutData[o + 1] = Float01ToByte(surface.DiffuseAlbedo.Y);
         lutData[o + 2] = Float01ToByte(surface.DiffuseAlbedo.Z);
-        // Upper half stores neutral emitted radiance in engine units without LDR clipping.
-        float emission = float.IsFinite(surface.Emissive) ? Math.Clamp(surface.Emissive * 32f, 0f, 65504f) : 0f;
-        lutData[o + 3] = Float01ToByte(surface.Roughness) | ((uint)BitConverter.HalfToUInt16Bits((Half)emission) << 16);
+        // Admission precedes every write; source power is never clipped into a valid material.
+        Half packedEmission = (Half)emission;
+        lutData[o + 3] = Float01ToByte(surface.Roughness) | ((uint)BitConverter.HalfToUInt16Bits(packedEmission) << 16);
+        // Bound the value consumers actually decode, including binary16 rounding. Keep the
+        // lifetime maximum because compatible probes may retain emission from an older row.
+        maximumEmissionNits = Math.Max(maximumEmissionNits,
+            PBR.LightingStorage.DecodePersistent((float)packedEmission));
     }
 
+    /// <summary>Matches the material owner's canonical extensionless texture identity.</summary>
     private static AssetLocation NormalizeTextureKey(AssetLocation key)
     {
         // Match PBR registry normalization: lowercase + "textures/" prefix + extensionless.
@@ -198,10 +224,12 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
         return new AssetLocation(domain, path);
     }
 
+    /// <summary>Packs a bounded reflectance or roughness coefficient using its existing byte convention.</summary>
     private static uint Float01ToByte(float v)
     {
         if (!(v >= 0f)) return 0u; // handles NaN
         if (v >= 1f) return 255u;
         return (uint)(v * 255f + 0.5f);
     }
+    #endregion
 }

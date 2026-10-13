@@ -12,6 +12,10 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
     internal const int PackedSize = 16 + Capacity * 32;
     /// <summary>Allocates retained packing with immutable versioned GPU slices.</summary>
     internal VgeLightsUniformBuffer() : base(PackedSize) { }
+    /// <summary>Bounds summed active directional RGB intensity in candela for the matching immutable light list.</summary>
+    internal float SummedCandelaMaximum { get; private set; }
+    /// <summary>Matches native effect color/normalization admission to the same immutable engine payload.</summary>
+    internal PBR.SceneColor.SceneColorPointLightBounds NativeEffectBounds { get; private set; }
 
     /// <summary>Captures a complete light list without publishing partially validated input.</summary>
     internal void Capture(int count, ReadOnlySpan<float> positions, ReadOnlySpan<float> colors)
@@ -24,6 +28,18 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
         for (int component = 0; component < count * 3; component++)
             if (!float.IsFinite(positions[component]) || !float.IsFinite(colors[component]))
                 throw new ArgumentException("Light components must be finite.");
+        var calibration = VgeFrameRenderer.CurrentLightingCalibration;
+        double red = 0, green = 0, blue = 0;
+        for (int light = 0; light < count; light++)
+        {
+            red += Math.Max(colors[light * 3], 0) * (double)calibration.PointCandelaPerUnit;
+            green += Math.Max(colors[light * 3 + 1], 0) * (double)calibration.PointCandelaPerUnit;
+            blue += Math.Max(colors[light * 3 + 2], 0) * (double)calibration.PointCandelaPerUnit;
+        }
+        // Bound the shader's multiplication and accumulated source sum outward before
+        // exposing any light. Position, window and inverse-square terms cannot amplify it.
+        float candelaMaximum = PBR.LightingStorage.UpperBound(Math.Max(red, Math.Max(green, blue)) * (1 + 256.0 / (1 << 23)));
+        var nativeBounds = PBR.SceneColor.SceneColorPointLightBounds.FromEngine(count, colors);
         WriteUInt32(0, (uint)count);
         for (int light = 0; light < count; light++)
         {
@@ -31,6 +47,8 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
             WriteVector4(16 + light * 16, new(positions[source], positions[source + 1], positions[source + 2], 0));
             WriteVector4(16 + Capacity * 16 + light * 16, new(colors[source], colors[source + 1], colors[source + 2], 0));
         }
+        SummedCandelaMaximum = candelaMaximum;
+        NativeEffectBounds = nativeBounds;
     }
     /// <summary>Publishes VGE-authored luminous flux through the retained list without relabeling engine RGB.</summary>
     internal void CaptureAuthored(ReadOnlySpan<PBR.PunctualLight> sources)
@@ -39,12 +57,22 @@ internal sealed class VgeLightsUniformBuffer : CpuUniformBuffer
         Span<System.Numerics.Vector4> payloads = stackalloc System.Numerics.Vector4[sources.Length];
         // Validate the complete generation before mutating its count or any exposed vector.
         for (int i = 0; i < sources.Length; i++) payloads[i] = sources[i].IntensityPayload();
+        double red = 0, green = 0, blue = 0;
+        foreach (var payload in payloads)
+        {
+            red += payload.X; green += payload.Y; blue += payload.Z;
+        }
+        float candelaMaximum = PBR.LightingStorage.UpperBound(Math.Max(red, Math.Max(green, blue)) * (1 + 256.0 / (1 << 23)));
         WriteUInt32(0, (uint)sources.Length);
         for (int i = 0; i < sources.Length; i++)
         {
             WriteVector4(16 + i * 16, new(sources[i].Position, 0));
             WriteVector4(16 + Capacity * 16 + i * 16, payloads[i]);
         }
+        SummedCandelaMaximum = candelaMaximum;
+        // Authored candela carry a different payload convention and do not certify
+        // the engine's legacy RGB/range expressions used by clouds and particles.
+        NativeEffectBounds = default;
     }
     #endregion
 }

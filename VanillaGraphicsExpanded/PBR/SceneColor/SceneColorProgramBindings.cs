@@ -24,7 +24,12 @@ internal static class SceneColorProgramBindings
             // These programs interpret sampled inputs, not their destination. Owned HDR composition never uses them; menu/offscreen uses remain display-referred.
             if (program.PassName is "final" or "colorgrade" or "luma" or "godrays") linear = false;
         }
-        if (linear) RequireConvention(program);
+        if (linear)
+        {
+            RequireConvention(program);
+            SceneLightingPublicationRenderer.RequireNativeInputs(program.PassName);
+            CameraExposure.CameraExposureRenderer.FrozenLighting.BindBase(Rendering.GpuBindingRegistry.Ssbo.FrameLighting);
+        }
         program.Uniform("vge_sceneLinear", linear ? 1 : 0);
     }
 

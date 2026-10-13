@@ -40,6 +40,7 @@ public abstract class RenderTestBase : IDisposable
     private bool _quadInitialized;
     private bool _disposed;
     private readonly GpuResourceCollection _targetResources = new();
+    private readonly TestFrameLightingPublication frameLighting = new();
 
     /// <summary>
     /// Creates a new RenderTestBase instance.
@@ -66,7 +67,7 @@ public abstract class RenderTestBase : IDisposable
 
         // Option B: UBO binding uses the per-thread ring allocator.
         // In production this is installed by a renderer; in tests we activate it manually.
-        if (beginUniformFrame) TestUniformRing.BeginFrame();
+        if (beginUniformFrame) { TestUniformRing.BeginFrame(); frameLighting.Bind(); }
         else TestUniformRing.EnsureFrame();
         
     }
@@ -409,7 +410,7 @@ public abstract class RenderTestBase : IDisposable
             _quadInitialized = false;
         }
 
-        if (disposing) _targetResources.Dispose();
+        if (disposing) { frameLighting.Dispose(); _targetResources.Dispose(); }
         _disposed = true;
     }
 

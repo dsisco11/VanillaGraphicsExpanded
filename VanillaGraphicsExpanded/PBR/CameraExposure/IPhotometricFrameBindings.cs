@@ -8,8 +8,8 @@ internal interface IPhotometricFrameBindings
 {
     #region Public API
     /// <summary>Uses the existing camera owner; requesting an unavailable publication fails before draw submission.</summary>
-    [ShaderBinding("FrozenFrameLighting", ShaderBindingKind.StorageBlock, 3,
-        ShaderStageKind.Fragment, ShaderStageKind.Compute)]
+    [ShaderBinding("FrozenFrameLighting", ShaderBindingKind.StorageBlock, GpuBindingRegistry.Ssbo.FrameLighting,
+        ShaderStageKind.Fragment, ShaderStageKind.Compute, Required = false)]
     GpuShaderStorageBuffer FrameLighting => CameraExposureRenderer.FrozenLighting;
     #endregion
 }

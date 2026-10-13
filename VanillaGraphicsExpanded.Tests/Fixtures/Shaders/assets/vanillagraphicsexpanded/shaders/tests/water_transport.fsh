@@ -34,16 +34,16 @@ void main()
         float sky = visibility == 0 ? 0.0 : visibility == 1 ? .4 : 1.0;
         vec3 displacement = vec3(0,0,-10);
         result = VgeWaterCompose(vec3(2,4,8), alpha, vec3(16,8,4), parameter);
-        result.rgb = VgeApplyAerial(result.rgb, displacement, sky, vec2(0), vec3(0,1,0));
+        result.rgb = VgeApplyAerial(result.rgb, displacement, sky, vec3(0,0,1), vec3(0,1,0));
         separatelyTransported = VgeWaterCompose(
-            VgeApplyAerial(vec3(2,4,8), displacement, sky, vec2(0), vec3(0,1,0)), alpha,
-            VgeApplyAerial(vec3(16,8,4), displacement, sky, vec2(0), vec3(0,1,0)), parameter);
+            VgeApplyAerial(vec3(2,4,8), displacement, sky, vec3(0,0,1), vec3(0,1,0)), alpha,
+            VgeApplyAerial(vec3(16,8,4), displacement, sky, vec3(0,0,1), vec3(0,1,0)), parameter);
     }
     if (row == 12)
     {
         // An underwater exit transports its air segment before the water medium;
         // the shared above-water camera segment must not be applied a second time.
-        vec3 air = VgeApplyAerial(vec3(8,4,2), vec3(0,0,-10), parameter, vec2(0), vec3(0,1,0));
+        vec3 air = VgeApplyAerial(vec3(8,4,2), vec3(0,0,-10), parameter, vec3(0,0,1), vec3(0,1,0));
         VgeWaterMedium medium = VgeWaterMedium(vec3(.1,.2,.3),vec3(0),0);
         result = vec4(VgeWaterTransport(medium,2.0,air,vec3(0)),1);
     }

@@ -18,10 +18,10 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
     public void LightingCapabilityAdmissionRequiresCompleteConsumerContract()
     {
         EnsureShaderTestAvailable();
-        var supported = GpuSupport.Graphics with { MaxShaderStorageBufferBindings = 4,
+        var supported = GpuSupport.Graphics with { MaxShaderStorageBufferBindings = 5,
             MaxFragmentShaderStorageBlocks = 2, MaxUniformBlockSize = VgeFrameUniformBuffer.PackedSize };
         Assert.True(CameraExposureDispatch.SupportsLighting(supported));
-        Assert.False(CameraExposureDispatch.SupportsLighting(supported with { MaxShaderStorageBufferBindings = 3 }));
+        Assert.False(CameraExposureDispatch.SupportsLighting(supported with { MaxShaderStorageBufferBindings = 4 }));
         Assert.False(CameraExposureDispatch.SupportsLighting(supported with { MaxFragmentShaderStorageBlocks = 1 }));
         Assert.False(CameraExposureDispatch.SupportsLighting(supported with { MaxUniformBlockSize = VgeFrameUniformBuffer.PackedSize - 1 }));
     }

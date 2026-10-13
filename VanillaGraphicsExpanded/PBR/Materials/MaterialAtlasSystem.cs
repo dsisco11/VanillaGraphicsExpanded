@@ -759,12 +759,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 continue;
             }
 
-            pageTextures.MaterialParamsTexture.UploadDataImmediate(
-                MaterialTransmission.Pack(rgbTriplets, tile.Definition.Transmission),
-                x: tile.Rect.X,
-                y: tile.Rect.Y,
-                regionWidth: tile.Rect.Width,
-                regionHeight: tile.Rect.Height);
+            textureStore.TryUploadMaterialParamsTile(tile.AtlasTextureId, tile.Rect,
+                rgbTriplets, tile.Definition.Transmission, immediate: true);
 
             uploadedMaterial++;
         }
@@ -797,12 +793,8 @@ internal sealed class MaterialAtlasSystem : IDisposable
                 continue;
             }
 
-            pageTextures.MaterialParamsTexture.UploadDataImmediate(
-                MaterialTransmission.Pack(rgbTriplets, MaterialTransmission.Resolve(ov.TargetTexture)),
-                x: ov.Rect.X,
-                y: ov.Rect.Y,
-                regionWidth: ov.Rect.Width,
-                regionHeight: ov.Rect.Height);
+            textureStore.TryUploadMaterialParamsTile(ov.AtlasTextureId, ov.Rect,
+                rgbTriplets, MaterialTransmission.Resolve(ov.TargetTexture), immediate: true);
 
             uploadedMaterial++;
         }

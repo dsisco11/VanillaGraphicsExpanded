@@ -1,6 +1,8 @@
 #ifndef VGE_PBR_LIQUID_GLSL
 #define VGE_PBR_LIQUID_GLSL
+@import "./pbr_scene_storage.glsl"
 @import "./pbr_finite_disk_brdf.glsl"
+@import "./pbr_photometric.glsl"
 
 
 
@@ -56,9 +58,10 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
         * solar * max(dot(N,L), 0.0);
 #if VGE_LIQUID_CAPTURE_MODE == 1
     // The GPU test captures this direct-sun term before medium and OIT composition.
-    return vec4(VgeSceneOutput(reflected, gl_FragCoord.xy, liquidMediumControl.w > .5), 1.0);
+    return vec4(liquidMediumControl.w > .5 ? VgeStoreSceneLighting(reflected)
+        : VgeSceneOutput(reflected, gl_FragCoord.xy, false), 1.0);
 #endif
-    vec3 bodyLight = vge_blockIrradiance + vge_atmosphereEnvironment * vge_skyVisibility;
+    vec3 bodyLight = VgeDiffuseIncident(vge_blockIrradiance) + vge_atmosphereEnvironment * vge_skyVisibility;
     VgeWaterMedium medium = water ? VgeWaterMaterial(uv) : VgeWaterMedium(vec3(0), vec3(0), 0.0);
     VgeWaterReceiver receiver = VgeWaterReceiver(false, VGE_WATER_RECEIVER_NONE,
         vec3(0), vge_viewPosition, vec3(0), 0.0, 0.0);
@@ -84,14 +87,14 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     vec3 refractedSource = vec3(0);
     if (fallbackSourceNeeded)
         mediumSource = solar * VgeWaterPhase(-L, V, medium.anisotropy)
-            + max(bodyLight, vec3(0)) / 12.56637061436;
+            + max(bodyLight, vec3(0)) * .25;
     if (refractedSourceNeeded)
     {
         // This outgoing direction serves scattering only; reflection retains V.
         if (medium.anisotropy != 0.0)
             waterOutgoing = VgeWaterOutgoingDirection(vge_viewPosition, receiver.refractedDirectionVS, underwater, toWorld);
         refractedSource = solar * VgeWaterPhase(-L, waterOutgoing, medium.anisotropy)
-            + max(bodyLight, vec3(0)) / 12.56637061436;
+            + max(bodyLight, vec3(0)) * .25;
     }
     vec3 diffuse = tint * solar * max(dot(N,L), 0.0) / 3.14159265359;
 #if DYNLIGHTS > 0
@@ -100,14 +103,14 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
         vec3 delta = vgeLights.positions[i].xyz - vge_viewPosition;
         float d2 = max(dot(delta, delta), .0001);
         vec3 direction = normalize(toWorld * delta);
-        vec3 light = vgeLights.colors[i].xyz * min(1.0 / d2, 1.0);
+        vec3 light = VgePointIlluminance(vgeLights.colors[i], d2);
         // Local lights retain the existing unshadowed engine approximation.
         if (fallbackSourceNeeded)
             mediumSource += max(light, vec3(0)) * VgeWaterPhase(-direction, V, medium.anisotropy);
         if (refractedSourceNeeded)
             refractedSource += max(light, vec3(0)) * VgeWaterPhase(-direction, waterOutgoing, medium.anisotropy);
         reflected += cookTorranceBRDF(N,V,direction,F0,roughness) * light * max(dot(N,direction),0.0);
-        diffuse += tint * light * max(dot(N,direction),0.0);
+        diffuse += tint * VgeDiffuseIncident(light) * max(dot(N,direction),0.0);
     }
 #endif
     // Environment reflection is intentionally local and bounded: no active framebuffer feedback or SSR holes.
@@ -119,13 +122,14 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     {
         if (receiver.valid)
         {
-            vec3 refractedBackground = receiver.radiance;
+            vec3 refractedBackground = liquidMediumControl.w > .5
+                ? VgePhysicalFrameLight(receiver.radiance) : receiver.radiance;
             if (underwater)
             {
                 // The outgoing segment is air; the camera-to-interface segment remains submerged.
                 refractedBackground = VgeApplyAerial(refractedBackground,
                     toWorld * (receiver.positionVS - vge_viewPosition), vge_skyVisibility,
-                    vge_atmosphereAerialParams.xy, vge_atmosphereSunDirection);
+                    vge_atmosphereAerialParams.xyw, vge_atmosphereSunDirection);
             }
             vec3 transmittedBackground = VgeWaterTransport(medium, receiver.submergedLength,
                 refractedBackground, refractedSource);
@@ -147,7 +151,7 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     else
     {
         // Milk/dyes/oil and emissive lava retain distinct opaque body response; no water absorption is inferred.
-        radiance = reflected + diffuse + tint * bodyLight + tint * max(emission, 0.0);
+        radiance = reflected + diffuse + tint * bodyLight + VgeEmissionLuminance(tint, emission);
     }
     // Fade premultiplied color and coverage together. The residual original background
     // is exactly (1-confidence)*(1-fallbackAlpha), rather than adding it to a complete refracted source.
@@ -157,8 +161,9 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     // including partial-confidence fallback. Underwater exit air stays above.
     if (!underwater)
         combined.rgb = VgeApplyAerial(combined.rgb, toWorld * vge_viewPosition, vge_skyVisibility,
-            vge_atmosphereAerialParams.xy, vge_atmosphereSunDirection);
+            vge_atmosphereAerialParams.xyw, vge_atmosphereSunDirection);
     // Display adaptation is an output boundary, never part of the optical interpolation.
-    return vec4(VgeSceneOutput(combined.rgb, gl_FragCoord.xy, liquidMediumControl.w > .5), combined.a);
+    return vec4(liquidMediumControl.w > .5 ? VgeStoreSceneLighting(combined.rgb)
+        : VgeSceneOutput(combined.rgb, gl_FragCoord.xy, false), combined.a);
 }
 #endif

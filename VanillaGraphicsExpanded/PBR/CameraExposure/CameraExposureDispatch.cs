@@ -28,7 +28,7 @@ internal static class CameraExposureDispatch
         && capabilities.MaxShaderStorageBlockSize >= CameraExposureTargets.HistogramBytes;
     /// <summary>Admits the frozen read slot and simultaneous display-exposure/frame-scale fragment consumers.</summary>
     internal static bool SupportsLighting(GraphicsCapabilities capabilities) => Supports(capabilities)
-        && capabilities.MaxShaderStorageBufferBindings >= 4 && capabilities.MaxFragmentShaderStorageBlocks >= 2
+        && capabilities.MaxShaderStorageBufferBindings > GpuBindingRegistry.Ssbo.FrameLighting && capabilities.MaxFragmentShaderStorageBlocks >= 2
         && capabilities.MaxUniformBlockSize >= VgeFrameUniformBuffer.PackedSize;
     /// <summary>Restores prepared resource slots and publishes writes to reduction and subsequent graphics consumers.</summary>
     internal static bool TryRun(CameraHistogramShaderProgram histogram, CameraAdaptShaderProgram adaptation)
@@ -49,7 +49,7 @@ internal static class CameraExposureDispatch
     {
         GpuSupport.EnsureCurrentContext();
         if (!SupportsLighting(GpuSupport.Graphics))
-            throw new InvalidOperationException("Physical frame storage requires four SSBO slots, two fragment storage blocks and the shared frame UBO.");
+            throw new InvalidOperationException("Physical frame storage requires five SSBO slots, two fragment storage blocks and the shared frame UBO.");
         var resources = EngineBoundaryResources.From(program.ProgramLayout.BinaryInterface!.PreparedBindings);
         return EngineBoundaryExecution.TryRun(new("Camera.FrozenLighting"), resources, _ =>
         {

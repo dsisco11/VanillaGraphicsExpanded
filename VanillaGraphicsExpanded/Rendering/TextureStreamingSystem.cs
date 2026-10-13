@@ -4,6 +4,7 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
+/// <summary>Routes texture staging and retirement through the active streaming owner.</summary>
 internal static class TextureStreamingSystem
 {
     private static readonly object Gate = new();
@@ -106,6 +107,7 @@ internal static class TextureStreamingSystem
             unpackImageHeight);
     }
 
+    /// <summary>Stages floating-point data, optionally retaining a concrete destination lifetime for transfer admission.</summary>
     public static TextureStageResult StageCopy(
         int textureId,
         TextureUploadTarget target,
@@ -116,7 +118,8 @@ internal static class TextureStreamingSystem
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
         int unpackRowLength = 0,
-        int unpackImageHeight = 0)
+        int unpackImageHeight = 0,
+        GpuTexture? textureOwner = null)
     {
         return Manager.StageCopy(
             textureId,
@@ -128,7 +131,8 @@ internal static class TextureStreamingSystem
             priority,
             unpackAlignment,
             unpackRowLength,
-            unpackImageHeight);
+            unpackImageHeight,
+            textureOwner);
     }
 
     public static void TickOnRenderThread()

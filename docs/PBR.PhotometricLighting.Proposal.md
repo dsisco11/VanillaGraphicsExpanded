@@ -563,6 +563,14 @@ Qualify disk blending with the background and other contributions. This protecti
 direct solar illuminance, diffuse sky illumination, the atmosphere amplitude or all light sources.
 Diagnostics distinguish uncapped physical disk luminance from the capped scene contribution.
 
+The existing atmosphere binding owner computes the visible disk's maximum storage scale on
+the CPU from that same physical RGB and the captured glare strengths. Evaluate the cap and
+cap-to-peak ratio in double precision, round the cap down to a float, and reserve one downward
+float step in the scale for multiplication rounding. Publish that limit as a solar-draw uniform;
+the fragment shader selects `min(P, diskMaximumScale)` before multiplying physical disk RGB.
+Invalid disk or glare inputs produce an unavailable (zero) scale. This calculation preserves
+the existing shader language versions and requires no `precise` qualifier or GPU readback.
+
 This intentional high-end approximation does not promise <=1% physical-value precision for every
 simultaneously visible dark value. The earlier 0.001-nit interval is an illustrative stress test,
 not an accepted minimum or a release gate. Retain analytical and per-format quantization bounds;
@@ -1296,6 +1304,17 @@ conservative nonzero-output bound is therefore numerator/0.0001. A zero-alpha co
 bounded straight color without that calculation. Nonfinite intermediates or an unsupported assembled
 B reject the publication/draw; RGBA32F does not remove this normalization requirement.
 
+The installed native volumetric map has a tighter source contract: `cloudmap.fsh` writes
+`colour.a=1` and changes only RGB afterward, into its owner's RGBA32F map. The existing
+volumetric renderer submits one fullscreen mesh. For that admitted map, traversal integrates
+RGB and coverage with the same positive weights, so `k.rgb<=r*k.a` for sample RGB bound r.
+The direct bucket multiplier preserves this ratio; positive normalized bucket output is
+therefore bounded by r. This proof requires the matching native map generation, finite
+nonnegative opacity, unit sample alpha and its actual RGB expression bound. It does not
+qualify arbitrary replacement cloud-color textures or remove the general numerator/divisor
+admission above. Owner inspection receipts are `artifacts/phase4-cloud-owner-il.txt` and
+`artifacts/phase4-cloud-construction-il.txt`; installed arithmetic is covered by focused GPU tests.
+
 These rules settle quantities and the conservative bound construction. Exact engine-expression
 input bounds are constructed from the published inputs as follows, rather than assuming every
 engine value is in [0,1]. Texture maxima include active replacements and filtering; normalized
@@ -1318,9 +1337,13 @@ Admission requires finite intermediate expressions and the declared coverage/fog
   not an assumed unit RGB. The brightness denominator is `max(1,bPointBrightSum)`.
 - For ordinary clouds let C bound the published `rgbaCloud.rgb`, H bound the glow/fog texture
   mixture and alpha be in [0,1] after removing display-noise addition. Then the pre-underwater
-  authored bound is `max(C*max(1,1.2*H)+1.6*psychedelicStrength,FogRgbMax)
-  + CloudPointRgbMax + 0.5*nightVisionStrength`. The second sky-glow multiplier is at most one.
-  C includes actual dayLight, cloudBrightness, globalCloudBrightness and undulation. The
+  authored bound is `max(Q+1.6*max(1,3*Q)*psychedelicStrength,FogRgbMax)`
+  where `Q=C*max(1,1.2*H)`, followed by
+  `+ CloudPointRgbMax + 0.5*nightVisionStrength`. The second sky-glow multiplier is at most one.
+  C is an absolute component bound, including actual dayLight, cloudBrightness,
+  globalCloudBrightness and signed undulation. Native perception uses `min(1,sum(RGB))`
+  without a lower clamp: a negative vertex result can amplify its palette term, hence the
+  `max(1,3*Q)` allowance. Do not use the nonnegative-input allowance for these signed vertices. The
   inspected 3D gnoise is bounded by 3.6 (unit hash components, three-component corner dot,
   convex interpolation and final factor 1.2); combine this with the actual cloud mesh radius,
   positive cloudsLength and undulatingModeness to bound the vertex undulation multiplier.
@@ -1370,6 +1393,12 @@ With that selected boundary and admitted inputs, one unit-color cloud invocation
 normalized bound `200*32/0.0001=64000000` nits. Include each possible overlapping invocation in
 R, or publish a proven tighter RGB/alpha bound. Many submissions can therefore fail the frame
 retention domain even when raw RGB fits; the design must report that incompatibility.
+
+Imported sky-color helpers also add `NoiseFromPixelPosition` to glow/color, including alpha.
+Bypass those display-noise calls on scene HDR cloud/celestial draws under the same output
+dithering contract. Otherwise unit glow alpha and the ordinary cloud second-multiplier bound
+do not hold. Preserve their offscreen/display behavior. The native volumetric map already
+replaces this helper with zero; its bounded RGB expression still requires owner publication.
 
 The source-linked nine-check receipt confirms the traversal bound, cutoff equality, zero-alpha
 case and convex three-bucket resolve for admitted alpha. It also reproduces the original noise

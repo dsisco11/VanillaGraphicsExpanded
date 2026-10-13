@@ -44,7 +44,8 @@ internal sealed class WorldProbeHybridCommit : IDisposable
     public bool Commit(LumOnWorldProbeClipmapGpuResources resources, in LumOnWorldProbeTraceResult result)
     {
         var lease = result.GpuLease;
-        if (!result.Success || result.AtlasSamples.IsDefaultOrEmpty || lease == null || !lease.IsCurrent) return false;
+        if (!result.Success || result.AtlasSamples.IsDefaultOrEmpty || lease == null || !lease.IsCurrent
+            || !WorldProbeLightingAdmission.Metadata(result)) return false;
         var storage = result.Request.StorageIndex;
         int resolution = resources.Resolution, size = resources.WorldProbeTileSize;
         if ((uint)result.Request.Level >= (uint)resources.Levels || (uint)storage.X >= resolution ||
@@ -54,7 +55,10 @@ internal sealed class WorldProbeHybridCommit : IDisposable
         {
             var sample = result.AtlasSamples[i];
             if (sample.SurfaceHit.HasValue || (uint)sample.OctX >= size || (uint)sample.OctY >= size ||
-                (sample.GpuRayIndex >= 0 && (sample.GpuRayIndex < lease.First || sample.GpuRayIndex >= lease.First + lease.Count))) return false;
+                (sample.GpuRayIndex >= 0 && (sample.GpuRayIndex < lease.First || sample.GpuRayIndex >= lease.First + lease.Count))
+                || (sample.GpuRayIndex >= 0 && !lease.Answers.DirectionalReady(sample.GpuRayIndex))
+                || !WorldProbeLightingAdmission.Distance(sample.AlphaEncodedDistSigned)
+                || (sample.GpuRayIndex < 0 && !WorldProbeLightingAdmission.CpuRadiance(sample.RadianceRgb))) return false;
             samples.Span[i] = new Sample { X = sample.OctX, Y = sample.OctY, Ray = sample.GpuRayIndex,
                 Value = new Vector4(sample.RadianceRgb, sample.AlphaEncodedDistSigned) };
         }

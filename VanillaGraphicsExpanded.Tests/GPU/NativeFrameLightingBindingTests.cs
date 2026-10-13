@@ -1,0 +1,65 @@
+using System.Runtime.InteropServices;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+
+namespace VanillaGraphicsExpanded.Tests.GPU;
+
+/// <summary>Executes native vertex face storage simultaneously with frozen fragment lighting storage.</summary>
+[Collection("GPU")]
+[Trait("Category", "GPU")]
+public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
+{
+    #region Public API
+    /// <summary>Actual installed decal declarations retain slot three while production frame decoding reads its separate slot.</summary>
+    [Fact]
+    public void NativeFaceDataAndFrozenLightingCoexistAcrossStages()
+    {
+        EnsureContextValid();
+        string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
+        string flags = File.ReadAllText(Path.Combine(root, "assets/game/shaderincludes/vertexflagbits.ash"));
+        int first = flags.IndexOf("struct FaceData {", StringComparison.Ordinal);
+        string faceType = flags[first..(flags.IndexOf("};", first, StringComparison.Ordinal) + 2)];
+        string native = File.ReadAllText(Path.Combine(root, "assets/game/shaders/decals.vsh"));
+        string faceBlock = native.Split('\n').Single(line => line.Contains("readonly buffer faceDataBuf", StringComparison.Ordinal));
+        Assert.Contains("binding = 3", faceBlock);
+        using var shaders = new TerrainShaderTestFixture();
+        int vertex = shaders.Compile(ShaderType.VertexShader, "#version 430 core\n" + faceType + "\n" + faceBlock +
+            "\nlayout(location=0)in vec2 position;flat out vec3 physical;void main(){physical=faces[0].xyz;gl_Position=vec4(position,0,1);}");
+        string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_frame_lighting.glsl"));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n" + helper +
+            "\nflat in vec3 physical;layout(location=0)out vec4 outColor;void main(){outColor=vec4(VgeStoreFrameLight(physical),VgeFrameLightingValid(42u,7u)?1:0);}");
+        using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        using var face = GpuShaderStorageBuffer.Create(debugName: "Tests.NativeFaceData");
+        using var frame = GpuShaderStorageBuffer.Create(debugName: "Tests.NativeFrozenFrame");
+        float[] data = new float[16]; data[0] = 11; data[1] = 13; data[2] = 17; face.UploadData(data);
+        byte[] publication = new byte[32];
+        MemoryMarshal.Cast<byte, float>(publication.AsSpan())[0] = .25f;
+        MemoryMarshal.Cast<byte, float>(publication.AsSpan())[1] = 4;
+        MemoryMarshal.Cast<byte, float>(publication.AsSpan())[2] = 100;
+        MemoryMarshal.Cast<byte, float>(publication.AsSpan())[3] = 1;
+        MemoryMarshal.Cast<byte, uint>(publication.AsSpan())[4] = 42;
+        MemoryMarshal.Cast<byte, uint>(publication.AsSpan())[5] = 7;
+        frame.UploadData(publication);
+        GL.GetInteger((GetIndexedPName)All.ShaderStorageBufferBinding, 3, out int priorFace);
+        GL.GetInteger((GetIndexedPName)All.ShaderStorageBufferBinding, GpuBindingRegistry.Ssbo.FrameLighting, out int priorFrame);
+        try
+        {
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 3, face.BufferId);
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, frame.BufferId);
+            using var framework = new ShaderTestFramework();
+            using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+            framework.RenderQuadTo(program.ProgramId, target);
+            Assert.Equal(new float[] { 2.75f, 3.25f, 4.25f, 1 }, target[0].ReadPixels());
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 3, priorFace);
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, priorFrame);
+            StateCache.Current.InvalidateAll();
+        }
+    }
+    #endregion
+}

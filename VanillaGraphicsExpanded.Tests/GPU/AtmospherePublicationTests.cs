@@ -15,6 +15,47 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Publication lifetime
+    /// <summary>Unsupported lighting and dimensionless transport never replace the complete generation with contained invalid values.</summary>
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NegativeInfinity)]
+    [InlineData(-1f)]
+    public void InvalidSourceOrTransportRetainsCompleteGeneration(float invalid)
+    {
+        EnsureContextValid();
+        using var owner = new AtmosphereModSystem();
+        float[] radiance = Enumerable.Repeat(new[] { 32f, 64f, 128f, 1f }, AtmosphereAerialPerspective.Depth).SelectMany(value => value).ToArray();
+        float[] attenuation = Enumerable.Repeat(new[] { .2f, .3f, .4f, 1f }, AtmosphereAerialPerspective.Depth).SelectMany(value => value).ToArray();
+        var candidate = new AtmosphereLighting(Vector3.UnitY, new(100, 200, 300), new(1, 2, 3),
+            Vector3.Zero, Vector3.Zero, ImmutableArray.Create(32f, 64f, 128f, 1f))
+        {
+            Width = 1, Height = 1, AerialRadiance = ImmutableArray.CreateRange(radiance),
+            AerialAttenuation = ImmutableArray.CreateRange(attenuation)
+        };
+        owner.Publish(candidate);
+        var previous = AtmosphereModSystem.Lighting;
+        int sky = AtmosphereModSystem.SkyTextureId, aerial = AtmosphereModSystem.AerialRadianceTextureId;
+        // Exercise actual source, packed luminance and optical-depth admission separately;
+        // a finite neutral payload from a defensive clamp must never confer validity.
+        foreach (var replacement in new[]
+        {
+            candidate with { Solar = new(invalid, 0, 0) },
+            candidate with { Environment = new(0, invalid, 0) },
+            candidate with { Sky = candidate.Sky.SetItem(0, invalid) },
+            candidate with { SkyMie = ImmutableArray.Create(invalid, 0f, 0f, 1f) },
+            candidate with { AerialRadiance = candidate.AerialRadiance.SetItem(0, invalid) },
+            candidate with { AerialAttenuation = candidate.AerialAttenuation.SetItem(0, invalid) }
+        })
+        {
+            Assert.ThrowsAny<ArgumentException>(() => owner.Publish(replacement));
+            Assert.Same(previous, AtmosphereModSystem.Lighting);
+            Assert.Equal(sky, AtmosphereModSystem.SkyTextureId);
+            Assert.Equal(aerial, AtmosphereModSystem.AerialRadianceTextureId);
+            AssertTexture(previous);
+        }
+    }
+
     /// <summary>Complete generations swap independent texture sets and retire incompatible spare storage.</summary>
     [Fact]
     public void CompletedDimensionsControlTextureReplacement()
@@ -55,6 +96,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         lookup.Update(Vector3.UnitY, 0, 0, width: 16, height: 8);
         var previous = lookup.Current!;
         owner.Publish(previous);
+        previous = AtmosphereModSystem.Lighting;
         int sky = AtmosphereModSystem.SkyTextureId;
         int radiance = AtmosphereModSystem.AerialRadianceTextureId;
         int attenuation = AtmosphereModSystem.AerialAttenuationTextureId;
@@ -102,7 +144,10 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
     /// <summary>Reads driver allocation and contents to verify upload completed before shared publication.</summary>
     private static void AssertTexture(AtmosphereLighting snapshot)
     {
-        Assert.Same(snapshot, AtmosphereModSystem.Lighting);
+        snapshot = AtmosphereModSystem.Lighting;
+        Assert.Equal(LightingStorage.PersistentScale, snapshot.LookupStorageScale);
+        Assert.Equal(1u, snapshot.CalibrationGeneration);
+        Assert.True(float.IsFinite(snapshot.ReconstructionMaximumNits));
         using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, AtmosphereModSystem.SkyTextureId);
         GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureWidth, out int width);
         GL.GetTexLevelParameter(TextureTarget.Texture2D, 0, GetTextureParameter.TextureHeight, out int height);
@@ -112,7 +157,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Rgba, PixelType.Float, pixels);
         float[] packedSky = new float[pixels.Length];
         AtmosphereMieTransport.Pack(snapshot.Sky.AsSpan(), snapshot.SkyMie.AsSpan(), packedSky,
-            snapshot.Width, snapshot.Height, 1, snapshot.Sun, snapshot.HorizonElevation);
+            snapshot.Width, snapshot.Height, 1, snapshot.Sun, snapshot.HorizonElevation, snapshot.LookupStorageScale);
         for (int i = 0; i < pixels.Length; i++)
             Assert.InRange(Math.Abs(pixels[i] - packedSky[i]), 0, Math.Max(.00001f, packedSky[i] * .001f));
         AssertVolume(AtmosphereModSystem.AerialRadianceTextureId, snapshot.AerialRadiance, snapshot, true);
@@ -135,7 +180,7 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         {
             float[] packed = new float[pixels.Length];
             AtmosphereMieTransport.Pack(expected.IsEmpty ? new float[] { 0, 0, 0, 1 } : expected.AsSpan(), snapshot.AerialMie.AsSpan(), packed,
-                width, height / 2, depth, snapshot.Sun, snapshot.HorizonElevation);
+                width, height / 2, depth, snapshot.Sun, snapshot.HorizonElevation, snapshot.LookupStorageScale);
             expected = ImmutableArray.CreateRange(packed);
         }
         if (expected.IsEmpty) Assert.Equal(new[] { 0f, 0f, 0f, 1f }, pixels);

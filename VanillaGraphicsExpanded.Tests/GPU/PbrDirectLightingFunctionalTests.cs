@@ -20,13 +20,18 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
     /// <summary>Authored flux reaches the installed deferred receiver with inverse-square lux and Lambertian normalization.</summary>
     [Theory]
-    [InlineData(1f, 1000f)]
-    [InlineData(2f, 1000f)]
-    [InlineData(1f, 2000f)]
-    public void AuthoredPointMatchesAbsoluteDeferredUnits(float distance, float lumens)
+    [InlineData(1f, 1000f, 1f)]
+    [InlineData(2f, 1000f, 1f)]
+    [InlineData(1f, 2000f, 1f)]
+    [InlineData(1f, 1000f, .25f)]
+    [InlineData(1f, 1000f, 4f)]
+    public void AuthoredPointMatchesAbsoluteDeferredUnits(float distance, float lumens, float storageScale)
     {
         EnsureShaderTestAvailable();
         var program = CompilePbrDirectLightingProgram();
+        using var publication = new TestFrameLightingPublication();
+        publication.Capture(storageScale);
+        program.FrameLightingInputs = publication.Buffer;
         using var output = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var albedo = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [.5f, .25f, .125f, 1f]);
@@ -39,7 +44,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             authored: [new(new(0, 0, distance - 1), Vector3.One, lumens, 100)]);
         var diffuse = ReadPixelFromAttachment(output, 0);
         var specular = ReadPixelFromAttachment(output, 1);
-        double lux = lumens / (4 * Math.PI * distance * distance);
+        double lux = storageScale * lumens / (4 * Math.PI * distance * distance);
         float[] actual = [diffuse.R, diffuse.G, diffuse.B];
         double[] colors = [.5, .25, .125];
         for (int channel = 0; channel < 3; channel++)

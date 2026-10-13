@@ -14,6 +14,19 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public SurfaceLightingEnvironmentTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Environment completion
+    /// <summary>A neutral completed atmosphere cannot invent a legacy intensity when sky availability is positive.</summary>
+    [Fact]
+    public void NeutralAtmospherePublishesValidBlackWithoutLegacySkyFallback()
+    {
+        EnsureContextValid();
+        using var atmosphere = new ScopedAtmosphereLighting(System.Numerics.Vector3.Zero);
+        using var floor = new SurfaceLightingEnclosureFixture(blockLight: 0, skyFloor: true, worldHeight: 34);
+        floor.SunLight = 32;
+        floor.Geometry.Dirty(); floor.Geometry.Publish(); floor.Seed();
+        Assert.Equal(new float[] { 0, 0, 0, 1 }, floor.ReadStored(floor.Snapshot.DirectIrradiance));
+        Assert.Equal(new float[] { 0, 0, 0, 1 }, floor.ReadStored(floor.Snapshot.OutgoingRadiance));
+    }
+
     /// <summary>The installed cache decodes calibrated block RGB once and removes byte-stored accessor sky zero.</summary>
     [Theory]
     [InlineData(false)]
@@ -91,6 +104,7 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
     public void OpenSkyCompletesWithoutDuplicatingDirectSources(bool emissionPolicy, float emission)
     {
         EnsureContextValid();
+        using var atmosphere = new ScopedAtmosphereLighting(new System.Numerics.Vector3(32 / MathF.PI));
         using var floor=new SurfaceLightingEnclosureFixture(.25f,32,emission,skyFloor:true,worldHeight:34);
         floor.EmissionPolicy=emissionPolicy; floor.SunLight=16;
         floor.Geometry.Dirty(); floor.Geometry.Publish(); floor.Seed();

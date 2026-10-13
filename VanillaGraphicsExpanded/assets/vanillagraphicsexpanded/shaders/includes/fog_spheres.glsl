@@ -1,6 +1,7 @@
 #ifndef VGE_FOG_SPHERES_GLSL
 #define VGE_FOG_SPHERES_GLSL
 @import "./pbr_color.glsl"
+@import "./pbr_scene_storage.glsl"
 // VGE-owned compatibility implementation, based on the installed Vintage Story liquid contract.
 /** Integrates local spherical fog density along the camera-to-surface segment. */
 float getSpheresFogAmount(vec3 worldPos) {
@@ -65,7 +66,7 @@ vec4 applySpheresFog(vec4 color, float standardFogAmount, vec3 worldPos, bool li
 		float density = fogSpheres[i * 8 + 4];
 		vec3 fogrgb = vec3(fogSpheres[i * 8 + 5], fogSpheres[i * 8 + 6], fogSpheres[i * 8 + 7]);
 		// Authored fog colors are encoded; interpolate radiance only after decoding them.
-		if (linearScene) fogrgb = VgeSrgbToLinear(fogrgb);
+		if (linearScene) fogrgb = VgeStoreSceneLighting(VgeCompatibilityLuminance(fogrgb));
 		
 		float fogamount = 0;
 

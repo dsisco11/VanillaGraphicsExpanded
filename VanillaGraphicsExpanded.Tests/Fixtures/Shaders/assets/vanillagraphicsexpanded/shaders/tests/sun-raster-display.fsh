@@ -1,5 +1,6 @@
 #version 430 core
 @import "../includes/tests/sun_inputs.glsl"
+@import "../includes/pbr_frame_lighting.glsl"
             #define VGE_SURFACE_PRIMARY_OUTPUTS 0
             #define SSAOLEVEL 0
             layout(location=0) out vec4 outColor;

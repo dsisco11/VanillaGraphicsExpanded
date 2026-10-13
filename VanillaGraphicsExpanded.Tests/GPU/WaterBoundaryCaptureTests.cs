@@ -25,7 +25,8 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
     [InlineData(7, 2f, 0f)]
     [InlineData(8, 2f, 0f)]
     [InlineData(9, 2f, 0f)]
-    public void CaptureMeasuresOrientedIntervals(int scenario, float length, float count)
+    [InlineData(7, 2f, 0f, .25f)]
+    public void CaptureMeasuresOrientedIntervals(int scenario, float length, float count, float storageScale = 1)
     {
         EnsureContextValid();
         using var platform = new EngineShaderPlatformScope();
@@ -40,6 +41,9 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             };
         }
         var program = GpuShaderProgramLibraries.Declare(assets.Api, LiquidShaderProgram.Contract.Identity, () => new LiquidShaderProgram { CaptureMode = 3 }, new VanillaGraphicsExpanded.Rendering.Contracts.ShaderSettings(LiquidShaderProgram.Contract).With("VGE_LIQUID_CAPTURE_MODE", "3"));
+        using var publication = new TestFrameLightingPublication();
+        publication.Capture(storageScale);
+        program.FrameLightingInputs = publication.Buffer;
         using var sharedLights = new VgeLightsUniformBuffer();
         program.LightsInputs = sharedLights;
         Assert.True(program.EnsureReady(), string.Join("\n", assets.Logs));
@@ -137,7 +141,10 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             float scatteringDepth = channel == 0 ? scattering * (scenario == 9 ? 8 : length) : 0;
             float expectedOptical = absorption[channel] * length + scatteringDepth;
             Assert.InRange(optical[channel], expectedOptical - rasterTolerance, expectedOptical + rasterTolerance);
-            Assert.InRange(source[channel], 2 * scatteringDepth - rasterTolerance, 2 * scatteringDepth + rasterTolerance);
+            // The fixture supplies 4*pi solar lux and 4*pi environment nits,
+            // so isotropic source radiance is 1 + pi before scattering weighting.
+            float expectedSource = (1 + MathF.PI) * scatteringDepth * storageScale;
+            Assert.InRange(source[channel], expectedSource - rasterTolerance, expectedSource + rasterTolerance);
         }
         Assert.InRange(optical[3], length - rasterTolerance, length + rasterTolerance);
         Assert.Equal(count, source[3]);

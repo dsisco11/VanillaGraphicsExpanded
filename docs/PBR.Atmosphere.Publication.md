@@ -67,8 +67,11 @@ CPU snapshot. `AtmosphereTextureSet` supports admitted fixed 1/16 light encoding
 smooth/Mie sky and aerial arrays before upload, and commits its scale/identity after every upload
 succeeds. Coverage and attenuation remain dimensionless. The atmosphere producer now derives one
 amplitude for the declared 100,000-lux zenith reference and supplies physical solar lux,
-sky/disk/aerial nits and environment E/pi. Runtime lookup encoding retains scale 1 until fixed-scale
-upload and consumer decoding are adopted together; complete scene/storage migration remains
+sky/disk/aerial nits and environment E/pi. Runtime lookup upload now encodes lighting with fixed
+C=1/16, and sky/aerial consumers decode the matching generation once. The uploaded band maxima,
+maximum Mie phase, interpolation and narrowing allowances produce `ReconstructionMaximumNits`;
+that bound is committed with the same complete set. Invalid or unsupported lighting/extinction
+rejects the replacement before upload and retains the previous publication. Complete scene/storage migration remains
 tracked in `PBR.PhotometricLighting.todo`. Source conversion alone is not a releasable photometric
 pipeline. A camera exposure change does not rebuild these persistent lookups.
 

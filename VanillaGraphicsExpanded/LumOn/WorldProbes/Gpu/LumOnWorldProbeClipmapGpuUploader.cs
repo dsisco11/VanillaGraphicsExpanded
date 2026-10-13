@@ -132,6 +132,15 @@ internal sealed partial class LumOnWorldProbeClipmapGpuUploader : IDisposable
             var r = results[i];
             int level = r.Request.Level;
             if ((uint)level >= (uint)resources.Levels) continue;
+            bool admitted = WorldProbeLightingAdmission.Metadata(r);
+            foreach (var sample in r.AtlasSamples.AsSpan())
+            {
+                var rgb = sample.RadianceRgb;
+                admitted &= WorldProbeLightingAdmission.CpuRadiance(rgb)
+                    && WorldProbeLightingAdmission.Distance(sample.AlphaEncodedDistSigned);
+            }
+            // Reject the entire CPU batch before staging any directional or scalar publication.
+            if (!admitted) continue;
 
             int bytes = bytesPerProbeVertex + bytesPerTileVertex * r.AtlasSamples.AsSpan().Length;
             if (bytes > remainingBytes) break;

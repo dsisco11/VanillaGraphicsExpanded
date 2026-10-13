@@ -1,5 +1,6 @@
 #ifndef VGE_OIT_GLSL
 #define VGE_OIT_GLSL
+@import "./pbr_oit_safety.glsl"
 // Bucket OIT uses six draw buffers: multiplicative revealage at 0-1,
 // alpha-blended glow at 2, and additive premultiplied accumulation at 3-5.
 layout(location = 2) out vec4 outOitGlow;
@@ -23,6 +24,8 @@ float vgeOitBellCurve(float t)
 void writeOit(vec4 color, float glow)
 {
     float depth = ((gl_FragCoord.z * 2.0) - 1.0) / gl_FragCoord.w;
+    // Invalid fragments contribute neither accumulation, revealage nor glow.
+    if (!VgeOitInputsValid(color, glow, depth)) discard;
     float bin = log((depth / VGE_OIT_BIN_SCALE) + 1.0);
     vec4 weightedColor = vec4(color.rgb * color.a, color.a) * exp(-depth / 3000.0);
     outOitGlow = vec4(glow, 0.0, 0.0, color.a);

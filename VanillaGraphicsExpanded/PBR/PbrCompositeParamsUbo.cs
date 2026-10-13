@@ -3,15 +3,15 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR;
 
-/// <summary>Packs composition controls and water source admission into nine std140 vectors; camera and fog remain shared.</summary>
+/// <summary>Packs composition controls and water source admission; camera and fog remain shared.</summary>
 internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
 {
     public const string BlockName = "VgePbrCompositeParamsUBO";
     private bool underwater, refractionSource, preOverlaySource, ambientOcclusion;
 
     #region Public API
-    /// <summary>Allocates the 144-byte composition contract.</summary>
-    public PbrCompositeParamsUbo() : base(144) { }
+    /// <summary>Allocates ten std140 vectors for composition and raw camera-medium light conversion.</summary>
+    public PbrCompositeParamsUbo() : base(160) { }
 
     /// <summary>Enables the clean pre-overlay pair only after successful current-frame capture.</summary>
     internal bool PreOverlaySourceEnabled
@@ -27,13 +27,16 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
     internal void SetUnderwater(bool value)
     {
         underwater = value;
-        WriteVector4(0, new(underwater ? 1 : 0, refractionSource ? 1 : 0, 0, 0));
+        // Medium selection must not erase the independently published raw-light convention.
+        WriteFloat(0, underwater ? 1 : 0);
+        WriteFloat(4, refractionSource ? 1 : 0);
     }
     /// <summary>Publishes coordinates from the same generation as the finite-path atmosphere volumes.</summary>
     public void SetAtmosphere(Atmosphere.AtmosphereLighting? lighting)
     {
-        WriteVector4(48, new(lighting?.Altitude ?? .001f, lighting?.HorizonElevation ?? 0f, 0, 0));
+        WriteVector4(48, new(lighting?.Altitude ?? .001f, lighting?.HorizonElevation ?? 0f, 0, 1 / (lighting?.LookupStorageScale ?? 1)));
         WriteVector4(64, new(lighting?.Sun.X ?? 0, lighting?.Sun.Y ?? 1, lighting?.Sun.Z ?? 0, 0));
+        WriteVector4(144, new(lighting?.Environment ?? Vector3.Zero, 0));
     }
     /// <summary>Publishes boundary capture and the camera's starting water medium in SI units.</summary>
     internal void SetWaterVolume(Liquids.WaterVolumeFrame? frame)
@@ -42,7 +45,8 @@ internal sealed class PbrCompositeParamsUbo : CpuUniformBuffer
         bool admitted = frame?.SourceUpper is { } upper && LightingCalibration.FiniteNonnegative(upper);
         WriteVector4(80, new(medium?.AbsorptionPerMetre ?? Vector3.Zero, admitted ? 1 : 0));
         WriteVector4(96, new(medium?.EffectiveScatteringPerMetre ?? Vector3.Zero, medium.HasValue ? 1 : 0));
-        WriteVector4(112, new(frame?.CameraScatteringSource ?? Vector3.Zero, 0));
+        WriteVector4(112, frame?.RawCameraLight ?? new Vector4(frame?.CameraScatteringSource ?? Vector3.Zero, 0));
+        WriteFloat(8, frame?.RawCameraLight.HasValue == true ? 1 : 0);
         WriteVector4(128, new(frame?.SourceUpper ?? Vector3.Zero, admitted ? 1 : 0));
     }
     /// <summary>Sets the effect's indirect-lighting tint and scale.</summary>

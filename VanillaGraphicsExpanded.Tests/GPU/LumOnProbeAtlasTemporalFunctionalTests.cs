@@ -6,6 +6,7 @@ using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.PBR;
 using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -58,6 +59,40 @@ public class LumOnProbeAtlasTemporalFunctionalTests : LumOnShaderFunctionalTestB
     public LumOnProbeAtlasTemporalFunctionalTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Helper Methods
+
+    /// <summary>Rejected current directional storage retains compatible fixed-scale history or explicitly withdraws unsupported history.</summary>
+    [Theory]
+    [InlineData(8200f, true)]
+    [InlineData(float.PositiveInfinity, true)]
+    [InlineData(float.NaN, true)]
+    [InlineData(8200f, false)]
+    public void InvalidCurrentStoragePreservesAdmittedHistory(float invalidCurrent, bool validHistory)
+    {
+        EnsureShaderTestAvailable();
+        float oldStored = validHistory ? 64 * LightingStorage.PersistentScale : 8200;
+        using var current = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba32f,
+            CreateUniformAtlas(invalidCurrent, invalidCurrent, invalidCurrent, 1));
+        using var history = TestFramework.CreateTexture(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba32f,
+            CreateUniformAtlas(oldStored, oldStored, oldStored, 1));
+        using var anchors = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
+            CreateValidProbeAnchors());
+        using var output = TestFramework.CreateTestGBuffer(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, PixelInternalFormat.Rg32f);
+        var program = CompileOctahedralTemporalShader();
+        SetupOctahedralTemporalUniforms(program);
+        program.ScreenProbeAtlasCurrent = current;
+        program.ScreenProbeAtlasHistory = history;
+        using var grouped = LayeredTestTexture.Create(anchors, null);
+        program.ProbeAnchors = grouped;
+        TestFramework.RenderQuadTo(program, output);
+        float[] lighting = output[0].ReadPixels();
+        float[] metadata = output[1].ReadPixels();
+        for (int pixel = 0; pixel < lighting.Length; pixel += 4)
+        {
+            for (int channel = 0; channel < 3; channel++) Assert.Equal(validHistory ? oldStored : 0, lighting[pixel + channel]);
+            Assert.Equal(validHistory ? 1 : 0, metadata[pixel / 2]);
+            Assert.True(float.IsFinite(lighting[pixel + 3]));
+        }
+    }
 
     private static float[] CreateUniformMetaAtlas(float confidence, float flagsBitsAsFloat)
     {

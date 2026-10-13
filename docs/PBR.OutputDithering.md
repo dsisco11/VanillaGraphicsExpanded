@@ -6,6 +6,12 @@ storage is floating point. VGE scene rendering requires HDR through the binding 
 in [PBR.SharedDisplay.md](PBR.SharedDisplay.md); missing dependencies report errors without a legacy fallback.
 Live handoff and perception-effect appearance still require user verification.
 
+Legacy scene adapters also bypass imported `NoiseFromPixelPosition` calls on HDR draws.
+This prevents sky-color helpers from adding encoded-display noise to cloud/celestial RGB
+and coverage. Volumetric cloud traversal likewise skips its post-traversal
+`exp(log(k+1)+noise)-1` operation on the scene route. Offscreen/display uses retain both
+legacy expressions; final encoded-output dithering remains the display owner's operation.
+
 `VgeDitherDisplay` in `pbr_color.glsl` adds ordered dither to encoded display RGB,
 after shared exposure, tone mapping and sRGB encoding. Its 8x8 Bayer tile visits
 all 64 ranks once. The offset is `((rank + 0.5) / 64 - 0.5) / 255`, strictly

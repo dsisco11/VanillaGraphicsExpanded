@@ -55,7 +55,7 @@ internal sealed class SurfaceLightingDispatch : IDisposable
             // Use geometry's authoritative boundary, never the moving local coverage height.
             UboPacking.WriteUVec4(bytes, 80, emission ? 1u : 0u, (uint)Math.Max(0, scene.Coverage?.WorldHeight ?? 0), (uint)Math.Clamp(maxFramesAccumulated, 1, 255), measured ? 1u : 0u);
             var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
-            var environment = atmosphere?.Environment ?? new System.Numerics.Vector3(32f / MathF.PI);
+            var environment = atmosphere?.Environment ?? System.Numerics.Vector3.Zero;
             var solar = atmosphere?.Solar ?? System.Numerics.Vector3.Zero;
             var sun = atmosphere?.Sun ?? System.Numerics.Vector3.UnitY;
             UboPacking.WriteVec4(bytes, 96, environment.X, environment.Y, environment.Z, 0f);

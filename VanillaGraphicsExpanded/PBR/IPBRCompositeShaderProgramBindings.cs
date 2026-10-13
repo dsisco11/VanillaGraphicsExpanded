@@ -6,7 +6,8 @@ namespace VanillaGraphicsExpanded.PBR;
 /// <summary>Declares the GPU binding contract for PBRCompositeShaderProgram.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-internal interface IPBRCompositeShaderProgramBindings
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
+internal interface IPBRCompositeShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings
 {
     #region Public API
     /// <summary>Supplies the shared camera snapshot.</summary>

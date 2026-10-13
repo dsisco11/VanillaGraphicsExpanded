@@ -6,7 +6,8 @@ namespace VanillaGraphicsExpanded.PBR.Liquids;
 /// <summary>Declares the GPU binding contract for LiquidShaderProgram.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-internal interface ILiquidShaderProgramBindings
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
+internal interface ILiquidShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings
 {
     #region Public API
     /// <summary>Supplies the shared dynamic lights; boundary-only variants do not consume this block.</summary>

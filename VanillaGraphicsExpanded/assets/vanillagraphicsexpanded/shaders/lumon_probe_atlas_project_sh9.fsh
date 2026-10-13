@@ -21,6 +21,7 @@ layout(location = 6) out vec4 outSH6;
 @import "./includes/lumon_common.glsl"
 @import "./includes/lumon_octahedral.glsl"
 @import "./includes/lumon_probe_atlas_meta.glsl"
+@import "./includes/pbr_persistent_lighting.glsl"
 @import "./includes/lumon_sh9.glsl"
 @import "./includes/lumon_octahedral_sh9_weights.glsl"
 
@@ -80,7 +81,7 @@ void main(void)
             float conf; uint flags;
             lumonDecodeMeta(meta, conf, flags);
 
-            if (!(conf > 0.0) || any(isnan(radianceSample.rgb)) || any(isinf(radianceSample.rgb)))
+            if (!(conf > 0.0) || isnan(conf) || isinf(conf) || !VgeStoredDirectionalLightAdmitted(radianceSample.rgb))
                 continue;
 
             // Fixed geometric integrals include the octahedral mapping's unequal areas
@@ -104,6 +105,23 @@ void main(void)
 
     // Missing cells contribute neither light nor reliability. Never expand the remaining
     // samples to fill 4pi: that would invent lighting in unavailable directions.
+    // A single unsupported coefficient invalidates the complete packed projection. Signed
+    // coefficients use their own range; neither negative lobes nor metadata are clamped as RGB.
+    bool admitted = VgeProtectPersistentCoefficient(c0);
+    admitted = VgeProtectPersistentCoefficient(c1) && admitted;
+    admitted = VgeProtectPersistentCoefficient(c2) && admitted;
+    admitted = VgeProtectPersistentCoefficient(c3) && admitted;
+    admitted = VgeProtectPersistentCoefficient(c4) && admitted;
+    admitted = VgeProtectPersistentCoefficient(c5) && admitted;
+    admitted = VgeProtectPersistentCoefficient(c6) && admitted;
+    admitted = VgeProtectPersistentCoefficient(c7) && admitted;
+    admitted = VgeProtectPersistentCoefficient(c8) && admitted;
+    if (!admitted)
+    {
+        outSH0 = vec4(0); outSH1 = vec4(0); outSH2 = vec4(0); outSH3 = vec4(0);
+        outSH4 = vec4(0); outSH5 = vec4(0); outSH6 = vec4(0);
+        return;
+    }
     lumonSH9Pack(c0, c1, c2, c3, c4, c5, c6, c7, c8, outSH0, outSH1, outSH2, outSH3, outSH4, outSH5, outSH6);
     outSH6.a = clamp(confidenceIntegral / (SH9_C0 * 4.0 * LUMON_PI), 0.0, 1.0);
 }

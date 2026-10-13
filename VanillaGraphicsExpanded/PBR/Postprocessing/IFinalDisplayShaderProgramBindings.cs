@@ -3,7 +3,8 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 /// <summary>Declares typed resources for owned final composition.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
-internal interface IFinalDisplayShaderProgramBindings
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
+internal interface IFinalDisplayShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings
 {
     #region Public API
     /// <summary>Supplies the shared frame dimensions.</summary>

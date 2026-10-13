@@ -18,6 +18,7 @@
 @import "./lumon_common.glsl"
 @import "./lumon_octahedral.glsl"
 @import "./lumon_worldprobe_atlas.glsl"
+@import "./pbr_persistent_lighting.glsl"
 
 // Optional UBO contracts (Phase 23).
 @import "./lumon_ubos.glsl"
@@ -393,7 +394,7 @@ LumOnWorldProbeSample lumonWorldProbeSampleLevelTrilinear(
 				}
 				else
 				{
-					blockDirAccum += max(t.rgb, vec3(0.0)) * w;
+					blockDirAccum += VgeDecodePersistentLight(max(t.rgb, vec3(0.0))) * w;
 				}
 			}
 
@@ -530,7 +531,7 @@ LumOnWorldProbeRadianceSample lumonWorldProbeSampleLevelTrilinearRadiance(
 		}
 		else
 		{
-			blockDirAccum += max(t.rgb, vec3(0.0)) * w;
+			blockDirAccum += VgeDecodePersistentLight(max(t.rgb, vec3(0.0))) * w;
 		}
 	}
 

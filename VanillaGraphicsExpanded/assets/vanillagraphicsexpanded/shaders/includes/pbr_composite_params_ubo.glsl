@@ -10,7 +10,7 @@
 layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUBO
 {
 
-    // underwater.x, optional refraction publication.y, reserved.zw
+    // underwater.x, optional refraction publication.y, raw camera-light adapter.z, reserved.w
     vec4 mediumFlags;
 
     // indirectTint.xyz, indirectIntensity.w
@@ -18,12 +18,13 @@ layout(std140, binding = VGE_UBO_OBJECT_BINDING) uniform VgePbrCompositeParamsUB
 
     // diffuseAOStrength.x, specularAOStrength.y, current-frame pre-overlay source.z, current-frame ambient visibility.w
     vec4 aoStrengths;
-    vec4 atmosphereAerial; // admitted altitude (km), horizon elevation, reserved.zw
+    vec4 atmosphereAerial; // altitude (km), horizon elevation, reserved.z, inverse lookup scale.w
     vec4 atmosphereSun; // admitted solar direction, reserved.w
     vec4 waterAbsorption; // camera absorption (m^-1), capture enabled
     vec4 waterScattering; // camera scattering (m^-1), starts in water
-    vec4 waterCameraSource; // camera block/environment source times scattering coefficient, reserved.w
+    vec4 waterCameraSource; // raw accessor RGBA when mediumFlags.z, otherwise physical camera source
     vec4 waterSourceUpper; // source envelope covering all boundaries and the camera, metadata validity.w
+    vec4 waterCameraEnvironment; // physical E/pi for camera-medium shader evaluation
 } vgePbrCompositeParams;
 
 // Matrices

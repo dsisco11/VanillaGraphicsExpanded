@@ -1,4 +1,5 @@
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -12,6 +13,43 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     public SurfaceLightingProducerTests(HeadlessGLFixture fixture):base(fixture) { }
 
     #region Lighting terms
+    /// <summary>Actual cache attachments encode direct lux and outgoing nits once, while hit queries independently decode them.</summary>
+    [Fact]
+    public void PersistentDestinationsUseFixedScaleWithoutScalingMetadata()
+    {
+        EnsureContextValid();
+        using var room = new SurfaceLightingEnclosureFixture(.25f);
+        room.Seed();
+        float rho = 64f / 255;
+        AssertClose(32 * LightingStorage.PersistentScale, room.ReadStored(room.Snapshot.DirectIrradiance)[0]);
+        AssertClose(32 * rho / MathF.PI * LightingStorage.PersistentScale,
+            room.ReadStored(room.Snapshot.OutgoingRadiance)[0]);
+        Assert.Equal(1, room.ReadStored(room.Snapshot.DirectIrradiance)[3]);
+        Assert.Equal(1, room.ReadStored(room.Snapshot.OutgoingRadiance)[3]);
+        room.Bounce();
+        AssertClose(32 * rho * LightingStorage.PersistentScale, room.ReadStored(room.Snapshot.IndirectIrradiance)[0]);
+        Assert.Equal(1, room.ReadStored(room.Snapshot.IndirectIrradiance)[3]);
+    }
+
+    /// <summary>An individually representable hit can generate unsupported incident lux; rejected updates preserve RGB and history weight.</summary>
+    [Theory]
+    [InlineData(400000f)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NaN)]
+    public void UnsupportedIndirectEstimateRetainsPreviousHistory(float incidentRadiance)
+    {
+        EnsureContextValid();
+        using var room = new SurfaceLightingEnclosureFixture(.25f);
+        room.Seed();
+        room.SetIndirect(32, 4);
+        room.SetIncidentRadiance(incidentRadiance);
+        float[] before = room.ReadStored(room.Snapshot.IndirectIrradiance);
+        long generation = room.Snapshot.Generation;
+        Assert.False(room.BounceSample());
+        Assert.Equal(before, room.ReadStored(room.Snapshot.IndirectIrradiance));
+        Assert.Equal(generation, room.Snapshot.Generation);
+    }
+
     /// <summary>Material emission remains suppressed on faces buried inside adjacent solid geometry.</summary>
     [Fact]
     public void HiddenEmissiveFacesPublishValidZero()
@@ -48,6 +86,7 @@ public sealed class SurfaceLightingProducerTests : RenderTestBase
     public void EmissionPolicyExcludesDuplicateBlockLightingButRetainsSun()
     {
         EnsureContextValid();
+        using var atmosphere = new ScopedAtmosphereLighting(new System.Numerics.Vector3(32 / MathF.PI));
         using var room=new SurfaceLightingEnclosureFixture(0,32,12);
         room.EmissionPolicy=true; room.Seed();
         AssertClose(0,room.Read(room.Snapshot.DirectIrradiance)[0]);

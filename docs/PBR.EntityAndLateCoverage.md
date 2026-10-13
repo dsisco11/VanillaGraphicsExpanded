@@ -73,14 +73,18 @@ receivers or source-resolved physical propagation by the engine.
 
 ## Transparency and display boundary
 
-The current primary target and engine OIT merge consume display-space color. Forward lighting
-therefore uses the same unit-exposure Reinhard/sRGB resolve as opaque composition before those
-existing blends. This establishes matching color conventions, not complete scene-linear HDR
-transparency; moving the resolve after all blending belongs to the full-scene HDR task.
+Admitted world primary and engine OIT targets consume scene-linear lighting encoded with the
+current frozen frame scale P. Forward receivers encode calibrated physical lighting before
+the existing straight-alpha or OIT weighting boundary. Legacy authored/prelit effects use the
+32-nit compatibility reference before encoding P. The three existing OIT accumulation layers
+use RGBA32F; coverage, depth and glow metadata retain their engine meanings. Camera exposure
+and display conversion follow scene composition. UI and offscreen draws retain their existing
+display convention and must not borrow the world frame publication.
 
-`chunkliquid` is deliberately excluded from opaque G-buffer patching. Its original OIT lighting,
-flow, reflection and underwater code remain intact until the PBR liquid task replaces those optics.
-It must not declare VGE normal/material outputs over OIT accumulation locations 4 and 5.
+`chunkliquid` remains excluded from opaque G-buffer patching. Its native compatibility OIT route
+converts authored RGB at the blend boundary; VGE-owned liquid optics use their explicit physical
+transport and frame-storage boundaries. Neither route declares opaque normal/material outputs
+over OIT accumulation locations 4 and 5.
 
 ## Validation
 

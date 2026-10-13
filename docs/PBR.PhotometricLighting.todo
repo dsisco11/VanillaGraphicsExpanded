@@ -483,7 +483,130 @@ Phase 4: Reconcile LumOn and all scene-lighting consumers
 Depends on Phase 3. Outcome: Both lighting modes and other scene contributors use compatible
 quantities without double material weighting, duplicate environment light or unscaled effects.
 
-  ☐ Apply the audited quantity contract at LumOn capture, probe, gather and composite boundaries.
+Task-to-document traceability
+  - LumOn transport -> proposal "LumOn and other scene contributors", "Persistent lighting and
+    atmospheric lookups" and source reconciliation inventory / LumOn.SurfaceCache.LightingContract.md /
+    PBR.LightingModes.md -> incident lux, outgoing nits, gather E/pi, one response per bounce,
+    exclusive environment and unchanged readiness; production cache/probe/gather fixtures.
+  - Scene contributors -> proposal "Additive compatibility contributors" / PBR.WaterMedium.md /
+    PBR.Atmosphere.AerialPerspective.md / PBR.EntityAndLateCoverage.md / PBR.OutputDithering.md ->
+    shader-only raw field conversion, explicit 32-nit authored-color adapters, input/submission
+    bounds and HDR noise bypass; installed-source effect and water integration fixtures.
+  - Storage and lifecycle -> proposal "Frame lighting and exposure", "Defensive storage clamping"
+    and "Persistent lighting and atmospheric lookups" / PBR.Atmosphere.Publication.md /
+    PBR.SharedDisplay.md / PBR.MaterialColorAndDisplay.md -> admitted fixed-C publication,
+    matching frozen P, format limits, independent OIT arithmetic and calibration retirement;
+    actual-format GPU, invalid-update retention and lifecycle tests.
+  - Verification -> sources above plus proposal "Validation and acceptance" -> source isolation,
+    combined-source and mode/fallback coverage, second review and independent completion audit.
+    Full camera/display/glare migration and user appearance acceptance retain later gates.
+
+Current implementation evidence (2026-10-12; qualified)
+  - Fixed-C cache, directional probe, signed SH9 and atmosphere publications now use the declared
+    lux/nits contracts. World diffuse gathering divides incident lux by pi once. Unsupported
+    updates retain eligible history or remain unavailable; compact resident completion rejects
+    out-of-domain results before granting a lease or reporting scheduler success.
+  - Packed material emission is admitted and C-encoded before publishing a surface identifier;
+    its decoded binary16 lifetime maximum is retained alongside the LUT. Calibration changes
+    invalidate probe history even when the Surface Cache provider is unavailable.
+    Atlas uploads/replacements likewise retain an outward binary16 emission bound through
+    their existing page owner; invalid data is rejected before retiring the previous texture.
+      Cached restores and asynchronous artifacts use the same admission boundary. Accepted
+      pending writes enter its locked envelope; streamed transfers reject retired concrete owners
+      across ordinary, mapped, chunked and overflow staging paths, including numeric name reuse.
+    The shared frame packs an exact nonzero calibration identity in existing padding.
+  - Water raw-camera and liquid field conversion, authored-color compatibility adapters and
+    HDR cloud/celestial display-noise bypass are implemented. The connected checkpoint below
+    adds input-bound publication and frame-P storage, qualified by the final receipts below.
+  - The native volumetric cloud map regenerates during OIT, after the intended scale freeze.
+    Its previous texture generation cannot certify the next draw. Matching late-generation
+    inputs must satisfy the earlier admitted bound; the runtime admission implementation now
+    rechecks live native inputs, qualified by the connected admission/runtime checks below.
+      Explicit stars/moon/cloud/map and cube-particle expression helpers pass focused qualification;
+      they require admitted source endpoints rather than a guessed unit-color ceiling.
+      Native underwater helpers require an explicit finite convex murk interval because the
+      engine mix is unclamped. The owned sky captures its actual authored-addition envelope
+      with a wholly admitted effect slice; physical atmospheric RGB bypasses authored decoding.
+      The immutable engine point list carries its own native-effect color/normalization
+      certificate, distinct from calibrated candela. These prerequisite receipts alone do not qualify
+      the newer runtime R publication, late-draw admission or integrated frame-P storage.
+      Ordinary cloud vertex bounds include the negative unclamped distance factor, signed tile
+      modulation and its amplification of native perception. Admission checks geometry/division
+      intermediates independently of the final color envelope. An affected-boundary review clears
+      those equations. The scene owner now captures current-frame native fog endpoints and
+      concrete ordinary-cloud geometry/input certificates atomically. Cloud bounds cover retained
+      and upcoming brightness and the smallest supported later view-distance rebuild; failed
+      preparation, reset, reload and retirement withdraw both publications. The connected runtime
+      owner now assembles compatibility bounds and implements late-draw admission; qualification
+      of those connected boundaries is recorded in the final receipts below.
+      Frozen scene reads use binding four; native vertex face data keeps binding three. An actual
+      cross-stage GPU test verifies both simultaneously, and capability admission requires five
+      SSBO binding slots. The freeze compute output retains its separate binding one.
+    - Earlier prerequisite transport/scene, material-publication and forward/water receipts cover
+    492 distinct cases before the connected P checkpoint: 489 pass after
+    superseding fixture corrections, with three unchanged pure-refraction continuity failures.
+    The latter reproduce in isolation; their diagnostic, continuity test and refraction kernels
+    match HEAD and do not use changed lighting inputs. The shared camera include only adds a
+    calibration-identity helper in its existing padding, unused by this diagnostic. Do not widen their
+    0.01 threshold or treat them as lighting qualification. Receipts are under
+    artifacts/photometric-phase4* and the corresponding artifacts/TestResults/*.trx.
+      Native fog endpoint/publication checks pass, and the current ordinary-cloud owner/rebuild
+      checkpoint passes 19/19 focused cases with no skips. Receipt:
+      artifacts/photometric-phase4-native-cloud-owner-rebuild.log. The affected-boundary review
+      confirms the native minimum-length certificate covers pending view-distance rebuilds;
+      this is not a full completion audit or proof of the remaining frame-scale integration.
+  - Current connected checkpoint: SceneLightingPublicationRenderer now assembles actual native
+    compatibility R and freezes frame P after dynamic-light collection and before scene draws.
+    Direct lighting, GI gather, sky, forward/liquid receivers and composition use matching
+    P encode/decode boundaries. Metering and display/glare consumers have the necessary scale
+    conversions; their full camera/configuration qualification remains in Phase 5.
+    Native compatibility draws recheck live inputs against the earlier admitted envelope.
+    The superseding union of connected consumer checks passes 134 distinct focused cases without skips, including
+    current-frame/calibration rejection, actual runtime publication, resize/reload behavior,
+    physical display decoding, debug scale equivalence and receiver validity rejection.
+    Receipt mapping: artifacts/photometric-phase4-frame-publication-consumers.log supplies
+    124 unaffected passes; photometric-phase4-frame-publication-superseding.log supplies the
+    two receiver passes; photometric-phase4-runtime-debug-scale.log supplies two debug passes.
+    Both latter files retain six earlier runtime failures, all superseded by the six passing
+    cases in artifacts/photometric-phase4-runtime-physical-display.log. Corresponding
+    TestResults/*.trx identify the cases; the earlier whole files are not claimed green.
+    These receipts establish the covered contracts, not full integrated visual acceptance.
+  - Visible disk storage now receives a CPU-calculated maximum scale from the atmosphere binding
+    owner. Double arithmetic and downward float rounding preserve glare headroom without changing
+    shader language baselines or requiring precise. All ten temporarily changed shader roots are
+    restored to GLSL 330. Production/test catalogs and C# compile; 36 distinct focused checks pass
+    without skips, including GLSL 330 Float32-max disk output, hue and fractional-glare rounding.
+    Receipts: artifacts/photometric-solar-disk-cpu-limit-final.log and
+    artifacts/photometric-solar-disk-fractional-glare.log with corresponding TestResults/*.trx.
+  - Qualified corrections: native/owned OIT input guards and
+    exceptional resolve rejection retain the three-bucket algorithm and RGBA32F accumulators.
+    Persistent debug previews decode C; transient previews decode P. Signed water boundary source
+    uses P before coefficient/distance multiplication and decodes before physical evaluation.
+    The existing water owner admits captured projection/clip extents before drawing, providing
+    signed FP32 intermediate/additive headroom without partial-boundary rejection.
+    Linked quantity documentation is reconciled, including the historical runtime-coverage link.
+    The unused declared lumon_combine program has no runtime submission found; it is not evidence
+    of an active scene consumer and remains outside the connected scene route.
+  - Final focused union: 197 distinct cases pass without skips, including 20 newly added cases.
+    artifacts/photometric-phase4-storage-guards-final.log supplies 41 applicable passes; its
+    12 fixture failures are exactly the two legacy-OIT and ten boundary-capture cases rerun
+    successfully in artifacts/photometric-phase4-boundary-runtime-superseding.log (19/19).
+    That superseding run also adds P=.25 producer coverage and rechecks six connected runtime cases.
+    artifacts/photometric-phase4-publication-guards-recheck.log passes 17/17. Matching
+    TestResults/*.trx identify all cases; the union normalizes only the explicit default P=1
+    parameter added to existing boundary case names. Production/test shader catalogs and Release
+    C# build pass. These receipts supersede the earlier OIT compile and fixture checkpoints.
+    The second code/documentation review and independent completion audit find no unresolved
+    requirement within this scope. Camera/configuration/glare qualification remains in Phase 5;
+    packaging, live appearance and performance acceptance remain in Phase 6. This is not a
+    release candidate. The three separately documented unchanged refraction failures remain
+    outside this lighting change.
+    FrameLightingBounds assembles completed atmosphere, calibrated block endpoints,
+    converted point-list metadata, mode-specific gained/tinted indirect and supplied emission/
+    compatibility bounds. The runtime compatibility owner now supplies R; any retained transient
+    history must still qualify its originating scale/bound. No guessed compatibility ceiling is used.
+
+  ☑ Apply the audited quantity contract at LumOn capture, probe, gather and composite boundaries.
     - Trace real consumers and explicitly convert outgoing luminance versus incident estimates
       where required. Do not infer compatible units from RGB format or variable naming alone.
     - Apply receiver response and calibration exactly once; preserve justified transport steps.
@@ -493,7 +616,7 @@ quantities without double material weighting, duplicate environment light or uns
     - Prevent re-addition of environment light represented by GI; retain the established unavailable-
       GI behavior and forward local block fallback, with no sampling of unrelated opaque receivers.
 
-  ☐ Reconcile remaining scene contributions with existing owners and publication boundaries.
+  ☑ Reconcile remaining scene contributions with existing owners and publication boundaries.
     - Cover water reflection/refraction, underwater in-scattering, transparent/late and held
       receivers, particles, fog, celestial inputs and glare.
     - Convert legacy effect inputs explicitly; document remaining approximations instead of
@@ -505,7 +628,7 @@ quantities without double material weighting, duplicate environment light or uns
       PBR.OutputDithering.md; preserve final encoded dithering and offscreen behavior.
     - Preserve UI/offscreen isolation and existing alpha, depth, glow and material-data meanings.
 
-  ☐ Apply targeted storage protection under proposal "Defensive storage clamping".
+  ☑ Apply targeted storage protection under proposal "Defensive storage clamping".
     - Audit atmosphere lookup, cache/probe, reflection/refraction, temporal history and scene
       composition writes. Record format, range, scale, validity behavior and blending headroom.
     - Apply shared helpers where required; retain rejection of unsupported persistent updates.
@@ -514,13 +637,13 @@ quantities without double material weighting, duplicate environment light or uns
       retaining the approved RGBA32F accumulator and current ownership. Protect intermediates;
       post-resolve clamping alone is insufficient. No additional format/pass redesign is implied.
 
-  ☐ Retire differently calibrated cached/history lighting through existing lifecycle owners.
+  ☑ Retire differently calibrated cached/history lighting through existing lifecycle owners.
     - Invalidate dependent data when calibration or storage conventions change; implement any
       temporal rescaling required by the selected storage design.
     - Verify resize, shader reload, world teardown, lighting-mode changes and calibration changes
       cannot mix stale and current quantities or expose incomplete publications.
 
-  ☐ Verify completion of Phase 4.
+  ☑ Verify completion of Phase 4.
     - Deterministic isolated/combined-source tests cover LumOn on/off, fallback and unavailable-GI cases.
     - Material weighting, source calibration and indirect AO occur once at their declared boundaries.
     - Other scene inputs and persistent data meet unit, finite-value and lifecycle contracts.

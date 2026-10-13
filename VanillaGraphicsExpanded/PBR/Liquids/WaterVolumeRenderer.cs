@@ -69,6 +69,9 @@ internal sealed class WaterVolumeRenderer : IRenderer
         if (primary is null || primary.Width <= 0 || primary.Height <= 0 || primary.DepthTextureId == 0) return;
         var program = GpuShaderProgramLibraries.Get<LiquidShaderProgram>(api, LiquidShaderProgram.VolumePassName);
         if (program is null) return;
+        var capturedCamera = VgeFrameRenderer.Current;
+        if (!WaterBoundaryStorage.CameraAdmitted(capturedCamera.Projection,
+            capturedCamera.ClipPlanes.X, capturedCamera.ClipPlanes.Y)) return;
         try
         {
             if (target is not null && (target.Width != primary.Width || target.Height != primary.Height)) Retire();
@@ -115,14 +118,16 @@ internal sealed class WaterVolumeRenderer : IRenderer
                     pools[i].Render(api.World.Player.Entity.CameraPos, "origin", EnumFrustumCullMode.CullNormal);
                 }
             })) return;
-            if (!TryGetCameraMedium(out var medium, out var cameraSource)) return;
+            if (!TryGetCameraMedium(out var medium, out var cameraLight)) return;
             var lighting = ModSystems.AtmosphereModSystem.Lighting;
             float blockMaximum = WaterSourceBounds.EngineFieldMaximum(((ClientMain)api.World).WorldMap.BlockLightLevels);
-            // Legacy source units remain coherent until all producers migrate. The physical route
-            // supplies converted Bmax + pi*Environment E/pi to this same incident-bound contract.
+            var calibration = VgeFrameRenderer.CurrentLightingCalibration;
+            float blockLuxMaximum = LightingStorage.UpperBound(blockMaximum *
+                Math.Max(calibration.BlockReferenceLux, calibration.AccessorBlockReferenceLux));
+            // Budget the maximum decoder output; actual field conversion stays in shaders.
             var sourceUpper = WaterSourceBounds.FromIncident(lighting?.Solar ?? Vector3.Zero,
-                new Vector3(blockMaximum) + (lighting?.Environment ?? Vector3.Zero));
-            completed = new(transport!, medium, cameraSource, sourceUpper);
+                new Vector3(blockLuxMaximum) + MathF.PI * (lighting?.Environment ?? Vector3.Zero));
+            completed = new(transport!, medium, SourceUpper: sourceUpper, RawCameraLight: cameraLight);
         }
         catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
@@ -145,10 +150,10 @@ internal sealed class WaterVolumeRenderer : IRenderer
 
     #region Private
     /// <summary>Uses the actual fluid layer and mapped texture rather than applying water optics to every submerged liquid.</summary>
-    private bool TryGetCameraMedium(out WaterMedium? medium, out Vector3 source)
+    private bool TryGetCameraMedium(out WaterMedium? medium, out Vector4 source)
     {
         medium = null;
-        source = Vector3.Zero;
+        source = Vector4.Zero;
         if (api.Render.ShaderUniforms.CameraUnderwater <= .7f) return true;
         var position = api.World.Player.Entity.CameraPos;
         var blockPosition = new BlockPos((int)Math.Floor(position.X), (int)Math.Floor(position.Y), (int)Math.Floor(position.Z),
@@ -162,9 +167,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
         var light = api.World.BlockAccessor.GetLightRGBs(blockPosition);
         // Block light is local; sunlight brightness gates only the bounded diffuse environment.
         // No direct solar source is assumed without a camera shadow sample.
-        var environment = ModSystems.AtmosphereModSystem.Lighting?.Environment ?? Vector3.Zero;
-        source = medium.Value.EffectiveScatteringPerMetre * Vector3.Max(new Vector3(light.X, light.Y, light.Z)
-            + environment * Math.Clamp(light.W, 0, 1), Vector3.Zero) / (4 * MathF.PI);
+        source = new(light.X, light.Y, light.Z, light.W);
         return true;
     }
 

@@ -4,6 +4,7 @@ using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
@@ -83,6 +84,10 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
         TestFramework.RenderQuadTo(program, output);
         var result = (output[0].ReadPixels(), output[1].ReadPixels());
         consume?.Invoke(output);
+        // Test expectations describe physical hit luminance; storage metadata and borrowed consumers stay encoded.
+        for (int offset = 0; offset < result.Item1.Length; offset += 4)
+            for (int channel = 0; channel < 3; channel++)
+                result.Item1[offset + channel] /= LightingStorage.PersistentScale;
         return result;
 
         /// <summary>Authors controlled values in a production-owned attachment, without choosing sampler slots.</summary>
@@ -95,6 +100,10 @@ public abstract class NearFieldShaderTestBase : LumOnShaderFunctionalTestBase
                 for (int y = 0; y < height; y++)
                 for (int x = 0; x < width; x++)
                     data[(y * width + x) * 4] = (x % 16 + 0.5f) / 16;
+            if (ReferenceEquals(texture, worldInputs.ProbeRadianceAtlas))
+                for (int offset = 0; offset < data.Length; offset += 4)
+                    for (int channel = 0; channel < 3; channel++)
+                        data[offset + channel] *= LightingStorage.PersistentScale;
             texture.UploadDataImmediate(data);
             return texture;
         }

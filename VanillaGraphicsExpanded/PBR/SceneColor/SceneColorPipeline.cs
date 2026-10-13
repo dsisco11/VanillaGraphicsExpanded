@@ -22,6 +22,8 @@ internal sealed class SceneColorPipeline : IRenderer
     private readonly SceneColorFrameTargets targets = new();
     private readonly Action unregisterResize;
     private bool hasSceneInput;
+    private SceneColorFogEnvelope? fogEnvelope;
+    private SceneColorCloudInputs? cloudInputs;
 
     #region Public API
     /// <summary>Replaces pre-mod scene storage through the engine owner before VGE borrows its attachments.</summary>
@@ -64,6 +66,16 @@ internal sealed class SceneColorPipeline : IRenderer
     /// <summary>Distinguishes pending scene postprocessing from unrelated menu or offscreen processing.</summary>
     internal static bool HasSceneInput => active?.hasSceneInput == true;
 
+    /// <summary>Returns only the current frame's completed native fog endpoint publication.</summary>
+    internal static SceneColorFogEnvelope CurrentFog => active is { hasSceneInput: true } owner && owner.fogEnvelope is { } fog
+        && fog.FrameIndex == VgeFrameRenderer.Current.FrameIndex ? fog
+        : throw new InvalidOperationException("Native scene fog has not been admitted for this frame.");
+
+    /// <summary>Returns the matching ordinary-cloud input certificate, including an explicitly absent native owner.</summary>
+    internal static SceneColorCloudInputs CurrentCloud => active is { hasSceneInput: true } owner && owner.cloudInputs is { } cloud
+        && cloud.FrameIndex == VgeFrameRenderer.Current.FrameIndex ? cloud
+        : throw new InvalidOperationException("Native cloud inputs have not been admitted for this frame.");
+
     /// <summary>Prepares required HDR resources and reports missing dependencies without changing scene color space.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
@@ -71,6 +83,8 @@ internal sealed class SceneColorPipeline : IRenderer
         // This tracks the input to final composition, not an optional HDR mode. Even
         // failed preparation must never cause subsequent scene draws to emit display RGB.
         hasSceneInput = true;
+        fogEnvelope = null;
+        cloudInputs = null;
         var final = GpuShaderProgramLibraries.Get<Postprocessing.FinalDisplayShaderProgram>(api, "pbr_final");
         if (final?.EnsureReady() != true)
             throw new InvalidOperationException($"VGE HDR requires pbr_final: {final?.PreparationFailure?.Message ?? "declaration unavailable or not ready"}.", final?.PreparationFailure);
@@ -85,6 +99,12 @@ internal sealed class SceneColorPipeline : IRenderer
             throw new InvalidOperationException("VGE HDR deferred lighting resources are unavailable.");
         if (!particles.PrepareFrame(true))
             throw new InvalidOperationException("VGE HDR particle separation resources are unavailable.");
+        // Publish actual color endpoints with the prepared scene generation. Later
+        // native draws must still certify changed inputs against this frozen envelope.
+        var fog = SceneColorFogEnvelope.FromNative(api);
+        var cloud = SceneColorCloudInputs.FromNative(api);
+        fogEnvelope = fog;
+        cloudInputs = cloud;
     }
 
     /// <summary>Consumes the pending scene input after its display endpoint, including exceptional exits.</summary>
@@ -107,12 +127,19 @@ internal sealed class SceneColorPipeline : IRenderer
 
     #region Private
     /// <summary>Invalidates borrowed metadata without changing the convention of already submitted scene pixels.</summary>
-    private void Reset() => targets.Invalidate();
+    private void Reset()
+    {
+        fogEnvelope = null;
+        cloudInputs = null;
+        targets.Invalidate();
+    }
 
     /// <summary>Retires pending world input so unrelated menu processing remains outside scene exposure.</summary>
     private void RetireScene()
     {
         hasSceneInput = false;
+        fogEnvelope = null;
+        cloudInputs = null;
         targets.Invalidate();
     }
 

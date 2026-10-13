@@ -14,6 +14,8 @@ internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
 
     /// <summary>Identifies the calibration retained by this complete CPU publication.</summary>
     internal PBR.LightingCalibration LightingCalibration { get; private set; } = PBR.LightingCalibration.Default;
+    /// <summary>Identifies source interpretation changes independently of camera and light-list revisions.</summary>
+    internal uint CalibrationGeneration { get; private set; }
 
     /// <summary>Creates retained CPU packing with versioned publication through the existing uniform allocator.</summary>
     internal VgeFrameUniformBuffer() : base(PackedSize) { SetLightingCalibration(PBR.LightingCalibration.Default); }
@@ -22,13 +24,23 @@ internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
     internal void SetLightingCalibration(PBR.LightingCalibration calibration)
     {
         calibration.Validate();
+        uint generation = CalibrationGeneration;
+        if (generation == 0 || LightingCalibration != calibration)
+        {
+            // Keep zero reserved for unavailable publication and preserve the exact integer
+            // identity in the existing std140 padding, rather than converting it to a float.
+            unchecked { generation++; }
+            if (generation == 0) generation = 1;
+        }
         WriteVector4(544, new(calibration.BlockReferenceLux, calibration.BlockNeutralFloor,
             PBR.LightingCalibration.EmissionReferenceNits, calibration.PointCandelaPerUnit));
         WriteVector4(560, new(calibration.TerrainSkyFloor, calibration.TerrainSkyFull,
             calibration.AccessorSkyFloor, calibration.AccessorSkyFull));
-        WriteVector4(576, new(calibration.AccessorBlockReferenceLux > 0 ? calibration.AccessorBlockReferenceLux : calibration.BlockReferenceLux,
-            calibration.AccessorBlockReferenceLux > 0 ? calibration.AccessorBlockNeutralFloor : calibration.BlockNeutralFloor, 0, 0));
+        WriteVector2(576, new(calibration.AccessorBlockReferenceLux > 0 ? calibration.AccessorBlockReferenceLux : calibration.BlockReferenceLux,
+            calibration.AccessorBlockReferenceLux > 0 ? calibration.AccessorBlockNeutralFloor : calibration.BlockNeutralFloor));
+        WriteUInt32(584, generation);
         LightingCalibration = calibration;
+        CalibrationGeneration = generation;
     }
 
     /// <summary>Captures one view's complete frame data without allocating GPU storage or publishing partial writes.</summary>
@@ -87,6 +99,8 @@ internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
     internal uint FrameIndex => MemoryMarshal.Read<uint>(Bytes.Slice(396, 4));
     /// <summary>Exposes the retained projection for CPU consumers without recapturing the engine camera.</summary>
     internal ReadOnlySpan<float> Projection => MemoryMarshal.Cast<byte, float>(Bytes.Slice(0, 64));
+    /// <summary>Exposes the near/far distances from the same camera snapshot as the projection.</summary>
+    internal Vector2 ClipPlanes => MemoryMarshal.Read<Vector2>(Bytes.Slice(496, 8));
     /// <summary>Exposes the exact shared view transform for CPU consumers.</summary>
     internal ReadOnlySpan<float> View => MemoryMarshal.Cast<byte, float>(Bytes.Slice(64, 64));
     /// <summary>Exposes the shared inverse view for origin-sensitive CPU consumers.</summary>

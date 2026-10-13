@@ -56,7 +56,8 @@ internal static class AtmosphereProgramBindings
         if ((expected & AtmosphereBindings.AerialAttenuation) != 0 && hasUniform("vge_atmosphereAerialAttenuation")) active |= AtmosphereBindings.AerialAttenuation;
         if ((expected & AtmosphereBindings.SunDirection) != 0 && hasUniform("vge_atmosphereSunDirection")) active |= AtmosphereBindings.SunDirection;
         if ((expected & AtmosphereBindings.SunDisk) != 0 && hasUniform("vge_atmosphereSunDraw")
-            && hasUniform("vge_atmosphereSun") && hasUniform("vge_atmosphereDisk")) active |= AtmosphereBindings.SunDisk;
+            && hasUniform("vge_atmosphereSun") && hasUniform("vge_atmosphereDisk")
+            && hasUniform("vge_atmosphereDiskStorageScale")) active |= AtmosphereBindings.SunDisk;
         if ((expected & AtmosphereBindings.LightShaftOcclusion) != 0 && hasUniform("vge_lightShaftOcclusion")) active |= AtmosphereBindings.LightShaftOcclusion;
         return active;
     }

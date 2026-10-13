@@ -24,6 +24,7 @@ layout(location = 1) out vec2 outMeta;      // R = confidence, G = uintBitsToFlo
 
 // Import probe-atlas meta helpers
 @import "./includes/lumon_probe_atlas_meta.glsl"
+@import "./includes/pbr_persistent_lighting.glsl"
 
 // Phase 14 velocity helpers
 @import "./includes/velocity_common.glsl"
@@ -221,6 +222,8 @@ void getNeighborhoodMinMax(ivec2 probeCoord, ivec2 octTexel,
             ivec2 neighborAtlas = atlasOffset + neighborTexel;
 
             vec4 radianceSample = texelFetch(octahedralCurrent, neighborAtlas, 0);
+            if (!VgeStoredDirectionalLightAdmitted(radianceSample.rgb)
+                || isnan(radianceSample.a) || isinf(radianceSample.a)) continue;
             minVal = min(minVal, radianceSample);
             maxVal = max(maxVal, radianceSample);
         }
@@ -293,6 +296,21 @@ void main(void)
         vec2 metaHistoryReproj = texelFetch(probeAtlasMetaHistory, historyAtlasCoord, 0).xy;
         lumonDecodeMeta(metaHistoryReproj, confHistory, flagsHistory);
     }
+
+    // Invalid storage never enters neighborhood clipping or a convex temporal update. A
+    // missing current direction retains valid old data without granting fresh reliability.
+    bool currentAdmitted = VgeStoredDirectionalLightAdmitted(current.rgb)
+        && !isnan(current.a) && !isinf(current.a) && !isnan(confCurrent) && !isinf(confCurrent);
+    bool historyAdmitted = VgeStoredDirectionalLightAdmitted(history.rgb)
+        && !isnan(history.a) && !isinf(history.a) && !isnan(confHistory) && !isinf(confHistory);
+    if (!currentAdmitted)
+    {
+        outRadiance = historyAdmitted && !rejectGeometryHistory ? history : vec4(0);
+        outMeta = lumonEncodeMeta(historyAdmitted && !rejectGeometryHistory ? confHistory : 0.0,
+            flagsHistory | LUMON_META_TEMPREJ_HISTORY_INVALID);
+        return;
+    }
+    if (!historyAdmitted) { history = vec4(0); confHistory = 0.0; }
 
     // Check if this texel was traced this frame.
     // Must match the trace pass selection source and fallback behavior.
@@ -411,6 +429,10 @@ void main(void)
         metaOut = lumonEncodeMeta(confCurrent, flagsCurrent | temporalRejectBits);
     }
 
-    outRadiance = result;
-    outMeta = metaOut;
+    vec3 protectedResult;
+    bool clipped;
+    bool resultAdmitted = VgeStoredDirectionalLightAdmitted(result.rgb)
+        && VgeProtectLightingStorage(result.rgb, 0.0, VGE_STORAGE_HALF_MAX, protectedResult, clipped) && !clipped;
+    outRadiance = resultAdmitted ? vec4(protectedResult, result.a) : current;
+    outMeta = resultAdmitted ? metaOut : lumonEncodeMeta(confCurrent, flagsCurrent);
 }

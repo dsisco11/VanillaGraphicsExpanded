@@ -2,6 +2,7 @@
 uniform int vge_atmosphereSunDraw;
 uniform vec4 vge_atmosphereSun;
 uniform vec4 vge_atmosphereDisk;
+uniform float vge_atmosphereDiskStorageScale;
 #endif
 in vec3 vge_sunDirection;
 in vec2 vge_sunPlane;
@@ -19,8 +20,10 @@ void VgeDrawAtmosphericSun()
     vec3 displayColor = applyUnderwaterEffects(VgeResolveDisplay(vge_atmosphereDisk.rgb), getSkyMurkiness());
     // HDR keeps the disk's physical radiance. Its water transport is owned by scene
     // composition; the legacy display tint remains only on the compatible SDR route.
-    outColor = vec4(vge_pbrRoute != 0 ? max(vge_atmosphereDisk.rgb, vec3(0.0))
-        : VgeDitherDisplay(displayColor, gl_FragCoord.xy), coverage);
+    vec3 storedDisk = vec3(0);
+    if (vge_pbrRoute != 0 && !VgeStoreVisibleSolarDisk(vge_atmosphereDisk.rgb,
+        vge_atmosphereDiskStorageScale, storedDisk)) discard;
+    outColor = vec4(vge_pbrRoute != 0 ? storedDisk : VgeDitherDisplay(displayColor, gl_FragCoord.xy), coverage);
     // Owned HDR bloom extracts actual radiance. Green is solar visibility only;
     // attachment blending carries coverage/occlusion to the owned shaft pass.
     // Display-referred offscreen draws retain the engine metadata convention.

@@ -116,7 +116,7 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
             program.PrimaryDepth = depth.TextureId;
             using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,2000,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], fogColor: new(.5f, .25f, .125f), fogDensity: fog > 0 ? .0002f : 0, fogMinimum: fog);
             program.FrameInputs = frameCamera;
-            program.SetAtmosphere(snapshot);
+            program.SetAtmosphere(AtmosphereModSystem.Lighting);
             // Publish the complete frame state, including the absence of a water-volume capture.
             program.SetWaterVolume(null);
             program.SetUnderwater(fog > 0);
@@ -129,7 +129,7 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         for (int channel = 0; channel < 3; channel++)
         {
             float transmission = 1 - loss[channel] * skyVisibility;
-            float expected = (light[channel] * transmission + scatter[channel] * skyVisibility) * (1 - fogAmount) + Linear(fogColor[channel]) * fogAmount;
+            float expected = (light[channel] * transmission + scatter[channel] * skyVisibility) * (1 - fogAmount) + 32 * Linear(fogColor[channel]) * fogAmount;
             Assert.InRange(actual[channel], expected - .004f, expected + .004f);
         }
         Assert.True(actual[0] > 1);
@@ -214,14 +214,14 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         using var frameCamera = TestFrameCamera.Create([1,0,0,0, 0,1,0,0, 0,0,20,0, 0,0,0,1], [1,0,0,0, 0,1,0,0, 0,0,1,0, 0,0,0,1], fogColor: Vector3.One, fogDensity: 10, fogMinimum: 1);
         program.FrameInputs = frameCamera;
 
-        program.SetAtmosphere(snapshot);
+        program.SetAtmosphere(AtmosphereModSystem.Lighting);
         program.SetUnderwater(underwater);
         program.RefractionSourceEnabled = true;
         using var waterArray = LayeredTestTexture.Create(optical, source);
         program.SetWaterVolume(new WaterVolumeFrame(waterArray, underwater && mappedCamera ? medium : null,
             SourceUpper: Vector3.One));
         var cpuParameters = ((IPBRCompositeShaderProgramBindings)program).Parameters.Bytes.ToArray();
-        Assert.Equal(144, cpuParameters.Length);
+        Assert.Equal(160, cpuParameters.Length);
         Assert.Equal(1f, BitConverter.ToSingle(cpuParameters, 92));
         Assert.Equal(underwater && mappedCamera ? 1f : 0f, BitConverter.ToSingle(cpuParameters, 108));
         TestFramework.RenderQuadTo(program, output);
@@ -250,7 +250,7 @@ public sealed class PbrCompositeHdrTests : LumOnShaderFunctionalTestBase
         for (int channel = 0; channel < 3; channel++)
         {
             float expected = sky && !knownExit ? background[channel]
-                : underwater && !mappedCamera ? 1 : background[channel] * MathF.Exp(-coefficients[channel] * distance);
+                : underwater && !mappedCamera ? 32 : background[channel] * MathF.Exp(-coefficients[channel] * distance);
             Assert.InRange(actual[channel], expected - .0001f, expected + .0001f);
         }
         if (!underwater || mappedCamera) Assert.True(actual[0] > 1); // No extra display boundary.

@@ -66,7 +66,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             vec3 vge_sunIrradiance = vec3(0.2,0.4,0.8);
             vec3 vge_atmosphereSolar = vec3(0.2,0.4,0.8);
             vec3 vge_atmosphereEnvironment = vec3(0);
-            vec3 vge_atmosphereAerialParams = vec3(.001,0,0);
+            vec4 vge_atmosphereAerialParams = vec4(.001,0,0,16);
 
             float vge_skyVisibility = 1.0;
             vec4 rgbaFog = vec4(0);

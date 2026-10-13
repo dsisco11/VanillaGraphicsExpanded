@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/pbr_scene_storage.glsl"
 @import "./includes/gbuffer_layers.glsl"
 
 in vec2 uv;
@@ -138,7 +139,8 @@ void main()
     vec3 emissive = VgeEmissionLuminance(baseColor, emissiveScalar);
 
     // Preserve isolated transmission RGB in the otherwise unused attachment alpha channels.
-    outDirectDiffuse = vec4(accumDiffuse, transmission.r);
-    outDirectSpecular = vec4(accumSpecular, transmission.g);
-    outEmissive = vec4(emissive, transmission.b);
+    vec3 storedTransmission = VgeStoreSceneLighting(transmission);
+    outDirectDiffuse = vec4(VgeStoreSceneLighting(accumDiffuse), storedTransmission.r);
+    outDirectSpecular = vec4(VgeStoreSceneLighting(accumSpecular), storedTransmission.g);
+    outEmissive = vec4(VgeStoreSceneLighting(emissive), storedTransmission.b);
 }

@@ -10,5 +10,5 @@ void main()
     vec2 uv = gl_FragCoord.xy / vgeFrame.screenSize;
     vec3 transmission = vec3(texture(directLighting, vec3(uv, VGE_DIRECT_DIFFUSE)).a,
         texture(directLighting, vec3(uv, VGE_DIRECT_SPECULAR)).a, texture(directLighting, vec3(uv, VGE_DIRECT_EMISSIVE)).a);
-    outColor = vec4(vgeTonemapReinhard(transmission), 1.0);
+    outColor = vec4(vgeTonemapReinhard(VgePhysicalFrameLight(transmission)), 1.0);
 }

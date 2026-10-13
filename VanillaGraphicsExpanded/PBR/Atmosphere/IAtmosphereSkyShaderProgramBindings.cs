@@ -5,7 +5,8 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 
 /// <summary>Declares sky inputs shared by the offline compiler and prepared runtime submissions.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
-internal interface IAtmosphereSkyShaderProgramBindings
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
+internal interface IAtmosphereSkyShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings
 {
     #region Public API
     /// <summary>Supplies the shared camera and frame dimensions.</summary>

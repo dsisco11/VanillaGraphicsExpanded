@@ -38,6 +38,9 @@ internal static partial class GpuBindingRegistry
     /// </summary>
     internal static class Ssbo
     {
+        /// <summary>Frozen transient-light read slot, distinct from the engine's vertex face-data slot three.</summary>
+        internal const int FrameLighting = 4;
+
         internal static class LumOnScene
         {
             public const int Work = 0;

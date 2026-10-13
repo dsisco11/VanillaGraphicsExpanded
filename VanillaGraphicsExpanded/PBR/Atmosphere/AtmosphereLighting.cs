@@ -18,5 +18,7 @@ internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 En
     internal float LookupStorageScale { get; init; } = 1;
     /// <summary>Physical generations carry their calibration identity; zero retains the legacy scene-unit publication.</summary>
     internal uint CalibrationGeneration { get; init; }
+    /// <summary>Maximum reconstructed sky/aerial RGB from the admitted uploaded bands, in physical nits.</summary>
+    internal float ReconstructionMaximumNits { get; init; }
 }
 

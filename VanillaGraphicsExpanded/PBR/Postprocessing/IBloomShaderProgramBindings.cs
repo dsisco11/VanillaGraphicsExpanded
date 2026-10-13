@@ -3,7 +3,8 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 /// <summary>Declares the owned pbr_bloom resource contract.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
-internal interface IBloomShaderProgramBindings
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
+internal interface IBloomShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings
 {
     #region Public API
     /// <summary>Supplies coherent draw parameters.</summary>

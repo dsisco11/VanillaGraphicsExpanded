@@ -1,4 +1,7 @@
 using System;
+using System.Numerics;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR;
 
@@ -7,6 +10,42 @@ internal readonly record struct FrameLightingBounds(double Surface, double Water
     double BoundaryScattering, double SurfaceScattering, double AirSky, double Additive)
 {
     #region Public API
+    /// <summary>Assembles actual completed source publications with admitted indirect and compatibility contributions.</summary>
+    internal static FrameLightingBounds FromPublications(AtmosphereLighting atmosphere, VgeLightsUniformBuffer lights,
+        LightingCalibration calibration, bool lumon, float indirectIntensity, Vector3 indirectTint,
+        float emissionMaximumNits, float compatibilityMaximumNits)
+    {
+        ArgumentNullException.ThrowIfNull(atmosphere);
+        ArgumentNullException.ThrowIfNull(lights);
+        calibration.Validate();
+        Validate(indirectIntensity); Validate(emissionMaximumNits); Validate(compatibilityMaximumNits);
+        if (!LightingCalibration.FiniteNonnegative(atmosphere.Solar)
+            || !LightingCalibration.FiniteNonnegative(atmosphere.Environment)
+            || !LightingCalibration.FiniteNonnegative(indirectTint)
+            || atmosphere.CalibrationGeneration == 0 || atmosphere.LookupStorageScale != LightingStorage.PersistentScale)
+            throw new ArgumentException("Frame bounds require matching admitted physical source publications.");
+        Vector3 disk = AtmosphereSolarDisk.Radiance(atmosphere);
+        if (!LightingCalibration.FiniteNonnegative(disk))
+            throw new ArgumentException("The completed atmosphere has unsupported disk radiance.", nameof(atmosphere));
+        // Both engine decoders preserve a unit normalized field. Its positive toe can
+        // only reduce the actual calibrated endpoint; include either receiver route.
+        double terrainBlock = calibration.BlockReferenceLux * (1.0 - calibration.BlockNeutralFloor);
+        double accessorBlock = calibration.AccessorBlockReferenceLux > 0
+            ? calibration.AccessorBlockReferenceLux * (1.0 - calibration.AccessorBlockNeutralFloor) : terrainBlock;
+        double block = Math.Max(terrainBlock, accessorBlock);
+        double environment = Peak(atmosphere.Environment);
+        // Admitted directional probes bound reconstructed SH9 E/pi. Artistic gain/tint
+        // enters once at gather; forward receivers instead retain their local block fallback.
+        double indirect = lumon
+            ? Math.Max(block / Math.PI, (1.28 * LightingStorage.DirectionalMaximum + 9.36161e-7)
+                * indirectIntensity * Peak(indirectTint))
+            : environment + block / Math.PI;
+        const double arithmeticGuard = 1 + 256.0 / (1 << 23);
+        return FromSources(Peak(atmosphere.Solar) * arithmeticGuard, Peak(disk) * arithmeticGuard,
+            lights.SummedCandelaMaximum, environment * arithmeticGuard, block * arithmeticGuard,
+            indirect * arithmeticGuard, emissionMaximumNits * arithmeticGuard,
+            atmosphere.ReconstructionMaximumNits, compatibilityMaximumNits);
+    }
     /// <summary>Assembles the qualified nonrecursive scene topology from published lux, candela and nits maxima.</summary>
     internal static FrameLightingBounds FromSources(double solarLux, double diskNits, double summedPointCandela,
         double environmentEOverPi, double blockLux, double indirectNits, double emissionNits, double aerialNits, double additiveNits)
@@ -42,6 +81,8 @@ internal readonly record struct FrameLightingBounds(double Surface, double Water
     }
     #endregion
     #region Private
+    /// <summary>Extracts a component bound without treating RGB luminance as a storage-component maximum.</summary>
+    private static double Peak(Vector3 value) => Math.Max(value.X, Math.Max(value.Y, value.Z));
     /// <summary>Rejects missing arithmetic domains rather than manufacturing a valid black bound.</summary>
     private static void Validate(double value)
     {

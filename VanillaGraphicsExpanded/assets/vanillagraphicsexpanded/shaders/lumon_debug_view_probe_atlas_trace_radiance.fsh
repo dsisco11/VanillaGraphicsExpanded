@@ -16,7 +16,7 @@ out vec4 outColor;
 /** Implements render probe atlas trace radiance debug for its explicit view entrypoint. */
 vec4 renderProbeAtlasTraceRadianceDebug()
 {
-    vec3 rgb = texture(probeAtlasTrace, uv).rgb;
+    vec3 rgb = VgeDecodePersistentLight(texture(probeAtlasTrace, uv).rgb);
     return vec4(rgb, 1.0);
 }
 

@@ -34,13 +34,17 @@ void surfaceQueueFallback(uint wi, uvec4 item, uint linear, uint batchCount, ive
 /** Applies the same bounded-history formula to ordinary GPU samples and validated fallback estimates. */
 bool surfaceAccumulate(ivec3 address, vec3 estimate)
 {
-    if (any(isnan(estimate)) || any(isinf(estimate))) return false;
+    if (!VgePersistentLightAdmitted(estimate, false)) return false;
     vec4 previous = imageLoad(indirectIrradiance,address);
     if (any(isnan(previous)) || any(isinf(previous))) previous = vec4(0);
     float previousWeight = max(0.0,previous.a);
     float weight = min(previousWeight+1.0,float(max(1u,lighting.policy.z)));
     float alpha = 1.0/(1.0+previousWeight);
-    imageStore(indirectIrradiance,address,vec4(clamp(mix(previous.rgb,estimate,alpha),vec3(0),vec3(65504)),weight));
+    vec3 stored;
+    // Blend physical incident lux; unsupported estimates neither replace RGB nor age its weight.
+    vec3 physical = mix(VgeDecodePersistentLight(previous.rgb), estimate, alpha);
+    if (!VgeTryStorePersistentLight(physical, false, stored)) return false;
+    imageStore(indirectIrradiance,address,vec4(stored,weight));
     return true;
 }
 #endif

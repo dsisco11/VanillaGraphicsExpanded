@@ -39,6 +39,12 @@ Underwater receivers retain engine water fog instead of applying atmospheric tra
 
 ## Storage and lifetime
 
+Immutable CPU radiance remains in nits. Published light-bearing texture bands use the fixed
+encoding C=1/16; consumer parameters carry the matching inverse scale. Reconstruction decodes
+once before adding physical in-scattering. Attenuation remains dimensionless and unscaled.
+The publication owner validates the complete input generation before uploading any replacement
+and publishes its reconstructed RGB bound with the textures. Camera exposure does not change C.
+
 Angular dimensions follow atmospheric quality: 32x24, 64x48, 96x72 or 128x96. Distance depth
 is fixed at 24. The paired RGBA16F aerial textures consume 432 KiB at default quality and
 6.75 MiB at maximum quality, per complete set. Sky storage is additional. Two resource sets

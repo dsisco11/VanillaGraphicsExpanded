@@ -37,7 +37,7 @@ public sealed class SceneColorLegacyPatchSourceTests
         Assert.True(declared.HasFlag(ShaderCapability.SceneColorConvention));
         string patchedBody = tree.Select(Query.Syntax<GlFunctionNode>().Named("drawPixel"))
             .OfType<GlFunctionNode>().Single().Body.ToText();
-        const string decode = "if (vge_sceneLinear != 0) color.rgb = VgeSrgbToLinear(color.rgb);";
+        const string decode = "if (vge_sceneLinear != 0) color.rgb = VgeCompatibilityLuminance(color.rgb);";
         Assert.Equal(1, patchedBody.Split(decode).Length - 1);
         Assert.True(patchedBody.IndexOf(decode, StringComparison.Ordinal)
             < patchedBody.IndexOf("float alpha = color.a;", StringComparison.Ordinal));

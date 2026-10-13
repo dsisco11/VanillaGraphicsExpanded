@@ -41,6 +41,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
     private long sceneRevision = -1, historyRevision = -1;
     private long retryGeometryRevision = -1, retryWorldRevision = -1;
     private int settingsHash, frame, lastWorkCount;
+    private PBR.LightingCalibration sourceCalibration;
     private SurfaceLightingSnapshot snapshot;
     private bool published;
     private static long nextDependencyRevision;
@@ -70,7 +71,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             return false;
         var current = geometry.PrepareScene();
         if (current == null || !ReferenceEquals(current, scene) ||
-            feedback.GeometryHistoryRevision != historyRevision || SettingsHash() != settingsHash) return false;
+            feedback.GeometryHistoryRevision != historyRevision || SettingsHash() != settingsHash ||
+            sourceCalibration != VgeFrameRenderer.CurrentLightingCalibration) return false;
         feedback.SynchronizeCaptureIdentities(current);
         SynchronizePages(mapping, mirror, selectCandidates: false);
         if (!published) return false;
@@ -105,7 +107,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         int hash = SettingsHash();
         bool changed = !ReferenceEquals(atlas, resources) || !ReferenceEquals(scene, current) ||
             historyRevision != feedback.GeometryHistoryRevision ||
-            settingsHash != hash;
+            settingsHash != hash || sourceCalibration != VgeFrameRenderer.CurrentLightingCalibration;
         if (changed)
         {
             ResetFallback();
@@ -117,6 +119,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             published = false; seeded.Clear(); initialized.Clear(); publishedPages.Clear(); refreshSchedule.Clear(); batches.Clear(); identities.Clear(); pageGenerations.Clear(); pageCaptureRevisions.Clear(); ResetLightingAdmission();
             atlas = resources; scene = current; sceneRevision = current.InvalidationRevision;
             historyRevision = feedback.GeometryHistoryRevision; settingsHash = hash;
+            sourceCalibration = VgeFrameRenderer.CurrentLightingCalibration;
             readiness = new uint[pool.Plan.CapacityPages + 1];
             readyBuffer ??= GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw, debugName: "SurfaceLighting.Readiness");
             readyBuffer.EnsureCapacity(readiness.Length * sizeof(uint), growExponentially: false);

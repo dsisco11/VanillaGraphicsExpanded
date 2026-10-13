@@ -14,8 +14,10 @@ atmosphere's scattered-sky E/pi multiplied by decoded sky availability. Terrain 
 publishers use shared `pbr_photometric` conversion once, with active decoder-specific floor/full
 endpoints. `VgeLocalEnvironment` adds these two already integrated inputs without a 0.35 factor.
 Shared environment material response and indirect AO ownership remain unchanged. The historical
-approximation below predates this conversion; full scene/cache storage and exposure integration
-remain tracked in `PBR.PhotometricLighting.todo`, so this intermediate state is not a release candidate.
+approximation below predates this conversion. Persistent lighting uses fixed scale C=1/16;
+transient scene lighting uses frozen frame scale P, with physical decoding at evaluation and
+display boundaries. Remaining integrated qualification and camera/configuration migration are
+tracked in `PBR.PhotometricLighting.todo`; this intermediate state is not a release candidate.
 
 Opaque terrain and supported entity/late shader families publish local environment irradiance
 to primary attachment 7 (`RGBA16F`). The value combines the engine's local block-light RGB

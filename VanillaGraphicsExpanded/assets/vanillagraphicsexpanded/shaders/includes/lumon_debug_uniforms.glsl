@@ -1,11 +1,13 @@
 @import "./gbuffer_layers.glsl"
+@import "./pbr_frame_lighting.glsl"
+@import "./pbr_persistent_lighting.glsl"
 // Shared uniforms/samplers for LumOn debug shaders.
 // Shared binding schema for independently compiled per-view entrypoints.
 
 #ifndef LUMON_DEBUG_UNIFORMS_GLSL
 #define LUMON_DEBUG_UNIFORMS_GLSL
 
-// UBO contracts (Phase 23).
+// Shared immutable view and diagnostic parameter contracts.
 @import "./lumon_ubos.glsl"
 @import "./lumon_debug_params_ubo.glsl"
 

@@ -45,13 +45,27 @@ final-statement workaround and test normalization for those duplicate delimiters
 Source evaluation now uses calibrated atmosphere lux/nits, shared block E/pi, explicitly adapted
 engine point candela and a 32-nit emission reference. Shared direct diffuse response divides by pi
 for sun and punctual sources alike. This source conversion preserves material capture, Fresnel/
-metallic partition and shadow ownership. Integrated frame/cache storage, remaining transport
-consumers and display migration are still pending in `PBR.PhotometricLighting.todo`; existing
-storage/display descriptions below must not be read as completed photometric integration.
+metallic partition and shadow ownership. Cache/probe and atmosphere lighting now use fixed-scale
+persistent storage, decoded at their declared consumers. The connected transient pipeline uses
+one frozen frame scale P for lighting storage and decodes it before physical evaluation or display.
+Remaining qualification and camera/configuration migration are tracked in
+`PBR.PhotometricLighting.todo`; this intermediate pipeline is not a release candidate.
 
-Direct diffuse/specular, emission, Surface Cache and indirect lighting remain unexposed linear
-signals. `pbr_composite` adds their contributions and blends fog after decoding the engine fog
-color to linear. It does not clamp radiance to one or apply a display transform.
+Direct diffuse/specular, emission and gathered indirect lighting remain unexposed linear
+signals, stored with P in transient targets. Surface Cache and probe images store their physical quantities times 1/16; material
+coefficients remain data. `pbr_composite` adds lighting contributions and converts authored fog
+through the 32-nit compatibility reference before blending. It does not clamp radiance to one or
+apply a display transform.
+
+The material atlas owner admits finite binary16 parameters before replacing or uploading an
+image. It retains the maximum neutral emission decoded from admitted coefficients,
+including binary16 rounding and accepted pending uploads, through the matching atlas lifetime.
+Cached restores and asynchronous artifacts use that same page admission. Queued transfers retain
+the concrete texture owner and discard retired destinations before uploading; reused numeric
+texture names cannot redirect an old job into a replacement image. A lower replacement cannot
+erase the bound of compatible cached lighting. Invalid replacement data leaves the previous
+texture and bound available; page retirement removes both. The compact Surface Cache material
+LUT retains its own decoded emission bound and C-encoded emission payload.
 
 `pbr_display_resolve` copies linear radiance on an HDR frame, including sky, and composites
 the captured premultiplied particle layer over the transported background once. On the retained

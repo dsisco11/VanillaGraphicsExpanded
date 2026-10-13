@@ -5,7 +5,8 @@ namespace VanillaGraphicsExpanded.PBR.CameraExposure;
 
 /// <summary>Declares the compute camera metering pass inputs.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
-internal interface ICameraHistogramShaderProgramBindings
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
+internal interface ICameraHistogramShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings
 {
     #region Public API
     /// <summary>Supplies metering and adaptation parameters.</summary>

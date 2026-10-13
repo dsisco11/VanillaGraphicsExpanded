@@ -3,7 +3,8 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 /// <summary>Declares the owned pbr_lightshafts resource contract.</summary>
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
-internal interface ILightShaftShaderProgramBindings
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
+internal interface ILightShaftShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings
 {
     #region Public API
     /// <summary>Reuses the shared projection for scene-depth reconstruction.</summary>

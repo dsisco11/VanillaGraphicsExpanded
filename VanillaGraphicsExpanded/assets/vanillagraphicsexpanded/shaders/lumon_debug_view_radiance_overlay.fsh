@@ -24,7 +24,7 @@ vec4 renderRadianceOverlayDebug()
 
     // indirectHalf is a half-resolution HDR buffer. Sample in normalized UVs;
     // the hardware sampler handles the resolution mismatch.
-    vec3 rad = texture(indirectHalf, uv).rgb;
+    vec3 rad = VgePhysicalFrameLight(texture(indirectHalf, uv).rgb);
 
     // Simple Reinhard tone map for visualization
     vec3 color = rad / (rad + vec3(1.0));

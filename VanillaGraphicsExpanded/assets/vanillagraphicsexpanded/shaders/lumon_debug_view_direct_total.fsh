@@ -18,7 +18,7 @@ vec4 renderDirectTotalDebug()
 {
     vec3 dd = texture(directLighting, vec3(uv, VGE_DIRECT_DIFFUSE)).rgb;
     vec3 ds = texture(directLighting, vec3(uv, VGE_DIRECT_SPECULAR)).rgb;
-    return vec4(vgeTonemapReinhard(dd + ds), 1.0);
+    return vec4(vgeTonemapReinhard(VgePhysicalFrameLight(dd + ds)), 1.0);
 }
 
 /** Renders only the DirectTotal view; mode selection occurs before program loading. */

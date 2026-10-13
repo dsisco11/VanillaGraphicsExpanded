@@ -2,6 +2,7 @@
 #extension GL_ARB_shader_storage_buffer_object : require
 #extension GL_ARB_shader_image_load_store : require
 @import "./includes/camera_exposure_buffer.glsl"
+@import "./includes/pbr_frame_lighting.glsl"
 @import "./includes/postprocess_inputs.glsl"
 uniform sampler2D sourceImage;
 uniform sampler2D secondaryImage;
@@ -66,7 +67,7 @@ void main()
         if (extract)
         {
             float ev = passInfo.w > .5 ? cameraExposureEV : effect.w;
-            exposureMultiplier = exp2(clamp(ev, -24.0, 24.0));
+            exposureMultiplier = exp2(clamp(ev, -24.0, 24.0)) * lightingStorage.y;
         }
         color = reduceScene(extract, exposureMultiplier);
     }

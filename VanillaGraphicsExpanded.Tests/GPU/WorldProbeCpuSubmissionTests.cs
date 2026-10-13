@@ -4,6 +4,7 @@ using VanillaGraphicsExpanded.LumOn.WorldProbes;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VanillaGraphicsExpanded.PBR;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -13,6 +14,41 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Invalid scalar metadata or one invalid directional lane rejects the complete probe update before any attachment is changed.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    [InlineData(2)]
+    [InlineData(3)]
+    [InlineData(4)] [InlineData(5)] [InlineData(6)] [InlineData(7)]
+    public void UnsupportedCpuPublicationRetainsEveryAttachment(int invalidKind)
+    {
+        EnsureContextValid();
+        using var atlas = new SurfaceLightingWorldProbeFixture();
+        Assert.Equal(1, atlas.TryUpload(Result(.25f, .5f), 1024));
+        float[] radiance = atlas.Resources.ProbeRadianceAtlas.ReadPixels();
+        float[] metadata = atlas.Resources.ProbeMeta0.ReadPixels();
+        float[] visibility = atlas.Resources.ProbeVis0.ReadPixels();
+        float[] distance = atlas.Resources.ProbeDist0.ReadPixels();
+        var invalid = Result(.75f, .9f);
+        invalid = invalidKind switch
+        {
+            0 => invalid with { Confidence = float.NaN },
+            1 => invalid with { MeanLogHitDistance = float.PositiveInfinity },
+            2 => invalid with { AtlasSamples = [new(0, 0, new Vector3(.75f), 1), new(1, 0, new Vector3(131200), 1)] },
+            3 => invalid with { AtlasSamples = [new(0, 0, new Vector3(.75f), 1), new(1, 0, new Vector3(float.NaN), 1)] },
+            4 => invalid with { SkyIntensity = float.NaN },
+            5 => invalid with { ShortRangeAoDirWorld = Vector3.Zero },
+            6 => invalid with { ShortRangeAoDirWorld = new Vector3(float.NaN) },
+            _ => invalid with { ShortRangeAoDirWorld = new Vector3(float.MaxValue) }
+        };
+        Assert.Equal(0, atlas.TryUpload(invalid, 1024));
+        Assert.Equal(radiance, atlas.Resources.ProbeRadianceAtlas.ReadPixels());
+        Assert.Equal(metadata, atlas.Resources.ProbeMeta0.ReadPixels());
+        Assert.Equal(visibility, atlas.Resources.ProbeVis0.ReadPixels());
+        Assert.Equal(distance, atlas.Resources.ProbeDist0.ReadPixels());
+    }
+
     /// <summary>Two-pass publication ignores hostile ambient state, restores it and republishes changed values without clearing neighbors.</summary>
     [Fact]
     public void CpuAtlasPublicationRestoresHostileStateAndPreservesNeighbors()
@@ -30,13 +66,13 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest)); Assert.Equal((int)DepthFunction.Never, GL.GetInteger(GetPName.DepthFunc));
             int[] viewport = new int[4]; GL.GetInteger(GetPName.Viewport, viewport); Assert.Equal(new[] { 3, 4, 5, 6 }, viewport);
             bool[] mask = new bool[4]; GL.GetBoolean(GetPName.ColorWritemask, mask); Assert.All(mask, Assert.False);
-            float[] pixels = atlas.Resources.ProbeRadianceAtlas.ReadPixels(); Assert.InRange(pixels[0], .2499f, .2501f);
+            float[] pixels = atlas.Resources.ProbeRadianceAtlas.ReadPixels(); Assert.InRange(pixels[0], .2499f * LightingStorage.PersistentScale, .2501f * LightingStorage.PersistentScale);
             float[] meta = atlas.Resources.ProbeMeta0.ReadPixels(); Assert.InRange(meta[0], .4999f, .5001f);
             Assert.Equal(0, atlas.TryUpload(Result(.75f, .9f), 1));
             Assert.Equal(pixels, atlas.Resources.ProbeRadianceAtlas.ReadPixels());
             atlas.InvalidatePrograms();
             Assert.Equal(1, atlas.TryUpload(Result(.75f, .9f), 1024));
-            var changed = atlas.Resources.ProbeRadianceAtlas.ReadPixels(); Assert.InRange(changed[0], .7499f, .7501f);
+            var changed = atlas.Resources.ProbeRadianceAtlas.ReadPixels(); Assert.InRange(changed[0], .7499f * LightingStorage.PersistentScale, .7501f * LightingStorage.PersistentScale);
             Assert.Equal(pixels.AsSpan(4).ToArray(), changed.AsSpan(4).ToArray());
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

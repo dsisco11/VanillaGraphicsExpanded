@@ -24,6 +24,8 @@ internal sealed class RuntimeLightingHost : IDisposable
     public VanillaGraphicsExpanded.Rendering.GpuTexture? SceneLinearColor => compositeRenderer?.SceneLinearColor;
     public LumOnWorldProbeUpdateRenderer WorldRenderer { get; }
     public LumOnBufferManager Screen => lighting.GetLumOnBufferManagerOrNull()!;
+    /// <summary>Retains the native world/table boundary used exclusively by the shared camera owner.</summary>
+    public RuntimeCameraWorld CameraWorld { get; }
 
     #region Production initialization
     /// <summary>Runs normal mod wiring; camera and source dependencies are provided before owner construction.</summary>
@@ -31,7 +33,8 @@ internal sealed class RuntimeLightingHost : IDisposable
         Func<LumOnCameraState?> camera, bool pbrComposition = false)
     {
         this.world = world;
-        frameCamera = new(api);
+        CameraWorld = new(RuntimeEngineServices.CameraPlayer(camera));
+        frameCamera = new(RuntimeEngineServices.Client(api, api.Event, CameraWorld.World, api.Render, api.Shader));
         lights = new(api);
         hierarchy = new(api);
         lighting = new(() => cache.Config, _ => camera(), (_, materials) => cache.CreateSource(materials));

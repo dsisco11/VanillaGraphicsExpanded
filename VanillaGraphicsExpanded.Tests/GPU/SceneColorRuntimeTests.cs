@@ -83,6 +83,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         Mock.Get(render).SetupGet(value => value.WireframeDebugRender).Returns(new WireframeModes());
         Mock.Get(render).SetupGet(value => value.CurrentRenderStage).Returns(EnumRenderStage.Opaque);
         Mock.Get(render).SetupGet(value => value.CurrentFrameBuffer).Returns(primary);
+        Mock.Get(render).SetupGet(value => value.AmbientColor).Returns(new Vec3f(.1f, .2f, .3f));
         var events = new Mock<IClientEventAPI>();
         var api = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
         api.SetupGet(value => value.Assets).Returns(assets.Api.Assets);
@@ -92,6 +93,10 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         api.SetupGet(value => value.Render).Returns(render);
         api.SetupGet(value => value.Shader).Returns(programs.Api);
         api.SetupGet(value => value.World).Returns(CreateWorld());
+        api.SetupGet(value => value.Ambient.BlendedFogColor).Returns(new Vec4f(2, 4, 1, 1));
+        var loader = new Mock<IModLoader>();
+        loader.Setup(value => value.GetModSystem<Vintagestory.GameContent.WeatherSystemClient>(It.IsAny<bool>())).Returns((Vintagestory.GameContent.WeatherSystemClient)null!);
+        api.SetupGet(value => value.ModLoader).Returns(loader.Object);
         programs.Initialize(api.Object);
         using var frameCamera = new VgeFrameRenderer(api.Object);
         using var lights = new VgeLightsRenderer(api.Object);
@@ -114,6 +119,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         var previousApi = PbrDrawRouteHook.Api;
         var previousExposure = ConfigModSystem.Config.CameraExposure;
         using var camera = new CameraExposureRenderer(api.Object);
+        using var lightingPublication = new SceneLightingPublicationRenderer(api.Object);
         using var post = new PostprocessPipeline(api.Object);
         using var shaftOcclusion = new LightShaftOcclusionRenderer(api.Object);
         using var hierarchy = new DepthHierarchyRenderer(api.Object);
@@ -135,21 +141,45 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             ShaderPrograms.Final = null;
             PbrDrawRouteHook.Api = api.Object;
             harmony.CreateClassProcessor(typeof(PbrDrawRouteHook)).Patch();
-            atmosphere.Publish(new(Vector3.UnitY, Vector3.One, Vector3.One, Vector3.Zero, Vector3.Zero,
-                ImmutableArray.Create(8f, 4f, 2f, 1f)) { Width = 1, Height = 1 });
+            var authoredAtmosphere = new AtmosphereLighting(Vector3.UnitY, Vector3.One, Vector3.One, Vector3.Zero, Vector3.Zero,
+                ImmutableArray.Create(8f, 4f, 2f, 1f)) { Width = 1, Height = 1 };
+            // Native Before order publishes the shared camera before the completed scene preparation owner.
+            frameCamera.BeginFrame();
+            frameCamera.OnRenderFrame(0, EnumRenderStage.Before);
+            atmosphere.Publish(authoredAtmosphere);
             particles.OnRenderFrame(0, EnumRenderStage.Before);
             scene.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.True(SceneColorPipeline.HasSceneInput, string.Join(Environment.NewLine, assets.Logs));
-            frameCamera.BeginFrame();
-            frameCamera.OnRenderFrame(0, EnumRenderStage.Before);
+            Assert.Equal(VgeFrameRenderer.Current.FrameIndex, SceneColorPipeline.CurrentFog.FrameIndex);
+            Assert.Equal(6, SceneColorPipeline.CurrentFog.AuthoredMaximum);
+            Assert.Equal(VgeFrameRenderer.Current.FrameIndex, SceneColorPipeline.CurrentCloud.FrameIndex);
+            Assert.Null(SceneColorPipeline.CurrentCloud.Owner);
+            Assert.Equal(0, SceneColorPipeline.CurrentCloud.VertexMaximum);
             lights.OnRenderFrame(0, EnumRenderStage.Before);
             lights.OnRenderFrame(0, EnumRenderStage.Opaque);
+            lightingPublication.OnRenderFrame(0, EnumRenderStage.Opaque);
+            Assert.True(CameraExposureRenderer.LightingDiagnostics.Frozen);
+            float scenePhysicalBound = CameraExposureRenderer.LightingDiagnostics.PhysicalBoundNits;
+            uint sceneCalibration = VgeFrameRenderer.Current.CalibrationGeneration;
+            float sceneInverseScale = ExposureTestStorage.Read<float>(CameraExposureRenderer.FrozenLighting)[1];
+            SceneLightingPublicationRenderer.RequireNativeInputs("particlescube");
+            var admittedBuffer = CameraExposureRenderer.FrozenLighting;
+            int admittedStorage = admittedBuffer.BufferId;
+            atmosphere.Publish(authoredAtmosphere with { Solar = new Vector3(1000), Environment = new Vector3(1000) });
+            Assert.Throws<InvalidOperationException>(() => SceneLightingPublicationRenderer.RequireNativeInputs("particlescube"));
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FrozenLighting);
+            Assert.Equal(admittedStorage, admittedBuffer.BufferId);
+            atmosphere.Publish(authoredAtmosphere);
+            Assert.Throws<InvalidOperationException>(() => SceneLightingPublicationRenderer.RequireNativeInputs("particlescube"));
+            lightingPublication.OnRenderFrame(0, EnumRenderStage.Before);
+            lightingPublication.OnRenderFrame(0, EnumRenderStage.Opaque);
+            SceneLightingPublicationRenderer.RequireNativeInputs("particlescube");
             engine.BindWithViewport();
             GL.ClearBuffer(ClearBuffer.Color, 0, new float[4]);
             GL.DepthMask(true);
             GL.ClearBuffer(ClearBuffer.Depth, 0, new[] { 1f });
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
-            Assert.True(engine[0].ReadPixels()[0] > 1f, "Owned sky must retain HDR radiance in primary.");
+            Assert.True(engine[0].ReadPixels()[0] * sceneInverseScale > 1f, "Owned sky must retain physical HDR radiance in primary.");
 
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.Null(LightShaftOcclusionRenderer.Texture);
@@ -226,13 +256,13 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             camera.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.DisplayExposure());
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FrozenLighting);
-            var physicalBounds = new FrameLightingBounds(100, 0, 0, 0, 0, 0);
-            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 1);
+            var physicalBounds = new FrameLightingBounds(scenePhysicalBound, 0, 0, 0, 0, 0);
+            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, sceneCalibration);
             int initialFrozen = CameraExposureRenderer.FrozenLighting.BufferId;
-            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 1);
+            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, sceneCalibration);
             Assert.Equal(initialFrozen, CameraExposureRenderer.FrozenLighting.BufferId);
-            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 2));
-            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FreezeLightingStorage(physicalBounds with { Surface = 101 }, 1));
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FreezeLightingStorage(physicalBounds, sceneCalibration + 1));
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FreezeLightingStorage(physicalBounds with { Surface = physicalBounds.Surface + 1 }, sceneCalibration));
             var postprocess = AccessTools.Method(typeof(ClientPlatformWindows), nameof(ClientPlatformWindows.RenderPostprocessingEffects));
             post.OnRenderFrame(0, EnumRenderStage.Before);
             post.Render(new(true, true, ssaoQuality > 0, true, ssaoQuality));
@@ -245,27 +275,22 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.NotEqual(postStorage.TextureId, ownedRays);
             Assert.True(GL.IsTexture(ownedBloom)); Assert.True(GL.IsTexture(ownedRays));
             float luma = handedOff[0] * .2126f + handedOff[1] * .7152f + handedOff[2] * .0722f;
-            float expectedEv = Math.Clamp(MathF.Log2(.18f / luma), -4, 4);
+            float expectedEv = Math.Clamp(MathF.Log2(.18f / (luma * sceneInverseScale)), -4, 4);
             float ev = ExposureTestStorage.Read<float>(CameraExposureRenderer.DisplayExposure().Buffer!)[0];
             Assert.InRange(ev, expectedEv - .002f, expectedEv + .002f);
-            // Device queries surround both warmed passes, with no per-frame image readback.
-            var milliseconds = new List<double>();
-            for (int sample = 0; sample < 8; sample++)
-            {
-                camera.OnRenderFrame(1f / 60, EnumRenderStage.Before);
-                using var timer = GpuTimerQuery.Create();
-                timer.Begin(); CameraExposureRenderer.MeterScene(); timer.End();
-                milliseconds.Add(timer.GetResultNanoseconds() / 1e6);
-            }
-            output.WriteLine($"Synthetic camera metering (2x2 uniform scene, fixed 64x36 grid), 8 warmed GPU samples: min={milliseconds.Min():F4} ms, median={milliseconds.Order().ElementAt(4):F4} ms, max={milliseconds.Max():F4} ms. This is not in-game frame cost.");
             int beforeRetire = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
             ConfigModSystem.Config.CameraExposure = new() { Enabled = false };
             camera.OnRenderFrame(0, EnumRenderStage.Before);
             CameraExposureRenderer.MeterScene();
             Assert.Null(CameraExposureRenderer.DisplayExposure().Buffer);
             Assert.Equal(0, CameraExposureRenderer.DisplayExposure().ManualEV);
-            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 1));
+            Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FreezeLightingStorage(physicalBounds, sceneCalibration));
             Assert.False(GL.IsBuffer(beforeRetire));
+
+            // The next manual frame still needs a scene-storage publication before postprocessing.
+            camera.OnRenderFrame(0, EnumRenderStage.Before);
+            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, sceneCalibration);
+            CameraExposureRenderer.MeterScene();
 
             // The owned final reads owned luma and writes primary once, without the engine final program.
             post.OnRenderFrame(0, EnumRenderStage.Before);
@@ -289,10 +314,10 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.Equal(engine.FboId, restoredFramebuffer);
             Assert.Equal(beforeDrawRoute, restoredDrawRoute);
             float[] display = engine[0].ReadPixels();
-            float peak = Math.Max(handedOff[0], Math.Max(handedOff[1], handedOff[2]));
+            float peak = Math.Max(handedOff[0], Math.Max(handedOff[1], handedOff[2])) * sceneInverseScale;
             for (int channel = 0; channel < 3; channel++)
             {
-                float value = handedOff[channel] / (1 + peak);
+                float value = handedOff[channel] * sceneInverseScale / (1 + peak);
                 float expected = value <= .0031308f ? 12.92f * value : 1.055f * MathF.Pow(value, 1 / 2.4f) - .055f;
                 Assert.InRange(display[channel], expected - 1f / 255, expected + 1f / 255);
             }
@@ -306,6 +331,9 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             registry.SetValue(null, new ShaderProgram[] { cube.Engine, new() { PassName = "unclassified", ProgramId = 1 } });
             scene.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.True(SceneColorPipeline.HasSceneInput);
+            camera.OnRenderFrame(0, EnumRenderStage.Before);
+            lightingPublication.OnRenderFrame(0, EnumRenderStage.Before);
+            lightingPublication.OnRenderFrame(0, EnumRenderStage.Opaque);
             cube.Engine.Use();
             AssertMode(cube.Engine, 1);
             cube.Engine.Stop();
@@ -314,7 +342,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.True(SceneColorPipeline.HasSceneInput, string.Join(Environment.NewLine, assets.Logs));
             ConfigModSystem.Config.CameraExposure = new() { Enabled = true };
             camera.OnRenderFrame(0, EnumRenderStage.Before);
-            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 1);
+            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, sceneCalibration);
             CameraExposureRenderer.MeterScene();
             int beforeResize = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
             int frozenBeforeResize = CameraExposureRenderer.FrozenLighting.BufferId;
@@ -329,8 +357,10 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.True(GL.IsTexture(material.TextureId));
             Assert.True(GL.IsTexture(postStorage.TextureId));
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.DisplayExposure());
+            scene.OnRenderFrame(0, EnumRenderStage.Before);
             camera.OnRenderFrame(0, EnumRenderStage.Before);
-            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, 1);
+            CameraExposureRenderer.FreezeLightingStorage(physicalBounds, sceneCalibration);
+            lightingPublication.OnRenderFrame(0, EnumRenderStage.Opaque);
             CameraExposureRenderer.MeterScene();
             // Recreate borrowed luma resources after resize and verify collection retirement never owns engine storage.
             post.OnRenderFrame(0, EnumRenderStage.Before);
@@ -366,9 +396,18 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.False(SceneColorPipeline.HasSceneInput);
             scene.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.True(SceneColorPipeline.HasSceneInput);
+            camera.OnRenderFrame(0, EnumRenderStage.Before);
+            lightingPublication.OnRenderFrame(0, EnumRenderStage.Opaque);
             cube.Engine.Use();
             AssertMode(cube.Engine, 1);
             cube.Engine.Stop();
+            // The actual draw owner rejects a new calibration even when the frame identity is unchanged.
+            var currentCalibration = VgeFrameRenderer.Current.LightingCalibration;
+            VgeFrameRenderer.Current.SetLightingCalibration(currentCalibration with { BlockReferenceLux = currentCalibration.BlockReferenceLux + 1 });
+            Assert.Throws<InvalidOperationException>(() => SceneLightingPublicationRenderer.RequireNativeInputs("particlescube"));
+            frameCamera.BeginFrame();
+            frameCamera.OnRenderFrame(0, EnumRenderStage.Before);
+            Assert.Throws<InvalidOperationException>(() => SceneLightingPublicationRenderer.RequireNativeInputs("particlescube"));
             events.Raise(value => value.LeaveWorld += null!);
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FrozenLighting);
             Assert.False(SceneColorPipeline.HasSceneInput);
@@ -411,6 +450,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         world.player = CreatePlayer(); world.WorldMap = map; world.Platform = platform;
         // The client clock delegates to its platform stopwatch; native construction is unnecessary.
         var flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
+        typeof(ClientMain).GetField("FogColorSky", flags)!.SetValue(world, new Vec3f(6, 2, 3));
         for (Type? type = typeof(ClientPlatformWindows); type != null; type = type.BaseType)
             foreach (var field in type.GetFields(flags | BindingFlags.DeclaredOnly))
                 if (field.FieldType == typeof(System.Diagnostics.Stopwatch)) field.SetValue(platform, new System.Diagnostics.Stopwatch());

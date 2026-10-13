@@ -46,7 +46,7 @@ internal static class AtmosphereMieTransport
                 for (int channel = 0; channel < 3; channel++)
                 {
                     float transport = mie.IsEmpty ? 0 : mie[source + channel];
-                    if (!float.IsFinite(total[source + channel]))
+                    if (!float.IsFinite(total[source + channel]) || total[source + channel] < 0)
                         throw new ArgumentException("Atmosphere components must be finite lighting.");
                     float smooth = MathF.Max(0, total[source + channel] - transport * factor);
                     if (!float.IsFinite(smooth) || !float.IsFinite(transport) || transport < 0)

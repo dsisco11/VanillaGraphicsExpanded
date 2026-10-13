@@ -19,7 +19,7 @@ vec4 renderWorldProbeLightingEffectDebug()
     // A missing paired output is shown explicitly, rather than mistaken for zero effect.
     if (!worldProbeComparisonReady)
         return vec4(0.5, 0.0, 0.5, 1.0);
-    vec3 delta = texture(indirectDiffuseFull, uv).rgb - texture(worldProbeSuppressedLighting, uv).rgb;
+    vec3 delta = VgePhysicalFrameLight(texture(indirectDiffuseFull, uv).rgb - texture(worldProbeSuppressedLighting, uv).rgb);
     // Compare linear luminance before tone mapping. Gain changes only the display,
     // so weak effects can be inspected without changing either lighting branch.
     float difference = dot(delta, vec3(0.2126, 0.7152, 0.0722));

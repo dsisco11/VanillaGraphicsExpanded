@@ -1,4 +1,5 @@
 using System.Numerics;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 using VanillaGraphicsExpanded.LumOn.WorldProbes.Tracing;
@@ -50,12 +51,53 @@ public sealed class WorldProbeResidentPublicationTests(HeadlessGLFixture fixture
         foreach(var sample in reference.AtlasSamples)
         {
             int index=((sample.OctY<<3)+sample.OctX)<<2;
-            Assert.InRange(Math.Abs(pixels[index]-sample.RadianceRgb.X),0,.003f);
-            Assert.InRange(Math.Abs(pixels[index+1]-sample.RadianceRgb.Y),0,.003f);
-            Assert.InRange(Math.Abs(pixels[index+2]-sample.RadianceRgb.Z),0,.003f);
+            Assert.InRange(Math.Abs(pixels[index]-sample.RadianceRgb.X * LightingStorage.PersistentScale),0,.003f);
+            Assert.InRange(Math.Abs(pixels[index+1]-sample.RadianceRgb.Y * LightingStorage.PersistentScale),0,.003f);
+            Assert.InRange(Math.Abs(pixels[index+2]-sample.RadianceRgb.Z * LightingStorage.PersistentScale),0,.003f);
             Assert.InRange(Math.Abs(pixels[index+3]-sample.AlphaEncodedDistSigned),0,.003f);
         }
         Assert.All(pixels.Where((_,index)=>(index&3)==3),value=>Assert.True(value>0));
+    }
+
+    /// <summary>Compact completion rejects unsupported directional light before resident publication can report success.</summary>
+    [Fact]
+    public void UnsupportedDirectionalLightFailsCompactCompletion()
+    {
+        EnsureContextValid();
+        using var platform = new EngineShaderPlatformScope();
+        using var room = new SurfaceLightingEnclosureFixture();
+        room.Seed();
+        room.SetIncidentRadiance(400000);
+        using var assets = new BinaryShaderApiFixture();
+        var item = Item();
+        var directions = WorldProbeGpuIntegration.CreateDirections(item);
+        using var batch = new WorldProbeTraceBatch(assets.Api);
+        batch.Submit(room.Geometry.Scene, room.Snapshot,
+            [new(item.ProbePosWorld, 16, 256, 8, 0, directions.Length)], directions.AsSpan());
+        GpuTestFence.WaitForGpuOrSkip("Unsupported directional completion");
+        Assert.True(batch.TryReadResident(out var answers, out var resident));
+        using (resident)
+        {
+            Assert.Contains(answers, answer => answer.Outcome == 5);
+            Assert.DoesNotContain(answers, answer => answer.Hit.Result.W == 1);
+        }
+        using var backend = new LumOnWorldProbeGpuTraceBackend(assets.Api, 256, () => room.Geometry.Scene,
+            () => room.Snapshot, (_, _) => true, new UnexpectedWorldProbeTraceScene(), _ => true);
+        Assert.True(backend.TryEnqueue(item));
+        Assert.False(backend.TryDequeueResult(out _));
+        GpuTestFence.WaitForGpuOrSkip("Unsupported resident result");
+        Assert.True(backend.TryDequeueResult(out var result));
+        Assert.False(result.Success);
+        Assert.Null(result.GpuLease);
+        // The actual completion failure must remain retryable through the scheduler's existing contract.
+        var scheduler = new VanillaGraphicsExpanded.LumOn.WorldProbes.LumOnWorldProbeScheduler(1, 1);
+        var camera = new Vintagestory.API.MathTools.Vec3d();
+        scheduler.UpdateOrigins(camera, 1);
+        var request = scheduler.BuildUpdateList(0, camera, 1, [1], 1, 4096, 4).Single();
+        Assert.True(scheduler.TryClaim(request, 0));
+        scheduler.Complete(request, 0, result.Success);
+        var retry = scheduler.BuildUpdateList(100, camera, 1, [1], 1, 4096, 4).Single();
+        Assert.True(scheduler.TryClaim(retry, 100));
     }
 
     /// <summary>Publication rechecks ownership after completion and leaves every atlas channel untouched on rejection.</summary>

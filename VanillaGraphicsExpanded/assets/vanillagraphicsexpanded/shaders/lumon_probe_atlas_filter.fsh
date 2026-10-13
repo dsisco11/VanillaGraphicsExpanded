@@ -18,6 +18,7 @@ layout(location = 1) out vec2 outMeta;      // R = filtered confidence, G = uint
 @import "./includes/lumon_common.glsl"
 @import "./includes/lumon_octahedral.glsl"
 @import "./includes/lumon_probe_atlas_meta.glsl"
+@import "./includes/pbr_persistent_lighting.glsl"
 
 // Phase 23: shared per-frame state via UBOs.
 @import "./includes/lumon_ubos.glsl"
@@ -65,6 +66,13 @@ void main(void)
 
     float confCenter; uint flagsCenter;
     lumonDecodeMeta(metaCenter, confCenter, flagsCenter);
+    if (!VgeStoredDirectionalLightAdmitted(center.rgb) || isnan(center.a) || isinf(center.a)
+        || isnan(confCenter) || isinf(confCenter))
+    {
+        outRadiance = vec4(0);
+        outMeta = lumonEncodeMeta(0.0, 0u);
+        return;
+    }
 
     float centerHitDist = lumonDecodeHitDistance(center.a);
     bool centerHit = (flagsCenter & LUMON_META_HIT) != 0u;
@@ -98,7 +106,8 @@ void main(void)
             lumonDecodeMeta(metaSample, confS, flagsS);
 
             // Treat non-positive confidence as unusable.
-            if (confS <= 0.0) continue;
+            if (!(confS > 0.0) || isinf(confS) || !VgeStoredDirectionalLightAdmitted(radianceSample.rgb)
+                || isnan(radianceSample.a) || isinf(radianceSample.a)) continue;
 
             bool sampleHit = (flagsS & LUMON_META_HIT) != 0u;
             if (sampleHit != centerHit) continue;
@@ -129,6 +138,10 @@ void main(void)
     vec4 filtered = accum / totalW;
     float outConf = (confDenom > 1e-6) ? clamp(confAccum / confDenom, 0.0, 1.0) : confCenter;
 
-    outRadiance = filtered;
-    outMeta = lumonEncodeMeta(outConf, flagsCenter);
+    vec3 protectedResult;
+    bool clipped;
+    bool admitted = VgeStoredDirectionalLightAdmitted(filtered.rgb)
+        && VgeProtectLightingStorage(filtered.rgb, 0.0, VGE_STORAGE_HALF_MAX, protectedResult, clipped) && !clipped;
+    outRadiance = admitted ? vec4(protectedResult, filtered.a) : center;
+    outMeta = lumonEncodeMeta(admitted ? outConf : confCenter, flagsCenter);
 }

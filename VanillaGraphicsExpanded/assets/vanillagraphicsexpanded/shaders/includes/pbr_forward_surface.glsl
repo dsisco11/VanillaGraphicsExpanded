@@ -1,5 +1,6 @@
 #ifndef VGE_PBR_FORWARD_SURFACE_GLSL
 #define VGE_PBR_FORWARD_SURFACE_GLSL
+@import "./pbr_scene_storage.glsl"
 @import "./pbr_environment.glsl"
 #ifndef VGE_PBR_FORWARD_LUMON
 #error Forward PBR requires an explicit lighting mode before compilation.
@@ -63,10 +64,11 @@ vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog, float t
     // Atmosphere owns air transport. Retain the engine's separate underwater medium,
     // but do not blend its distance haze over the atmospheric result a second time.
     if (vge_atmosphereAerialParams.z > .7)
-        radiance = mix(radiance, VgeSrgbToLinear(rgbaFog.rgb), clamp(fog, 0.0, 1.0));
+        radiance = mix(radiance, VgeCompatibilityLuminance(rgbaFog.rgb), clamp(fog, 0.0, 1.0));
     else
-        radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility, vge_atmosphereAerialParams.xy, vge_atmosphereSunDirection);
-    return VgeSceneOutput(radiance, gl_FragCoord.xy, vge_pbrRoute != 0);
+        radiance = VgeApplyAerial(radiance, toWorld * vge_viewPosition, vge_skyVisibility, vge_atmosphereAerialParams.xyw, vge_atmosphereSunDirection);
+    if (vge_pbrRoute != 0) return VgeStoreSceneLighting(radiance);
+    return VgeSceneOutput(radiance, gl_FragCoord.xy, false);
 }
 /** Preserves non-transmitting callers which have no material transmission metadata. */
 vec3 VgeForwardSurface(vec3 baseColor, vec3 N, vec3 material, float fog)

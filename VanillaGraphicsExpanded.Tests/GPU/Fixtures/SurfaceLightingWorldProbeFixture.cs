@@ -9,8 +9,8 @@ internal sealed class SurfaceLightingWorldProbeFixture : IDisposable
 {
     private readonly EngineShaderPlatformScope platform = new();
     private readonly BinaryShaderApiFixture assets = new();
-    private readonly LumOnWorldProbeClipmapResolveShaderProgram metadata = new();
-    private readonly LumOnWorldProbeRadianceTileResolveShaderProgram radiance = new();
+    private readonly LumOnWorldProbeClipmapResolveShaderProgram metadata = new() { PassName = "lumon_worldprobe_clipmap_resolve" };
+    private readonly LumOnWorldProbeRadianceTileResolveShaderProgram radiance = new() { PassName = "lumon_worldprobe_radiance_tile_resolve" };
     private readonly LumOnWorldProbeClipmapGpuUploader uploader;
     public LumOnWorldProbeClipmapGpuResources Resources { get; }
 

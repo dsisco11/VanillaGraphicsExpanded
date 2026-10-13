@@ -558,6 +558,7 @@ internal sealed class TextureStreamingManager : IDisposable
         return TextureStageResult.EnqueuedFallback();
     }
 
+    /// <summary>Copies floating-point staging data and preserves optional destination identity across every fallback path.</summary>
     public TextureStageResult StageCopy(
         int textureId,
         TextureUploadTarget target,
@@ -568,7 +569,8 @@ internal sealed class TextureStreamingManager : IDisposable
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
         int unpackRowLength = 0,
-        int unpackImageHeight = 0)
+        int unpackImageHeight = 0,
+        GpuTexture? textureOwner = null)
     {
         if (pixelType != PixelType.Float)
         {
@@ -606,7 +608,8 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight,
+                textureOwner);
         }
 
         TextureUploadRequest request = new(
@@ -619,7 +622,8 @@ internal sealed class TextureStreamingManager : IDisposable
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
             UnpackRowLength: unpackRowLength,
-            UnpackImageHeight: unpackImageHeight);
+            UnpackImageHeight: unpackImageHeight,
+            TextureOwner: textureOwner);
 
         int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
         int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
@@ -695,7 +699,8 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight,
+                textureOwner);
         }
 
         Interlocked.Increment(ref enqueued);
@@ -809,6 +814,20 @@ internal sealed class TextureStreamingManager : IDisposable
 
                 UploadCommand cmd = work[i];
                 TextureUploadRequest request = cmd.Request;
+                // A queued material upload belongs to its concrete image lifetime, not
+                // a recyclable GL name. Retired owners cannot overwrite a replacement.
+                if (request.TextureOwner is { } owner && (!owner.IsValid || owner.TextureId != request.TextureId))
+                {
+                    cmd.OwnedBuffer?.Dispose();
+                    // Retire a staged ring allocation through its existing fence queue
+                    // even though no texture transfer is issued for the expired owner.
+                    if (cmd.Kind == UploadCommandKind.FromPersistentRing
+                        && backend is PersistentMappedPboRing retiredRing
+                        && cmd.PboUpload.BufferId == retiredRing.BufferId)
+                        retiredRing.SubmitUpload(cmd.PboUpload);
+                    Interlocked.Increment(ref droppedInvalid);
+                    continue;
+                }
 
                 PreparedUpload prepared;
                 if (cmd.Kind == UploadCommandKind.FromPersistentRing)
@@ -1128,7 +1147,8 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight,
+                request.TextureOwner);
         }
 
         int rowStrideBytes = (int)rowStrideBytesLong;
@@ -1148,7 +1168,8 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight,
+                request.TextureOwner);
         }
 
         bool anyEnqueued = false;
@@ -1226,7 +1247,8 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight,
+                request.TextureOwner);
         }
 
         for (int z = 0; z < regionDepth; z++)
@@ -1398,7 +1420,8 @@ internal sealed class TextureStreamingManager : IDisposable
         int priority,
         int unpackAlignment,
         int unpackRowLength,
-        int unpackImageHeight)
+        int unpackImageHeight,
+        GpuTexture? textureOwner = null)
     {
         int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
         int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
@@ -1413,7 +1436,8 @@ internal sealed class TextureStreamingManager : IDisposable
             Priority: priority,
             UnpackAlignment: unpackAlignment,
             UnpackRowLength: unpackRowLength,
-            UnpackImageHeight: unpackImageHeight);
+            UnpackImageHeight: unpackImageHeight,
+            TextureOwner: textureOwner);
 
         OwnedCpuUploadBuffer owned = CopyToOwnedCpuBuffer(bytes, byteCount);
         long sequenceId = Interlocked.Increment(ref nextSequenceId);
@@ -2591,7 +2615,8 @@ internal readonly record struct TextureUploadRequest(
     int Priority = 0,
     int UnpackAlignment = 1,
     int UnpackRowLength = 0,
-    int UnpackImageHeight = 0);
+    int UnpackImageHeight = 0,
+    GpuTexture? TextureOwner = null);
 
 internal enum TextureUploadDataKind
 {

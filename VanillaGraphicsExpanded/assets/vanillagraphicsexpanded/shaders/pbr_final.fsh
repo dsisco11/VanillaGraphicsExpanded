@@ -2,6 +2,7 @@
 #extension GL_ARB_shader_storage_buffer_object : require
 #extension GL_ARB_shader_image_load_store : require
 @import "./includes/camera_exposure_buffer.glsl"
+@import "./includes/pbr_frame_lighting.glsl"
 @import "./includes/vge_frame_ubo.glsl"
 @import "./includes/pbr_color.glsl"
 @import "./includes/post_antialias.glsl"
@@ -20,7 +21,7 @@ void main()
     vec3 radiance=exposure.z>.5?VgeFilterDisplayEdge(sceneImage,uv,1.0/vgeFrame.screenSize).rgb:texture(sceneImage,uv).rgb;
     radiance+=texture(bloomImage,uv).rgb+texture(shaftImage,uv).rgb;
     float ev=exposure.y>.5?cameraExposureEV:exposure.x;
-    vec3 display=VgeResolveDisplay(radiance*exp2(ev));
+    vec3 display=VgeResolveDisplay(VgePhysicalFrameLight(radiance)*exp2(ev));
     display=VgeGradeDisplay(display,grading,effects.x);
     display=VgeScreenEffects(display,uv,gl_FragCoord.xy,effects,vignette);
     outColor=vec4(VgeDitherFinalDisplay(display,gl_FragCoord.xy),1.0);

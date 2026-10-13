@@ -35,7 +35,7 @@ internal sealed partial class LiquidShaderProgram
     internal Vector4 SolarIrradiance { set => frame.SolarIrradiance = value; }
     /// <summary>Stages environment irradiance in RGB; W is reserved; Use submits the completed frame.</summary>
     internal Vector4 EnvironmentIrradiance { set => frame.EnvironmentIrradiance = value; }
-    /// <summary>Stages altitude, horizon elevation, camera-underwater amount, and reserved zero; Use submits the completed frame.</summary>
+    /// <summary>Stages altitude, horizon elevation, camera-underwater amount, and inverse lookup scale.</summary>
     internal Vector4 AerialParameters { set => frame.AerialParameters = value; }
     /// <summary>Stages psychedelic strength in Y; other components are reserved; Use submits the completed frame.</summary>
     internal Vector4 Perception { set => frame.Perception = value; }
@@ -68,7 +68,8 @@ internal sealed partial class LiquidShaderProgram
         SunDirection = new(atmosphere?.Sun ?? Vector3.UnitY, 0);
         SolarIrradiance = new(atmosphere?.Solar ?? Vector3.Zero, 0);
         EnvironmentIrradiance = new(atmosphere?.Environment ?? Vector3.Zero, 0);
-        AerialParameters = new(atmosphere?.Altitude ?? 0, atmosphere?.HorizonElevation ?? 0, u.CameraUnderwater, 0);
+        AerialParameters = new(atmosphere?.Altitude ?? 0, atmosphere?.HorizonElevation ?? 0, u.CameraUnderwater,
+            1 / (atmosphere?.LookupStorageScale ?? 1));
         // Boundary capture consumes no fog spheres. Keep its count zero so retained fog bytes
         // are never advertised as current; surface recapture refreshes the active prefix.
         var settings = RequestedSettings;

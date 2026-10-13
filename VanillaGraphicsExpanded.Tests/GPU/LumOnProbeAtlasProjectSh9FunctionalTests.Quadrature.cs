@@ -2,6 +2,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.PBR;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
@@ -9,6 +10,33 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public partial class LumOnProbeAtlasProjectSh9FunctionalTests
 {
     #region Angular invariants
+    /// <summary>Actual SH attachments retain negative directional bands at fixed scale without scaling confidence.</summary>
+    [Fact]
+    public void SignedProjectionRetainsFixedScaleAndConfidence()
+    {
+        EnsureShaderTestAvailable();
+        var stored = ProjectPattern((x, y) => new Vector3(4096 * (1 - .75f * DecodeDirection((x + .5) / 8, (y + .5) / 8, out _).X)),
+            (_, _) => 1, storedCoefficients: true);
+        var reference = IntegrateCells((x, y) => new Vector3(4096 * (1 - .75f * DecodeDirection((x + .5) / 8, (y + .5) / 8, out _).X)), (_, _) => true);
+        Assert.Contains(stored.Take(27), value => value < -1);
+        for (int coefficient = 0; coefficient < 27; coefficient++)
+            Assert.InRange(Math.Abs(stored[coefficient] - reference[coefficient] * LightingStorage.PersistentScale),
+                0, .0002 * 4096 * LightingStorage.PersistentScale + Math.Abs(reference[coefficient] * LightingStorage.PersistentScale) * .0015);
+        Assert.Equal(1, stored[27]);
+    }
+
+    /// <summary>Exceptional or over-domain directional inputs withdraw projection confidence rather than publish valid clamped coefficients.</summary>
+    [Theory]
+    [InlineData(131200f)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(float.NaN)]
+    public void UnsupportedDirectionalProjectionDoesNotBecomeValid(float radiance)
+    {
+        EnsureShaderTestAvailable();
+        float[] coefficients = ProjectPattern((_, _) => new Vector3(radiance), (_, _) => 1);
+        Assert.Equal(0, coefficients[27]);
+        Assert.All(coefficients, value => Assert.True(float.IsFinite(value)));
+    }
     /// <summary>Positive confidence patterns cannot create directional bands in constant LDR or representable HDR radiance.</summary>
     [Theory]
     [InlineData(.0009765625f)] [InlineData(1f)] [InlineData(1024f)]
@@ -103,7 +131,7 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
 
     #region Real shader boundaries
     /// <summary>Projects authored cell values through the real shader and reads the packed coefficients plus reliability.</summary>
-    private float[] ProjectPattern(Func<int, int, Vector3> radiance, Func<int, int, float> confidence)
+    private float[] ProjectPattern(Func<int, int, Vector3> radiance, Func<int, int, float> confidence, bool storedCoefficients = false)
     {
         Assert.Equal(8, VanillaGraphicsExpanded.Rendering.DynamicTexture3D.OctahedralSize);
         var atlas = new float[(AtlasWidth * AtlasHeight) << 2];
@@ -112,7 +140,9 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         {
             int pixel = y * AtlasWidth + x;
             var color = radiance(x & 7, y & 7);
-            atlas[pixel << 2] = color.X; atlas[(pixel << 2) + 1] = color.Y; atlas[(pixel << 2) + 2] = color.Z;
+            atlas[pixel << 2] = color.X * LightingStorage.PersistentScale;
+            atlas[(pixel << 2) + 1] = color.Y * LightingStorage.PersistentScale;
+            atlas[(pixel << 2) + 2] = color.Z * LightingStorage.PersistentScale;
             atlas[(pixel << 2) + 3] = MathF.Log(11);
             meta[pixel << 1] = confidence(x & 7, y & 7);
             meta[(pixel << 1) + 1] = BitConverter.UInt32BitsToSingle(1);
@@ -129,6 +159,8 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         var result = new float[28];
         for (int target = 0; target < 7; target++) output[target].ReadPixels().AsSpan(0, 4).CopyTo(result.AsSpan(target << 2, 4));
         Assert.All(result, value => Assert.True(float.IsFinite(value)));
+        if (!storedCoefficients)
+            for (int coefficient = 0; coefficient < 27; coefficient++) result[coefficient] /= LightingStorage.PersistentScale;
         return result;
     }
 
@@ -141,6 +173,9 @@ public partial class LumOnProbeAtlasProjectSh9FunctionalTests
         {
             var pixels = new float[(ProbeGridWidth * ProbeGridHeight) << 2];
             for (int pixel = 0; pixel < pixels.Length; pixel += 4) coefficients.AsSpan(target << 2, 4).CopyTo(pixels.AsSpan(pixel, 4));
+            for (int pixel = 0; pixel < pixels.Length; pixel += 4)
+                for (int channel = 0; channel < 4; channel++)
+                    if ((target << 2) + channel < 27) pixels[pixel + channel] *= LightingStorage.PersistentScale;
             ((VanillaGraphicsExpanded.Rendering.DynamicTexture2D)packed[target]).UploadDataImmediate(pixels);
         }
         using var anchors = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f, CreateProbeAnchors(-1));

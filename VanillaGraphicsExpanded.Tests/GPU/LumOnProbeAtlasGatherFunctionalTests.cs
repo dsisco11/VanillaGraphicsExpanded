@@ -5,6 +5,7 @@ using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Xunit;
@@ -128,9 +129,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         for (int i = 0; i < AtlasWidth * AtlasHeight; i++)
         {
             int idx = i * 4;
-            data[idx + 0] = r;
-            data[idx + 1] = g;
-            data[idx + 2] = b;
+            data[idx + 0] = r * LightingStorage.PersistentScale;
+            data[idx + 1] = g * LightingStorage.PersistentScale;
+            data[idx + 2] = b * LightingStorage.PersistentScale;
             data[idx + 3] = encodedDist;
         }
         return data;
@@ -169,9 +170,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                         int atlasY = probeY * OctahedralSize + ty;
                         int idx = (atlasY * AtlasWidth + atlasX) * 4;
 
-                        data[idx + 0] = r;
-                        data[idx + 1] = g;
-                        data[idx + 2] = b;
+                        data[idx + 0] = r * LightingStorage.PersistentScale;
+                        data[idx + 1] = g * LightingStorage.PersistentScale;
+                        data[idx + 2] = b * LightingStorage.PersistentScale;
                         data[idx + 3] = encodedDist;
                     }
                 }
@@ -199,6 +200,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         return (data[idx], data[idx + 1], data[idx + 2], data[idx + 3]);
     }
 
+    /// <summary>Encodes directional world-probe nits while preserving logarithmic distance metadata.</summary>
     private static float[] CreateWorldProbeRadianceAtlas(int width, int height, float r, float g, float b)
     {
         var data = new float[width * height * 4];
@@ -206,9 +208,9 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         for (int i = 0; i < width * height; i++)
         {
             int index = i * 4;
-            data[index] = r;
-            data[index + 1] = g;
-            data[index + 2] = b;
+            data[index] = r * LightingStorage.PersistentScale;
+            data[index + 1] = g * LightingStorage.PersistentScale;
+            data[index + 2] = b * LightingStorage.PersistentScale;
             data[index + 3] = encodedHitDistance;
         }
 
@@ -229,8 +231,10 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
     [InlineData(true, false, true, false, false)]
     [InlineData(true, true, false, true, false)]
     [InlineData(true, true, false, false, true)]
+    [InlineData(false, true, false, false, false, true)]
+    [InlineData(true, true, false, false, false, true)]
     public void WorldProbeSuppression_PreservesFallbackSelection(bool sh9, bool validScreenProbes, bool blocked,
-        bool negativeReconstruction, bool resolvedBlack)
+        bool negativeReconstruction, bool resolvedBlack, bool constantAgreement = false)
     {
         EnsureShaderTestAvailable();
 
@@ -260,7 +264,8 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
 
         using var worldProbeRadiance = TestFramework.CreateTexture(
             worldProbeRadianceAtlasWidth, worldProbeRadianceAtlasHeight, PixelInternalFormat.Rgba16f,
-            CreateWorldProbeRadianceAtlas(worldProbeRadianceAtlasWidth, worldProbeRadianceAtlasHeight, 1f, 0f, 0f));
+            CreateWorldProbeRadianceAtlas(worldProbeRadianceAtlasWidth, worldProbeRadianceAtlasHeight, 1f,
+                constantAgreement ? 1f : 0f, constantAgreement ? 1f : 0f));
         using var worldProbeVis = TestFramework.CreateTexture(
             worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, PixelInternalFormat.Rgba16f,
             CreateUniformColorData(worldProbeScalarAtlasWidth, worldProbeScalarAtlasHeight, 0.5f, 1f, 0f, 0f));
@@ -272,16 +277,16 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
         // Each gather receives its own production input layout. SH9 uses a DC coefficient
         // for constant white radiance and zero higher bands.
         using var shDc = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
-            CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, resolvedBlack ? 0 : 3.5449077f,
-                resolvedBlack ? 0 : 3.5449077f, resolvedBlack ? 0 : 3.5449077f, negativeReconstruction ? -10 : 0));
+            CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, resolvedBlack ? 0 : 3.5449077f * LightingStorage.PersistentScale,
+                resolvedBlack ? 0 : 3.5449077f * LightingStorage.PersistentScale, resolvedBlack ? 0 : 3.5449077f * LightingStorage.PersistentScale, negativeReconstruction ? -10 * LightingStorage.PersistentScale : 0));
         using var shZero = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
             CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 0, 0, 0, 0));
         using var shCoverage = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
             CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, 0, 0, 0, 1));
         // The Y linear band reconstructs a negative value at the authored +Y receiver despite positive coverage.
         using var shLinear = TestFramework.CreateTexture(ProbeGridWidth, ProbeGridHeight, PixelInternalFormat.Rgba16f,
-            CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, negativeReconstruction ? -10 : 0,
-                negativeReconstruction ? -10 : 0, 0, 0));
+            CreateUniformColorData(ProbeGridWidth, ProbeGridHeight, negativeReconstruction ? -10 * LightingStorage.PersistentScale : 0,
+                negativeReconstruction ? -10 * LightingStorage.PersistentScale : 0, 0, 0));
         LumOnProbeSh9GatherShaderProgram? sh = null;
         LumOnScreenProbeAtlasGatherShaderProgram? atlas = null;
         if (sh9)
@@ -338,6 +343,24 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
                 Assert.True(r > 0.5f && g < 0.1f && b < 0.1f, "Expected red world fallback");
             var reference = output[0].ReadPixels();
 
+            if (constantAgreement)
+            {
+                // Replace accepted constant screen lighting with the same directional world input.
+                // Both boundaries must produce E/pi=1, without a second hit-material response.
+                anchorPos.UploadDataImmediate(CreateProbeAnchors(probeWorldZ, validity: 0f));
+                TestFramework.RenderQuadTo(programId, output);
+                float[] replacement = output[0].ReadPixels();
+                for (int index = 0; index < reference.Length; index += 4)
+                    for (int channel = 0; channel < 3; channel++)
+                    {
+                        Assert.InRange(reference[index + channel], .995f, 1.005f);
+                        Assert.InRange(replacement[index + channel], .995f, 1.005f);
+                        Assert.InRange(replacement[index + channel], reference[index + channel] - .005f,
+                            reference[index + channel] + .005f);
+                    }
+                return;
+            }
+
             // Keep every gather setting equal while zeroing only accepted world fallback lighting.
             if (sh != null) sh.SuppressWorldProbeRadiance = true;
             else atlas!.SuppressWorldProbeRadiance = true;
@@ -351,6 +374,7 @@ public class LumOnProbeAtlasGatherFunctionalTests : LumOnShaderFunctionalTestBas
             }
     }
 
+    /// <summary>Repeats authored metadata components across a controlled attachment without applying light scaling.</summary>
     private static float[] CreateUniformData(int width, int height, int channels, params float[] value)
     {
         var data = new float[width * height * channels];

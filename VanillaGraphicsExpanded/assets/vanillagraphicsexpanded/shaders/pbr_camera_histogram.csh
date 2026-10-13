@@ -1,4 +1,5 @@
 #version 430 core
+@import "./includes/pbr_frame_lighting.glsl"
 @import "./includes/camera_exposure_inputs.glsl"
 layout(local_size_x=64) in;
 uniform sampler2D sceneRadiance;
@@ -13,7 +14,7 @@ void main()
     barrier();
     vec2 uv=(vec2(lane,gl_WorkGroupID.x)+.5)/vec2(64,36);
     ivec2 size=textureSize(sceneRadiance,0);
-    vec3 color=texelFetch(sceneRadiance,min(ivec2(uv*vec2(size)),size-1),0).rgb;
+    vec3 color=VgePhysicalFrameLight(texelFetch(sceneRadiance,min(ivec2(uv*vec2(size)),size-1),0).rgb);
     if (!any(isnan(color)) && !any(isinf(color)))
     {
         float luminance=dot(max(color,vec3(0)),vec3(.2126,.7152,.0722));

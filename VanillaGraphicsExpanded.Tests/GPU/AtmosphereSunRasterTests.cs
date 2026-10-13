@@ -72,10 +72,11 @@ public sealed class AtmosphereSunRasterTests(HeadlessGLFixture fixture) : Render
         StateCache.Current.BindVertexArray(vao.VertexArrayId);
         GL.Enable(EnableCap.DepthTest); GL.DepthFunc(DepthFunction.Less); GL.DepthMask(true);
         GL.Disable(EnableCap.Blend); GL.Disable(EnableCap.CullFace);
-        using var inputs = new PackedUniformBuffer(48);
-        byte[] inputBytes = new byte[48];
+        using var inputs = new PackedUniformBuffer(64);
+        byte[] inputBytes = new byte[64];
         UboPacking.WriteInt32(inputBytes, 4, displayTransfer ? 0 : 1);
         UboPacking.WriteVec4(inputBytes, 32, 3f, 2f, 1f, AtmosphereSolarDisk.AngularRadius);
+        UboPacking.WriteFloat(inputBytes, 48, AtmosphereSolarDiskStorage.MaximumScale(new(3,2,1),1,1));
         float[]? baseline = null;
         for (int iteration = 0; iteration < 4; iteration++)
         {

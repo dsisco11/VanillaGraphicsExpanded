@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Numerics;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.Rendering;
 using Xunit;
 
@@ -10,6 +11,56 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class VgeLightsUniformBufferTests
 {
     #region Public API
+    /// <summary>Native effect certificates follow the exact accepted raw payload and are withdrawn for authored candela.</summary>
+    [Fact]
+    public void NativeEffectCertificateTracksAtomicPublication()
+    {
+        using var lights = new VgeLightsUniformBuffer();
+        lights.Capture(2, new float[6], [200, 400, 100, 2, 9, 3]);
+        var admitted = lights.NativeEffectBounds;
+        Assert.True(admitted.Supported);
+        Assert.InRange(admitted.CloudMaximum, 9, 9.0004f);
+        Assert.InRange(admitted.CloudMapMaximum, 9, 9.0004f);
+        byte[] bytes = lights.Bytes.ToArray();
+        Assert.Throws<ArgumentException>(() => lights.Capture(1, new float[3], [float.NaN, 1, 1]));
+        Assert.Equal(admitted, lights.NativeEffectBounds);
+        Assert.Equal(bytes, lights.Bytes.ToArray());
+        lights.CaptureAuthored([new(Vector3.Zero, Vector3.One, 1000, 10)]);
+        Assert.False(lights.NativeEffectBounds.Supported);
+    }
+
+    /// <summary>Invalid native domains and finite intermediate overflow cannot certify a normalized final result.</summary>
+    [Theory]
+    [InlineData(0)] [InlineData(1)] [InlineData(2)] [InlineData(3)]
+    [InlineData(4)] [InlineData(5)] [InlineData(6)]
+    public void NativeEffectCertificateRejectsUnsafeExpressions(int kind)
+    {
+        float[] color = kind switch
+        {
+            0 => [-1, 1, 1], 1 => [float.NaN, 1, 1], 2 => [1, float.PositiveInfinity, 1],
+            3 => [0, 1, 1], 4 => [1, 2e19f, 0], 5 => [1, 1e19f, 0], _ => [1, float.NegativeInfinity, 1]
+        };
+        int count = kind == 5 ? 100 : 1;
+        float[] colors = Enumerable.Range(0, count).SelectMany(_ => color).ToArray();
+        Assert.False(SceneColorPointLightBounds.FromEngine(count, colors).Supported);
+        Assert.True(SceneColorPointLightBounds.FromEngine(1, [0, .001f, .001f]).Supported);
+    }
+
+    /// <summary>The matching bound sums converted active RGB and ignores unused capacity.</summary>
+    [Fact]
+    public void MatchingBoundUsesOnlyActiveConvertedSources()
+    {
+        using var lights = new VgeLightsUniformBuffer();
+        lights.Capture(2, [0, 0, 0, 1, 2, 3], [4, -5, 6, 3, 9, 2, 10000, 10000, 10000]);
+        float expected = 9 * VgeFrameRenderer.CurrentLightingCalibration.PointCandelaPerUnit;
+        Assert.InRange(lights.SummedCandelaMaximum, expected, expected * 1.00004f);
+        float retained = lights.SummedCandelaMaximum;
+        Assert.Throws<ArgumentException>(() => lights.Capture(1, [0, 0, 0], [float.NaN, 1, 1]));
+        Assert.Equal(retained, lights.SummedCandelaMaximum);
+        lights.Capture(0, [], []);
+        Assert.Equal(0, lights.SummedCandelaMaximum);
+    }
+
     /// <summary>Authored flux is packed as chromaticity-normalized candela with a distinct positive influence radius.</summary>
     [Fact]
     public void AuthoredSourcesPublishCandelaAndRejectPartialInvalidUpdates()
@@ -23,11 +74,14 @@ public sealed class VgeLightsUniformBufferTests
         double y = .2126 * intensity.X + .7152 * intensity.Y + .0722 * intensity.Z;
         Assert.InRange(y, 1000 / (4 * Math.PI) - .0001, 1000 / (4 * Math.PI) + .0001);
         Assert.InRange(intensity.Y / intensity.X, .399999, .400001);
+        Assert.InRange(lights.SummedCandelaMaximum, intensity.X, intensity.X * 1.00004f);
+        float retainedBound = lights.SummedCandelaMaximum;
         byte[] prior = lights.Bytes.ToArray();
         Assert.Throws<ArgumentOutOfRangeException>(() => lights.CaptureAuthored([
             new(Vector3.Zero, Vector3.One, 1000, 10), new(Vector3.Zero, Vector3.One, float.NaN, 10)]));
         Assert.Throws<ArgumentOutOfRangeException>(() => lights.CaptureAuthored([new(Vector3.Zero, Vector3.One, 1, 0)]));
         Assert.Equal(prior, lights.Bytes.ToArray());
+        Assert.Equal(retainedBound, lights.SummedCandelaMaximum);
     }
 
     /// <summary>Every supported entry retains original view coordinates and colors with std140 padding.</summary>

@@ -1,6 +1,7 @@
 using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -279,15 +280,24 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
     {
         EnsureContextValid();
         string directory = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
-        string fragment = "#version 430 core\n" + Expand(Path.Combine(directory, "pbr_frame_lighting.glsl"))
-            + Expand(Path.Combine(directory, "pbr_photometric.glsl")) + """
+        float[] limits = [
+            AtmosphereSolarDiskStorage.MaximumScale(new(3e38f, 1.5e38f, 0), 1, 1),
+            AtmosphereSolarDiskStorage.MaximumScale(new(3e38f, 1.5e38f, 0), 2, 1),
+            0, 0, 0, 0,
+            AtmosphereSolarDiskStorage.MaximumScale(new(1e-20f), 1, 1),
+            AtmosphereSolarDiskStorage.MaximumScale(new(float.MaxValue, float.MaxValue * .5f, 0), 1, 1)];
+        string scaleConstants = "const float solarScaleLimits[8]=float[8](" + string.Join(",", limits.Select(value =>
+            value.ToString("R", System.Globalization.CultureInfo.InvariantCulture))) + ");\n";
+        string fragment = "#version 330 core\n#extension GL_ARB_shading_language_420pack : require\n" + Expand(Path.Combine(directory, "pbr_frame_lighting.glsl"))
+            + Expand(Path.Combine(directory, "pbr_photometric.glsl")) + scaleConstants + """
             layout(location=0) out vec4 result;
             void main(){
                 int column=int(gl_FragCoord.x), row=int(gl_FragCoord.y);vec3 value=vec3(0);bool valid;
                 if(row==0){
                     vec3 physical=column==3?vec3(-1):column==4?vec3(uintBitsToFloat(0x7fc00000u)):
-                        column==5?vec3(uintBitsToFloat(0x7f800000u)):column==6?vec3(1e-20):vec3(3e38,1.5e38,0);
-                    valid=VgeStoreVisibleSolarDisk(physical,column==1?2.0:column==2?3.0:1.0,1.0,value);
+                        column==5?vec3(uintBitsToFloat(0x7f800000u)):column==6?vec3(1e-20):
+                        column==7?vec3(uintBitsToFloat(0x7f7fffffu),uintBitsToFloat(0x7f7fffffu)*.5,0):vec3(3e38,1.5e38,0);
+                    valid=VgeStoreVisibleSolarDisk(physical,solarScaleLimits[column],value);
                 }else{
                     vec3 physical=column==0?vec3(131072):column==1?vec3(131073):column==2?vec3(-1):
                         column==3?vec3(uintBitsToFloat(0x7fc00000u)):vec3(0);
@@ -305,6 +315,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
         Assert.Equal(1, pixels[3]); Assert.Equal(1, pixels[7]);
         for (int column = 2; column <= 5; column++) Assert.Equal(0, pixels[column * 4 + 3]);
         Assert.InRange(pixels[24], 3.999e-20f, 4.001e-20f); Assert.Equal(1, pixels[27]);
+        Assert.InRange(pixels[28], 47999.9f, 48000); Close(pixels[28] * .5, pixels[29]); Assert.Equal(1, pixels[31]);
         Assert.Equal(1, pixels[8 * 4 + 3]);
         for (int column = 1; column <= 3; column++) Assert.Equal(0, pixels[(8 + column) * 4 + 3]);
         Assert.Equal(1, pixels[(8 + 4) * 4 + 3]);
@@ -321,7 +332,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
         int buffer = GL.GenBuffer();
         int storageBuffer = GL.GenBuffer();
         GL.GetInteger(GetIndexedPName.UniformBufferBinding, 12, out int previous);
-        GL.GetInteger((GetIndexedPName)All.ShaderStorageBufferBinding, 3, out int previousStorage);
+        GL.GetInteger((GetIndexedPName)All.ShaderStorageBufferBinding, GpuBindingRegistry.Ssbo.FrameLighting, out int previousStorage);
         try
         {
             GL.AttachShader(program, vertex); GL.AttachShader(program, pixel); GL.LinkProgram(program);
@@ -337,7 +348,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
             {
                 GL.BindBuffer(BufferTarget.ShaderStorageBuffer, storageBuffer);
                 GL.BufferData(BufferTarget.ShaderStorageBuffer, frozenStorage.Length, frozenStorage, BufferUsageHint.StaticDraw);
-                GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 3, storageBuffer);
+                GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, storageBuffer);
             }
             using var target = CreateRenderTarget(8, 2, PixelInternalFormat.Rgba32f);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, target.FboId); GL.Viewport(0, 0, 8, 2);
@@ -349,7 +360,7 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
         finally
         {
             GL.BindBufferBase(BufferRangeTarget.UniformBuffer, 12, previous);
-            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 3, previousStorage);
+            GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, previousStorage);
             GL.DeleteBuffer(storageBuffer); GL.DeleteBuffer(buffer); GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(pixel);
             StateCache.Current.InvalidateAll();
         }

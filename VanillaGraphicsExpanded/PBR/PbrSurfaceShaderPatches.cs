@@ -92,7 +92,7 @@ internal static class PbrSurfaceShaderPatches
         uniform vec3 vge_atmosphereEnvironment;
         uniform vec3 vge_atmosphereSolar;
         uniform vec3 vge_atmosphereSunDirection;
-        uniform vec3 vge_atmosphereAerialParams;
+        uniform vec4 vge_atmosphereAerialParams;
 
         """;
         if (vertex)

@@ -39,7 +39,8 @@ LumOnWorldProbeGatherFallback lumonGatherWorldProbeFallback(
         LumOnWorldProbeSample worldProbe = lumonWorldProbeSampleClipmapBound(receiver, pixelNormalWS);
         if (worldProbe.confidence > LUMON_WORLDPROBE_CONFIDENCE_THRESHOLD)
         {
-            result.irradiance = worldProbe.irradiance;
+            // World diffuse integrates incident lux; screen gather consumes Lambertian E/pi.
+            result.irradiance = worldProbe.irradiance / 3.14159265358979323846;
             result.confidence = worldProbe.confidence;
             result.used = true;
         }

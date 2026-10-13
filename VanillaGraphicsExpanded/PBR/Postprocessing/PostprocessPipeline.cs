@@ -41,6 +41,10 @@ internal sealed class PostprocessPipeline : IRenderer
     public double RenderOrder=>1002;
     /// <summary>Runs independently of world view distance.</summary>
     public int RenderRange=>int.MaxValue;
+    /// <summary>Supplies the captured glare gains used to reserve visible-disk storage headroom.</summary>
+    internal static (float Bloom, float Shafts) GlareStrengths => active is { captured: true } owner
+        ? (owner.settings.BloomStrength, owner.settings.LightShaftStrength)
+        : throw new InvalidOperationException("Scene glare settings have not been captured.");
     /// <summary>Withdraws publication and captures one coherent settings snapshot for the coming scene.</summary>
     public void OnRenderFrame(float deltaTime,EnumRenderStage stage)
     {

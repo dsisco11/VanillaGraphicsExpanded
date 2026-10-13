@@ -28,6 +28,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     private PBR.Atmosphere.AtmosphereSkyRenderer? skyRenderer;
     private PBR.SceneColor.SceneColorPipeline? sceneColor;
     private PBR.CameraExposure.CameraExposureRenderer? cameraExposure;
+    private PBR.SceneColor.SceneLightingPublicationRenderer? sceneLighting;
     private PBR.Postprocessing.PostprocessPipeline? postprocessing;
     private PBR.Postprocessing.LightShaftOcclusionRenderer? lightShaftOcclusion;
     private PBR.Postprocessing.AmbientOcclusionRenderer? ambientOcclusion;
@@ -67,6 +68,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
             () => { var owner = depthHierarchy; depthHierarchy = null; owner?.Dispose(); },
             () => { var owner = lightShaftOcclusion; lightShaftOcclusion = null; owner?.Dispose(); },
             () => { var owner = postprocessing; postprocessing = null; owner?.Dispose(); },
+            () => { var owner = sceneLighting; sceneLighting = null; owner?.Dispose(); },
             () => { var owner = cameraExposure; cameraExposure = null; owner?.Dispose(); },
             () => { var owner = sceneColor; sceneColor = null; owner?.Dispose(); },
             () => { var owner = liquidRenderer; liquidRenderer = null; owner?.Dispose(); },
@@ -111,6 +113,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         sceneColor ??= new PBR.SceneColor.SceneColorPipeline(capi, pbrCompositeRenderer,
             directLightingRenderer, directLightingBufferManager, skyRenderer, particleCapture);
         cameraExposure ??= new PBR.CameraExposure.CameraExposureRenderer(capi);
+        sceneLighting ??= new PBR.SceneColor.SceneLightingPublicationRenderer(capi);
         postprocessing ??= new PBR.Postprocessing.PostprocessPipeline(capi);
         lightShaftOcclusion ??= new PBR.Postprocessing.LightShaftOcclusionRenderer(capi);
         depthHierarchy ??= new DepthHierarchyRenderer(capi);

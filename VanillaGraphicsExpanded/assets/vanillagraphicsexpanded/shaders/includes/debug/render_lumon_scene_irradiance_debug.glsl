@@ -69,7 +69,8 @@ vec4 renderLumonSceneIrradianceDebug()
         return vec4(0.0, 0.0, 0.0, 1.0);
     }
 
-    // Simple tonemap for preview.
+    // Decode fixed cache storage before previewing incident lux.
+    irr = VgeDecodePersistentLight(irr);
     vec3 c = irr / (irr + vec3(1.0));
 
     // If the page is still marked NeedsRelight, tint slightly blue to indicate "in progress".

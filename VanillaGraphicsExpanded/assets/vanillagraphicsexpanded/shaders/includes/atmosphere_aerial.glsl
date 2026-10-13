@@ -8,7 +8,7 @@ uniform sampler2D vge_lightShaftOcclusion;
 
 // Angular coordinates share the sky. Distance slices share fixed metre ranges across
 // every direction, preventing ground/space neighbours from mixing different ray lengths.
-vec3 VgeApplyAerial(vec3 radiance, vec3 worldDisplacement, float skyVisibility, vec2 parameters, vec3 sun)
+vec3 VgeApplyAerial(vec3 radiance, vec3 worldDisplacement, float skyVisibility, vec3 parameters, vec3 sun)
 {
     float distanceMetres = length(worldDisplacement);
     if (distanceMetres <= .0001 || skyVisibility <= 0.0) return radiance;
@@ -22,6 +22,7 @@ vec3 VgeApplyAerial(vec3 radiance, vec3 worldDisplacement, float skyVisibility, 
     vec3 packedUv = vec3(uvw.x, uvw.y * .5, uvw.z);
     vec3 scatter = texture(vge_atmosphereAerialRadiance, packedUv).rgb
         + texture(vge_atmosphereAerialRadiance, packedUv + vec3(0.0, .5, 0.0)).rgb * atmMieFactor(direction, sun);
+    scatter *= parameters.z > 0.0 ? parameters.z : 1.0;
     vec3 loss = clamp(texture(vge_atmosphereAerialAttenuation, uvw).rgb, 0.0, 1.0);
     // Receiver sky availability gates both terms: closed interiors cannot absorb
     // light into an outdoor medium while receiving none of its in-scattering.

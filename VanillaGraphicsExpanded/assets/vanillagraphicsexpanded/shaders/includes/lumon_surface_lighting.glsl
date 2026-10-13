@@ -1,6 +1,7 @@
 #ifndef LUMON_SURFACE_LIGHTING_GLSL
 #define LUMON_SURFACE_LIGHTING_GLSL
 @import "./vge_ubo_bindings.glsl"
+@import "./pbr_persistent_lighting.glsl"
 /** Shared surface lighting parameters; all positions retain integer chunk anchors. */
 layout(std140, binding = 16) uniform SurfaceLightingParams
 {
@@ -68,7 +69,7 @@ bool sampleSurfaceLighting(ivec3 cell, ivec3 normal, vec3 fraction, uint materia
     if (capturedId != materialId) return false;
     vec4 value = texelFetch(previousOutgoing, address, 0);
     if (value.a != 1.0 || any(isnan(value)) || any(isinf(value))) return false;
-    radiance = max(value.rgb, vec3(0));
+    radiance = VgeDecodePersistentLight(max(value.rgb, vec3(0)));
     return true;
 }
 #endif

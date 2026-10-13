@@ -53,7 +53,7 @@ layout(std140, binding = 14) uniform VgeLiquidDrawParams
 #define vge_atmosphereSunDirection liquidSun.xyz
 #define vge_atmosphereSolar liquidSolar.xyz
 #define vge_atmosphereEnvironment liquidEnvironment.xyz
-#define vge_atmosphereAerialParams liquidAerial.xyz
+#define vge_atmosphereAerialParams liquidAerial
 #define cameraUnderwater liquidAerial.z
 #define pointLightQuantity int(vgeLights.lightCount)
 #define fogSphereQuantity int(fogSphereCount)

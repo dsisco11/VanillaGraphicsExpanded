@@ -9,6 +9,12 @@ vec3 VgeSrgbToLinear(vec3 color)
         lessThanEqual(color, vec3(0.04045)));
 }
 
+/** Converts authored or prelit engine scene colors to the declared compatibility luminance, in nits. */
+vec3 VgeCompatibilityLuminance(vec3 authored)
+{
+    return 32.0 * VgeSrgbToLinear(authored);
+}
+
 /** Encodes for the RGBA8 primary without automatic framebuffer sRGB conversion. */
 vec3 VgeLinearToSrgb(vec3 color)
 {

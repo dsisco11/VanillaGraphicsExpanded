@@ -1,4 +1,5 @@
 #version 330 core
+@import "./includes/pbr_scene_storage.glsl"
 @import "./includes/gbuffer_layers.glsl"
 
 out vec4 outColor;
@@ -192,7 +193,7 @@ void main(void)
 
     vec3 pixelPosWS = (vgeFrame.invViewMatrix * vec4(pixelPosVS, 1.0)).xyz;
     LumOnWorldProbeGatherResult gatherResult = lumonResolveWorldProbeGather(
-        screenIrradiance,
+        VgeDecodePersistentLight(screenIrradiance),
         screenConfidence,
         totalWeight,
         pixelPosWS,
@@ -204,5 +205,5 @@ void main(void)
         gatherResult.irradiance = vec3(0.0);
     }
     vec3 blended = gatherResult.irradiance * intensity * indirectTint;
-    outColor = vec4(blended, gatherResult.confidence);
+    outColor = vec4(VgeStoreSceneLighting(blended), gatherResult.confidence);
 }

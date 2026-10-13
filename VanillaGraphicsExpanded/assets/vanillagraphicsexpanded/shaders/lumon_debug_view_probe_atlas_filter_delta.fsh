@@ -18,7 +18,8 @@ vec4 renderProbeAtlasFilterDeltaDebug()
 {
     vec3 curr = texture(probeAtlasCurrent, uv).rgb;
     vec3 filt = texture(probeAtlasFiltered, uv).rgb;
-    float d = length(filt - curr);
+    // Preview a physical-radiance difference, independent of fixed cache encoding.
+    float d = length(VgeDecodePersistentLight(filt - curr));
     // Scale a bit so subtle changes show up.
     return vec4(heatmap(clamp(d * 4.0, 0.0, 1.0)), 1.0);
 }

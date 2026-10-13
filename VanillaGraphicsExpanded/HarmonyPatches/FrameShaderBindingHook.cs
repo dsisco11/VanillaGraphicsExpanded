@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 /// <summary>Restores the universal frame and light publications for engine-owned programs importing VGE shared data.</summary>
 internal static class FrameShaderBindingHook
 {
-    private static readonly Dictionary<int, (bool Frame, bool Lights)> consumers = new();
+    private static readonly Dictionary<int, (bool Frame, bool Lights, bool Storage)> consumers = new();
 
     #region Public API
     /// <summary>Routes engine program use through the shared snapshots without making ownership effect-specific.</summary>
@@ -36,10 +36,23 @@ internal static class FrameShaderBindingHook
         if (!consumers.TryGetValue(program, out var membership))
         {
             membership = (GL.GetUniformBlockIndex(program, "VgeFrameUBO") >= 0,
-                GL.GetUniformBlockIndex(program, "VgeLightsUBO") >= 0);
+                GL.GetUniformBlockIndex(program, "VgeLightsUBO") >= 0,
+                GL.GetProgramResourceIndex(program, ProgramInterface.ShaderStorageBlock, "FrozenFrameLighting") >= 0);
             consumers.Add(program, membership);
         }
-        if (!membership.Frame && !membership.Lights) return;
+        if (!membership.Frame && !membership.Lights && !membership.Storage) return;
+        if (membership.Storage)
+        {
+            var api = VgeFrameRenderer.ActiveApi;
+            if (api is null) return;
+            var render = api.Render;
+            var buffers = render.FrameBuffers;
+            if (!PBR.SceneColor.SceneColorProgramBindings.SelectScene(render.CurrentRenderStage,
+                render.CurrentFrameBuffer,
+                buffers.Count > (int)Vintagestory.API.Client.EnumFrameBuffer.Primary ? buffers[(int)Vintagestory.API.Client.EnumFrameBuffer.Primary] : null,
+                buffers.Count > (int)Vintagestory.API.Client.EnumFrameBuffer.Transparent ? buffers[(int)Vintagestory.API.Client.EnumFrameBuffer.Transparent] : null)) return;
+            PBR.CameraExposure.CameraExposureRenderer.FrozenLighting.BindBase(GpuBindingRegistry.Ssbo.FrameLighting);
+        }
         if (__instance.HasUniform("vge_pbrRoute") && !AtmosphereSunDrawHook.Active)
         {
             // GUI and native offscreen routes do not execute the VGE world-shading branches.

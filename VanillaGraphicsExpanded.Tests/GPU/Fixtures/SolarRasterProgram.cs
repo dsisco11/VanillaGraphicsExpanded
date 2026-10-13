@@ -2,6 +2,7 @@ using System.Numerics;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
@@ -10,13 +11,13 @@ internal sealed class SolarRasterProgram : GpuProgram
 {
     private static readonly GpuShaderContract contract=ShaderBuildTool.Spirv.TestShaderPrograms.Create().Programs["tests/sun-raster-linear"];
     private readonly PackedUniformBuffer inputs;
-    private readonly byte[] bytes=new byte[48];
+    private readonly byte[] bytes=new byte[64];
     private VgeFrameUniformBuffer? frame;
     #region Public API
     /// <summary>Registers the raster executable and its shared numeric input block.</summary>
     public SolarRasterProgram()
     {
-        inputs=OwnUniformBuffer(new PackedUniformBuffer(48));
+        inputs=OwnUniformBuffer(new PackedUniformBuffer(64));
         foreach(var stage in contract.Stages)ProgramLayout.RegisterContract(stage.Bindings);
     }
     /// <summary>Borrows the controlled shared camera snapshot for this solar receiver.</summary>
@@ -33,6 +34,7 @@ internal sealed class SolarRasterProgram : GpuProgram
         UboPacking.WriteInt32(bytes,4,1);
         UboPacking.WriteVec4(bytes,16,0,0,-1,horizon);
         UboPacking.WriteVec4(bytes,32,radiance.X,radiance.Y,radiance.Z,.00465f);
+        UboPacking.WriteFloat(bytes,48,AtmosphereSolarDiskStorage.MaximumScale(radiance,1,1));
         inputs.SetBytes(bytes);
     }
     #endregion

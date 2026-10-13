@@ -14,15 +14,16 @@ internal sealed class ScopedPbrMaterialFixture : IDisposable
     private readonly FieldInfo derivedField = typeof(PbrMaterialRegistry).GetField("derivedSurfaceByBlockFace", BindingFlags.Instance | BindingFlags.NonPublic)!;
     private readonly Dictionary<AssetLocation, PbrMaterialSurface> surfaces;
     private readonly DerivedSurface[] originalDerived;
-    private readonly AssetLocation texture = new("vgetest", "textures/block/local_capture_readiness");
+    private readonly AssetLocation texture;
     private readonly bool hadSurface;
     private readonly PbrMaterialSurface originalSurface;
     public Block Cube { get; }
 
     #region Scoped State
     /// <summary>Creates a textured opaque cube and saves the exact state that the fixture will replace.</summary>
-    public ScopedPbrMaterialFixture()
+    public ScopedPbrMaterialFixture(string texturePath = "textures/block/local_capture_readiness")
     {
+        texture = new AssetLocation("vgetest", texturePath);
         surfaces = (Dictionary<AssetLocation, PbrMaterialSurface>)registry.SurfaceByTexture;
         hadSurface = surfaces.TryGetValue(texture, out originalSurface);
         originalDerived = (DerivedSurface[])derivedField.GetValue(registry)!;

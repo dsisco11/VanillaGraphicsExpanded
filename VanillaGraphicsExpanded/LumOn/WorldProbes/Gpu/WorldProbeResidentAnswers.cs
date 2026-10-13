@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Immutable;
 using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
@@ -7,6 +8,7 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 internal sealed class WorldProbeResidentAnswers : IDisposable
 {
     private readonly GpuShaderStorageBuffer buffer;
+    private readonly ImmutableArray<WorldProbeTraceAnswerGpu> completions;
     private int references = 1;
     /// <summary>Exposes only initialized resident records for retained submission.</summary>
     internal GpuStorageBufferBinding Binding => IsValid ? new(buffer, 0, Count * 80) : throw new ObjectDisposedException(nameof(WorldProbeResidentAnswers));
@@ -15,8 +17,15 @@ internal sealed class WorldProbeResidentAnswers : IDisposable
 
     #region Ownership
     /// <summary>Takes ownership of a completed allocation with one initial drain reference.</summary>
-    public WorldProbeResidentAnswers(GpuShaderStorageBuffer buffer, int count)
-    { this.buffer = buffer; Count = count; }
+    public WorldProbeResidentAnswers(GpuShaderStorageBuffer buffer, ImmutableArray<WorldProbeTraceAnswerGpu> completions)
+    {
+        if (completions.IsDefaultOrEmpty) throw new ArgumentException("Resident lighting requires completed admission metadata.", nameof(completions));
+        this.buffer = buffer; this.completions = completions; Count = completions.Length;
+    }
+
+    /// <summary>Requires the existing compact GPU completion to have certified this immutable resident direction.</summary>
+    internal bool DirectionalReady(int index) => IsValid && (uint)index < (uint)Count
+        && completions[index].Outcome == 1 && completions[index].Hit.Result.W == 1;
 
     /// <summary>Retains the allocation for one independently completed admission.</summary>
     public void Retain()
