@@ -51,7 +51,7 @@ public sealed class CameraExposureMeasurementTests(HeadlessGLFixture fixture, IT
             for(int group=0;group<36;group++){int index=(group*64+bin)*2;weight+=computeBins[index]/4096f;shifted+=computeBins[index+1]/1048576f;}
             // Conservative accumulated encoding bounds include weight rounding and its shifted-log contribution.
             Assert.InRange(weight,rasterBins[bin*2]-.282f,rasterBins[bin*2]+.282f);
-            float sum=shifted-12*weight;
+            float sum=shifted-16*weight;
             Assert.InRange(sum,rasterBins[bin*2+1]-3.4f,rasterBins[bin*2+1]+3.4f);
         }
         float expected=result[0].ReadPixels()[0],actual=ExposureTestStorage.Read<float>(targets.WriteTarget)[0];

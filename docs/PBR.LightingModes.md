@@ -16,7 +16,8 @@ endpoints. `VgeLocalEnvironment` adds these two already integrated inputs withou
 Shared environment material response and indirect AO ownership remain unchanged. The historical
 approximation below predates this conversion. Persistent lighting uses fixed scale C=1/16;
 transient scene lighting uses frozen frame scale P, with physical decoding at evaluation and
-display boundaries. Remaining integrated qualification and camera/configuration migration are
+display boundaries. Camera settings preserve saved values with updated physical defaults as documented in
+PBR.CameraExposure.md. Remaining integrated qualification is
 tracked in `PBR.PhotometricLighting.todo`; this intermediate state is not a release candidate.
 
 Opaque terrain and supported entity/late shader families publish local environment irradiance

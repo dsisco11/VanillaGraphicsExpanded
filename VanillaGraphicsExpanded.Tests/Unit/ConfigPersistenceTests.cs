@@ -14,6 +14,37 @@ namespace VanillaGraphicsExpanded.Tests.Unit;
 public sealed class ConfigPersistenceTests
 {
     #region Document preparation
+    /// <summary>Unversioned saved exposure controls survive startup without a compatibility offset.</summary>
+    [Theory]
+    [InlineData(0, -4, 4)]
+    [InlineData(-2, -9, 3)]
+    public void UnversionedStartupPreservesSavedExposure(float manual, float minimum, float maximum)
+    {
+        using var lifetime = new ConfigLifetime();
+        lifetime.System.Dispose();
+        var api = new Mock<ICoreAPI>();
+        api.SetupGet(x => x.Logger).Returns(Mock.Of<ILogger>());
+        var document = new JObject
+        {
+            ["CameraExposure"] = new JObject { ["ManualEV"] = manual, ["MinEV"] = minimum, ["MaxEV"] = maximum }
+        };
+        api.Setup(x => x.LoadModConfig<JObject>(It.IsAny<string>())).Returns(document);
+        JObject? stored = null;
+        api.Setup(x => x.StoreModConfig(It.IsAny<JObject>(), It.IsAny<string>()))
+            .Callback<JObject, string>((value, _) => stored = value);
+
+        ConfigModSystem.EnsureConfigLoaded(api.Object);
+
+        Assert.Equal(manual, ConfigModSystem.Config.CameraExposure.ManualEV);
+        Assert.Equal(minimum, ConfigModSystem.Config.CameraExposure.MinEV);
+        Assert.Equal(maximum, ConfigModSystem.Config.CameraExposure.MaxEV);
+        Assert.NotNull(stored);
+        Assert.Null(stored["PhotometricVersion"]);
+        Assert.Equal(manual, stored["CameraExposure"]!["ManualEV"]!.Value<float>());
+        Assert.Equal(minimum, stored["CameraExposure"]!["MinEV"]!.Value<float>());
+        Assert.Equal(maximum, stored["CameraExposure"]!["MaxEV"]!.Value<float>());
+    }
+
     /// <summary>All current settings acquire concrete nested leaves while saved and unrelated values survive.</summary>
     [Fact]
     public void SparseDocumentGainsCurrentPathsWithoutOverwritingValues()

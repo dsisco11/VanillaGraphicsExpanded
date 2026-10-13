@@ -13,6 +13,7 @@ internal sealed class SolarRasterProgram : GpuProgram
     private readonly PackedUniformBuffer inputs;
     private readonly byte[] bytes=new byte[64];
     private VgeFrameUniformBuffer? frame;
+    private readonly TestFrameLightingPublication lighting = new();
     #region Public API
     /// <summary>Registers the raster executable and its shared numeric input block.</summary>
     public SolarRasterProgram()
@@ -49,6 +50,13 @@ internal sealed class SolarRasterProgram : GpuProgram
         var block=ShaderPreparedSubmission.Resolve(this,GpuBindingEntry.Identity(ShaderBindingKind.UniformBlock,"SunInputs"));
         ShaderPreparedSubmission.ValidateUniformBlock(block,inputs);
         ShaderPreparedSubmission.UniformBlock(block,inputs);
+        lighting.Bind();
+    }
+    /// <summary>Retires the borrowed storage publication with its independent raster fixture.</summary>
+    protected override void ReleaseResources()
+    {
+        lighting.Dispose();
+        base.ReleaseResources();
     }
     #endregion
 }

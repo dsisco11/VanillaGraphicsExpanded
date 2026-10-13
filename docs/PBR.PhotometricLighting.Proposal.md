@@ -4,8 +4,9 @@ Status: the user approved pre-exposed frame lighting, a bounded visible solar di
 persistent lighting and a narrow finite-angular solar specular refinement on 2026-10-11.
 Shared quantity, shader conversion and admitted storage support are implemented. Atmosphere amplitude,
 block-field publication, punctual evaluation, emission and shared direct diffuse normalization now use
-the declared source quantities; remaining transport, integrated scene storage and camera migration
-remain pending. Source-derived calibration and numerical qualification
+the declared source quantities. Connected transport and integrated scene storage are implemented;
+physical camera ranges, configuration migration and postprocess containment have focused
+qualification. Full integrated and user-run acceptance remain pending. Source-derived calibration and numerical qualification
 of the supported design domain are recorded below and in `PBR.PhotometricLighting.todo`.
 These prerequisite receipts do not establish completed runtime migration, integrated GPU
 precision, live appearance or performance.
@@ -14,8 +15,9 @@ The retained support lives in `LightingCalibration`, the shared frame calibratio
 `pbr_photometric`, `LightingStorage` and component/history generation metadata. The existing
 camera owner provides a frozen GPU scale publication, and atmosphere texture ownership supports
 fixed-scale encoding with matching metadata. Producer conversion is an intermediate implementation,
-not a releasable complete photometric pipeline: scene/cache writes and remaining display consumers
-still need coordinated scale adoption. The approved bounded signed-water estimator is integrated using a
+not a releasable complete photometric pipeline until integrated qualification and appearance checks
+are accepted. Scene/cache writes and connected display consumers have coordinated scale adoption.
+The approved bounded signed-water estimator is integrated using a
 global bound from the same published source convention; physical source adapters follow with
 their producers. These support contracts have focused CPU/GPU and lifecycle checks, rather
 than complete-scene photometric acceptance.
@@ -597,9 +599,10 @@ parameters through the existing binding system. CPU bindings, generated shader i
 and units. Shader compilation, reload, resize and world teardown retain existing ownership;
 do not add per-frame source discovery or resource reallocation to establish calibration.
 
-Version any new configuration and material mappings. Existing saves and third-party sources
-must receive documented compatibility defaults. Exposure settings need an explicit migration
-because scene-relative old values may no longer produce the same display brightness. The goal
+Existing saves and third-party sources receive documented compatibility defaults through the
+existing owners. The user approved retaining saved camera stops without automatic conversion or
+a configuration version marker; new or missing settings use updated exposure limits -20/+8.
+Saved values may require user adjustment because the physical scene scale changes brightness. The goal
 is coherent lighting, not exact preservation of the previously uncalibrated screenshots.
 Calibration or storage changes invalidate dependent cached lighting and histories through
 their existing owners; they must not leave differently scaled old and new lighting mixed.

@@ -112,6 +112,8 @@ internal static class TestShaderPrograms
             _ => "DisplacementInputs"
         };
         bindings.RegisterUniformBlockBinding(block, 28);
+        if (name == "sun-raster-linear")
+            bindings.RegisterShaderStorageBlockBinding("FrameLighting", 4, required: false);
         if (name is "displacement-metric" or "displacement-height" or "sun-raster" or "eye-relative" || name.StartsWith("relief-", StringComparison.Ordinal))
             bindings.RegisterUniformBlockBinding("VgeFrameUBO", 12, required: false);
         bindings.FragmentOutputLocations.Add("result", 0);

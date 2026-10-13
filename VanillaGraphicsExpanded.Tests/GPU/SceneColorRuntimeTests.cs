@@ -275,7 +275,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.NotEqual(postStorage.TextureId, ownedRays);
             Assert.True(GL.IsTexture(ownedBloom)); Assert.True(GL.IsTexture(ownedRays));
             float luma = handedOff[0] * .2126f + handedOff[1] * .7152f + handedOff[2] * .0722f;
-            float expectedEv = Math.Clamp(MathF.Log2(.18f / (luma * sceneInverseScale)), -4, 4);
+            float expectedEv = Math.Clamp(MathF.Log2(.18f / (luma * sceneInverseScale)), -20, 8);
             float ev = ExposureTestStorage.Read<float>(CameraExposureRenderer.DisplayExposure().Buffer!)[0];
             Assert.InRange(ev, expectedEv - .002f, expectedEv + .002f);
             int beforeRetire = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;

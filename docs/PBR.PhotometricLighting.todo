@@ -2,10 +2,10 @@ Photometric lighting and block-light calibration
 ================================================
 
 Source proposal: docs/PBR.PhotometricLighting.Proposal.md
-Status: Phases 1-3 complete after second review and independent completion audit (2026-10-12).
+Status: Phases 1-5 complete after second review and independent completion audit (2026-10-12).
 Shared shader conversion, storage support, physical producer calibration and receiver normalization are implemented.
-Only Phase 1-3 completion markers are checked; integrated transport/storage/display migration remains open.
-The approved defensive storage helper is complete; its write-boundary integration remains open in Phases 4-6. It does not
+Only Phase 1-5 completion markers are checked; integrated qualification remains open.
+The approved defensive storage helper, scene and postprocessing write boundaries are complete; integrated qualification remains open in Phase 6. It does not
 retroactively claim that completed Phase 2 support already implements those safeguards.
 The proposal remains authoritative. Unresolved design choices are prerequisite tasks, not
 settled defaults or authorization for speculative systems.
@@ -653,7 +653,43 @@ Phase 5: Integrate camera exposure, glare and configuration compatibility
 Depends on Phase 4. Outcome: Physical lighting reaches the display through a coherent camera
 response, and existing settings/material/source inputs have documented migration behavior.
 
-  ☐ Rebase existing exposure/metering to the selected physical/storage scale.
+Implementation evidence and traceability (2026-10-12; qualified)
+  - Exposure/metering and glare tasks -> proposal "HDR storage and camera response",
+    PBR.CameraExposure.md and PBR.Postprocessing.md -> physical meter input, display-only stops,
+    exposed highlight selection and exactly one exp2(EV)/P display multiplication. Existing owners,
+    scheduling, tone curve, GLSL versions and persistent C remain unchanged. Histogram range
+    is (-16,40) log2 nits, default exposure bounds -20/+8, authored bounds/manual -48/+24.
+  - Postprocessing safety -> proposal "Defensive storage clamping" and shared display ownership ->
+    RGBA16F RGB guarded at owned writes, weighted samples before accumulation, final sum/product
+    stays FP32. NaN writes a neutral current-frame fallback; infinities map to documented endpoints. These
+    effects have no temporal RGB history: only camera stops persist, independently of P. Source/
+    cache validity remains under the existing owners; finite containment does not certify lighting.
+  - Compatibility -> proposal "Ownership and compatibility", material/display and camera contracts ->
+    User subsequently requested removal of the version marker and automatic stop migration;
+    saved values remain unchanged and new/missing camera settings use updated defaults -20/+8.
+    fixed source/material compatibility defaults, unchanged engine propagation/assets/world saves.
+    Current camera documentation records preserved fields and approximation limits.
+  - Focused actual-format, physical-scale, migration/default/invalid and existing adaptation/runtime
+    checks passed through a subagent: artifacts/TestResults/photometric-phase5-superseding.trx,
+    197/197 pass, no failures/skips (about 24 seconds). That historical run's 28 new cases comprise nine migration,
+    three physical-metering scale, fifteen postprocessing storage/display and one shaft scale case.
+    The same run includes existing adaptation, grading, lifecycle, source/consumer and config checks.
+    It supersedes all 24 fixture failures in the initial 190-case checkpoint: stale exposure-range
+    oracles, missing explicit fixture scale bindings, stripped-name sampler reflection and initial
+    test setup/neutral-write expectations were corrected without widening tolerances.
+  - artifacts/photometric-phase5-final-build.log records the Release build with zero errors and
+    existing warnings; both current catalogs contain 434 production and 512 test variants.
+    artifacts/photometric-phase5-superseding.log records the final test run. git diff --check passes
+    with line-ending advisories only. Root second review and independent completion audit are
+    complete with no remaining blockers. No performance measurements or game launch were performed, and no live appearance
+    or complete-scene release acceptance is claimed here.
+  - The nine automatic-migration cases and their helper are removed by subsequent user request;
+    focused settings/default/persistence checks cover the retained behavior. Shader code is unchanged.
+    artifacts/TestResults/exposure-defaults-no-migration.trx passes 42/42 with no failures/skips,
+    including three new startup/default regressions. The Release build passes; receipt:
+    artifacts/exposure-defaults-no-migration.log.
+
+  ☑ Rebase existing exposure/metering to the selected physical/storage scale.
     - Update histogram bounds, accepted range and exposure limits from the qualified scene envelope.
     - Keep stops as log2 display multiplier and compensation separate from physical source output.
       Do not introduce or claim EV100 camera calibration.
@@ -661,27 +697,29 @@ response, and existing settings/material/source inputs have documented migration
       Decode the frozen frame scale for metering and apply currentExposure/P at final display.
     - Retain the existing global tone curve initially; apply display exposure once and keep UI outside it.
 
-  ☐ Reconcile bloom/shaft thresholds and artistic controls.
+  ☑ Reconcile bloom/shaft thresholds and artistic controls.
     - State whether thresholds are physical or exposed quantities and convert consistently.
     - Prevent generated bloom/shafts feeding back into metering or camera exposure changing source
       power, emission, AO, material data or propagation.
     - Verify fixed-exposure ratios first, then automatic adaptation and existing display grading.
 
-  ☐ Protect postprocessing storage under proposal "Defensive storage clamping".
+  ☑ Protect postprocessing storage under proposal "Defensive storage clamping".
     - Audit exposure rescaling, bloom, shafts and temporal output for intermediate overflow and
       destination limits; apply targeted clamps before narrowing/writes where required.
     - Preserve disk/glare headroom, metering order and invalid-value handling. Verify ordinary
       supported values remain unchanged and contain exceptional outputs without hiding defects.
 
-  ☐ Version and migrate settings and material/source mappings through existing configuration owners.
-    - Specify finite defaults and migration for block calibration, source/emission mappings and
+  ☑ Reconcile settings and material/source defaults through existing configuration owners.
+    - Preserve saved camera stops without automatic migration/versioning, as requested by the user.
+      New/missing exposure bounds use -20/+8; default manual exposure remains zero.
+    - Specify finite defaults and compatibility for block calibration, source/emission mappings and
       exposure values whose previous scene-relative interpretation no longer applies.
     - Preserve existing saves and third-party input compatibility through explicit conversions.
       Do not promise exact reproduction of uncalibrated old screenshots.
     - Remove superseded conversion paths and temporary instrumentation after replacement is
       verified. Retain intentional compatibility adapters and document their limits.
 
-  ☐ Verify completion of Phase 5.
+  ☑ Verify completion of Phase 5.
     - Source ratios, metering, display conversion and glare behavior pass independent checks.
     - Migration/default/invalid-input tests cover persisted settings and compatible engine sources.
     - No mixed-scale cache state, duplicate exposure or camera-to-source feedback remains.

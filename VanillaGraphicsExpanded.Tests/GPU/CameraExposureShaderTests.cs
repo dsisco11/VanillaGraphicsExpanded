@@ -72,13 +72,34 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #region Metering
+    /// <summary>Frozen storage scaling leaves physical luminance statistics and source pixels unchanged.</summary>
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(.25f)]
+    [InlineData(.0009765625f)]
+    public void MeteringDecodesPhysicalLuminanceIndependentOfStorageScale(float scale)
+    {
+        EnsureShaderTestAvailable();
+        using var rig = CreateRig();
+        using var publication = new TestFrameLightingPublication();
+        publication.Capture(scale);
+        float stored = 32 * scale;
+        using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [stored, stored, stored, .37f]);
+        rig.Meter(source, Settings(), publication.Buffer);
+        var bins = rig.ReadHistogram();
+        AssertClose(2304, bins.Where((_, i) => i % 2 == 0).Sum(), .001f);
+        AssertClose(2304 * 5, bins.Where((_, i) => i % 2 == 1).Sum(), .06f);
+        AssertClose(MathF.Log2(.18f) - 5, rig.Adapt(Settings(), 0, 0, true));
+        Assert.Equal(new[] { stored, stored, stored, .37f }, source.ReadPixels());
+    }
+
     /// <summary>Invalid and out-of-range RGB never contaminate the valid scene population or its log luminance.</summary>
     [Fact]
     public void HistogramRejectsInvalidSamplesAndPreservesSource()
     {
         EnsureShaderTestAvailable();
         using var rig = CreateRig();
-        float[] levels = [.18f, 0, float.NaN, float.PositiveInfinity, 65536, .000001f];
+        float[] levels = [.18f, 0, float.NaN, float.PositiveInfinity, MathF.Pow(2, 40), MathF.Pow(2, -17)];
         float[] pixels = Pixels(index => levels[index % levels.Length]);
         using var source = TestFramework.CreateTexture(64, 36, PixelInternalFormat.Rgba32f, pixels);
         rig.Meter(source, Settings());
@@ -110,7 +131,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         double[] counts=new double[64],sums=new double[64];int[] population=new int[64];
         for(int i=0;i<2304;i++)
         {
-            double level=Math.Log2(pixels[i*4]);int bin=Math.Clamp((int)((level+12)*64/28),0,63);
+            double level=Math.Log2(pixels[i*4]);int bin=Math.Clamp((int)((level+16)*64/56),0,63);
             double x=2*(i%64+.5)/64-1,y=2*(i/64+.5)/36-1;
             double weight=weighted?.25+.75*Math.Exp(-2*(x*x+y*y)):1;
             counts[bin]+=weight;sums[bin]+=weight*level;population[bin]++;
@@ -130,12 +151,12 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     public void UpperRangeUniformPopulationDoesNotOverflow()
     {
         EnsureShaderTestAvailable();using var rig=CreateRig();
-        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[65535f,65535f,65535f,1f]);
+        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[MathF.Pow(2,39.99f),MathF.Pow(2,39.99f),MathF.Pow(2,39.99f),1f]);
         rig.Meter(source,Settings());float[] bins=rig.ReadHistogram();
         for(int group=0;group<36;group++)
         {
             int last=(group*64+63)*2;Assert.Equal(64,bins[last]);
-            AssertClose(64*MathF.Log2(65535),bins[last+1],.002f);
+            AssertClose(64*39.99f,bins[last+1],.002f);
             for(int bin=0;bin<63;bin++){Assert.Equal(0,bins[(group*64+bin)*2]);Assert.Equal(0,bins[(group*64+bin)*2+1]);}
         }
         AssertClose(-12,rig.Adapt(Settings(),0,0,true));
@@ -285,8 +306,9 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
 
         }
         /// <summary>Runs fixed-grid scene metering without modifying its source image.</summary>
-        internal void Meter(GpuTexture texture, CameraExposureParameters settings)
+        internal void Meter(GpuTexture texture, CameraExposureParameters settings, GpuShaderStorageBuffer? publication = null)
         {
+            if (publication is not null) meter.FrameLightingInputs = publication;
             meter.SceneRadiance = texture; meter.Capture(settings, false);
             meter.Histogram = targets.Histogram;
             meter.Dispatch(36);
@@ -297,7 +319,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         internal void PublishTarget(float target)
         {
             uint[] values = new uint[36 * 128];
-            values[64] = 4096; values[65] = (uint)MathF.Round((MathF.Log2(.18f) - target + 12) * 1048576);
+            values[64] = 4096; values[65] = (uint)MathF.Round((MathF.Log2(.18f) - target + 16) * 1048576);
             targets.Histogram.UploadData(values);
         }
         /// <summary>Publishes an empty population to exercise missing scene statistics.</summary>
@@ -329,7 +351,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             for (int i = 0; i < encoded.Length; i += 2)
             {
                 decoded[i] = encoded[i] / 4096f;
-                decoded[i + 1] = encoded[i + 1] / 1048576f - 12 * decoded[i];
+                decoded[i + 1] = encoded[i + 1] / 1048576f - 16 * decoded[i];
             }
             return decoded;
         }

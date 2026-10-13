@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.LumOn;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace VanillaGraphicsExpanded.Tests;
 
@@ -44,6 +45,35 @@ public sealed class CameraExposureSettingsTests
         restored.Sanitize();
         Assert.NotNull(restored.CameraExposure);
         Assert.True(restored.CameraExposure.Enabled);
+    }
+
+    /// <summary>Missing exposure settings use the physical-lighting defaults shared with ConfigLib.</summary>
+    [Fact]
+    public void MissingExposureSettingsUseCurrentDefaultsWithoutVersionMarker()
+    {
+        var config = JsonConvert.DeserializeObject<VgeConfig>("{}")!;
+        Assert.Equal(0, config.CameraExposure.ManualEV);
+        Assert.Equal(-20, config.CameraExposure.MinEV);
+        Assert.Equal(8, config.CameraExposure.MaxEV);
+        Assert.Null(JObject.FromObject(config)["PhotometricVersion"]);
+
+        var definition = JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/config/configlib-patches.json")));
+        int bounds = 0;
+        foreach (var category in ((JObject)definition["settings"]!).Properties())
+        foreach (var setting in ((JObject)category.Value).Properties())
+        {
+            if (setting.Value["code"]?.Value<string>() == "CameraExposure.MinEV")
+            {
+                Assert.Equal(-20, setting.Value["default"]!.Value<float>());
+                bounds++;
+            }
+            if (setting.Value["code"]?.Value<string>() == "CameraExposure.MaxEV")
+            {
+                Assert.Equal(8, setting.Value["default"]!.Value<float>());
+                bounds++;
+            }
+        }
+        Assert.Equal(2, bounds);
     }
     #endregion
 }

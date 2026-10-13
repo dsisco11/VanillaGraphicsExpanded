@@ -219,6 +219,8 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         using var platform=new EngineShaderPlatformScope();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[16f,8f,4f,.4f]);
+        using var publication=new TestFrameLightingPublication();
+        GpuShaderProgramLibraries.Get<BloomShaderProgram>(assets.Api, "pbr_bloom")!.FrameLightingInputs=publication.Buffer;
         using var owner=new BloomRenderer();
         using var submission=new PostprocessDraw();
         var settings=new PostprocessParameters(.125f,0,.5f,levels,0,1,16);
@@ -253,6 +255,8 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
         float[] pixels=new float[257*129*4];pixels[(64*257+128)*4]=256;
         using var source=TestFramework.CreateTexture(257,129,PixelInternalFormat.Rgba32f,pixels);
+        using var publication=new TestFrameLightingPublication();
+        GpuShaderProgramLibraries.Get<BloomShaderProgram>(assets.Api, "pbr_bloom")!.FrameLightingInputs=publication.Buffer;
         using var owner=new BloomRenderer();
         using var submission=new PostprocessDraw();
         int narrowSupport=0;
@@ -288,6 +292,8 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         using var platform=new EngineShaderPlatformScope();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
         using var source=TestFramework.CreateTexture(1280,720,PixelInternalFormat.Rgba16f,CreateUniformColorData(1280,720,8,4,2));
+        using var publication=new TestFrameLightingPublication();
+        GpuShaderProgramLibraries.Get<BloomShaderProgram>(assets.Api, "pbr_bloom")!.FrameLightingInputs=publication.Buffer;
         using var owner=new BloomRenderer();
         using var submission=new PostprocessDraw();
         var settings=new PostprocessSettings().Snapshot();

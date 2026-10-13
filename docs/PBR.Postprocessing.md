@@ -15,6 +15,28 @@ standard blending for the following overlay stage.
 
 ## Responsibilities and order
 
+### Physical scale and storage safety
+
+Scene and generated glare RGB store nits times the current frozen P. Histogram metering decodes
+1/P before glare generation. Bloom thresholds and the shaft peak limit are exposed display-linear
+quantities, evaluated with exp2(EV)/P; extraction leaves output in the same P-scaled storage.
+Final composition sums scene, bloom and shafts in FP32 and applies exp2(EV)/P exactly once before
+the unchanged tone curve. Display controls never alter source power, propagation, AO or materials.
+
+Owned bloom, shaft and luma RGB writes use the RGBA16F interval [0,65504]. Exceptional positive
+infinity maps to the upper endpoint, negative infinity to zero, and NaN writes neutral current-frame
+RGB. Invalid exposure also uses a neutral display fallback. Every owned pass completely overwrites
+its output; rejected samples cannot reveal prior-frame pixels encoded with a different P.
+These protections contain payloads without claiming valid source/history data. Finite unsupported
+over-range output also clips and remains a range defect; ordinary supported lighting retains its
+value. Normalized reductions and radial filters weight samples before accumulation. The final
+three-input sum is not narrowed to half float: admitted 1/P and exposure [-48,24] keep its FP32
+display multiplication finite. Existing solar disk/glare headroom remains the primary range control.
+No temporal postprocessing RGB image is introduced; camera history stores only finite bounded stops.
+
+This numerical routing is separate from user-run appearance and full-scene qualification recorded
+in PBR.PhotometricLighting.todo.
+
 Before deferred composition, LightShaftOcclusionRenderer runs at Opaque order 8.75, after
 opaque receivers and before direct lighting (9), water transport (10.5), and final PBR composition
 (11). It publishes current-frame depth-distance occlusion for aerial in-scattering. Its Before
@@ -636,7 +658,8 @@ it with a dark neighbor puts it below the threshold. Rec.709 luminance is multip
 only for selection. For threshold T and fractional knee K, the RGB selection weight is
 smoothstep(T-TK, T+TK, exposed luminance); it is bounded from zero to one. K=0 selects a hard
 threshold. T=0 explicitly bypasses selection. One shared RGB weight preserves source chromaticity;
-strength scales extracted radiance once. Storage remains unexposed, with no display transform or
+strength scales extracted radiance once. The threshold is an exposed display-linear quantity:
+selection uses stored RGB times exp2(EV)/P. Storage remains P-scaled nits, with no display transform or
 extra exposure multiplication. The final display shader applies exposure once to scene plus glare.
 
 A four-tap reduction chain is completed before filtering. Each level receives horizontal and
@@ -731,7 +754,7 @@ are not darkened by this mask. The physical sky itself is not multiplied by a fo
 After complete scene composition and camera metering, a separate extraction reads HDR scene RGB.
 Rec.709 luminance determines the exposure-relative excess above the bloom threshold. One RGB
 scale bounds exposed peak radiance before filtering, including the shaft strength. Storage stays
-unexposed. The atmospheric sun supplies projection, daylight gating and normalized tint, without
+P-scaled, without camera exposure baked into its output. The atmospheric sun supplies projection, daylight gating and normalized tint, without
 multiplying scene radiance by solar irradiance again. Solar visibility from glow green, sky depth,
 an aspect-correct source aperture and a smooth image-edge fade restrict the source. Four balanced
 samples cover the reduced pixel footprint. The result is filtered with normalized radial passes

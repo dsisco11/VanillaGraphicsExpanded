@@ -1,7 +1,7 @@
 using System;
 namespace VanillaGraphicsExpanded.PBR.CameraExposure;
 
-/// <summary>Persisted camera response in scene-relative exposure stops, independent of lighting units.</summary>
+/// <summary>Persisted log2 display multiplier for physical luminance, without photographic camera calibration.</summary>
 public sealed class CameraExposureSettings
 {
     #region Public API
@@ -12,9 +12,9 @@ public sealed class CameraExposureSettings
     /// <summary>Sets fixed exposure in stops when automatic metering is disabled.</summary>
     public float ManualEV { get; set; }
     /// <summary>Limits darkening so isolated highlights cannot black out the scene.</summary>
-    public float MinEV { get; set; } = -4;
+    public float MinEV { get; set; } = -20;
     /// <summary>Limits brightening to retain dark-scene intent.</summary>
-    public float MaxEV { get; set; } = 4;
+    public float MaxEV { get; set; } = 8;
     /// <summary>Defines the metered linear middle-gray target.</summary>
     public float MiddleGray { get; set; } = .18f;
     /// <summary>Rejects the darkest weighted fraction of histogram samples.</summary>
@@ -30,8 +30,8 @@ public sealed class CameraExposureSettings
 
     /// <summary>Produces a finite immutable snapshot for coherent frame inputs and change detection.</summary>
     internal CameraExposureParameters Snapshot() => new(Enabled,
-        Clamp(Compensation, 0, -8, 8), Clamp(ManualEV, 0, -8, 8),
-        Clamp(MinEV, -4, -12, 12), Math.Max(Clamp(MinEV, -4, -12, 12), Clamp(MaxEV, 4, -12, 12)),
+        Clamp(Compensation, 0, -8, 8), Clamp(ManualEV, 0, -48, 24),
+        Clamp(MinEV, -20, -48, 24), Math.Max(Clamp(MinEV, -20, -48, 24), Clamp(MaxEV, 8, -48, 24)),
         Clamp(MiddleGray, .18f, .01f, 1), Clamp(LowPercentile, .1f, 0, .49f),
         Clamp(HighPercentile, .9f, .51f, 1), Clamp(BrightenRate, 1, .01f, 20),
         Clamp(DarkenRate, 3, .01f, 20), CenterWeighted);

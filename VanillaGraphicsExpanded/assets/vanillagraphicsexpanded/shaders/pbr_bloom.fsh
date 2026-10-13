@@ -3,6 +3,7 @@
 #extension GL_ARB_shader_image_load_store : require
 @import "./includes/camera_exposure_buffer.glsl"
 @import "./includes/pbr_frame_lighting.glsl"
+@import "./includes/post_storage.glsl"
 @import "./includes/postprocess_inputs.glsl"
 uniform sampler2D sourceImage;
 uniform sampler2D secondaryImage;
@@ -34,10 +35,11 @@ vec3 reduceScene(bool extract, float exposureMultiplier)
     for (int y = 0; y < 2; ++y)
         for (int x = 0; x < 2; ++x)
         {
-            vec3 sampleColor = texture(sourceImage, uv + (vec2(x, y) - .5) * texel).rgb;
-            sum += extract ? extractHighlight(sampleColor, exposureMultiplier) : sampleColor;
+            vec3 sampleColor = VgePostStoredLight(texture(sourceImage, uv + (vec2(x, y) - .5) * texel).rgb);
+            // Weight before accumulation so a reduction never creates a larger transient sum.
+            sum += (extract ? extractHighlight(sampleColor, exposureMultiplier) : sampleColor) * .25;
         }
-    return sum * .25;
+    return sum;
 }
 
 /** Integrates every texel in the support through adjacent bilinear pairs, without sparse sampling gaps. */
@@ -45,13 +47,13 @@ vec3 filterGaussian(vec2 axis)
 {
     vec2 texel = axis / vec2(textureSize(sourceImage, 0));
     // CPU-normalized kernel: passInfo.y is center weight; effect/sun hold pair weights/offsets.
-    vec3 sum = texture(sourceImage, uv).rgb * passInfo.y;
+    vec3 sum = VgePostStoredLight(texture(sourceImage, uv).rgb) * passInfo.y;
     for (int pair = 0; pair < 4; ++pair)
     {
         if (effect[pair] <= 0.0) continue;
         vec2 offset = texel * sun[pair];
-        sum += (texture(sourceImage, uv + offset).rgb
-            + texture(sourceImage, uv - offset).rgb) * effect[pair];
+        sum += VgePostStoredLight(texture(sourceImage, uv + offset).rgb) * effect[pair]
+            + VgePostStoredLight(texture(sourceImage, uv - offset).rgb) * effect[pair];
     }
     return sum;
 }
@@ -67,7 +69,7 @@ void main()
         if (extract)
         {
             float ev = passInfo.w > .5 ? cameraExposureEV : effect.w;
-            exposureMultiplier = exp2(clamp(ev, -24.0, 24.0)) * lightingStorage.y;
+            exposureMultiplier = VgePostExposure(ev);
         }
         color = reduceScene(extract, exposureMultiplier);
     }
@@ -76,8 +78,8 @@ void main()
     else
     {
         // Bilinear reconstruction only resamples the already Gaussian-filtered coarse image.
-        color = texture(sourceImage, uv).rgb * effect.rgb;
-        if (passInfo.w > .5) color += texture(secondaryImage, uv).rgb;
+        color = VgePostStoredLight(texture(sourceImage, uv).rgb) * effect.rgb;
+        if (passInfo.w > .5) color += VgePostStoredLight(texture(secondaryImage, uv).rgb);
     }
-    outColor = vec4(color, 1);
+    outColor = vec4(VgePostStoredLight(color), 1);
 }

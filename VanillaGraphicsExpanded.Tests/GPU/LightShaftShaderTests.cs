@@ -19,14 +19,17 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
     #region Public API
     /// <summary>Exposed peak limits preserve HDR source color and manual or automatic camera exposure.</summary>
     [Theory]
-    [InlineData(-2f,false)]
-    [InlineData(0f,false)]
-    [InlineData(2f,true)]
-    public void ExtractionBoundsExposedDiskAndPreservesColor(float ev,bool automatic)
+    [InlineData(-2f,false,1f)]
+    [InlineData(0f,false,1f)]
+    [InlineData(2f,true,1f)]
+    [InlineData(2f,true,.25f)]
+    public void ExtractionBoundsExposedDiskAndPreservesColor(float ev,bool automatic,float scale)
     {
         EnsureShaderTestAvailable();
         var shader=Programs.Create<LightShaftShaderProgram>();
-        float[] radiance=Enumerable.Repeat(new[]{1000f,500f,250f,.37f},65*33).SelectMany(x=>x).ToArray();
+        using var publication = new TestFrameLightingPublication(); publication.Capture(scale);
+        shader.FrameLightingInputs = publication.Buffer;
+        float[] radiance=Enumerable.Repeat(new[]{1000f*scale,500f*scale,250f*scale,.37f},65*33).SelectMany(x=>x).ToArray();
         using var scene=TestFramework.CreateTexture(65,33,PixelInternalFormat.Rgba32f,radiance);
         using var mask=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,1000f,0f,1f]);
         using var depth=TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[1f]);
@@ -36,7 +39,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         shader.SourceImage=scene;shader.VisibilityImage=mask;shader.DepthImage=depth;shader.ExposureBuffer=history;
         shader.Capture(new(0,0,0,automatic?1:0),new(1,2,.5f,automatic?-ev:ev),new(.5f,.5f,1,65f/33),new(1,1,1,10));
         Draw(shader,target);
-        float[] actual=target[0].ReadPixels().Skip((16*65+32)*4).Take(4).ToArray();float expected=MathF.Pow(2,-ev);
+        float[] actual=target[0].ReadPixels().Skip((16*65+32)*4).Take(4).ToArray();float expected=MathF.Pow(2,-ev)*scale;
         Assert.InRange(actual[0],expected-.0001f,expected+.0001f);
         Assert.InRange(actual[1]/actual[0],.49999f,.50001f);
         Assert.InRange(actual[2]/actual[0],.24999f,.25001f);
@@ -109,20 +112,16 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
     public void CompositeSamplerFootprintFitsDeviceCapacity()
     {
         EnsureShaderTestAvailable();var shader=Programs.Create<VanillaGraphicsExpanded.PBR.PBRCompositeShaderProgram>();
-        GL.GetProgram(shader.ProgramId,GetProgramParameterName.ActiveUniforms,out int count);
         int samplers = 0;
         var units = new HashSet<int>();
-        for (int index = 0; index < count; index++)
+        // SPIR-V strips authored names; use the validated numeric linked interface.
+        foreach (var entry in shader.ProgramLayout.BinaryInterface!.PreparedBindings.Entries)
         {
-            string name = GL.GetActiveUniform(shader.ProgramId, index, out int size, out ActiveUniformType type);
-            if (type is not (ActiveUniformType.Sampler2D or ActiveUniformType.Sampler3D or ActiveUniformType.Sampler2DArray)) continue;
-            samplers += size;
-            Assert.True(shader.ProgramLayout.TryGetContractSamplerUnit(name, out int unit));
+            if (!entry.Active || entry.Contract.Kind != VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.Sampler) continue;
+            samplers += entry.ActiveElements.Count(value => value);
+            int unit = entry.Contract.Binding.Slot;
             Assert.InRange(unit, 0, 12);
             Assert.True(units.Add(unit));
-            int location = shader.ProgramLayout.BinaryInterface!.GetUniformLocation(name);
-            GL.GetUniform(shader.ProgramId, location, out int actualUnit);
-            Assert.Equal(unit, actualUnit);
         }
         int driverLimit = GpuSupport.MaxTextureImageUnits;
         output.WriteLine($"Composite active samplers={samplers}; driver fragment limit={driverLimit}; required fragment sampler capacity={samplers}.");

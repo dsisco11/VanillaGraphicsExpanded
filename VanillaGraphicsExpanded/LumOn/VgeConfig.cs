@@ -1397,7 +1397,7 @@ public class VgeConfig
     [JsonProperty]
     public DebugConfig Debug { get; set; } = new();
 
-    /// <summary>Controls scene-linear camera metering and the final display exposure.</summary>
+    /// <summary>Controls physical-luminance camera metering and the final display exposure.</summary>
     [JsonProperty]
     public PBR.CameraExposure.CameraExposureSettings CameraExposure { get; set; } = new();
 

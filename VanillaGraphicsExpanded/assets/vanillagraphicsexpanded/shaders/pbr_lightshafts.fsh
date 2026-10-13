@@ -3,6 +3,7 @@
 #extension GL_ARB_shader_image_load_store : require
 @import "./includes/camera_exposure_buffer.glsl"
 @import "./includes/pbr_frame_lighting.glsl"
+@import "./includes/post_storage.glsl"
 @import "./includes/postprocess_inputs.glsl"
 @import "./includes/vge_frame_ubo.glsl"
 uniform sampler2D sourceImage;
@@ -22,8 +23,8 @@ vec4 extractSource(vec2 p) {
     float distance=abs(vgeFrame.projectionMatrix[3][2]/max(abs(depth*2.0-1.0+vgeFrame.projectionMatrix[2][2]),1e-6));
     float visibility=smoothstep(0.0,max(solar.w,1.0),distance);
     float ev=passInfo.w>0.5?cameraExposureEV:effect.w;
-    float exposureScale=exp2(clamp(ev,-24.0,24.0))*lightingStorage.y;
-    vec3 scene=max(texture(sourceImage,p).rgb,vec3(0));
+    float exposureScale=VgePostExposure(ev);
+    vec3 scene=VgePostStoredLight(texture(sourceImage,p).rgb);
     float luminance=dot(scene,vec3(0.2126,0.7152,0.0722));
     float exposed=luminance*exposureScale;
     float excess=max(exposed-effect.x,0.0);
@@ -44,9 +45,11 @@ vec4 filterSource() {
         float offset=effect.x*float(i)/float(max(count-1,1));
         vec2 p=mix(uv,sun.xy,offset);
         bool inside=all(greaterThanEqual(p,vec2(0)))&&all(lessThanEqual(p,vec2(1)));
-        total+=inside?texture(sourceImage,p):vec4(0,0,0,1);
+        vec4 sampleValue=inside?texture(sourceImage,p):vec4(0,0,0,1);
+        sampleValue.rgb=VgePostStoredLight(sampleValue.rgb);
+        total+=sampleValue/float(count);
     }
-    return total/float(count);
+    return total;
 }
 /** Executes extraction, radial filtering, or independent bloom/occlusion publication. */
 void main() {
@@ -66,4 +69,5 @@ void main() {
         float visibility=mix(1.0,clamp(texture(sourceImage,uv).a,0.0,1.0),sun.z);
         outColor=vec4(vec3(1.0-visibility),1);
     }
+    outColor.rgb=VgePostStoredLight(outColor.rgb);
 }

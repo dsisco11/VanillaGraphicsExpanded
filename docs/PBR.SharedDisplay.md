@@ -6,8 +6,11 @@ sRGB-encoded for display. This is separate from native HDR monitor presentation.
 
 Photometric support supplies shared lux/nits conversions and explicit frame/persistent storage
 helpers, including visible-disk headroom. Sun, sky, block, punctual and material-emission
-sources now have calibrated physical quantities. Remaining transport, scene storage and
-camera migration must finish before releasing the combined pipeline. The camera's frozen-scale binding is adopted
+sources now have calibrated physical quantities. Connected transport and scene storage use
+frozen P, metering decodes physical nits, and final display applies exp2(EV)/P exactly once
+to scene plus glare. Configuration compatibility is documented in PBR.CameraExposure.md;
+integrated qualification and user appearance acceptance remain release gates in the photometric
+plan. The camera's frozen-scale binding is adopted
 explicitly by migrated scene programs; UI/offscreen shaders remain outside that contract.
 
 `includes/pbr_color.glsl` owns the display policy for atmospheric sky, the solar

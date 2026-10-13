@@ -48,7 +48,10 @@ for sun and punctual sources alike. This source conversion preserves material ca
 metallic partition and shadow ownership. Cache/probe and atmosphere lighting now use fixed-scale
 persistent storage, decoded at their declared consumers. The connected transient pipeline uses
 one frozen frame scale P for lighting storage and decodes it before physical evaluation or display.
-Remaining qualification and camera/configuration migration are tracked in
+Camera/configuration compatibility preserves saved stops and uses the updated defaults described
+in PBR.CameraExposure.md, without a version marker or automatic conversion. Source/material fields retain their existing
+data and receive the fixed calibrated shader interpretation; no engine asset rewrite is required.
+Remaining qualification is tracked in
 `PBR.PhotometricLighting.todo`; this intermediate pipeline is not a release candidate.
 
 Direct diffuse/specular, emission and gathered indirect lighting remain unexposed linear

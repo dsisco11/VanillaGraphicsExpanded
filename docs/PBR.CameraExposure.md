@@ -15,11 +15,16 @@ Exposure EV is log2 of the RGB multiplier. One stop doubles radiance at the disp
 The desired EV is log2(middleGray) minus the trimmed weighted mean of log2(luminance), plus
 compensation, clamped to the configured minimum/maximum. Default middle gray is 0.18 **before**
 the tone curve; it is not a promised final encoded pixel value. The default EV interval is
-[-4, 4]. This is a deliberate exposure limit: a scene whose metered luminance exceeds 2.88
-cannot be reduced to 0.18 within the default interval. Lower the minimum EV when a wider
-darkening range is desired; saved exposure limits remain authoritative.
+[-20, 8]. This covers an 18% diffuse daylight receiver illuminated at 100,000 lux
+(about 5,730 nits, requiring about -15 stops for the 0.18 display target), while bounding
+night brightening. Manual stops and exposure bounds accept [-48,24]; compensation remains
+[-8,8]. These are display multipliers, not EV100. Saved custom limits remain authoritative
+when already saved; the defaults apply to new or missing settings.
 
-The histogram contains 64 bins across log2 luminance (-12,16). A fixed 64 by 36 grid samples
+The histogram contains 64 bins across log2 physical luminance in nits (-16,40). The upper
+bound exceeds the maximum decoded half-float payload, 65504 / 7.147944e-6 (about 9.2 billion
+nits); the lower bound extends dim receiver sampling without promising scene quantization
+precision at that level. A fixed 64 by 36 grid samples
 the completed primary scene with nearest texel reads. Rec.709 linear RGB coefficients produce
 luminance. Negative RGB is clamped for metering; non-finite samples and luminance outside the
 open range are excluded. Each bin stores a quantized weighted count and shifted weighted
@@ -69,8 +74,10 @@ and manual mode use the bounded manual seed. Subsequent metering writes a separa
 buffer and leaves the frozen scale unchanged. Initial freezing after metering is rejected.
 
 Physical consumers explicitly adopt `IPhotometricFrameBindings`. Sun, sky, block, punctual
-and material-emission sources are calibrated; transport, scene storage and camera integration
-remain pending. These storage APIs do not by themselves activate the complete physical pipeline.
+and material-emission sources are calibrated. Connected transport, scene storage, metering
+and display consumers use the same frozen publication. Metering decodes stored RGB by 1/P;
+final display multiplies scene plus glare by exp2(EV)/P exactly once. Persistent lighting
+retains its fixed C=1/16 representation independently of the camera.
 The capability gate admits the frozen slot and simultaneous
 fragment reads of exposure and frame scale. Resize, reload and world retirement withdraw and
 dispose both publications through the existing camera owner. Stable submissions reuse storage;
@@ -93,15 +100,15 @@ The reduction dispatch uses one 64-lane group; each lane decodes and sums its bi
 36 slices, then lane zero performs percentile reduction and the unchanged analytical adaptation.
 
 Weights are rounded to unsigned integers at scale 4,096. The shifted log-luminance sum is
-round(encodedWeight * (log2(luminance) + 12) * 256). Decoding divides weight by 4,096
-and sum by 1,048,576, then subtracts 12 times decoded weight. Weight rounding error is at most
+round(encodedWeight * (log2(luminance) + 16) * 256). Decoding divides weight by 4,096
+and sum by 1,048,576, then subtracts 16 times decoded weight. Weight rounding error is at most
 1/8,192 per sample; sum quantization is at most 1/2,097,152 in decoded units before shader
 floating-point rounding. Floating-point products near the largest encoded sum have eight-unit
 spacing (about 0.000008 decoded units). Percentile reduction retains within-bin weighted means;
 quantization can perturb percentile boundary populations. This is a bounded approximation to
 the previous float histogram, not an exact sample sort or calibrated EV100 statistic.
-A group contains only 64 samples with weights at most one and shifted levels at most 28:
-count <= 262,144 and shifted sum <= 1,879,048,192, both below uint32 capacity.
+A group contains only 64 samples with weights at most one and shifted levels at most 56:
+count <= 262,144 and shifted sum <= 3,758,096,384, both below uint32 capacity.
 The complete histogram is decoded to float before merging groups, avoiding integer overflow
 across all 2,304 samples. Invalid RGB and luminance outside the open range remain excluded.
 
@@ -135,8 +142,23 @@ resource publication, shader reload and world exit retire compute programs, buff
 The Camera Exposure section in the existing graphics configuration persists automatic/manual
 mode, compensation, manual EV, EV bounds, middle gray, percentile cutoffs, center weighting,
 and brightening/darkening speeds. Automatic mode defaults on. Disable it with manual EV and
-compensation both zero to retain the previous unit-exposure camera response. Manual mode
+compensation both zero to use one display unit per physical nit before the tone curve. Manual mode
 submits no metering dispatches and retires histogram/history storage.
+
+### Saved-setting compatibility
+
+New or missing camera settings use exposure limits -20/+8 and manual exposure zero. Existing
+saved camera values remain unchanged, subject to the finite snapshot bounds; no version marker
+or automatic stop offset is applied. A leftover marker from an intermediate configuration is
+ignored as an unknown field. Compensation, middle gray, adaptation, percentiles and dimensionless
+glare controls retain their meanings. Updating defaults does not rewrite saved custom settings.
+
+Existing exposure values may need user adjustment: the formerly uncalibrated solar/block/source
+mixture had no universal scale, so the same stops do not promise the same old screenshots.
+Engine light levels, materials, propagation and world saves remain unchanged. Existing shared
+shader mappings supply source-derived torch lux, point candela and 32-nit authored emission;
+third-party inputs using those same fields inherit these defaults. Arbitrary shader output still
+requires the declared scene contract. No new light configuration or source discovery is added.
 
 The compute implementation fetches 2,304 scene samples per automatic frame, compared with
 147,456 in the retired raster implementation at the same sample grid. It performs at most
@@ -150,6 +172,18 @@ Fragment consumers read one shared EV float when automatic exposure is enabled.
 These are algorithmic storage/work counts, not physical bandwidth or complete-frame GPU timings.
 
 ## Validation status
+
+The earlier physical-camera qualification passed 197 focused cases with no failures or skips,
+including 28 new migration, physical-metering scale, actual half-float storage, exceptional-output,
+shaft scale and final display checks. Both current shader catalogs and the Release build pass.
+Receipts: artifacts/TestResults/photometric-phase5-superseding.trx and
+artifacts/photometric-phase5-final-build.log. Earlier receipts below qualify the retained camera
+algorithm; their former scene-relative histogram bounds are superseded by the physical range above.
+The nine automatic-migration cases are superseded by the user-approved removal of that mechanism;
+focused settings/default checks qualify the retained compatibility behavior (42/42 passing, no
+skips, in artifacts/TestResults/exposure-defaults-no-migration.trx; Release build passes). The unchanged shader
+checks retain their evidence. These are headless correctness checks. Integrated package and user-run adaptation/appearance
+acceptance remain in PBR.PhotometricLighting.todo.
 
 The shader-enabled build and 109/109 focused numerical/GPU cases passed with no failures or
 skips. Existing compiler/analyzer warnings remain. Receipt: artifacts/exposure-final-validation.log
