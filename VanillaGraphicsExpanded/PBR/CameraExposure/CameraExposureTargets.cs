@@ -22,7 +22,7 @@ internal sealed class CameraExposureTargets : IDisposable
             {
                 history[i] = GpuShaderStorageBuffer.Create(debugName: $"Camera.Exposure.{i}");
                 // Reset adaptation does not read undefined initial history.
-                history[i]!.Allocate(sizeof(float));
+                history[i]!.Allocate(32);
             }
         }
         catch { Dispose(); throw; }

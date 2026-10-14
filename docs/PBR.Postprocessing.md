@@ -15,6 +15,47 @@ standard blending for the following overlay stage.
 
 ## Responsibilities and order
 
+### Optional local exposure
+
+`Postprocessing.LocalExposure.Enabled` defaults to true following user acceptance.
+Explicit saved opt-outs remain authoritative. The graphics configuration's
+**Local exposure** switch controls activation; **Show local exposure adjustment**
+visualizes positive stops in red, negative stops in blue and zero in gray. Advanced
+JSON parameters are Width/Height (defaults 256/144), RangeWidth (1 stop), shadow/highlight
+contrast strengths (0.5) and separate local-stop limits (4). These are candidate engineering
+settings, not calibrated human-vision constants. Existing light power, contrast controls,
+camera gain settings and the standard filmic curve remain unchanged.
+
+The current-frame spatial owner partitions every scene texel into one coarse cell,
+including odd image dimensions, averaging positive finite physical log luminance. An
+RG32F log/validity grid feeds a second RG32F edge-preserving base. Two 256x144 images
+have a nominal payload of 576 KiB; smaller scenes use smaller grids. Stable frames
+reuse storage. Compute work covers the full source image and has not been qualified
+for in-game frame-time cost. No spatial image history or CPU statistics readback is added.
+
+The passes run after physical scene metering and before generated glare. Final display
+uses scene-only luminance guidance and independently adapted physical log luminance,
+then applies bounded local stops to the combined scene/glare before the unchanged
+grading lookup. Local motion/adaptation does not invalidate the LUT cache. A separate
+optional final-shader variant retains the disabled path's sampler/SSBO requirements.
+The existing GLSL 330 draw and GLSL 430 compute baselines remain in place.
+
+The camera's expanded GPU metadata records applied gain, physical adaptation and the
+uncapped metering target; see [PBR.CameraExposure.md](PBR.CameraExposure.md). Viewing
+estimation continues under manual camera gain when the candidate is enabled. Empty
+statistics or invalid base guidance produce neutral local correction, not a terrain
+lighting floor. Changing enabled state resets camera history; resize, reload and world
+leave withdraw spatial publication and retire resources through the existing owners.
+
+This candidate cannot fix a restrictive global gain cap by itself: a nearly uniform
+dim frame has little base contrast to compress. Captured-scene qualification, global
+policy selection, visibility references and representative performance qualification remain
+tracked in [PBR.VisualAdaptation.todo](PBR.VisualAdaptation.todo).
+The user visually accepted the optional local-exposure candidate on 2026-10-14,
+reporting that it works very well, then requested it enabled by default. Exposure limits remain unchanged.
+Focused correctness receipts and the optional packaged candidate are recorded in
+[runtime validation](../artifacts/VisualAdaptation/runtime-validation.md).
+
 ### Physical scale and storage safety
 
 Scene and generated glare RGB store nits times the current frozen P. Histogram metering decodes

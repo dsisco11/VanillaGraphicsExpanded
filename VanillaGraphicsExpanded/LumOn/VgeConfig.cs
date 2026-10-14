@@ -1485,6 +1485,7 @@ public class VgeConfig
     {
         CameraExposure ??= new();
         Postprocessing ??= new();
+        Postprocessing.LocalExposure ??= new();
         // Preserve the saved enable flag while restoring unsupported quality/resolution values to defaults.
         if (WaterRefractionQuality is < 0 or > 3) WaterRefractionQuality = 3;
         if (WaterRefractionBackgroundScale is not (1 or 2)) WaterRefractionBackgroundScale = 2;

@@ -4,9 +4,10 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 /// <summary>Owns final HDR composition, display conversion and native screen effects.</summary>
-[ShaderProgram("Contract", "pbr_final", 3)]
+[ShaderProgram("Contract", "pbr_final", 4)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_postprocess.vsh", Identity = "pbr_final.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_final.fsh")]
+[ShaderUse("Contract",ShaderStageKind.Fragment,nameof(LocalExposureEnabled))]
 internal sealed partial class FinalDisplayShaderProgram : GpuProgram, IFinalDisplayShaderProgramBindings
 {
     private readonly FinalDisplayInputs inputs;
@@ -31,6 +32,15 @@ internal sealed partial class FinalDisplayShaderProgram : GpuProgram, IFinalDisp
     public partial DynamicTexture3D? GradingLookup { set; }
     /// <summary>Stages the published exposure buffer.</summary>
     public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
+    /// <summary>Selects the optional local variant without increasing disabled-path resource requirements.</summary>
+    [ShaderOption("VGE_LOCAL_EXPOSURE",false)]
+    internal partial bool LocalExposureEnabled { get; set; }
+    /// <summary>Borrows the completed current-frame log-luminance base.</summary>
+    public partial GpuTexture? LocalBase { set; }
+    /// <summary>Borrows independent camera viewing adaptation for both camera modes.</summary>
+    public partial GpuShaderStorageBuffer? AdaptationBuffer { set; }
+    /// <summary>Captures local policy separately from cached color-grading controls.</summary>
+    internal void CaptureLocal(LocalExposure.LocalExposureParameters settings)=>inputs.CaptureLocal(settings);
     /// <summary>Borrows a camera/frame snapshot for alternate views and fixtures.</summary>
     internal VgeFrameUniformBuffer? FrameInputs
     {

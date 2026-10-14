@@ -528,6 +528,24 @@
           "step": 0.05
         }
       },
+      "POST_LOCAL_EXPOSURE_ENABLED": {
+        "code": "Postprocessing.LocalExposure.Enabled",
+        "clientSide": true,
+        "name": "Postprocessing/LocalExposure/Enabled",
+        "ingui": "vanillagraphicsexpanded:config-local-exposure-enabled",
+        "comment": "vanillagraphicsexpanded:config-local-exposure-enabled-tooltip",
+        "default": true,
+        "weight": 24.5
+      },
+      "POST_LOCAL_EXPOSURE_VISUALIZE": {
+        "code": "Postprocessing.LocalExposure.Visualize",
+        "clientSide": true,
+        "name": "Postprocessing/LocalExposure/Visualize",
+        "ingui": "vanillagraphicsexpanded:config-local-exposure-visualize",
+        "comment": "vanillagraphicsexpanded:config-local-exposure-visualize-tooltip",
+        "default": false,
+        "weight": 24.55
+      },
       "CAMERA_COMPENSATION": {
         "code": "CameraExposure.Compensation",
         "clientSide": true,

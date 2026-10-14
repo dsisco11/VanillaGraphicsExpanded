@@ -3,8 +3,15 @@
 @import "./includes/vge_frame_ubo.glsl"
 layout(local_size_x=64) in;
 layout(std430, binding=0) readonly buffer CameraHistogram { uvec2 bins[]; };
-layout(std430, binding=1) readonly buffer PreviousExposure { float previousEV; };
-layout(std430, binding=2) writeonly buffer OutputExposure { float exposureEV; };
+layout(std430, binding=1) readonly buffer PreviousExposure {
+    float previousEV; float previousLogLuminance; float previousMetered;
+    float previousValidity;
+};
+layout(std430, binding=2) writeonly buffer OutputExposure {
+    float exposureEV; float adaptedLogLuminance; float meteredLogLuminance;
+    float adaptationValidity; float uncappedTarget; float exposureCapHit;
+    float reserved0; float reserved1;
+};
 shared vec2 histogram[64];
 /** Integrates constant-target adaptation exactly: linear outside one stop, exponential inside. */
 float adaptEV(float previous, float target, float dt)
@@ -27,13 +34,13 @@ void main()
     {
         vec2 encoded=vec2(bins[group*64u+lane]);
         float weight=encoded.x/4096.0;
-        entry+=vec2(weight,encoded.y/1048576.0+weight*meterRange.x);
+        float divisor=meterRange.w>.5 ? 524288.0 : 1048576.0;
+        entry+=vec2(weight,encoded.y/divisor+weight*meterRange.x);
     }
     histogram[lane]=entry;
     barrier();
     if(lane!=0u) return;
     float manual = clamp(percentiles.z+exposureRange.z,exposureRange.x,exposureRange.y);
-    if (percentiles.w<.5) { exposureEV=manual; return; }
     float previous = adaptation.w>.5 ? manual : previousEV;
     if (isnan(previous) || isinf(previous)) previous=manual;
     float count=0.0;
@@ -47,10 +54,28 @@ void main()
         if(entry.x>0.0) { sum+=weight*entry.y/entry.x; accepted+=weight; }
         prefix+=entry.x;
     }
-    float target=accepted>0.0 ? clamp(log2(exposureRange.w)-sum/accepted+exposureRange.z,
-        exposureRange.x,exposureRange.y) : previous;
-    exposureEV=clamp(adaptation.w>.5 ? target : adaptEV(previous,target,max(vgeFrame.deltaTime,0.0)),
-        exposureRange.x,exposureRange.y);
+    float rawTarget=accepted>0.0 ? log2(exposureRange.w)-sum/accepted+exposureRange.z : previous;
+    float target=clamp(rawTarget,exposureRange.x,exposureRange.y);
+    exposureEV=percentiles.w<.5 ? manual : clamp(adaptation.w>.5 ? target
+        : adaptEV(previous,target,max(vgeFrame.deltaTime,0.0)),exposureRange.x,exposureRange.y);
+    // Publish complete metadata even when disabled. Camera gain and the physical
+    // viewing estimate adapt independently, so a cap cannot masquerade as luminance.
+    adaptedLogLuminance=0.0; meteredLogLuminance=0.0; adaptationValidity=0.0;
+    uncappedTarget=rawTarget; exposureCapHit=rawTarget!=target ? 1.0 : 0.0;
+    reserved0=0.0; reserved1=0.0;
+    if(meterRange.w>.5 && accepted>0.0)
+    {
+        float measured=sum/accepted;
+        meteredLogLuminance=measured;
+        // Select the completed result explicitly. A reset never needs to evaluate
+        // temporal history, and invalid history cannot participate in arithmetic.
+        if(!(adaptation.w<.5) || !(previousValidity>.5) || isnan(previousValidity) || isinf(previousValidity)
+            || isnan(previousLogLuminance) || isinf(previousLogLuminance))
+            adaptedLogLuminance=measured;
+        else
+            adaptedLogLuminance=-adaptEV(-previousLogLuminance,-measured,max(vgeFrame.deltaTime,0.0));
+        adaptationValidity=1.0;
+    }
 }
 
 

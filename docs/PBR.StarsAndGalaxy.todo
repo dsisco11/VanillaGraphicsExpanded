@@ -612,6 +612,55 @@ Owned lunar disk follow-up (2026-10-13)
     in game; compare moonlit and moonless terrain/galaxy visibility separately.
     Numerical/GPU flux checks do not establish live appearance acceptance.
 
+Night terrain readability follow-up (2026-10-13)
+-----------------------------------------------
+  User confirmed the owned moon works, then supplied terrain-too-dark.rdc to
+  investigate terrain/block-light imbalance. Read-only capture replay confirms
+  both lunar direct illumination and the night environment reach terrain. The
+  crescent supplies approximately 0.00085 lux perpendicular to its direction;
+  a sampled unlit receiver contains nonzero outgoing scene radiance but resolves
+  to exact display black. A comparable lantern-lit receiver is approximately
+  434 times brighter before final display. No duplicate block calibration or
+  missing E/pi conversion was identified on this terrain route.
+
+  Captured exposure is already +6 stops, its saved maximum. The trimmed histogram
+  requests approximately +10.26 stops. Positive contrast is approximately 0.1433.
+  This is a display/readability investigation, not evidence that incident night
+  lighting is absent. Raising exposure also brightens lamp and celestial pixels;
+  do not increase source power or add a terrain-only light floor from this result.
+  Preserve the approved standard filmic defaults while comparing alternatives.
+  Receipts: ../artifacts/TerrainTooDark/findings.md and
+  ../artifacts/NightReadability/lantern-calibration.md. The retained flood-fill
+  mapping cannot establish a source-resolved physical lantern flux/falloff.
+
+  Controlled numerical display comparisons reconstruct the captured half-float
+  grading lookup and match two dark terrain baseline pixels exactly. At (1700,1100),
+  captured +6 gives RGB codes (0,0,0); direct filmic evaluation also gives black,
+  ruling out lookup interpolation as the cause at this pixel. Neutral contrast +6
+  gives (1,1,0); contrast -0.25 at +6 gives (7,5,1); captured contrast at +8 gives
+  (8,6,0); +10.26 gives (63,53,15). Lower contrast retains dark-scene presentation
+  while lifting shadows; higher exposure also strongly brightens the sky/highlights.
+  Lantern counterfactual values remain approximate: baseline reproduction differs
+  by up to four codes and auxiliary bloom orientation is not qualified. RenderDoc
+  shader replacement failed a solid-color positive control, so replacement PNGs
+  are invalid comparisons. Receipt: ../artifacts/NightReadability/findings.md.
+  No source-power, exposure-limit, contrast-policy or filmic-default change is made.
+
+  User approved evaluating luminance-driven visual adaptation and local exposure
+  on 2026-10-14. PBR.VisualAdaptation.Proposal.md records the research distinction,
+  existing global adaptation, proposed spatial display integration and acceptance
+  requirements. It supersedes an hour-driven contrast recommendation; it does not
+  select runtime coefficients or change the standard filmic curve.
+  Execution and prototype qualification are tracked in PBR.VisualAdaptation.todo.
+  The user visually accepted the optional local-exposure candidate on 2026-10-14,
+  reporting that it works very well, then requested local exposure enabled by default.
+  Source power and exposure limits remain unchanged; explicit saved opt-outs are
+  preserved. Performance qualification and the remaining policy work stay open.
+
+  ☐ Qualify a night exposure/grading choice against terrain readability,
+    lantern highlights, moon/stars and galaxy visibility before changing defaults.
+    Capture comparisons do not establish acceptance for other nights or weather.
+
 HDR display grading follow-up (2026-10-13)
 -----------------------------------------
   User reported visible point stars but no diffuse galaxy. The actual 64-pixel packed galaxy

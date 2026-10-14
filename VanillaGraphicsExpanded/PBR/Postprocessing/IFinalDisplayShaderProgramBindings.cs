@@ -29,5 +29,12 @@ internal interface IFinalDisplayShaderProgramBindings : VanillaGraphicsExpanded.
     /// <summary>Supplies the published exposure buffer without transferring ownership.</summary>
     [ShaderBinding("CameraExposure", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Fragment, Required = false)]
     GpuShaderStorageBuffer? ExposureBuffer { set; }
+    /// <summary>Supplies the current coarse physical base only to the optional local variant.</summary>
+    [ShaderBinding("localBaseImage",ShaderBindingKind.Sampler,4,ShaderStageKind.Fragment,Required=false,
+        TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? LocalBase { set; }
+    /// <summary>Supplies independent physical adaptation without requiring automatic camera gain.</summary>
+    [ShaderBinding("CameraAdaptation",ShaderBindingKind.StorageBlock,1,ShaderStageKind.Fragment,Required=false)]
+    GpuShaderStorageBuffer? AdaptationBuffer { set; }
     #endregion
 }

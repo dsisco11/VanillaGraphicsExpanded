@@ -115,12 +115,37 @@ count <= 262,144 and shifted sum <= 3,758,096,384, both below uint32 capacity.
 The complete histogram is decoded to float before merging groups, avoiding integer overflow
 across all 2,304 samples. Invalid RGB and luminance outside the open range remain excluded.
 
-Two owned four-byte SSBOs retain previous/current EV. Successful dispatch submission and
+Two owned 32-byte SSBOs retain previous/current EV at offset zero plus optional viewing
+metadata. Float offsets are EV, adapted log2 luminance, metered log2 luminance, validity,
+uncapped metering target, metering-target cap-hit flag and two reserved zeros. Existing
+scalar exposure consumers continue reading offset zero. Successful dispatch submission and
 restoration swap publication; failure never publishes the partially written candidate.
 ShaderStorageBarrierBit separates histogram writes from reduction reads and reduction writes
 from later fragment reads (including next-frame history reads). The prepared-resource engine
 boundary restores program, sampler, UBO and SSBO bindings. Stable frames reuse the same
 allocations and programs; there are no CPU luminance/EV readbacks or per-frame GPU allocations.
+
+### Optional local-exposure adaptation
+
+The disabled-by-default `Postprocessing.LocalExposure.Enabled` candidate independently
+adapts physical log luminance. A cap on camera EV cannot become the viewing estimate.
+The histogram's optional open domain is (-24,40) log2 nits; shifted-sum quantization uses
+128 instead of 256 units. With 64 samples, 4096 weight units and a 64-stop span, a
+workgroup sum is bounded by 2,147,483,648, within uint32. Default metering retains the
+existing (-16,40) domain and quantization. Samples at/below the lower endpoint remain
+excluded, not a fabricated luminance floor.
+
+Enabling the candidate meters even in manual camera mode. Applied EV remains the saved
+bounded manual value; physical luminance history is still estimated and adapted. The
+uncapped target and cap-hit flag describe what the meter requests relative to the configured
+exposure interval, even when automatic gain is disabled. They are GPU-resident diagnostic
+fields, not CPU readbacks. Empty populations publish invalid viewing metadata and neutral
+local correction. Cuts, reload, resize, world leave and enable changes invalidate history.
+Viewing adaptation uses the existing rates with the luminance/exposure direction reversed.
+These are practical temporal filters, not measured physiological rod/cone timings.
+
+The spatial display operation and unchanged grading cache are described in
+[PBR.Postprocessing.md](PBR.Postprocessing.md). No source-light or storage calibration changes.
 
 Owned bloom, LightShafts, luma preparation and FinalDisplayShaderProgram consume the published
 EV through generated typed read-only storage-block bindings. Manual draws select the captured
@@ -146,11 +171,13 @@ The Camera Exposure section in the existing graphics configuration persists auto
 mode, compensation, manual EV, EV bounds, middle gray, percentile cutoffs, center weighting,
 and brightening/darkening speeds. Automatic mode defaults on. Disable it with manual EV and
 compensation both zero to use one display unit per physical nit before the tone curve. Manual mode
-submits no metering dispatches and retires histogram/history storage.
+submits no metering dispatches and retires histogram/history storage when local exposure
+is disabled. With the optional candidate enabled, physical viewing estimation remains
+active while the saved manual gain is authoritative.
 
 ### Saved-setting compatibility
 
-New or missing camera settings use exposure limits -20/+8 and manual exposure zero. Existing
+New or missing camera settings use exposure limits -20/+2 and manual exposure zero. Existing
 saved camera values remain unchanged, subject to the finite snapshot bounds; no version marker
 or automatic stop offset is applied. A leftover marker from an intermediate configuration is
 ignored as an unknown field. Compensation, middle gray, adaptation, percentiles and dimensionless

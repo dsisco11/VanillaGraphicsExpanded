@@ -5,11 +5,11 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 internal static class ExposureTestStorage
 {
     #region Public API
-    /// <summary>Creates one initialized exposure EV value.</summary>
+    /// <summary>Creates complete adaptation storage with exposure retained at offset zero and invalid physical history.</summary>
     internal static GpuShaderStorageBuffer Create(float value)
     {
         var buffer = GpuShaderStorageBuffer.Create(debugName: "Tests.Exposure");
-        buffer.UploadData(new[] { value });
+        buffer.UploadData(new[] { value, 0f, 0f, 0f, 0f, 0f, 0f, 0f });
         return buffer;
     }
     /// <summary>Reads completed GPU storage while preserving native buffer bindings.</summary>

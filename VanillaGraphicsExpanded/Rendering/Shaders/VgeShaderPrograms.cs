@@ -14,6 +14,9 @@ internal static class VgeShaderPrograms
     /// <summary>Declares programs without loading assets; feature owners explicitly preload required selections.</summary>
     internal static bool RegisterAll(ICoreClientAPI api)
     {
+        GpuShaderProgramLibraries.Declare(api,"pbr_final_local_exposure",
+            ()=>new PBR.Postprocessing.FinalDisplayShaderProgram { LocalExposureEnabled=true },
+            new Contracts.ShaderSettings(PBR.Postprocessing.FinalDisplayShaderProgram.Contract).With("VGE_LOCAL_EXPOSURE","true"));
         GpuShaderProgramLibraries.Declare(api, VgeDebugLinesShaderProgram.Contract.Identity, () => new VgeDebugLinesShaderProgram());
         GpuShaderProgramLibraries.Declare(api, DebugView.DebugTextureShaderProgram.Contract.Identity, () => new DebugView.DebugTextureShaderProgram());
         GpuShaderProgramLibraries.Declare(api, DebugView.DebugSurfaceShaderProgram.Contract.Identity, () => new DebugView.DebugSurfaceShaderProgram());

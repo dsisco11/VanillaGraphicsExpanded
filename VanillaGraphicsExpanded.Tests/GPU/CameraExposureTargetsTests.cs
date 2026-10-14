@@ -24,9 +24,9 @@ public sealed class CameraExposureTargetsTests(HeadlessGLFixture fixture) : Rend
         {
             Assert.NotEqual(original, pending);
             Assert.Equal(18432, targets.Histogram.SizeBytes);
-            Assert.Equal(4, targets.Exposure.SizeBytes);
+            Assert.Equal(32, targets.Exposure.SizeBytes);
 
-            targets.WriteTarget.UploadData(new[] { 2f });
+            targets.WriteTarget.UploadData(new[] { 2f, -12f, -12f, 1f, 3f, 1f, 0f, 0f });
             Assert.Equal(original, targets.Exposure.BufferId);
             targets.Publish();
             Assert.Equal(pending, targets.Exposure.BufferId);

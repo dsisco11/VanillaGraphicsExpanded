@@ -19,6 +19,8 @@ internal sealed class PostprocessPipeline : IRenderer
     private readonly LightShaftRenderer rays=new();
     private readonly RetainedPostprocessRenderer retained=new();
     private readonly ColorGradingLut grading=new();
+    private readonly LocalExposure.LocalExposureRenderer local=new();
+    private LocalExposure.LocalExposureParameters localSettings;
     private GpuResourceCollection resources=new();
     private BorrowedTexture? scene,glow,depth;
     private PostprocessDraw? draw;
@@ -51,6 +53,7 @@ internal sealed class PostprocessPipeline : IRenderer
     {
         if(disposed||stage!=EnumRenderStage.Before) return;
         published=false; captured=true; settings=ConfigModSystem.Config.Postprocessing.Snapshot();
+        localSettings=(ConfigModSystem.Config.Postprocessing.LocalExposure??new()).Snapshot();
     }
     /// <summary>Unregisters all callbacks before retiring owned resources.</summary>
     public void Dispose()
@@ -94,7 +97,8 @@ internal sealed class PostprocessPipeline : IRenderer
     internal void RenderFinal(FinalDisplayParameters display)
     {
         if(!published) throw new InvalidOperationException("Owned postprocessing outputs were not published for this frame.");
-        var shader=Rendering.Shaders.GpuShaderProgramLibraries.Get<FinalDisplayShaderProgram>(api,"pbr_final");
+        var shader=Rendering.Shaders.GpuShaderProgramLibraries.Get<FinalDisplayShaderProgram>(api,
+            localSettings.Enabled ? "pbr_final_local_exposure" : "pbr_final");
         if(shader?.EnsureReady()!=true) throw new InvalidOperationException("Owned final display shader unavailable.");
         // Only the presentation destination is borrowed; every sampled postprocess output is owned.
         if(finalTarget is null)
@@ -105,6 +109,10 @@ internal sealed class PostprocessPipeline : IRenderer
         var exposure=CameraExposureRenderer.DisplayExposure();
         shader.SceneImage=retained.Luma; shader.BloomImage=bloomTexture; shader.ShaftImage=rayTexture;
         shader.ExposureBuffer=exposure.Buffer;
+        shader.LocalBase=localSettings.Enabled ? local.BaseTexture : null;
+        shader.AdaptationBuffer=localSettings.Enabled ? CameraExposureRenderer.DisplayAdaptation()
+            ?? throw new InvalidOperationException("Local display requires matching camera adaptation.") : null;
+        shader.CaptureLocal(localSettings);
         shader.GradingLookup=grading.Prepare(api,display.Grading);
         shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualEV,exposure.Buffer is null?0:1,0,0));
         var pipeline=draw!.Prepare(shader,finalTarget);
@@ -129,6 +137,8 @@ internal sealed class PostprocessPipeline : IRenderer
         if(useRays) pipelines.Add(rays.Prepare(api,draw,primary.Width,primary.Height,engine.LightShaftQuality,settings.LightShaftSamples)); else rays.Dispose();
         // Capture typed inputs once for this framebuffer publication, before entering a pass.
         scene??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[0]));
+        // Complete scene coverage and physical adaptation precede generated glare.
+        if(localSettings.Enabled) local.Render(api,scene,localSettings); else local.Dispose();
         if(useRays) depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         if(useRays) glow??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[1]));
         pipelines.AddRange(retained.Prepare(api,draw));
@@ -156,7 +166,7 @@ internal sealed class PostprocessPipeline : IRenderer
     private void Retire()
     {
         published=captured=false; bloomTexture=rayTexture=null;
-        draw?.Dispose(); draw=null; bloom.Dispose(); rays.Dispose(); retained.Dispose(); resources.Dispose(); resources=new(); finalTarget=null; scene=glow=depth=null; neutral?.Dispose(); neutral=null;
+        draw?.Dispose(); draw=null; bloom.Dispose(); rays.Dispose(); retained.Dispose(); local.Dispose(); resources.Dispose(); resources=new(); finalTarget=null; scene=glow=depth=null; neutral?.Dispose(); neutral=null;
     }
     /// <summary>Withdraws all executable-dependent publication during shader reload.</summary>
     private bool Reload() { Retire(); grading.Invalidate(); return true; }

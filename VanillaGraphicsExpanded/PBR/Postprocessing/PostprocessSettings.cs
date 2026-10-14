@@ -4,6 +4,8 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 public sealed class PostprocessSettings
 {
     #region Public API
+    /// <summary>Contains the optional spatial display candidate; disabled preserves global-only presentation.</summary>
+    public LocalExposure.LocalExposureSettings LocalExposure { get; set; }=new();
     /// <summary>Sets linear bloom contribution strength.</summary>
     public float BloomStrength { get; set; }=.08f;
     /// <summary>Sets the bloom threshold in exposed linear scene units; zero bypasses highlight selection.</summary>

@@ -1,4 +1,8 @@
 {
+  "config-local-exposure-enabled": "Local exposure",
+  "config-local-exposure-enabled-tooltip": "Compress broad scene brightness differences to retain shadow and highlight detail. Uses scene luminance; does not change light power.",
+  "config-local-exposure-visualize": "Show local exposure adjustment",
+  "config-local-exposure-visualize-tooltip": "Show local brightening in red, darkening in blue and unchanged exposure in gray.",
   "config-section-postprocessing": "HDR Postprocessing",
   "config-post-bloomstrength": "Bloom strength",
   "config-post-bloomstrength-tooltip": "Scales the additive scene-linear bloom contribution before exposure and tone mapping.",

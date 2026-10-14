@@ -42,8 +42,11 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         programs.Initialize(api);
         // These renderer-level fixtures own their camera snapshot instead of running the world's publication callback.
         using var frameCamera=TestFrameCamera.CreateIdentity(1,1);
+        using var frameLighting=new TestFrameLightingPublication();
         VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api,"pbr_composite")!.FrameInputs=frameCamera;
         VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api,PBRCompositeShaderProgram.PreOverlayPassName)!.FrameInputs=frameCamera;
+        frameLighting.Attach(VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api,"pbr_composite")!);
+        frameLighting.Attach(VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api,PBRCompositeShaderProgram.PreOverlayPassName)!);
         var config = new VgeConfig();
         config.LumOn.Enabled = false; config.LumOn.EnablePbrComposite = false;
         config.LumOn.Intensity = 1; config.LumOn.IndirectTint = [1,1,1];

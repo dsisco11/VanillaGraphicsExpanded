@@ -8,11 +8,13 @@ internal sealed class CameraExposureInputs : CpuUniformBuffer
     /// <summary>Reserves four vec4 slots for metering, bounds, timing and percentile policy.</summary>
     internal CameraExposureInputs() : base(64) { }
     /// <summary>Stages one coherent settings snapshot and history validity for the submitted frame.</summary>
-    internal void Capture(CameraExposureParameters settings, bool reset)
+    internal void Capture(CameraExposureParameters settings, bool reset, bool localAdaptation=false)
     {
         // Covers dim receivers through 65504 / MinimumFrameScale (~9.2 billion nits),
         // with headroom. The 56-stop span keeps each 64-sample uint sum below 2^32.
-        WriteVector4(0, new(-16, 40, settings.CenterWeighted ? 1 : 0, 0));
+        // Opt-in low-light sampling widens the range to 64 stops and halves sum
+        // quantization in the shader so each workgroup remains within uint32.
+        WriteVector4(0, new(localAdaptation ? -24 : -16, 40, settings.CenterWeighted ? 1 : 0, localAdaptation ? 1 : 0));
         WriteVector4(16, new(settings.MinEV, settings.MaxEV, settings.Compensation, settings.MiddleGray));
         WriteVector4(32, new(0, settings.BrightenRate, settings.DarkenRate, reset ? 1 : 0));
         WriteVector4(48, new(settings.LowPercentile, settings.HighPercentile, settings.ManualEV, settings.Enabled ? 1 : 0));

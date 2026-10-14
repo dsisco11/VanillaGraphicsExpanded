@@ -29,10 +29,10 @@ internal sealed partial class CameraHistogramShaderProgram : GpuComputeProgram, 
     /// <summary>Receives disjoint workgroup histograms.</summary>
     public partial GpuShaderStorageBuffer? Histogram { set; }
     /// <summary>Captures the complete metering parameters for one submission.</summary>
-    internal void Capture(CameraExposureParameters settings, bool reset)
+    internal void Capture(CameraExposureParameters settings, bool reset, bool localAdaptation=false)
     {
         RequireInputMutation();
-        inputs.Capture(settings, reset);
+        inputs.Capture(settings, reset, localAdaptation);
     }
     /// <summary>Publishes the parameter block through its shader contract.</summary>
     CpuUniformBuffer ICameraHistogramShaderProgramBindings.Inputs => inputs;

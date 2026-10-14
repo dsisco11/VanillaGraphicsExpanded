@@ -26,7 +26,10 @@ void main()
             float weight=mix(1.0,.25+.75*exp(-2.0*dot(centered,centered)),meterRange.z);
             // Quantize weight first; shifted levels keep every atomic sum unsigned.
             uint encodedWeight=uint(round(weight*4096.0));
-            uint encodedSum=uint(round(float(encodedWeight)*(level-meterRange.x)*256.0));
+            // A 64-stop optional domain uses 128 units: the 64-lane maximum
+            // is 2^31 rather than reaching uint32 overflow at the upper edge.
+            float sumQuantization=meterRange.w>.5 ? 128.0 : 256.0;
+            uint encodedSum=uint(round(float(encodedWeight)*(level-meterRange.x)*sumQuantization));
             atomicAdd(counts[bin],encodedWeight);
             atomicAdd(sums[bin],encodedSum);
         }

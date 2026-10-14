@@ -28,6 +28,7 @@ internal sealed class CameraExposureRenderer : IRenderer
     private uint lightingGeneration;
     private uint lightingFrameIndex;
     private float lightingBound;
+    private bool localAdaptation;
 
     #region Public API
     #region Lifetime
@@ -66,6 +67,9 @@ internal sealed class CameraExposureRenderer : IRenderer
         published = false;
         lightingFrozen = false;
         settings = ConfigModSystem.Config.CameraExposure.Snapshot();
+        bool requested=ConfigModSystem.Config.Postprocessing.LocalExposure?.Enabled??true;
+        reset|=localAdaptation!=requested;
+        localAdaptation=requested;
         var position = api.World.Player.Entity.Pos;
         reset |= history.Capture(settings, dt, position.X, position.Y, position.Z,
             position.Yaw, position.Pitch, position.Dimension, (int)api.Render.CameraType);
@@ -87,6 +91,12 @@ internal sealed class CameraExposureRenderer : IRenderer
         if (!renderer.published) throw new InvalidOperationException("Camera exposure was not published for this HDR frame.");
         return (renderer.settings.Enabled ? renderer.targets!.Exposure : null,
             Math.Clamp(renderer.settings.ManualEV + renderer.settings.Compensation, renderer.settings.MinEV, renderer.settings.MaxEV));
+    }
+    /// <summary>Returns the independent physical viewing estimate only for the enabled current-frame candidate.</summary>
+    internal static GpuShaderStorageBuffer? DisplayAdaptation()
+    {
+        if(active is not { published:true } renderer) throw new InvalidOperationException("Visual adaptation is not published.");
+        return renderer.localAdaptation ? renderer.targets!.Exposure : null;
     }
     /// <summary>Freezes admitted physical-light metadata after current light publication and before the first consuming draw.</summary>
     internal static void FreezeLightingStorage(FrameLightingBounds bounds, uint calibrationGeneration)
@@ -180,7 +190,7 @@ internal sealed class CameraExposureRenderer : IRenderer
         if (published) return;
         if (!captured) throw new InvalidOperationException("Camera exposure frame inputs were not captured.");
         CameraExposureDispatch.RequireSupport();
-        if (!settings.Enabled)
+        if (!settings.Enabled && !localAdaptation)
         {
             // Manual mode has no metering dispatches or retained histogram/history allocation.
             DisposeResources(); reset = true; published = true; return;
@@ -195,8 +205,8 @@ internal sealed class CameraExposureRenderer : IRenderer
             throw new InvalidOperationException("VGE camera metering requires the completed HDR primary scene.");
         if (sceneTexture?.TextureId != colors[0]) { sceneTexture?.Dispose(); sceneTexture = new(colors[0]); }
         reset |= VgeFrameRenderer.Current.CameraCut;
-        histogram.Capture(settings, reset); histogram.SceneRadiance = sceneTexture;
-        adaptation.Capture(settings, reset);
+        histogram.Capture(settings, reset, localAdaptation); histogram.SceneRadiance = sceneTexture;
+        adaptation.Capture(settings, reset, localAdaptation);
         adaptation.Histogram = targets.Histogram; adaptation.PreviousExposure = targets.Exposure;
         adaptation.OutputExposure = targets.WriteTarget;
         histogram.Histogram = targets.Histogram;

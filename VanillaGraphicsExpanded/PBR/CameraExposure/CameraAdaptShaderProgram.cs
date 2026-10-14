@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.PBR.CameraExposure;
 
 /// <summary>Owns the compiled pbr_camera_adapt executable and its staged inputs.</summary>
-[ShaderProgram("Contract", "pbr_camera_adapt", 1)]
+[ShaderProgram("Contract", "pbr_camera_adapt", 2)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "pbr_camera_adapt.csh")]
 internal sealed partial class CameraAdaptShaderProgram : GpuComputeProgram, ICameraAdaptShaderProgramBindings
 {
@@ -32,10 +32,10 @@ internal sealed partial class CameraAdaptShaderProgram : GpuComputeProgram, ICam
     /// <summary>Receives the next exposure without overwriting previous history.</summary>
     public partial GpuShaderStorageBuffer? OutputExposure { set; }
     /// <summary>Captures the complete metering parameters for one submission.</summary>
-    internal void Capture(CameraExposureParameters settings, bool reset)
+    internal void Capture(CameraExposureParameters settings, bool reset, bool localAdaptation=false)
     {
         RequireInputMutation();
-        inputs.Capture(settings, reset);
+        inputs.Capture(settings, reset, localAdaptation);
     }
     /// <summary>Selects a retained alternate-view snapshot for controlled offscreen submissions.</summary>
     internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }
