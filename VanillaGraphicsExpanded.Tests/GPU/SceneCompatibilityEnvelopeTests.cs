@@ -147,31 +147,6 @@ public sealed class SceneCompatibilityEnvelopeTests(HeadlessGLFixture fixture) :
         }
     }
 
-    /// <summary>Verbatim star shading retains its extrapolating alpha and HDR texture/night/tint endpoints.</summary>
-    [Fact]
-    public void InstalledStarsRetainActualAlphaAndHdrEnvelope()
-    {
-        EnsureContextValid();
-        string body = Slice(Native("nightsky.fsh"), "vec4 skyCol =", "#if SSAOLEVEL > 0")
-            .Replace("texture (ctex, texCoords)", "vec4(3,1,2,1)", StringComparison.Ordinal);
-        string underwater = Slice(File.ReadAllText(Path.Combine(GameRoot(), "assets/game/shaderincludes/underwatereffects.fsh")), "vec3 applyUnderwaterEffects", "\n}") + "\n}";
-        using var shaders = new TerrainShaderTestFixture();
-        using var program = Link(shaders, "uniform float fixtureMurk;vec4 waterMurkColor=vec4(7,2,3,1);float getSkyMurkiness(){return fixtureMurk;}\n" + underwater +
-            "\nvec4 NoiseFromPixelPosition(ivec2 p,int s,int r){return vec4(0);}" +
-            "void main(){int ditherSeed=0,horizontalResolution=1;float dayLight=0,nightVisionStrengthv=2;" + body + "outColor.rgb=VgeCompatibilityLuminance(outColor.rgb);}");
-        using var framework = new ShaderTestFramework();
-        using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
-        float bound = SceneColorCompatibilityBounds.NightSky(3, 2, 7, 0, 0, 0, 1);
-        foreach (float murk in new[] { 0f, .5f, 1f })
-        {
-            Set(program, "fixtureMurk", murk); framework.RenderQuadTo(program.ProgramId, target);
-            float[] actual = target[0].ReadPixels();
-            Assert.InRange(actual[3], 1.09999f, 1.10001f);
-            Assert.All(actual[..3], value => Assert.InRange(value * actual[3], 0, bound));
-            Assert.True(actual[0] > 32);
-        }
-    }
-
     /// <summary>Actual native weighted color averages remain bounded at nearby, distant and mixed lightning sources.</summary>
     [Theory]
     [InlineData("clouds.vsh", false)]

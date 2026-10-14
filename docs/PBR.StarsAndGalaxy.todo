@@ -1,7 +1,7 @@
 VGE-owned HDR stars and galaxy
 =============================
 
-Status: Phases 1 and 2 complete after second review and independent completion audit (2026-10-13). Owned drawing, scene-light integration and appearance acceptance remain open.
+Status: Phases 1 through 3 complete after second review and independent completion audit (2026-10-13). Source-derived scene-light integration and appearance/performance acceptance remain open.
 Authority: User-approved hybrid HDR direction and refinements (2026-10-13).
 Related plan: PBR.PhotometricLighting.todo, shared nighttime illumination work.
 Diagnostic evidence: ../artifacts/LightingImbalance/findings.md.
@@ -73,19 +73,21 @@ Phase 2: Generate the HDR galaxy during world loading
 
 Phase 3: Render the instanced stars and owned galaxy
 -------------------------------------------------
-☐ Upload the bounded star set to a persistent instance buffer and draw instanced quads.
+☑ Upload the bounded star set to a persistent instance buffer and draw instanced quads.
   - Select nested quality subsets deterministically; no per-frame catalog rebuild/upload.
   - Use a normalized footprint with stable subpixel movement. Verify integrated light
     across resolution, field of view, screen position and overlapping star footprints.
   - Define edge clipping and culling conservatively so visible footprints do not pop.
-☐ Sample the generated galaxy with a VGE-owned shader and matching sky orientation.
+☑ Sample the generated galaxy with a VGE-owned shader and matching sky orientation.
   - Preserve daily celestial rotation and horizon/terrain occlusion through existing
     frame inputs. Compose behind atmosphere, clouds and celestial disks correctly.
-☐ Replace the native stars/galaxy draw for the owned renderer lifetime.
-  - Use the existing explicit ownership pattern; remove obsolete compatibility patching
+☑ Register the owned stars/galaxy renderer and disable the native night draw.
+  - Register VGE's renderer independently and unregister the native draw without a Harmony
+    callback patch; remove obsolete compatibility patching
     for this draw. Avoid duplicate submissions, broad state invalidation or version bumps.
+    Preserve the native client-system registry and asset lifecycle.
   - Preserve state tracking, reload behavior and lifecycle disposal contracts.
-☐ Route both contributions through existing frame storage, exposure and glare.
+☑ Route both contributions through existing frame storage, exposure and glare.
   - Apply atmospheric transmittance consistently and only once. Let atmospheric
     radiance and exposure govern daylight visibility without a legacy artistic cutoff.
   - Filter the star core without a second independently boosted halo. Evaluate existing
@@ -331,8 +333,8 @@ Generation implementation and verification (2026-10-13)
   complete cube/mips and matching immutable source, encoding, bounds and quadrature.
   Reload failure retains the old complete set; world teardown cancels preparation and
   clears resources. Context-generation changes withdraw dead handles and rebuild.
-  The generated source is available but is not yet drawn or added to the atmosphere;
-  native star ownership and the current combined background remain until integration.
+  Generation provides the complete source for the owned draw. Its cached scene-light
+  integration remains separate work; generation itself does not alter receiver lighting.
 
   Receipts: ../artifacts/celestial-lifecycle-regression.log (50 passed, one explicit
   full-size opt-in skip) and ../artifacts/celestial-qualification-double.log (9 passed,
@@ -356,3 +358,145 @@ Generation implementation and verification (2026-10-13)
   conservative replacement budgets. Driver allocator overhead is not measured here.
   Full-size measurement remains opt-in via VGE_RUN_CELESTIAL_QUALIFICATION=1.
   Runtime draw timing, live appearance and source-to-scene transport remain later work.
+
+Owned drawing implementation and verification (2026-10-13)
+---------------------------------------------------------
+  CelestialResourceSet owns an immutable CelestialStarGeometry instance stream and
+  its generated map. The subset uploads once per source, not per frame; six procedural
+  vertices per instance produce bounded screen-space billboards. Analytically integrated
+  compact tent weights sum to one over the unoccluded footprint, including subpixel
+  movement. A two-pixel conservative raster padding retains partially visible pixels;
+  clipping does not renormalize surviving energy. Per-pixel perspective angular area
+  converts calibrated integrated lux into physical RGB nits. No second halo is added.
+
+  CelestialOrientation derives both directions and inverse map sampling from the same
+  calendar transform, independent of suppressed callback side effects or translation.
+  Installed calendar evidence: ../artifacts/phase4-late-owner-il.txt, native night-sky
+  callback, TotalDays minus YearRel modulo one, latitude-dependent tilted rotation axis.
+  Fixed-direction, proper-rotation and negative-date fixtures qualify that adapter.
+
+  CelestialRenderer runs at Opaque order 0.19 before the atmosphere at 0.2. Typed GLSL
+  330 star/galaxy programs use existing graphics command/state owners, primary RGB HDR,
+  frozen frame storage, camera exposure and scene-image glare. VGE registers its own
+  renderer independently and unregisters the native night draw through the public event
+  manager, leaving the native system and its mesh/texture lifecycle intact.
+  No Harmony callback patch remains. Failed preparation never reinstalls native drawing.
+  Missing initial
+  source skips owned drawing. Reset/reload/world teardown retire owned resources;
+  context-generation changes also recreate procedural geometry rather than retaining a
+  dead VAO. Generation replacement failures retain the previous complete source.
+
+  The atmosphere producer owns the float32 dimensionless external-transmission table.
+  Its existing sky compute dispatch generates all 512 elevations alongside sky/aerial
+  transport and publishes them together after the same fence. CPU fallback builds and
+  caches the table on the atmosphere worker using AtmosphereModel.ExternalTransmittance.
+  CelestialRenderer borrows the published texture; drawing never integrates atmosphere.
+  Both sources attenuate once.
+  The atmosphere retains local horizon/flat-fog and underwater background occlusion,
+  with full atmospheric RGB; legacy daylight and cloud-proxy fades are bypassed. Actual
+  clouds render later. Its old uniform stellar half is removed from the visible sky
+  using matching LUT row interpolation, leaving the separately budgeted airglow half.
+  Receiver environment/aerial lighting deliberately retains the prior approximation
+  until Phase 4; the visible draw is not complete source-derived lighting integration.
+
+  CelestialDrawAdmission bounds every admitted star's possible overlap using the actual
+  rigid perspective camera and minimum pixel angular area, plus the map maximum and
+  arithmetic headroom. The immutable source precomputes the displayed subset's sum
+  of maximum RGB flux during calibration; frame admission only recalculates camera
+  angular area, not a per-star loop. Unsupported projections/invalid areas reject drawing. Scene
+  lighting publication includes this envelope before freezing storage; the retired
+  native star-image envelope is excluded while owned. Existing defensive storage
+  conversion remains in place. Resize/exposure never regenerate the source catalog/map.
+
+  Traceability: instancing/flux -> resolved contract and cited 2025 paper section 3.2;
+  orientation -> installed calendar receipt above; composition/ownership/lifecycle ->
+  PBR.Atmosphere.Publication.md, Draw ownership; physical routing and intermediate
+  receiver boundary -> PBR.PhotometricLighting.Proposal.md, Calibrated nighttime
+  celestial lighting; original artifacts -> ../artifacts/LightingImbalance/findings.md.
+  Existing bloom reads scene RGB; no independent stellar glare gain/filter was added.
+  Runtime glare appearance and any proposed changes remain separate acceptance work.
+
+  Receipt: ../artifacts/celestial-draw-tests.log, fresh shader-enabled build and 101
+  passing tests, one explicit full-size generation qualification skip, zero failures.
+  Actual production GPU draws qualify <1% RGB flux drift with independent exact pixel
+  solid-angle integration across tested resolutions/FOV/positions, overlapping stars,
+  screen clipping, rear-facing rejection, per-channel attenuation, map decode/rotation,
+  and unchanged glow output. Off-row transmission matches existing transport in four
+  clear/cloudy ground/elevated media. Coverage includes persistent instance prefixes,
+  draw-range admission, installed native suppression, reload/resize/world retirement,
+  tracked state restoration and retained atmosphere/airglow without legacy daylight fade.
+  Second review and independent completion audit found no required-now issues.
+  Full-resolution runtime timing and live user appearance remain Phase 5, unmeasured here.
+
+Renderer registration correction (2026-10-13)
+--------------------------------------------
+  VGE's CelestialRenderer registers independently at Opaque order 0.19, before the
+  atmospheric renderer at 0.2. NativeNightSkyDrawRegistration disables only the native
+  OnRenderFrame3D renderer wrappers through the public event manager. It leaves the
+  clientSystems array, native system instance, asset callbacks, mesh and textures intact.
+  Repeated disable calls are harmless and unrelated render callbacks are preserved.
+  Reload, resize and missing owned resources never reactivate native drawing.
+
+  The RenderNightSky ClientSystem adapter and its slot replacement/native disposal
+  were removed. CelestialNightDrawHook remains removed; no Harmony draw interception
+  is used. Engine and mod lifecycles retain their existing resource owners.
+  Installed public-registry evidence remains ../artifacts/NightSystemInspection/results.json
+  and lifecycle.txt. The earlier night-system test receipts describe the superseded
+  replacement approach and are not validation of this registration correction.
+  Correction receipts: ../artifacts/night-draw-registration-build.log and
+  ../artifacts/night-draw-registration-tests.log. Fresh shader-enabled build passed;
+  54 focused tests passed, one full-size opt-in skip, zero failures. Installed-native
+  registration fixtures verify unchanged system-array/instance identity, exact draw
+  removal, unrelated callback preservation, idempotence and no native resource disposal.
+  Existing GPU generation, celestial draw/flux, transmission, sky composition and
+  owned lifecycle checks remain passing.
+
+Cached flux and transmission cost (2026-10-13)
+---------------------------------------------
+  CelestialSource.ResolvedStarMaximumFluxLux retains the displayed prefix's maximum
+  RGB flux sum, preserving the previous float32 products and double accumulation order.
+  All four quality-prefix fixtures establish exact equality with independent summation.
+  Receipt: ../artifacts/celestial-flux-precompute-tests.log, fresh shader-enabled build,
+  31 focused tests passed, no skips or failures.
+
+  Prior CPU transmission work was 512 elevation rays with at most 12 extinction
+  samples each, not full radiance/multiple-scattering integration. It refreshes only
+  for completed altitude/weather changes or resource retirement. An i9-12900K Debug
+  headless measurement at .001/1 km and cloud coverage 0/.75 found median integration
+  0.311..0.312 ms, complete Update CPU wall time 0.317..0.319 ms and unchanged cached
+  calls approximately 0.018 microseconds average. Ten warmed rebuilds and 100,000
+  unchanged calls; RTX 4090, OpenGL 4.3, NVIDIA 591.86. Upload submission is included,
+  GPU execution time is not measured. Receipt: ../artifacts/celestial-transmission-cost.log.
+  These are diagnostic CPU timings, not live frame-cost or appearance acceptance.
+
+Shared atmospheric transmission production (2026-10-13)
+------------------------------------------------------
+  The existing atmosphere_sky compute dispatch now writes 512 external-transmission
+  records in the same output buffer as sky/aerial transport. Minimum dispatch coverage
+  includes all 512 rows even when the sky grid has only 16x8 cells. The existing output
+  fence/readback and immutable AtmosphereLighting snapshot carry the complete table;
+  no separate compute program, dispatch, fence or synchronous readback was introduced.
+  AtmosphereTextureSet owns its 8-KiB RGBA32F texture and validates/uploads it before
+  AtmosphereModSystem swaps the complete publication. Empty startup snapshots use
+  one zero-RGB texel. Invalid transmission retains the prior entire generation.
+
+  CPU fallback uses AtmosphereExternalTransmission.Build on the existing atmosphere
+  worker and caches by admitted altitude/aerosol. CelestialTransmission was removed;
+  CelestialRenderer only borrows AtmosphereModSystem.ExternalTransmissionTexture.
+  Solar/lunar composition retains the solar snapshot's matching medium table without
+  scaling or adding dimensionless extinction. The radial model is azimuth independent,
+  so 512 horizon-focused elevation samples describe this function at the admitted
+  observer altitude/weather. Sky radiance additionally varies with source-relative
+  azimuth and uses its separate 2D smooth/Mie representation.
+
+  Receipts: ../artifacts/atmosphere-external-transmission-build.log and
+  ../artifacts/atmosphere-external-transmission-focused.log. Shader-enabled build passed;
+  62 focused tests passed, no skips/failures. Coverage includes all 512 rows against CPU
+  across six atmospheric cases, minimum-size dispatch, dimensionless actual uploads,
+  invalid-data retention, CPU fallback, paired celestial transport, reload/reset resource
+  ownership and actual star-shader interpolation.
+  Broader discovery reported four unresolved fixture failures outside these changed
+  paths: two sky integration fixtures missing frozen storage, a solar display storage
+  binding contract and a LumOn debug sampler-count assertion. Baseline reproduction
+  was not performed; these are broader validation limitations, not established regressions
+  or established pre-existing defects. No runtime timing improvement is claimed here.

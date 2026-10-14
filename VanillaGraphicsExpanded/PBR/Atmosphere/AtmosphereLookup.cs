@@ -22,6 +22,8 @@ internal sealed class AtmosphereLookup
     private AtmosphereMultipleScattering? multipleScattering;
     private float multipleScatteringAerosol;
     private float groundAlbedo, multipleScatteringAlbedo;
+    private (float Altitude, float Aerosol)? externalKey;
+    private ImmutableArray<float> externalTransmission = ImmutableArray<float>.Empty;
     internal AtmosphereLighting? Current { get; private set; }
     internal int Revision { get; private set; }
 
@@ -120,11 +122,17 @@ internal sealed class AtmosphereLookup
                 new(staging[b], staging[b + 1], staging[b + 2]), horizontalRow - lower) / width;
         }
         var aerial = AtmosphereAerialVolume.Build(sun, altitude, aerosol, width, height, staging, multipleScattering, cancellationToken, mieStaging);
+        if (externalKey != (altitude,aerosol))
+        {
+            externalTransmission = AtmosphereExternalTransmission.Build(altitude,aerosol,cancellationToken);
+            externalKey = (altitude,aerosol);
+        }
         Current = new(sun, AtmosphereModel.SolarIrradiance(sun, altitude, aerosol), environment, horizon,
             AtmosphereModel.LocalExtinction(altitude, aerosol), ImmutableArray.CreateRange(staging))
             { Width = width, Height = height, HorizonElevation = horizonElevation, Altitude = altitude,
                 SkyMie = ImmutableArray.CreateRange(mieStaging), AerialMie = aerial.Mie,
-                AerialRadiance = aerial.Radiance, AerialAttenuation = aerial.Attenuation };
+                AerialRadiance = aerial.Radiance, AerialAttenuation = aerial.Attenuation,
+                ExternalTransmission = externalTransmission };
         completedKey = buildingKey; buildingKey = null; Revision++;
         return true;
     }

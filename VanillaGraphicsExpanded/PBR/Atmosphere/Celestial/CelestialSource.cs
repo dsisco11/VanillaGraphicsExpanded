@@ -6,8 +6,10 @@ using System.Threading;
 namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 
 /// <summary>Immutable complete catalog, diffuse quadrature and calibration shared by display and future lighting consumers.</summary>
+/// <param name="ResolvedStarMaximumFluxLux">Precomputed sum of displayed stars' maximum RGB flux, bounding arbitrary overlap.</param>
 internal sealed record CelestialSource(CelestialQuality Quality, ImmutableArray<CelestialStar> Stars,
-    ImmutableArray<CelestialLightSample> Quadrature, float GalaxyAmplitude, float StorageScale, float MaximumNits)
+    ImmutableArray<CelestialLightSample> Quadrature, float GalaxyAmplitude, float StorageScale, float MaximumNits,
+    double ResolvedStarMaximumFluxLux)
 {
     internal const int StarCapacity = 4096;
     internal const int QuadratureSize = 64;
@@ -38,11 +40,16 @@ internal sealed record CelestialSource(CelestialQuality Quality, ImmutableArray<
         foreach (var star in stars) starResponse += star.FluxLux * Vector3.Dot(star.Color * response, CelestialProceduralField.Luma);
         float starScale = PositiveScale(StarsLux, starResponse);
         float omittedMaximum = 0;
+        double resolvedMaximum = 0;
         for (int i = 0; i < stars.Length; i++)
         {
             var star = stars[i]; stars[i] = star with { FluxLux = star.FluxLux * starScale,
                 CalibratedMagnitude = star.RawMagnitude - 2.5f * MathF.Log10(starScale) };
-            if (i >= quality.StarCount) omittedMaximum += stars[i].FluxLux * Math.Max(star.Color.X, Math.Max(star.Color.Y, star.Color.Z));
+            // Color and calibrated flux are fixed for this immutable source. Compute
+            // each peak once and retain the complete displayed subset's overlap bound.
+            float peakFlux = stars[i].FluxLux * Math.Max(star.Color.X, Math.Max(star.Color.Y, star.Color.Z));
+            if (i >= quality.StarCount) omittedMaximum += peakFlux;
+            else resolvedMaximum += peakFlux;
         }
         var quadrature = ImmutableArray.CreateBuilder<CelestialLightSample>(6 * QuadratureSize * QuadratureSize);
         Vector3 integral = Vector3.Zero;
@@ -62,7 +69,7 @@ internal sealed record CelestialSource(CelestialQuality Quality, ImmutableArray<
         float scale = MathF.Pow(2, MathF.Floor(MathF.Log2(32000 / maximum)));
         if (!float.IsFinite(maximum) || maximum <= 0 || !float.IsFinite(scale) || scale <= 0 || maximum * scale > 32000)
             throw new ArgumentException("Celestial source lies outside the admitted HDR domain.");
-        return new(quality, ImmutableArray.Create(stars), quadrature.MoveToImmutable(), galaxyScale, scale, maximum);
+        return new(quality, ImmutableArray.Create(stars), quadrature.MoveToImmutable(), galaxyScale, scale, maximum, resolvedMaximum);
     }
     #endregion
 

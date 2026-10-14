@@ -17,6 +17,8 @@ internal sealed class AtmosphereTextureSet : IDisposable
     internal DynamicTexture3D Radiance { get; }
     /// <summary>Contains dimensionless finite-path extinction independently of lighting scale.</summary>
     internal DynamicTexture3D Attenuation { get; }
+    /// <summary>Contains dimensionless observer-to-space extinction from the same completed generation.</summary>
+    internal DynamicTexture2D ExternalTransmission { get; }
     /// <summary>Matches encoded texture magnitudes to the last successfully uploaded CPU generation.</summary>
     internal float StorageScale { get; private set; } = 1;
     /// <summary>Matches source calibration to the same completed sky/aerial upload.</summary>
@@ -37,6 +39,8 @@ internal sealed class AtmosphereTextureSet : IDisposable
         {
             Radiance = DynamicTexture3D.Create(width, height * bands, depth, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture3D);
             Attenuation = DynamicTexture3D.Create(width, height, depth, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture3D);
+            ExternalTransmission = DynamicTexture2D.Create(lighting.ExternalTransmission.IsEmpty ? 1 : AtmosphereExternalTransmission.SampleCount,
+                1,PixelInternalFormat.Rgba32f,TextureFilterMode.Linear,"Atmosphere.ExternalTransmission");
             foreach (GpuTexture texture in new GpuTexture[] { Sky, Radiance, Attenuation })
             {
                 texture.DisableMipmaps();
@@ -44,13 +48,14 @@ internal sealed class AtmosphereTextureSet : IDisposable
                 texture.SetTexWrap(TextureWrapMode.Repeat, TextureWrapMode.ClampToEdge, TextureWrapMode.ClampToEdge);
             }
         }
-        catch { Sky.Dispose(); Radiance?.Dispose(); Attenuation?.Dispose(); throw; }
+        catch { Sky.Dispose(); Radiance?.Dispose(); Attenuation?.Dispose(); ExternalTransmission?.Dispose(); throw; }
     }
 
     /// <summary>Checks storage compatibility without changing the currently published set.</summary>
     internal bool Matches(AtmosphereLighting lighting) => bands == (lighting.HasNightSources ? 3 : 2)
         && Sky.Width == lighting.Width && Sky.Height == lighting.Height * bands
-        && Radiance.Depth == (lighting.AerialRadiance.IsEmpty ? 1 : AtmosphereAerialPerspective.Depth);
+        && Radiance.Depth == (lighting.AerialRadiance.IsEmpty ? 1 : AtmosphereAerialPerspective.Depth)
+        && ExternalTransmission.Width == (lighting.ExternalTransmission.IsEmpty ? 1 : AtmosphereExternalTransmission.SampleCount);
 
     /// <summary>Uploads immutable completed data synchronously; callers publish only after all uploads succeed.</summary>
     internal void Upload(AtmosphereLighting lighting)
@@ -79,6 +84,12 @@ internal sealed class AtmosphereTextureSet : IDisposable
             if (!float.IsFinite(value) || value < 0 || value > 1)
                 throw new ArgumentException("Atmospheric attenuation must be finite and within its unit interval.", nameof(lighting));
         }
+        if ((!lighting.ExternalTransmission.IsEmpty && lighting.ExternalTransmission.Length != AtmosphereExternalTransmission.SampleCount*4)
+            || ExternalTransmission.Width != (lighting.ExternalTransmission.IsEmpty ? 1 : AtmosphereExternalTransmission.SampleCount))
+            throw new ArgumentException("External atmospheric transmission dimensions do not match the snapshot.",nameof(lighting));
+        foreach (float value in lighting.ExternalTransmission)
+            if (!float.IsFinite(value) || value < 0 || value > 1)
+                throw new ArgumentException("External atmospheric transmission must be finite and within its unit interval.",nameof(lighting));
         // The GPU upload only reads these arrays; no mutable reference escapes this owner.
         if (bands != (lighting.HasNightSources ? 3 : 2)) throw new ArgumentException("Celestial texture layout changed.");
         if (skyUpload.Length != lighting.Sky.Length * bands) skyUpload = new float[lighting.Sky.Length * bands];
@@ -101,6 +112,7 @@ internal sealed class AtmosphereTextureSet : IDisposable
             0, 0, 0, Radiance.Width, Radiance.Height, Radiance.Depth);
         Attenuation.UploadData(lighting.AerialRadiance.IsEmpty ? neutral : ImmutableCollectionsMarshal.AsArray(lighting.AerialAttenuation)!,
             0, 0, 0, Attenuation.Width, Attenuation.Height, Attenuation.Depth);
+        ExternalTransmission.UploadDataImmediate(lighting.ExternalTransmission.IsEmpty ? neutral : ImmutableCollectionsMarshal.AsArray(lighting.ExternalTransmission)!);
         StorageScale = lighting.LookupStorageScale;
         CalibrationGeneration = lighting.CalibrationGeneration;
         ReconstructionMaximumNits = reconstructionMaximum;
@@ -109,7 +121,7 @@ internal sealed class AtmosphereTextureSet : IDisposable
 
     #region Lifetime
     /// <summary>Retires all resources in the set through their GPU owners.</summary>
-    public void Dispose() { Sky.Dispose(); Radiance.Dispose(); Attenuation.Dispose(); }
+    public void Dispose() => Rendering.Integration.RenderingCleanup.Run(Sky.Dispose,Radiance.Dispose,Attenuation.Dispose,ExternalTransmission.Dispose);
     #endregion
     #endregion
 

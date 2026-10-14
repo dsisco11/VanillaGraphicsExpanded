@@ -35,8 +35,14 @@ internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 En
     internal int Height { get; init; } = AtmosphereLookup.DefaultHeight;
     internal float HorizonElevation { get; init; }
     internal float Altitude { get; init; } = .001f;
+    /// <summary>Cloud-cover bucket admitted with this completed atmosphere, used for matching external extinction.</summary>
+    internal float CloudCoverage { get; init; }
+    /// <summary>Uniform ground-level background currently embedded in sky/lighting, retained explicitly during celestial migration.</summary>
+    internal float BackgroundRadiance { get; init; }
     internal ImmutableArray<float> AerialRadiance { get; init; } = ImmutableArray<float>.Empty;
     internal ImmutableArray<float> AerialAttenuation { get; init; } = ImmutableArray<float>.Empty;
+    /// <summary>Dimensionless observer-to-space transmission by elevation, completed with this atmospheric generation.</summary>
+    internal ImmutableArray<float> ExternalTransmission { get; init; } = ImmutableArray<float>.Empty;
     /// <summary>Encoding of this generation's light textures; immutable CPU quantities remain unscaled.</summary>
     internal float LookupStorageScale { get; init; } = 1;
     /// <summary>Physical generations carry their calibration identity; zero retains the legacy scene-unit publication.</summary>

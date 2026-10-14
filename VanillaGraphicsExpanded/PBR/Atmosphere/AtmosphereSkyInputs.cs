@@ -37,7 +37,9 @@ internal sealed class AtmosphereSkyInputs : CpuUniformBuffer
             new(murk.R, murk.G, murk.B, uniforms.CameraUnderwater),
             new(uniforms.NightVisionStrength, uniforms.PsychedelicStrength,
                 uniforms.WindWaveCounter * 5, sceneLinear ? 1 : 0),
-            new(1 / lighting.LookupStorageScale, lighting.HasNightSources ? 3 : 2, 0, 0),
+            new(1 / lighting.LookupStorageScale, lighting.HasNightSources ? 3 : 2,
+                Celestial.CelestialRenderer.IsEnabled ? 1 : 0,
+                Celestial.CelestialRenderer.IsEnabled ? lighting.BackgroundRadiance * .5f : 0),
             new(lighting.Moon, 0)
         };
         // Validate the complete expression inputs before changing either the packed

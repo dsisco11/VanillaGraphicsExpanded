@@ -84,7 +84,6 @@ internal static class EngineRenderApiStatePatches
             ("Vintagestory.Client.NoObf.SystemRenderEntities", "OnRenderOpaque3D", new[] { typeof(float) }),
             ("Vintagestory.Client.NoObf.SystemRenderEntities", "OnRenderAfterOIT", new[] { typeof(float) }),
             ("Vintagestory.Client.NoObf.SystemRenderInsideBlock", "OnRenderFrame3D", new[] { typeof(float) }),
-            ("Vintagestory.Client.NoObf.SystemRenderNightSky", "OnRenderFrame3D", new[] { typeof(float) }),
             ("Vintagestory.Client.NoObf.SystemRenderSunMoon", "OnRenderFrame3D", new[] { typeof(float) }),
             ("Vintagestory.Client.NoObf.SystemRenderSunMoon", "OnRenderFrame3DPost", new[] { typeof(float) })
         })

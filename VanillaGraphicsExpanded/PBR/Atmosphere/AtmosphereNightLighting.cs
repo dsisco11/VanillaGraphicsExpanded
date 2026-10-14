@@ -57,6 +57,8 @@ internal static class AtmosphereNightLighting
             if ((index & 3) != 3) aerial[index] += background * solar.AerialAttenuation[index];
         return solar with
         {
+            CloudCoverage = Math.Clamp(clouds, 0, 1),
+            BackgroundRadiance = background,
             HasNightSources = true, Moon = moonDirection, MoonAngularRadius = completedSources.MoonAngularRadius,
             Lunar = AtmosphereModel.SolarIrradiance(moonDirection, solar.Altitude,
                 1 + 7 * (MathF.Round(Math.Clamp(clouds, 0, 1) * 20) / 20), completedSources.MoonAngularRadius) * ratio,

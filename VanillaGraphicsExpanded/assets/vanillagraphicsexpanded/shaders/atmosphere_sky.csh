@@ -21,6 +21,16 @@ vec3 atmSampleSource(float altitude, float cosine)
 void main()
 {
     int index = int(gl_GlobalInvocationID.x), width = int(mediumSize.z), height = int(mediumSize.w);
+    // External extinction shares this dispatch, admitted observer/medium and output
+    // fence. Its radial symmetry removes the azimuth dimension needed by radiance.
+    if (index < 512)
+    {
+        float externalElevation = atmSkyElevation(float(index)/511.0,work.z);
+        vec3 externalDirection = vec3(cos(externalElevation),sin(externalElevation),0.0);
+        precise vec3 externalOrigin = vec3(0.0,atmGround+sunAltitude.w,0.0);
+        int externalBase = 4 + width*height*(2 + 3*vgeAerialDepth);
+        outputValues[externalBase+index] = vec4(atmTransmission(externalOrigin,normalize(externalDirection),12),1.0);
+    }
     if (index >= width * height) return;
     float elevation = atmSkyElevation(float(index / width) / float(height - 1), work.z);
     float azimuth = (float(index % width) + .5) / float(width) * (2.0 * atmPi);

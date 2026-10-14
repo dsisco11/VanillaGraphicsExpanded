@@ -108,6 +108,33 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
         AssertTexture(previous);
     }
 
+    /// <summary>Malformed external extinction cannot replace any resource or metadata of the published generation.</summary>
+    [Theory]
+    [InlineData(float.NaN)]
+    [InlineData(float.PositiveInfinity)]
+    [InlineData(-.1f)]
+    [InlineData(1.1f)]
+    public void FailedExternalTransmissionRetainsWholePublication(float invalid)
+    {
+        EnsureContextValid();
+        using var owner = new AtmosphereModSystem();
+        var lookup = new AtmosphereLookup();
+        lookup.Update(Vector3.UnitY, .001f, .25f, width: 16, height: 8);
+        owner.Publish(lookup.Current!);
+        var previous = AtmosphereModSystem.Lighting;
+        int sky = AtmosphereModSystem.SkyTextureId;
+        var transmission = AtmosphereModSystem.ExternalTransmissionTexture!;
+        float[] contents = transmission.ReadPixels();
+        Assert.Throws<ArgumentException>(() => owner.Publish(previous with
+            { ExternalTransmission = previous.ExternalTransmission.SetItem(0, invalid) }));
+        Assert.Throws<ArgumentException>(() => owner.Publish(previous with
+            { ExternalTransmission = previous.ExternalTransmission.RemoveAt(0) }));
+        Assert.Same(previous, AtmosphereModSystem.Lighting);
+        Assert.Equal(sky, AtmosphereModSystem.SkyTextureId);
+        Assert.Same(transmission, AtmosphereModSystem.ExternalTransmissionTexture);
+        Assert.Equal(contents, transmission.ReadPixels());
+    }
+
     /// <summary>Physical LUT encoding preserves dimensionless attenuation and commits metadata only after valid upload.</summary>
     [Fact]
     public void PhysicalLookupEncodingPublishesMatchingMetadata()
@@ -162,6 +189,12 @@ public sealed class AtmospherePublicationTests(HeadlessGLFixture fixture) : Rend
             Assert.InRange(Math.Abs(pixels[i] - packedSky[i]), 0, Math.Max(.00001f, packedSky[i] * .001f));
         AssertVolume(AtmosphereModSystem.AerialRadianceTextureId, snapshot.AerialRadiance, snapshot, true);
         AssertVolume(AtmosphereModSystem.AerialAttenuationTextureId, snapshot.AerialAttenuation, snapshot);
+        var external = AtmosphereModSystem.ExternalTransmissionTexture!;
+        Assert.Equal(snapshot.ExternalTransmission.IsEmpty ? 1 : 512, external.Width);
+        Assert.Equal(1, external.Height);
+        Assert.Equal(PixelInternalFormat.Rgba32f, external.InternalFormat);
+        Assert.Equal(snapshot.ExternalTransmission.IsEmpty ? new[] { 0f, 0f, 0f, 1f }
+            : snapshot.ExternalTransmission.ToArray(), external.ReadPixels());
     }
 
     /// <summary>Verifies both cumulative transport volumes were fully uploaded with the published angular extent.</summary>

@@ -138,7 +138,8 @@ internal sealed class SceneLightingPublicationRenderer : IRenderer
             MaterialAtlasSystem.Instance.TextureStore.MaximumEmissionNits);
         return FrameLightingBounds.FromPublications(atmosphere, VgeLightsRenderer.Current,
             frame.LightingCalibration, PbrShaderLightingMode.LumOnEnabled, indirect.Intensity,
-            new Vector3(tint[0], tint[1], tint[2]), emission, compatibilityMaximum);
+            new Vector3(tint[0], tint[1], tint[2]), emission,
+            LightingStorage.UpperBound((double)compatibilityMaximum + Atmosphere.Celestial.CelestialRenderer.MaximumNits));
     }
 
     /// <summary>Rejects missing, retired and differently framed source metadata.</summary>

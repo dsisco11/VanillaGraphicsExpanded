@@ -85,6 +85,25 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
 
     #endregion
     #region Color and effects
+    /// <summary>Owned celestial composition retains full atmosphere and airglow, replaces only the old stellar image and preserves local fog.</summary>
+    [Fact]
+    public void OwnedCelestialCompositionReplacesStellarHalfWithoutDaylightOrCloudFade()
+    {
+        EnsureShaderTestAvailable();
+        using var sky=new FullscreenSky(Programs.Create<AtmosphereSkyShaderProgram>(),TestFramework);
+        float total=.0008f/MathF.PI,stellar=.0004f/MathF.PI;
+        sky.PublishConstant(new(total));
+        foreach(float daylight in new[]{0f,.5f,1f})
+        {
+            float[] upward=sky.Draw(Vector3.UnitY,true,daylight:daylight,ownedCelestial:true,replacedBackground:stellar);
+            Assert.All(upward[..3],value=>Assert.InRange(value,stellar-1e-7f,stellar+1e-7f));
+            Assert.Equal(0,upward[3]);
+            float[] fog=sky.Draw(Vector3.UnitY,true,daylight:daylight,fogMin:.3f,ownedCelestial:true,replacedBackground:stellar);
+            Assert.InRange(fog[3],.29999f,.30001f);
+        }
+        float[] below=sky.Draw(-Vector3.UnitY,true,ownedCelestial:true,replacedBackground:stellar);
+        Assert.All(below[..3],value=>Assert.InRange(value,total-1e-7f,total+1e-7f));
+    }
     /// <summary>The installed owned shader independently reconstructs solar and lunar angular lobes from three bands.</summary>
     [Fact]
     public void BinarySkyReconstructsIndependentCelestialDirections()
@@ -439,7 +458,7 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
                 { Width = width, Height = height, HorizonElevation = horizon, SkyMie = ImmutableArray.CreateRange(mie) });
         }
         /// <summary>Centers the requested direction under the inverse view-projection transform and captures a single fragment.</summary>
-        internal float[] Draw(Vector3 direction, bool linear, float daylight = 1, float underwater = 0, float nightVision = 0, float horizon = 0, Vector3? sun = null, float psychedelic = 0, float fogMin = 0, Matrix4x4? transform = null, float flatFogDensity = 0, float flatFogStart = 0)
+        internal float[] Draw(Vector3 direction, bool linear, float daylight = 1, float underwater = 0, float nightVision = 0, float horizon = 0, Vector3? sun = null, float psychedelic = 0, float fogMin = 0, Matrix4x4? transform = null, float flatFogDensity = 0, float flatFogStart = 0,bool ownedCelestial=false,float replacedBackground=0)
         {
             Vector3 up = MathF.Abs(direction.Y) > .99f ? Vector3.UnitZ : Vector3.UnitY;
             Matrix4x4 viewProjection = transform ?? Matrix4x4.CreateLookAt(Vector3.Zero, direction, up) * Perspective(1.2f, 1);
@@ -455,7 +474,8 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             inputs.Vector(32, daylight, 0, 0); inputs.Float(44, 0);
             inputs.Vector(48, .5f, .25f, .125f); inputs.Float(60, underwater);
             inputs.Vector(64, nightVision, psychedelic, 0); inputs.Float(76, linear ? 1 : 0);
-            inputs.Vector(80, 1 / AtmosphereModSystem.Lighting.LookupStorageScale, AtmosphereModSystem.Lighting.HasNightSources ? 3 : 2, 0);
+            inputs.Vector(80, 1 / AtmosphereModSystem.Lighting.LookupStorageScale, AtmosphereModSystem.Lighting.HasNightSources ? 3 : 2, ownedCelestial?1:0);
+            inputs.Float(92,replacedBackground);
             Vector3 moon = AtmosphereModSystem.Lighting.Moon;
             inputs.Vector(96, moon.X, moon.Y, moon.Z);
             program.SkyLookup = AtmosphereModSystem.SkyTextureId;

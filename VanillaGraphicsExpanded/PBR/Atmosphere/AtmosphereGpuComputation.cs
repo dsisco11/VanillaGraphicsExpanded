@@ -13,7 +13,7 @@ namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 internal sealed class AtmosphereGpuComputation : IDisposable
 {
     internal const int CellsPerDispatch = 64;
-    internal const int MaximumOutputBytes = (128 * 96 * (2 + 3 * AtmosphereAerialPerspective.Depth) + 4) * 16;
+    internal const int MaximumOutputBytes = (128 * 96 * (2 + 3 * AtmosphereAerialPerspective.Depth) + 4 + AtmosphereExternalTransmission.SampleCount) * 16;
     private readonly AtmosphereComputePrograms scattering, sky, lighting;
     private readonly GpuShaderStorageBuffer parameters, source;
     private readonly GpuQueue<Vector4> output;
@@ -143,12 +143,12 @@ internal sealed class AtmosphereGpuComputation : IDisposable
             return;
         }
         sourceKey = (request.Weather, request.Quality, request.Albedo);
-        int countOutput = request.Width * request.Height * (2 + 3 * AtmosphereAerialPerspective.Depth) + 4;
+        int countOutput = request.Width * request.Height * (2 + 3 * AtmosphereAerialPerspective.Depth) + 4 + AtmosphereExternalTransmission.SampleCount;
         // GpuQueue owns allocation/submission; every output record is overwritten by the two producers.
         output.PrepareGpuWrite(countOutput);
         sky.AtmosphereOutput = output.Buffer;
         lighting.AtmosphereOutput = output.Buffer;
-        sky.Dispatch((request.Width * request.Height + 63) >> 6);
+        sky.Dispatch((Math.Max(request.Width * request.Height,AtmosphereExternalTransmission.SampleCount) + 63) >> 6);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
         lighting.Dispatch(1);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.BufferUpdateBarrierBit);
@@ -171,7 +171,9 @@ internal sealed class AtmosphereGpuComputation : IDisposable
                 SkyMie = ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values.Slice(4 + count + 2 * aerialCount, count))),
                 AerialMie = ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values.Slice(4 + 2 * count + 2 * aerialCount, aerialCount))),
                 AerialRadiance = ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values.Slice(4 + count, aerialCount))),
-                AerialAttenuation = ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values.Slice(4 + count + aerialCount, aerialCount))) };
+                AerialAttenuation = ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4, float>(values.Slice(4 + count + aerialCount, aerialCount))),
+                ExternalTransmission = ImmutableArray.Create<float>(MemoryMarshal.Cast<Vector4,float>(
+                    values.Slice(4 + count * (2 + 3 * AtmosphereAerialPerspective.Depth),AtmosphereExternalTransmission.SampleCount))) };
     }
     #endregion
 

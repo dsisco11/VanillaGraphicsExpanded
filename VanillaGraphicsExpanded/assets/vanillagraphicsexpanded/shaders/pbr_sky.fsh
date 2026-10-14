@@ -37,6 +37,9 @@ float skyCoverage(vec3 skyPosition, float compatibilityDepth)
         1 - exp(-(skyPosition.y - start - curvature) * skyFog.z));
     float density = ((1 - direction.y) / 2 + .3)
         * (.6 + skyNoise(direction + vec3(skyDayWeather.w, 0, -skyDayWeather.w)) / 3);
+    // Physical external sources already pass through atmospheric extinction. Actual
+    // clouds render later; neither daylight nor this legacy cloud proxy dims them again.
+    if (skyEncoding.z > .5) return clamp(amount,0,1);
     amount += max(0, density - .5) * max(min(1, 5 * amount), skyDayWeather.y);
     return mix(clamp(amount, 0, 1), 1.0, clamp(skyDayWeather.x, 0, 1));
 }
@@ -51,7 +54,12 @@ vec3 skyRadiance(vec3 direction)
     vec3 radiance = texture(skyLookup,uv).rgb + texture(skyLookup,uv+vec2(0,1.0/bands)).rgb
         * atmMieFactor(direction,skySunHorizon.xyz);
     if (bands > 2.5) radiance += texture(skyLookup,uv+vec2(0,2.0/bands)).rgb * atmMieFactor(direction,skyMoon.xyz);
-    return radiance * (skyEncoding.x > 0.0 ? skyEncoding.x : 1.0);
+    radiance *= skyEncoding.x > 0.0 ? skyEncoding.x : 1.0;
+    // Retain separately budgeted airglow, replacing the old uniform stellar image
+    // with the owned source. Match the LUT's interpolation at its first upward row.
+    float firstBackgroundRow = ceil(atmSkyCoordinate(0.0,skySunHorizon.w)*(rows-1.0));
+    float backgroundWeight = clamp(row*(rows-1.0)-firstBackgroundRow+1.0,0.0,1.0);
+    return max(vec3(0),radiance-vec3(skyEncoding.w*backgroundWeight));
 }
 /** Uses the engine normalized linear-depth convention for the three shoreline samples. */
 float skyLiquidDistance(float offset)

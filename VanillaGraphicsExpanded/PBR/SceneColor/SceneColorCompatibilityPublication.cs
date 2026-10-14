@@ -52,12 +52,15 @@ internal readonly record struct SceneColorCompatibilityPublication(uint FrameInd
         bool mapEnabled = map is not null && MapEnabled(map);
         float mapGain = mapEnabled ? Math.Max(Math.Abs(MapBrightness(map!)),
             Math.Abs(api.Ambient.BlendedCloudBrightness)) : 0;
-        return FromInputs(frame, fog, cloud.VertexMaximum, mapEnabled, mapGain, ambientRgb,
+        var publication = FromInputs(frame, fog, cloud.VertexMaximum, mapEnabled, mapGain, ambientRgb,
             Math.Max(tintRgb.X, Math.Max(tintRgb.Y, tintRgb.Z)), Daylight(u),
             u.NightVisionStrength, u.PsychedelicStrength, u.DropShadowIntensity,
             // Native Use uploads the live engine list rather than the VGE point
             // snapshot. Re-certify that exact list here, including late submissions.
             SceneColorPointLightBounds.FromEngine(u.PointLightsCount, u.PointLightColors3));
+        // The owned source supplies its own physical envelope. Do not continue
+        // reserving the retired native cubemap's compatibility brightness.
+        return Atmosphere.Celestial.CelestialRenderer.IsEnabled ? publication with { Stars = 0 } : publication;
     }
 
     /// <summary>Assembles inspected native expressions and the supported normalized texture/color owner contracts.</summary>

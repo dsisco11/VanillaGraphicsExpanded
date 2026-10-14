@@ -30,6 +30,8 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     internal static DynamicTexture3D? AerialRadianceTexture { get; private set; }
     /// <summary>Returns the borrowed attenuation volume from the published atmosphere generation.</summary>
     internal static DynamicTexture3D? AerialAttenuationTexture { get; private set; }
+    /// <summary>Returns borrowed observer-to-space transmission published atomically with sky and aerial transport.</summary>
+    internal static DynamicTexture2D? ExternalTransmissionTexture { get; private set; }
     public double RenderOrder => -.5;
     public int RenderRange => 1;
 
@@ -57,6 +59,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         updateFailureReported = false;
         ambientPublication?.Dispose();
         AerialRadianceTexture = null; AerialAttenuationTexture = null;
+        ExternalTransmissionTexture = null;
         Lighting = null; SkyTextureId = 0; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
         seasonInputs = new();
         Rendering.Integration.RenderingCleanup.Run(
@@ -159,6 +162,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         (textures, stagingTextures) = (stagingTextures, textures);
         AerialRadianceTexture = textures.Radiance;
         AerialAttenuationTexture = textures.Attenuation;
+        ExternalTransmissionTexture = textures.ExternalTransmission;
         SkyTextureId = textures.Sky.TextureId;
         AerialRadianceTextureId = textures.Radiance.TextureId;
         AerialAttenuationTextureId = textures.Attenuation.TextureId;

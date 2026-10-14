@@ -115,7 +115,7 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
             var pass = new RenderPassDesc(target, [new(0), new(1)]);
             using var metadata = new RenderPassTargets(pass);
             var blend = new ColorBlendDesc { Enabled = true,
-                SourceRgb = BlendingFactorSrc.SrcAlpha, DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha,
+                SourceRgb = Celestial.CelestialRenderer.IsEnabled ? BlendingFactorSrc.One : BlendingFactorSrc.SrcAlpha, DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha,
                 SourceAlpha = BlendingFactorSrc.SrcAlpha, DestinationAlpha = BlendingFactorDest.OneMinusSrcAlpha };
             var description = new GraphicsPipelineDesc(shader.GraphicsIdentity!, Layout,
                 metadata.Signature, DynamicPipelineState.Viewport,

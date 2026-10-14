@@ -1459,6 +1459,10 @@ the 0.0008-lux orientation-averaged reference total. The selected component spli
 an artistic calibration, not a measured breakdown. Existing lunar transport and shadow
 ownership remain unchanged. The following describes the currently implemented model
 until that complete replacement is integrated; do not add both background models.
+Owned visible drawing now replaces the legacy stars/galaxy images and removes the
+uniform stellar half from visible atmosphere, retaining airglow. Receiver environment
+and finite-path background remain the combined approximation until the planned
+source-derived lighting integration; owned drawing alone does not complete that work.
 
 The nighttime extension reuses the atmospheric transport backend, medium table and atomic
 publication. Sun and moon are evaluated sequentially against one admitted medium generation;

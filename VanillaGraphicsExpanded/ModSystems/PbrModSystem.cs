@@ -26,6 +26,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     private PBR.Liquids.WaterRefractionCapture? waterRefractionCapture;
     private PBR.SceneColor.SceneColorParticleCapture? particleCapture;
     private PBR.Atmosphere.AtmosphereSkyRenderer? skyRenderer;
+    private PBR.Atmosphere.Celestial.CelestialRenderer? nightSky;
     private PBR.SceneColor.SceneColorPipeline? sceneColor;
     private PBR.CameraExposure.CameraExposureRenderer? cameraExposure;
     private PBR.SceneColor.SceneLightingPublicationRenderer? sceneLighting;
@@ -39,6 +40,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     public override void StartClientSide(ICoreClientAPI api)
     {
         capi = api;
+        PBR.Atmosphere.Celestial.NativeNightSkyDrawRegistration.Disable(api);
         PBR.Tessellation.TerrainDisplacementRuntime.Api = api;
         api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_displacement_view");
         HarmonyPatches.PbrDrawRouteHook.Api = api;
@@ -73,6 +75,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
             () => { var owner = sceneColor; sceneColor = null; owner?.Dispose(); },
             () => { var owner = liquidRenderer; liquidRenderer = null; owner?.Dispose(); },
             () => { var owner = skyRenderer; skyRenderer = null; owner?.Dispose(); },
+            () => { var owner = nightSky; nightSky = null; owner?.Dispose(); },
             () => { var owner = particleCapture; particleCapture = null; owner?.Dispose(); },
             () => { var owner = waterRefractionCapture; waterRefractionCapture = null; owner?.Dispose(); },
             () => { var owner = waterVolumeRenderer; waterVolumeRenderer = null; owner?.Dispose(); },
@@ -92,6 +95,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
 
         directLightingBufferManager ??= new DirectLightingBufferManager(capi);
         skyRenderer ??= new PBR.Atmosphere.AtmosphereSkyRenderer(capi, gBufferManager);
+        nightSky ??= new PBR.Atmosphere.Celestial.CelestialRenderer(capi, gBufferManager);
         particleCapture ??= new PBR.SceneColor.SceneColorParticleCapture(capi, gBufferManager);
         directLightingRenderer ??= new DirectLightingRenderer(capi, gBufferManager, directLightingBufferManager);
 

@@ -74,6 +74,9 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
         Assert.Equal(expected.AerialMie.Length, actual.AerialMie.Length);
         for (int i = 0; i < expected.AerialMie.Length; i++) Close(expected.AerialMie[i], actual.AerialMie[i], $"aerial Mie[{i}]");
         Assert.Equal(expected.Altitude, actual.Altitude);
+        Assert.Equal(512 * 4, actual.ExternalTransmission.Length);
+        for (int i = 0; i < actual.ExternalTransmission.Length; i++)
+            Close(expected.ExternalTransmission[i], actual.ExternalTransmission[i], $"external transmission[{i}]");
         Assert.Equal(expected.AerialRadiance.Length, actual.AerialRadiance.Length);
         Assert.Equal(expected.AerialAttenuation.Length, actual.AerialAttenuation.Length);
         Assert.Equal(expected.Width * expected.Height * AtmosphereAerialPerspective.Depth * 4, actual.AerialRadiance.Length);
@@ -147,6 +150,8 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
     [Fact]
     public void UnsupportedCapabilitiesRejectGpuAdmission()
     {
+        Assert.Equal((4 + 128 * 96 * (2 + 3 * AtmosphereAerialPerspective.Depth) + 512) * 16,
+            AtmosphereGpuComputation.MaximumOutputBytes);
         Assert.True(AtmosphereGpuComputation.Supports(true, true, true, 64, 64, 192, 3, AtmosphereGpuComputation.MaximumOutputBytes));
         Assert.False(AtmosphereGpuComputation.Supports(false, true, true, 64, 64, 192, 3, AtmosphereGpuComputation.MaximumOutputBytes));
         Assert.False(AtmosphereGpuComputation.Supports(true, false, true, 64, 64, 192, 3, AtmosphereGpuComputation.MaximumOutputBytes));
@@ -192,6 +197,27 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
         for (int i = 3; i < current.Sky.Length; i += 4) Assert.Equal(1f, current.Sky[i]);
     }
 
+    /// <summary>Even the smallest sky dispatch writes all transmission rows, including its final overhead direction.</summary>
+    [Fact]
+    public void MinimumSkyExtentCompletesAllExternalTransmissionRows()
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        using var gpu = AtmosphereGpuComputation.Create(assets.Api);
+        var actual = Complete(gpu, Vector3.UnitX, 1, .5f, 16, 8);
+        Assert.Equal(512 * 4, actual.ExternalTransmission.Length);
+        foreach (int row in new[] { 0, 64, 255, 511 })
+        {
+            float elevation = AtmosphereSkyMapping.Elevation(row / 511f, actual.HorizonElevation);
+            Vector3 expected = AtmosphereModel.ExternalTransmittance(new(MathF.Cos(elevation), MathF.Sin(elevation), 0),
+                actual.Altitude, 1 + 7 * actual.CloudCoverage);
+            for (int channel = 0; channel < 3; channel++)
+                Close(expected[channel], actual.ExternalTransmission[4 * row + channel], $"row {row}, channel {channel}");
+            Assert.Equal(1, actual.ExternalTransmission[4 * row + 3]);
+        }
+        Assert.True(actual.ExternalTransmission[^4] > 0);
+    }
+
     /// <summary>Actual reload preserves the published texture and world reset retires it alongside pending transport.</summary>
     [Fact]
     public void ModSystemReloadAndWorldResetRespectPublishedOwnership()
@@ -210,9 +236,11 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
             var display = new AtmosphereLighting(Vector3.UnitY, Vector3.One, Vector3.One, Vector3.One, Vector3.Zero,
                 ImmutableArray.Create(.1f, .2f, .3f, 1f)) { Width = 1, Height = 1 };
             system.Publish(display);
+            display = AtmosphereModSystem.Lighting;
             int texture = AtmosphereModSystem.SkyTextureId;
             var radiance = AtmosphereModSystem.AerialRadianceTexture;
             var attenuation = AtmosphereModSystem.AerialAttenuationTexture;
+            var external = AtmosphereModSystem.ExternalTransmissionTexture;
             int radianceId = AtmosphereModSystem.AerialRadianceTextureId;
             int attenuationId = AtmosphereModSystem.AerialAttenuationTextureId;
             Assert.NotEqual(0, texture);
@@ -221,6 +249,8 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
             Assert.Same(display, AtmosphereModSystem.Lighting); Assert.Equal(texture, AtmosphereModSystem.SkyTextureId);
             Assert.Same(radiance, AtmosphereModSystem.AerialRadianceTexture);
             Assert.Same(attenuation, AtmosphereModSystem.AerialAttenuationTexture);
+            Assert.Same(external, AtmosphereModSystem.ExternalTransmissionTexture);
+            Assert.Equal(new[] { 0f, 0f, 0f, 1f }, external!.ReadPixels());
             Assert.Equal(radianceId, AtmosphereModSystem.AerialRadianceTextureId);
             Assert.Equal(attenuationId, AtmosphereModSystem.AerialAttenuationTextureId);
             Assert.True(GL.IsTexture(texture) && GL.IsTexture(radianceId) && GL.IsTexture(attenuationId));
@@ -231,6 +261,8 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
             typeof(AtmosphereModSystem).GetMethod("Reset", flags)!.Invoke(system, null);
             Assert.NotSame(previousSeasonOwner, seasonField.GetValue(system));
             Assert.Null(AtmosphereModSystem.Lighting); Assert.Equal(0, AtmosphereModSystem.SkyTextureId);
+            Assert.Null(AtmosphereModSystem.ExternalTransmissionTexture);
+            Assert.False(external.IsValid);
         }
         finally
         {

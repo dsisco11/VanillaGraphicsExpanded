@@ -10,7 +10,7 @@ internal static class SceneColorLegacyPatches
     #region Public API
     /// <summary>Identifies known OIT, sky and late scene sources whose RGB is authored in display units.</summary>
     internal static bool Supports(string source) => IsOit(source) || source is
-        "particlescube.fsh" or "nightsky.fsh" or "celestialobject.fsh" or "decals.fsh" or "wireframe.fsh"
+        "particlescube.fsh" or "celestialobject.fsh" or "decals.fsh" or "wireframe.fsh"
         or "lines.fsh" or "autocamera.fsh" or "helditem.fsh" or "woittest.fsh" or "transparentcompose.fsh";
 
     /// <summary>Adds decoding helpers before import expansion without modifying engine shader assets.</summary>

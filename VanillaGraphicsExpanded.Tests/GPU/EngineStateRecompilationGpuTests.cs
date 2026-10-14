@@ -37,7 +37,6 @@ public sealed class EngineStateRecompilationGpuTests(HeadlessGLFixture fixture) 
             ("Vintagestory.Client.NoObf.SystemRenderEntities", "OnRenderOpaque3D"),
             ("Vintagestory.Client.NoObf.SystemRenderEntities", "OnRenderAfterOIT"),
             ("Vintagestory.Client.NoObf.SystemRenderInsideBlock", "OnRenderFrame3D"),
-            ("Vintagestory.Client.NoObf.SystemRenderNightSky", "OnRenderFrame3D"),
             ("Vintagestory.Client.NoObf.SystemRenderSunMoon", "OnRenderFrame3D"),
             ("Vintagestory.Client.NoObf.SystemRenderSunMoon", "OnRenderFrame3DPost")
         }.Select(entry =>
@@ -55,7 +54,7 @@ public sealed class EngineStateRecompilationGpuTests(HeadlessGLFixture fixture) 
         }).ToArray();
         var targets = EngineRenderApiStatePatches.TargetMethods().ToArray();
         Assert.Equal(targets.Length, targets.Distinct().Count());
-        Assert.Equal(19, audited.Length);
+        Assert.Equal(18, audited.Length);
         Assert.All(audited, method => Assert.Contains(method, targets));
         var harmony = new Harmony($"vge.tests.cull.owner.{Guid.NewGuid():N}");
         var transpiler = AccessTools.Method(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler));

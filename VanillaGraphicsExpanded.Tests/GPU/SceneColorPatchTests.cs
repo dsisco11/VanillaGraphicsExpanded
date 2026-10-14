@@ -17,7 +17,6 @@ public sealed class SceneColorPatchTests(HeadlessGLFixture fixture) : RenderTest
     /// <summary>Actual imported sky/cloud noise leaves HDR RGB and coverage unchanged while preserving offscreen display noise.</summary>
     [Theory]
     [InlineData("clouds.fsh")]
-    [InlineData("nightsky.fsh")]
     public void InstalledDisplayNoiseIsIsolatedFromSceneStorage(string name)
     {
         EnsureContextValid();
