@@ -127,6 +127,13 @@ Its source set and derived lighting must publish together; the native night-sky 
 and its compatibility conversion will be retired only with that integration. Current
 night-sky counter preservation statements describe the existing separate renderer.
 
+The celestial generation owner now prepares and submits its own tiled HDR cube during
+world loading, retaining a fenced complete cube, catalog, source quadrature, encoding
+and bounds. It uses the existing global sky quality selector and retains completed
+resources across failed replacements. These resources are not yet scene-active: native
+night drawing and the current combined moonless illumination remain until the owned
+draw and transport integration. See the linked checklist for generation qualification.
+
 The owned sky `IRenderer` runs at Opaque order 0.2. It owns a procedural fullscreen triangle through an empty VAO,
 camera-relative ray transforms, pipeline state and drawing, and reads the completed atmospheric
 publication. The fragment shader reconstructs viewing rays and samples the existing atmospheric

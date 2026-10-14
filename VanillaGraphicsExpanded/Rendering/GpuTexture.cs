@@ -107,11 +107,11 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
     #region Allocation Helpers
 
-    /// <summary>Replaces two-dimensional storage outside active passes and notifies borrowed image owners.</summary>
+    /// <summary>Replaces two-dimensional image or cube-face storage outside active passes and notifies borrowed image owners.</summary>
     protected void AllocateOrReallocate2DTexture(int mipLevels)
     {
         RequireMutableStorage();
-        if (textureTarget != TextureTarget.Texture2D && textureTarget != TextureTarget.TextureRectangle)
+        if (textureTarget is not (TextureTarget.Texture2D or TextureTarget.TextureRectangle or TextureTarget.TextureCubeMap))
         {
             throw new InvalidOperationException($"2D allocation is not supported for target {textureTarget}.");
         }
@@ -125,6 +125,9 @@ public abstract class GpuTexture : GpuResource, IDisposable
         {
             throw new InvalidOperationException("TextureRectangle does not support mipmaps.");
         }
+
+        if (textureTarget == TextureTarget.TextureCubeMap && width != height)
+            throw new InvalidOperationException("Cube texture faces must be square.");
 
         DeleteTextureIfAllocated();
 
@@ -151,7 +154,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
             throw new InvalidOperationException("Cannot reallocate texture storage: texture is not valid.");
         }
 
-        if (textureTarget != TextureTarget.Texture2D && textureTarget != TextureTarget.TextureRectangle)
+        if (textureTarget is not (TextureTarget.Texture2D or TextureTarget.TextureRectangle or TextureTarget.TextureCubeMap))
         {
             throw new InvalidOperationException($"2D allocation is not supported for target {textureTarget}.");
         }
@@ -165,6 +168,9 @@ public abstract class GpuTexture : GpuResource, IDisposable
         {
             throw new InvalidOperationException("TextureRectangle does not support mipmaps.");
         }
+
+        if (textureTarget == TextureTarget.TextureCubeMap && width != height)
+            throw new InvalidOperationException("Cube texture faces must be square.");
 
         using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         Allocate2DStorageBound(mipLevels);
@@ -203,38 +209,20 @@ public abstract class GpuTexture : GpuResource, IDisposable
         }
     }
 
+    /// <summary>Allocates every two-dimensional image at each mip; cube targets select six individual face images.</summary>
     private void Allocate2DStorageBound(int mipLevels)
     {
-        if (mipLevels <= 1)
-        {
-            GL.TexImage2D(
-                textureTarget,
-                level: 0,
-                internalformat: internalFormat,
-                width: width,
-                height: height,
-                border: 0,
-                format: TextureFormatHelper.GetPixelFormat(internalFormat),
-                type: TextureFormatHelper.GetPixelType(internalFormat),
-                pixels: IntPtr.Zero);
-
-            return;
-        }
-
+        int faces = textureTarget == TextureTarget.TextureCubeMap ? 6 : 1;
+        PixelFormat pixels = TextureFormatHelper.GetPixelFormat(internalFormat);
+        PixelType type = TextureFormatHelper.GetPixelType(internalFormat);
         for (int level = 0; level < mipLevels; level++)
         {
             int lw = Math.Max(1, width >> level);
             int lh = Math.Max(1, height >> level);
-            GL.TexImage2D(
-                textureTarget,
-                level,
-                internalFormat,
-                lw,
-                lh,
-                0,
-                TextureFormatHelper.GetPixelFormat(internalFormat),
-                TextureFormatHelper.GetPixelType(internalFormat),
-                IntPtr.Zero);
+            for (int face = 0; face < faces; face++)
+                GL.TexImage2D(
+                    textureTarget == TextureTarget.TextureCubeMap ? TextureTarget.TextureCubeMapPositiveX + face : textureTarget,
+                    level, internalFormat, lw, lh, 0, pixels, type, IntPtr.Zero);
         }
     }
 
@@ -253,6 +241,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
             pixels: IntPtr.Zero);
     }
 
+    /// <summary>Applies shared image sampling defaults while retaining legacy 2D mip policy and configurable cube filtering.</summary>
     private void Apply2DTextureObjectParamsBound(int mipLevels)
     {
         // When a sampler object is bound to the unit, it overrides these parameters.
@@ -263,6 +252,12 @@ public abstract class GpuTexture : GpuResource, IDisposable
         if (mipLevels <= 1)
         {
             min = filterMode == TextureFilterMode.Linear ? TextureMinFilter.Linear : TextureMinFilter.Nearest;
+            mag = filterMode == TextureFilterMode.Linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
+        }
+        else if (textureTarget == TextureTarget.TextureCubeMap)
+        {
+            // Cube resources retain the requested interpolation across their populated mip chain.
+            min = filterMode == TextureFilterMode.Linear ? TextureMinFilter.LinearMipmapLinear : TextureMinFilter.NearestMipmapNearest;
             mag = filterMode == TextureFilterMode.Linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
         }
         else
@@ -277,6 +272,8 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
         GL.TexParameter(textureTarget, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
         GL.TexParameter(textureTarget, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
+        if (textureTarget == TextureTarget.TextureCubeMap)
+            GL.TexParameter(textureTarget, TextureParameterName.TextureWrapR, (int)TextureWrapMode.ClampToEdge);
 
         int maxLevel = Math.Max(0, mipLevels - 1);
         GL.TexParameter(textureTarget, TextureParameterName.TextureBaseLevel, 0);

@@ -3,11 +3,11 @@ using Newtonsoft.Json;
 
 namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 
-/// <summary>Controls the bounded resolution of sky radiance and atmospheric multiple-scattering lookups.</summary>
+/// <summary>Controls bounded atmospheric lookup detail and generated celestial source resolution.</summary>
 [JsonObject(MemberSerialization.OptIn)]
 public sealed class AtmosphereSettings
 {
-    /// <summary>Quality level from zero to three; both atmospheric lookups scale by quality plus one.</summary>
+    /// <summary>Global sky quality from zero to three; atmospheric lookups and celestial resources share this selector.</summary>
     [JsonProperty]
     public int SkyLutQuality { get; set; } = 0;
 

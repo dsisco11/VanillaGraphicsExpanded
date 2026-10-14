@@ -17,6 +17,15 @@ internal static partial class AtmosphereModel
     private static readonly Vector3 Solar = new Vector3(1.474f, 1.8504f, 1.91198f) * SolarAmplitude;
 
     #region Integration
+    /// <summary>Reuses the admitted atmospheric extinction model for external celestial source calibration.</summary>
+    internal static Vector3 ExternalTransmittance(Vector3 direction, float altitudeKm, float aerosol)
+    {
+        if (!float.IsFinite(direction.LengthSquared()) || direction.LengthSquared() < .0001f)
+            throw new ArgumentException("An external source requires a finite direction.", nameof(direction));
+        return Transmittance(new Vector3(0, GroundRadius + Math.Clamp(altitudeKm, .001f, 99f), 0),
+            Vector3.Normalize(direction), aerosol);
+    }
+
     /// <summary>Integrates sky radiance excluding the separately rendered solar disk and ground reflection.</summary>
     internal static Vector3 Radiance(Vector3 direction, Vector3 sun, float altitudeKm, float aerosol)
     {

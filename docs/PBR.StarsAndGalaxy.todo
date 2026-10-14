@@ -1,7 +1,7 @@
 VGE-owned HDR stars and galaxy
 =============================
 
-Status: Phase 1 contracts complete after second review and independent completion audit (2026-10-13). Runtime implementation and acceptance remain open.
+Status: Phases 1 and 2 complete after second review and independent completion audit (2026-10-13). Owned drawing, scene-light integration and appearance acceptance remain open.
 Authority: User-approved hybrid HDR direction and refinements (2026-10-13).
 Related plan: PBR.PhotometricLighting.todo, shared nighttime illumination work.
 Diagnostic evidence: ../artifacts/LightingImbalance/findings.md.
@@ -59,16 +59,16 @@ Phase 1: Define source, quality and publication contracts
 
 Phase 2: Generate the HDR galaxy during world loading
 ---------------------------------------------------
-☐ Implement a VGE-owned GPU generation program for all six cubemap faces.
+☑ Implement a VGE-owned GPU generation program for all six cubemap faces.
   - Generate galaxy structure directly from the agreed deterministic inputs. Do not
     sample native sky textures or copy native shader formulas.
   - Use continuous directional coordinates, filtered procedural detail and consistent
     edge treatment to avoid face seams and aliasing in fine dust/stellar structure.
-☐ Allocate the agreed floating-point map, generate seam-consistent linear mips and
+☑ Allocate the agreed floating-point map, generate seam-consistent linear mips and
   produce the derived lighting representation before publishing the complete resource set.
   - Respect GPU context/thread ownership; bound loading cost, scratch memory and work.
   - Keep resources stable across ordinary frames and release them on world teardown.
-☐ Validate deterministic generation, finite nonnegative values, normalization, seams,
+☑ Validate deterministic generation, finite nonnegative values, normalization, seams,
   mip energy and preservation of faint gradients through the actual texture format.
 
 Phase 3: Render the instanced stars and owned galaxy
@@ -138,8 +138,8 @@ Completion criterion
 
 Resolved source, quality and publication contract (2026-10-13)
 -------------------------------------------------------------
-This section specifies the design to implement; it does not claim runtime qualification.
-It governs the tasks above. Existing runtime behavior remains unchanged until implementation.
+This section governs implementation. Generation receipts below qualify the source resource,
+not its visible draw or activation as scene illumination.
 
 Quality and bounded work
   Use Atmosphere.SkyLutQuality as the single VGE sky quality setting: integer 0..3,
@@ -157,6 +157,9 @@ Quality and bounded work
   Memory figures are rounded up for six R11G11B10F faces and a complete mip chain.
   Allow two final-format maps during replacement (retained and candidate), plus one
   RGBA16F scratch map and 8 MiB for source buffers, reduction and lighting data: 40/296/520/520 MiB.
+  Implementation uses a single 128x128 RGBA32F scratch tile instead of that full scratch
+  map, retaining float32 arithmetic until explicit packed-format narrowing. It remains
+  within these conservative budgets and does not change scene framebuffer formats.
   Resolution revision (2026-10-13): user selected 512 pixels per face for the lowest
   level and 2048 for the highest. Use 512/1536/2048/2048; these replace
   the sizes reviewed originally. Highest-quality resident map storage is bounded by
@@ -301,3 +304,55 @@ Phase 1 verification boundary
   PBR.PhotometricLighting.Proposal.md, calibrated nighttime celestial lighting, and
   PBR.Atmosphere.Publication.md, publication/draw ownership. The selected split and
   procedural shape are VGE design decisions, not inferred numerical results from papers.
+
+Generation implementation and verification (2026-10-13)
+------------------------------------------------------
+  Source owners: PBR/Atmosphere/Celestial/CelestialSource.cs, CelestialProceduralField.cs,
+  CelestialResidual.cs and CelestialCubeGeometry.cs. Unsigned hash uses xor-shifts
+  16/15/16 and wrapping multipliers 0x7feb352d/0x846ca68b. CPU/GPU fixtures lock the
+  implementation. Calibration reuses AtmosphereModel.ExternalTransmittance at the
+  declared reference; its uniform-rotation response is integrated once per source build.
+  The full catalog and 64x64-per-face quadrature remain quality independent. Residual
+  two-degree caps normalize discrete solid-angle RGB across every intersected face.
+
+  GPU owners: CelestialGenerationProgram, CelestialGalaxyGeneration, the reusable
+  Rendering/DynamicTextureCube and CelestialResourceSet. GLSL 330 rasterizes into a separate 128x128 float32 scratch
+  tile; copies populate all six R11G11B10F faces. Mips use positive solid-angle child
+  weights, including proportional 3-to-1 reduction for the 1536 chain. At fine levels
+  a positive midpoint Jacobian avoids FP32 corner-primitive cancellation; coarse levels
+  use the analytic area. Explicit nearest rounding qualifies the packed conversion.
+  No native sky image, shader formula, compute capability or shader-version increase.
+
+  AtmosphereModSystem composes CelestialSourceLifetime. BlockTexturesLoaded prepares
+  deterministic inputs on a worker; LevelFinalize submits GPU generation on the owning
+  context before returning, using the existing uniform allocator or a private loading
+  epoch. Ordinary frames only poll the completion fence or a relevant changed quality.
+  No GPU spin-wait, readback or repeated unchanged generation. Publication exposes the
+  complete cube/mips and matching immutable source, encoding, bounds and quadrature.
+  Reload failure retains the old complete set; world teardown cancels preparation and
+  clears resources. Context-generation changes withdraw dead handles and rebuild.
+  The generated source is available but is not yet drawn or added to the atmosphere;
+  native star ownership and the current combined background remain until integration.
+
+  Receipts: ../artifacts/celestial-lifecycle-regression.log (50 passed, one explicit
+  full-size opt-in skip) and ../artifacts/celestial-qualification-double.log (9 passed,
+  including four full-size qualities). Production/test SPIR-V builds passed. Checks
+  include deterministic CPU/GPU output, source reference budgets, refined quadrature,
+  directional continuity, finite/nonnegative actual packed faces, <=1% integrated RGB
+  map/mip drift, packed channel precision, loading without a frame allocator, unchanged
+  frames, failed reload retention and retirement. Full-size qualification uses double
+  summation so the diagnostic does not lose precision across millions of texels.
+  Final rebuilt-binary checks: ../artifacts/celestial-final-default.log (10 passed,
+  one full-size opt-in skip), including the final cleanup and shader documentation.
+  Second review and independent completion audit found no remaining required-now issues.
+
+  Qualification machine: NVIDIA RTX 4090, OpenGL 4.3, driver 591.86. Levels 0..3:
+  GPU generation 55.81/193.15/285.83/298.76 ms; preparation-through-completion wall time
+  1430.11/5169.68/5284.08/457.45 ms; packed map storage 8/72/128/128 MiB. GPU timing
+  passes the selected one-second highest-quality target. Wall time includes CPU source
+  and residual preparation, executable preparation and submission; it is not GPU time.
+  Allocation payload accounting: two retained/candidate maps plus one 0.25-MiB tile,
+  catalog/index textures and at most a 2-MiB loading uniform page fit the specified
+  conservative replacement budgets. Driver allocator overhead is not measured here.
+  Full-size measurement remains opt-in via VGE_RUN_CELESTIAL_QUALIFICATION=1.
+  Runtime draw timing, live appearance and source-to-scene transport remain later work.

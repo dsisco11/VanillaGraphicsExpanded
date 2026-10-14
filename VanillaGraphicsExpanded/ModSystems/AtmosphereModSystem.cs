@@ -2,6 +2,7 @@ using System;
 using System.Collections.Immutable;
 using System.Numerics;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -18,6 +19,9 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     private AtmosphereTextureSet? textures, stagingTextures;
     private AtmosphereAmbientPublication? ambientPublication;
     private bool updateFailureReported;
+    private CelestialSourceLifetime? celestial;
+    /// <summary>Returns the complete generated celestial source; scene activation awaits its owned draw and transport integration.</summary>
+    internal CelestialResourceSet? CelestialSource => celestial?.Completed;
     internal static AtmosphereLighting? Lighting { get; private set; }
     internal static int SkyTextureId { get; private set; }
     internal static int AerialRadianceTextureId { get; private set; }
@@ -39,8 +43,11 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         this.api = api;
         ambientPublication = new(api);
         computation = new(api);
+        celestial = new(api);
         api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_atmosphere");
         api.Event.LeaveWorld += Reset;
+        api.Event.BlockTexturesLoaded += StartCelestialLoading;
+        api.Event.LevelFinalize += FinishCelestialLoading;
         reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload);
     }
 
@@ -53,10 +60,12 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         Lighting = null; SkyTextureId = 0; AerialRadianceTextureId = 0; AerialAttenuationTextureId = 0;
         seasonInputs = new();
         Rendering.Integration.RenderingCleanup.Run(
+            () => { var owner = celestial; celestial = null; owner?.Dispose(); },
             () => { var owner = computation; computation = null; owner?.Dispose(); },
             () => { var owner = textures; textures = null; owner?.Dispose(); },
             () => { var owner = stagingTextures; stagingTextures = null; owner?.Dispose(); });
         computation = api is null ? null : new(api);
+        celestial = api is null ? null : new(api);
     }
 
     /// <summary>Invalidates pending shader generations while keeping the last complete display snapshot.</summary>
@@ -65,6 +74,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         // Completed textures are independent of the compute executable. Keep every consumer on
         // the same publication until replacement transport and uploads complete successfully.
         computation?.Reload();
+        celestial?.Reload((int)ConfigModSystem.Config.Atmosphere.SkyLutQuality);
         return true;
     }
 
@@ -75,6 +85,8 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         Rendering.Integration.RenderingCleanup.Run(
             () => { if (client is not null) client.Event.UnregisterRenderer(this, EnumRenderStage.Before); },
             () => { if (client is not null) client.Event.LeaveWorld -= Reset; },
+            () => { if (client is not null) client.Event.BlockTexturesLoaded -= StartCelestialLoading; },
+            () => { if (client is not null) client.Event.LevelFinalize -= FinishCelestialLoading; },
             () => { var owner = reloadRegistration; reloadRegistration = null; owner?.Dispose(); },
             Reset,
             () => base.Dispose());
@@ -82,10 +94,16 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     #endregion
 
     #region Update
+    /// <summary>Prepares deterministic source inputs during the engine's world-loading texture callback.</summary>
+    private void StartCelestialLoading() => celestial?.StartLoading((int)ConfigModSystem.Config.Atmosphere.SkyLutQuality);
+    /// <summary>Submits the complete tiled GPU build on the load callback's owning render context.</summary>
+    private void FinishCelestialLoading() => celestial?.FinishLoading((int)ConfigModSystem.Config.Atmosphere.SkyLutQuality);
+
     /// <summary>One block is one metre; cloud coverage is mapped to bounded aerosol turbidity, not used as an SI density.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Before) return;
+        celestial?.Update((int)ConfigModSystem.Config.Atmosphere.SkyLutQuality);
         if (api?.World?.Player?.Entity is not { } player || api.World.Calendar is not { } calendar)
         {
             ambientPublication?.Dispose();
