@@ -1,12 +1,9 @@
-/** Adjusts display brightness and contrast around middle gray, then blends a luminance-derived warm tint. */
-vec3 VgeGradeDisplay(vec3 color,vec4 controls,float warmth)
+/** Applies authored warm tint after the cached scene-linear grading and filmic display transform. */
+vec3 VgeDisplayTint(vec3 color,float warmth)
 {
-    float exponent=1.0/max(controls.x*controls.y,0.001);
-    vec3 adjusted=pow(max(color,vec3(0)),vec3(exponent))*max(controls.z,0.0);
-    adjusted=(adjusted-0.5)*max(1.0+controls.w,0.0)+0.5;
-    float luminance=dot(max(adjusted,vec3(0)),vec3(0.2126,0.7152,0.0722));
+    float luminance=dot(max(color,vec3(0)),vec3(0.2126,0.7152,0.0722));
     vec3 warm=luminance*vec3(1.12,0.98,0.78);
-    return clamp(mix(adjusted,warm,clamp(warmth,0.0,1.0)),0.0,1.0);
+    return clamp(mix(color,warm,clamp(warmth,0.0,1.0)),0.0,1.0);
 }
 /** Produces deterministic screen-space grain without an external noise implementation. */
 float VgeDisplayGrain(vec2 pixel,float time)

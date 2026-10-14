@@ -72,8 +72,8 @@ LUT retains its own decoded emission bound and C-encoded emission payload.
 
 `pbr_display_resolve` copies linear radiance on an HDR frame, including sky, and composites
 the captured premultiplied particle layer over the transported background once. On the retained
-legacy route it performs the opaque display boundary instead. Both routes use the same display
-policy at their respective conversion point:
+legacy route it performs the opaque display boundary instead. The retained legacy conversion
+uses the following baseline policy:
 
 1. Fixed unit exposure, common to LumOn-enabled and standalone composition (see [PBR.LightingModes.md](PBR.LightingModes.md)).
 2. Nonnegative RGB-ratio-preserving mapping: `c / (1 + max(c.r, c.g, c.b))`.
@@ -86,8 +86,9 @@ See [PBR.SharedDisplay.md](PBR.SharedDisplay.md) for the sky/sun/surface contrac
 
 On the legacy route, sky pixels already used the shared display helper and bypass this resolve.
 Both composition and resolve use `lumonIsSky`, including its exact depth threshold. On HDR
-frames the final shader converts the composed scene and effects before vanilla gamma,
-brightness, contrast and color grading. The renderer uses a distinct
+frames the owned final shader adds scene and effects, applies camera exposure and samples
+the scene-linear grading/filmic display lookup described in [PBR.Postprocessing.md](PBR.Postprocessing.md).
+The legacy shoulder is not applied again to that HDR scene. The renderer uses a distinct
 source texture and disables depth testing/writes for the fullscreen draws, restoring fixed
 function state afterwards. The new GPU scope is `PBR.DisplayResolve`.
 

@@ -43,11 +43,13 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         using var exposure = ExposureTestStorage.Create(8);
         using var draw = new PostprocessDraw();
         var final = Programs.Create<FinalDisplayShaderProgram>(); final.FrameLightingInputs = publication.Buffer;
+        using var grading = new ColorGradingLut(); final.GradingLookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         final.FrameInputs = camera; final.SceneImage = source; final.BloomImage = zero;
         final.ShaftImage = zero; final.ExposureBuffer = exposure;
         final.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(0, 1, 0, 0));
         Submit(draw, final, target);
-        foreach (float component in target[0].ReadPixels().Take(3)) Assert.InRange(component, .2f, .4f);
+        float expected = FilmicGradingReference.Quantize(FilmicGradingReference.Lookup(new Vector3(stored[0] / scale * 256), new(1, 1, 1, 0)).X);
+        foreach (float component in target[0].ReadPixels().Take(3)) Assert.InRange(component, expected - 1.001f / 255, expected + 1.001f / 255);
     }
     /// <summary>Maximum admitted display exposure and reciprocal storage scale keep three half-float inputs finite.</summary>
     [Theory]
@@ -64,11 +66,16 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         using var exposure = ExposureTestStorage.Create(ev);
         using var draw = new PostprocessDraw();
         var final = Programs.Create<FinalDisplayShaderProgram>(); final.FrameLightingInputs = publication.Buffer;
+        using var grading = new ColorGradingLut(); final.GradingLookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         final.FrameInputs = camera; final.SceneImage = source; final.BloomImage = source; final.ShaftImage = source; final.ExposureBuffer = exposure;
         final.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(0, 1, 0, 0));
         Submit(draw, final, target);
         var actual = target[0].ReadPixels();
-        Assert.Equal(new[] { expected, expected, expected, 1 }, actual);
+        // A half-float LUT write can move a near-white code across ordered
+        // quantization, and this fixture then narrows that code to half again.
+        for (int channel = 0; channel < 3; channel++)
+            Assert.InRange(actual[channel], expected == 0 ? 0 : expected - 1.001f / 255 - 1f / 2048, expected);
+        Assert.Equal(1, actual[3]);
     }
 
     /// <summary>Luma preparation and radial shafts narrow only finite contained RGB while preserving non-light metadata.</summary>
@@ -167,6 +174,7 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         Submit(draw, bloom, glare);
         Assert.Equal(new[] { 4 * scale, 2 * scale, scale, 1 }, glare[0].ReadPixels());
         var final = Programs.Create<FinalDisplayShaderProgram>(); final.FrameLightingInputs = publication.Buffer;
+        using var grading = new ColorGradingLut(); final.GradingLookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         final.FrameInputs = camera; final.SceneImage = source; final.BloomImage = glare[0];
         final.ShaftImage = zero; final.ExposureBuffer = exposure;
         final.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(12, 1, 0, 0));
@@ -175,9 +183,8 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
         for (int channel = 0; channel < 3; channel++)
         {
             // Scene plus generated glare has physical peak12; exposure=-2 gives peak3.
-            float linear = (3f / (1 << channel)) / 4;
-            float encoded = 1.055f * MathF.Pow(linear, 1f / 2.4f) - .055f;
-            float expected = MathF.Floor(Math.Clamp(encoded - .4921875f / 255, 0, 1) * 255 + .5f) / 255;
+            Vector3 encoded = FilmicGradingReference.Lookup(new(3, 1.5f, .75f), new(1, 1, 1, 0));
+            float expected = FilmicGradingReference.Quantize(encoded[channel]);
             Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
         }
         Assert.Equal(new[] { 8 * scale, 4 * scale, 2 * scale, .37f }, source.ReadPixels());

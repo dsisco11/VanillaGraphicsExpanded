@@ -13,20 +13,20 @@ integrated qualification and user appearance acceptance remain release gates in 
 plan. The camera's frozen-scale binding is adopted
 explicitly by migrated scene programs; UI/offscreen shaders remain outside that contract.
 
-`includes/pbr_color.glsl` owns the display policy for atmospheric sky, the solar
-disk, deferred PBR surfaces and forward PBR surfaces. Both LumOn and standalone
-lighting supply unexposed scene-linear RGB. The shared curve retains unit calibration
-as `VGE_DISPLAY_EXPOSURE`; dynamic camera exposure is applied at final display as
-described in [PBR.CameraExposure.md](PBR.CameraExposure.md). There is no sky-only or sun-only exposure scale.
+Both LumOn and standalone lighting supply unexposed scene-linear RGB. Atmospheric sky,
+the solar disk, deferred and forward surfaces share final camera exposure and the scene-linear
+grading/filmic display lookup described in [PBR.Postprocessing.md](PBR.Postprocessing.md).
+Dynamic camera exposure is applied once as described in [PBR.CameraExposure.md](PBR.CameraExposure.md).
+There is no sky-only or sun-only exposure scale.
 Atmospheric extinction, disk size and reflectance remain lighting inputs.
 
-The operator clamps negative radiance, applies exposure, then divides all channels
-by `1 + max(R, G, B)`. Exact linear-to-sRGB encoding follows. One denominator
-preserves linear RGB ratios through the highlight shoulder without channel
-clipping. The old per-channel shoulders pushed bright colored inputs toward white.
-Neutral inputs retain their previous response; near black the mapping approaches
-linear. This is a stable chromaticity-preserving SDR operator. Camera exposure adapts
-separately; native HDR presentation remains outside its contract.
+The final scene operator grades exposed linear light in AP1, applies a filmic toe/shoulder,
+converts back to Rec.709 and encodes sRGB once. Its color-aware response can desaturate
+highlights; it is not the older RGB-ratio-preserving shoulder. Camera exposure adapts
+separately, and native HDR monitor presentation remains outside this contract.
+`includes/pbr_color.glsl` retains the fixed unit-exposure c/(1+max(c)) shoulder for legacy
+compatibility colors, retained non-scene conversion and the approximate antialiasing luma
+metric. Those conversions do not tone-map HDR scene lighting before the final lookup.
 
 ## Owned scene postprocessing
 

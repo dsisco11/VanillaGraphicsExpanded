@@ -22,6 +22,10 @@ internal interface IFinalDisplayShaderProgramBindings : VanillaGraphicsExpanded.
     /// <summary>Supplies the ShaftImage texture without transferring ownership.</summary>
     [ShaderBinding("shaftImage", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
     GpuTexture? ShaftImage { set; }
+    /// <summary>Supplies the matching cached grading, film response and encoded display transform.</summary>
+    [ShaderBinding("gradedDisplayLookup",ShaderBindingKind.Sampler,3,ShaderStageKind.Fragment,
+        TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.LinearClamp)]
+    DynamicTexture3D? GradingLookup { set; }
     /// <summary>Supplies the published exposure buffer without transferring ownership.</summary>
     [ShaderBinding("CameraExposure", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Fragment, Required = false)]
     GpuShaderStorageBuffer? ExposureBuffer { set; }

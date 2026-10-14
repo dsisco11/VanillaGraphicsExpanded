@@ -4,7 +4,7 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 /// <summary>Owns final HDR composition, display conversion and native screen effects.</summary>
-[ShaderProgram("Contract", "pbr_final", 2)]
+[ShaderProgram("Contract", "pbr_final", 3)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_postprocess.vsh", Identity = "pbr_final.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_final.fsh")]
 internal sealed partial class FinalDisplayShaderProgram : GpuProgram, IFinalDisplayShaderProgramBindings
@@ -27,6 +27,8 @@ internal sealed partial class FinalDisplayShaderProgram : GpuProgram, IFinalDisp
     public partial GpuTexture? BloomImage { set; }
     /// <summary>Stages the ShaftImage sampler.</summary>
     public partial GpuTexture? ShaftImage { set; }
+    /// <summary>Borrows the complete display lookup matching the captured grading controls.</summary>
+    public partial DynamicTexture3D? GradingLookup { set; }
     /// <summary>Stages the published exposure buffer.</summary>
     public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
     /// <summary>Borrows a camera/frame snapshot for alternate views and fixtures.</summary>

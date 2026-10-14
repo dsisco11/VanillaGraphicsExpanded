@@ -52,7 +52,8 @@ PostprocessPipeline coordinates separate algorithm owners:
 4. RetainedPostprocessRenderer prepares owned RGBA16F
    scene/luminance output for antialiasing (or copies scene RGBA when disabled).
 5. The owned final shader applies optional edge smoothing, adds owned glare, applies camera
-   exposure and the shared tone curve once, then retains grading, vignettes and dithering.
+   exposure, samples the cached scene-linear grading/filmic display transform, then applies
+   warm tint, vignettes and one final dither.
 
 All scene postprocess draws use typed VGE programs, GLSL 330 (with the required SSBO extension for exposure consumers), PSOs, render passes and one
 restoring GraphicsCommandContext boundary. Camera metering and final composition each have
@@ -79,8 +80,64 @@ are removed. Copied display helpers and obsolete reference-patch fixtures have b
 ## Original display implementation and deferred effects
 
 No base-game shader implementation is copied into the owned final path. Gamma/brightness/contrast
-controls drive an independently authored display transform. Native gamma 3 maps to neutral
-grading after the single sRGB transfer; changing the slider applies a relative adjustment.
+controls drive scene-linear grading before the filmic display transform. Native gamma 3 maps to
+neutral relative gamma, and contrast zero maps to exponent one. The pipeline converts exposed
+linear Rec.709/D65 to AP1/D60, applies contrast as 0.18*(color/0.18)^(1+contrast), then reciprocal
+relative gamma and brightness gain. It uses a logarithmic film response with slope 0.88, toe 0.55,
+shoulder 0.26, black clip zero and white clip 0.04, calibrated to map neutral 0.18 to linear 0.18.
+Positive pre/post tone desaturation blends use factors 0.96/0.93. Return conversion to Rec.709
+and one sRGB encoding complete the lookup. This is an independently authored filmic approximation,
+not a standards-complete cinema output transform. Existing controls are retained; no new artist
+saturation, lift/offset, white-balance or shadow/midtone/highlight selectors are added.
+
+ColorGradingLut owns two alternating 64x64x64 RGBA16F Texture3D images (2 MiB each), one
+typed compute program and its retained uniform input. Its GLSL 430 generator uses existing
+compute/resource owners; final sampling remains GLSL 330 with its existing extensions. The
+complete candidate is published only after submission and image/texture barriers. Same-context
+command order makes it visible to the following final draw without readback or a CPU wait.
+Unchanged grading reuses the complete texture. Exposure, scene lighting and viewport size are
+not cache keys; changes to native grading controls rebake, including controls animated by weather.
+Reload invalidates the key while retaining storage; context replacement retires old owners.
+The 64-cube size retains the full input domain while reducing interpolation error; the initial
+32-cube fixture produced up to three SDR codes of unwanted channel difference on neutral ramps.
+Resize preserves this small persistent lookup, and world teardown disposes it with the pipeline.
+
+The logarithmic input shaper is log2(1+exposedRGB/2^-16)/32, with texel-centred trilinear sampling.
+Its domain includes exact black and exposed values up to approximately 65536 per channel.
+Values above the domain sample its saturated endpoint. FP16 lookup storage and interpolation
+are display approximations; they do not change physical scene or lighting buffers. The former
+display-space affine contrast and its fixed dark-color cutoff are removed. A filmic toe and
+8-bit quantization can still hide sufficiently faint contributions, so source correctness alone
+does not establish night visibility. Runtime appearance acceptance remains required.
+The user explicitly retained the standard filmic defaults after qualification showed that
+the toe, saved contrast and exposure bounds still leave the galaxy faint; no shadow-response
+tuning or changes to calibrated source power/exposure limits are applied.
+
+Grading validation includes independent double-precision reference nodes, finite bounded
+complete FP16 storage, actual 8-bit final output, controls/exposure cases, failed shader-reload
+retention/recovery and unchanged-input/resize caching. The 64-cube neutral ramps show at most
+one SDR code of direct-response error and one code of channel difference under neutral and
+0.41573521 extra contrast. The actual 64-pixel generated galaxy, clear-air transmission and
+production galaxy/final shaders yield the following galaxy-only diagnostics (4096 pixels):
+
+| Exposure | Extra contrast | Nonblack pixels | Maximum SDR code |
+| --- | --- | --- | --- |
+| +2 | 0 | 96 | 1 |
+| +2 | 0.41573521 | 1 | 1 |
+| +4 | 0 | 661 | 5 |
+| +4 | 0.41573521 | 78 | 1 |
+
+These fixtures exclude atmospheric radiance, airglow, cloud drawing and glare; they qualify
+the display route, not live visibility. A single darkest-dither pixel can quantize to zero
+while other positions survive; it must not be described as proof that the whole sky is black.
+The unattenuated map peak separately reaches RGB codes (2,1,1) at +4 with saved contrast.
+Receipts: artifacts/hdr-grading-galaxy.log and artifacts/hdr-grading-final-validation.log.
+The fresh shader-enabled build passed; 113 focused grading, display, exposure, packed-composite,
+runtime-handoff and shader-contract tests passed with no skips or failures. Sampled generated
+texels differ from the independent double reference by at most 0.0004883, consistent with the
+actual half-float lookup. Live appearance and LUT regeneration/steady-state GPU cost are not
+established by these correctness receipts.
+
 Grading is followed by luminance-based warm tinting and procedural damage/frost/glitch treatments. The edge filter uses the owned perceptual
 alpha metric and bounded neighboring samples. Bloom uses the independently authored multiscale Gaussian pipeline below. Light shafts now use the independent radial algorithm below. AO uses the independently authored horizon integration and spatial reconstruction below.
 

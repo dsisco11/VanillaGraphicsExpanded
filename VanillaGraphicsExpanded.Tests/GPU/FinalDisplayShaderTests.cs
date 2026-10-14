@@ -18,6 +18,8 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
     public void FinalDisplayCachePathsNeverRequireEngineStagesOrRegistration()
     {
         EnsureShaderTestAvailable();
+        using var grading = new ColorGradingLut();
+        var lookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         string directory = Path.Combine(Path.GetTempPath(), "VGE.FinalCache", Guid.NewGuid().ToString("N"));
         try
         {
@@ -32,7 +34,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
             using var zero = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 0f]);
             using var target = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
             using var camera = TestFrameCamera.CreateIdentity(1, 1);
-            shader.FrameInputs = camera;
+            shader.FrameInputs = camera; shader.GradingLookup = lookup;
             shader.SceneImage = source; shader.BloomImage = zero; shader.ShaftImage = zero; shader.ExposureBuffer=neutralExposure;
             shader.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), Vector4.Zero);
             ulong revision = 0;
@@ -77,6 +79,8 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
     public void CompositionResolvesOnceAndPreservesInputs(float ev, bool automatic)
     {
         EnsureShaderTestAvailable();
+        using var grading = new ColorGradingLut();
+        var lookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         var shader = Programs.Create<FinalDisplayShaderProgram>();
         using var scene = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[4f,4f,4f,.37f]);
         using var bloom = TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[1f,1f,1f,1f]);
@@ -84,7 +88,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         using var history = ExposureTestStorage.Create(ev);
         using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
-        shader.FrameInputs = camera;
+        shader.FrameInputs = camera; shader.GradingLookup = lookup;
         shader.SceneImage=scene; shader.BloomImage=bloom; shader.ShaftImage=shafts;
         shader.ExposureBuffer=history;
         shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),new(automatic?-ev:ev,automatic?1:0,0,0));
@@ -92,7 +96,7 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
         float radiance=(4f+3f)*MathF.Pow(2,ev);
         float expected=Display(radiance);
         float[] actual=target[0].ReadPixels();
-        for(int i=0;i<3;i++) Assert.InRange(actual[i],expected-.00001f,expected+.00001f);
+        for(int i=0;i<3;i++) Assert.InRange(actual[i],expected-1.001f/255,expected+1.001f/255);
         Assert.Equal(1,actual[3]);
         Assert.Equal(new[]{4f,4f,4f,.37f},scene.ReadPixels());
     }
@@ -104,13 +108,15 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
     public void SyntheticFinalPassTiming(int width,int height)
     {
         EnsureShaderTestAvailable();
+        using var grading = new ColorGradingLut();
+        var lookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         var shader=Programs.Create<FinalDisplayShaderProgram>();
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[4f,2f,1f,.5f]);
         using var neutralExposure = ExposureTestStorage.Create(0);
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var target=TestFramework.CreateTestGBuffer(width,height,PixelInternalFormat.Rgba16f);
         using var camera = TestFrameCamera.CreateIdentity(width, height);
-        shader.FrameInputs = camera;
+        shader.FrameInputs = camera; shader.GradingLookup = lookup;
         shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureBuffer=neutralExposure;
         shader.Capture(true,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
         Draw(shader,target);
@@ -130,19 +136,22 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
     public void DisplayControlsAffectOutputWithoutChangingScene(int treatment)
     {
         EnsureShaderTestAvailable();
+        using var grading = new ColorGradingLut();
+        var lookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         var shader=Programs.Create<FinalDisplayShaderProgram>();
         using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[.18f,.18f,.18f,.3f]);
         using var neutralExposure = ExposureTestStorage.Create(0);
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         using var target=TestFramework.CreateTestGBuffer(17,9,PixelInternalFormat.Rgba32f);
         using var camera = TestFrameCamera.CreateIdentity(17, 9);
-        shader.FrameInputs = camera;
+        shader.FrameInputs = camera; shader.GradingLookup = lookup;
         shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureBuffer=neutralExposure;
         shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);Draw(shader,target);
         float[] baseline=target[0].ReadPixels();
         var controls=treatment==0?new FinalDisplayParameters(new(2,1,1,0),Vector4.Zero,Vector4.Zero):
             treatment==1?new FinalDisplayParameters(new(1,1,1,0),Vector4.Zero,new(1,.5f,0,0)):
             new FinalDisplayParameters(new(1,1,1,0),new(0,2,.5f,0),new(0,0,1,0));
+        shader.GradingLookup=grading.Prepare(Programs.Api,controls.Grading);
         shader.Capture(false,controls,Vector4.Zero);Draw(shader,target);
         float[] changed=target[0].ReadPixels();
         Assert.Contains(Enumerable.Range(0,changed.Length),i=>i%4!=3&&Math.Abs(changed[i]-baseline[i])>.02f);
@@ -157,12 +166,10 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
     #endregion
 
     #region Private
-    /// <summary>Independently computes the shared display shoulder, sRGB encoding and first-pixel dither quantization.</summary>
+    /// <summary>Independently reconstructs the neutral filmic LUT and first-pixel dither quantization.</summary>
     private static float Display(float radiance)
     {
-        float linear=radiance/(1+radiance);
-        float encoded=linear<=.0031308f?12.92f*linear:1.055f*MathF.Pow(linear,1f/2.4f)-.055f;
-        return MathF.Floor(Math.Clamp(encoded-.4921875f/255f,0,1)*255f+.5f)/255f;
+        return FilmicGradingReference.Quantize(FilmicGradingReference.Lookup(new(radiance), new(1, 1, 1, 0)).X);
     }
 
     /// <summary>Draws the production procedural triangle after readback with deterministic raster state.</summary>

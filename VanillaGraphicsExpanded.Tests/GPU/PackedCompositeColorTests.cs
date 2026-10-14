@@ -89,6 +89,7 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
 
         // The production display shader must accept RGB scene storage and still publish opaque RGBA.
         var display=Programs.Create<FinalDisplayShaderProgram>();
+        using var grading=new ColorGradingLut(); display.GradingLookup=grading.Prepare(Programs.Api,new(1,1,1,0));
         using var output=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);
         using var zero=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,0f]);
         display.FrameInputs=frameCamera;display.SceneImage=target[0];display.BloomImage=zero;display.ShaftImage=zero;display.ExposureBuffer=neutralExposure;
@@ -98,19 +99,15 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         Assert.True(GraphicsCommandContext.TryRun("Tests.PackedCompositeDisplay",[displayPipeline],true,
             commands=>draw.Submit(commands,displayPipeline,output)));
         float[] resolved=output[0].ReadPixels();
-        for(int channel=0;channel<3;channel++) Assert.InRange(resolved[channel],Display(packed[channel],packed.Max())-.00001f,Display(packed[channel],packed.Max())+.00001f);
+        Vector3 encoded=FilmicGradingReference.Lookup(new(packed[0],packed[1],packed[2]),new(1,1,1,0));
+        for(int channel=0;channel<3;channel++)
+        {
+            float expectedDisplay=FilmicGradingReference.Quantize(encoded[channel]);
+            Assert.InRange(resolved[channel],expectedDisplay-1.001f/255,expectedDisplay+1.001f/255);
+        }
         Assert.Equal(1f,resolved[3]);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion
 
-    #region Private
-    /// <summary>Computes the display shoulder and sRGB response including the deterministic first-pixel dither.</summary>
-    private static float Display(float radiance,float peak)
-    {
-        float linear=radiance/(1+peak);
-        float encoded=linear<=.0031308f?12.92f*linear:1.055f*MathF.Pow(linear,1f/2.4f)-.055f;
-        return MathF.Floor(Math.Clamp(encoded-.4921875f/255f,0,1)*255f+.5f)/255f;
-    }
-    #endregion
 }

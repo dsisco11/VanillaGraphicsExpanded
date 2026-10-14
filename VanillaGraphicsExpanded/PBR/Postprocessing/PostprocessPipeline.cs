@@ -18,6 +18,7 @@ internal sealed class PostprocessPipeline : IRenderer
     private readonly BloomRenderer bloom=new();
     private readonly LightShaftRenderer rays=new();
     private readonly RetainedPostprocessRenderer retained=new();
+    private readonly ColorGradingLut grading=new();
     private GpuResourceCollection resources=new();
     private BorrowedTexture? scene,glow,depth;
     private PostprocessDraw? draw;
@@ -35,7 +36,7 @@ internal sealed class PostprocessPipeline : IRenderer
         this.api=api;
         unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,Retire);
         api.Event.RegisterRenderer(this,EnumRenderStage.Before,"vge_postprocess");
-        api.Event.LeaveWorld+=Retire; reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload); active=this;
+        api.Event.LeaveWorld+=RetireWorld; reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload); active=this;
     }
     /// <summary>Captures settings after scene and camera preparation.</summary>
     public double RenderOrder=>1002;
@@ -56,8 +57,8 @@ internal sealed class PostprocessPipeline : IRenderer
     {
         if(disposed) return; disposed=true;
         if(ReferenceEquals(active,this)) active=null;
-        api.Event.UnregisterRenderer(this,EnumRenderStage.Before); api.Event.LeaveWorld-=Retire; reloadRegistration?.Dispose();
-        unregisterResize(); Retire();
+        api.Event.UnregisterRenderer(this,EnumRenderStage.Before); api.Event.LeaveWorld-=RetireWorld; reloadRegistration?.Dispose();
+        unregisterResize(); RetireWorld();
     }
     #endregion
     #region Engine handoff
@@ -104,6 +105,7 @@ internal sealed class PostprocessPipeline : IRenderer
         var exposure=CameraExposureRenderer.DisplayExposure();
         shader.SceneImage=retained.Luma; shader.BloomImage=bloomTexture; shader.ShaftImage=rayTexture;
         shader.ExposureBuffer=exposure.Buffer;
+        shader.GradingLookup=grading.Prepare(api,display.Grading);
         shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualEV,exposure.Buffer is null?0:1,0,0));
         var pipeline=draw!.Prepare(shader,finalTarget);
         if(!GraphicsCommandContext.TryRun("Postprocess.Final",[pipeline],true,
@@ -157,6 +159,8 @@ internal sealed class PostprocessPipeline : IRenderer
         draw?.Dispose(); draw=null; bloom.Dispose(); rays.Dispose(); retained.Dispose(); resources.Dispose(); resources=new(); finalTarget=null; scene=glow=depth=null; neutral?.Dispose(); neutral=null;
     }
     /// <summary>Withdraws all executable-dependent publication during shader reload.</summary>
-    private bool Reload() { Retire(); return true; }
+    private bool Reload() { Retire(); grading.Invalidate(); return true; }
+    /// <summary>Retires size-dependent passes and persistent display transforms when the world leaves.</summary>
+    private void RetireWorld() => Rendering.Integration.RenderingCleanup.Run(Retire,grading.Dispose);
     #endregion
 }

@@ -587,7 +587,11 @@ of exposure stops as log2 of the display multiplier; distinguish physical calibr
 exposure compensation. A photographic EV100 authoring model may be considered separately and
 must not be claimed merely because the lighting has physical units.
 
-The existing global tone curve can remain initially. Fixed-exposure validation must demonstrate
+The retained baseline tone curve served the initial migration. The user subsequently approved
+the scene-linear grading, filmic display response and cached 3D lookup described in
+PBR.Postprocessing.md; this replaces final presentation without changing physical lighting or
+storage bounds. Standard filmic defaults remain selected, with night visibility qualified separately.
+Fixed-exposure validation must demonstrate
 correct source ratios before automatic adaptation is used. Glare thresholds must state whether
 they operate in physical or exposed units. Camera exposure must not feed back into authored
 light power, AO, material values or physical propagation.

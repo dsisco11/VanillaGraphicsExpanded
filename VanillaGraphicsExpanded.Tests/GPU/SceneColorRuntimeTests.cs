@@ -314,12 +314,11 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.Equal(engine.FboId, restoredFramebuffer);
             Assert.Equal(beforeDrawRoute, restoredDrawRoute);
             float[] display = engine[0].ReadPixels();
-            float peak = Math.Max(handedOff[0], Math.Max(handedOff[1], handedOff[2])) * sceneInverseScale;
+            Vector3 encoded = FilmicGradingReference.Lookup(new Vector3(handedOff[0],handedOff[1],handedOff[2]) * sceneInverseScale,displayParameters.Grading);
             for (int channel = 0; channel < 3; channel++)
             {
-                float value = handedOff[channel] * sceneInverseScale / (1 + peak);
-                float expected = value <= .0031308f ? 12.92f * value : 1.055f * MathF.Pow(value, 1 / 2.4f) - .055f;
-                Assert.InRange(display[channel], expected - 1f / 255, expected + 1f / 255);
+                float expected = FilmicGradingReference.Quantize(encoded[channel]);
+                Assert.InRange(display[channel], expected - 1.001f / 255, expected + 1.001f / 255);
             }
             Assert.Equal(1, display[3]);
             Assert.Throws<InvalidOperationException>(() => post.RenderFinal(displayParameters));

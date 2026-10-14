@@ -15,7 +15,7 @@ Exposure EV is log2 of the RGB multiplier. One stop doubles radiance at the disp
 The desired EV is log2(middleGray) minus the trimmed weighted mean of log2(luminance), plus
 compensation, clamped to the configured minimum/maximum. Default middle gray is 0.18 **before**
 the tone curve; it is not a promised final encoded pixel value. The default EV interval is
-[-20, 8]. This covers an 18% diffuse daylight receiver illuminated at 100,000 lux
+[-20, 2]. This covers an 18% diffuse daylight receiver illuminated at 100,000 lux
 (about 5,730 nits, requiring about -15 stops for the 0.18 display target), while bounding
 night brightening. Manual stops and exposure bounds accept [-48,24]; compensation remains
 [-8,8]. These are display multipliers, not EV100. Saved custom limits remain authoritative
@@ -50,17 +50,16 @@ complete immunity to spatial undersampling or genuinely changing illumination.
 
 ## Tone curve and display
 
-The existing stable RGB-ratio-preserving shoulder remains c / (1 + max(c)). Near zero its
-slope approaches one, so there is no added shadow crush or moving black point. Its midtone
-slope decreases smoothly and highlights approach the SDR limit without per-channel clipping.
-Exposure changes which radiances occupy that fixed response; the curve itself does not
-change over time. Local contrast adaptation would need a separate demonstrated visual need.
-
-Final composition adds scene and glare in linear space, applies exp2(EV) once, then resolves
-the shared shoulder and sRGB transfer before independently authored grading, vignettes and final dithering.
-The native gamma slider is normalized around its default of 3: that setting supplies a neutral
-grading multiplier of 1, because sRGB encoding has already happened. Extra gamma remains a
-relative adjustment with a neutral value of 1.
+Final composition adds scene and glare in linear space and applies exp2(EV) once, then samples
+the cached scene-linear grading, filmic response and sRGB display transform described in
+[PBR.Postprocessing.md](PBR.Postprocessing.md). The native gamma slider is normalized around
+its default of 3; extra gamma is also a relative control with neutral value 1. Gamma, brightness
+gain and 0.18-pivot power contrast act before tone mapping. The filmic toe and shoulder remain
+fixed rather than performing local contrast adaptation. Exposure selects which radiances occupy
+that response and is not part of the grading lookup's cache key. Faint positive light may still
+fall below final display quantization. Warm tint, vignettes and final dithering follow display encoding.
+Legacy compatibility-color conversion retains its separate fixed unit-exposure shoulder;
+it does not define the final HDR scene presentation.
 The antialiasing luma prepass computes its perceptual alpha with the same exposure while retaining
 unexposed RGB. Alpha, depth, glow and other data are not multiplied by exposure. UI and offscreen engine shaders do not bind camera exposure; they remain outside the owned
 scene display endpoint.

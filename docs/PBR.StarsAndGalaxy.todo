@@ -579,3 +579,27 @@ Source-derived scene illumination implementation (2026-10-13)
   correctness cannot establish them. The corrected-payload retry fixture does not simulate a
   transient driver failure of identical immutable data, and namespace withdrawal simulates the
   remembered generation changing rather than a full graphics-driver context loss.
+
+HDR display grading follow-up (2026-10-13)
+-----------------------------------------
+  User reported visible point stars but no diffuse galaxy. The actual 64-pixel packed galaxy
+  and production galaxy draw produced finite faint HDR (clear-air sampled peak 0.000602 nits).
+  Applying the former grading equations with saved extra contrast 0.41573521 predicted exact
+  black for every tested galaxy-only sample at exposure 0/1/2/4. This is a controlled diagnostic,
+  not confirmation of live uniforms or the complete atmosphere/cloud/glare composition.
+  Receipt: ../artifacts/galaxy-visibility-diagnostic.log.
+
+  User approved the full replacement display path: scene-linear grading, filmic tone mapping
+  and a cached 3D lookup. Implementation and validation are tracked in PBR.Postprocessing.md.
+  This changes final scene presentation without changing celestial calibration or incident
+  lighting. Positive grading no longer creates a fixed black cutoff, but the filmic toe,
+  exposure bounds and display quantization still require the Phase 5 appearance checks.
+  The 64-cube display lookup qualifies neutral-ramp error/channel difference within one SDR
+  code. Actual generated 64-pixel galaxy/clear transmission/final RGBA8 checks at +4 and saved
+  contrast retain 78 of 4096 pixels, at most one code; +2 retains one pixel. This is galaxy-only
+  output, not a complete live sky. The user explicitly chose to retain standard filmic defaults
+  and qualify night visibility separately. No toe, source-power or exposure-limit tuning is applied.
+  Receipts and the complete contrast/exposure matrix are in PBR.Postprocessing.md.
+  Fresh shader-enabled build and 113 focused grading/display/exposure/packed/runtime-handoff
+  and shader-contract checks passed, with no skips or failures. Receipt:
+  ../artifacts/hdr-grading-final-validation.log. No new visual acceptance or runtime cost is recorded.
