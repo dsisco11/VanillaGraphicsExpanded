@@ -1451,18 +1451,18 @@ is required by the selected approach.
 
 ## Calibrated nighttime celestial lighting
 
-Planned stars/galaxy replacement: [PBR.StarsAndGalaxy.todo](PBR.StarsAndGalaxy.todo)
-defines the replacement source contract. On activation it supersedes the combined
+Owned stars/galaxy replacement: [PBR.StarsAndGalaxy.todo](PBR.StarsAndGalaxy.todo)
+defines the source contract. It supersedes the combined
 uniform moonless background and the stars' compatibility-image policy below. It uses
 a procedural HDR galaxy, instanced stars and separately budgeted airglow, retaining
 the 0.0008-lux orientation-averaged reference total. The selected component split is
 an artistic calibration, not a measured breakdown. Existing lunar transport and shadow
-ownership remain unchanged. The following describes the currently implemented model
-until that complete replacement is integrated; do not add both background models.
-Owned visible drawing now replaces the legacy stars/galaxy images and removes the
-uniform stellar half from visible atmosphere, retaining airglow. Receiver environment
-and finite-path background remain the combined approximation until the planned
-source-derived lighting integration; owned drawing alone does not complete that work.
+ownership remain unchanged. The owned source supersedes the combined uniform background;
+do not add both models. Visible atmosphere retains only airglow, while the independent owned
+draw supplies external stars/galaxy. Receiver environment integrates the complete same source
+with the published rotation and external transmission. The source, rotation, sky/aerial
+textures and incident illumination commit together before scene rendering. Appearance
+acceptance remains open.
 
 The nighttime extension reuses the atmospheric transport backend, medium table and atomic
 publication. Sun and moon are evaluated sequentially against one admitted medium generation;
@@ -1499,16 +1499,20 @@ solar radius, so the existing solar specular-response bound remains conservative
 sprite display brightness is still a compatibility representation, not a separately calibrated
 physical disk-radiance image.
 
-The unresolved moonless background reference is **0.0008 lux horizontal illuminance**, represented
-by a neutral uniform upper hemisphere (radiance E/pi). This combines unresolved starlight and
-airglow rather than simulating either in detail. The reference is from the
+The selected orientation-averaged moonless reference is **0.0008 lux horizontal illuminance**,
+split into 0.0004 lux airglow, 0.0003 lux galaxy and 0.0001 lux complete catalog. The split is
+artistic; the total reference is informed by the
 [NPS night-sky measurement guide](https://www.nps.gov/subjects/nightskies/NSQmetrics.html).
-Use the same sampled background for sky radiance and environment integration. Its finite-path
-in-scattering approximation is backgroundRadiance * (1 - transmittance). A documented cloud-cover
-proxy reduces its power by 1 - 0.9 * coverage; this is not a physical cloud-volume solution.
-The contribution exists alongside daylight and becomes negligible there without a day/night
-brightness toggle. Individually rendered stars are compatibility images; they do not add a
-second calibrated incident-light contribution. No receiver emission or minimum brightness is added.
+The galaxy quadrature and all catalog stars contribute once with cosine/solid-angle weights,
+through the same external-transmission table used by drawing. Omitted display stars are map
+residuals, not extra light sources; illumination is independent of the displayed quality subset.
+Airglow remains a neutral ground-level upper hemisphere, radiance 0.0004/pi; it is not attenuated
+as extraterrestrial light. A cloud-cover proxy reduces background illumination once by
+1-0.9*coverage. Visible external sources instead receive actual later cloud occlusion.
+Finite-path in-scattering uses combined ground-level airglow and attenuated external E/pi
+times (1-transmittance), retaining the documented isotropic approximation. The compatibility
+horizon receives the same isotropic external term. No additional atmospheric integrator,
+receiver emission, brightness floor, forced tint or day/night cutoff is introduced.
 
 Sky and aerial textures retain their existing formats and storage scale, with three elevation
 bands: combined smooth lighting, solar Mie transport and lunar Mie transport. Each concentrated

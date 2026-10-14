@@ -55,11 +55,8 @@ vec3 skyRadiance(vec3 direction)
         * atmMieFactor(direction,skySunHorizon.xyz);
     if (bands > 2.5) radiance += texture(skyLookup,uv+vec2(0,2.0/bands)).rgb * atmMieFactor(direction,skyMoon.xyz);
     radiance *= skyEncoding.x > 0.0 ? skyEncoding.x : 1.0;
-    // Retain separately budgeted airglow, replacing the old uniform stellar image
-    // with the owned source. Match the LUT's interpolation at its first upward row.
-    float firstBackgroundRow = ceil(atmSkyCoordinate(0.0,skySunHorizon.w)*(rows-1.0));
-    float backgroundWeight = clamp(row*(rows-1.0)-firstBackgroundRow+1.0,0.0,1.0);
-    return max(vec3(0),radiance-vec3(skyEncoding.w*backgroundWeight));
+    // The producer embeds airglow only; external stars/galaxy arrive through their owned draw.
+    return max(vec3(0),radiance);
 }
 /** Uses the engine normalized linear-depth convention for the three shoreline samples. */
 float skyLiquidDistance(float offset)

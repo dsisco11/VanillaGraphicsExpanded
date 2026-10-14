@@ -37,8 +37,14 @@ internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 En
     internal float Altitude { get; init; } = .001f;
     /// <summary>Cloud-cover bucket admitted with this completed atmosphere, used for matching external extinction.</summary>
     internal float CloudCoverage { get; init; }
-    /// <summary>Uniform ground-level background currently embedded in sky/lighting, retained explicitly during celestial migration.</summary>
+    /// <summary>Separately budgeted ground-level airglow embedded in sky and finite-path lighting.</summary>
     internal float BackgroundRadiance { get; init; }
+    /// <summary>Complete source identity used by visible and incident celestial lighting; null means airglow only.</summary>
+    internal Celestial.CelestialSource? CelestialSource { get; init; }
+    /// <summary>Frozen celestial-to-world rotation shared by this publication's display and diffuse integral.</summary>
+    internal Matrix4x4 CelestialRotation { get; init; } = Matrix4x4.Identity;
+    /// <summary>Attenuated horizontal celestial illuminance divided by pi, excluding airglow and lunar transport.</summary>
+    internal Vector3 CelestialEnvironment { get; init; }
     internal ImmutableArray<float> AerialRadiance { get; init; } = ImmutableArray<float>.Empty;
     internal ImmutableArray<float> AerialAttenuation { get; init; } = ImmutableArray<float>.Empty;
     /// <summary>Dimensionless observer-to-space transmission by elevation, completed with this atmospheric generation.</summary>

@@ -71,7 +71,10 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         api.SetupGet(value => value.World.SeaLevel).Returns(0);
         programs.Initialize(api.Object);
         using var frameCamera = TestFrameCamera.CreateIdentity(2, 2);
-        GpuShaderProgramLibraries.Get<AtmosphereSkyShaderProgram>(api.Object, "pbr_sky")!.FrameInputs = frameCamera;
+        using var frameLighting = new TestFrameLightingPublication();
+        var skyProgram = GpuShaderProgramLibraries.Get<AtmosphereSkyShaderProgram>(api.Object, "pbr_sky")!;
+        skyProgram.FrameInputs = frameCamera;
+        frameLighting.Attach(skyProgram);
         using var gbuffer = new GBufferManager(api.Object);
         Assert.True(gbuffer.EnsureBuffers(2, 2));
         using var sky = new AtmosphereSkyRenderer(api.Object, gbuffer);

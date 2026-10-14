@@ -24,8 +24,9 @@ Direct lighting, composite, liquids and LumOn already consume this publication.
 
 Keep these owners and their atomic publication. Do not create a second atmospheric integrator
 or run transport in a draw callback. The RGB model now admits solar and lunar sources through
-the same transport backend and retained medium table. A completed celestial pair also carries
-a calibrated unresolved moonless background. Cloud-volume transport remains outside this model.
+the same transport backend and retained medium table. A complete publication also carries
+separately budgeted airglow and the diffuse integral of the owned stars/galaxy. Cloud-volume
+transport remains outside this model.
 
 The compatibility ambient reference is `Environment + DirectIrradiance / pi`, representing a
 white surface facing the selected celestial source, with no additional visibility or incidence factor. Apply
@@ -160,12 +161,45 @@ external extinction. Daylight alpha and the legacy cloud proxy do not additional
 the external sources; actual cloud drawing still occludes them later. Exposure and glare
 remain under existing postprocessing owners, without a star-specific boost or cutoff.
 
-The visible atmosphere removes the previous uniform stellar half of its background,
-retaining the declared airglow half. Surface/environment and finite-path background
-illumination still use the previous combined approximation until the linked checklist's
-cached illumination integration. This is an explicit intermediate state: source-derived
-receiver lighting, coherent rotated light publication and appearance acceptance remain
-open. Do not describe owned drawing alone as the completed night-lighting migration.
+The atmospheric producer embeds only the separately budgeted 0.0004-lux airglow in visible
+sky radiance. No draw-time subtraction or second uniform stellar contribution remains.
+`CelestialDiffuseLighting` integrates the quality-independent 64x64-per-face galaxy quadrature
+and all 4096 calibrated stars through the completed external-transmission table. Rotation,
+cosine and solid-angle weights determine horizontal illuminance; the existing receiver
+representation stores E/pi. Its bounded cloud proxy, 1-0.9*coverage, enters once in illumination.
+Visible external sources use extinction once and are occluded by actual later cloud drawing,
+without applying that proxy again. Airglow is already ground-level and is not extinguished as
+an external emitter. Solar/lunar transport and shared shadow ownership are unchanged.
+
+The existing atmosphere backend runs the diffuse sum on a cancellable worker and caches its
+immutable result by complete source, rotation, observer/media, solar/lunar inputs and grid.
+Rotation-only updates reuse directional transport and combined solar/lunar/airglow arrays.
+There is no extra atmospheric ray integration, GPU dispatch, texture, per-frame source rebuild
+or synchronous readback. Finite-path celestial scattering uses the documented isotropic
+approximation, E/pi*(1-T); it shares the same attenuated RGB and preserves dimensionless T.
+Compatibility horizon fog receives that same isotropic celestial term. This is not directional
+galaxy scattering or a volumetric airglow/cloud solution.
+
+`CelestialSourceLifetime.Ready` retains a fenced candidate while its atmosphere is pending.
+Only successful complete texture upload commits it as the display source, retiring the prior
+set. Failed uploads retry the retained immutable candidate; pending/failed builds retain the
+last source, rotation and complete lighting together. The draw consumes the published rotation,
+not the advancing calendar independently. Reload cancels pending transport while preserving
+completed resources; world teardown cancels workers and clears both publications. Before the
+first source succeeds, stellar illumination and drawing are zero while solar/lunar and airglow
+remain available. Context-invalidated source results cannot commit against a new GPU set.
+The atmosphere owner also tracks the existing context-registration generation: namespace
+changes withdraw old lighting/texture handles and pending results, then recreate its existing
+backend and texture sets. The celestial owner retains its independent recovery scheduling.
+
+Terrain, forward receivers, liquids/reflections, water transport and LumOn consume the same
+published Environment and aerial textures through their existing bindings. Sky visibility,
+interior occlusion and AO remain receiver operations. Frame bounds use the updated environment
+and uploaded aerial reconstruction envelope. LumOn prioritizes bounded direct relighting when
+the environment changes, and source replacement changes the surface dependency identity so
+dependent probes retire obsolete history. Ordinary celestial motion retains temporal probe
+history rather than clearing it every frame. Live appearance and runtime performance acceptance
+remain outstanding in the linked stars/galaxy checklist.
 
 The owned sky `IRenderer` runs at Opaque order 0.2. It owns a procedural fullscreen triangle through an empty VAO,
 camera-relative ray transforms, pipeline state and drawing, and reads the completed atmospheric

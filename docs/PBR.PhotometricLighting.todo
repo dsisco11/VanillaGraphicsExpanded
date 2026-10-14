@@ -911,6 +911,13 @@ Current integration findings (2026-10-12)
         and shared appearance/illumination calibration. No native galaxy texture or shader.
       - This supersedes the retained stars/galaxy compatibility path, not the existing
         lunar source or shared shadow ownership. Keep appearance acceptance open.
+      Implementation update (2026-10-13): the owned source's complete galaxy quadrature and
+      full catalog now supply atmosphere Environment and the retained isotropic finite-path
+      approximation. The producer retains only separately budgeted airglow; owned drawing
+      consumes the same committed source/rotation/transmission as receiver lighting. Source
+      replacement versions LumOn dependencies; ordinary motion preserves temporal history.
+      Detailed implementation and validation state are authoritative in PBR.StarsAndGalaxy.todo.
+      This parent item remains open for the linked appearance/performance qualification.
 
     ☐ Obtain user-run nighttime appearance acceptance and reconcile documentation.
       - Cover moonlit and moonless nights, phases and horizon crossings, twilight overlap,

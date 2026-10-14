@@ -85,24 +85,31 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
 
     #endregion
     #region Color and effects
-    /// <summary>Owned celestial composition retains full atmosphere and airglow, replaces only the old stellar image and preserves local fog.</summary>
+    /// <summary>Owned celestial composition retains producer airglow without subtracting a second stellar background and preserves local fog.</summary>
     [Fact]
-    public void OwnedCelestialCompositionReplacesStellarHalfWithoutDaylightOrCloudFade()
+    public void OwnedCelestialCompositionRetainsAirglowWithoutDaylightOrCloudFade()
     {
         EnsureShaderTestAvailable();
         using var sky=new FullscreenSky(Programs.Create<AtmosphereSkyShaderProgram>(),TestFramework);
-        float total=.0008f/MathF.PI,stellar=.0004f/MathF.PI;
+        float total=.0004f/MathF.PI,stellar=0;
         sky.PublishConstant(new(total));
+        // Compare draw composition to the actual binary16 upload rather than treating
+        // its subnormal quantization as a shader subtraction error.
+        float[] stored = new float[4*2*4*2];
+        using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,AtmosphereModSystem.SkyTextureId))
+            GL.GetTexImage(TextureTarget.Texture2D,0,PixelFormat.Rgba,PixelType.Float,stored);
+        float decoded = stored[0]/AtmosphereModSystem.Lighting.LookupStorageScale;
+        Assert.InRange(MathF.Abs(decoded-total),0,MathF.Pow(2,-24)/AtmosphereModSystem.Lighting.LookupStorageScale);
         foreach(float daylight in new[]{0f,.5f,1f})
         {
             float[] upward=sky.Draw(Vector3.UnitY,true,daylight:daylight,ownedCelestial:true,replacedBackground:stellar);
-            Assert.All(upward[..3],value=>Assert.InRange(value,stellar-1e-7f,stellar+1e-7f));
+            Assert.All(upward[..3],value=>Assert.InRange(value,decoded-1e-7f,decoded+1e-7f));
             Assert.Equal(0,upward[3]);
             float[] fog=sky.Draw(Vector3.UnitY,true,daylight:daylight,fogMin:.3f,ownedCelestial:true,replacedBackground:stellar);
             Assert.InRange(fog[3],.29999f,.30001f);
         }
         float[] below=sky.Draw(-Vector3.UnitY,true,ownedCelestial:true,replacedBackground:stellar);
-        Assert.All(below[..3],value=>Assert.InRange(value,total-1e-7f,total+1e-7f));
+        Assert.All(below[..3],value=>Assert.InRange(value,decoded-1e-7f,decoded+1e-7f));
     }
     /// <summary>The installed owned shader independently reconstructs solar and lunar angular lobes from three bands.</summary>
     [Fact]

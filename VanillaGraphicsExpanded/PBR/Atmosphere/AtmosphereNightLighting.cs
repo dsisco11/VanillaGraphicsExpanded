@@ -4,13 +4,12 @@ using System.Numerics;
 
 namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 
-/// <summary>Combines linear lunar transport and a declared unresolved night background with the solar generation.</summary>
+/// <summary>Combines linear lunar transport and separately budgeted airglow with the solar generation.</summary>
 internal static class AtmosphereNightLighting
 {
     // Ground-level, clear zenith references. The lunar transport was evaluated at
     // the same 100,000-lux reference, so extinction is applied exactly once.
     internal const float FullMoonZenithLux = .1f;
-    internal const float MoonlessHorizontalLux = .0008f;
 
     #region Public API
     /// <summary>Evaluates a normalized empirical lunar phase curve; phase zero supplies no direct lunar light.</summary>
@@ -38,7 +37,7 @@ internal static class AtmosphereNightLighting
         var completedSources = new AtmosphereCelestialInputs(solar.Sun, moonDirection, sources.Phase);
         // This background is a bounded uniform-hemisphere approximation, not a
         // volumetric airglow model. Cloud cover suppresses it rather than generating skyglow.
-        float background = MoonlessHorizontalLux / MathF.PI * (1 - .9f * Math.Clamp(clouds, 0, 1));
+        float background = Celestial.CelestialSource.AirglowLux / MathF.PI * (1 - .9f * Math.Clamp(clouds, 0, 1));
         float[] sky = Add(solar.Sky, moon.Sky, ratio);
         float[] aerial = Add(solar.AerialRadiance, moon.AerialRadiance, ratio);
         Vector3 environment = solar.Environment + moon.Environment * ratio;

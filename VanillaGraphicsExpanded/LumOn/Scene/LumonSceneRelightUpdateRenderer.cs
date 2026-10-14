@@ -138,6 +138,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         if (candidates.Length == 0) { ReportReadiness(mapping.Count == 0 ? "no-resident-pages" : "awaiting-capture"); return; }
         dispatch ??= new SurfaceLightingDispatch(capi);
         dispatch.Diagnostics.Enabled = cfg.SurfaceWorkDiagnosticsEnabled;
+        AdmitAtmosphere();
         snapshot = new(resources.PublishedOutgoing, resources.DirectAtlas, resources.IrradianceAtlas,
             gpu.PageTable.PageTableMip0, resources.MaterialAtlas, gpu.PatchMetadata.Ssbo, slots, readyBuffer,
             LumonSceneChunkSlotUniformState.OriginMinChunk, LumonSceneChunkSlotUniformState.Dims,

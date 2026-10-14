@@ -10,6 +10,17 @@ internal static class AtmosphereExternalTransmission
 {
     internal const int SampleCount = 512;
     #region Public API
+    /// <summary>Matches the draw shader's horizon rejection and linear texture-centre interpolation.</summary>
+    internal static Vector3 Sample(ImmutableArray<float> values, float elevation, float horizon)
+    {
+        if (elevation < horizon) return Vector3.Zero;
+        if (values.Length != SampleCount * 4) throw new ArgumentException("Incomplete external transmission.");
+        float row = AtmosphereSkyMapping.Coordinate(elevation, horizon) * (SampleCount - 1);
+        int low = Math.Clamp((int)row, 0, SampleCount - 1), high = Math.Min(low + 1, SampleCount - 1);
+        Vector3 a = new(values[4*low], values[4*low+1], values[4*low+2]);
+        Vector3 b = new(values[4*high], values[4*high+1], values[4*high+2]);
+        return Vector3.Lerp(a, b, row - low);
+    }
     /// <summary>Builds the CPU fallback on the atmosphere worker using the existing extinction integrator.</summary>
     internal static ImmutableArray<float> Build(float altitude, float aerosol, CancellationToken cancellation = default)
     {

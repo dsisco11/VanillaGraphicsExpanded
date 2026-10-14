@@ -63,6 +63,7 @@ internal sealed partial class AtmosphereBackend : IDisposable
         if (disposed) return;
         disposed = true; gpu?.Dispose(); cpu?.Dispose();
         ResetCelestial();
+        diffuseCancellation.Dispose();
     }
     #endregion
 }

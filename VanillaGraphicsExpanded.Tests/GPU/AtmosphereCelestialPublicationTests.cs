@@ -5,6 +5,7 @@ using System.Text.RegularExpressions;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -17,6 +18,47 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Pending work retains the admitted source, orientation and medium on both transport backends.</summary>
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public void CompleteSourceDiffusePublicationRetainsAdmissionAndCachesUnchangedInputs(bool forceCpu)
+    {
+        EnsureContextValid();
+        using var assets = new BinaryShaderApiFixture();
+        if (forceCpu) assets.BeforeRead = path => { if (path.EndsWith(".spv", StringComparison.Ordinal)) throw new IOException("Intentional CPU fallback"); };
+        using var backend = new AtmosphereBackend(assets.Api);
+        var firstSource = CelestialSource.Create(CelestialQuality.FromLevel(0));
+        var nextSource = CelestialSource.Create(CelestialQuality.FromLevel(3));
+        var sources = new AtmosphereCelestialInputs(-Vector3.UnitY,Vector3.UnitY,0);
+        var firstRotation = Matrix4x4.CreateRotationX(.3f);
+        var nextRotation = Matrix4x4.CreateRotationZ(.8f);
+        Assert.Null(backend.Update(sources,0,0,16,8,0,.1f,firstSource,firstRotation));
+        var admitted = Complete(backend,sources,1,nextSource,nextRotation,.75f);
+        Assert.Same(firstSource,admitted.CelestialSource);
+        Assert.Equal(firstRotation,admitted.CelestialRotation);
+        Assert.Equal(0,admitted.CloudCoverage);
+        Assert.Equal(.001f,admitted.Altitude);
+        var changed = Complete(backend,sources,1,nextSource,nextRotation,.75f);
+        Assert.Same(nextSource,changed.CelestialSource);
+        Assert.Equal(nextRotation,changed.CelestialRotation);
+        Assert.Equal(.75f,changed.CloudCoverage);
+        Assert.Equal(1,changed.Altitude);
+        Assert.NotEqual(admitted.CelestialEnvironment,changed.CelestialEnvironment);
+        Assert.NotEqual(admitted.ExternalTransmission.ToArray(),changed.ExternalTransmission.ToArray());
+        Vector3 expected = CelestialDiffuseLighting.Integrate(nextSource,nextRotation,changed.ExternalTransmission,
+            changed.HorizonElevation,changed.CloudCoverage);
+        Assert.Equal(expected,changed.CelestialEnvironment);
+        for(int i=0;i<10;i++) Assert.Null(backend.Update(sources,1,.75f,16,8,0,.1f,nextSource,nextRotation));
+        Assert.Null(backend.PendingCpu);
+        var rotated = Complete(backend,sources,1,nextSource,firstRotation,.75f);
+        Assert.Equal(changed.ExternalTransmission,rotated.ExternalTransmission);
+        Assert.NotEqual(changed.CelestialEnvironment,rotated.CelestialEnvironment);
+        Assert.Equal(changed.Solar,rotated.Solar); Assert.Equal(changed.Lunar,rotated.Lunar);
+        backend.Reload();
+        var reloaded = Complete(backend,sources,1,nextSource,firstRotation,.75f);
+        Assert.Same(nextSource,reloaded.CelestialSource);
+        Assert.Equal(rotated.CelestialEnvironment,reloaded.CelestialEnvironment);
+    }
     /// <summary>One backend completes both emitters, reuses phase-independent transport and withdraws caches on reload.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
@@ -198,12 +240,13 @@ public sealed class AtmosphereCelestialPublicationTests(HeadlessGLFixture fixtur
         return shader;
     }
     /// <summary>Completes bounded transport by waiting only for its submitted CPU or GPU dependency.</summary>
-    private static AtmosphereLighting Complete(AtmosphereBackend backend, AtmosphereCelestialInputs sources, float altitude = 0)
+    private static AtmosphereLighting Complete(AtmosphereBackend backend, AtmosphereCelestialInputs sources, float altitude = 0,
+        CelestialSource? source = null, Matrix4x4? rotation = null, float clouds = 0)
     {
         var elapsed = Stopwatch.StartNew();
         while (elapsed.Elapsed < TimeSpan.FromSeconds(30))
         {
-            var result = backend.Update(sources, altitude, 0, 16, 8, 0, .1f);
+            var result = backend.Update(sources, altitude, clouds, 16, 8, 0, .1f,source,rotation);
             if (result is not null) return result;
             if (backend.PendingCpu is { } pending) pending.WaitAsync(TimeSpan.FromSeconds(30)).GetAwaiter().GetResult();
             else

@@ -87,7 +87,8 @@ internal sealed class CelestialRenderer : IRenderer
         if (current == default || failed || api.Render.WireframeDebugRender.Vertex) return;
         var completed = api.ModLoader.GetModSystem<AtmosphereModSystem>().CelestialSource;
         var lighting = AtmosphereModSystem.Lighting;
-        if (completed is null || lighting is null || !completed.Galaxy.IsValid) return;
+        if (completed is null || lighting is null || !completed.Galaxy.IsValid
+            || !ReferenceEquals(completed.Source, lighting.CelestialSource)) return;
         var stars = GpuShaderProgramLibraries.Get<CelestialStarProgram>(api,"celestial_stars");
         var galaxy = GpuShaderProgramLibraries.Get<CelestialGalaxyProgram>(api,"celestial_galaxy");
         if (stars?.EnsureReady() != true || galaxy?.EnsureReady() != true)
@@ -96,7 +97,7 @@ internal sealed class CelestialRenderer : IRenderer
         float bound = CelestialDrawAdmission.MaximumNits(completed.Source,VgeFrameRenderer.Current);
         var transmission = AtmosphereModSystem.ExternalTransmissionTexture;
         if (transmission is not { IsValid: true }) return;
-        Matrix4x4 rotation = CelestialOrientation.Capture(api);
+        Matrix4x4 rotation = lighting.CelestialRotation;
         stars.DrawInputs.Capture(rotation,1/completed.Source.StorageScale,lighting.HorizonElevation);
         galaxy.DrawInputs.Capture(rotation,1/completed.Source.StorageScale,lighting.HorizonElevation);
         stars.GalaxyMap = completed.Galaxy; galaxy.GalaxyMap = completed.Galaxy;

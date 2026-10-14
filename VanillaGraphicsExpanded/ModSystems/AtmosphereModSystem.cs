@@ -20,7 +20,9 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     private AtmosphereAmbientPublication? ambientPublication;
     private bool updateFailureReported;
     private CelestialSourceLifetime? celestial;
-    /// <summary>Returns the complete generated celestial source; scene activation awaits its owned draw and transport integration.</summary>
+    private AtmosphereLighting? pendingPublication;
+    private (nint Handle, long Generation) context;
+    /// <summary>Returns the source committed with matching visible and incident atmospheric illumination.</summary>
     internal CelestialResourceSet? CelestialSource => celestial?.Completed;
     internal static AtmosphereLighting? Lighting { get; private set; }
     internal static int SkyTextureId { get; private set; }
@@ -57,6 +59,8 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     private void Reset()
     {
         updateFailureReported = false;
+        pendingPublication = null;
+        context = default;
         ambientPublication?.Dispose();
         AerialRadianceTexture = null; AerialAttenuationTexture = null;
         ExternalTransmissionTexture = null;
@@ -77,6 +81,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         // Completed textures are independent of the compute executable. Keep every consumer on
         // the same publication until replacement transport and uploads complete successfully.
         computation?.Reload();
+        pendingPublication = null;
         celestial?.Reload((int)ConfigModSystem.Config.Atmosphere.SkyLutQuality);
         return true;
     }
@@ -106,7 +111,9 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         if (stage != EnumRenderStage.Before) return;
+        PrepareContext();
         celestial?.Update((int)ConfigModSystem.Config.Atmosphere.SkyLutQuality);
+        if (context == default) return;
         if (api?.World?.Player?.Entity is not { } player || api.World.Calendar is not { } calendar)
         {
             ambientPublication?.Dispose();
@@ -121,11 +128,13 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
             var sources = AtmosphereCelestialInputs.Capture(calendar);
             var settings = ConfigModSystem.Config.Atmosphere;
             var seasonal = seasonInputs.Capture(api, player.Pos.AsBlockPos);
-            var ready = computation!.Update(sources,
+            pendingPublication ??= computation!.Update(sources,
                 (float)(player.Pos.Y - api.World.SeaLevel) * .001f, api.Ambient.BlendedCloudDensity,
                 width: settings.LookupWidth, height: settings.LookupHeight, quality: (int)settings.SkyLutQuality,
-                groundAlbedo: seasonal.GroundAlbedo);
-            if (ready is not null) Publish(ready);
+                groundAlbedo: seasonal.GroundAlbedo,
+                source: (celestial?.Ready ?? celestial?.Completed)?.Source,
+                rotation: CelestialOrientation.Capture(api));
+            PublishPending();
             updateFailureReported = false;
         }
         catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
@@ -146,9 +155,48 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
         else ambientPublication?.Dispose();
     }
 
+    /// <summary>Commits a matching source/light pair, retaining the candidate unchanged if texture upload fails.</summary>
+    internal void PublishPending()
+    {
+        PrepareContext();
+        if (pendingPublication is not { } ready) return;
+        if (ready.CelestialSource is { } required
+            && !ReferenceEquals(required, celestial?.Ready?.Source)
+            && !ReferenceEquals(required, celestial?.Completed?.Source))
+        {
+            // Context recovery may invalidate a source admitted by an old worker. Withdraw
+            // that result before any upload, and restart transport against the recovered source.
+            pendingPublication = null; computation?.Reload(); return;
+        }
+        Publish(ready);
+        if (ready.CelestialSource is { } source) celestial?.Commit(source);
+        pendingPublication = null;
+    }
+
+    /// <summary>Withdraws dead-context transport and textures without cancelling the source owner's recovery lifecycle.</summary>
+    internal void PrepareContext()
+    {
+        var current = Rendering.Integration.RenderContextRegistry.Current();
+        if (context != default && current != context)
+        {
+            // Handles and fences belong to the old namespace. Recreate the existing backend;
+            // celestial lifetime independently abandons its dead sets and restarts load preparation.
+            pendingPublication = null; Lighting = null;
+            SkyTextureId = AerialRadianceTextureId = AerialAttenuationTextureId = 0;
+            AerialRadianceTexture = AerialAttenuationTexture = null; ExternalTransmissionTexture = null;
+            Rendering.Integration.RenderingCleanup.Run(
+                () => { computation?.Dispose(); computation = null; },
+                () => { textures?.Dispose(); textures = null; },
+                () => { stagingTextures?.Dispose(); stagingTextures = null; });
+            if (api is not null) computation = new(api);
+        }
+        context = current;
+    }
+
     /// <summary>Uploads a completed lookup before swapping dimensions and lighting visible to consumers.</summary>
     internal void Publish(AtmosphereLighting ready)
     {
+        PrepareContext();
         // Integrators retain physical FP32 data; only the immutable uploaded generation is encoded.
         ready = ready with { LookupStorageScale = PBR.LightingStorage.PersistentScale, CalibrationGeneration = 1 };
         if (stagingTextures is null || !stagingTextures.Matches(ready))

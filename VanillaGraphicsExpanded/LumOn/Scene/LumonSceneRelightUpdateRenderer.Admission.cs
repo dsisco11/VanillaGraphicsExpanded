@@ -12,19 +12,23 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     private readonly HashSet<uint> publicationSelection = new();
     private readonly Dictionary<uint, int> changedDirectPages = new();
     private long directInvalidation = -1;
+    private (System.Numerics.Vector3 Environment, System.Numerics.Vector3 Direct,
+        System.Numerics.Vector3 Direction, PBR.Atmosphere.Celestial.CelestialSource? Source)? admittedAtmosphere;
+    private bool changedAtmosphere;
 
     #region Work selection
     /// <summary>Reserves seeding independently and shares each refresh allocation between priority and background pages.</summary>
     private void SelectLightingWork(SurfaceLightingBudgets budgets, int batchCount)
     {
         seedWork.Clear(); traceWork.Clear(); refreshWork.Clear(); resetWork.Clear();
-        if (directInvalidation != scene!.InvalidationRevision)
+        if (changedAtmosphere || directInvalidation != scene!.InvalidationRevision)
         {
             // Source invalidation is scene-wide: conservatively prioritize one direct sweep for resident lighting.
             directInvalidation = scene.InvalidationRevision;
             foreach (uint id in candidates)
                 if (publishedPages.Contains(id)) changedDirectPages[id] = batchCount;
         }
+        changedAtmosphere = false;
         var priority = (uint[])candidates.Clone();
         Array.Sort(priority, (left, right) => feedback.CompareCapturePriority(identities[left], identities[right]));
         seedAdmission.Select(candidates, priority, budgets.Seed, id =>
@@ -55,6 +59,25 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
         });
     }
 
+    /// <summary>Versions source changes before snapshots and delayed lighting answers are admitted.</summary>
+    private void AdmitAtmosphere()
+    {
+        var atmosphere = ModSystems.AtmosphereModSystem.Lighting;
+        var lightKey = (atmosphere?.Environment ?? System.Numerics.Vector3.Zero,
+            atmosphere?.DirectIrradiance ?? System.Numerics.Vector3.Zero,
+            atmosphere?.DirectDirection ?? System.Numerics.Vector3.UnitY, atmosphere?.CelestialSource);
+        changedAtmosphere = admittedAtmosphere != lightKey
+            || !ReferenceEquals(admittedAtmosphere?.Source, atmosphere?.CelestialSource);
+        if (changedAtmosphere)
+        {
+            // Source replacement changes history identity. Ordinary celestial motion instead
+            // prioritizes bounded relighting; resetting all probes every moving frame would starve history.
+            if (!ReferenceEquals(admittedAtmosphere?.Source, atmosphere?.CelestialSource))
+                dependencyRevision = System.Threading.Interlocked.Increment(ref nextDependencyRevision);
+            admittedAtmosphere = lightKey;
+        }
+    }
+
     /// <summary>Builds a shader descriptor from the current surface identity and independent bucket cursor.</summary>
     private LumonSceneRelightWorkGpu CreateLightingWork(uint id, uint bucket)
     {
@@ -78,6 +101,8 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
     {
         seedAdmission.Clear(); directAdmission.Clear(); indirectAdmission.Clear(); publicationSelection.Clear();
         changedDirectPages.Clear(); directInvalidation = -1;
+        admittedAtmosphere = null;
+        changedAtmosphere = false;
     }
     #endregion
 }

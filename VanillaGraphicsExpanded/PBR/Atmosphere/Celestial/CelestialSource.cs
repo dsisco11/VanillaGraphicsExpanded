@@ -5,7 +5,7 @@ using System.Threading;
 
 namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 
-/// <summary>Immutable complete catalog, diffuse quadrature and calibration shared by display and future lighting consumers.</summary>
+/// <summary>Immutable complete catalog, diffuse quadrature and calibration shared by visible and incident lighting.</summary>
 /// <param name="ResolvedStarMaximumFluxLux">Precomputed sum of displayed stars' maximum RGB flux, bounding arbitrary overlap.</param>
 internal sealed record CelestialSource(CelestialQuality Quality, ImmutableArray<CelestialStar> Stars,
     ImmutableArray<CelestialLightSample> Quadrature, float GalaxyAmplitude, float StorageScale, float MaximumNits,

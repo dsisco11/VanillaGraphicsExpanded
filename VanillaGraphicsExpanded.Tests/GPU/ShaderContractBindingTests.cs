@@ -67,7 +67,10 @@ public sealed class ShaderContractBindingTests : RenderTestBase
                 Assert.Equal(expected.Slot, actual);
                 samplerCount++;
             }
-            Assert.True(samplerCount >= (enabled ? 2 : 1));
+            // This diagnostic reads the two direct-light layers from one array sampler;
+            // unrelated probe samplers are intentionally optimized out of its executable.
+            if (name == "lumon_debug_view_direct_total") Assert.Equal(1,samplerCount);
+            else Assert.True(samplerCount >= (enabled ? 2 : 1));
             Assert.Empty(contract.Samplers.Keys.Intersect(contract.UniformLocations.Keys));
             Assert.Empty(contract.Images.Keys.Intersect(contract.UniformLocations.Keys));
             // Enumerate the actual driver resources as well: iterating only resolved contract

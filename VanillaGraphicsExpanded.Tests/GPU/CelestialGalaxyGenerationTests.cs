@@ -44,7 +44,15 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
         try
         {
             lifetime.StartLoading(0); Assert.Null(lifetime.Completed);
-            lifetime.FinishLoading(0); AwaitLifetime(lifetime, () => lifetime.Completed is not null);
+            lifetime.FinishLoading(0); AwaitLifetime(lifetime, () => lifetime.Ready is not null);
+            Assert.Null(lifetime.Completed);
+            var ready = lifetime.Ready!;
+            for (int i = 0; i < 10; i++) lifetime.Update(0);
+            Assert.Same(ready, lifetime.Ready);
+            Assert.Throws<InvalidOperationException>(() => lifetime.Commit(ready.Source with { GalaxyAmplitude = 0 }));
+            Assert.Null(lifetime.Completed);
+            lifetime.Commit(ready.Source);
+            Assert.Null(lifetime.Ready);
             var previous = lifetime.Completed!;
             int reads = assets.Reads.Count;
             for (int i = 0; i < 10; i++) lifetime.Update(0);
@@ -52,6 +60,7 @@ public sealed class CelestialGalaxyGenerationTests(HeadlessGLFixture fixture, IT
             foreach (string path in assets.Reads.Where(p => p.Contains("celestial_generate"))) assets.MissingAssets.Add(path);
             var registry = GpuShaderProgramLibraries.Require(assets.Api);
             registry.BeginReload(); lifetime.Reload(0); registry.CompleteReload();
+            Assert.Same(previous, lifetime.Completed);
             AwaitLifetime(lifetime, () => assets.Logs.Any(log => log.Contains("Celestial source generation failed")));
             Assert.Same(previous, lifetime.Completed); Assert.True(previous.Galaxy.IsValid);
             int failedReads = assets.Reads.Count;

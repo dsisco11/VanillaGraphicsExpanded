@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Numerics;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 
 namespace VanillaGraphicsExpanded.Tests;
 
@@ -8,6 +9,21 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class AtmosphereNightLightingTests
 {
     #region Public API
+    /// <summary>The producer retains only separately modeled airglow, without the obsolete combined stellar floor.</summary>
+    [Theory]
+    [InlineData(0f)] [InlineData(.5f)] [InlineData(1f)]
+    public void BackgroundContainsAirglowOnlyWithOneWeatherFactor(float clouds)
+    {
+        var empty = Snapshot(-Vector3.UnitY,Vector3.Zero,0);
+        var combined = AtmosphereNightLighting.Combine(empty,empty,new(-Vector3.UnitY,Vector3.UnitY,0),clouds);
+        float expected = CelestialSource.AirglowLux/MathF.PI*(1-.9f*clouds);
+        Assert.Equal(expected,combined.BackgroundRadiance);
+        Assert.Equal(new Vector3(expected),combined.Horizon);
+        Assert.Null(combined.CelestialSource);
+        Assert.Equal(Vector3.Zero,combined.CelestialEnvironment);
+        for(int i=0;i<combined.AerialRadiance.Length;i++)
+            if((i&3)!=3) Assert.Equal(expected*empty.AerialAttenuation[i],combined.AerialRadiance[i]);
+    }
     /// <summary>Phase wrapping preserves the physical full-moon reference and an exactly dark new moon.</summary>
     [Theory]
     [InlineData(0, 0)] [InlineData(8, 0)] [InlineData(-8, 0)]
