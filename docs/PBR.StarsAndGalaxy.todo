@@ -580,6 +580,38 @@ Source-derived scene illumination implementation (2026-10-13)
   transient driver failure of identical immutable data, and namespace withdrawal simulates the
   remembered generation changing rather than a full graphics-driver context loss.
 
+Owned lunar disk follow-up (2026-10-13)
+-------------------------------------
+  User approved replacing the artistic native moon with a VGE-owned shader and pass.
+  Capture analysis in ../artifacts/MoonTooBright/findings.md established a roughly
+  44x mismatch between visible lunar-sprite power and terrain's lunar illumination.
+  Exposure was already capped at +4; moon metering was not holding it below that cap.
+
+  The implementation uses an independently registered MoonRenderer at Opaque .195,
+  after external stars/galaxy and before atmosphere .2 for local fog/underwater coverage.
+  Native night-sky and both native sun/moon draw callbacks are unregistered; their
+  client systems and asset lifecycle remain intact. No draw-method replacement is used.
+  The owned GLSL 330 phased Lambert disk uses no native shader or moon texture.
+  Its apparent angular size, published phase and extinguished RGB lunar illuminance
+  are shared with incident lighting. CPU projected-area normalization preserves the
+  actual admitted power, including horizon clipping, and is cached by publication.
+  Frame storage includes the CPU disk peak; native moon compatibility reservation is
+  removed. Exposure, filmic defaults, stellar/galaxy budgets and shadow-map ownership
+  remain unchanged. The first owned surface has uniform albedo rather than craters.
+
+  Focused qualification: 102 distinct checks passed across
+  ../artifacts/moon-owned-qualified-tests.log, ../artifacts/moon-owned-final-tests.log
+  and ../artifacts/moon-owned-bounds-tests.log. Independent CPU projected integrals
+  agree within 1% (horizon cases 0.8%); actual 128x128 GPU disk integrals agree with
+  incident RGB lux within 2.5%, including crescent/horizon and storage scales 0.125/8.
+  Checks cover zero/new/hidden sources, zero glow, graphics-state restoration,
+  native callback withdrawal, registration/lifecycle, adjacent celestial/final-display
+  consumers and physical frame bounds. These receipts do not measure in-game FPS.
+
+  ☐ Qualify owned moon phase/detail, bloom, horizon, cloud and underwater appearance
+    in game; compare moonlit and moonless terrain/galaxy visibility separately.
+    Numerical/GPU flux checks do not establish live appearance acceptance.
+
 HDR display grading follow-up (2026-10-13)
 -----------------------------------------
   User reported visible point stars but no diffuse galaxy. The actual 64-pixel packed galaxy

@@ -58,7 +58,7 @@ internal static class AtmosphereNightLighting
         {
             CloudCoverage = Math.Clamp(clouds, 0, 1),
             BackgroundRadiance = background,
-            HasNightSources = true, Moon = moonDirection, MoonAngularRadius = completedSources.MoonAngularRadius,
+            HasNightSources = true, Moon = moonDirection, MoonPhase = completedSources.Phase, MoonAngularRadius = completedSources.MoonAngularRadius,
             Lunar = AtmosphereModel.SolarIrradiance(moonDirection, solar.Altitude,
                 1 + 7 * (MathF.Round(Math.Clamp(clouds, 0, 1) * 20) / 20), completedSources.MoonAngularRadius) * ratio,
             Environment = environment, Horizon = solar.Horizon + moon.Horizon * ratio + new Vector3(background),

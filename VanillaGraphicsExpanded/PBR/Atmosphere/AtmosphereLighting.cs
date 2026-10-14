@@ -13,6 +13,8 @@ internal sealed record AtmosphereLighting(Vector3 Sun, Vector3 Solar, Vector3 En
     internal Vector3 Moon { get; init; } = Vector3.UnitY;
     /// <summary>Extinguished lunar direct illuminance in lux.</summary>
     internal Vector3 Lunar { get; init; }
+    /// <summary>Frozen eight-step lunar phase shared by disk appearance and incident power.</summary>
+    internal float MoonPhase { get; init; }
     /// <summary>Equivalent luminous lunar disk radius, matching the installed sprite footprint.</summary>
     internal float MoonAngularRadius { get; init; } = .03252f;
     /// <summary>Unweighted lunar Mie transport for the sky lookup.</summary>

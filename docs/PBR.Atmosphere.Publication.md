@@ -126,12 +126,32 @@ The planned [owned stars and galaxy](PBR.StarsAndGalaxy.todo) extends this lifet
 and atomic-publication policy to a load-generated HDR source and instanced stars.
 Its source set and derived lighting must publish together when the cached illumination
 is activated. VGE independently registers CelestialRenderer at Opaque order 0.19.
-NativeNightSkyDrawRegistration unregisters only the native night-render callback
-through the public event manager. The native client-system registry and asset lifecycle
+NativeNightSkyDrawRegistration unregisters the native night-render callback and both
+sun/moon draw callbacks through the public event manager. The native client-system registry and asset lifecycle
 remain intact. No Harmony night-draw patch or client-system replacement is used.
 The obsolete night-sky compatibility shader transformation is retired.
 Historical night-sky counter statements above describe the former separate renderer;
 no other inspected consumer reads that renderer's private counter.
+
+The moon has an independent `MoonRenderer` at Opaque order 0.195, after stars/galaxy
+and before atmospheric local fog/underwater coverage at 0.2. `Celestial.Moon` is a
+tracked additive HDR pass with no depth writes or glow contribution. Its GLSL 330
+program reconstructs a procedural phased Lambert disk without engine shader code,
+moon textures or native mesh data. Clouds and terrain occlude it in later passes.
+
+The completed atmosphere freezes `MoonPhase` with lunar direction, angular radius
+and extinguished `Lunar` illuminance. `MoonDisk` normalizes the projected surface
+integral to this RGB illuminance, using the analytic Lambert phase integral for a
+fully visible disk and CPU projected-area quadrature for a horizon-clipped disk.
+This normalization is cached by immutable publication identity, not recomputed
+per frame. The disk receives no second phase multiplier or atmospheric extinction.
+It preserves the admitted apparent radius and 0.1-lux full-moon reference. The
+procedural surface currently has uniform albedo; it does not model lunar craters.
+
+The CPU-certified radiance maximum joins frozen frame storage admission; the native
+moon compatibility allowance is withdrawn while owned lunar rendering is enabled.
+Resize, reload, context changes and world teardown use existing graphics owners.
+Failure leaves native drawing disabled and retries only at reset/reload boundaries.
 
 The celestial generation owner now prepares and submits its own tiled HDR cube during
 world loading, retaining a fenced complete cube, catalog, source quadrature, encoding

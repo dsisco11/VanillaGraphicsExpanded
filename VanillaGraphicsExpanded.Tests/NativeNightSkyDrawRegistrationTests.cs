@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Reflection;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using Moq;
 using VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
@@ -12,8 +13,11 @@ public sealed class NativeNightSkyDrawRegistrationTests
 {
     #region Public API
     /// <summary>Removes native draws while preserving unrelated callbacks, system identity and native resources.</summary>
-    [Fact]
-    public void DisableWithdrawsOnlyNativeDrawCallbacksAndPreservesNativeSystem()
+    [Theory]
+    [InlineData("SystemRenderNightSky", "OnRenderFrame3D")]
+    [InlineData("SystemRenderSunMoon", "OnRenderFrame3D")]
+    [InlineData("SystemRenderSunMoon", "OnRenderFrame3DPost")]
+    public void DisableWithdrawsOnlyNativeDrawCallbacksAndPreservesNativeSystem(string system, string method)
     {
         using var dependencies = new EngineDependencyResolution();
         var game = (ClientMain)RuntimeHelpers.GetUninitializedObject(typeof(ClientMain));
@@ -24,9 +28,10 @@ public sealed class NativeNightSkyDrawRegistrationTests
         events.renderersByStage = Enumerable.Range(0, Enum.GetValues<EnumRenderStage>().Max(stage => (int)stage) + 1)
             .Select(_ => new List<RenderHandler>()).ToArray();
         game.eventManager = events;
-        var nativeType = typeof(ClientMain).Assembly.GetType("Vintagestory.Client.NoObf.SystemRenderNightSky", true)!;
+        var nativeType = typeof(ClientMain).Assembly.GetType("Vintagestory.Client.NoObf." + system, true)!;
         var native = (ClientSystem)RuntimeHelpers.GetUninitializedObject(nativeType);
-        var callback = (Action<float>)nativeType.GetMethod("OnRenderFrame3D")!.CreateDelegate(typeof(Action<float>), native);
+        var callback = (Action<float>)nativeType.GetMethod(method, BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!
+            .CreateDelegate(typeof(Action<float>), native);
         var unrelated = new DummyRenderer { action = _ => { }, RenderOrder = .3 };
         var opaque = new DummyRenderer { action = callback, RenderOrder = .1 };
         var before = new DummyRenderer { action = callback, RenderOrder = .1 };

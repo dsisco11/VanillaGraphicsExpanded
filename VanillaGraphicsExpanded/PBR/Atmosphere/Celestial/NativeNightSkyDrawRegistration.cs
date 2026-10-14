@@ -5,11 +5,11 @@ using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 
-/// <summary>Withdraws native night-sky drawing while preserving its client system and asset lifecycle.</summary>
+/// <summary>Withdraws native celestial drawing while preserving client systems and asset lifecycles.</summary>
 internal static class NativeNightSkyDrawRegistration
 {
     #region Public API
-    /// <summary>Unregisters only the installed night-sky frame callback; repeated calls are harmless.</summary>
+    /// <summary>Unregisters only installed star/galaxy and sun/moon draw callbacks; repeated calls are harmless.</summary>
     internal static void Disable(ICoreClientAPI api)
     {
         if (api.World is not ClientMain game)
@@ -19,8 +19,10 @@ internal static class NativeNightSkyDrawRegistration
         for (int stage = 0; stage < game.eventManager.renderersByStage.Length; stage++)
             foreach (var handler in game.eventManager.renderersByStage[stage].ToArray())
                 if (handler.Renderer is DummyRenderer wrapper
-                    && wrapper.action.Target?.GetType().FullName == "Vintagestory.Client.NoObf.SystemRenderNightSky"
-                    && wrapper.action.Method.Name == "OnRenderFrame3D")
+                    && ((wrapper.action.Target?.GetType().FullName == "Vintagestory.Client.NoObf.SystemRenderNightSky"
+                        && wrapper.action.Method.Name == "OnRenderFrame3D")
+                        || (wrapper.action.Target?.GetType().FullName == "Vintagestory.Client.NoObf.SystemRenderSunMoon"
+                            && wrapper.action.Method.Name is "OnRenderFrame3D" or "OnRenderFrame3DPost")))
                     game.eventManager.UnregisterRenderer(wrapper,(EnumRenderStage)stage);
     }
     #endregion

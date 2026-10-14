@@ -139,7 +139,8 @@ internal sealed class SceneLightingPublicationRenderer : IRenderer
         return FrameLightingBounds.FromPublications(atmosphere, VgeLightsRenderer.Current,
             frame.LightingCalibration, PbrShaderLightingMode.LumOnEnabled, indirect.Intensity,
             new Vector3(tint[0], tint[1], tint[2]), emission,
-            LightingStorage.UpperBound((double)compatibilityMaximum + Atmosphere.Celestial.CelestialRenderer.MaximumNits));
+            LightingStorage.UpperBound((double)compatibilityMaximum + Atmosphere.Celestial.CelestialRenderer.MaximumNits
+                + Atmosphere.Celestial.MoonRenderer.MaximumNits));
     }
 
     /// <summary>Rejects missing, retired and differently framed source metadata.</summary>

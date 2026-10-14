@@ -1499,9 +1499,18 @@ The opaque full-moon image spans approximately half the billboard width; its tra
 is excluded. The apparent emitter is deliberately larger than the terrestrial moon, as drawn
 by the game. Keep physical integrated illuminance independent of this artistic angular size.
 This radius supplies finite-disk direct shading and horizon coverage. It exceeds the retained
-solar radius, so the existing solar specular-response bound remains conservative. Native moon
-sprite display brightness is still a compatibility representation, not a separately calibrated
-physical disk-radiance image.
+solar radius, so the existing solar specular-response bound remains conservative.
+
+The approved owned lunar draw supersedes the native moon compatibility representation.
+`MoonRenderer` registers its own Opaque pass at 0.195, before atmospheric local fog and
+underwater coverage, while the native sun/moon draw callbacks are unregistered. Their
+client systems and asset lifecycle remain intact. The procedural GLSL 330 Lambert disk
+uses no native moon shader code or texture. Its surface response is normalized to the
+completed publication's extinguished RGB lunar illuminance using the frozen lunar phase
+and apparent radius. No second empirical phase or extinction factor enters drawing.
+The CPU analytic projected-area integral (or horizon-clipped quadrature) and radiance
+peak are cached by publication identity and participate in frame storage admission.
+The initial surface has uniform albedo; crater texture synthesis is outside this change.
 
 The selected orientation-averaged moonless reference is **0.0008 lux horizontal illuminance**,
 split into 0.0004 lux airglow, 0.0003 lux galaxy and 0.0001 lux complete catalog. The split is
