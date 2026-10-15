@@ -800,7 +800,7 @@ Current integration findings (2026-10-12)
     packaged, test-output and development Release production DLLs match. The package excludes
     test fixtures and automation hooks; no installation or game launch was performed.
 
-  ☐ Trace and correct unintended emission on non-emissive terrain materials.
+  ✔ Trace and correct unintended emission on non-emissive terrain materials. @done(26-10-14 23:03)
     - Reproduce bright-night.rdc's sampled sand/cobblestone contrast: environment and direct
       illumination are zero, but the material emission coefficient is approximately 1/255.
       Reference artifacts/BrightNight/findings.md and lighting-split.json; do not treat this
@@ -832,7 +832,7 @@ Current integration findings (2026-10-12)
     artifacts/MaterialEmission/candidate.zip, with build/catalog/source/package identities in
     package-receipt.json. No installation or game launch was performed.
 
-  ☐ Define and integrate a shared, calibrated nighttime illumination source.
+  ✔ Define and integrate a shared, calibrated nighttime illumination source. @done(26-10-14 23:03)
     ☑ Establish and document the lunar and moonless-background source contracts.
       - Retain bright-night.rdc's zero atmospheric environment/solar result as the baseline;
         visible celestial objects do not currently supply incident light. Reference

@@ -36,7 +36,7 @@ void main()
     // conditional guidance evaluation, including corrupt validity metadata.
     float localMask=float(localOptions.y>.5);
     // Guidance comes from scene radiance alone. Local correction uses the actual
-    // bounded camera gain; generated glare shares that correction but cannot drive it.
+    // bounded camera gain; glare cannot drive scene guidance.
     if(localMask>.5)
     {
         if(VgeLocalLogLuminance(VgePhysicalFrameLight(radiance),q)
@@ -47,11 +47,14 @@ void main()
     // the optional executable when its runtime controls are disabled or missing.
     localStops*=localMask;
 #endif
-    radiance+=VgePostStoredLight(texture(bloomImage,uv).rgb)+VgePostStoredLight(texture(shaftImage,uv).rgb);
+    // Bloom already contains source-local exposure from extraction. Its spread
+    // must not inherit the destination scene's correction. Preserve shaft policy.
+    radiance=(radiance+VgePostStoredLight(texture(shaftImage,uv).rgb))*exp2(localStops)
+        +VgePostStoredLight(texture(bloomImage,uv).rgb);
     // Three bounded half-float inputs and finite 1/P keep the FP32 sum/product
     // finite even at the highest admitted display exposure. Do not cap this sum to half.
     float size=float(textureSize(gradedDisplayLookup,0).x);
-    vec3 lookup=VgeGradingCoordinate(radiance*VgePostExposure(ev)*exp2(localStops));
+    vec3 lookup=VgeGradingCoordinate(radiance*VgePostExposure(ev));
     vec3 display=texture(gradedDisplayLookup,(lookup*(size-1.0)+.5)/size).rgb;
     display=VgeDisplayTint(display,effects.x);
     display=VgeScreenEffects(display,uv,gl_FragCoord.xy,effects,vignette);

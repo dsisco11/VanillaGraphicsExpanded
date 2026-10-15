@@ -27,7 +27,8 @@ internal sealed class BloomRenderer : IDisposable
     internal DynamicTexture2D Texture => scratch[0].Texture;
 
     /// <summary>Recreates the complete pyramid only when size or configured scale count changes.</summary>
-    internal GraphicsPipeline Prepare(ICoreClientAPI api, PostprocessDraw draw, int frameWidth, int frameHeight, int levelCount)
+    internal GraphicsPipeline Prepare(ICoreClientAPI api, PostprocessDraw draw, int frameWidth, int frameHeight, int levelCount,
+        LocalExposure.LocalExposureParameters localSettings = default, GpuTexture? localBase = null, float logMiddleGray = 0)
     {
         levelCount = Math.Clamp(levelCount, 1, Scales.Length);
         if (width != frameWidth || height != frameHeight || requestedLevels != levelCount || levels.Count == 0)
@@ -47,8 +48,13 @@ internal sealed class BloomRenderer : IDisposable
             }
             catch { Dispose(); throw; }
         }
-        shader = GpuShaderProgramLibraries.Get<BloomShaderProgram>(api, "pbr_bloom");
+        if (localSettings.Enabled && localBase is null)
+            throw new ArgumentException("Source-local bloom requires the completed scene base.", nameof(localBase));
+        shader = GpuShaderProgramLibraries.Get<BloomShaderProgram>(api,
+            localSettings.Enabled ? "pbr_bloom_local_exposure" : "pbr_bloom");
         if (shader?.EnsureReady() != true) throw new InvalidOperationException("Owned bloom shader unavailable.");
+        shader.LocalBase = localSettings.Enabled ? localBase : null;
+        shader.CaptureLocal(localSettings, logMiddleGray);
         return pipeline = draw.Prepare(shader, levels[0].Target);
     }
 

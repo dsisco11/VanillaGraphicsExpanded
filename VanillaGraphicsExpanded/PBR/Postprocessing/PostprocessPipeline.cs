@@ -133,12 +133,15 @@ internal sealed class PostprocessPipeline : IRenderer
         bool useBloom=engine.Bloom&&settings.BloomStrength>0;
         bool useRays=engine.LightShafts&&settings.LightShaftStrength>0&&settings.LightShaftLimit>0;
         var pipelines=new List<GraphicsPipeline>();
-        if(useBloom) pipelines.Add(bloom.Prepare(api,draw,primary.Width,primary.Height,settings.BloomLevels)); else bloom.Dispose();
-        if(useRays) pipelines.Add(rays.Prepare(api,draw,primary.Width,primary.Height,engine.LightShaftQuality,settings.LightShaftSamples)); else rays.Dispose();
         // Capture typed inputs once for this framebuffer publication, before entering a pass.
         scene??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[0]));
-        // Complete scene coverage and physical adaptation precede generated glare.
+        // Publish scene-only guidance before bloom captures source-local exposure.
+        // Glare never feeds the base or the global camera meter.
         if(localSettings.Enabled) local.Render(api,scene,localSettings); else local.Dispose();
+        if(useBloom) pipelines.Add(bloom.Prepare(api,draw,primary.Width,primary.Height,settings.BloomLevels,
+            localSettings,localSettings.Enabled ? local.BaseTexture : null,CameraExposureRenderer.DisplayLogMiddleGray));
+        else bloom.Dispose();
+        if(useRays) pipelines.Add(rays.Prepare(api,draw,primary.Width,primary.Height,engine.LightShaftQuality,settings.LightShaftSamples)); else rays.Dispose();
         if(useRays) depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         if(useRays) glow??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[1]));
         pipelines.AddRange(retained.Prepare(api,draw));

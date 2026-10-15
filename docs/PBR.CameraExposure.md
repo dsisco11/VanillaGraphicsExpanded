@@ -60,7 +60,9 @@ complete immunity to spatial undersampling or genuinely changing illumination.
 
 ## Tone curve and display
 
-Final composition adds scene and glare in linear space and applies exp2(EV) once, then samples
+Bloom applies bounded local correction to its emitting samples before thresholding and filtering.
+Final composition locally corrects scene and directional shafts, adds the source-corrected bloom
+without destination-local gain, and applies exp2(EV) once, then samples
 the cached scene-linear grading, filmic response and sRGB display transform described in
 [PBR.Postprocessing.md](PBR.Postprocessing.md). The native gamma slider is normalized around
 its default of 3; extra gamma is also a relative control with neutral value 1. Gamma, brightness
@@ -159,7 +161,10 @@ The enabled-by-default `Postprocessing.LocalExposure.Enabled` operation evaluate
 spatial base B after the actually applied global gain E, in log2 multiplier stops. Its display
 pivot P is log2(MiddleGray) + Compensation in automatic mode, or log2(MiddleGray) in manual
 mode. Relative base contrast is B + E - P. The existing shadow/highlight compression and
-local stop limits act on that contrast; final gain is E + localStops before grading.
+local stop limits act on that contrast; scene gain is E + localStops before grading.
+Bloom uses this correction at its source samples before filtering, rather than reapplying
+the destination scene's local stops to the finished halo. Snapshot combined gain describes
+the sampled scene correction, not a universal multiplier for all postprocess contributions.
 Automatic compensation shifts both gain and pivot, preserving its authored effect when the
 meter is uncapped. Manual gain is authored against fixed middle gray. The final display UBO
 carries P in exposure.w; optional local display no longer borrows a second adaptation SSBO.

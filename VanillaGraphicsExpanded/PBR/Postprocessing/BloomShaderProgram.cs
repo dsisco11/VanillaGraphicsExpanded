@@ -5,19 +5,20 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 /// <summary>Owns the pbr_bloom executable and its typed staged inputs.</summary>
-[ShaderProgram("Contract", "pbr_bloom", 1)]
+[ShaderProgram("Contract", "pbr_bloom", 2)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "pbr_postprocess.vsh", Identity = "pbr_bloom.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "pbr_bloom.fsh")]
+[ShaderUse("Contract", ShaderStageKind.Fragment, nameof(LocalExposureEnabled))]
 internal sealed partial class BloomShaderProgram : GpuProgram, IBloomShaderProgramBindings
 {
-    private readonly PostprocessInputs inputs;
+    private readonly BloomInputs inputs;
     private static readonly GaussianKernel[] kernels = CreateGaussianKernels();
     #region Public API
     /// <summary>Declares compilation and reload identity.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
     /// <summary>Creates the retained parameter block and generated binding layout.</summary>
     public BloomShaderProgram() {
-        inputs = OwnUniformBuffer(new PostprocessInputs());
+        inputs = OwnUniformBuffer(new BloomInputs());
         ProgramLayout.RegisterContract(Contract.Stages[0].Bindings);
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
@@ -25,6 +26,14 @@ internal sealed partial class BloomShaderProgram : GpuProgram, IBloomShaderProgr
     public partial GpuTexture? SourceImage { set; }
     /// <summary>Stages the SecondaryImage image.</summary>
     public partial GpuTexture? SecondaryImage { set; }
+    /// <summary>Selects source-local exposure without requiring its sampler on the disabled path.</summary>
+    [ShaderOption("VGE_LOCAL_EXPOSURE", false)]
+    internal partial bool LocalExposureEnabled { get; set; }
+    /// <summary>Borrows the completed current-frame scene base for highlight extraction.</summary>
+    public partial GpuTexture? LocalBase { set; }
+    /// <summary>Stages the bounded source-local correction independently of per-pass filtering inputs.</summary>
+    internal void CaptureLocal(LocalExposure.LocalExposureParameters settings, float logMiddleGray)
+        => inputs.CaptureLocal(settings, logMiddleGray);
     /// <summary>Stages the published exposure buffer.</summary>
     public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
     /// <summary>Captures the complete draw parameters for the shader contract.</summary>

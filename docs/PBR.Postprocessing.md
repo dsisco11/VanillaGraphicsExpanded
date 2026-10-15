@@ -35,9 +35,10 @@ for in-game frame-time cost. No spatial image history or CPU statistics readback
 
 The passes run after physical scene metering and before generated glare. Final display
 uses scene-only luminance guidance and the actually applied global exposure relative to middle gray,
-then applies bounded local stops to the combined scene/glare before the unchanged
-grading lookup. Local motion/adaptation does not invalidate the LUT cache. A separate
-optional final-shader variant retains the disabled path's sampler/SSBO requirements.
+then applies bounded local stops to scene and directional shafts before the unchanged
+grading lookup. Bloom receives source-local correction during extraction and is added without
+destination-local gain. Local motion/adaptation does not invalidate the LUT cache. Optional
+bloom and final-shader variants retain the disabled paths' sampler/SSBO requirements.
 The existing GLSL 330 draw and GLSL 430 compute baselines remain in place.
 
 The camera's expanded GPU metadata records applied gain, instantaneous metered luminance and
@@ -92,7 +93,8 @@ use applied gain and the captured middle-gray policy.
 Scene and generated glare RGB store nits times the current frozen P. Histogram metering decodes
 1/P before glare generation. Bloom thresholds and the shaft peak limit are exposed display-linear
 quantities, evaluated with exp2(EV)/P; extraction leaves output in the same P-scaled storage.
-Final composition sums scene, bloom and shafts in FP32 and applies exp2(EV)/P exactly once before
+Final composition locally corrects scene and shafts, adds source-corrected bloom in FP32,
+and applies exp2(EV)/P exactly once before
 the unchanged tone curve. Display controls never alter source power, propagation, AO or materials.
 
 Owned bloom, shaft and luma RGB writes use the RGBA16F interval [0,65504]. Exceptional positive
@@ -119,11 +121,13 @@ ambient/indirect lighting. It does not attenuate direct lighting or atmospheric 
 PostprocessPipeline coordinates separate algorithm owners:
 
 1. CameraExposureRenderer meters the completed unexposed scene and publishes temporal EV.
-2. BloomRenderer extracts and filters scene-linear HDR bloom.
+2. LocalExposureRenderer publishes scene-only guidance when enabled; BloomRenderer applies
+   source-local correction, extracts highlights and filters HDR bloom.
 3. LightShaftRenderer extracts and radially filters exposure-relative HDR light-shaft bloom.
 4. RetainedPostprocessRenderer prepares owned RGBA16F
    scene/luminance output for antialiasing (or copies scene RGBA when disabled).
-5. The owned final shader applies optional edge smoothing, adds owned glare, applies camera
+5. The owned final shader applies optional edge smoothing, locally corrects scene and shafts,
+   adds source-corrected bloom independently of destination-local gain, applies global camera
    exposure, samples the cached scene-linear grading/filmic display transform, then applies
    warm tint, vignettes and one final dither.
 
@@ -789,7 +793,17 @@ smoothstep(T-TK, T+TK, exposed luminance); it is bounded from zero to one. K=0 s
 threshold. T=0 explicitly bypasses selection. One shared RGB weight preserves source chromaticity;
 strength scales extracted radiance once. The threshold is an exposed display-linear quantity:
 selection uses stored RGB times exp2(EV)/P. Storage remains P-scaled nits, with no display transform or
-extra exposure multiplication. The final display shader applies exposure once to scene plus glare.
+extra global exposure multiplication. When local exposure is enabled, the first extraction pass
+uses the completed scene-only base and the same applied camera/middle-gray reference as final
+composition. Each source sample receives its bounded local correction before highlight selection
+and averaging. This correction is retained as the light spreads; reductions and Gaussian passes
+do not apply it again. The disabled variant requires no local-base sampler.
+
+Final composition locally corrects the scene, then adds the already source-corrected bloom.
+Finished bloom does not inherit the destination pixel's local gain. Global exposure is applied
+once to the combined result before grading and tone mapping. Directional shafts retain their
+existing destination-local correction independently of this bloom policy. No additional image
+or draw is required; source-local exposure uses the existing scene-base publication.
 
 A four-tap reduction chain is completed before filtering. Each level receives horizontal and
 vertical dense Gaussian passes, with coefficients proportional to exp(-16.7 tap²/radius²) at

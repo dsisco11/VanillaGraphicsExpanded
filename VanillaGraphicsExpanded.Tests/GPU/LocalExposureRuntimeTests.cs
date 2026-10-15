@@ -142,7 +142,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
     #endregion
 
     #region Final presentation
-    /// <summary>Manual and automatic final exposure apply the same local multiplier to scene and glare before the unchanged cached lookup.</summary>
+    /// <summary>Manual and automatic final exposure correct scene locally while adding already prepared bloom outside destination-local gain.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -166,7 +166,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         for (int i = 0; i < 2; i++)
         {
             double stops = Math.Clamp((Math.Log2(.18)-6-bases[i * 2]) * .5, -4, 4);
-            Vector3 exposed = (colors[i] + new Vector3(.00001f)) * (float)Math.Pow(2, 6 + stops);
+            Vector3 exposed = (colors[i] * (float)Math.Pow(2, stops) + new Vector3(.00001f)) * 64f;
             Vector3 expected = FilmicGradingReference.Lookup(exposed, controls);
             for (int c = 0; c < 3; c++) Assert.InRange(Math.Abs(local[i * 4 + c] - FilmicGradingReference.Quantize(expected[c], i)), 0, 1.001f / 255);
         }
@@ -182,6 +182,33 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         float[] disabledVariant = Final(source, glare, empty, baseImage, history, lookup, Candidate() with { Enabled = false }, automatic, optionalVariant: false);
         Assert.Equal(global, disabledVariant);
         Assert.Equal(1, grading.Generation);
+    }
+
+    /// <summary>Bloom crosses different receiver corrections unchanged while scene and shafts retain their local multiplier.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FinalBloomIgnoresReceiverGainWhileShaftsRetainIt(bool automatic)
+    {
+        EnsureShaderTestAvailable();
+        using var scene = Scene([new(.001f), new(.001f)], 2, 1);
+        using var bloom = Scene([new(.002f)], 1, 1);
+        using var shafts = Scene([new(.0005f)], 1, 1);
+        using var spatial = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rg32f, [-10f, 1f, -9f, 1f]);
+        using var history = ExposureTestStorage.Create(6);
+        using var grading = new ColorGradingLut();
+        Vector4 controls = new(1, 1, 1, 0);
+        var lookup = grading.Prepare(Programs.Api, controls);
+        float[] actual = Final(scene, bloom, shafts, spatial, history, lookup, Candidate(), automatic);
+        for (int pixel = 0; pixel < 2; pixel++)
+        {
+            // The independently computed local gain affects scene and shafts only. Bloom is already source-corrected.
+            double stops = Math.Clamp((Math.Log2(.18) - 6 - (-10 + pixel)) * .5, -4, 4);
+            float exposed = (.0015f * (float)Math.Pow(2, stops) + .002f) * 64;
+            Vector3 expected = FilmicGradingReference.Lookup(new(exposed), controls);
+            for (int channel = 0; channel < 3; channel++)
+                Assert.InRange(Math.Abs(actual[pixel * 4 + channel] - FilmicGradingReference.Quantize(expected[channel], pixel)), 0, 1.001f / 255);
+        }
     }
 
     /// <summary>Captured physical inputs receive bounded display-relative correction through the unchanged filmic lookup.</summary>
