@@ -98,6 +98,13 @@ internal sealed class CameraExposureRenderer : IRenderer
         if(active is not { published:true } renderer) throw new InvalidOperationException("Visual adaptation is not published.");
         return renderer.localAdaptation ? renderer.targets!.Exposure : null;
     }
+    /// <summary>Exposes matching captured policy and completed history for an explicit diagnostic request.</summary>
+    internal static (CameraExposureParameters Settings, GpuShaderStorageBuffer? History) DiagnosticPublication()
+    {
+        if(active is not { published:true, disposed:false } renderer)
+            throw new InvalidOperationException("Camera exposure is not published for this diagnostic frame.");
+        return (renderer.settings, renderer.settings.Enabled || renderer.localAdaptation ? renderer.targets!.Exposure : null);
+    }
     /// <summary>Freezes admitted physical-light metadata after current light publication and before the first consuming draw.</summary>
     internal static void FreezeLightingStorage(FrameLightingBounds bounds, uint calibrationGeneration)
     {

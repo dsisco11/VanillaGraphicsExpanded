@@ -97,6 +97,8 @@ internal sealed class PostprocessPipeline : IRenderer
     internal void RenderFinal(FinalDisplayParameters display)
     {
         if(!published) throw new InvalidOperationException("Owned postprocessing outputs were not published for this frame.");
+        Diagnostics.ExposureSnapshotLog.CaptureIfRequested(api,retained.Luma,
+            localSettings.Enabled ? local.BaseTexture : null,localSettings,frameEffects.Fxaa);
         var shader=Rendering.Shaders.GpuShaderProgramLibraries.Get<FinalDisplayShaderProgram>(api,
             localSettings.Enabled ? "pbr_final_local_exposure" : "pbr_final");
         if(shader?.EnsureReady()!=true) throw new InvalidOperationException("Owned final display shader unavailable.");
@@ -166,6 +168,7 @@ internal sealed class PostprocessPipeline : IRenderer
     private void Retire()
     {
         published=captured=false; bloomTexture=rayTexture=null;
+        Diagnostics.ExposureSnapshotLog.Cancel();
         draw?.Dispose(); draw=null; bloom.Dispose(); rays.Dispose(); retained.Dispose(); local.Dispose(); resources.Dispose(); resources=new(); finalTarget=null; scene=glow=depth=null; neutral?.Dispose(); neutral=null;
     }
     /// <summary>Withdraws all executable-dependent publication during shader reload.</summary>

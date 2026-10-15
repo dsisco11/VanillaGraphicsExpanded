@@ -215,6 +215,32 @@ These are algorithmic storage/work counts, not physical bandwidth or complete-fr
 
 ## Validation status
 
+### On-demand exposure log snapshot
+
+In the VGE debug viewer, Tools > Log Exposure Snapshot queues one record for the next
+completed display frame. The client log entry is prefixed [VGE Exposure Snapshot]. It records
+captured camera limits/compensation, requested and applied multiplier stops, target cap state,
+adapted/metered log2 luminance in nits, validity, local controls and centre-pixel local/combined
+gain. The centre probe uses the same final-display edge filter and local-exposure functions,
+before generated glare and grading. UI pixels are excluded. These are multiplier stops, not EV100.
+
+For comparison, let each view settle, aim at unlit terrain, and click once with the bright
+lantern-lit area excluded and once with it included. Retain both timestamped entries and check
+probe luminance as well as exposure, since moving the camera can select a different surface.
+History/validity fields distinguish unavailable metering from a measured zero. Manual mode
+without local exposure has no metering history. The action performs one small synchronous GPU
+readback and may briefly stall that requested frame; there is no continuous logging, readback,
+probe allocation or compute dispatch when the button has not been clicked.
+
+Headless validation passed 11 snapshot cases and 48 related exposure/local-display cases.
+The final incremental build rechecked all 11 snapshot cases successfully, including fixed
+global gain with changing local lift, manual mode, invalid metadata, physical storage scales,
+edge-filtered guidance and invariant log formatting. Receipts:
+artifacts/DenseCameraMetering/snapshot-validation.log and snapshot-final-validation.log.
+The menu action itself remains unverified in a live game; no game was launched or installed.
+
+### Metering qualification
+
 Parallel dense metering (2026-10-14) retains half-resolution coverage with 1,024 partials
 and a 256-lane cooperative merge. On the same RTX 4090 synthetic uniform-input fixture,
 eight warm samples produced the following histogram/adaptation pair GPU medians:

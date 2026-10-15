@@ -6,8 +6,11 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.DebugView;
 
+/// <summary>Registers the built-in rendering tools panel.</summary>
 public static partial class VgeBuiltInDebugViews
 {
+    #region Private
+    /// <summary>Declares the tools panel independently of diagnostic renderers.</summary>
     private static DebugViewDefinition CreateToolsView()
         => new(
             id: ToolsViewId,
@@ -18,6 +21,7 @@ public static partial class VgeBuiltInDebugViews
             activationMode: DebugViewActivationMode.Toggle,
             createPanel: ctx => new ToolsPanel(ctx.Capi));
 
+    /// <summary>Hosts explicit diagnostic actions and runtime debug toggles.</summary>
     private sealed class ToolsPanel : DebugViewPanelBase
     {
         private readonly ICoreClientAPI capi;
@@ -29,13 +33,17 @@ public static partial class VgeBuiltInDebugViews
         private bool lastStatsShown;
         private bool lastSelfCheckEnabled;
 
+        #region Public API
+        /// <summary>Borrows the active client for menu callbacks.</summary>
         public ToolsPanel(ICoreClientAPI capi)
         {
             this.capi = capi;
         }
 
+        /// <summary>Refreshes toggle labels as runtime state changes.</summary>
         public override bool WantsGameTick => true;
 
+        /// <summary>Builds tool buttons, queuing GPU diagnostics until scene publication.</summary>
         public override void Compose(GuiComposer composer, ElementBounds bounds, string keyPrefix)
         {
             this.composer = composer;
@@ -177,9 +185,21 @@ public static partial class VgeBuiltInDebugViews
                     style: EnumButtonStyle.Normal,
                     key: $"{keyPrefix}-lumonscenedump");
 
+            composer.AddSmallButton(
+                text: "Log Exposure Snapshot",
+                onClick: () =>
+                {
+                    PBR.Postprocessing.Diagnostics.ExposureSnapshotLog.Request();
+                    return true;
+                },
+                bounds: b5.FlatCopy().WithFixedOffset(0, rowH + rowGapY + rowH + rowGapY),
+                style: EnumButtonStyle.Normal,
+                key: $"{keyPrefix}-exposuresnapshot");
+
             _ = fontLabel;
         }
 
+        /// <summary>Recomposes only when displayed toggle state changes.</summary>
         public override void OnGameTick(float dt)
         {
             var lumOn = capi.ModLoader.GetModSystem<LumOnModSystem>();
@@ -202,6 +222,9 @@ public static partial class VgeBuiltInDebugViews
             }
         }
 
+        #endregion
+        #region Private
+        /// <summary>Refreshes labels without propagating GUI teardown failures.</summary>
         private void TryRecompose()
         {
             try
@@ -213,5 +236,7 @@ public static partial class VgeBuiltInDebugViews
                 // Ignore UI refresh failures.
             }
         }
+        #endregion
     }
+    #endregion
 }
