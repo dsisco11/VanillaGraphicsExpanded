@@ -19,8 +19,9 @@ Goal and scope
   attenuation, enclosure behavior and light data unchanged. Existing VGE shader injection may
   change how those inputs are interpreted; do not add CPU lighting/propagation patches.
   Exclude spectral rendering, new voxel propagation, source discovery, source-based replacement
-  of block lighting, general area-light transport, photographic EV100 authoring and unrelated attachment
-  redesign. Use the approved pre-exposed frame lighting, bounded visible solar disk and fixed-scale
+  of block lighting, general area-light transport and unrelated attachment redesign. Photographic
+  EV100 authoring was excluded from Phases 1-6; the user-requested Phase 7 adds the bounded
+  exposure migration below. Use the approved pre-exposed frame lighting, bounded visible solar disk and fixed-scale
   persistent lighting contract in the proposal. The approved solar-only finite-angular specular
   refinement is the narrow exception to general area-light transport. Do not strengthen AO to hide lighting errors.
   The approved bounded water-source refinement is the narrow exception to retaining the existing
@@ -1005,6 +1006,71 @@ Current integration findings (2026-10-12)
     - Check shader-only block conversion and the exclusion of engine logic patches/new lighting systems.
     - Resolve remaining discrepancies; distinguish headless numerical/package receipts from live
       appearance acceptance and avoid unsupported physical/performance claims.
+
+Phase 7: Migrate camera exposure authoring and metering to EV100
+--------------------------------------------------------------
+Outcome: Exposure settings and diagnostics use an explicitly calibrated EV100 convention,
+while the existing histogram, temporal adaptation and local-exposure owners remain coherent.
+Requested 2026-10-14. This is planned work; earlier completion receipts do not qualify it.
+The migration alone must not be presented as correcting source calibration or image quality.
+
+  ☐ Reconcile the governing design and define the EV100 conversion contract.
+    - Consult PBR.PhotometricLighting.Proposal.md, PBR.CameraExposure.md,
+      PBR.VisualAdaptation.Proposal.md, PBR.VisualAdaptation.todo and PBR.Postprocessing.md.
+      Update the proposal's earlier EV100 exclusion for this bounded extension before coding.
+    - Specify physical metered luminance in cd/m², the luminance-to-EV100 reference constant,
+      camera/lens calibration, middle-gray target and conversion to the final RGB multiplier.
+      Distinguish metered scene EV100, manual camera EV100 and exposure compensation.
+      Reference the primary exposure documentation and verify any adopted constants against
+      the locally installed reference implementation; do not guess a sign-only conversion.
+    - Define minimum/maximum EV100 semantics, compensation ordering and temporal rate directions.
+      Positive compensation must still brighten. Separate a units conversion from any proposed
+      retuning; retain equivalent output and limits as the initial migration baseline.
+    - Reuse existing owners and physical scene quantities. No new lighting system, texture,
+      rendering pass, aperture/shutter/ISO controls or source-intensity retuning is required.
+      Metering-mask shape and sampling-grid changes are separate work, outside this phase.
+
+  ☐ Migrate settings, defaults and configuration presentation without ambiguous saved values.
+    - Inventory manual exposure, limits, compensation, middle gray, ConfigLib controls and
+      diagnostics. Define explicit EV100 names, units, ranges and malformed-value fallbacks.
+    - Convert the current -20/+2 multiplier-stop default limits and manual-zero baseline using
+      the selected calibration; handle reversed bound ordering rather than relabeling numbers.
+    - Specify a one-time interpretation of existing saved settings using explicit field
+      identity/presence. Preserve custom effective exposure and explicit opt-outs; do not
+      reintroduce PhotometricVersion or silently reinterpret old numeric fields as EV100.
+      Test missing, legacy, new, mixed and invalid configurations with documented precedence.
+
+  ☐ Integrate EV100 through metering, adaptation and display consumers.
+    - Retain the weighted histogram and percentile policy, publishing calibrated scene EV100
+      and a clearly defined exposure target. Keep histogram log-luminance bounds distinct
+      from camera exposure limits and convert diagnostic representations consistently.
+    - Preserve temporal adaptation rates in stops/second, reset/manual behavior, compensation
+      and cap diagnostics under the new sign convention. Keep a log-gain internal representation
+      where useful, with explicit conversion boundaries rather than misleading EV100 labels.
+    - Audit final grading, bloom/shafts and every exposure consumer for exactly one camera gain.
+      Preserve frozen frame storage scaling and physical light-source/transport quantities.
+    - Keep local exposure additive in stops on top of global exposure, with its own bounded
+      correction and physical adaptation estimate independent of capped camera exposure.
+      Retain its enabled default, explicit saved choices and existing display-only contract.
+
+  ☐ Verify calibrated conversion and equivalent pipeline behavior through subagents.
+    - Use independent numerical references for luminance/EV100/gain round trips, one-stop
+      changes, compensation, bound ordering and representative daylight/night luminances.
+    - Exercise actual histogram/adaptation/final shaders in automatic and manual modes,
+      local exposure on/off, cap hits, reset, frame-time partitioning and storage-scale changes.
+      Cover both lighting-mode routing boundaries and retained exposure consumers.
+    - Compare equivalent old/new settings at fixed physical inputs before any artistic tuning;
+      declare numerical tolerances and distinguish conversion errors from existing metering
+      approximations. Keep routine fixtures lightweight and expand only for unresolved failures.
+
+  ☐ Reconcile documentation, package and review the migration.
+    - Update the governing proposal, camera/display documentation and linked visual-adaptation
+      plans with final units, equations, defaults, saved-setting interpretation and limitations.
+    - Package the tested candidate with source identity; do not install or launch the game.
+      Record user-run exposure-transition and local/global interaction coverage separately
+      from numerical equivalence. Existing moonlit acceptance is not a new migration receipt.
+    - Perform a second implementation review and independent completion audit before checking
+      the phase complete. Preserve outstanding Phase 6 and linked appearance requirements.
 
 Final acceptance
 ----------------
