@@ -131,18 +131,18 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         double[] counts=new double[64],sums=new double[64];int[] population=new int[64];
         for(int i=0;i<2304;i++)
         {
-            int sourceIndex=((i/64)*2*128+(i%64)*2)*4; double level=Math.Log2(pixels[sourceIndex]);int bin=Math.Clamp((int)((level+16)*64/56),0,63);
+            int sourceIndex=((i/64)*2*128+(i%64)*2)*4; double level=Math.Log2(pixels[sourceIndex]);
             double x=2*(i%64+.5)/64-1,y=2*(i/64+.5)/36-1;
             double weight=weighted?.25+.75*Math.Exp(-2*(x*x+y*y)):1;
-            counts[bin]+=weight;sums[bin]+=weight*level;population[bin]++;
+            AccumulateInterpolated(counts,sums,population,level,weight);
         }
         for(int bin=0;bin<64;bin++)
         {
             double count=0,sum=0;
             for(int group=0;group<CameraExposureTargets.HistogramGroupCount;group++){count+=actual[(group*64+bin)*2];sum+=actual[(group*64+bin)*2+1];}
-            double weightBound=population[bin]/8192.0+.0001;
+            double weightBound=population[bin]/4096.0+.0001;
             Assert.InRange(count,counts[bin]-weightBound,counts[bin]+weightBound);
-            double sumBound=population[bin]*.002+.001;
+            double sumBound=population[bin]*.005+.001;
             Assert.InRange(sum,sums[bin]-sumBound,sums[bin]+sumBound);
         }
     }
@@ -158,10 +158,10 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             Enumerable.Range(0,width*height).SelectMany(_=>new[]{value,value,value,1f}).ToArray());
         rig.Meter(source,Settings());float[] bins=rig.ReadHistogram();
         int samples=((width+1)/2)*((height+1)/2);
-        AssertClose(samples,bins.Where((_,i)=>i%128==126).Sum(),.01f);
-        AssertClose(39.99f,bins.Where((_,i)=>i%128==127).Sum()/samples,.001f);
+        AssertClose(samples,bins.Where((_,i)=>i%2==0).Sum(),.01f);
+        AssertClose(39.99f,bins.Where((_,i)=>i%2==1).Sum()/samples,.001f);
         for(int group=0;group<CameraExposureTargets.HistogramGroupCount;group++)
-            for(int bin=0;bin<63;bin++){Assert.Equal(0,bins[(group*64+bin)*2]);Assert.Equal(0,bins[(group*64+bin)*2+1]);}
+            for(int bin=0;bin<62;bin++){Assert.Equal(0,bins[(group*64+bin)*2]);Assert.Equal(0,bins[(group*64+bin)*2+1]);}
         AssertClose(-12,rig.Adapt(Settings(),0,0,true));
         using var empty=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,1f]);
         rig.Meter(empty,Settings());
@@ -255,11 +255,10 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             }
             if(!valid)continue;
             double level=Math.Log2(total/count/scale);
-            int bin=Math.Clamp((int)((level+16)/56*64),0,63);
             double cx=2*(x+Math.Min(2,width-x)*.5)/width-1;
             double cy=2*(y+Math.Min(2,height-y)*.5)/height-1;
             double weight=weighted?.25+.75*Math.Exp(-2*(cx*cx+cy*cy)):1;
-            counts[bin]+=weight;sums[bin]+=weight*level;populations[bin]++;
+            AccumulateInterpolated(counts,sums,populations,level,weight);
         }
         for(int bin=0;bin<64;bin++)
         {
@@ -267,13 +266,53 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             for(int group=0;group<CameraExposureTargets.HistogramGroupCount;group++){count+=actual[(group*64+bin)*2];sum+=actual[(group*64+bin)*2+1];}
             int samples=((width+1)/2)*((height+1)/2);
             double encodingScale=Math.Min(4096,Math.Floor(1073741824d/(((samples+CameraExposureTargets.HistogramGroupCount*64-1)/(CameraExposureTargets.HistogramGroupCount*64))*64*128d)));
-            double weightBound=populations[bin]/(2*encodingScale)+.001;
-            double sumBound=populations[bin]*.003+.001;
+            double weightBound=populations[bin]/encodingScale+.001;
+            double sumBound=populations[bin]*.005+.001;
             Assert.InRange(count,counts[bin]-weightBound,counts[bin]+weightBound);
             Assert.InRange(sum,sums[bin]-sumBound,sums[bin]+sumBound);
         }
     }
     #endregion
+    /// <summary>Fractional populations move continuously across a bin boundary while preserving count and actual log moment.</summary>
+    [Fact]
+    public void AdjacentBinSweepConservesPopulationAndActualLogMoment()
+    {
+        EnsureShaderTestAvailable();
+        using var rig=CreateRig();
+        double[] coordinates=[.001,.01,31.98,31.99,32,32.01,32.02,62.99,62.999];
+        double[]? previous=null;double previousCoordinate=0;
+        foreach(double coordinate in coordinates)
+        {
+            float value=(float)Math.Pow(2,-16+coordinate*56/63);
+            double level=Math.Log2(value),position=(level+16)/56*63;
+            int low=(int)Math.Floor(position);double fraction=position-low;
+            using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[value,value,value,1f]);
+            rig.Meter(source,Settings());
+            float[] actual=rig.ReadHistogram();
+            var counts=new double[64];double sum=0;
+            for(int group=0;group<CameraExposureTargets.HistogramGroupCount;group++)for(int bin=0;bin<64;bin++)
+            {
+                counts[bin]+=actual[(group*64+bin)*2];sum+=actual[(group*64+bin)*2+1];
+            }
+            Assert.InRange(counts.Sum(),.999999,1.000001);
+            Assert.All(counts,value=>Assert.InRange(value,0,1));
+            Assert.InRange(sum,level-.00015,level+.00015);
+            Assert.InRange(counts[low],1-fraction-.0003,1-fraction+.0003);
+            Assert.InRange(counts[Math.Min(low+1,63)],fraction-.0003,fraction+.0003);
+            for(int bin=0;bin<64;bin++)
+                if(bin!=low&&bin!=low+1)Assert.Equal(0,counts[bin]);
+            if(previous is not null && coordinate-previousCoordinate<.02)
+                Assert.InRange(counts.Zip(previous,(a,b)=>Math.Abs(a-b)).Sum(),0,.041);
+            previous=counts;previousCoordinate=coordinate;
+        }
+        foreach(float level in new[]{-16f,40f})
+        {
+            float value=MathF.Pow(2,level);
+            using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[value,value,value,1f]);
+            rig.Meter(source,Settings());
+            Assert.All(rig.ReadHistogram(),entry=>Assert.Equal(0,entry));
+        }
+    }
     #region Adaptation
     /// <summary>Physical-lighting defaults settle a twelve-stop transition without a long exposure wait.</summary>
     [Theory]
@@ -365,6 +404,15 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     #endregion
 
     #region Private
+    /// <summary>Distributes ideal double-precision population and actual log moments between adjacent bins.</summary>
+    private static void AccumulateInterpolated(double[] counts,double[] sums,int[] populations,double level,double weight)
+    {
+        double coordinate=Math.Clamp((level+16)/56*63,0,63);
+        int low=(int)Math.Floor(coordinate),high=Math.Min(low+1,63);
+        double fraction=coordinate-low;
+        counts[low]+=weight*(1-fraction);sums[low]+=weight*(1-fraction)*level;populations[low]++;
+        counts[high]+=weight*fraction;sums[high]+=weight*fraction*level;populations[high]++;
+    }
     /// <summary>Uses broad exposure bounds and uniform full-population metering unless a test supplies another policy.</summary>
     private static CameraExposureParameters Settings() => new(true, 0, 0, -12, 12, .18f, 0, 1, 1, 3, false);
     /// <summary>Builds controlled RGB samples with deliberately varying alpha that metering must ignore.</summary>

@@ -1224,6 +1224,14 @@ borrow the published typed EV SSBO. The restored compute boundary and two storag
 preserve scene scheduling, settings/reset semantics and exactly-once final exposure. See
 [PBR.CameraExposure.md](PBR.CameraExposure.md) for encoding precision, integer overflow bounds,
 capability admission, buffer ownership and complete measurements.
+Each sample's weight is interpolated between adjacent log-luminance positions while conserving
+its encoded count and actual log sum. This smooths histogram populations and percentile
+selection; it does not change the dense sampling coverage or replace global/local adaptation.
+Interpolation validation passed 89 correctness checks and six executed opt-in timing cases.
+Uniform-input RTX 4090 histogram/adaptation pair medians are 0.0512/0.0584/0.0911 ms for
+720p/1080p/2160p; varied weighted inputs measure 0.0512/0.0573/0.0891 ms. These are synthetic
+component costs, not live-frame performance. Detailed references and receipts are in the
+camera document and artifacts/DenseCameraMetering/interpolated-focused-validation.log.
 
 Initial dense sampling qualification (2026-10-14) passed 77 correctness checks, with three
 additional opt-in timing entries inactive in that run, and three separately executed timing
@@ -1232,7 +1240,7 @@ cases. The former 36-group RTX 4090 synthetic uniform-input histogram/adaptation
 costs or appearance acceptance; baseline receipts are under artifacts/DenseCameraMetering.
 The current dispatch distributes the same dense input over 1,024 independent partial
 histograms, using a retained 512 KiB scratch buffer; its reduction consumes all partials.
-The selected 256-lane cooperative reduction lowers uniform-input pair costs to
+Before adjacent-bin interpolation, the 256-lane cooperative reduction lowered uniform-input pair costs to
 0.0512/0.0563/0.0860 ms at 720p/1080p/2160p on that RTX 4090 fixture. Varied weighted inputs
 also pass correctness checks and measure 0.0512/0.0568/0.0860 ms. These are synthetic component
 measurements, not live-frame performance; see the camera document for the tradeoff and receipt.

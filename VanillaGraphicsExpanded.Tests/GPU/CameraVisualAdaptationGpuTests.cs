@@ -101,9 +101,9 @@ public sealed class CameraVisualAdaptationGpuTests(HeadlessGLFixture fixture, IT
         for (int group = 0; group < CameraExposureTargets.HistogramGroupCount; group++)
         {
             int last = (group * 64 + 63) * 2;
-            Assert.Equal(group==0 ? 4096u : 0u, encoded[last]);
-            Assert.InRange((double)encoded[last + 1], (group==0 ? expected : 0) - 1, (group==0 ? expected : 0) + 1);
-            for (int bin = 0; bin < 63; bin++)
+            Assert.Equal(group==0 ? 4096u : 0u, encoded[last]+encoded[last-2]);
+            Assert.InRange((double)encoded[last + 1]+encoded[last-1], (group==0 ? expected : 0) - 1, (group==0 ? expected : 0) + 1);
+            for (int bin = 0; bin < 62; bin++)
             {
                 Assert.Equal(0u, encoded[(group * 64 + bin) * 2]);
                 Assert.Equal(0u, encoded[(group * 64 + bin) * 2 + 1]);

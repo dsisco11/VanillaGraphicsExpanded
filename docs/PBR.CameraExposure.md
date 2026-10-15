@@ -34,6 +34,13 @@ open range are excluded. Each bin stores a quantized weighted count and shifted 
 log-luminance sum, avoiding bin-center bias. The default center weight is
 0.25 + 0.75 * exp(-2 * dot(2*uv-1, 2*uv-1)); uniform weighting is selectable.
 
+Samples distribute their weight between adjacent positions on the 64-point log-luminance
+lattice: normalizedLogLuminance * 63 selects the lower/upper positions and their blend.
+Integer splitting conserves each sample's original encoded count and actual log sum exactly.
+This smooths bin populations without substituting representative bin luminance for the actual
+sample. The geometric mean of an untrimmed population remains conserved up to floating-point
+reduction rounding; percentile-trimmed results can change as intended when tails straddle bins.
+
 The default retained interval is the weighted 10th through 90th percentiles. Partial boundary
 bins contribute proportionally using their within-bin mean. This is an approximation within
 a bin, not an exact sample sort. Small bright solar/emissive regions and dark tails have
@@ -101,7 +108,7 @@ Two typed GLSL 430 compute programs use the existing compute executable, generat
 GPU buffer and dispatch APIs. The histogram dispatch has 1,024 workgroups of 64 lanes. Lanes
 visit consecutive half-resolution pixels and continue with a 65,536-sample stride until every
 footprint has been processed. Each group initializes 64 shared count/sum pairs, accumulates
-two unsigned integer atomics per valid footprint, synchronizes, and overwrites its complete
+up to four unsigned integer atomics per valid footprint, synchronizes, and overwrites its complete
 64-bin SSBO slice. No global atomics, per-frame clear or downsample texture are needed.
 The reduction uses one 256-lane group. Four lanes independently decode interleaved partials
 for each bin, then combine their sums through shared memory across 1,024 slices,
@@ -123,10 +130,16 @@ are bounded by 128*M*S <= 2^30, including a uniform image whose samples all hit 
 This budget applies to supported scene extents with S >= 1; larger unsupported populations
 produce zero weights and the existing empty-meter fallback instead of overflowing.
 
+Adjacent splitting rounds the upper count and assigns the remainder to the lower count;
+it similarly rounds the upper log sum and assigns the total-sum remainder to the lower bin.
+Each sample therefore retains its total encoded mass and sum, with per-bin count error at
+most 1/S from the ideal split, excluding floating-point evaluation error.
+
 Reduction decodes each group to floating point before merging. Its weighted log sum is
 encodedSum * rangeSpan / 128 + encodedCount * rangeMinimum. The common scale cancels from
-percentiles and means. Sum rounding is at most rangeSpan/(256*S) stops per sample before
-floating-point rounding. Precision therefore depends on input resolution; reference checks
+percentiles and means. Per-bin weighted-log sum rounding is at most rangeSpan/(128*S) per
+sample before floating-point rounding; this is not a bound on a sparsely populated bin's mean.
+Precision therefore depends on input resolution; reference checks
 must account for this explicitly. Within-bin weighted means are retained, rather than replacing
 samples by bin centres. Percentile boundary populations remain approximate, not an exact sort.
 
@@ -204,7 +217,7 @@ third-party inputs using those same fields inherit these defaults. Arbitrary sha
 requires the declared scene contract. No new light configuration or source discovery is added.
 
 The compute implementation reads every scene texel once and classifies ceil(width/2) *
-ceil(height/2) averaged samples per metered frame, performing two shared integer atomics per
+ceil(height/2) averaged samples per metered frame, performing up to four shared integer atomics per
 valid sample. It writes and reduces 65,536 group/bin pairs, followed by two scans of 64 bins.
 The existing two dispatches, scene sampler, binding restoration and buffer ownership remain.
 No intermediate downsample allocation or additional pass is introduced.
@@ -241,8 +254,29 @@ The menu action itself remains unverified in a live game; no game was launched o
 
 ### Metering qualification
 
-Parallel dense metering (2026-10-14) retains half-resolution coverage with 1,024 partials
-and a 256-lane cooperative merge. On the same RTX 4090 synthetic uniform-input fixture,
+Adjacent-bin interpolation (2026-10-14) passed 89 correctness checks, plus nine inactive
+opt-in timing entries in the focused run. Six separately executed full-resolution timing
+cases passed. Independent double-precision references cover fractional populations, odd
+footprints, physical storage scales and weighted moments. A near-endpoint/interior sweep
+checks nonnegative adjacent populations, conserved mass/log moment and continuous changes
+within integer-quantization tolerances. Existing adaptation, snapshot and lifecycle checks pass.
+Receipt: artifacts/DenseCameraMetering/interpolated-focused-validation.log.
+
+RTX 4090 synthetic component medians after interpolation were:
+
+| Scene resolution | Uniform pair GPU (ms) | Varied weighted pair GPU (ms) |
+| --- | ---: | ---: |
+| 1280 x 720 | 0.0512 | 0.0512 |
+| 1920 x 1080 | 0.0584 | 0.0573 |
+| 3840 x 2160 | 0.0911 | 0.0891 |
+
+The matched earlier single-bin fixture measured 0.0512/0.0563/0.0860 ms for uniform input.
+These sequential device measurements do not establish exclusive GPU occupancy, whole-frame
+performance or live visual acceptance. They qualify the extra histogram updates on this GPU.
+
+Before adjacent-bin interpolation, parallel dense metering (2026-10-14) retained
+half-resolution coverage with 1,024 partials and a 256-lane cooperative merge.
+On the same RTX 4090 synthetic uniform-input fixture,
 eight warm samples produced the following histogram/adaptation pair GPU medians:
 
 | Scene resolution | Previous 36 groups (ms) | Selected parallel pair (ms) |

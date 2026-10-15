@@ -52,13 +52,30 @@ void main()
         {
             float level=log2(luminance);
             float position=(level-meterRange.x)/(meterRange.y-meterRange.x);
-            uint bin=uint(clamp(int(position*64.0),0,63));
+            // Interpret the bin positions as a 64-point log-luminance lattice.
+            // Fractional splatting makes populations continuous across bin boundaries.
+            float bucket=clamp(position,0.0,1.0)*63.0;
+            uint lower=uint(floor(bucket));
+            uint upper=min(lower+1u,63u);
             vec2 centered=uv*2.0-1.0;
             float weight=mix(1.0,.25+.75*exp(-2.0*dot(centered,centered)),meterRange.z);
             uint encodedWeight=uint(round(weight*weightScale));
             uint encodedSum=uint(round(float(encodedWeight)*position*128.0));
-            atomicAdd(counts[bin],encodedWeight);
-            atomicAdd(sums[bin],encodedSum);
+            uint upperWeight=uint(round(float(encodedWeight)*fract(bucket)));
+            uint upperSum=uint(round(float(upperWeight)*position*128.0));
+            uint lowerWeight=encodedWeight-upperWeight;
+            // Subtraction conserves the sample's complete count and actual log sum.
+            // Thus interpolation does not shift an untrimmed uniform scene's exposure.
+            if(lowerWeight>0u)
+            {
+                atomicAdd(counts[lower],lowerWeight);
+                atomicAdd(sums[lower],encodedSum-upperSum);
+            }
+            if(upperWeight>0u)
+            {
+                atomicAdd(counts[upper],upperWeight);
+                atomicAdd(sums[upper],upperSum);
+            }
         }
     }
     barrier();
