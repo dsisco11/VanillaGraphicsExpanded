@@ -280,8 +280,8 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             float ev = ExposureTestStorage.Read<float>(CameraExposureRenderer.DisplayExposure().Buffer!)[0];
             Assert.InRange(ev, expectedEv - .002f, expectedEv + .002f);
             int beforeRetire = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
-            // This retirement contract disables both consumers; manual exposure alone retains local metering.
-            ConfigModSystem.Config.Postprocessing.LocalExposure.Enabled=false;
+            // Manual camera gain retires histogram history even while spatial local exposure remains enabled.
+            ConfigModSystem.Config.Postprocessing.LocalExposure.Enabled=true;
             ConfigModSystem.Config.CameraExposure = new() { Enabled = false };
             camera.OnRenderFrame(0, EnumRenderStage.Before);
             CameraExposureRenderer.MeterScene();
@@ -295,7 +295,10 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             CameraExposureRenderer.FreezeLightingStorage(physicalBounds, sceneCalibration);
             CameraExposureRenderer.MeterScene();
 
-            // The owned final reads owned luma and writes primary once, without the engine final program.
+            // The preceding assertions already qualified sky/composition. A uniform completed scene now gives
+            // an independent analytic local base for the manual, history-free final integration check.
+            engine.BindWithViewport();
+            GL.ClearBuffer(ClearBuffer.Color,0,handedOff.Take(4).ToArray());
             post.OnRenderFrame(0, EnumRenderStage.Before);
             post.Render(new(false, false, ssaoQuality > 0, false, ssaoQuality));
             var displayParameters = new FinalDisplayParameters(new(1,1,1,0),Vector4.Zero,Vector4.Zero);
@@ -317,7 +320,12 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.Equal(engine.FboId, restoredFramebuffer);
             Assert.Equal(beforeDrawRoute, restoredDrawRoute);
             float[] display = engine[0].ReadPixels();
-            Vector3 encoded = FilmicGradingReference.Lookup(new Vector3(handedOff[0],handedOff[1],handedOff[2]) * sceneInverseScale,displayParameters.Grading);
+            Vector3 physical=new Vector3(handedOff[0],handedOff[1],handedOff[2])*sceneInverseScale;
+            double physicalY=.2126*physical.X+.7152*physical.Y+.0722*physical.Z;
+            var manualPolicy=ConfigModSystem.Config.CameraExposure.Snapshot();
+            double manualGain=Math.Clamp(manualPolicy.ManualEV+manualPolicy.Compensation,manualPolicy.MinEV,manualPolicy.MaxEV);
+            double correction=Math.Clamp(.5*(Math.Log2(manualPolicy.MiddleGray)-manualGain-Math.Log2(physicalY)),-4,4);
+            Vector3 encoded = FilmicGradingReference.Lookup(physical*(float)Math.Pow(2,manualGain+correction),displayParameters.Grading);
             for (int channel = 0; channel < 3; channel++)
             {
                 float expected = FilmicGradingReference.Quantize(encoded[channel]);

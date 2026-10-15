@@ -8,6 +8,18 @@ namespace VanillaGraphicsExpanded.Tests;
 /// <summary>Checks malformed persisted camera settings cannot inject non-finite metering or adaptation inputs.</summary>
 public sealed class CameraExposureSettingsTests
 {
+    /// <summary>Display gray follows automatic compensation but remains fixed for directly authored manual camera gain.</summary>
+    [Theory]
+    [InlineData(true,.18f,1.25f)]
+    [InlineData(false,.18f,1.25f)]
+    [InlineData(true,.09f,-1f)]
+    [InlineData(false,.36f,-1f)]
+    public void DisplayPivotUsesCapturedCameraPolicy(bool automatic,float gray,float compensation)
+    {
+        var camera=new CameraExposureSettings {Enabled=automatic,MiddleGray=gray,Compensation=compensation}.Snapshot();
+        double expected=Math.Log2(gray)+(automatic?compensation:0);
+        Assert.InRange(Math.Abs(camera.DisplayLogMiddleGray-expected),0,.000001);
+    }
     #region Public API
     /// <summary>Non-finite persisted numbers recover finite defaults and reversed exposure bounds become a valid interval.</summary>
     [Fact]

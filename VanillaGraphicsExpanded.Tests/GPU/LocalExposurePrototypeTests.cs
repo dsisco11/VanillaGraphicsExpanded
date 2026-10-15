@@ -25,7 +25,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     {
         EnsureShaderTestAvailable();
         Vector3[] colors = Enumerable.Repeat(new Vector3(MathF.Pow(2, logarithm)), 16 * 8).ToArray();
-        var result = Pipeline(colors, 16, 8, 1, logarithm, new(.5f), new(4));
+        var result = Pipeline(colors, 16, 8, 1, -logarithm, new(.5f), new(4));
         for (int i = 0; i < colors.Length; i++)
         {
             Assert.InRange(Math.Abs(result.Base[i * 2] - logarithm), 0, .00001f);
@@ -44,12 +44,12 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     {
         EnsureShaderTestAvailable();
         Vector3[] colors = Enumerable.Range(0, 128).Select(i => new Vector3(.00003f * MathF.Pow(2, (i % 16) * .15f), .00002f, .00001f)).ToArray();
-        var result = Pipeline(colors, 16, 8, storage, -13, new(.4f, .7f), new(3, 2));
+        var result = Pipeline(colors, 16, 8, storage, 13, new(.4f, .7f), new(3, 2));
         double[] logs = colors.Select(Luminance).Select(Math.Log2).ToArray();
         for (int i = 0; i < colors.Length; i++)
         {
             double expectedBase = Filter(logs, 16, 8, i, 1);
-            double stops = Stops(expectedBase, -13, new(.4f, .7f), new(3, 2));
+            double stops = Stops(expectedBase, 13, new(.4f, .7f), new(3, 2));
             Assert.InRange(Math.Abs(result.Log[i * 2] - logs[i]), 0, .000003);
             Assert.InRange(Math.Abs(result.Base[i * 2] - expectedBase), 0, .000005);
             Assert.InRange(Math.Abs(result.Color[i * 4 + 3] - stops), 0, .000005);
@@ -64,7 +64,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     {
         EnsureShaderTestAvailable();
         Vector3[] colors = [Vector3.Zero, new(-1, 1, 1), new(float.NaN), new(float.PositiveInfinity), new(.001f), new(.002f)];
-        var result = Pipeline(colors, 6, 1, 1, -14, new(.5f), new(4));
+        var result = Pipeline(colors, 6, 1, 1, 14, new(.5f), new(4));
         for (int i = 0; i < 4; i++)
         {
             Assert.Equal(0, result.Log[i * 2 + 1]);
@@ -144,14 +144,24 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         }
     }
 
-    /// <summary>Corrupted adaptation or base metadata cannot produce nonfinite correction under identity compression.</summary>
+    /// <summary>Corrupted globalStops or base metadata cannot produce nonfinite correction under identity compression.</summary>
     [Fact]
-    public void InvalidAdaptationMetadataProducesNeutralCorrection()
+    public void InvalidCameraInputsMetadataProducesNeutralCorrection()
     {
         EnsureShaderTestAvailable();
         using var metadata = TestFramework.CreateTexture(6, 1, PixelInternalFormat.R32f, [-151, 129, 1e30f, -1e30f, float.NaN, float.PositiveInfinity]);
-        float[] result = Draw("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(q,0.0,vec2(1),vec2(8)),VgeLocalExposureStops(0.0,q,vec2(.5),vec2(8)),0,1);", 6, 1, metadata);
+        float[] result = Draw("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(q,0.0,0.0,vec2(1),vec2(8)),VgeLocalExposureStops(0.0,q,0.0,vec2(.5),vec2(8)),0,1);", 6, 1, metadata);
         for (int i = 0; i < 6; i++) Assert.Equal(new[] { 0f, 0f, 0f, 1f }, result.Skip(i * 4).Take(4));
+    }
+
+    /// <summary>A nonfinite display pivot cannot create local gain even with otherwise valid scene metadata.</summary>
+    [Fact]
+    public void InvalidDisplayPivotProducesNeutralCorrection()
+    {
+        EnsureShaderTestAvailable();
+        using var metadata=TestFramework.CreateTexture(3,1,PixelInternalFormat.R32f,[float.NaN,float.PositiveInfinity,float.NegativeInfinity]);
+        float[] result=Draw("float q=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(-12.0,2.0,q,vec2(.5),vec2(4)),0,0,1);",3,1,metadata);
+        for(int i=0;i<3;i++)Assert.Equal(new[]{0f,0f,0f,1f},result.Skip(i*4).Take(4));
     }
 
     /// <summary>Nontrivial guided interpolation agrees with normalized independent double spatial and range weights.</summary>
@@ -174,13 +184,13 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
 
     #endregion
     #region Compression and display
-    /// <summary>Corrections preserve the detail residual, obey independent bounds and join continuously across adaptation.</summary>
+    /// <summary>Corrections preserve the detail residual, obey independent bounds and join continuously across globalStops.</summary>
     [Fact]
     public void BoundsAndSmoothJoinPreserveBaseDetail()
     {
         EnsureShaderTestAvailable();
         using var values = TestFramework.CreateTexture(9, 1, PixelInternalFormat.R32f, [-100, -4, -1, -.0001f, 0, .0001f, 1, 4, 100]);
-        float[] result = Draw("float b=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;float s=VgeLocalExposureStops(b,0.0,strengths,bounds);outColor=vec4(s,b+s,(b+.25)+s,1);", 9, 1, values, null, 1, 0, new(.5f, .25f), new(3, 2));
+        float[] result = Draw("float b=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;float s=VgeLocalExposureStops(b,0.0,0.0,strengths,bounds);outColor=vec4(s,b+s,(b+.25)+s,1);", 9, 1, values, null, 1, 0, new(.5f, .25f), new(3, 2));
         float[] samples = [-100, -4, -1, -.0001f, 0, .0001f, 1, 4, 100];
         for (int i = 0; i < samples.Length; i++)
         {
@@ -189,9 +199,9 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
             Assert.InRange(Math.Abs(result[i * 4 + 2] - result[i * 4 + 1] - .25), 0, .00001);
         }
         Assert.InRange(Math.Abs(result[3 * 4] - result[5 * 4]), 0, .0002);
-        float[] identity = Draw("float b=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(b,0.0,vec2(1),vec2(8)),0,0,1);", 9, 1, values);
+        float[] identity = Draw("float b=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).r;outColor=vec4(VgeLocalExposureStops(b,0.0,0.0,vec2(1),vec2(8)),0,0,1);", 9, 1, values);
         for (int i = 0; i < samples.Length; i++) Assert.Equal(0, identity[i * 4]);
-        float[] hardLimit = Draw("outColor=vec4(VgeLocalExposureStops(-100.0,0.0,vec2(0),vec2(100)),VgeLocalExposureStops(100.0,0.0,vec2(0),vec2(100)),0,1);", 1, 1, values);
+        float[] hardLimit = Draw("outColor=vec4(VgeLocalExposureStops(-100.0,0.0,0.0,vec2(0),vec2(100)),VgeLocalExposureStops(100.0,0.0,0.0,vec2(0),vec2(100)),0,1);", 1, 1, values);
         Assert.Equal(8, hardLimit[0]); Assert.Equal(-8, hardLimit[1]);
     }
 
@@ -202,8 +212,8 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         EnsureShaderTestAvailable();
         Vector3 terrain = new(.00006592794125f, .0000526507864f, .00001556631946f), lamp = terrain * 434;
         Vector3[] colors = Enumerable.Range(0, 128).Select(i => i % 16 < 8 ? terrain : lamp).ToArray();
-        float adaptation = (float)((Math.Log2(Luminance(terrain)) + Math.Log2(Luminance(lamp))) / 2);
-        var local = Pipeline(colors, 16, 8, 1, adaptation, new(.5f), new(4));
+        float globalStops = -(float)((Math.Log2(Luminance(terrain)) + Math.Log2(Luminance(lamp))) / 2);
+        var local = Pipeline(colors, 16, 8, 1, globalStops, new(.5f), new(4));
         Vector4 controls = new(1, 1, 1.111798286f, .143282309f);
         using var lookup = new ColorGradingLut();
         var graded = lookup.Prepare(Programs.Api, controls);
@@ -230,7 +240,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     #region GPU pipeline
     /// <summary>Runs log classification, an RG32F base and guided RGB correction on a bounded test image.</summary>
     private (float[] Log, float[] Base, float[] Color) Pipeline(Vector3[] colors, int width, int height, float storage,
-        float adaptation, Vector2 strengths, Vector2 bounds)
+        float globalStops, Vector2 strengths, Vector2 bounds)
     {
         using var input = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rgba32f,
             colors.SelectMany(c => new[] { c.X * storage, c.Y * storage, c.Z * storage, 1f }).ToArray());
@@ -238,17 +248,17 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
         using var logImage = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rg32f, logs);
         float[] filtered = Draw("outColor=vec4(VgeFilterLocalBase(sourceImage,ivec2(gl_FragCoord.xy),1.0),0,1);", width, height, logImage, format: PixelInternalFormat.Rg32f);
         using var baseImage = TestFramework.CreateTexture(width, height, PixelInternalFormat.Rg32f, filtered);
-        float[] color = Draw("vec3 c=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).rgb/storage;float q,b;float s=0;bool v=VgeLocalLogLuminance(c,q);if(v&&VgeSampleLocalBase(baseImage,gl_FragCoord.xy/vec2(textureSize(sourceImage,0)),q,1.0,b))s=VgeLocalExposureStops(b,adaptation,strengths,bounds);outColor=vec4(v?c*exp2(s):vec3(0),s);", width, height, input, baseImage, storage, adaptation, strengths, bounds);
+        float[] color = Draw("vec3 c=texelFetch(sourceImage,ivec2(gl_FragCoord.xy),0).rgb/storage;float q,b;float s=0;bool v=VgeLocalLogLuminance(c,q);if(v&&VgeSampleLocalBase(baseImage,gl_FragCoord.xy/vec2(textureSize(sourceImage,0)),q,1.0,b))s=VgeLocalExposureStops(b,globalStops,0.0,strengths,bounds);outColor=vec4(v?c*exp2(s):vec3(0),s);", width, height, input, baseImage, storage, globalStops, strengths, bounds);
         return (logs, filtered, color);
     }
 
     /// <summary>Compiles the shared production helper at GLSL 330 and submits one tiny independent diagnostic pass.</summary>
     private float[] Draw(string body, int width, int height, DynamicTexture2D input, DynamicTexture2D? baseImage = null,
-        float storage = 1, float adaptation = 0, Vector2 strengths = default, Vector2 bounds = default,
+        float storage = 1, float globalStops = 0, Vector2 strengths = default, Vector2 bounds = default,
         PixelInternalFormat format = PixelInternalFormat.Rgba32f, DynamicTexture3D? grading = null)
     {
         string root = Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes");
-        string fragment = "#version 330 core\nuniform sampler2D sourceImage;uniform sampler2D baseImage;uniform sampler3D gradingLookup;uniform float storage,adaptation,guidance;uniform vec2 strengths,bounds;out vec4 outColor;\n"
+        string fragment = "#version 330 core\nuniform sampler2D sourceImage;uniform sampler2D baseImage;uniform sampler3D gradingLookup;uniform float storage,globalStops,guidance;uniform vec2 strengths,bounds;out vec4 outColor;\n"
             + Expand(Path.Combine(root, "post_local_exposure.glsl")) + Expand(Path.Combine(root, "pbr_color.glsl"))
             + Expand(Path.Combine(root, "post_filmic.glsl")) + "\nvoid main(){" + body + "}";
         int vertex = Compile(ShaderType.VertexShader, "#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
@@ -265,7 +275,7 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
             GL.Uniform1(GL.GetUniformLocation(program, "sourceImage"), 0); GL.Uniform1(GL.GetUniformLocation(program, "baseImage"), 1);
             GL.Uniform1(GL.GetUniformLocation(program, "gradingLookup"), 2);
             GL.Uniform1(GL.GetUniformLocation(program, "storage"), storage);
-            GL.Uniform1(GL.GetUniformLocation(program, "adaptation"), adaptation); GL.Uniform1(GL.GetUniformLocation(program, "guidance"), adaptation);
+            GL.Uniform1(GL.GetUniformLocation(program, "globalStops"), globalStops); GL.Uniform1(GL.GetUniformLocation(program, "guidance"), globalStops);
             GL.Uniform2(GL.GetUniformLocation(program, "strengths"), strengths.X, strengths.Y);
             GL.Uniform2(GL.GetUniformLocation(program, "bounds"), bounds.X, bounds.Y);
             using var target = TestFramework.CreateTestGBuffer(width, height, format);
@@ -313,9 +323,9 @@ public sealed class LocalExposurePrototypeTests(HeadlessGLFixture fixture, ITest
     }
 
     /// <summary>Independently evaluates piecewise smooth base compression and its engineering bounds.</summary>
-    private static double Stops(double b, double adaptation, Vector2 strength, Vector2 bounds)
+    private static double Stops(double b, double globalStops, Vector2 strength, Vector2 bounds)
     {
-        double relative = b - adaptation, t = Math.Clamp((relative + 1) / 2, 0, 1);
+        double relative = b + globalStops, t = Math.Clamp((relative + 1) / 2, 0, 1);
         double k = strength.X + (strength.Y - strength.X) * t * t * (3 - 2 * t);
         return Math.Clamp((k - 1) * relative, -bounds.Y, bounds.X);
     }

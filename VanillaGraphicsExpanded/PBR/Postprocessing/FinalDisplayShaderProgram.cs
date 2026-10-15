@@ -37,8 +37,6 @@ internal sealed partial class FinalDisplayShaderProgram : GpuProgram, IFinalDisp
     internal partial bool LocalExposureEnabled { get; set; }
     /// <summary>Borrows the completed current-frame log-luminance base.</summary>
     public partial GpuTexture? LocalBase { set; }
-    /// <summary>Borrows independent camera viewing adaptation for both camera modes.</summary>
-    public partial GpuShaderStorageBuffer? AdaptationBuffer { set; }
     /// <summary>Captures local policy separately from cached color-grading controls.</summary>
     internal void CaptureLocal(LocalExposure.LocalExposureParameters settings)=>inputs.CaptureLocal(settings);
     /// <summary>Borrows a camera/frame snapshot for alternate views and fixtures.</summary>

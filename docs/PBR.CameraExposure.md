@@ -153,22 +153,30 @@ from later fragment reads (including next-frame history reads). The prepared-res
 boundary restores program, sampler, UBO and SSBO bindings. Stable frames reuse the same
 allocations and programs; there are no CPU luminance/EV readbacks or per-frame GPU allocations.
 
-### Optional local-exposure adaptation
+### Local exposure and the applied camera reference
 
-The enabled-by-default `Postprocessing.LocalExposure.Enabled` operation independently
-adapts physical log luminance. A cap on camera EV cannot become the viewing estimate.
-The histogram's optional open domain is (-24,40) log2 nits. Disabling local exposure retains
-the (-16,40) domain. Both use the normalized, population-bounded encoding above. Samples
-at/below the lower endpoint remain excluded, not a fabricated luminance floor.
+The enabled-by-default `Postprocessing.LocalExposure.Enabled` operation evaluates the physical
+spatial base B after the actually applied global gain E, in log2 multiplier stops. Its display
+pivot P is log2(MiddleGray) + Compensation in automatic mode, or log2(MiddleGray) in manual
+mode. Relative base contrast is B + E - P. The existing shadow/highlight compression and
+local stop limits act on that contrast; final gain is E + localStops before grading.
+Automatic compensation shifts both gain and pivot, preserving its authored effect when the
+meter is uncapped. Manual gain is authored against fixed middle gray. The final display UBO
+carries P in exposure.w; optional local display no longer borrows a second adaptation SSBO.
 
-Enabling the candidate meters even in manual camera mode. Applied EV remains the saved
-bounded manual value; physical luminance history is still estimated and adapted. The
-uncapped target and cap-hit flag describe what the meter requests relative to the configured
-exposure interval, even when automatic gain is disabled. They are GPU-resident diagnostic
-fields, not CPU readbacks. Empty populations publish invalid viewing metadata and neutral
-local correction. Cuts, reload, resize, world leave and enable changes invalidate history.
-Viewing adaptation uses the existing rates with the luminance/exposure direction reversed.
-These are practical temporal filters, not measured physiological rod/cone timings.
+Global temporal adaptation remains the sole adapting camera process. There is no separately
+adapted physical scene estimate or physical-luminance history dependency. At a global cap,
+local correction therefore follows the applied exposure rather than a continuing uncapped
+scene-average reference. For a fixed physical base and settings, a fixed global exposure
+now produces a fixed local correction. The combined local/global gain may still exceed the
+global gain limits; local bounds govern the additional display compression.
+
+Automatic metering retains the optional (-24,40) log2-nit domain with local exposure enabled,
+or (-16,40) without it. Instantaneous metered luminance, uncapped target and cap state remain
+GPU-resident diagnostic metadata. Manual mode performs no histogram/adaptation dispatch and
+allocates no camera history, even when local exposure is enabled. Its current-frame spatial
+base and explicit camera gain suffice. Invalid spatial guidance produces neutral correction;
+missing histogram statistics do not independently disable otherwise valid local display.
 
 The spatial display operation and unchanged grading cache are described in
 [PBR.Postprocessing.md](PBR.Postprocessing.md). No source-light or storage calibration changes.
@@ -228,12 +236,38 @@ These are algorithmic storage/work counts, not physical bandwidth or complete-fr
 
 ## Validation status
 
+### Applied-exposure local contrast
+
+The applied-exposure reference supersedes the former independently adapted scene-average
+pivot. A fixed terrain base from the recorded lantern comparison (-14.42059 log2 nits),
+middle gray 0.18 and default 0.5 compression now produces combined gains of approximately
+9.32259 stops at applied global gain 6.69853, and 9.97333 stops at applied gain 8. The
+dark-only capped view therefore no longer loses gain in this controlled same-patch regression.
+These are analytical/GPU fixture results using the recorded base, not new live measurements
+of the same terrain in both views. Both the final shader and snapshot reuse the corrected helper.
+
+Build and focused validation passed 133 distinct correctness cases across the final runs;
+12 additional opt-in timing entries were inactive and are not counted as correctness checks.
+The controlled manual-plus-local final-draw recheck passed all six lighting/AO combinations,
+using an independently calculated uniform-input correction with no camera history allocated.
+Coverage includes captured-scene monotonicity, fixed-cap invariance, compensation/middle-gray
+policy, manual limits, instantaneous metadata, invalid guidance and actual final grading.
+Receipts: artifacts/DenseCameraMetering/display-pivot-final-validation.log and
+display-pivot-manual-final-validation.log; the superseded first-run assertions and successful
+case accounting are retained in the accompanying validation receipt.
+
+The change retains saved camera/local controls and physical source calibration. Uniform dark
+scenes can receive more local lift than before; the earlier moonlit visual acceptance does
+not qualify this changed display response. Live appearance remains user-run. Earlier physical
+adaptation and old snapshot-field receipts below describe the superseded reference.
+
 ### On-demand exposure log snapshot
 
 In the VGE debug viewer, Tools > Log Exposure Snapshot queues one record for the next
 completed display frame. The client log entry is prefixed [VGE Exposure Snapshot]. It records
 captured camera limits/compensation, requested and applied multiplier stops, target cap state,
-adapted/metered log2 luminance in nits, validity, local controls and centre-pixel local/combined
+instantaneous metered log2 luminance in nits, metering validity, the log-middle-gray pivot,
+local controls and centre-pixel local/combined
 gain. The centre probe uses the same final-display edge filter and local-exposure functions,
 before generated glare and grading. UI pixels are excluded. These are multiplier stops, not EV100.
 
@@ -245,7 +279,7 @@ without local exposure has no metering history. The action performs one small sy
 readback and may briefly stall that requested frame; there is no continuous logging, readback,
 probe allocation or compute dispatch when the button has not been clicked.
 
-Headless validation passed 11 snapshot cases and 48 related exposure/local-display cases.
+Before the pivot correction, headless validation passed 11 snapshot cases and 48 related exposure/local-display cases.
 The final incremental build rechecked all 11 snapshot cases successfully, including fixed
 global gain with changing local lift, manual mode, invalid metadata, physical storage scales,
 edge-filtered guidance and invariant log formatting. Receipts:

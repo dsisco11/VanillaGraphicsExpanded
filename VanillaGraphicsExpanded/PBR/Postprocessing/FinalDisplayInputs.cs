@@ -13,7 +13,7 @@ internal sealed class FinalDisplayInputs : CpuUniformBuffer
         WriteVector4(64,new(settings.ShadowStrength,settings.HighlightStrength,settings.ShadowLimit,settings.HighlightLimit));
         WriteVector4(80,new(settings.RangeWidth,settings.Enabled?1:0,settings.Visualize?1:0,0));
     }
-    /// <summary>Captures one coherent set of display, effect and exposure inputs.</summary>
+    /// <summary>Captures display inputs with applied camera policy and the local log-middle-gray reference in exposure.W.</summary>
     internal void Capture(bool antialias,FinalDisplayParameters display,Vector4 exposure)
     {
         WriteVector4(0,display.Grading); WriteVector4(16,display.Effects);

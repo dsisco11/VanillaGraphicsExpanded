@@ -15,10 +15,6 @@ layout(std140, binding = 28) uniform FinalDisplayInputs {
 };
 #if VGE_LOCAL_EXPOSURE
 @import "./includes/post_local_exposure.glsl"
-layout(std430,binding=1) readonly buffer CameraAdaptation {
-    float adaptationExposure; float adaptedLogLuminance; float meteredLogLuminance;
-    float adaptationValidity; float uncappedTarget; float exposureCapHit;
-};
 uniform sampler2D localBaseImage;
 #endif
 uniform sampler2D sceneImage;
@@ -32,27 +28,26 @@ void main()
 {
     vec3 radiance=exposure.z>.5?VgeFilterDisplayEdge(sceneImage,uv,1.0/vgeFrame.screenSize).rgb:texture(sceneImage,uv).rgb;
     radiance=VgePostStoredLight(radiance);
+    float ev=exposure.y>.5?cameraExposureEV:exposure.x;
     float localStops=0.0;
 #if VGE_LOCAL_EXPOSURE
     float q, base;
     // Independent finite masks keep neutral policy separate from the shader's
     // conditional guidance evaluation, including corrupt validity metadata.
-    float localMask=float(localOptions.y>.5)*float(adaptationValidity>.5)
-        *float(!isnan(adaptationValidity))*float(!isinf(adaptationValidity));
-    // Guidance comes from scene radiance alone; generated glare cannot alter
-    // the viewing estimate. Its final contribution shares the same local gain.
+    float localMask=float(localOptions.y>.5);
+    // Guidance comes from scene radiance alone. Local correction uses the actual
+    // bounded camera gain; generated glare shares that correction but cannot drive it.
     if(localMask>.5)
     {
         if(VgeLocalLogLuminance(VgePhysicalFrameLight(radiance),q)
             && VgeSampleLocalBase(localBaseImage,uv,q,localOptions.x,base))
-            localStops=VgeLocalExposureStops(base,adaptedLogLuminance,localControls.xy,localControls.zw);
+            localStops=VgeLocalExposureStops(base,ev,exposure.w,localControls.xy,localControls.zw);
     }
     // Preserve an explicit neutral selection at the display boundary, including
     // the optional executable when its runtime controls are disabled or missing.
     localStops*=localMask;
 #endif
     radiance+=VgePostStoredLight(texture(bloomImage,uv).rgb)+VgePostStoredLight(texture(shaftImage,uv).rgb);
-    float ev=exposure.y>.5?cameraExposureEV:exposure.x;
     // Three bounded half-float inputs and finite 1/P keep the FP32 sum/product
     // finite even at the highest admitted display exposure. Do not cap this sum to half.
     float size=float(textureSize(gradedDisplayLookup,0).x);

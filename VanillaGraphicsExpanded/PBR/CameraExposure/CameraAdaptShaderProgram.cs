@@ -32,10 +32,10 @@ internal sealed partial class CameraAdaptShaderProgram : GpuComputeProgram, ICam
     /// <summary>Receives the next exposure without overwriting previous history.</summary>
     public partial GpuShaderStorageBuffer? OutputExposure { set; }
     /// <summary>Captures the complete metering parameters for one submission.</summary>
-    internal void Capture(CameraExposureParameters settings, bool reset, bool localAdaptation=false)
+    internal void Capture(CameraExposureParameters settings, bool reset, bool localExposureEnabled=false)
     {
         RequireInputMutation();
-        inputs.Capture(settings, reset, localAdaptation);
+        inputs.Capture(settings, reset, localExposureEnabled);
     }
     /// <summary>Selects a retained alternate-view snapshot for controlled offscreen submissions.</summary>
     internal VgeFrameUniformBuffer FrameInputs { set { RequireInputMutation(); frameInputs = value; } }

@@ -112,11 +112,9 @@ internal sealed class PostprocessPipeline : IRenderer
         shader.SceneImage=retained.Luma; shader.BloomImage=bloomTexture; shader.ShaftImage=rayTexture;
         shader.ExposureBuffer=exposure.Buffer;
         shader.LocalBase=localSettings.Enabled ? local.BaseTexture : null;
-        shader.AdaptationBuffer=localSettings.Enabled ? CameraExposureRenderer.DisplayAdaptation()
-            ?? throw new InvalidOperationException("Local display requires matching camera adaptation.") : null;
         shader.CaptureLocal(localSettings);
         shader.GradingLookup=grading.Prepare(api,display.Grading);
-        shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualEV,exposure.Buffer is null?0:1,0,0));
+        shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualEV,exposure.Buffer is null?0:1,0,CameraExposureRenderer.DisplayLogMiddleGray));
         var pipeline=draw!.Prepare(shader,finalTarget);
         if(!GraphicsCommandContext.TryRun("Postprocess.Final",[pipeline],true,
             commands=>draw.Submit(commands,pipeline,finalTarget)))

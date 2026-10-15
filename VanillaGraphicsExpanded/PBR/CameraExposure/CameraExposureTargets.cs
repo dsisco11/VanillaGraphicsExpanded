@@ -24,7 +24,7 @@ internal sealed class CameraExposureTargets : IDisposable
             for (int i = 0; i < 2; i++)
             {
                 history[i] = GpuShaderStorageBuffer.Create(debugName: $"Camera.Exposure.{i}");
-                // Reset adaptation does not read undefined initial history.
+                // Only gain is temporal; the remaining slots hold current metering diagnostics.
                 history[i]!.Allocate(32);
             }
         }

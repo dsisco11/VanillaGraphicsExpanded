@@ -4,12 +4,11 @@
 layout(local_size_x=256) in;
 layout(std430, binding=0) readonly buffer CameraHistogram { uvec2 bins[]; };
 layout(std430, binding=1) readonly buffer PreviousExposure {
-    float previousEV; float previousLogLuminance; float previousMetered;
-    float previousValidity;
+    float previousEV;
 };
 layout(std430, binding=2) writeonly buffer OutputExposure {
-    float exposureEV; float adaptedLogLuminance; float meteredLogLuminance;
-    float adaptationValidity; float uncappedTarget; float exposureCapHit;
+    float exposureEV; float reservedAdaptation; float meteredLogLuminance;
+    float meteringValidity; float uncappedTarget; float exposureCapHit;
     float reserved0; float reserved1;
 };
 shared vec2 histogram[64];
@@ -69,24 +68,13 @@ void main()
     float target=clamp(rawTarget,exposureRange.x,exposureRange.y);
     exposureEV=percentiles.w<.5 ? manual : clamp(adaptation.w>.5 ? target
         : adaptEV(previous,target,max(vgeFrame.deltaTime,0.0)),exposureRange.x,exposureRange.y);
-    // Publish complete metadata even when disabled. Camera gain and the physical
-    // viewing estimate adapt independently, so a cap cannot masquerade as luminance.
-    adaptedLogLuminance=0.0; meteredLogLuminance=0.0; adaptationValidity=0.0;
+    // Only camera gain has temporal adaptation. Retain instantaneous physical
+    // metering for diagnostics without introducing another display reference.
+    reservedAdaptation=0.0;
+    meteredLogLuminance=accepted>0.0 ? sum/accepted : 0.0;
+    meteringValidity=accepted>0.0 ? 1.0 : 0.0;
     uncappedTarget=rawTarget; exposureCapHit=rawTarget!=target ? 1.0 : 0.0;
     reserved0=0.0; reserved1=0.0;
-    if(meterRange.w>.5 && accepted>0.0)
-    {
-        float measured=sum/accepted;
-        meteredLogLuminance=measured;
-        // Select the completed result explicitly. A reset never needs to evaluate
-        // temporal history, and invalid history cannot participate in arithmetic.
-        if(!(adaptation.w<.5) || !(previousValidity>.5) || isnan(previousValidity) || isinf(previousValidity)
-            || isnan(previousLogLuminance) || isinf(previousLogLuminance))
-            adaptedLogLuminance=measured;
-        else
-            adaptedLogLuminance=-adaptEV(-previousLogLuminance,-measured,max(vgeFrame.deltaTime,0.0));
-        adaptationValidity=1.0;
-    }
 }
 
 

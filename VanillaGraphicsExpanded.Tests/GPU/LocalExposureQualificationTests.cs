@@ -36,22 +36,22 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
         using var draw = new PostprocessDraw();
         var final = Programs.Create<FinalDisplayShaderProgram>(p => p.LocalExposureEnabled = true);
         final.FrameInputs = camera; final.FrameLightingInputs = lighting.Buffer; final.GradingLookup = lookup;
-        final.BloomImage = zero; final.ShaftImage = zero; final.ExposureBuffer = history; final.AdaptationBuffer = history;
+        final.BloomImage = zero; final.ShaftImage = zero; final.ExposureBuffer = history;
         var policy = Candidate(8, 4);
         // These are completed-scene inputs, not a simulation of world transport or either LumOn renderer.
         foreach (string scenario in new[] { "uniform-cave", "uniform-bright", "lamp-terrain", "window-edge", "moving-edge", "celestial-galaxy", "weather-palette", "underwater-palette", "illumination-change" })
         {
             Vector3[] pixels = MakeScene(scenario, width, height, indirectSource);
-            double adaptation = pixels.Select(Luminance).Where(v => v > 0).Average(v => Math.Log2(v));
+            double metered = pixels.Select(Luminance).Where(v => v > 0).Average(v => Math.Log2(v));
             float ev = scenario == "uniform-bright" ? -4 : 6;
-            history.UploadData(new[] { ev, (float)adaptation, (float)adaptation, 1f, 20f, 1f, 0f, 0f });
+            history.UploadData(new[] { ev, 0f, (float)metered, 1f, 20f, 1f, 0f, 0f });
             using var source = Scene(pixels, width, height, scale);
             var baseImage = owner.Render(Programs.Api, source, policy);
             double[] reference = ReferenceBase(pixels, width, height, 8, 4);
             float[] actualBase = baseImage.ReadPixels();
             for (int i = 0; i < reference.Length; i++) Assert.InRange(Math.Abs(actualBase[i * 2] - reference[i]), 0, .00003);
             final.SceneImage = source; final.LocalBase = baseImage;
-            final.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(ev, 1, 0, 0)); final.CaptureLocal(policy);
+            final.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(ev, 1, 0, MathF.Log2(.18f))); final.CaptureLocal(policy);
             var pipeline = draw.Prepare(final, target);
             Submit(draw, pipeline, target);
             float[] actual = target[0].ReadPixels(); double worst = 0, minStops = 0, maxStops = 0;
@@ -60,7 +60,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             {
                 double q = Math.Log2(Luminance(pixels[i]));
                 double b = ReferenceSample(reference, 8, 4, (i % width + .5) / width, (i / width + .5) / height, q);
-                double stops = Math.Clamp((adaptation - b) * .5, -4, 4);
+                double stops = Math.Clamp((Math.Log2(.18)-ev-b) * .5, -4, 4);
                 corrections[i] = stops;
                 minStops = Math.Min(minStops, stops); maxStops = Math.Max(maxStops, stops);
                 Vector3 expected = FilmicGradingReference.Lookup(pixels[i] * (float)Math.Pow(2, ev + stops), controls);
@@ -72,7 +72,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
                 }
             }
             Assert.InRange(worst, 0, 1.001 / 255);
-            if (scenario.StartsWith("uniform")) Assert.InRange(Math.Max(Math.Abs(minStops), Math.Abs(maxStops)), 0, .00001);
+            if (scenario.StartsWith("uniform")) Assert.InRange(Math.Abs(corrections.Max()-corrections.Min()),0,.00001);
             QualifySpatialShape(scenario, pixels, corrections, width, height);
             output.WriteLine($"Synthetic {scenario}, logical {(indirectSource ? "indirect-added" : "direct-only")} source: worst display error={worst * 255:F3} codes, stops=[{minStops:F3},{maxStops:F3}]. No image history, physical source/curve unchanged.");
         }
@@ -96,7 +96,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             MakeScene("window-edge", width, height, false).SelectMany(c => new[] { c.X, c.Y, c.Z, 1f }).ToArray());
         using var zero = Scene([Vector3.Zero], 1, 1);
         using var grading = new ColorGradingLut(); var lookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
-        using var history = GpuShaderStorageBuffer.Create(); history.UploadData(new[] { 6f, -12f, -12f, 1f, 10f, 1f, 0f, 0f });
+        using var history = GpuShaderStorageBuffer.Create(); history.UploadData(new[] { 6f, 0f, -12f, 1f, 10f, 1f, 0f, 0f });
         using var camera = TestFrameCamera.CreateIdentity(width, height);
         using var target = TestFramework.CreateTestGBuffer(width, height, PixelInternalFormat.Rgba16f);
         using var draw = new PostprocessDraw(); var policy = Candidate(256, 144);
@@ -107,8 +107,8 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
         {
             program.FrameInputs = camera; program.FrameLightingInputs = lighting.Buffer; program.SceneImage = source;
             program.BloomImage = zero; program.ShaftImage = zero; program.GradingLookup = lookup; program.ExposureBuffer = history;
-            program.LocalBase = spatial; program.AdaptationBuffer = history;
-            program.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(6, 1, 0, 0)); program.CaptureLocal(policy);
+            program.LocalBase = spatial;
+            program.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(6, 1, 0, MathF.Log2(.18f))); program.CaptureLocal(policy);
         }
         var globalPipeline = draw.Prepare(baseline, target); var localPipeline = draw.Prepare(final, target);
         Action global = () => Submit(draw, globalPipeline, target);

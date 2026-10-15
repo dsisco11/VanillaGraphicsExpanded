@@ -34,25 +34,27 @@ reuse storage. Compute work covers the full source image and has not been qualif
 for in-game frame-time cost. No spatial image history or CPU statistics readback is added.
 
 The passes run after physical scene metering and before generated glare. Final display
-uses scene-only luminance guidance and independently adapted physical log luminance,
+uses scene-only luminance guidance and the actually applied global exposure relative to middle gray,
 then applies bounded local stops to the combined scene/glare before the unchanged
 grading lookup. Local motion/adaptation does not invalidate the LUT cache. A separate
 optional final-shader variant retains the disabled path's sampler/SSBO requirements.
 The existing GLSL 330 draw and GLSL 430 compute baselines remain in place.
 
-The camera's expanded GPU metadata records applied gain, physical adaptation and the
-uncapped metering target; see [PBR.CameraExposure.md](PBR.CameraExposure.md). Viewing
-estimation continues under manual camera gain when the candidate is enabled. Empty
-statistics or invalid base guidance produce neutral local correction, not a terrain
-lighting floor. Changing enabled state resets camera history; resize, reload and world
+The camera's expanded GPU metadata records applied gain, instantaneous metered luminance and
+the uncapped metering target; see [PBR.CameraExposure.md](PBR.CameraExposure.md). Only global
+camera gain adapts over time. Manual gain requires no histogram or camera history for local
+correction. Invalid base guidance produces neutral local correction. Changing enabled state
+resets automatic camera history; resize, reload and world
 leave withdraw spatial publication and retire resources through the existing owners.
 
-This candidate cannot fix a restrictive global gain cap by itself: a nearly uniform
-dim frame has little base contrast to compress. Selected policy, measured component
+Local contrast is now measured after global gain, so even a uniform dim frame can receive
+shadow lift if the applied exposure leaves it below the display pivot. Global and local bounds
+remain separate; local display can exceed the camera gain alone. Selected policy, measured component
 cost and the declared visibility reference are recorded below. Broader integrated
-scene coverage remains tracked in [PBR.VisualAdaptation.todo](PBR.VisualAdaptation.todo).
+scene coverage remains tracked in [PBR.PhotometricLighting.todo](PBR.PhotometricLighting.todo).
 The user visually accepted the optional local-exposure candidate on 2026-10-14,
-reporting that it works very well, then requested it enabled by default. Exposure limits remain unchanged.
+reporting that it works very well, then requested it enabled by default. That acceptance predates
+the applied-exposure pivot correction and does not establish its in-game appearance. Exposure limits remain unchanged.
 The accepted live test covered a moonlit night only, as subsequently clarified by the
 user. Other integrated scene conditions remain unverified.
 Focused correctness receipts and the optional packaged candidate are recorded in
@@ -64,23 +66,26 @@ remain -20/+2 stops with saved custom/manual values authoritative. Native gradin
 controls retain their compatibility/artistic interpretation; they are not replaced
 with physiological or hour-based contrast controls. The standard filmic defaults remain.
 
-Opt-in warmed production measurements on an RTX 4090, with RGBA16F scene/output,
+Historical opt-in measurements before the applied-exposure pivot correction, on an RTX 4090 with RGBA16F scene/output,
 report added paired median GPU costs of 0.0389 ms at 720p, 0.0722 ms at 1080p and
 0.1137 ms at 1440p. These isolate the local owner plus optional final variant against
 the global final variant, not complete-game frame times or cross-vendor performance.
-Two RG32F images carry 576 KiB; the expanded camera histories add 56 bytes. These
+Two RG32F images carry 576 KiB; automatic camera mode retains two 32-byte metadata histories,
+while manual mode allocates neither camera history. These
 exclude allocator/driver overhead and are not queried resident VRAM measurements.
 
-An independent test-only threshold study uses
+An earlier independent test-only threshold study uses
 [Ferwerda et al., 1996, Equations 3–5](https://www.cs.ucf.edu/~sumant/publications/sig96.pdf),
 assuming display white 100 cd/m2, black 0.1 cd/m2, display adaptation 5 cd/m2 and a dim
 neutral surround. It compares unchanged filmic/RGB8 output differences in model
 threshold units; it does not apply another runtime mapper or measure the user's monitor.
 The rod comparison is an achromatic photopic-Y proxy, not spectral scotopic reconstruction.
-Captured terrain detail remains quantized away at the studied exposures. Lamp detail
+Its original prior-pivot results found captured terrain detail quantized away at the studied exposures. Lamp detail
 can become weaker at +2 stops and stronger at the captured +6-stop setting after local
 compression. These stimulus-dependent diagnostics support preserving saved settings
 and documenting the tradeoff, not a universal readability or human-visibility claim.
+Those historical values do not qualify the corrected pivot; current functional references
+use applied gain and the captured middle-gray policy.
 
 ### Physical scale and storage safety
 

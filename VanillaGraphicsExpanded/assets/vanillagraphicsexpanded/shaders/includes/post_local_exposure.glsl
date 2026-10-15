@@ -76,14 +76,15 @@ bool VgeSampleLocalBase(sampler2D baseImage, vec2 coordinate, float guidance,
     return !isnan(base) && !isinf(base);
 }
 
-/** Compresses only the base around independent global adaptation, with a smooth one-stop transition. */
-float VgeLocalExposureStops(float base, float adaptation, vec2 strengths, vec2 bounds)
+/** Compresses the globally exposed base around display middle gray, with a smooth one-stop transition. */
+float VgeLocalExposureStops(float base, float globalStops, float logMiddleGray, vec2 strengths, vec2 bounds)
 {
-    if(isnan(base) || isinf(base) || isnan(adaptation) || isinf(adaptation)
-        || base< -150.0 || base>128.0 || adaptation< -150.0 || adaptation>128.0
+    if(isnan(base) || isinf(base) || isnan(globalStops) || isinf(globalStops)
+        || isnan(logMiddleGray) || isinf(logMiddleGray)
+        || base< -150.0 || base>128.0 || globalStops< -48.0 || globalStops>24.0
         || any(isnan(strengths)) || any(isinf(strengths))
         || any(isnan(bounds)) || any(isinf(bounds))) return 0.0;
-    float relative=base-adaptation;
+    float relative=base+globalStops-logMiddleGray;
     vec2 compression=clamp(strengths,0.0,1.0);
     float strength=mix(compression.x,compression.y,smoothstep(-1.0,1.0,relative));
     // Candidate correction is bounded independently of camera EV. These are display

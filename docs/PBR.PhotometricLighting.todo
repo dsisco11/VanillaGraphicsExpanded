@@ -1050,7 +1050,9 @@ The migration alone must not be presented as correcting source calibration or im
     - Audit final grading, bloom/shafts and every exposure consumer for exactly one camera gain.
       Preserve frozen frame storage scaling and physical light-source/transport quantities.
     - Keep local exposure additive in stops on top of global exposure, with its own bounded
-      correction and physical adaptation estimate independent of capped camera exposure.
+      correction anchored to applied global exposure and the middle-gray display pivot.
+      Do not reintroduce a separately adapted physical-luminance reference; retain instantaneous
+      physical metering for diagnostics. This supersedes the earlier independent-estimate contract.
       Retain its enabled default, explicit saved choices and existing display-only contract.
 
   ☐ Verify calibrated conversion and equivalent pipeline behavior through subagents.

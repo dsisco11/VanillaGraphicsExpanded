@@ -60,7 +60,7 @@ internal static class ExposureSnapshotLog
             $"[VGE Exposure Snapshot] frame={frame} LumOn={lumOn} auto={camera.Enabled} local={local.Enabled} FXAA={antialias} history={hasHistory} " +
             $"globalStops={data[6]:F5} minStops={camera.MinEV:F5} maxStops={camera.MaxEV:F5} compensation={camera.Compensation:F5} " +
             $"requestedStops={data[4]:F5} targetCapHit={data[5]:F0} atBrighteningLimit={data[6]>=camera.MaxEV-.0001f} " +
-            $"adaptedLog2Nits={data[1]:F5} meteredLog2Nits={data[2]:F5} adaptationValid={data[3]:F0} " +
+            $"logMiddleGray={data[1]:F5} middleGray={camera.MiddleGray:G9} meteredLog2Nits={data[2]:F5} meteringValid={data[3]:F0} " +
             $"probe=centre-pixel probeLog2Nits={data[8]:F5} baseLog2Nits={data[9]:F5} localProbeValid={data[10]:F0} " +
             $"localStops={data[7]:F5} combinedStops={data[11]:F5} combinedGain={MathF.Pow(2,data[11]):G9} " +
             $"shadowStrength={local.ShadowStrength:F3} highlightStrength={local.HighlightStrength:F3} shadowLimit={local.ShadowLimit:F3} highlightLimit={local.HighlightLimit:F3}");

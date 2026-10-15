@@ -146,18 +146,18 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void FinalCompositionUsesAdaptationIndependentOfExposureCap(bool automatic)
+    public void FinalCompositionUsesAppliedExposureAndIgnoresMeterMetadata(bool automatic)
     {
         EnsureShaderTestAvailable();
         Vector3[] colors = [new(.00004f, .00003f, .00001f), new(.01736f, .01302f, .00434f)];
         float[] bases = colors.SelectMany(c => new[] { (float)Math.Log2(Luminance(c)), 1f }).ToArray();
-        float adaptation = (bases[0] + bases[2]) * .5f;
+        float metered = (bases[0] + bases[2]) * .5f;
         using var source = Scene(colors, 2, 1);
         using var glare = Scene([new(.00001f)], 1, 1);
         using var empty = Scene([Vector3.Zero], 1, 1);
         using var baseImage = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rg32f, bases);
-        using var history = GpuShaderStorageBuffer.Create(debugName: "Tests.LocalFinal.Adaptation");
-        history.UploadData(new[] { 6f, adaptation, adaptation, 1f, 20f, 1f, 0f, 0f });
+        using var history = GpuShaderStorageBuffer.Create(debugName: "Tests.LocalFinal.Exposure");
+        history.UploadData(new[] { 6f, 0f, metered, 1f, 20f, 1f, 0f, 0f });
         using var grading = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1, 0);
         var lookup = grading.Prepare(Programs.Api, controls);
@@ -165,7 +165,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         float[] local = Final(source, glare, empty, baseImage, history, lookup, Candidate(), automatic);
         for (int i = 0; i < 2; i++)
         {
-            double stops = Math.Clamp((adaptation - bases[i * 2]) * .5, -4, 4);
+            double stops = Math.Clamp((Math.Log2(.18)-6-bases[i * 2]) * .5, -4, 4);
             Vector3 exposed = (colors[i] + new Vector3(.00001f)) * (float)Math.Pow(2, 6 + stops);
             Vector3 expected = FilmicGradingReference.Lookup(exposed, controls);
             for (int c = 0; c < 3; c++) Assert.InRange(Math.Abs(local[i * 4 + c] - FilmicGradingReference.Quantize(expected[c], i)), 0, 1.001f / 255);
@@ -174,29 +174,29 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         Assert.True(local[0] > global[0]); Assert.True(local[4] < global[4]);
         foreach (float validity in new[] { 0f, float.NaN, float.PositiveInfinity })
         {
-            history.UploadData(new[] { 6f, adaptation, adaptation, validity, 20f, 1f, 0f, 0f });
+            history.UploadData(new[] { 6f, 0f, metered, validity, 20f, 1f, 0f, 0f });
             float[] missing = Final(source, glare, empty, baseImage, history, lookup, Candidate(), automatic);
-            Assert.Equal(global, missing);
+            Assert.Equal(local, missing);
         }
-        history.UploadData(new[] { 6f, adaptation, adaptation, 1f, 20f, 1f, 0f, 0f });
+        history.UploadData(new[] { 6f, 0f, metered, 1f, 20f, 1f, 0f, 0f });
         float[] disabledVariant = Final(source, glare, empty, baseImage, history, lookup, Candidate() with { Enabled = false }, automatic, optionalVariant: false);
         Assert.Equal(global, disabledVariant);
         Assert.Equal(1, grading.Generation);
     }
 
-    /// <summary>Captured physical adaptation is evaluated separately from the balanced synthetic mean and does not claim a solved exposure cap.</summary>
+    /// <summary>Captured physical inputs receive bounded display-relative correction through the unchanged filmic lookup.</summary>
     [Fact]
-    public void CapturedMeanCandidateRecordsRestrictedShadowLift()
+    public void CapturedInputReceivesDisplayRelativeShadowLift()
     {
         EnsureShaderTestAvailable();
         Vector3[] colors = [new(.00006592794125f, .0000526507864f, .00001556631946f), new(.03469f, .02133f, .003867f)];
         float[] bases = colors.SelectMany(c => new[] { (float)Math.Log2(Luminance(c)), 1f }).ToArray();
-        const float adaptation = -12.7348446f;
+        const float metered = -12.7348446f;
         using var source = Scene(colors, 2, 1);
         using var zero = Scene([Vector3.Zero], 1, 1);
         using var baseImage = TestFramework.CreateTexture(2, 1, PixelInternalFormat.Rg32f, bases);
-        using var history = GpuShaderStorageBuffer.Create(debugName: "Tests.CapturedMean.Adaptation");
-        history.UploadData(new[] { 6f, adaptation, adaptation, 1f, 10.26f, 1f, 0f, 0f });
+        using var history = GpuShaderStorageBuffer.Create(debugName: "Tests.CapturedMean.Exposure");
+        history.UploadData(new[] { 6f, 0f, metered, 1f, 10.26f, 1f, 0f, 0f });
         using var grading = new ColorGradingLut();
         Vector4 controls = new(1, 1, 1.111798286f, .143282309f);
         var lookup = grading.Prepare(Programs.Api, controls);
@@ -204,11 +204,11 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         float[] local = Final(source, zero, zero, baseImage, history, lookup, Candidate(), true, controls);
         for (int i = 0; i < 2; i++)
         {
-            double stops = Math.Clamp((adaptation - bases[i * 2]) * .5, -4, 4);
+            double stops = Math.Clamp((Math.Log2(.18)-6-bases[i * 2]) * .5, -4, 4);
             Vector3 expected = FilmicGradingReference.Lookup(colors[i] * (float)Math.Pow(2, 6 + stops), controls);
             for (int c = 0; c < 3; c++) Assert.InRange(Math.Abs(local[i * 4 + c] - FilmicGradingReference.Quantize(expected[c], i)), 0, 1.001f / 255);
             output.WriteLine($"Captured-input {(i == 0 ? "terrain" : "lamp")} diagnostic: global RGB8 {string.Join(',', global.Skip(i * 4).Take(3).Select(v => Math.Round(v * 255)))}; local RGB8 {string.Join(',', local.Skip(i * 4).Take(3).Select(v => Math.Round(v * 255)))}; candidate stops {stops:R}.");
-            if (i == 0) Assert.InRange(stops, 0, 1);
+            if (i == 0) Assert.InRange(stops, 2, 4);
         }
     }
 
@@ -224,7 +224,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         using var empty = Scene([Vector3.Zero], 1, 1);
         using var spatial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rg32f, black ? [-14, 1] : [0, 0]);
         using var history = GpuShaderStorageBuffer.Create(debugName: "Tests.LocalFinal.NeutralGuidance");
-        history.UploadData(new[] { 6f, -8f, -8f, 1f, 6f, 0f, 0f, 0f });
+        history.UploadData(new[] { 6f, 0f, -8f, 1f, 6f, 0f, 0f, 0f });
         using var grading = new ColorGradingLut(); var lookup = grading.Prepare(Programs.Api, new(1, 1, 1, 0));
         float[] baseline = Final(scene, glare, empty, spatial, history, lookup, Candidate() with { Enabled = false }, true);
         float[] local = Final(scene, glare, empty, spatial, history, lookup, Candidate(), true);
@@ -240,7 +240,7 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
     private DynamicTexture2D Scene(Vector3[] pixels, int width, int height, float scale = 1) => TestFramework.CreateTexture(width, height,
         PixelInternalFormat.Rgba32f, pixels.SelectMany(c => new[] { c.X * scale, c.Y * scale, c.Z * scale, 1f }).ToArray());
 
-    /// <summary>Runs the actual final program with local guidance and complete physical-adaptation storage.</summary>
+    /// <summary>Runs the actual final program with local guidance and published global exposure storage.</summary>
     private float[] Final(DynamicTexture2D source, DynamicTexture2D glare, DynamicTexture2D empty, DynamicTexture2D localBase,
         GpuShaderStorageBuffer history, DynamicTexture3D lookup, LocalExposureParameters settings, bool automatic, Vector4? controls = null,
         bool optionalVariant = true)
@@ -249,15 +249,15 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
             ? finalProgram ??= Programs.Create<FinalDisplayShaderProgram>(p => p.LocalExposureEnabled = true)
             : Programs.Create<FinalDisplayShaderProgram>();
         var bindings = program.ProgramLayout.BinaryInterface!.PreparedBindings;
-        Assert.Equal(optionalVariant, bindings.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.StorageBlock, "CameraAdaptation")).Active);
+        Assert.False(bindings.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.StorageBlock, "CameraAdaptation")).Active);
         Assert.Equal(optionalVariant, bindings.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "localBaseImage")).Active);
         using var target = TestFramework.CreateTestGBuffer(2, 1, PixelInternalFormat.Rgba32f);
         using var camera = TestFrameCamera.CreateIdentity(2, 1);
         using var draw = new PostprocessDraw();
         program.FrameInputs = camera; program.SceneImage = source; program.BloomImage = glare; program.ShaftImage = empty;
         program.GradingLookup = lookup; program.ExposureBuffer = history;
-        program.LocalBase = localBase; program.AdaptationBuffer = history;
-        program.Capture(false, new(controls ?? new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(6, automatic ? 1 : 0, 0, 0));
+        program.LocalBase = localBase;
+        program.Capture(false, new(controls ?? new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(6, automatic ? 1 : 0, 0, MathF.Log2(.18f)));
         program.CaptureLocal(settings);
         var pipeline = draw.Prepare(program, target);
         Assert.True(GraphicsCommandContext.TryRun("Tests.LocalExposure.Final", [pipeline], true, c => draw.Submit(c, pipeline, target)));

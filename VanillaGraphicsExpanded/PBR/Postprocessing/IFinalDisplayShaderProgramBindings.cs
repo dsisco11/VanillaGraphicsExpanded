@@ -33,8 +33,5 @@ internal interface IFinalDisplayShaderProgramBindings : VanillaGraphicsExpanded.
     [ShaderBinding("localBaseImage",ShaderBindingKind.Sampler,4,ShaderStageKind.Fragment,Required=false,
         TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
     GpuTexture? LocalBase { set; }
-    /// <summary>Supplies independent physical adaptation without requiring automatic camera gain.</summary>
-    [ShaderBinding("CameraAdaptation",ShaderBindingKind.StorageBlock,1,ShaderStageKind.Fragment,Required=false)]
-    GpuShaderStorageBuffer? AdaptationBuffer { set; }
     #endregion
 }

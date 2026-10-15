@@ -11,7 +11,7 @@ layout(std140,binding=28) uniform ExposureSnapshotInputs {
 uniform sampler2D sceneImage;
 uniform sampler2D localBaseImage;
 layout(std430,binding=0) readonly buffer SnapshotHistory {
-    float exposureEV; float adaptedLogLuminance; float meteredLogLuminance; float adaptationValidity;
+    float exposureEV; float reservedAdaptation; float meteredLogLuminance; float meteringValidity;
     float uncappedTarget; float exposureCapHit; float reserved0; float reserved1;
 };
 layout(std430,binding=1) writeonly buffer SnapshotOutput { vec4 snapshot[3]; };
@@ -24,15 +24,14 @@ void main()
         : textureLod(sceneImage,uv,0).rgb;
     radiance=VgePostStoredLight(radiance);
     float q=0.0, base=0.0, localStops=0.0, valid=0.0;
+    float applied=camera.y>.5 ? exposureEV : camera.x;
     bool guidance=VgeLocalLogLuminance(VgePhysicalFrameLight(radiance),q);
-    if(options.y>.5 && adaptationValidity>.5 && !isnan(adaptationValidity) && !isinf(adaptationValidity)
-        && guidance && VgeSampleLocalBase(localBaseImage,uv,q,options.x,base))
+    if(options.y>.5 && guidance && VgeSampleLocalBase(localBaseImage,uv,q,options.x,base))
     {
-        localStops=VgeLocalExposureStops(base,adaptedLogLuminance,controls.xy,controls.zw);
+        localStops=VgeLocalExposureStops(base,applied,camera.z,controls.xy,controls.zw);
         valid=1.0;
     }
-    float applied=camera.y>.5 ? exposureEV : camera.x;
-    snapshot[0]=vec4(exposureEV,adaptedLogLuminance,meteredLogLuminance,adaptationValidity);
+    snapshot[0]=vec4(exposureEV,camera.z,meteredLogLuminance,meteringValidity);
     snapshot[1]=vec4(uncappedTarget,exposureCapHit,applied,localStops);
     snapshot[2]=vec4(q,base,valid,applied+localStops);
 }

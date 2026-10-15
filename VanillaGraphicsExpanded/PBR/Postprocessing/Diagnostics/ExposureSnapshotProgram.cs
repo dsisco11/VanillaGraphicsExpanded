@@ -66,7 +66,8 @@ internal sealed partial class ExposureSnapshotProgram : GpuComputeProgram, IExpo
         {
             WriteVector4(0, new(local.ShadowStrength, local.HighlightStrength, local.ShadowLimit, local.HighlightLimit));
             WriteVector4(16, new(local.RangeWidth, local.Enabled ? 1 : 0, antialias ? 1 : 0, 0));
-            WriteVector4(32, new Vector4(System.Math.Clamp(camera.ManualEV + camera.Compensation, camera.MinEV, camera.MaxEV), camera.Enabled ? 1 : 0, 0, 0));
+            float pivot=camera.DisplayLogMiddleGray;
+            WriteVector4(32, new Vector4(System.Math.Clamp(camera.ManualEV + camera.Compensation, camera.MinEV, camera.MaxEV), camera.Enabled ? 1 : 0, pivot, 0));
         }
         #endregion
     }
