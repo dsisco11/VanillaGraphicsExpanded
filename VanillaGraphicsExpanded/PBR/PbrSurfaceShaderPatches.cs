@@ -57,6 +57,7 @@ internal static class PbrSurfaceShaderPatches
             #define VGE_PBR_FORWARD_LUMON {(PbrShaderLightingMode.LumOnEnabled ? 1 : 0)}
             @import "./includes/vsfunctions.glsl"
             @import "./includes/pbr_color.glsl"
+            @import "./includes/pbr_photometric.glsl"
             @import "./includes/pbr_common.glsl"
             @import "./includes/pbr_environment.glsl"
             @import "./includes/pbr_direct_brdf.glsl"
@@ -85,6 +86,7 @@ internal static class PbrSurfaceShaderPatches
         bool entity = name.StartsWith("entityanimated", StringComparison.Ordinal);
         bool vertex = name.EndsWith(".vsh", StringComparison.Ordinal);
         string matrix = chunk || instanced ? "modelViewMatrix" : "viewMatrix";
+        string blockDecoder = chunk ? "false" : "true";
         var mainQuery = Query.Syntax<GlFunctionNode>().Named("main");
         string declarations = """
 
@@ -108,7 +110,7 @@ internal static class PbrSurfaceShaderPatches
             }
             declarations += """
             out vec3 vge_viewPosition;
-            out vec3 vge_blockIrradiance;
+            out vec3 vge_blockField;
             out vec3 vge_sunIrradiance;
             out float vge_skyVisibility;
 
@@ -116,7 +118,6 @@ internal static class PbrSurfaceShaderPatches
             string tint = chunk || instanced ? "vec3(1.0)" : entity ? "renderColor.rgb * colorIn.rgb" : "rgbaTint.rgb * colorIn.rgb";
             string color = chunk ? "rgba" : "color";
             string lights = instanced ? "rgbaLightIn * rgbaBlockIn" : "rgbaLightIn";
-            string blockDecoder = chunk ? "false" : "true";
             string skyAvailability = instanced
                 ? "VgeSkyAvailability(rgbaLightIn.a, true) * VgeSkyAvailability(rgbaBlockIn.a, false)"
                 : $"VgeSkyAvailability(vge_localLight.a, {blockDecoder})";
@@ -126,7 +127,8 @@ internal static class PbrSurfaceShaderPatches
 
                     vge_viewPosition = ({matrix} * worldPos).xyz;
                     vec4 vge_localLight = {lights};
-                    vge_blockIrradiance = VgeDiffuseIncident(VgeBlockIlluminance(vge_localLight.rgb, {blockDecoder}));
+                    // Preserve the raw field until the fragment applies its nonlinear response.
+                    vge_blockField = vge_localLight.rgb;
                     vge_skyVisibility = {skyAvailability};
                     vge_sunIrradiance = vge_atmosphereEnvironment * vge_skyVisibility;
                     if (vge_pbrRoute != 0) {color}.rgb = {tint};
@@ -168,7 +170,8 @@ internal static class PbrSurfaceShaderPatches
 
             vec3 vge_surfaceColor = vec3(0.0);
             in vec3 vge_viewPosition;
-            in vec3 vge_blockIrradiance;
+            in vec3 vge_blockField;
+            vec3 vge_blockIrradiance;
             in vec3 vge_sunIrradiance;
             in float vge_skyVisibility;
             #if VGE_SURFACE_PRIMARY_OUTPUTS
@@ -192,6 +195,12 @@ internal static class PbrSurfaceShaderPatches
         // every patched helper sees them and no include guard can suppress them.
         var header = tree.Select(Query.Syntax<GlDirectiveNode>().Named("version")).Single();
         editor.InsertAfter(header, declarations);
+        editor.InsertAfter(mainQuery.InnerStart("body"), $"""
+
+            // Convert after interpolation so the curve shapes the interior of each triangle.
+            vge_blockIrradiance = VgeDiffuseIncident(VgeBlockIlluminance(vge_blockField, {blockDecoder}));
+
+            """);
         if (chunk)
         {
             VanillaShaderPatches.InjectUvRectVaryings_Fsh(editor);

@@ -152,14 +152,16 @@ applicable surface routes. VGE supplies the calibrated reference illuminance thr
 shader bindings; the CPU does not convert or replace the engine's propagated field.
 The adapter defines a reference illuminance in lux and a nonnegative monotonic response for
 the legacy field. Installed source evidence establishes a nonzero level-zero floor, so raw
-identity scaling is rejected. Remove that compatibility floor before applying the linear lux
-scale; this is a shader interpretation change, not a propagation change.
+identity scaling is rejected. Remove that compatibility floor and apply a calibrated broad
+fade; this is a shader interpretation change, not a propagation change.
 
 The adapter separates the field's brightness and chromaticity without manufacturing light from
 zero. Let `peak=max(legacyBlockRgb.r,legacyBlockRgb.g,legacyBlockRgb.b)` and let `floorPeak`
 be the active engine decoder's level-zero peak. The corrected field is zero when `peak<=floorPeak`;
-otherwise `correctedRgb=legacyBlockRgb*(peak-floorPeak)/peak`. This retains chromaticity and has
-a monotonic nonnegative response. Converted RGB illuminance is `correctedRgb * referenceLux`.
+otherwise let `q=peak-floorPeak` and set `correctedRgb=(legacyBlockRgb/peak)*q*q^3/(q^3+0.064)`.
+This retains chromaticity and has
+a monotonic nonnegative amplitude response with zero slope at the floor. Converted RGB illuminance
+is `correctedRgb * referenceLux`, with the multiplier fitted to this response at the torch reference.
 This is a calibration mapping of an engine field, not a declaration that its original values
 were physical measurements. The field's assumed encoding must be documented
 from engine behavior; applying the texture sRGB function is not an established conversion.
@@ -169,8 +171,11 @@ The floor-corrected mapping is evaluated by the shared helper as:
 ```glsl
 vec3 rawBlock = max(legacyBlockRgb, vec3(0.0));
 float peak = max(rawBlock.r, max(rawBlock.g, rawBlock.b));
-vec3 correctedBlock = peak > blockLightFloorPeak
-    ? rawBlock * ((peak - blockLightFloorPeak) / peak) : vec3(0.0);
+float amplitude = max(peak - blockLightFloorPeak, 0.0);
+float amplitudeCubed = amplitude * amplitude * amplitude;
+float fade = amplitudeCubed / (amplitudeCubed + 0.064);
+vec3 correctedBlock = peak > 0.0
+    ? (rawBlock / peak) * (amplitude * fade) : vec3(0.0);
 vec3 blockIlluminance = correctedBlock * blockLightReferenceLux;
 vec3 blockEnvironment = blockIlluminance / PI;
 ```
@@ -180,6 +185,32 @@ in `PbrTerrainColorPatches`; other applicable surface routes use the same conver
 material response. Updating these VGE shader injections is within scope. Adding patches to
 base-game CPU lighting or propagation methods is outside scope. Convert each field contribution
 once, keeping atmospheric illumination separate so it is not scaled by the block-light reference.
+
+This replaces the earlier linear amplitude mapping after the block-light boundary investigation.
+The broad response suppresses the substantial last nonzero decoded level while retaining the
+reference torch illumination and source chromaticity. It also increases values above that reference
+relative to the old mapping; the reference is an anchor, not an upper clamp. This remains a
+compatibility curve, not reconstructed inverse-square transport. Terrain, forward surfaces and
+liquids interpolate the raw block RGB and evaluate this helper in the fragment shader. Applying
+the curve before interpolation would leave a zero-to-reference triangle's gradient unchanged
+despite changing its mathematical response, because both endpoint values are preserved. Opaque
+terrain publishes the converted E/pi plus the separate sky contribution to its environment
+attachment; forward surfaces convert before material response; liquids retain incident lux for
+their surface and volume evaluations. Sky availability retains its existing vertex decoding.
+Water accessor and surface-cache lighting already evaluate the helper at their sampled sites.
+No distance or source identity is recovered from interpolation, and the existing field boundary
+and mesh geometry remain authoritative.
+No source scan, propagation patch, texture, draw or exposure-policy change is introduced.
+The initial quadratic candidate improved the boundary. A subsequent 1.5-power candidate raised
+the outer light levels but did not provide the much wider transition requested by the user.
+The current fade instead reduces weak and intermediate field values much earlier, spreading
+the visible brightness drop into the lit area. The 0.064 denominator is a selected compatibility
+knee of `q=0.4`, where the uncalibrated amplitude weight is one half. At low amplitudes the
+response approaches a fourth power; at high amplitudes it approaches a linear response. This
+avoids a pure fourth power's large amplification above the reference. The fade is monotonic,
+bounded by the floor-corrected linear amplitude before calibration, and preserves exact zero
+and the torch anchor. It does not extend the propagation radius. This is a visual tuning
+choice, not a recovered physical distance law; its in-game transition still needs comparison.
 
 Derive the block reference from the nominated lamp asset, the engine's level propagation and
 brightness/color conversion, a documented reference receiver and the specified illumination.
@@ -906,13 +937,20 @@ level 13, not 14. The reference is an unsmoothed single-air-cell field value; an
 pixel may interpolate several cells and must not be described as the same measurement.
 Level 13 decodes to `(145,99,71)/255`; level zero retains `(10,10,10)/255`.
 
-Use the floor-corrected shader response specified above with floor `10/255`. Fitting the nominal
-44 lm isotropic-equivalent target at one metre gives `referenceLux=8.982904808459303`.
-The resulting scalar illuminance is 3.501408748 lux at level 13, 3.272320849 at level 12 and
-2.811659594 at level 10; level zero gives zero. These are source-derived compatibility results,
+For the earlier linear response with floor `10/255`, fitting the nominal 44 lm
+isotropic-equivalent target at one metre gave `referenceLux=8.982904808459303`.
+That response produced 3.501408748 lux at level 13, 3.272320849 at level 12 and
+2.811659594 at level 10; level zero gave zero. These are historical source-derived compatibility results,
 not live measurements or inverse-square block propagation. Derive parameters from the active
 world's brightness tables through existing bindings; refresh them on table/calibration changes.
 Do not rewrite field values or scan sources each frame.
+
+The current broad response refits the multiplier to `12.8574078602199` for this same
+decoded torch and floor, preserving level 13 at 3.501408748 lux. Level 1 falls from approximately
+0.662916 to 0.019230 lux (0.55% of the torch reference), compared with 0.137494 lux for the
+initial quadratic candidate and 0.301905 lux for the 1.5-power candidate. Active terrain/accessor decoder tables
+are still calibrated independently by the existing publication owner. The historical linear
+multiplier and non-reference values above do not describe this updated response.
 
 The torch's actual dynamic-light payload is `(154,105,76)/255*14`. Select
 `pointReferenceCandela=0.562774738350764` per raw RGB payload unit. Keep the one-metre

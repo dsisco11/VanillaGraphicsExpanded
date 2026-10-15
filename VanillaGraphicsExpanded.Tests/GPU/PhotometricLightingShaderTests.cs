@@ -80,6 +80,95 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
             for (int channel = 0; channel < 3; channel++) Close(44 / (4 * Math.PI), pixels[pixel * 4 + channel]);
     }
 
+    /// <summary>Both field decoders retain the torch anchor and suppress weak light with a vanishing slope at their neutral floor.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BlockFalloffIsSmoothForBothDecoders(bool accessor)
+    {
+        EnsureContextValid();
+        // Deliberately different floors and coefficients expose accidental use of the terrain route.
+        LightingCalibration terrain = LightingCalibration.FromDecodedTorch(new(145f / 255, 99f / 255, 71f / 255),
+            new(9, 6, 4), 10f / 255, 7f / 255, 1, .03f, 1);
+        LightingCalibration alternate = LightingCalibration.FromDecodedTorch(new(144f / 255, 98f / 255, 70f / 255),
+            new(9, 6, 4), 9f / 255, 7f / 255, 1, .03f, 1);
+        LightingCalibration calibration = terrain with { AccessorBlockReferenceLux = alternate.BlockReferenceLux,
+            AccessorBlockNeutralFloor = alternate.BlockNeutralFloor };
+        string include = Expand(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_photometric.glsl"));
+        string fragment = "#version 430 core\n" + include + "\nconst bool accessor=" + (accessor ? "true" : "false") + ";\n" + """
+            layout(location=0) out vec4 result;
+            void main(){
+                int column=int(gl_FragCoord.x);
+                float floor=accessor?9.0/255.0:10.0/255.0;
+                float epsilon=.0001;
+                float peak=column==0?0.0:column==1?floor:column==2?floor+epsilon:
+                    column==3?floor+2.0*epsilon:column==6?.8:1.0;
+                vec3 raw=column<2?vec3(peak):peak*vec3(1,.6,.3);
+                if(column==4)raw=vec3(38,23,14)/255.0;
+                if(column==5)raw=(accessor?vec3(144,98,70):vec3(145,99,71))/255.0;
+                result=vec4(VgeBlockIlluminance(raw,accessor),1);
+            }
+            """;
+        float[] pixels = Render(fragment, calibration: calibration);
+        for (int channel = 0; channel < 3; channel++)
+        {
+            Assert.Equal(0, pixels[channel]);
+            Assert.Equal(0, pixels[4 + channel]);
+        }
+        // The fourth-power dark-end toe gives sixteen times the light at twice the distance above zero,
+        // so the finite-difference slope itself tends to zero rather than retaining a linear edge.
+        Assert.InRange(pixels[12] / pixels[8], 15.97f, 16.03f);
+        Assert.InRange(pixels[8], 0, .0000000000001f);
+        for (int column = 2; column < 8; column++)
+        {
+            Assert.True(pixels[column * 4] > pixels[(column - 1) * 4]);
+            Assert.All(pixels[(column * 4)..(column * 4 + 3)], value => Assert.True(float.IsFinite(value)));
+        }
+        foreach (int column in new[] { 2, 3, 6, 7 })
+        {
+            Assert.InRange(pixels[column * 4 + 1] / pixels[column * 4], .59999f, .60001f);
+            Assert.InRange(pixels[column * 4 + 2] / pixels[column * 4], .29999f, .30001f);
+        }
+        double referenceY = .2126 * pixels[20] + .7152 * pixels[21] + .0722 * pixels[22];
+        Close(44 / (4 * Math.PI), (float)referenceY);
+        if (!accessor)
+        {
+            double weakestY = .2126 * pixels[16] + .7152 * pixels[17] + .0722 * pixels[18];
+            Assert.InRange(weakestY, .019228, .019232);
+        }
+    }
+
+    /// <summary>The wider fade attenuates intermediate field amplitudes while bounding gain above the torch reference.</summary>
+    [Fact]
+    public void BlockFadeSpansIntermediateFieldWithoutExcessFullFieldGain()
+    {
+        EnsureContextValid();
+        string include = Expand(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_photometric.glsl"));
+        string fragment = "#version 430 core\n" + include + """
+            layout(location=0) out vec4 result;
+            const float peaks[8]=float[8](.08,.12,.2,.3,.4,.5,.8,1.0);
+            void main(){result=vec4(VgeBlockIlluminance(vec3(peaks[int(gl_FragCoord.x)])),1);}
+            """;
+        float[] pixels = Render(fragment);
+        double[] peaks = [.08, .12, .2, .3, .4, .5, .8, 1];
+        for (int column = 0; column < peaks.Length; column++)
+        {
+            double amplitude = peaks[column] - 10.0 / 255;
+            double expected = 12.8574078602199 * Math.Pow(amplitude, 4) / (Math.Pow(amplitude, 3) + .064);
+            Close(expected, pixels[column * 4]);
+            if (column > 0) Assert.True(pixels[column * 4] > pixels[(column - 1) * 4]);
+            // The previous response retained conspicuous outer light. These amplitudes now
+            // fade substantially before the existing finite field boundary is reached.
+            double previousGentle = 12.3458217833822 * Math.Pow(amplitude, 1.5);
+            if (column <= 3) Assert.True(pixels[column * 4] < previousGentle * .5);
+            if (column == 4) Assert.True(pixels[column * 4] < previousGentle * .75);
+            // A saturating toe returns toward linear at high amplitudes instead of amplifying
+            // the full field like an unbounded fourth-power response anchored at a dimmer torch.
+            double originalLinear = 8.982904808459303 * amplitude;
+            Assert.True(pixels[column * 4] < originalLinear * 1.35);
+        }
+    }
+
     /// <summary>Terrain and accessor decoders remove their distinct neutral floors and preserve full availability.</summary>
     [Fact]
     public void SkyAvailabilityUsesDecoderSpecificEndpoints()
@@ -191,8 +280,9 @@ public sealed class PhotometricLightingShaderTests(HeadlessGLFixture fixture) : 
             double peak = inputs[column].Select(x => Math.Max(x, 0)).Max();
             for (int channel = 0; channel < 3; channel++)
             {
+                double amplitude = Math.Max(peak - LightingCalibration.Default.BlockNeutralFloor, 0);
                 double expected = peak > 0 ? Math.Max(inputs[column][channel], 0)
-                    * Math.Max(peak - LightingCalibration.Default.BlockNeutralFloor, 0) / peak
+                    * Math.Pow(amplitude, 4) / (Math.Pow(amplitude, 3) + .064) / peak
                     * LightingCalibration.Default.BlockReferenceLux : 0;
                 Close(expected, pixels[column * 4 + channel]);
                 if (column < 6) Close(expected / Math.PI, pixels[(8 + column) * 4 + channel]);

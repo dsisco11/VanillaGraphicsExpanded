@@ -24,8 +24,7 @@ internal static class PbrTerrainColorPatches
         if (sourceName is not ("chunkopaque.vsh" or "chunktopsoil.vsh")) return;
         editor.InsertBefore(Query.Syntax<GlFunctionNode>().Named("main"), """
 
-        uniform vec3 vge_atmosphereEnvironment;
-        out vec4 vge_environment;
+        out vec4 vge_terrainLight;
 
         """)
             .InsertBefore(
@@ -35,8 +34,8 @@ internal static class PbrTerrainColorPatches
                 // Deferred lighting consumes unlit material RGB; retain the engine fade alpha.
                 rgba.rgb = vec3(1.0);
                 float vge_skyAvailability = VgeSkyAvailability(rgbaLightIn.a, false);
-                vge_environment = vec4(VgeDiffuseIncident(VgeBlockIlluminance(rgbaLightIn.rgb))
-                    + vge_atmosphereEnvironment * vge_skyAvailability, vge_skyAvailability);
+                // Interpolate the engine field before the fragment applies the nonlinear curve.
+                vge_terrainLight = vec4(rgbaLightIn.rgb, vge_skyAvailability);
 
             """);
     }

@@ -17,13 +17,13 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
     public PbrSurfaceInstalledShaderTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Variant validation
-    /// <summary>Installed forward vertex publishers select the actual uniform/accessor or terrain decoder before interpolation.</summary>
+    /// <summary>Installed forward vertex publishers retain raw block fields and the decoded sky availability before interpolation.</summary>
     [Theory]
     [InlineData("standard", false)]
     [InlineData("standard", true)]
     [InlineData("chunktransparent", false)]
     [InlineData("chunktransparent", true)]
-    public void InstalledVertexPublishesCalibratedSource(string family, bool fullSky)
+    public void InstalledVertexPublishesRawField(string family, bool fullSky)
     {
         EnsureContextValid();
         int vertex = Compile(ShaderType.VertexShader, Build(family + ".vsh", 0, family == "chunktransparent" ? 1 : 0, 0, 0, 0));
@@ -31,7 +31,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
         try
         {
             GL.AttachShader(program, vertex);
-            GL.TransformFeedbackVaryings(program, 2, ["vge_blockIrradiance", "vge_skyVisibility"], TransformFeedbackMode.InterleavedAttribs);
+            GL.TransformFeedbackVaryings(program, 2, ["vge_blockField", "vge_skyVisibility"], TransformFeedbackMode.InterleavedAttribs);
             GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
@@ -51,7 +51,7 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
             GL.Disable(EnableCap.RasterizerDiscard);
             float[] actual = new float[4];
             GL.GetBufferSubData(BufferTarget.TransformFeedbackBuffer, IntPtr.Zero, 16, actual);
-            double expected = LightingCalibration.Default.BlockReferenceLux * (1 - LightingCalibration.Default.BlockNeutralFloor) / Math.PI;
+            double expected = 1;
             for (int channel = 0; channel < 3; channel++) Assert.InRange(actual[channel], expected * .99999, expected * 1.00001);
             Assert.InRange(actual[3], fullSky ? .99999f : 0, fullSky ? 1 : .00001f);
         }

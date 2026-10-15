@@ -117,7 +117,8 @@ public sealed class SurfaceLightingWorldProbeTransportTests : SurfaceLightingHit
         float decoded = Math.Max(0, raw - calibration.AccessorBlockNeutralFloor);
         float reference = calibration.AccessorBlockReferenceLux > 0
             ? calibration.AccessorBlockReferenceLux : calibration.BlockReferenceLux;
-        float storedExpected = decoded * reference * VanillaGraphicsExpanded.PBR.LightingStorage.PersistentScale;
+        float storedExpected = MathF.Pow(decoded, 4) / (MathF.Pow(decoded, 3) + .064f)
+            * reference * VanillaGraphicsExpanded.PBR.LightingStorage.PersistentScale;
         if(!runtime.TryGetLighting(out var snapshot) || !runtime.Feedback.TryGetNearDispatchState(out _,out _,out var pages,out _)) return false;
         using var pixels=SurfaceLightingPageReadback.Read(snapshot.DirectIrradiance,snapshot,pages.Single().Key);
         for(int index=0;index<pixels.Length;index+=4)

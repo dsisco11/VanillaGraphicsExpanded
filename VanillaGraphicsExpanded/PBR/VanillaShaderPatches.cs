@@ -57,7 +57,8 @@ layout(location = 6) out uvec4 vge_outPatchId;  // (chunkSlot, patchId, packedPa
 ";
 
     private const string ChunkMaterialParamsSamplerDeclaration = @"
-in vec4 vge_environment;
+in vec4 vge_terrainLight;
+uniform vec3 vge_atmosphereEnvironment;
 in vec4 vge_surfaceBasePosition;
 in vec3 vge_surfaceBaseNormal;
 in float vge_surfaceDisplaced;
@@ -156,7 +157,9 @@ flat in uint vge_faceId;
 
     private const string GBufferOutputWrites_Chunk = @"
 
-    vge_outEnvironment = vge_environment;
+    // Apply the block response to the interpolated field, keeping sky illumination separate.
+    vge_outEnvironment = vec4(VgeDiffuseIncident(VgeBlockIlluminance(vge_terrainLight.rgb))
+        + vge_atmosphereEnvironment * vge_terrainLight.a, vge_terrainLight.a);
     // VGE: Write G-buffer outputs
     // Normal: world-space normal packed to [0,1] range
     // Also sample the per-texel normal+depth atlas so the sampler uniform stays live.
@@ -274,6 +277,7 @@ flat in uint vge_faceId;
                 editor.InsertBefore(mainQuery, "@import \"./includes/vsfunctions.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_material.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/pbr_color.glsl\"\n")
+                    .InsertBefore(mainQuery, "@import \"./includes/pbr_photometric.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_normaldepth.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/vge_parallax.glsl\"\n")
                     .InsertBefore(mainQuery, "@import \"./includes/lumonscene_patchid.glsl\"\n")

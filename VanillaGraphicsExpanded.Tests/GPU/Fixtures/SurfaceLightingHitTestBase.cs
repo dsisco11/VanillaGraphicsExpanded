@@ -16,11 +16,10 @@ public abstract class SurfaceLightingHitTestBase : NearFieldShaderTestBase
     private protected HitPixels RenderHits(SurfaceLightingEnclosureFixture room)
     {
         using var placeholder = new NearFieldVoxelFixture();
-        HitPixels? result = null;
-        Trace(placeholder, worldCache:false, shared:room.Geometry.Scene, surfaceLighting:room.Snapshot,
-            anchorPosition:new(0,0,-3), worldOffset:new(0,32,0), matrixRemainder:new(4,4,7),
-            consume:output=>result=new(output[0].ReadPixels(),output[1].ReadPixels()));
-        return Assert.IsType<HitPixels>(result);
+        // Trace decodes its returned RGB after any encoded attachment consumers have run.
+        var result = Trace(placeholder, worldCache:false, shared:room.Geometry.Scene, surfaceLighting:room.Snapshot,
+            anchorPosition:new(0,0,-3), worldOffset:new(0,32,0), matrixRemainder:new(4,4,7));
+        return new(result.Radiance, result.Meta);
     }
     #endregion
 

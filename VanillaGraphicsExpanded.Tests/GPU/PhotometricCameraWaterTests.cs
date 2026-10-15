@@ -101,7 +101,8 @@ public sealed class PhotometricCameraWaterTests(HeadlessGLFixture fixture) : Lum
         var raw = new Vector3(1, .5f, .25f) * (blockFull ? 1 : .1f);
         // This independent reference follows the accessor toe and environment lux contract directly.
         float peak = blockFull ? 1 : .1f;
-        Vector3 blockLux = raw * (MathF.Max(peak - .1f, 0) / peak) * 120;
+        float amplitude = MathF.Max(peak - .1f, 0);
+        Vector3 blockLux = raw * (MathF.Pow(amplitude, 4) / (MathF.Pow(amplitude, 3) + .064f) / peak) * 120;
         float availability = Math.Clamp((skyEncoded - .25f) / .75f, 0, 1);
         Vector3 incident = blockLux + (atmosphereAvailable ? environment * (MathF.PI * availability) : Vector3.Zero);
         Vector3 physicalSource = medium.EffectiveScatteringPerMetre * incident / (4 * MathF.PI);

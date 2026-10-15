@@ -11,7 +11,8 @@ internal readonly record struct LightingCalibration(float BlockReferenceLux, flo
 {
     #region Public API
     /// <summary>Source-derived normal-torch field reference; the propagated field remains engine-owned.</summary>
-    internal static LightingCalibration Default => new(8.982904808459303f, 10f / 255f);
+    internal static LightingCalibration Default => new((float)(8.982904808459303
+        * (1 + .064 / Math.Pow(135.0 / 255, 3))), 10f / 255f);
     /// <summary>Selected authored-emission and prelit-effect reference luminance in cd/m².</summary>
     internal const float EmissionReferenceNits = 32;
     /// <summary>Maps the original engine point RGB payload to evaluated candela.</summary>
@@ -35,7 +36,12 @@ internal readonly record struct LightingCalibration(float BlockReferenceLux, flo
         if (!FiniteNonnegative(adjacentBlock) || !FiniteNonnegative(dynamicPayload))
             throw new ArgumentOutOfRangeException(nameof(adjacentBlock));
         float peak = Math.Max(adjacentBlock.X, Math.Max(adjacentBlock.Y, adjacentBlock.Z));
-        double correctedY = Luminance(adjacentBlock) * Math.Max(peak - neutralFloor, 0) / Math.Max(peak, float.Epsilon);
+        // Fit the shared shader's broad fade, rather than changing the engine
+        // field. Both byte decoders therefore retain the same one-metre torch anchor.
+        double amplitude = Math.Max(peak - neutralFloor, 0);
+        double amplitudeCubed = amplitude * amplitude * amplitude;
+        double fade = amplitudeCubed / (amplitudeCubed + .064);
+        double correctedY = Luminance(adjacentBlock) * amplitude * fade / Math.Max(peak, float.Epsilon);
         double pointY = Luminance(dynamicPayload);
         if (correctedY <= 0 || pointY <= 0) throw new ArgumentException("The active light tables cannot represent the reference torch.");
         var result = new LightingCalibration((float)(44 / (4 * Math.PI) / correctedY), neutralFloor,

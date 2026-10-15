@@ -96,7 +96,9 @@ internal sealed class SurfaceLightingEnclosureFixture : IDisposable
         producer = new(assets.Api);
         // Transport fixtures author a 32-lux full field and a floorless synthetic sky decoder.
         // Real default calibration is covered separately by the installed source fixture.
-        lightingFrame.SetLightingCalibration(new(32f / (1 - 10f / 255), 10f / 255,
+        float fullAmplitude = 1 - 10f / 255;
+        lightingFrame.SetLightingCalibration(new(32f * (MathF.Pow(fullAmplitude, 3) + .064f)
+            / MathF.Pow(fullAmplitude, 4), 10f / 255,
             TerrainSkyFloor: 0, AccessorSkyFloor: 0));
         producer.FrameInputs = lightingFrame;
     }

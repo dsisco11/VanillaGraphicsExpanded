@@ -47,7 +47,8 @@ public sealed class PhotometricLightingTests
             10f / 255, 7f / 255, 1, .03f, 1);
         double peak = block.X;
         double blockY = (.2126 * block.X + .7152 * block.Y + .0722 * block.Z)
-            * (peak - calibration.BlockNeutralFloor) / peak * calibration.BlockReferenceLux;
+            * Math.Pow(peak - calibration.BlockNeutralFloor, 4)
+            / (Math.Pow(peak - calibration.BlockNeutralFloor, 3) + .064) / peak * calibration.BlockReferenceLux;
         double pointY = (.2126 * point.X + .7152 * point.Y + .0722 * point.Z) * calibration.PointCandelaPerUnit;
         Assert.InRange(blockY, 3.501407, 3.501411);
         Assert.InRange(pointY, 3.501407, 3.501411);

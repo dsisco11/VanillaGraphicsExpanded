@@ -34,14 +34,14 @@ public sealed class PbrInstalledCoverageTests(HeadlessGLFixture fixture) : Rende
             out vec2 uv; out vec4 color; out vec4 rgbaFog; out float fogAmount; out float glowLevel;
             out vec3 vertexPosition; flat out int renderFlags; out vec3 normal; out vec4 worldPos;
             out vec3 blockLight; out vec4 camPos; out float damageEffect; out float fragFrostAlpha;
-            out vec4 rgbaGlow; out vec3 vge_viewPosition; out vec3 vge_blockIrradiance;
+            out vec4 rgbaGlow; out vec3 vge_viewPosition; out vec3 vge_blockField;
             out vec3 vge_sunIrradiance; out float vge_skyVisibility;
             void main() {
                 vec2 p[3]=vec2[3](vec2(-1,-1),vec2(3,-1),vec2(-1,3)); gl_Position=vec4(p[gl_VertexID],0,1);
                 uv=vec2(.5); color=vec4(1); rgbaFog=vec4(0); fogAmount=0; glowLevel=0;
                 vertexPosition=vec3(0); renderFlags=0; normal=vec3(0,0,1); worldPos=vec4(0,0,-2,1);
                 blockLight=vec3(1); camPos=worldPos; damageEffect=0; fragFrostAlpha=0; rgbaGlow=vec4(0);
-                vge_viewPosition=vec3(0,0,-2); vge_blockIrradiance=vec3(1); vge_sunIrradiance=vec3(0); vge_skyVisibility=0;
+                vge_viewPosition=vec3(0,0,-2); vge_blockField=vec3(1); vge_sunIrradiance=vec3(0); vge_skyVisibility=0;
             }
             """);
         int fragment = shaders.Compile(ShaderType.FragmentShader,

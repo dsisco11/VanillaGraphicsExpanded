@@ -13,7 +13,7 @@ layout(location = 6) out vec3 fWorldPos;
 layout(location = 7) out vec3 fragNormal;
 layout(location = 8) flat out int waterFlags;
 layout(location = 9) out vec3 vge_viewPosition;
-layout(location = 10) out vec3 vge_blockIrradiance;
+layout(location = 10) out vec3 vge_blockField;
 layout(location = 11) out float vge_skyVisibility;
 layout(location = 12) out float glowLevel;
 layout(location = 21) out vec2 vge_wavePosition;
@@ -57,7 +57,8 @@ void main()
     fragNormal = meshNormal;
     glowLevel = float(renderFlags & GlowLevelBitMask) / 256.0;
     vge_viewPosition = cameraPos.xyz;
-    vge_blockIrradiance = VgeBlockIlluminance(rgbaLightIn.rgb);
+    // Keep the field raw until fragment interpolation is complete.
+    vge_blockField = rgbaLightIn.rgb;
     vge_skyVisibility = VgeSkyAvailability(rgbaLightIn.a, false);
     calcColorMapUvs(colormapData, truePos + vec4(playerpos, 1), rgbaLightIn.a, false);
     gl_Position.w += .0008 / max(.1, gl_Position.z);

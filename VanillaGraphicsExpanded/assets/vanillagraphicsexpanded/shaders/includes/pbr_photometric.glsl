@@ -3,13 +3,20 @@
 @import "./vge_frame_ubo.glsl"
 const float VGE_PHOTOMETRIC_PI = 3.14159265358979323846;
 @import "./pbr_persistent_lighting.glsl"
-/** Converts only the propagated engine block RGB field to incident lux, without color transfer or exposure. */
+/** Converts the propagated block field to lux with a broad calibrated fade, preserving chromaticity. */
 vec3 VgeBlockIlluminance(vec3 legacyBlockRgb, bool worldAccessor)
 {
     vec2 calibration = worldAccessor ? vgeFrame.blockDecoderCalibration.xy : vgeFrame.lightCalibration.xy;
     vec3 block = max(legacyBlockRgb, vec3(0));
     float peak = max(block.r, max(block.g, block.b));
-    return peak > 0.0 ? block * (max(peak - calibration.y, 0.0) / peak) * calibration.x : vec3(0);
+    // Begin fading within the lit field instead of retaining a bright plateau until
+    // its last cells. The fourth-power dark end joins a near-linear strong response,
+    // avoiding the excessive bright-source gain of an unbounded power curve.
+    // The CPU fits this same response at the reference torch; propagation is unchanged.
+    float amplitude = max(peak - calibration.y, 0.0);
+    float amplitudeCubed = amplitude * amplitude * amplitude;
+    float fade = amplitudeCubed / (amplitudeCubed + 0.064);
+    return peak > 0.0 ? (block / peak) * (amplitude * fade * calibration.x) : vec3(0);
 }
 /** Retains terrain publication's explicit default decoder for existing block-field callers. */
 vec3 VgeBlockIlluminance(vec3 legacyBlockRgb) { return VgeBlockIlluminance(legacyBlockRgb, false); }

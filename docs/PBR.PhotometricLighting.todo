@@ -39,8 +39,10 @@ Design decisions and remaining prerequisites
     nits from source-derived engine-field and compatibility evidence.
     Current engine light levels do not establish individual lamp output in lumens.
   - Remove the source-verified neutral floor with the proposal's chroma-preserving shader toe,
-    then apply referenceLux=8.982904808459303 for the nominated active-table torch fixture.
-    Retain engine falloff; this is a compatibility mapping, not inverse-square propagation.
+    then apply amplitude*q^3/(q^3+0.064), q=amplitude, and referenceLux=12.8574078602199 for the
+    nominated active-table torch fixture. This approved refinement supersedes the original
+    linear amplitude mapping and its 8.982904808459303 multiplier. Retain engine propagation;
+    the shader response remains a compatibility mapping, not inverse-square transport.
   - Use one frozen frame pre-exposure, a 64,000 stored-unit visible-disk cap and a fixed persistent
     scale 1/16 within the qualified admission domain. Retain current texture formats except
     the approved RGBA32F storage for the three existing OIT accumulation layers.
@@ -426,9 +428,44 @@ Task-to-document traceability
       endpoints; terrain's encoded level-zero alpha and the world accessor differ.
       Reuse the Surface Cache's normalized light RGBA input for the same block conversion;
       retire its differently decoded legacy level/32 palette route.
-    - Preserve generation, propagation, attenuation, enclosure, interpolation and overlap behavior.
+    - Preserve engine generation, propagation, attenuation, enclosure, interpolation and overlap behavior.
       Confirm raw engine data is unchanged and no source identity/direction is fabricated.
     - Verify each contribution is converted once and fixture outputs match the selected mapping.
+
+    Approved falloff refinement (2026-10-15): replace the shader adapter's linear amplitude with
+    a broad fade after floor removal, refitting each decoder's multiplier to retain
+    the 3.501409-lux torch reference. This changes the interpretation of the existing field,
+    not its propagation. The reference level-1 result is approximately 0.019230 lux instead
+    of 0.662916 lux. Terrain, forward surfaces and liquids now interpolate the raw RGB field and
+    evaluate the nonlinear curve per fragment, before material/volume response. Surface Cache
+    and water-camera sampling retain their existing shared-helper evaluation sites. Sky
+    availability retains its existing decoding. See the governing proposal's block-field mapping;
+    do not interpret the earlier linear calibration receipts as the current response.
+    The initial quadratic candidate was reported better in-game; the user requested a gentler,
+    wider fade inside the current boundary. The 1.5-power candidate raised the outer light
+    but the user reported that the fade still needed to be much wider. The current response
+    starts reducing brightness farther inside the field: q*q^3/(q^3+0.064), with a selected
+    q=0.4 knee. It approaches fourth-power fading at the dark end and linear response at the
+    strong end. This supersedes both candidates while retaining zero at the existing boundary.
+    Historical quadratic validation: 450 production and 528 fixture shader variants compile; 313 distinct checks pass.
+    One broader world-probe backend check fails because its fixture lacks the frozen exposure
+    publication required by gather; it does not exercise the changed field response at that failure.
+    See artifacts/BlockLightFalloffValidation.md for the receipts and corrected fixture contracts.
+    Historical 1.5-power validation: 63 focused checks pass, with no failures or skips, and both
+    shader catalogs compile. See artifacts/BlockLightGentlerFadeValidation.md for that receipt.
+    Current broad-response validation: 64 focused checks pass, no failures or skips; both shader
+    catalogs compile. See artifacts/BlockLightWideFadeValidation.md for the ramp/consumer checks.
+    Live appearance of the wider fade remains unverified; numerical validation does not establish it.
+    User feedback: the broad-response candidate looks unchanged. This is not visual acceptance.
+    The vertex-before-interpolation limitation was demonstrated by a GPU fixed-endpoint ramp
+    diagnostic (artifacts/BlockLightInterpolationOrder.md); its synthetic result does not establish
+    the cause of the live scene. The user approved per-pixel evaluation, now implemented across
+    terrain, forward surfaces and liquids, retaining the curve and its calibration. Production
+    raster/consumer validation passes 155 checks with no failures or skips; both shader catalogs
+    compile. Actual installed opaque/topsoil triangles match conversion of interpolated raw RGB
+    at interior pixels and reject the former endpoint-illumination interpolation. Receipts are
+    recorded in artifacts/BlockLightPerPixelValidation.md. Live
+    appearance remains outstanding; the supplied 00:00:59 capture predates these candidates.
 
   ☑ Convert punctual lights and material emission without relabeling legacy payloads.
     - Author VGE punctual output in lumens, convert to evaluated intensity, and use metre-based

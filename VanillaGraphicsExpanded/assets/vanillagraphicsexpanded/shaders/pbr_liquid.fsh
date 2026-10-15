@@ -12,7 +12,8 @@ layout(location = 6) in vec3 fWorldPos;
 layout(location = 7) in vec3 fragNormal;
 layout(location = 8) flat in int waterFlags;
 layout(location = 9) in vec3 vge_viewPosition;
-layout(location = 10) in vec3 vge_blockIrradiance;
+layout(location = 10) in vec3 vge_blockField;
+vec3 vge_blockIrradiance;
 layout(location = 11) in float vge_skyVisibility;
 layout(location = 12) in float glowLevel;
 layout(location = 21) in vec2 vge_wavePosition;
@@ -50,6 +51,8 @@ void main()
     outSpecularCapture = vec4(1.0);
     return;
 #endif
+    // Liquid surface and volume capture share the same per-fragment lux conversion.
+    vge_blockIrradiance = VgeBlockIlluminance(vge_blockField);
 	vec4 texColor;
 	
 	float vn = max(0, 0.9 - abs(fragNormal.y));

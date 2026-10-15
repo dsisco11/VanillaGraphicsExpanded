@@ -42,7 +42,9 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
         room.Geometry.Sample = (x, y, z) => original(x, y, z) with
         { NormalizedLight = TraceGeometryVoxel.PackLight(new(1, 1, 1, .03f)) };
         room.Geometry.Dirty(); room.Geometry.Publish(); room.Seed();
-        float expectedLux = emissionPolicy ? 0 : LightingCalibration.Default.BlockReferenceLux * (1 - LightingCalibration.Default.BlockNeutralFloor);
+        float amplitude = 1 - LightingCalibration.Default.BlockNeutralFloor;
+        float expectedLux = emissionPolicy ? 0 : LightingCalibration.Default.BlockReferenceLux
+            * MathF.Pow(amplitude, 4) / (MathF.Pow(amplitude, 3) + .064f);
         float[] direct = room.Read(room.Snapshot.DirectIrradiance);
         for (int channel = 0; channel < 3; channel++)
             Assert.InRange(direct[channel], expectedLux - .01f, expectedLux + .01f);
