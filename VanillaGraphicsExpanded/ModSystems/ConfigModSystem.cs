@@ -46,6 +46,8 @@ internal sealed class ConfigModSystem : ModSystem
         try
         {
             var document = api.LoadModConfig<JObject>(Constants.ConfigFileName);
+            bool exposureMigrated = document?["CameraExposure"] is JObject camera
+                && PBR.CameraExposure.CameraExposureSettingsConverter.Migrate(camera);
             var loadedConfig = document?.ToObject<VgeConfig>();
             if (loadedConfig is null)
             {
@@ -61,8 +63,11 @@ internal sealed class ConfigModSystem : ModSystem
             Config.Sanitize();
             // ConfigLib replaces existing JSON paths; it cannot create missing nested
             // settings. Materialize current defaults before it loads, never during its save.
-            if (document is not null && ConfigDocumentDefaults.FillMissing(document, JObject.FromObject(Config)))
-                api.StoreModConfig(document, Constants.ConfigFileName);
+            if (document is not null)
+            {
+                bool defaultsAdded = ConfigDocumentDefaults.FillMissing(document, JObject.FromObject(Config));
+                if (exposureMigrated || defaultsAdded) api.StoreModConfig(document, Constants.ConfigFileName);
+            }
         }
         catch (Exception ex)
         {

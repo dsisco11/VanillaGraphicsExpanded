@@ -1,7 +1,7 @@
 #version 430 core
 layout(local_size_x=1) in;
 layout(std140, binding=28) uniform FrameLightingInputs { vec4 boundAndSeed; uvec4 identity; };
-layout(std430, binding=0) readonly buffer PreviousExposure { float previousEV; };
+layout(std430, binding=0) readonly buffer PreviousExposure { float previousLogGain; };
 layout(std430, binding=1) writeonly buffer FrozenFrameLighting { vec4 lightingStorage; uvec4 lightingIdentity; };
 /** Freezes a downward-rounded source-informed scale; metering later writes a different exposure buffer. */
 void main()
@@ -9,7 +9,7 @@ void main()
     float multiplier = boundAndSeed.y;
     if (boundAndSeed.z > .5)
     {
-        float candidate = exp2(previousEV);
+        float candidate = exp2(previousLogGain);
         if (!isnan(candidate) && !isinf(candidate) && candidate > 0.0) multiplier = candidate;
     }
     float scale = max(multiplier, .0625);

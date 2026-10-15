@@ -323,7 +323,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         EnsureShaderTestAvailable();
         using var rig = CreateRig();
         rig.PublishTarget(target);
-        var settings = new CameraExposureSettings().Snapshot() with { MinEV = -20, MaxEV = 20 };
+        var settings = new CameraExposureSettings { MinEV100 = -20, MaxEV100 = 20 }.Snapshot();
         // Eleven stops use the bounded linear response; the last stop settles exponentially.
         float actual = rig.Adapt(settings, 0, seconds, false);
         Assert.InRange(MathF.Abs(target - actual), 0, .051f);
@@ -353,7 +353,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         using var rig = CreateRig();
-        var settings = Settings() with { BrightenRate = 2 };
+        var settings = new CameraExposureSettings { MinEV100 = -12, MaxEV100 = 12, BrightenRate = 2, DarkenRate = 3, LowPercentile = 0, HighPercentile = 1, CenterWeighted = false }.Snapshot();
         rig.PublishTarget(4);
         float full = rig.Adapt(settings, -2, 3, false);
         float split = -2;
@@ -362,9 +362,9 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         AssertClose(full, split, .00003f);
         AssertClose(-2, rig.Adapt(settings, -2, -1, false));
         rig.PublishTarget(8);
-        AssertClose(3, rig.Adapt(settings with { MaxEV = 3 }, 0, 0, true));
+        AssertClose(3, rig.Adapt(settings with { MaxLogGain = 3 }, 0, 0, true));
         rig.PublishTarget(-8);
-        AssertClose(-3, rig.Adapt(settings with { MinEV = -3 }, 0, 0, true));
+        AssertClose(-3, rig.Adapt(settings with { MinLogGain = -3 }, 0, 0, true));
     }
 
     /// <summary>One production program consumes independent shared camera durations without mutating either view snapshot.</summary>
@@ -390,13 +390,13 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         using var rig = CreateRig();
-        var settings = Settings() with { ManualEV = 1, Compensation = .5f };
+        var settings = Settings() with { ManualLogGain = 1, Compensation = .5f };
         rig.PublishEmpty();
         AssertClose(-2, rig.Adapt(settings, -2, 10, false));
         AssertClose(1.5f, rig.Adapt(settings, -2, 10, true));
         AssertClose(1.5f, rig.Adapt(settings, float.NaN, 10, false));
         AssertClose(1.5f, rig.Adapt(settings with { Enabled = false }, -2, 10, false));
-        AssertClose(1, rig.Adapt(settings with { Enabled = false, MaxEV = 1 }, -2, 10, false));
+        AssertClose(1, rig.Adapt(settings with { Enabled = false, MaxLogGain = 1 }, -2, 10, false));
         rig.PublishTarget(2);
         AssertClose(2.5f, rig.Adapt(settings, -2, 0, true));
     }

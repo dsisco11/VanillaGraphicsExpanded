@@ -7,19 +7,28 @@ radiance. Both LumOn modes use the same camera response.
 
 ## Camera model
 
-The design uses log-luminance metering, percentile rejection, bounded exposure, a metering mask and independent
-adaptation speeds. VGE uses scene-relative stops, not calibrated photographic EV100: the
-scene does not currently declare an absolute photometric camera calibration.
+The camera uses saturation-based EV100 authoring with fixed lens attenuation q=0.78 and
+saturation coefficient 0.78. Thus Lmax=0.78/q=1 cd/m² at camera EV100 zero. For camera
+EV100 C and compensation B stops, gain is 2^(-C+B)/Lmax. Higher C darkens; positive B brightens.
+This virtual-camera calibration has no aperture, shutter or ISO controls.
 
-Exposure EV is log2 of the RGB multiplier. One stop doubles radiance at the display operator.
-The desired EV is log2(middleGray) minus the trimmed weighted mean of log2(luminance), plus
-compensation, clamped to the configured minimum/maximum. Default middle gray is 0.18 **before**
-the tone curve; it is not a promised final encoded pixel value. The default EV interval is
-[-20, 2]. This covers an 18% diffuse daylight receiver illuminated at 100,000 lux
-(about 5,730 nits, requiring about -15 stops for the 0.18 display target), while bounding
-night brightening. Manual stops and exposure bounds accept [-48,24]; compensation remains
-[-8,8]. These are display multipliers, not EV100. Saved custom limits remain authoritative
-when already saved; the defaults apply to new or missing settings.
+The histogram measures physical luminance L in cd/m². The instantaneous scene camera value
+is Cscene=log2(L/(MiddleGray*Lmax)); with the default middle gray 0.18, 0.18 nits gives EV100 zero,
+1 nit gives about 2.474, and 5730 nits gives about 14.958. This gray-relative scene estimate is
+distinct from log2(L/Lmax), the EV100 of a saturation-luminance value. Middle gray is the
+linear target before the filmic response, not a promised final encoded pixel value.
+
+GPU history and exposure consumers retain G=log2(gain) in multiplier stops. The automatic
+target remains log2(MiddleGray)-log2(L)+Compensation. Compensated gain is clamped to
+[-MaxEV100-log2(Lmax),-MinEV100-log2(Lmax)]. Defaults MinEV100=-2, MaxEV100=20 and
+ManualEV100=0 preserve the prior [-20,+2] gain interval and unit manual gain. Manual gain is
+clamped with the same compensation ordering. Camera values accept [-24,48]; compensation
+accepts [-8,8]. Reversed current camera bounds collapse the maximum to the minimum.
+
+Histogram weighting, percentiles, timing, local correction and source calibration are retained.
+A higher scene EV100 requests less gain. BrightenRate and DarkenRate describe image brightness,
+so increasing camera EV100 uses DarkenRate; decreasing it uses BrightenRate. Neither gain
+limits nor histogram log-nit bounds are relabeled as each other.
 
 The histogram contains 64 bins across log2 physical luminance in nits (-24,40) when
 local exposure is enabled, or (-16,40) when it is disabled. The upper
@@ -62,7 +71,7 @@ complete immunity to spatial undersampling or genuinely changing illumination.
 
 Bloom applies bounded local correction to its emitting samples before thresholding and filtering.
 Final composition locally corrects scene and directional shafts, adds the source-corrected bloom
-without destination-local gain, and applies exp2(EV) once, then samples
+without destination-local gain, and applies exp2(G) once, then samples
 the cached scene-linear grading, filmic response and sRGB display transform described in
 [PBR.Postprocessing.md](PBR.Postprocessing.md). The native gamma slider is normalized around
 its default of 3; extra gamma is also a relative control with neutral value 1. Gamma, brightness
@@ -91,7 +100,7 @@ buffer and leaves the frozen scale unchanged. Initial freezing after metering is
 Physical consumers explicitly adopt `IPhotometricFrameBindings`. Sun, sky, block, punctual
 and material-emission sources are calibrated. Connected transport, scene storage, metering
 and display consumers use the same frozen publication. Metering decodes stored RGB by 1/P;
-final display multiplies scene plus glare by exp2(EV)/P exactly once. Persistent lighting
+final display multiplies scene plus glare by exp2(G)/P exactly once. Persistent lighting
 retains its fixed C=1/16 representation independently of the camera.
 The capability gate admits the frozen slot and simultaneous
 fragment reads of exposure and frame scale. Resize, reload and world retirement withdraw and
@@ -145,10 +154,10 @@ Precision therefore depends on input resolution; reference checks
 must account for this explicitly. Within-bin weighted means are retained, rather than replacing
 samples by bin centres. Percentile boundary populations remain approximate, not an exact sort.
 
-Two owned 32-byte SSBOs retain previous/current EV at offset zero plus optional viewing
-metadata. Float offsets are EV, adapted log2 luminance, metered log2 luminance, validity,
+Two owned 32-byte SSBOs retain previous/current log2 gain at offset zero plus optional viewing
+metadata. Float offsets are log2 gain, instantaneous scene EV100, metered log2 luminance, validity,
 uncapped metering target, metering-target cap-hit flag and two reserved zeros. Existing
-scalar exposure consumers continue reading offset zero. Successful dispatch submission and
+scalar exposure consumers continue reading log2 gain at offset zero. Successful dispatch submission and
 restoration swap publication; failure never publishes the partially written candidate.
 ShaderStorageBarrierBit separates histogram writes from reduction reads and reduction writes
 from later fragment reads (including next-frame history reads). The prepared-resource engine
@@ -188,7 +197,7 @@ The spatial display operation and unchanged grading cache are described in
 
 Owned bloom, LightShafts, luma preparation and FinalDisplayShaderProgram consume the published
 EV through generated typed read-only storage-block bindings. Manual draws select the captured
-manual EV and do not read the optional buffer. The graphics baseline remains GLSL 330 with
+manual log-gain and do not read the optional buffer. The graphics baseline remains GLSL 330 with
 GL_ARB_shader_storage_buffer_object and GL_ARB_shader_image_load_store explicitly required
 for these consumers; it does not
 imply GL 3.3 runtime compatibility. GpuSupport owns cached compute/SSBO/SPIR-V capabilities
@@ -207,23 +216,35 @@ resource publication, shader reload and world exit retire compute programs, buff
 ## Controls and cost
 
 The Camera Exposure section in the existing graphics configuration persists automatic/manual
-mode, compensation, manual EV, EV bounds, middle gray, percentile cutoffs, center weighting,
-and brightening/darkening speeds. Automatic mode defaults on. Disable it with manual EV and
+mode, compensation, manual camera EV100, camera EV100 bounds, middle gray, percentile cutoffs, center weighting,
+and brightening/darkening speeds. Automatic mode defaults on. Disable it with ManualEV100 and
 compensation both zero to use one display unit per physical nit before the tone curve. Manual mode
-submits no metering dispatches and retires histogram/history storage when local exposure
-is disabled. With the optional candidate enabled, physical viewing estimation remains
-active while the saved manual gain is authoritative.
+submits no metering dispatches and retains no camera history even when local exposure is
+enabled; its current spatial base and authored manual gain remain authoritative.
 
 ### Saved-setting compatibility
 
-New or missing camera settings use exposure limits -20/+2 and manual exposure zero. Existing
-saved camera values remain unchanged, subject to the finite snapshot bounds; no version marker
-or automatic stop offset is applied. A leftover marker from an intermediate configuration is
-ignored as an unknown field. Compensation, middle gray, adaptation, percentiles and dimensionless
-glare controls retain their meanings. Updating defaults does not rewrite saved custom settings.
+New or missing settings use ManualEV100=0 and MinEV100/MaxEV100=-2/20. The old ManualEV,
+MinEV and MaxEV names identify multiplier stops, never camera EV100. Loading negates manual
+stops and reverses/negates the validated old gain bounds. Missing legacy bounds use -20/+2;
+reversed old bounds first collapse to the old minimum, preserving previous effective output.
+An explicitly present new field wins independently of old keys, even if malformed: null,
+non-numeric and non-finite new values use that field's current default. Finite snapshot values
+are clamped to the supported camera domain. Current reversed bounds collapse to MinEV100.
 
-Existing exposure values may need user adjustment: the formerly uncalibrated solar/block/source
-mixture had no universal scale, so the same stops do not promise the same old screenshots.
+The ordinary startup loader converts old identities before materializing missing ConfigLib
+paths, removes those three old keys, and persists the normalized document. Direct settings
+JSON deserialization follows the same rule. Subsequent serialization emits only new keys, so
+conversion is idempotent without PhotometricVersion or another marker. Mixed documents retain
+explicit current values. Unknown settings, custom effective gain, automatic opt-outs, local
+opt-outs, compensation, middle gray, rates and percentiles remain authoritative.
+
+This migration preserves the already-calibrated pipeline's output; it does not promise matching
+screenshots from before physical light calibration. The debug snapshot reports applied camera
+EV100, gain limits/stops, scene EV100 (NaN when metering is invalid), requested EV100 and cap
+state. Applied camera EV100 is the uncompensated equivalent of the final global gain; it can
+differ from the authored manual EV100 when compensation is nonzero. Local stops remain separate.
+
 Engine light levels, materials, propagation and world saves remain unchanged. Existing shared
 shader mappings supply source-derived torch lux, point candela and 32-nit authored emission;
 third-party inputs using those same fields inherit these defaults. Arbitrary shader output still
@@ -240,6 +261,25 @@ Fragment consumers read one shared EV float when automatic exposure is enabled.
 These are algorithmic storage/work counts, not physical bandwidth or complete-frame GPU timings.
 
 ## Validation status
+
+### Calibrated camera authoring
+
+The EV100 migration's Release build and both shader catalogs pass (450 production and 528
+fixture variants). The focused run passes 276 tests with zero failures or skips, including
+independent saturation-equation/round-trip checks, legacy/current/mixed/malformed JSON,
+startup persistence, custom opt-outs, bounds, compensation, temporal partitioning/reset,
+snapshot diagnostics, storage scales, glare and both lighting-mode runtime routes.
+
+Sixteen actual histogram/adaptation/final cases compare equivalent old/new settings across
+automatic/manual exposure, local exposure on/off, 0.0001/5730 cd/m² and storage scales 1/0.125.
+Independent camera arithmetic uses tolerances up to 4e-6 stops or relative gain; the integrated
+metadata/gain checks allow 0.0003 stops, including histogram quantization. Final lookup output
+allows 1.001/255 per channel. These are separate numerical and display-approximation tolerances.
+Receipts: artifacts/EV100/build.log, focused.trx, tests.log and test-filter.txt.
+
+No new user-run transition or local/global appearance coverage was obtained for this migration.
+Earlier moonlit acceptance remains historical. No game was installed or launched, and no new
+performance measurement is claimed; the change retains the existing sampling and pass layout.
 
 ### Applied-exposure local contrast
 
@@ -274,7 +314,9 @@ captured camera limits/compensation, requested and applied multiplier stops, tar
 instantaneous metered log2 luminance in nits, metering validity, the log-middle-gray pivot,
 local controls and centre-pixel local/combined
 gain. The centre probe uses the same final-display edge filter and local-exposure functions,
-before generated glare and grading. UI pixels are excluded. These are multiplier stops, not EV100.
+before generated glare and grading. UI pixels are excluded. Gain fields remain multiplier stops;
+explicit cameraEV100, minEV100, maxEV100, sceneEV100 and requestedEV100 fields distinguish
+the calibrated camera convention. Scene EV100 is unavailable when meteringValid is zero.
 
 For comparison, let each view settle, aim at unlit terrain, and click once with the bright
 lantern-lit area excluded and once with it included. Retain both timestamped entries and check

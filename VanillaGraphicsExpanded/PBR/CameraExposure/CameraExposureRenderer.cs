@@ -84,13 +84,13 @@ internal sealed class CameraExposureRenderer : IRenderer
         renderer.Meter();
     }
     /// <summary>Returns one coherent publication; automatic mode never silently substitutes manual exposure.</summary>
-    internal static (GpuShaderStorageBuffer? Buffer, float ManualEV) DisplayExposure()
+    internal static (GpuShaderStorageBuffer? Buffer, float ManualLogGain) DisplayExposure()
     {
         if (active is not { } renderer)
             throw new InvalidOperationException("VGE HDR camera exposure owner is unavailable.");
         if (!renderer.published) throw new InvalidOperationException("Camera exposure was not published for this HDR frame.");
         return (renderer.settings.Enabled ? renderer.targets!.Exposure : null,
-            Math.Clamp(renderer.settings.ManualEV + renderer.settings.Compensation, renderer.settings.MinEV, renderer.settings.MaxEV));
+            Math.Clamp(renderer.settings.ManualLogGain + renderer.settings.Compensation, renderer.settings.MinLogGain, renderer.settings.MaxLogGain));
     }
     /// <summary>Centers local contrast in the same compensated display domain as applied camera gain.</summary>
     internal static float DisplayLogMiddleGray
@@ -181,7 +181,7 @@ internal sealed class CameraExposureRenderer : IRenderer
         CameraExposureDispatch.RequireSupport();
         frameLighting ??= FrameLightingShaderProgram.Create(api);
         if (!frameLighting.EnsureReady()) throw new InvalidOperationException("Frame lighting scale shader is unavailable.");
-        float manual = MathF.Pow(2, Math.Clamp(settings.ManualEV + settings.Compensation, settings.MinEV, settings.MaxEV));
+        float manual = MathF.Pow(2, Math.Clamp(settings.ManualLogGain + settings.Compensation, settings.MinLogGain, settings.MaxLogGain));
         reset |= VgeFrameRenderer.Current.CameraCut;
         bool automaticHistory = settings.Enabled && targets is not null && !reset;
         frameLighting.Capture(physicalBound, manual, automaticHistory, VgeFrameRenderer.Current.FrameIndex, calibrationGeneration);

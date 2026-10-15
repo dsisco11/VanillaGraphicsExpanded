@@ -114,7 +114,7 @@ internal sealed class PostprocessPipeline : IRenderer
         shader.LocalBase=localSettings.Enabled ? local.BaseTexture : null;
         shader.CaptureLocal(localSettings);
         shader.GradingLookup=grading.Prepare(api,display.Grading);
-        shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualEV,exposure.Buffer is null?0:1,0,CameraExposureRenderer.DisplayLogMiddleGray));
+        shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualLogGain,exposure.Buffer is null?0:1,0,CameraExposureRenderer.DisplayLogMiddleGray));
         var pipeline=draw!.Prepare(shader,finalTarget);
         if(!GraphicsCommandContext.TryRun("Postprocess.Final",[pipeline],true,
             commands=>draw.Submit(commands,pipeline,finalTarget)))

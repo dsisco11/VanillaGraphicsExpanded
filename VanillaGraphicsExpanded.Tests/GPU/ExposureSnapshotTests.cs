@@ -33,7 +33,7 @@ public sealed class ExposureSnapshotTests(HeadlessGLFixture fixture) : LumOnShad
     public void SamePatchRegressionIsMonotonicAndCapMetadataCannotChangeIt()
     {
         EnsureShaderTestAvailable();
-        var policy=Camera() with {MaxEV=8};
+        var policy=Camera() with {MaxLogGain=8};
         float[] first=Capture([6.69853f,0,-9,1,6.69853f,0,0,0],Policy(),policy,false,baseLog:-14.42059f);
         float[] dark=Capture([8,0,-18,1,15,1,0,0],Policy(),policy,false,baseLog:-14.42059f);
         float[] sameCap=Capture([8,float.NaN,-80,0,-10,0,0,0],Policy(),policy,false,baseLog:-14.42059f);
@@ -50,7 +50,7 @@ public sealed class ExposureSnapshotTests(HeadlessGLFixture fixture) : LumOnShad
     public void UncappedAutomaticResponseMatchesCenteredEquation()
     {
         EnsureShaderTestAvailable();
-        var camera=Camera() with {MaxEV=20,Compensation=1.25f};
+        var camera=Camera() with {MaxLogGain=20,Compensation=1.25f};
         float gain=MathF.Log2(camera.MiddleGray)+8+camera.Compensation;
         float[] data=Capture([gain,0,-8,1,gain,0,0,0],Policy(),camera,false);
         Close(2,data[7]);Close(MathF.Log2(.18f)+1.25f,data[1]);
@@ -65,11 +65,12 @@ public sealed class ExposureSnapshotTests(HeadlessGLFixture fixture) : LumOnShad
     public void CameraControlsDefineAppliedGainAndPivot(bool automatic,float gain,float compensation,float gray)
     {
         EnsureShaderTestAvailable();
-        var camera=Camera() with {Enabled=automatic,ManualEV=gain,Compensation=compensation,MiddleGray=gray,MinEV=-10,MaxEV=20};
+        var camera=Camera() with {Enabled=automatic,ManualLogGain=gain,Compensation=compensation,MiddleGray=gray,MinLogGain=-10,MaxLogGain=20};
         float[] data=Capture([gain,0,0,0,0,0,0,0],Policy(),camera,false);
-        float applied=automatic?gain:Math.Clamp(gain+compensation,camera.MinEV,camera.MaxEV);
+        float applied=automatic?gain:Math.Clamp(gain+compensation,camera.MinLogGain,camera.MaxLogGain);
         float pivot=MathF.Log2(gray)+(automatic?compensation:0);
         Close(applied,data[6]);Close(pivot,data[1]);
+        if (!automatic) { Close(gain+compensation,data[4]); Close(gain+compensation<camera.MinLogGain || gain+compensation>camera.MaxLogGain ? 1 : 0,data[5]); }
         Close(Math.Clamp(.5f*(pivot-applied+12),-4,4),data[7]);Close(1,data[10]);
     }
     /// <summary>Meter validity and obsolete reserved history values cannot withdraw local correction.</summary>
@@ -110,6 +111,7 @@ public sealed class ExposureSnapshotTests(HeadlessGLFixture fixture) : LumOnShad
             float[] data=[2,-6,-12,0,8,1,2,3,-12,-12,0,5];
             string text=ExposureSnapshotLog.Format(data,Camera(),Policy(),false,17,false,true);
             Assert.Contains("frame=17",text);Assert.Contains("history=False",text);
+            Assert.Contains("cameraEV100=-2.00000",text);Assert.Contains("sceneEV100=NaN",text);Assert.Contains("requestedEV100=-8.00000",text);
             Assert.Contains("globalStops=2.00000",text);Assert.Contains("localStops=3.00000",text);
             Assert.Contains("combinedStops=5.00000",text);Assert.Contains("combinedGain=32",text);
             Assert.Contains("meteringValid=0",text);Assert.Contains("localProbeValid=0",text);

@@ -35,14 +35,17 @@ public sealed class ConfigPersistenceTests
 
         ConfigModSystem.EnsureConfigLoaded(api.Object);
 
-        Assert.Equal(manual, ConfigModSystem.Config.CameraExposure.ManualEV);
-        Assert.Equal(minimum, ConfigModSystem.Config.CameraExposure.MinEV);
-        Assert.Equal(maximum, ConfigModSystem.Config.CameraExposure.MaxEV);
+        Assert.Equal(-manual, ConfigModSystem.Config.CameraExposure.ManualEV100);
+        Assert.Equal(-minimum, ConfigModSystem.Config.CameraExposure.MaxEV100);
+        Assert.Equal(-maximum, ConfigModSystem.Config.CameraExposure.MinEV100);
         Assert.NotNull(stored);
         Assert.Null(stored["PhotometricVersion"]);
-        Assert.Equal(manual, stored["CameraExposure"]!["ManualEV"]!.Value<float>());
-        Assert.Equal(minimum, stored["CameraExposure"]!["MinEV"]!.Value<float>());
-        Assert.Equal(maximum, stored["CameraExposure"]!["MaxEV"]!.Value<float>());
+        Assert.Equal(-manual, stored["CameraExposure"]!["ManualEV100"]!.Value<float>());
+        Assert.Null(stored["CameraExposure"]!["ManualEV"]);
+        Assert.Equal(-minimum, stored["CameraExposure"]!["MaxEV100"]!.Value<float>());
+        Assert.Null(stored["CameraExposure"]!["MinEV"]);
+        Assert.Equal(-maximum, stored["CameraExposure"]!["MinEV100"]!.Value<float>());
+        Assert.Null(stored["CameraExposure"]!["MaxEV"]);
     }
 
     /// <summary>All current settings acquire concrete nested leaves while saved and unrelated values survive.</summary>

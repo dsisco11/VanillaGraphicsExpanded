@@ -28,7 +28,7 @@ void main()
 {
     vec3 radiance=exposure.z>.5?VgeFilterDisplayEdge(sceneImage,uv,1.0/vgeFrame.screenSize).rgb:texture(sceneImage,uv).rgb;
     radiance=VgePostStoredLight(radiance);
-    float ev=exposure.y>.5?cameraExposureEV:exposure.x;
+    float ev=exposure.y>.5?cameraExposureLogGain:exposure.x;
     float localStops=0.0;
 #if VGE_LOCAL_EXPOSURE
     float q, base;

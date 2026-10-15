@@ -1,7 +1,8 @@
 using System;
 namespace VanillaGraphicsExpanded.PBR.CameraExposure;
 
-/// <summary>Persisted log2 display multiplier for physical luminance, without photographic camera calibration.</summary>
+/// <summary>Persisted calibrated camera EV100 and physical-luminance metering policy.</summary>
+[Newtonsoft.Json.JsonConverter(typeof(CameraExposureSettingsConverter))]
 public sealed class CameraExposureSettings
 {
     #region Public API
@@ -9,12 +10,12 @@ public sealed class CameraExposureSettings
     public bool Enabled { get; set; } = true;
     /// <summary>Biases the metered exposure in stops.</summary>
     public float Compensation { get; set; }
-    /// <summary>Sets fixed exposure in stops when automatic metering is disabled.</summary>
-    public float ManualEV { get; set; }
-    /// <summary>Limits darkening so isolated highlights cannot black out the scene.</summary>
-    public float MinEV { get; set; } = -20;
-    /// <summary>Limits brightening to retain dark-scene intent.</summary>
-    public float MaxEV { get; set; } = 2;
+    /// <summary>Sets fixed camera EV100; increasing this value darkens the image.</summary>
+    public float ManualEV100 { get; set; }
+    /// <summary>Lowest camera EV100, limiting dark-scene brightening.</summary>
+    public float MinEV100 { get; set; } = -2;
+    /// <summary>Highest camera EV100, limiting bright-scene darkening.</summary>
+    public float MaxEV100 { get; set; } = 20;
     /// <summary>Defines the metered linear middle-gray target.</summary>
     public float MiddleGray { get; set; } = .18f;
     /// <summary>Rejects the darkest weighted fraction of histogram samples.</summary>
@@ -30,8 +31,9 @@ public sealed class CameraExposureSettings
 
     /// <summary>Produces a finite immutable snapshot for coherent frame inputs and change detection.</summary>
     internal CameraExposureParameters Snapshot() => new(Enabled,
-        Clamp(Compensation, 0, -8, 8), Clamp(ManualEV, 0, -48, 24),
-        Clamp(MinEV, -20, -48, 24), Math.Max(Clamp(MinEV, -20, -48, 24), Clamp(MaxEV, 2, -48, 24)),
+        Clamp(Compensation, 0, -8, 8), ExposureCalibration.ToLogGain(Clamp(ManualEV100, 0, -24, 48)),
+        ExposureCalibration.ToLogGain(Math.Max(Clamp(MinEV100, -2, -24, 48), Clamp(MaxEV100, 20, -24, 48))),
+        ExposureCalibration.ToLogGain(Clamp(MinEV100, -2, -24, 48)),
         Clamp(MiddleGray, .18f, .01f, 1), Clamp(LowPercentile, .1f, 0, .49f),
         Clamp(HighPercentile, .9f, .51f, 1), Clamp(BrightenRate, 4, .01f, 20),
         Clamp(DarkenRate, 8, .01f, 20), CenterWeighted);

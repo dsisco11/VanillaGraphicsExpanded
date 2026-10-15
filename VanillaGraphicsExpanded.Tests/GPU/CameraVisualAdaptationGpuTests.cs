@@ -19,9 +19,9 @@ public sealed class CameraVisualAdaptationGpuTests(HeadlessGLFixture fixture, IT
     public void InstantMeterMetadataDoesNotCarryIndependentAdaptation(bool automatic)
     {
         EnsureShaderTestAvailable();
-        var policy=new CameraExposureSettings().Snapshot() with {Enabled=automatic,ManualEV=.5f,MinEV=-20,MaxEV=2,CenterWeighted=false,LowPercentile=0,HighPercentile=1};
+        var policy=new CameraExposureSettings().Snapshot() with {Enabled=automatic,ManualLogGain=.5f,MinLogGain=-20,MaxLogGain=2,CenterWeighted=false,LowPercentile=0,HighPercentile=1};
         float[] state=Measure(-23.5f,policy,new float[8],true,0);
-        Close(automatic?2:.5f,state[0]);Assert.Equal(0,state[1]);Close(-23.5f,state[2]);Assert.Equal(1,state[3]);
+        Close(automatic?2:.5f,state[0]);Close(-23.5f-(float)Math.Log2(.18),state[1]);Close(-23.5f,state[2]);Assert.Equal(1,state[3]);
         Close(MathF.Log2(.18f)+23.5f,state[4]);Assert.Equal(1,state[5]);
     }
     /// <summary>Current metering replaces stale physical metadata immediately without a second temporal history.</summary>
@@ -33,7 +33,7 @@ public sealed class CameraVisualAdaptationGpuTests(HeadlessGLFixture fixture, IT
     {
         EnsureShaderTestAvailable();
         float[] state=Measure(-12,new CameraExposureSettings().Snapshot(),[2,stale,stale,1,20,1,0,0],false,0);
-        Close(2,state[0]);Assert.Equal(0,state[1]);Close(-12,state[2]);Assert.Equal(1,state[3]);
+        Close(2,state[0]);Close(-12-(float)Math.Log2(.18),state[1]);Close(-12,state[2]);Assert.Equal(1,state[3]);
     }
     /// <summary>Out-of-domain input withdraws instantaneous statistics and leaves all reserved history slots neutral.</summary>
     [Theory]

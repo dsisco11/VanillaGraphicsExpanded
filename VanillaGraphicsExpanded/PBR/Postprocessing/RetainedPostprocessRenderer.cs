@@ -29,11 +29,11 @@ internal sealed class RetainedPostprocessRenderer : IDisposable
     }
     /// <summary>Preserves scene RGB while preparing an exposure-aware luminance metric.</summary>
     internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,EnginePostprocessInputs engine,
-        GpuTexture scene,(GpuShaderStorageBuffer? Buffer,float ManualEV) exposure)
+        GpuTexture scene,(GpuShaderStorageBuffer? Buffer,float ManualLogGain) exposure)
     {
         luma!.SourceImage=scene;
         luma.ExposureBuffer=exposure.Buffer;
-        luma.Capture(new(0,0,engine.Fxaa?1:0,exposure.Buffer is not null?1:0),new(0,0,0,exposure.ManualEV));
+        luma.Capture(new(0,0,engine.Fxaa?1:0,exposure.Buffer is not null?1:0),new(0,0,0,exposure.ManualLogGain));
         draw.Submit(commands,lumaPipeline!,lumaTarget!);
     }
     /// <summary>Retires owned targets and clears publication before a new resource lifetime.</summary>

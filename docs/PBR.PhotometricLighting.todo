@@ -2,10 +2,10 @@ Photometric lighting and block-light calibration
 ================================================
 
 Source proposal: docs/PBR.PhotometricLighting.Proposal.md
-Status: Phases 1-5 complete after second review and independent completion audit (2026-10-12).
+Status: Phases 1-7 complete. Phases 1-5 were reviewed/audited on 2026-10-12; Phase 6 was closed at user direction on 2026-10-15.
 Shared shader conversion, storage support, physical producer calibration and receiver normalization are implemented.
-Only Phase 1-5 completion markers are checked; integrated qualification remains open.
-The approved defensive storage helper, scene and postprocessing write boundaries are complete; integrated qualification remains open in Phase 6. It does not
+Phase 7 (EV100 migration) passed focused validation and independent audit on 2026-10-15; Phase 6 closure and evidence limits are recorded below.
+The approved defensive storage helper, scene and postprocessing write boundaries are complete; Phase 6 is closed by user direction. This does not
 retroactively claim that completed Phase 2 support already implements those safeguards.
 The proposal remains authoritative. Unresolved design choices are prerequisite tasks, not
 settled defaults or authorization for speculative systems.
@@ -767,7 +767,14 @@ Phase 6: Qualify the integrated candidate and reconcile documentation
 Depends on Phase 5. Outcome: A reviewable candidate has numerical, integration, package and
 live-runtime evidence; accepted defaults and approximation limits are documented.
 
-Current integration findings (2026-10-12)
+Completion: All Phase 6 items closed at the user's explicit direction on 2026-10-15.
+This records the user's acceptance and closure decision. It does not claim that new tests,
+package checks, performance measurements or an independent audit were performed for this edit,
+or that every listed live scene was individually exercised. Dated receipts and their coverage
+limits below remain evidence; their pending/open status wording is historical and superseded
+by this closure. Phase 7 and overall final acceptance remain separate.
+
+Historical integration findings and implementation receipts (2026-10-12 onward)
   - Subsequent user-run observations: daytime clouds appear black but gain expected color around
     sunrise/sunset; nighttime sky is pitch black; camera adaptation is too slow; block lighting
     is not apparent in daytime shadows. These are unresolved appearance findings, not acceptance.
@@ -932,7 +939,7 @@ Current integration findings (2026-10-12)
         Avoid artificial emission, object-specific brightness floors and changes to native
         block-light propagation. Do not use exposure or a forced blue tint as calibration.
 
-    ☐ Qualify nighttime transport, storage and shadow handover through focused tests.
+    ☑ Qualify nighttime transport, storage and shadow handover through focused tests.
       - Check source linearity, zero/new/full-moon phase cases, horizon visibility, shared
         medium attenuation, distinct scattering directions and CPU/GPU agreement.
       - Verify faint background and lunar lighting survive actual persistent/scene texture
@@ -942,7 +949,7 @@ Current integration findings (2026-10-12)
         Check fixed-exposure receiver ratios/tint and ambient AO with LumOn enabled/disabled.
         Run build/test tools through subagents; keep routine fixtures lightweight.
 
-    ☐ Replace native stars/galaxy rendering with the VGE-owned HDR source and reconcile
+    ☑ Replace native stars/galaxy rendering with the VGE-owned HDR source and reconcile
       its visible output with nighttime illumination.
       - Execute docs/PBR.StarsAndGalaxy.todo: shader-generated HDR galaxy cubemap during
         world loading, a few thousand instanced stars capped by global sky quality,
@@ -957,7 +964,7 @@ Current integration findings (2026-10-12)
       Detailed implementation and validation state are authoritative in PBR.StarsAndGalaxy.todo.
       This parent item remains open for the linked appearance/performance qualification.
 
-    ☐ Obtain user-run nighttime appearance acceptance and reconcile documentation.
+    ☑ Obtain user-run nighttime appearance acceptance and reconcile documentation.
       - Cover moonlit and moonless nights, phases and horizon crossings, twilight overlap,
         outdoor/interior receivers, terrain/items/water, weather and LumOn enabled/disabled.
       - Check fixed exposure before automatic exposure; record actual coverage, remaining
@@ -1004,7 +1011,7 @@ Current integration findings (2026-10-12)
     default/ConfigLib parity, malformed maximum recovery, explicit saved-value preservation
     and GPU adaptation contracts. Nighttime appearance with the tighter cap remains user-run.
 
-  ☐ Run focused and required integrated validation through subagents.
+  ☑ Run focused and required integrated validation through subagents.
     - Validate unit arithmetic, fixture agreement, generated/installed shader contracts and
       both lighting modes. Expand testing only for actual changed contracts or unresolved failures.
     - Qualify accepted HDR extremes and precision, scale changes, configuration migrations,
@@ -1012,7 +1019,7 @@ Current integration findings (2026-10-12)
     - Record build/settings, source/candidate provenance and numerical results. Analytical,
       texture-quantization and approximate-transport tolerances remain separately reported.
 
-  ☐ Qualify defensive storage clamping against proposal "Defensive storage clamping".
+  ☑ Qualify defensive storage clamping against proposal "Defensive storage clamping".
     - Test actual destination-format boundaries, over-range finite inputs, positive/negative
       infinity, NaN and signed coefficients; verify finite payloads and preserved validity/fallback.
     - Cover history/scale changes, additive blends and OIT accumulation/resolve, including cases
@@ -1021,7 +1028,7 @@ Current integration findings (2026-10-12)
       disk-cap expectations. Report clipping defects even when the final payload is finite.
     - Use lightweight default fixtures; reserve full-scene stress/performance runs for qualification.
 
-  ☐ Package an isolated candidate for user-run reference and appearance checks.
+  ☑ Package an isolated candidate for user-run reference and appearance checks.
     - Record package identity and tested-source correspondence; exclude fixture/debug instrumentation.
       Do not install or launch the game for visual acceptance.
     - Obtain fixed-exposure neutral-grading checks of isolated and combined sun, sky and lamp sources.
@@ -1030,7 +1037,7 @@ Current integration findings (2026-10-12)
     - Reconcile observed problems with numerical receipts; do not use automatic exposure or stronger
       AO as a substitute for calibration. Record user acceptance and actual coverage honestly.
 
-  ☐ Update linked documentation to describe the retained implementation.
+  ☑ Update linked documentation to describe the retained implementation.
     - Reconcile the proposal, PBR.MaterialColorAndDisplay.md, PBR.LightingModes.md,
       PBR.CameraExposure.md, PBR.SharedDisplay.md and PBR.Postprocessing.md with verified behavior.
     - Document units, references, spatial conversions, storage representation, settings migration,
@@ -1038,7 +1045,7 @@ Current integration findings (2026-10-12)
     - Update baseline planning references/status only after linked scope and evidence agree.
       Do not treat the absence of previously referenced documentation as proof of completion.
 
-  ☐ Review the complete implementation and evidence against the proposal before marking complete.
+  ☑ Review the complete implementation and evidence against the proposal before marking complete.
     - Map each proposal requirement to retained code, tests, documentation or its explicit exclusion.
     - Check shader-only block conversion and the exclusion of engine logic patches/new lighting systems.
     - Resolve remaining discrepancies; distinguish headless numerical/package receipts from live
@@ -1048,12 +1055,47 @@ Phase 7: Migrate camera exposure authoring and metering to EV100
 --------------------------------------------------------------
 Outcome: Exposure settings and diagnostics use an explicitly calibrated EV100 convention,
 while the existing histogram, temporal adaptation and local-exposure owners remain coherent.
-Requested 2026-10-14. This is planned work; earlier completion receipts do not qualify it.
+Requested 2026-10-14. Implemented, verified, reviewed and independently audited on 2026-10-15.
 The migration alone must not be presented as correcting source calibration or image quality.
 
-  ☐ Reconcile the governing design and define the EV100 conversion contract.
+Implementation traceability and qualification (2026-10-15)
+  - Conversion contract -> proposal "Calibrated EV100 exposure authoring" and camera document
+    "Camera model" -> fixed q=0.78, Lmax=1 cd/m², gray-relative scene EV100, compensated/clamped
+    gain and unchanged temporal directions -> ExposureCalibration and settings snapshot;
+    independent saturation-equation and physical-luminance tests.
+  - Persistence -> camera "Saved-setting compatibility" and ConfigLib.Persistence.md ->
+    current-key presence precedence, reversed legacy intervals, finite fallbacks, no marker
+    and preserved explicit opt-outs -> CameraExposureSettingsConverter and startup before
+    ConfigDocumentDefaults; direct JSON and ConfigModSystem persistence tests.
+  - Runtime -> camera "Scheduling and ownership"/"Local exposure and the applied camera
+    reference", postprocessing "Physical scale and storage safety", shared-display contract ->
+    retain log-gain history, physical metering, local pivot and exactly-once display gain ->
+    CameraExposureInputs, adaptation metadata, snapshot diagnostics and existing consumers;
+    actual metering/adaptation/final, lifecycle, glare and lighting-mode tests.
+  - Qualification -> the same camera/postprocessing contracts and this phase's verification
+    tasks -> independent old/new effective settings, physical scales, local/manual combinations
+    and package/source correspondence -> Release build and both catalogs pass (450 production,
+    528 fixture variants); 276 focused tests pass, zero failures/skips. Receipts:
+    artifacts/EV100/build.log, focused.trx, tests.log and test-filter.txt.
+    Independent references allow up to 4e-6 stops/relative gain in CPU conversions,
+    0.0003 stops in the new integrated histogram/metadata checks and 1.001/255 per final
+    channel after the retained lookup/display approximation.
+    Package: artifacts/EV100/candidate.zip, SHA256
+    2AEF1B8A6F678B9D8AF7E717ABF9110271387EFB422DBF3BB2AB61A4AB933516.
+    package-receipt.json verifies all 791 archive entries, catalog output hashes and equality
+    of the tested/packaged production DLL. Its complete source identity excludes documentation
+    so checklist closure does not alter the tested source receipt. No fixture/debug instrumentation
+    is packaged, and no installation or game launch was performed.
+  - Second implementation review and independent completion audit passed with no remaining
+    findings. The auditor independently rechecked current source hashes, archive/DLL identity,
+    linked contracts and numerical receipts before task closure.
+  - User-run coverage -> none newly obtained for this EV100 migration. Earlier moonlit/local
+    appearance acceptance remains historical evidence, not a new exposure-transition receipt.
+
+  ☑ Reconcile the governing design and define the EV100 conversion contract.
     - Consult PBR.PhotometricLighting.Proposal.md, PBR.CameraExposure.md,
-      PBR.VisualAdaptation.Proposal.md, PBR.VisualAdaptation.todo and PBR.Postprocessing.md.
+      and PBR.Postprocessing.md. The user approved these retained camera/local-exposure
+      contracts in place of the missing visual-adaptation documents on 2026-10-15.
       Update the proposal's earlier EV100 exclusion for this bounded extension before coding.
     - Specify physical metered luminance in cd/m², the luminance-to-EV100 reference constant,
       camera/lens calibration, middle-gray target and conversion to the final RGB multiplier.
@@ -1067,7 +1109,7 @@ The migration alone must not be presented as correcting source calibration or im
       rendering pass, aperture/shutter/ISO controls or source-intensity retuning is required.
       Metering-mask shape and sampling-grid changes are separate work, outside this phase.
 
-  ☐ Migrate settings, defaults and configuration presentation without ambiguous saved values.
+  ☑ Migrate settings, defaults and configuration presentation without ambiguous saved values.
     - Inventory manual exposure, limits, compensation, middle gray, ConfigLib controls and
       diagnostics. Define explicit EV100 names, units, ranges and malformed-value fallbacks.
     - Convert the current -20/+2 multiplier-stop default limits and manual-zero baseline using
@@ -1077,7 +1119,7 @@ The migration alone must not be presented as correcting source calibration or im
       reintroduce PhotometricVersion or silently reinterpret old numeric fields as EV100.
       Test missing, legacy, new, mixed and invalid configurations with documented precedence.
 
-  ☐ Integrate EV100 through metering, adaptation and display consumers.
+  ☑ Integrate EV100 through metering, adaptation and display consumers.
     - Retain the weighted histogram and percentile policy, publishing calibrated scene EV100
       and a clearly defined exposure target. Keep histogram log-luminance bounds distinct
       from camera exposure limits and convert diagnostic representations consistently.
@@ -1092,7 +1134,7 @@ The migration alone must not be presented as correcting source calibration or im
       physical metering for diagnostics. This supersedes the earlier independent-estimate contract.
       Retain its enabled default, explicit saved choices and existing display-only contract.
 
-  ☐ Verify calibrated conversion and equivalent pipeline behavior through subagents.
+  ☑ Verify calibrated conversion and equivalent pipeline behavior through subagents.
     - Use independent numerical references for luminance/EV100/gain round trips, one-stop
       changes, compensation, bound ordering and representative daylight/night luminances.
     - Exercise actual histogram/adaptation/final shaders in automatic and manual modes,
@@ -1102,14 +1144,14 @@ The migration alone must not be presented as correcting source calibration or im
       declare numerical tolerances and distinguish conversion errors from existing metering
       approximations. Keep routine fixtures lightweight and expand only for unresolved failures.
 
-  ☐ Reconcile documentation, package and review the migration.
-    - Update the governing proposal, camera/display documentation and linked visual-adaptation
-      plans with final units, equations, defaults, saved-setting interpretation and limitations.
+  ☑ Reconcile documentation, package and review the migration.
+    - Update the governing proposal and retained camera/postprocessing/display documentation
+      with final units, equations, defaults, saved-setting interpretation and limitations.
     - Package the tested candidate with source identity; do not install or launch the game.
       Record user-run exposure-transition and local/global interaction coverage separately
       from numerical equivalence. Existing moonlit acceptance is not a new migration receipt.
     - Perform a second implementation review and independent completion audit before checking
-      the phase complete. Preserve outstanding Phase 6 and linked appearance requirements.
+      the phase complete. Preserve accepted Phase 6 behavior and its recorded qualification limits.
 
 Final acceptance
 ----------------

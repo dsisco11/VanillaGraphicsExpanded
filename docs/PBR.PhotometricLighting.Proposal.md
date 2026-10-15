@@ -615,8 +615,39 @@ source ranges rather than introducing undocumented per-pass clamps.
 Keep metering after scene composition and before generated glare/display conversion. Rebase
 histogram bounds and exposure limits for the declared scene scale. Preserve the current meaning
 of exposure stops as log2 of the display multiplier; distinguish physical calibration from user
-exposure compensation. A photographic EV100 authoring model may be considered separately and
-must not be claimed merely because the lighting has physical units.
+exposure compensation. The approved EV100 extension below supersedes multiplier-stop authoring
+while retaining log-gain internally; physical light units alone do not establish camera calibration.
+
+### Calibrated EV100 exposure authoring
+
+The approved extension retains physical metering in cd/m² and uses saturation-based camera
+calibration: lens attenuation q=0.78 and saturation coefficient 0.78 give Lmax=0.78/q=1 cd/m²
+at camera EV100 zero. For camera value C and compensation B stops, log2 display gain is
+G=-C-log2(Lmax)+B. Positive B brightens. This is a declared virtual-camera convention, not
+an assertion that an arbitrary light level is photographic middle gray.
+
+With the retained authored middle-gray target M, the instantaneous metered scene camera value
+is Cscene=log2(L/(M*Lmax)). Automatic target gain remains log2(M)-log2(L)+B. Clamp compensated
+gain to [-MaxEV100-log2(Lmax), -MinEV100-log2(Lmax)], preserving the previous ordering and
+effective limits. Defaults MinEV100=-2, MaxEV100=20 and ManualEV100=0 exactly preserve
+the former gain limits [-20,+2] and unit manual gain. Supported camera bounds [-24,48]
+correspond to gain [-48,24]. BrightenRate and DarkenRate still refer to image brightening
+and darkening in stops/second; higher camera EV100 darkens the image.
+
+New persisted names are ManualEV100, MinEV100 and MaxEV100. On load, explicit new fields
+take precedence individually, including invalid new values (which use the finite defaults).
+Legacy ManualEV is negated; the legacy validated [MinEV,MaxEV] gain interval becomes
+[-MaxEV,-MinEV]. Missing legacy bounds use -20/+2; reversed legacy bounds retain their
+former collapse-to-MinEV behavior before conversion. Current missing fields use current defaults.
+Remove the three old keys after conversion, before filling ConfigLib defaults; serialization
+writes only current keys. Keep custom effective gain, automatic/manual choice, local opt-outs,
+compensation and other settings. No version marker or changes to user profiles outside ordinary
+configuration loading are introduced.
+
+Histogram sampling, log-nit bounds, percentile reduction, temporal log-gain history, local
+display pivot and exactly-once exposure remain unchanged. Publish instantaneous scene EV100
+in the existing metadata spare slot and label camera versus log-gain diagnostics explicitly.
+No new pass, image, camera controls, light retuning or metering-policy change is required.
 
 The retained baseline tone curve served the initial migration. The user subsequently approved
 the scene-linear grading, filmic display response and cached 3D lookup described in
@@ -635,9 +666,10 @@ and units. Shader compilation, reload, resize and world teardown retain existing
 do not add per-frame source discovery or resource reallocation to establish calibration.
 
 Existing saves and third-party sources receive documented compatibility defaults through the
-existing owners. The user approved retaining saved camera stops without automatic conversion or
-a configuration version marker; new or missing settings use exposure limits -20/+2. The
-maximum limits dark-scene amplification to four times; explicit saved values remain authored settings.
+existing owners. The approved EV100 extension converts legacy saved camera field identities once,
+preserving effective gain without a version marker; current defaults are camera EV100 -2/20,
+equivalent to gain limits -20/+2. The minimum camera value limits dark-scene amplification to
+four times; explicit saved values remain authored settings.
 Saved values may require user adjustment because the physical scene scale changes brightness. The goal
 is coherent lighting, not exact preservation of the previously uncalibrated screenshots.
 Calibration or storage changes invalidate dependent cached lighting and histories through
@@ -700,7 +732,7 @@ Source paths below are relative to `VanillaGraphicsExpanded/`; shader paths are 
 | `PBR/Liquids/LiquidShaderProgram.FrameInputs.cs`, liquid lighting and `WaterVolumeRenderer.cs` | Liquid uses solar, sky response, raw block and engine point inputs; camera-medium source currently combines CPU-sampled raw block RGB and `Environment`, times scattering/(4*pi). Signed volume source/optical depth accumulate separately. | Convert raw block in shader, including the camera-medium route: CPU may publish the raw field but must not perform the physical conversion. Declare incident irradiance versus isotropic radiance before phase-function integration. Optical depth is dimensionless; source per length is luminance/metre. |
 | `WaterRefractionScene`, `pbr_composite`, liquid reflection/refraction | Unexposed outgoing RGB copied into pre-transport receiver snapshots and read along bent paths; world receiver validity and depth remain metadata. | Compatible stored luminance at every sample/blend. No new material weighting, display decode or exposure on copied lighting. |
 | `PBR/SceneColor/SceneColorLegacyPatches.cs`, particle capture, owned sky effects and fog | Authored scene RGB is decoded to linear before blending; stars/moon/clouds/particles/fog/night vision have no physical amplitude. Alpha/glow/revealage remain data. | Explicit compatibility reference nits per existing effect policy, applied once at scene publication; no claim of physical lunar/cloud transport. Offscreen/UI never receive this conversion. |
-| `PBR/CameraExposure`, owned bloom/shafts/luma/final | Meter unexposed completed scene; gather glare afterwards; retain unexposed RGB until one final `exp2(EV)` and display conversion. Bloom/shaft thresholds use exposed brightness; shaft solar tint is normalized rather than multiplied into scene light again. | Metering decodes storage to the declared luminance; display scale accounts for storage exactly once. Retain ordering, artistic glare controls and scene-relative stops. |
+| `PBR/CameraExposure`, owned bloom/shafts/luma/final | Meter unexposed completed scene; gather glare afterwards; retain unexposed RGB until one final `exp2(EV)` and display conversion. Bloom/shaft thresholds use exposed brightness; shaft solar tint is normalized rather than multiplied into scene light again. | Metering decodes storage to the declared luminance; display scale accounts for storage exactly once. Retain ordering and artistic glare controls; use calibrated EV100 authoring with internal log-gain stops. |
 
 The source inventory supersedes historical descriptions where they conflict. In particular,
 `PBR.LightingModes.md` retains the old 0.35 ambient approximation, `PBR.EntityAndLateCoverage.md`

@@ -14,7 +14,7 @@ void main() {
     outColor=texture(sourceImage,uv);
     outColor.rgb=VgePostStoredLight(outColor.rgb);
     if(passInfo.z>.5) {
-        float ev=passInfo.w>.5?cameraExposureEV:effect.w;
+        float ev=passInfo.w>.5?cameraExposureLogGain:effect.w;
         outColor.a=dot(VgeResolveDisplay(outColor.rgb*VgePostExposure(ev)),vec3(.299,.587,.114));
     }
 }

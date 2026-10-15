@@ -15,6 +15,12 @@ Existing values and unknown keys are preserved. Misplaced legacy values are not
 interpreted or migrated. ConfigLib remains the sole writer during GUI save events.
 VGE resets its loaded flag at world shutdown so the next world reads the file.
 
+Camera exposure has a specific identity-based migration before this default fill: legacy
+ManualEV/MinEV/MaxEV multiplier stops become ManualEV100/MinEV100/MaxEV100, preserving
+effective gain and removing those old keys. Explicit current keys win. See
+[camera exposure](PBR.CameraExposure.md#saved-setting-compatibility) for equations, malformed
+values and mixed-document precedence. This does not migrate misplaced slash-delimited keys.
+
 The three controls now use plain integer settings with ConfigLib min/max ranges,
 not named dropdown mappings:
 

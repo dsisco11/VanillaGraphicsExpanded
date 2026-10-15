@@ -561,44 +561,44 @@
         }
       },
       "CAMERA_MANUALEV": {
-        "code": "CameraExposure.ManualEV",
+        "code": "CameraExposure.ManualEV100",
         "clientSide": true,
-        "name": "CameraExposure/ManualEV",
+        "name": "CameraExposure/ManualEV100",
         "ingui": "vanillagraphicsexpanded:config-camera-manualev",
         "comment": "vanillagraphicsexpanded:config-camera-manualev-tooltip",
         "default": 0,
         "weight": 23.15,
         "range": {
-          "min": -48,
-          "max": 24,
+          "min": -24,
+          "max": 48,
           "step": 0.1
         }
       },
       "CAMERA_MINEV": {
-        "code": "CameraExposure.MinEV",
+        "code": "CameraExposure.MinEV100",
         "clientSide": true,
-        "name": "CameraExposure/MinEV",
+        "name": "CameraExposure/MinEV100",
         "ingui": "vanillagraphicsexpanded:config-camera-minev",
         "comment": "vanillagraphicsexpanded:config-camera-minev-tooltip",
-        "default": -20,
+        "default": -2,
         "weight": 23.2,
         "range": {
-          "min": -48,
-          "max": 24,
+          "min": -24,
+          "max": 48,
           "step": 0.1
         }
       },
       "CAMERA_MAXEV": {
-        "code": "CameraExposure.MaxEV",
+        "code": "CameraExposure.MaxEV100",
         "clientSide": true,
-        "name": "CameraExposure/MaxEV",
+        "name": "CameraExposure/MaxEV100",
         "ingui": "vanillagraphicsexpanded:config-camera-maxev",
         "comment": "vanillagraphicsexpanded:config-camera-maxev-tooltip",
-        "default": 2,
+        "default": 20,
         "weight": 23.25,
         "range": {
-          "min": -48,
-          "max": 24,
+          "min": -24,
+          "max": 48,
           "step": 0.1
         }
       },

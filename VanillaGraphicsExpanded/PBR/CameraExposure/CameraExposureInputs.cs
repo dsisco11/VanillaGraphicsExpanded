@@ -13,10 +13,11 @@ internal sealed class CameraExposureInputs : CpuUniformBuffer
         // Covers dim receivers through 65504 / MinimumFrameScale (~9.2 billion nits).
         // Histogram sums normalize this domain before integer encoding; resolution
         // controls their common weight precision independently of the physical range.
-        WriteVector4(0, new(localExposureEnabled ? -24 : -16, 40, settings.CenterWeighted ? 1 : 0, 0));
-        WriteVector4(16, new(settings.MinEV, settings.MaxEV, settings.Compensation, settings.MiddleGray));
+        WriteVector4(0, new(localExposureEnabled ? -24 : -16, 40, settings.CenterWeighted ? 1 : 0,
+            System.MathF.Log2(ExposureCalibration.SaturationLuminance)));
+        WriteVector4(16, new(settings.MinLogGain, settings.MaxLogGain, settings.Compensation, settings.MiddleGray));
         WriteVector4(32, new(0, settings.BrightenRate, settings.DarkenRate, reset ? 1 : 0));
-        WriteVector4(48, new(settings.LowPercentile, settings.HighPercentile, settings.ManualEV, settings.Enabled ? 1 : 0));
+        WriteVector4(48, new(settings.LowPercentile, settings.HighPercentile, settings.ManualLogGain, settings.Enabled ? 1 : 0));
     }
     #endregion
 }

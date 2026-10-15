@@ -22,7 +22,7 @@ vec4 extractSource(vec2 p) {
     float depth=texture(depthImage,p).r;
     float distance=abs(vgeFrame.projectionMatrix[3][2]/max(abs(depth*2.0-1.0+vgeFrame.projectionMatrix[2][2]),1e-6));
     float visibility=smoothstep(0.0,max(solar.w,1.0),distance);
-    float ev=passInfo.w>0.5?cameraExposureEV:effect.w;
+    float ev=passInfo.w>0.5?cameraExposureLogGain:effect.w;
     float exposureScale=VgePostExposure(ev);
     vec3 scene=VgePostStoredLight(texture(sourceImage,p).rgb);
     float luminance=dot(scene,vec3(0.2126,0.7152,0.0722));

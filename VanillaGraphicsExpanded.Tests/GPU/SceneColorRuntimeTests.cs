@@ -286,7 +286,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             camera.OnRenderFrame(0, EnumRenderStage.Before);
             CameraExposureRenderer.MeterScene();
             Assert.Null(CameraExposureRenderer.DisplayExposure().Buffer);
-            Assert.Equal(0, CameraExposureRenderer.DisplayExposure().ManualEV);
+            Assert.Equal(0, CameraExposureRenderer.DisplayExposure().ManualLogGain);
             Assert.Throws<InvalidOperationException>(() => CameraExposureRenderer.FreezeLightingStorage(physicalBounds, sceneCalibration));
             Assert.False(GL.IsBuffer(beforeRetire));
 
@@ -323,7 +323,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Vector3 physical=new Vector3(handedOff[0],handedOff[1],handedOff[2])*sceneInverseScale;
             double physicalY=.2126*physical.X+.7152*physical.Y+.0722*physical.Z;
             var manualPolicy=ConfigModSystem.Config.CameraExposure.Snapshot();
-            double manualGain=Math.Clamp(manualPolicy.ManualEV+manualPolicy.Compensation,manualPolicy.MinEV,manualPolicy.MaxEV);
+            double manualGain=Math.Clamp(manualPolicy.ManualLogGain+manualPolicy.Compensation,manualPolicy.MinLogGain,manualPolicy.MaxLogGain);
             double correction=Math.Clamp(.5*(Math.Log2(manualPolicy.MiddleGray)-manualGain-Math.Log2(physicalY)),-4,4);
             Vector3 encoded = FilmicGradingReference.Lookup(physical*(float)Math.Pow(2,manualGain+correction),displayParameters.Grading);
             for (int channel = 0; channel < 3; channel++)

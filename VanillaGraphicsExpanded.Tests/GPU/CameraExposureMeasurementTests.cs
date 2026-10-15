@@ -62,7 +62,7 @@ public sealed class CameraExposureMeasurementTests(HeadlessGLFixture fixture, IT
         if(!weighted)Assert.Equal(referenceCount,count);
         else Assert.InRange((double)count,(double)referenceCount-samples,(double)referenceCount+samples);
         float actual=ExposureTestStorage.Read<float>(targets.WriteTarget)[0];
-        float expected=Math.Clamp(MathF.Log2(.18f)-(float)(referenceSum/referenceCount),settings.MinEV,settings.MaxEV);
+        float expected=Math.Clamp(MathF.Log2(.18f)-(float)(referenceSum/referenceCount),settings.MinLogGain,settings.MaxLogGain);
         Assert.InRange(actual,expected-.0005f,expected+.0005f);
         for(int i=0;i<3;i++)Compute();
         var gpu=new List<double>();var cpu=new List<double>();

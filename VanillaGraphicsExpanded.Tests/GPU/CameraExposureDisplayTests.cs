@@ -128,7 +128,7 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         using var grading=new ColorGradingLut(); final.GradingLookup=grading.Prepare(Programs.Api,native.Grading);
         final.Capture(false,native,new(0,1,0,0));
         Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureFinal",[finalPipeline],true,commands=>draw.Submit(commands,finalPipeline,display)));
-        float expectedEv=Math.Clamp(MathF.Log2(settings.MiddleGray/luminance),settings.MinEV,settings.MaxEV);
+        float expectedEv=Math.Clamp(MathF.Log2(settings.MiddleGray/luminance),settings.MinLogGain,settings.MaxLogGain);
         Assert.InRange(ev,expectedEv-.0003f,expectedEv+.0003f);
         Assert.True(count>0);
         float exposed=luminance*MathF.Pow(2,expectedEv);

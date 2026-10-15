@@ -4,10 +4,10 @@
 layout(local_size_x=256) in;
 layout(std430, binding=0) readonly buffer CameraHistogram { uvec2 bins[]; };
 layout(std430, binding=1) readonly buffer PreviousExposure {
-    float previousEV;
+    float previousLogGain;
 };
 layout(std430, binding=2) writeonly buffer OutputExposure {
-    float exposureEV; float reservedAdaptation; float meteredLogLuminance;
+    float exposureLogGain; float sceneEV100; float meteredLogLuminance;
     float meteringValidity; float uncappedTarget; float exposureCapHit;
     float reserved0; float reserved1;
 };
@@ -51,7 +51,7 @@ void main()
     barrier();
     if(lane!=0u) return;
     float manual = clamp(percentiles.z+exposureRange.z,exposureRange.x,exposureRange.y);
-    float previous = adaptation.w>.5 ? manual : previousEV;
+    float previous = adaptation.w>.5 ? manual : previousLogGain;
     if (isnan(previous) || isinf(previous)) previous=manual;
     float count=0.0;
     for(int i=0;i<64;++i) count+=histogram[i].x;
@@ -66,11 +66,13 @@ void main()
     }
     float rawTarget=accepted>0.0 ? log2(exposureRange.w)-sum/accepted+exposureRange.z : previous;
     float target=clamp(rawTarget,exposureRange.x,exposureRange.y);
-    exposureEV=percentiles.w<.5 ? manual : clamp(adaptation.w>.5 ? target
+    exposureLogGain=percentiles.w<.5 ? manual : clamp(adaptation.w>.5 ? target
         : adaptEV(previous,target,max(vgeFrame.deltaTime,0.0)),exposureRange.x,exposureRange.y);
     // Only camera gain has temporal adaptation. Retain instantaneous physical
     // metering for diagnostics without introducing another display reference.
-    reservedAdaptation=0.0;
+    // Camera EV100 maps the measured physical luminance to the authored middle gray.
+    // This instantaneous diagnostic is not a second temporally adapted reference.
+    sceneEV100=accepted>0.0 ? sum/accepted-log2(exposureRange.w)-meterRange.w : 0.0;
     meteredLogLuminance=accepted>0.0 ? sum/accepted : 0.0;
     meteringValidity=accepted>0.0 ? 1.0 : 0.0;
     uncappedTarget=rawTarget; exposureCapHit=rawTarget!=target ? 1.0 : 0.0;

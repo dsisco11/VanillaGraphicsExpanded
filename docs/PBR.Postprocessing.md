@@ -63,7 +63,8 @@ Focused correctness receipts and the optional packaged candidate are recorded in
 
 The selected display policy retains the 256x144 grid, range width 1 stop,
 shadow/highlight strengths 0.5 and limits +/-4 stops. The global camera defaults
-remain -20/+2 stops with saved custom/manual values authoritative. Native grading
+are camera EV100 -2/20, equivalent to gain -20/+2 stops, with saved custom/manual effective values
+preserved by the field-identity migration in PBR.CameraExposure.md. Native grading
 controls retain their compatibility/artistic interpretation; they are not replaced
 with physiological or hour-based contrast controls. The standard filmic defaults remain.
 
@@ -92,9 +93,10 @@ use applied gain and the captured middle-gray policy.
 
 Scene and generated glare RGB store nits times the current frozen P. Histogram metering decodes
 1/P before glare generation. Bloom thresholds and the shaft peak limit are exposed display-linear
-quantities, evaluated with exp2(EV)/P; extraction leaves output in the same P-scaled storage.
+quantities, evaluated with exp2(G)/P, where G is internal log2 gain, not camera EV100;
+extraction leaves output in the same P-scaled storage.
 Final composition locally corrects scene and shafts, adds source-corrected bloom in FP32,
-and applies exp2(EV)/P exactly once before
+and applies exp2(G)/P exactly once before
 the unchanged tone curve. Display controls never alter source power, propagation, AO or materials.
 
 Owned bloom, shaft and luma RGB writes use the RGBA16F interval [0,65504]. Exceptional positive

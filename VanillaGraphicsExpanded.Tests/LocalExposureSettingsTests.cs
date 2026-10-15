@@ -14,7 +14,7 @@ public sealed class LocalExposureSettingsTests
     {
         var config = JsonConvert.DeserializeObject<VgeConfig>("{}")!;
         Assert.True(config.Postprocessing.LocalExposure.Enabled);
-        Assert.Equal(2, config.CameraExposure.MaxEV);
+        Assert.Equal(-2, config.CameraExposure.MinEV100);
         config.Postprocessing.LocalExposure = null!;
         config.Sanitize();
         Assert.NotNull(config.Postprocessing.LocalExposure);
@@ -53,13 +53,13 @@ public sealed class LocalExposureSettingsTests
         var config = new VgeConfig
         {
             Postprocessing = new() { LocalExposure = new() { Enabled = true, Width = 32, Height = 16, RangeWidth = 2, ShadowStrength = .25f } },
-            CameraExposure = new() { Enabled = false, ManualEV = -2, MaxEV = 3 }
+            CameraExposure = new() { Enabled = false, ManualEV100 = 2, MinEV100 = -3 }
         };
         var restored = JsonConvert.DeserializeObject<VgeConfig>(JsonConvert.SerializeObject(config))!;
         Assert.True(restored.Postprocessing.LocalExposure.Enabled); Assert.Equal(32, restored.Postprocessing.LocalExposure.Width);
         Assert.Equal(2, restored.Postprocessing.LocalExposure.RangeWidth); Assert.Equal(.25f, restored.Postprocessing.LocalExposure.ShadowStrength);
-        Assert.False(restored.CameraExposure.Enabled); Assert.Equal(-2, restored.CameraExposure.ManualEV);
-        Assert.Equal(3, restored.CameraExposure.MaxEV);
+        Assert.False(restored.CameraExposure.Enabled); Assert.Equal(2, restored.CameraExposure.ManualEV100);
+        Assert.Equal(-3, restored.CameraExposure.MinEV100);
     }
     #endregion
 }

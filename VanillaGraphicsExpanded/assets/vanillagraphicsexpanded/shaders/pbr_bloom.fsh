@@ -86,7 +86,7 @@ void main()
         float ev = 0.0;
         if (extract)
         {
-            ev = passInfo.w > .5 ? cameraExposureEV : effect.w;
+            ev = passInfo.w > .5 ? cameraExposureLogGain : effect.w;
             exposureMultiplier = VgePostExposure(ev);
         }
         color = reduceScene(extract, ev, exposureMultiplier);

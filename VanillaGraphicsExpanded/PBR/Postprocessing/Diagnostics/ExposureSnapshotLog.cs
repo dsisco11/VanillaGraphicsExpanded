@@ -58,8 +58,10 @@ internal static class ExposureSnapshotLog
         if(data.Length!=12) throw new ArgumentException("Exposure snapshot requires twelve GPU values.",nameof(data));
         return string.Create(CultureInfo.InvariantCulture,
             $"[VGE Exposure Snapshot] frame={frame} LumOn={lumOn} auto={camera.Enabled} local={local.Enabled} FXAA={antialias} history={hasHistory} " +
-            $"globalStops={data[6]:F5} minStops={camera.MinEV:F5} maxStops={camera.MaxEV:F5} compensation={camera.Compensation:F5} " +
-            $"requestedStops={data[4]:F5} targetCapHit={data[5]:F0} atBrighteningLimit={data[6]>=camera.MaxEV-.0001f} " +
+            $"globalStops={data[6]:F5} minStops={camera.MinLogGain:F5} maxStops={camera.MaxLogGain:F5} compensation={camera.Compensation:F5} " +
+            $"cameraEV100={ExposureCalibration.FromLogGain(data[6]):F5} minEV100={ExposureCalibration.FromLogGain(camera.MaxLogGain):F5} maxEV100={ExposureCalibration.FromLogGain(camera.MinLogGain):F5} " +
+            $"sceneEV100={(data[3]>.5f ? ExposureCalibration.SceneEV100(data[2],camera.MiddleGray) : float.NaN):F5} requestedEV100={ExposureCalibration.FromLogGain(data[4]):F5} " +
+            $"requestedStops={data[4]:F5} targetCapHit={data[5]:F0} atBrighteningLimit={data[6]>=camera.MaxLogGain-.0001f} " +
             $"logMiddleGray={data[1]:F5} middleGray={camera.MiddleGray:G9} meteredLog2Nits={data[2]:F5} meteringValid={data[3]:F0} " +
             $"probe=centre-pixel probeLog2Nits={data[8]:F5} baseLog2Nits={data[9]:F5} localProbeValid={data[10]:F0} " +
             $"localStops={data[7]:F5} combinedStops={data[11]:F5} combinedGain={MathF.Pow(2,data[11]):G9} " +
