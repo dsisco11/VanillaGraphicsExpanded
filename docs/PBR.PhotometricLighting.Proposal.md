@@ -1512,6 +1512,13 @@ The CPU analytic projected-area integral (or horizon-clipped quadrature) and rad
 peak are cached by publication identity and participate in frame storage admission.
 The initial surface has uniform albedo; crater texture synthesis is outside this change.
 
+`SunRenderer` independently registers the solar disk at Opaque order 0.197, before
+atmospheric local coverage at 0.2. Its owned procedural program uses the existing
+`AtmosphereSolarDisk` calibration and CPU-certified visible-disk storage limit.
+Disabling the shared native sun/moon callbacks therefore leaves both emitters with
+explicit owned drawing paths. Solar glow metadata remains available to light shafts;
+no native solar mesh, shader, texture or occlusion-query callback is needed for drawing.
+
 The selected orientation-averaged moonless reference is **0.0008 lux horizontal illuminance**,
 split into 0.0004 lux airglow, 0.0003 lux galaxy and 0.0001 lux complete catalog. The split is
 artistic; the total reference is informed by the

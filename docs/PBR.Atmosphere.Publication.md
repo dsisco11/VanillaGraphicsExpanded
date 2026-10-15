@@ -139,6 +139,19 @@ tracked additive HDR pass with no depth writes or glow contribution. Its GLSL 33
 program reconstructs a procedural phased Lambert disk without engine shader code,
 moon textures or native mesh data. Clouds and terrain occlude it in later passes.
 
+The sun has an independent `SunRenderer` at Opaque order 0.197, also before local
+atmospheric coverage at 0.2. Its `celestial_sun` GLSL 330 program reconstructs an
+antialiased uniform angular disk from the shared camera and completed atmosphere.
+`AtmosphereSolarDisk` supplies the existing angular radius and radiance normalized
+to admitted solar illuminance and horizon visibility; extinction is not applied twice.
+The CPU-certified `AtmosphereSolarDiskStorage` limit is selected before multiplication,
+preserving the existing visible-disk headroom independently of physical illumination.
+`Celestial.Sun` adds HDR color and green-channel solar visibility metadata, preserves
+destination alpha and depth, and leaves bloom extraction to owned postprocessing.
+Clouds and terrain occlude the disk in later draws. Native callbacks remain disabled:
+this renderer does not invoke them or borrow their shaders, meshes, textures or queries.
+Preparation and drawing use the existing frame, resize, reload and world lifecycles.
+
 The completed atmosphere freezes `MoonPhase` with lunar direction, angular radius
 and extinguished `Lunar` illuminance. `MoonDisk` normalizes the projected surface
 integral to this RGB illuminance, using the analytic Lambert phase integral for a

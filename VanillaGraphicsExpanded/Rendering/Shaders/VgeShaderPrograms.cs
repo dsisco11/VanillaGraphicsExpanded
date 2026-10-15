@@ -30,6 +30,7 @@ internal static class VgeShaderPrograms
         GpuShaderProgramLibraries.Declare(api, PBR.Atmosphere.Celestial.CelestialStarProgram.Contract.Identity, () => new PBR.Atmosphere.Celestial.CelestialStarProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Atmosphere.Celestial.CelestialGalaxyProgram.Contract.Identity, () => new PBR.Atmosphere.Celestial.CelestialGalaxyProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Atmosphere.Celestial.MoonProgram.Contract.Identity, () => new PBR.Atmosphere.Celestial.MoonProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Atmosphere.Celestial.SunProgram.Contract.Identity, () => new PBR.Atmosphere.Celestial.SunProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.FinalDisplayShaderProgram.Contract.Identity, () => new PBR.Postprocessing.FinalDisplayShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.BloomShaderProgram.Contract.Identity, () => new PBR.Postprocessing.BloomShaderProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Postprocessing.LightShaftShaderProgram.Contract.Identity, () => new PBR.Postprocessing.LightShaftShaderProgram());
