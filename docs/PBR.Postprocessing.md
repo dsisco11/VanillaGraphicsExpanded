@@ -48,13 +48,39 @@ lighting floor. Changing enabled state resets camera history; resize, reload and
 leave withdraw spatial publication and retire resources through the existing owners.
 
 This candidate cannot fix a restrictive global gain cap by itself: a nearly uniform
-dim frame has little base contrast to compress. Captured-scene qualification, global
-policy selection, visibility references and representative performance qualification remain
-tracked in [PBR.VisualAdaptation.todo](PBR.VisualAdaptation.todo).
+dim frame has little base contrast to compress. Selected policy, measured component
+cost and the declared visibility reference are recorded below. Broader integrated
+scene coverage remains tracked in [PBR.VisualAdaptation.todo](PBR.VisualAdaptation.todo).
 The user visually accepted the optional local-exposure candidate on 2026-10-14,
 reporting that it works very well, then requested it enabled by default. Exposure limits remain unchanged.
+The accepted live test covered a moonlit night only, as subsequently clarified by the
+user. Other integrated scene conditions remain unverified.
 Focused correctness receipts and the optional packaged candidate are recorded in
 [runtime validation](../artifacts/VisualAdaptation/runtime-validation.md).
+
+The selected display policy retains the 256x144 grid, range width 1 stop,
+shadow/highlight strengths 0.5 and limits +/-4 stops. The global camera defaults
+remain -20/+2 stops with saved custom/manual values authoritative. Native grading
+controls retain their compatibility/artistic interpretation; they are not replaced
+with physiological or hour-based contrast controls. The standard filmic defaults remain.
+
+Opt-in warmed production measurements on an RTX 4090, with RGBA16F scene/output,
+report added paired median GPU costs of 0.0389 ms at 720p, 0.0722 ms at 1080p and
+0.1137 ms at 1440p. These isolate the local owner plus optional final variant against
+the global final variant, not complete-game frame times or cross-vendor performance.
+Two RG32F images carry 576 KiB; the expanded camera histories add 56 bytes. These
+exclude allocator/driver overhead and are not queried resident VRAM measurements.
+
+An independent test-only threshold study uses
+[Ferwerda et al., 1996, Equations 3–5](https://www.cs.ucf.edu/~sumant/publications/sig96.pdf),
+assuming display white 100 cd/m2, black 0.1 cd/m2, display adaptation 5 cd/m2 and a dim
+neutral surround. It compares unchanged filmic/RGB8 output differences in model
+threshold units; it does not apply another runtime mapper or measure the user's monitor.
+The rod comparison is an achromatic photopic-Y proxy, not spectral scotopic reconstruction.
+Captured terrain detail remains quantized away at the studied exposures. Lamp detail
+can become weaker at +2 stops and stronger at the captured +6-stop setting after local
+compression. These stimulus-dependent diagnostics support preserving saved settings
+and documenting the tradeoff, not a universal readability or human-visibility claim.
 
 ### Physical scale and storage safety
 

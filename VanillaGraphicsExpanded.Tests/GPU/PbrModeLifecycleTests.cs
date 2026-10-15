@@ -1,6 +1,7 @@
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Postprocessing.LocalExposure;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -60,6 +61,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         int providerReads = 0;
         using var composite = new PBRCompositeRenderer(api, gbuffer, direct, config, () => { providerReads++; return provider; });
         using var later = new LumOnBufferManager(api, config);
+        using var localExposure = new LocalExposureRenderer(); localExposure.FrameLightingInputs = frameLighting.Buffer;
 
         /// <summary>Restores authored albedo because display resolve overwrites the engine primary color.</summary>
         float Compose()
@@ -67,7 +69,18 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
             terrain.UploadTerrain(gbuffer, [.25f], [.5f,.5f,1,1], [.5f,0,0,0], [.5f,.5f,.5f,1]);
             gbuffer.SurfaceTexture!.UploadDataImmediate([.5f,.5f,.5f,1f], 0, 0, 2, 1, 1, 1);
             composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
-            return composite.SceneLinearColor!.ReadPixels()[0];
+            // Consume the actual completed native/GI composition, not an invented mode label.
+            float[] physical = composite.SceneLinearColor!.ReadPixels();
+            var localBase = localExposure.Render(api, composite.SceneLinearColor, new(true, 1, 1, 1, .5f, .5f, 4, 4, false));
+            float[] spatial = localBase.ReadPixels();
+            double luminance = .2126 * physical[0] + .7152 * physical[1] + .0722 * physical[2];
+            if (luminance > 0)
+            {
+                Assert.Equal(1, spatial[1]);
+                Assert.InRange(Math.Abs(spatial[0] - Math.Log2(luminance)), 0, .00001);
+            }
+            else Assert.Equal(new float[] { 0, 0 }, spatial);
+            return physical[0];
         }
 
         // Readiness prepares real binary programs and attachments without submitting either draw.

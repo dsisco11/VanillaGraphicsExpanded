@@ -1,8 +1,8 @@
 # HDR camera exposure
 
 VGE meters the unexposed HDR scene and adjusts a global camera exposure before the existing
-SDR tone curve. This is automatic exposure, not per-frame contrast stretching or local tone
-mapping. Lighting, atmosphere, reflections, refraction and scene storage retain their original
+SDR tone curve. The camera owner provides global adaptation; the separate spatial
+display operation is described below. Lighting, atmosphere, reflections, refraction and scene storage retain their original
 radiance. Both LumOn modes use the same camera response.
 
 ## Camera model
@@ -21,7 +21,8 @@ night brightening. Manual stops and exposure bounds accept [-48,24]; compensatio
 [-8,8]. These are display multipliers, not EV100. Saved custom limits remain authoritative
 when already saved; the defaults apply to new or missing settings.
 
-The histogram contains 64 bins across log2 physical luminance in nits (-16,40). The upper
+The histogram contains 64 bins across log2 physical luminance in nits (-24,40) when
+local exposure is enabled, or (-16,40) when it is disabled. The upper
 bound exceeds the maximum decoded half-float payload, 65504 / 7.147944e-6 (about 9.2 billion
 nits); the lower bound extends dim receiver sampling without promising scene quantization
 precision at that level. A fixed 64 by 36 grid samples
@@ -102,7 +103,8 @@ and overwrites its own complete 64-bin SSBO slice. No global atomics or per-fram
 The reduction dispatch uses one 64-lane group; each lane decodes and sums its bin across the
 36 slices, then lane zero performs percentile reduction and the unchanged analytical adaptation.
 
-Weights are rounded to unsigned integers at scale 4,096. The shifted log-luminance sum is
+Weights are rounded to unsigned integers at scale 4,096. With local exposure disabled,
+the shifted log-luminance sum is
 round(encodedWeight * (log2(luminance) + 16) * 256). Decoding divides weight by 4,096
 and sum by 1,048,576, then subtracts 16 times decoded weight. Weight rounding error is at most
 1/8,192 per sample; sum quantization is at most 1/2,097,152 in decoded units before shader
@@ -110,10 +112,12 @@ floating-point rounding. Floating-point products near the largest encoded sum ha
 spacing (about 0.000008 decoded units). Percentile reduction retains within-bin weighted means;
 quantization can perturb percentile boundary populations. This is a bounded approximation to
 the previous float histogram, not an exact sample sort or calibrated EV100 statistic.
-A group contains only 64 samples with weights at most one and shifted levels at most 56:
+A disabled-local group contains only 64 samples with weights at most one and shifted levels at most 56:
 count <= 262,144 and shifted sum <= 3,758,096,384, both below uint32 capacity.
 The complete histogram is decoded to float before merging groups, avoiding integer overflow
 across all 2,304 samples. Invalid RGB and luminance outside the open range remain excluded.
+The enabled-local domain and its lower quantization are specified below; its 64-stop
+shifted range has the separate 2,147,483,648 bound.
 
 Two owned 32-byte SSBOs retain previous/current EV at offset zero plus optional viewing
 metadata. Float offsets are EV, adapted log2 luminance, metered log2 luminance, validity,
@@ -127,11 +131,11 @@ allocations and programs; there are no CPU luminance/EV readbacks or per-frame G
 
 ### Optional local-exposure adaptation
 
-The disabled-by-default `Postprocessing.LocalExposure.Enabled` candidate independently
+The enabled-by-default `Postprocessing.LocalExposure.Enabled` operation independently
 adapts physical log luminance. A cap on camera EV cannot become the viewing estimate.
 The histogram's optional open domain is (-24,40) log2 nits; shifted-sum quantization uses
 128 instead of 256 units. With 64 samples, 4096 weight units and a 64-stop span, a
-workgroup sum is bounded by 2,147,483,648, within uint32. Default metering retains the
+workgroup sum is bounded by 2,147,483,648, within uint32. Disabling local exposure retains the
 existing (-16,40) domain and quantization. Samples at/below the lower endpoint remain
 excluded, not a fabricated luminance floor.
 
@@ -196,7 +200,7 @@ The compute implementation fetches 2,304 scene samples per automatic frame, comp
 followed by two serial scans of 64 reduced bins. Two dispatches replace two draws; three
 exposure FBOs and the procedural VAO are removed. One scene sampler remains in metering,
 while reduction has no samplers; bloom/luma/shafts/final no longer sample exposure textures.
-Buffer payload is 18,432 histogram bytes plus eight history bytes (18,440 total), compared
+Buffer payload is 18,432 histogram bytes plus two 32-byte history buffers (18,496 total), compared
 with 520 image bytes previously; allocation granularity, executables and UBOs are excluded.
 Fragment consumers read one shared EV float when automatic exposure is enabled.
 These are algorithmic storage/work counts, not physical bandwidth or complete-frame GPU timings.
