@@ -94,15 +94,15 @@ public sealed class CameraVisualAdaptationGpuTests(HeadlessGLFixture fixture, IT
         float level = MathF.Pow(2, 39.99f);
         using var scene = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [level, level, level, 1]);
         histogram.SceneRadiance = scene; histogram.Histogram = targets.Histogram; histogram.Capture(policy, true, true);
-        histogram.Dispatch(36); GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
+        histogram.Dispatch(CameraExposureTargets.HistogramGroupCount); GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
         uint[] encoded = ExposureTestStorage.Read<uint>(targets.Histogram);
-        double expected = (Math.Log2(level) + 24) * 524288 * 64;
-        Assert.True(64d * 64 * 524288 <= uint.MaxValue);
-        for (int group = 0; group < 36; group++)
+        double expected = (Math.Log2(level) + 24) / 64 * 4096 * 128;
+        Assert.True(64d * 4096 * 128 <= uint.MaxValue);
+        for (int group = 0; group < CameraExposureTargets.HistogramGroupCount; group++)
         {
             int last = (group * 64 + 63) * 2;
-            Assert.Equal(64u * 4096, encoded[last]);
-            Assert.InRange((double)encoded[last + 1], expected - 4096, expected + 4096);
+            Assert.Equal(group==0 ? 4096u : 0u, encoded[last]);
+            Assert.InRange((double)encoded[last + 1], (group==0 ? expected : 0) - 1, (group==0 ? expected : 0) + 1);
             for (int bin = 0; bin < 63; bin++)
             {
                 Assert.Equal(0u, encoded[(group * 64 + bin) * 2]);
@@ -135,5 +135,3 @@ public sealed class CameraVisualAdaptationGpuTests(HeadlessGLFixture fixture, IT
     }
     #endregion
 }
-
-

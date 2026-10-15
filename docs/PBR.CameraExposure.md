@@ -25,9 +25,11 @@ The histogram contains 64 bins across log2 physical luminance in nits (-24,40) w
 local exposure is enabled, or (-16,40) when it is disabled. The upper
 bound exceeds the maximum decoded half-float payload, 65504 / 7.147944e-6 (about 9.2 billion
 nits); the lower bound extends dim receiver sampling without promising scene quantization
-precision at that level. A fixed 64 by 36 grid samples
-the completed primary scene with nearest texel reads. Rec.709 linear RGB coefficients produce
-luminance. Negative RGB is clamped for metering; non-finite samples and luminance outside the
+precision at that level. Dense half-resolution metering averages each available 2 by 2
+footprint of the completed primary scene before taking its logarithm. Odd-sized edges average
+only existing texels. Downscaling is fused into histogram construction without an intermediate
+image, and every source texel belongs to exactly one footprint. Rec.709 linear RGB coefficients produce
+luminance. Negative RGB is clamped for metering; footprints containing non-finite RGB and luminance outside the
 open range are excluded. Each bin stores a quantized weighted count and shifted weighted
 log-luminance sum, avoiding bin-center bias. The default center weight is
 0.25 + 0.75 * exp(-2 * dot(2*uv-1, 2*uv-1)); uniform weighting is selectable.
@@ -96,28 +98,37 @@ composed later. Owned bloom uses this same exposure for its threshold while reta
 radiance. See PBR.Postprocessing.md for the complete replacement contract.
 
 Two typed GLSL 430 compute programs use the existing compute executable, generated binding,
-GPU buffer and dispatch APIs. The histogram dispatch has 36 workgroups of 64 lanes: each lane
-fetches and classifies one of the unchanged 2,304 grid samples. Each group initializes 64 shared
-count/sum pairs, accumulates with two unsigned integer atomics per valid sample, synchronizes,
-and overwrites its own complete 64-bin SSBO slice. No global atomics or per-frame clear are needed.
-The reduction dispatch uses one 64-lane group; each lane decodes and sums its bin across the
-36 slices, then lane zero performs percentile reduction and the unchanged analytical adaptation.
+GPU buffer and dispatch APIs. The histogram dispatch has 1,024 workgroups of 64 lanes. Lanes
+visit consecutive half-resolution pixels and continue with a 65,536-sample stride until every
+footprint has been processed. Each group initializes 64 shared count/sum pairs, accumulates
+two unsigned integer atomics per valid footprint, synchronizes, and overwrites its complete
+64-bin SSBO slice. No global atomics, per-frame clear or downsample texture are needed.
+The reduction uses one 256-lane group. Four lanes independently decode interleaved partials
+for each bin, then combine their sums through shared memory across 1,024 slices,
+then lane zero performs percentile reduction and the existing analytical adaptation.
 
-Weights are rounded to unsigned integers at scale 4,096. With local exposure disabled,
-the shifted log-luminance sum is
-round(encodedWeight * (log2(luminance) + 16) * 256). Decoding divides weight by 4,096
-and sum by 1,048,576, then subtracts 16 times decoded weight. Weight rounding error is at most
-1/8,192 per sample; sum quantization is at most 1/2,097,152 in decoded units before shader
-floating-point rounding. Floating-point products near the largest encoded sum have eight-unit
-spacing (about 0.000008 decoded units). Percentile reduction retains within-bin weighted means;
-quantization can perturb percentile boundary populations. This is a bounded approximation to
-the previous float histogram, not an exact sample sort or calibrated EV100 statistic.
-A disabled-local group contains only 64 samples with weights at most one and shifted levels at most 56:
-count <= 262,144 and shifted sum <= 3,758,096,384, both below uint32 capacity.
-The complete histogram is decoded to float before merging groups, avoiding integer overflow
-across all 2,304 samples. Invalid RGB and luminance outside the open range remain excluded.
-The enabled-local domain and its lower quantization are specified below; its 64-stop
-shifted range has the separate 2,147,483,648 bound.
+The independent strip tiles spread dense input over the GPU instead of retaining only 36
+long-running groups. Every group writes all its bins, even when no input reaches that tile;
+the reduction derives the partial count from the buffer extent. Scratch payload is fixed at
+512 KiB and reused across frames and resize. The previous dense implementation used 18 KiB.
+Sampling density, footprint averaging, physical luminance weights and exposure policy are
+unchanged; shorter partial populations also retain greater fixed-point precision.
+
+For N half-resolution samples, M = 64 * ceil(N / 65536) bounds the population of each group.
+The common integer weight scale is S = min(4096, floor(2^30 / (128*M))). Weights are rounded
+at that scale; their absolute error is at most 0.5/S. The encoded sum is
+round(encodedWeight * normalizedLogLuminance * 128), where normalizedLogLuminance maps the
+selected physical metering interval to (0,1). Count sums are bounded by M*S; encoded log sums
+are bounded by 128*M*S <= 2^30, including a uniform image whose samples all hit one bin.
+This budget applies to supported scene extents with S >= 1; larger unsupported populations
+produce zero weights and the existing empty-meter fallback instead of overflowing.
+
+Reduction decodes each group to floating point before merging. Its weighted log sum is
+encodedSum * rangeSpan / 128 + encodedCount * rangeMinimum. The common scale cancels from
+percentiles and means. Sum rounding is at most rangeSpan/(256*S) stops per sample before
+floating-point rounding. Precision therefore depends on input resolution; reference checks
+must account for this explicitly. Within-bin weighted means are retained, rather than replacing
+samples by bin centres. Percentile boundary populations remain approximate, not an exact sort.
 
 Two owned 32-byte SSBOs retain previous/current EV at offset zero plus optional viewing
 metadata. Float offsets are EV, adapted log2 luminance, metered log2 luminance, validity,
@@ -133,11 +144,9 @@ allocations and programs; there are no CPU luminance/EV readbacks or per-frame G
 
 The enabled-by-default `Postprocessing.LocalExposure.Enabled` operation independently
 adapts physical log luminance. A cap on camera EV cannot become the viewing estimate.
-The histogram's optional open domain is (-24,40) log2 nits; shifted-sum quantization uses
-128 instead of 256 units. With 64 samples, 4096 weight units and a 64-stop span, a
-workgroup sum is bounded by 2,147,483,648, within uint32. Disabling local exposure retains the
-existing (-16,40) domain and quantization. Samples at/below the lower endpoint remain
-excluded, not a fabricated luminance floor.
+The histogram's optional open domain is (-24,40) log2 nits. Disabling local exposure retains
+the (-16,40) domain. Both use the normalized, population-bounded encoding above. Samples
+at/below the lower endpoint remain excluded, not a fabricated luminance floor.
 
 Enabling the candidate meters even in manual camera mode. Applied EV remains the saved
 bounded manual value; physical luminance history is still estimated and adapted. The
@@ -157,7 +166,7 @@ manual EV and do not read the optional buffer. The graphics baseline remains GLS
 GL_ARB_shader_storage_buffer_object and GL_ARB_shader_image_load_store explicitly required
 for these consumers; it does not
 imply GL 3.3 runtime compatibility. GpuSupport owns cached compute/SSBO/SPIR-V capabilities
-and stage limits. Camera metering requires 64-lane groups, 36 dispatch groups, 512 shared bytes,
+and stage limits. Camera metering requires 64-lane histogram groups, 256-lane adaptation, 1,024 dispatch groups, 2,560 shared bytes,
 three compute storage blocks and one fragment storage block. Missing capabilities or shaders
 raise rendering errors; no legacy raster fallback or reserved legacy texture unit is used.
 
@@ -194,18 +203,64 @@ shader mappings supply source-derived torch lux, point candela and 32-nit author
 third-party inputs using those same fields inherit these defaults. Arbitrary shader output still
 requires the declared scene contract. No new light configuration or source discovery is added.
 
-The compute implementation fetches 2,304 scene samples per automatic frame, compared with
-147,456 in the retired raster implementation at the same sample grid. It performs at most
-4,608 shared integer atomic additions, 2,304 workgroup-pair writes and 2,304 pair reads,
-followed by two serial scans of 64 reduced bins. Two dispatches replace two draws; three
-exposure FBOs and the procedural VAO are removed. One scene sampler remains in metering,
-while reduction has no samplers; bloom/luma/shafts/final no longer sample exposure textures.
-Buffer payload is 18,432 histogram bytes plus two 32-byte history buffers (18,496 total), compared
+The compute implementation reads every scene texel once and classifies ceil(width/2) *
+ceil(height/2) averaged samples per metered frame, performing two shared integer atomics per
+valid sample. It writes and reduces 65,536 group/bin pairs, followed by two scans of 64 bins.
+The existing two dispatches, scene sampler, binding restoration and buffer ownership remain.
+No intermediate downsample allocation or additional pass is introduced.
+Buffer payload is 524,288 histogram bytes plus two 32-byte history buffers (524,352 total), compared
 with 520 image bytes previously; allocation granularity, executables and UBOs are excluded.
 Fragment consumers read one shared EV float when automatic exposure is enabled.
 These are algorithmic storage/work counts, not physical bandwidth or complete-frame GPU timings.
 
 ## Validation status
+
+Parallel dense metering (2026-10-14) retains half-resolution coverage with 1,024 partials
+and a 256-lane cooperative merge. On the same RTX 4090 synthetic uniform-input fixture,
+eight warm samples produced the following histogram/adaptation pair GPU medians:
+
+| Scene resolution | Previous 36 groups (ms) | Selected parallel pair (ms) |
+| --- | ---: | ---: |
+| 1280 x 720 | 0.1065 | 0.0512 |
+| 1920 x 1080 | 0.2202 | 0.0563 |
+| 3840 x 2160 | 0.8397 | 0.0860 |
+
+Varied, centre-weighted inputs measured 0.0512/0.0568/0.0860 ms at those resolutions.
+Small 64x36 and 320x180 sources measured 0.0461 ms. These are synthetic component costs,
+not exclusive GPU occupancy or whole-game frame costs. The 512 KiB retained scratch trades
+additional storage for greater parallelism. A tested intermediate with 1,024 partials and
+the former serial merge regressed 720p; that intermediate is not the selected implementation.
+The shader-enabled build and all 86 selected cases passed: 77 correctness checks plus nine
+executed opt-in timing cases. Coverage includes populated-to-invalid input replacement,
+capability limits, odd edges, upper-range accumulation and scene/local-exposure lifecycle.
+The selected merge, capability admission and correctness/timing receipt are recorded under
+artifacts/DenseCameraMetering/parallel-merge-final-validation.log.
+
+Initial dense downscaled metering qualification (2026-10-14): the shader-enabled build completed,
+and 77 correctness checks passed, with three opt-in timing entries inactive in that run.
+Coverage includes a one-pixel lamp
+between former grid locations, independently averaged odd footprints, invalid footprint
+rejection, centre weighting, resolution-dependent weight precision, upper-range accumulation,
+physical storage scales, adaptation, local exposure and scene lifecycle routing in both lighting
+modes. The manual-retirement fixture now explicitly disables local exposure when asserting
+that no metering consumer remains. Receipt: artifacts/DenseCameraMetering/final-focused-validation.log.
+
+The initial 36-group dense implementation passed three opt-in timing/correctness cases on
+NVIDIA RTX 4090. Eight warm samples per
+resolution used a uniform RGBA16F input concentrating every sample in one bin, stressing
+shared atomic contention. Source upload, readback and compilation are outside timing.
+
+| Scene resolution | Half-resolution samples | Pair GPU (ms) | Submission CPU (ms) |
+| --- | ---: | ---: | ---: |
+| 1280 x 720 | 230,400 | 0.1065 | 0.0772 |
+| 1920 x 1080 | 518,400 | 0.2202 | 0.0751 |
+| 3840 x 2160 | 2,073,600 | 0.8397 | 0.1188 |
+
+These are synthetic histogram/adaptation component costs, not complete-frame performance,
+exclusive GPU occupancy or live appearance acceptance. These are the baseline for the
+subsequent workgroup-distribution optimization, not its selected cost. Timing receipt:
+artifacts/DenseCameraMetering/performance-validation.log. No game launch or installation
+was performed. The historical sparse-grid measurements below are not current dense costs.
 
 The earlier physical-camera qualification passed 197 focused cases with no failures or skips,
 including 28 new migration, physical-metering scale, actual half-float storage, exceptional-output,
@@ -219,7 +274,7 @@ skips, in artifacts/TestResults/exposure-defaults-no-migration.trx; Release buil
 checks retain their evidence. These are headless correctness checks. Integrated package and user-run adaptation/appearance
 acceptance remain in PBR.PhotometricLighting.todo.
 
-The shader-enabled build and 109/109 focused numerical/GPU cases passed with no failures or
+Before dense sampling, the shader-enabled build and 109/109 focused numerical/GPU cases passed with no failures or
 skips. Existing compiler/analyzer warnings remain. Receipt: artifacts/exposure-final-validation.log
 and artifacts/CameraExposure/exposure-final.trx. An independent 21-case GPU recheck passed
 without skips: artifacts/exposure-independent-validation.log and
@@ -230,8 +285,9 @@ manual/reset/empty history, buffer publication/disposal and binding restoration.
 exercise standalone and LumOn modes, settings changes, resize, shader reload and world retirement;
 bloom, shafts, luma and final read the typed buffer while retaining exactly-once display exposure.
 
-Matched synthetic measurements on NVIDIA GeForce RTX 4090 use the same 2,304 grid samples,
-weighted policy and scene inputs for both algorithms. Eight warm alternating samples report
+Historical sparse-grid measurements on NVIDIA GeForce RTX 4090 used the same 2,304 grid samples,
+weighted policy and scene inputs for both former algorithms. They do not measure the current
+dense sampler. Eight warm alternating samples report
 medians; source upload and readback are outside timing. Combined GPU timings include their
 production restoration boundaries. CPU submission timings exclude query-result waiting.
 

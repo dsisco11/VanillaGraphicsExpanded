@@ -184,7 +184,7 @@ internal sealed class CameraExposureRenderer : IRenderer
         lightingBound = physicalBound; lightingGeneration = calibrationGeneration;
         lightingFrameIndex = VgeFrameRenderer.Current.FrameIndex; lightingFrozen = true;
     }
-    /// <summary>Submits fixed-size metering and temporal reduction, then atomically publishes the completed result.</summary>
+    /// <summary>Submits dense downscaled metering and temporal reduction, then atomically publishes the completed result.</summary>
     private void Meter()
     {
         if (published) return;

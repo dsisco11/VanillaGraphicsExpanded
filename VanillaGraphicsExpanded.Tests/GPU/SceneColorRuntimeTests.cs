@@ -118,6 +118,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         var previousFinal = ShaderPrograms.Final;
         var previousApi = PbrDrawRouteHook.Api;
         var previousExposure = ConfigModSystem.Config.CameraExposure;
+        bool previousLocalExposure=ConfigModSystem.Config.Postprocessing.LocalExposure.Enabled;
         using var camera = new CameraExposureRenderer(api.Object);
         using var lightingPublication = new SceneLightingPublicationRenderer(api.Object);
         using var post = new PostprocessPipeline(api.Object);
@@ -279,6 +280,8 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             float ev = ExposureTestStorage.Read<float>(CameraExposureRenderer.DisplayExposure().Buffer!)[0];
             Assert.InRange(ev, expectedEv - .002f, expectedEv + .002f);
             int beforeRetire = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
+            // This retirement contract disables both consumers; manual exposure alone retains local metering.
+            ConfigModSystem.Config.Postprocessing.LocalExposure.Enabled=false;
             ConfigModSystem.Config.CameraExposure = new() { Enabled = false };
             camera.OnRenderFrame(0, EnumRenderStage.Before);
             CameraExposureRenderer.MeterScene();
@@ -416,6 +419,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         {
             lifetime.Shutdown();
             ConfigModSystem.Config.CameraExposure = previousExposure;
+            ConfigModSystem.Config.Postprocessing.LocalExposure.Enabled=previousLocalExposure;
             ConfigModSystem.Config.LumOn.Enabled = previousLumOn;
             PbrShaderLightingMode.GenerationLumOnEnabled = previousGeneration;
             harmony.UnpatchAll(harmony.Id);

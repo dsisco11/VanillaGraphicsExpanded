@@ -6,7 +6,10 @@ namespace VanillaGraphicsExpanded.PBR.CameraExposure;
 /// <summary>Owns persistent workgroup statistics and two distinct GPU exposure history buffers.</summary>
 internal sealed class CameraExposureTargets : IDisposable
 {
-    internal const int HistogramBytes = 36 * 64 * 8;
+    /// <summary>Bounds independent strip tiles while providing enough work to occupy wide GPUs.</summary>
+    internal const int HistogramGroupCount = 1024;
+    /// <summary>Reserves one complete count/log-sum histogram per workgroup.</summary>
+    internal const int HistogramBytes = HistogramGroupCount * 64 * 8;
     private GpuShaderStorageBuffer? histogram;
     private readonly GpuShaderStorageBuffer?[] history = new GpuShaderStorageBuffer?[2];
     private int published;

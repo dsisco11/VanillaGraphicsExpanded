@@ -1,7 +1,7 @@
 #version 430 core
 @import "./includes/camera_exposure_inputs.glsl"
 @import "./includes/vge_frame_ubo.glsl"
-layout(local_size_x=64) in;
+layout(local_size_x=256) in;
 layout(std430, binding=0) readonly buffer CameraHistogram { uvec2 bins[]; };
 layout(std430, binding=1) readonly buffer PreviousExposure {
     float previousEV; float previousLogLuminance; float previousMetered;
@@ -13,6 +13,7 @@ layout(std430, binding=2) writeonly buffer OutputExposure {
     float reserved0; float reserved1;
 };
 shared vec2 histogram[64];
+shared vec2 partialHistogram[256];
 /** Integrates constant-target adaptation exactly: linear outside one stop, exponential inside. */
 float adaptEV(float previous, float target, float dt)
 {
@@ -28,16 +29,26 @@ float adaptEV(float previous, float target, float dt)
 void main()
 {
     uint lane=gl_LocalInvocationIndex;
+    uint bin=lane%64u;
     vec2 entry=vec2(0);
-    // Decode before summing groups so the complete 2304-sample sum cannot overflow uint.
-    for(uint group=0u;group<36u;++group)
+    // Decode before merging groups. The shared fixed-point weight scale cancels
+    // from the percentile/geometric mean, including when resolution reduces it.
+    // Buffer extent is the dispatch contract; every partial is overwritten even
+    // for empty tiles, so resize cannot expose a previous frame's population.
+    uint groupCount=uint(bins.length())/64u;
+    // Four lanes cooperate per bin to shorten dependent memory-load chains.
+    // Lanes in each 64-wide stripe still fetch consecutive bins for coalescing.
+    for(uint group=lane/64u;group<groupCount;group+=4u)
     {
-        vec2 encoded=vec2(bins[group*64u+lane]);
-        float weight=encoded.x/4096.0;
-        float divisor=meterRange.w>.5 ? 524288.0 : 1048576.0;
-        entry+=vec2(weight,encoded.y/divisor+weight*meterRange.x);
+        vec2 encoded=vec2(bins[group*64u+bin]);
+        float weight=encoded.x;
+        entry+=vec2(weight,encoded.y/128.0*(meterRange.y-meterRange.x)+weight*meterRange.x);
     }
-    histogram[lane]=entry;
+    partialHistogram[lane]=entry;
+    barrier();
+    if(lane<64u)
+        histogram[lane]=(partialHistogram[lane]+partialHistogram[lane+64u])
+            +(partialHistogram[lane+128u]+partialHistogram[lane+192u]);
     barrier();
     if(lane!=0u) return;
     float manual = clamp(percentiles.z+exposureRange.z,exposureRange.x,exposureRange.y);

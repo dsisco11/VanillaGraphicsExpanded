@@ -14,16 +14,16 @@ internal static class CameraExposureDispatch
     {
         GpuSupport.EnsureCurrentContext();
         if (!Supports(GpuSupport.Graphics))
-            throw new InvalidOperationException("Camera exposure requires compute shaders, SPIR-V and shader storage buffers with 64-lane workgroups.");
+            throw new InvalidOperationException("Camera exposure requires compute shaders, SPIR-V and shader storage buffers with 256-lane adaptation workgroups.");
     }
     /// <summary>Admits only devices that can execute both metering stages and the graphics consumers.</summary>
     internal static bool Supports(GraphicsCapabilities capabilities) =>
         capabilities.SupportsArbComputeShader && capabilities.SupportsArbShaderImageLoadStore
         && capabilities.SupportsArbShaderStorageBufferObject && capabilities.SupportsArbGlSpirv
-        && capabilities.MaxComputeWorkGroupInvocations >= 64
-        && !capabilities.MaxComputeWorkGroupSize.IsEmpty && capabilities.MaxComputeWorkGroupSize[0] >= 64
-        && !capabilities.MaxComputeWorkGroupCount.IsEmpty && capabilities.MaxComputeWorkGroupCount[0] >= 36
-        && capabilities.MaxComputeSharedMemorySize >= 512 && capabilities.MaxShaderStorageBufferBindings >= 3
+        && capabilities.MaxComputeWorkGroupInvocations >= 256
+        && !capabilities.MaxComputeWorkGroupSize.IsEmpty && capabilities.MaxComputeWorkGroupSize[0] >= 256
+        && !capabilities.MaxComputeWorkGroupCount.IsEmpty && capabilities.MaxComputeWorkGroupCount[0] >= CameraExposureTargets.HistogramGroupCount
+        && capabilities.MaxComputeSharedMemorySize >= 2560 && capabilities.MaxShaderStorageBufferBindings >= 3
         && capabilities.MaxFragmentShaderStorageBlocks >= 1 && capabilities.MaxComputeShaderStorageBlocks >= 3
         && capabilities.MaxShaderStorageBlockSize >= CameraExposureTargets.HistogramBytes;
     /// <summary>Admits the frozen read slot and simultaneous display-exposure/frame-scale fragment consumers.</summary>
@@ -38,7 +38,7 @@ internal static class CameraExposureDispatch
             .Union(EngineBoundaryResources.From(adaptation.ProgramLayout.BinaryInterface!.PreparedBindings));
         return EngineBoundaryExecution.TryRun(new("Camera.Exposure"), resources, _ =>
         {
-            histogram.Dispatch(36);
+            histogram.Dispatch(CameraExposureTargets.HistogramGroupCount);
             GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
             adaptation.Dispatch(1);
             GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);

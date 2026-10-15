@@ -1,79 +1,86 @@
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
-using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
-using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 namespace VanillaGraphicsExpanded.Tests.GPU;
-/// <summary>Compares retained raster exposure against compute at identical fixed-grid workloads.</summary>
+/// <summary>Opt-in full-resolution correctness and warm component cost for dense exposure metering.</summary>
 [Collection("GPU")]
 [Trait("Category","GPU")]
 public sealed class CameraExposureMeasurementTests(HeadlessGLFixture fixture, ITestOutputHelper log) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
-    /// <summary>Verifies numerical agreement before measuring warm submission and completed GPU work.</summary>
+    /// <summary>Checks a maximally contended bin before timing the production histogram and adaptation pair.</summary>
     [Theory]
-    [InlineData(1280,720)]
-    [InlineData(1920,1080)]
-    [InlineData(3840,2160)]
-    public void MatchedRasterAndComputeWorkloads(int width,int height)
+    [InlineData(64,36,false)]
+    [InlineData(320,180,false)]
+    [InlineData(1280,720,false)]
+    [InlineData(1920,1080,false)]
+    [InlineData(3840,2160,false)]
+    [InlineData(1280,720,true)]
+    [InlineData(1920,1080,true)]
+    [InlineData(3840,2160,true)]
+    [InlineData(4097,2161,true)]
+    public void DenseHistogramWarmCost(int width,int height,bool weighted)
     {
+        if(Environment.GetEnvironmentVariable("VGE_RUN_EXPOSURE_MEASUREMENTS")!="1")return;
         EnsureShaderTestAvailable();
         var meter=Programs.CreateCompute(CameraHistogramShaderProgram.Create);
         var adapt=Programs.CreateCompute(CameraAdaptShaderProgram.Create);
-        var rasterMeter=Programs.Create<RasterCameraExposureShader>();
-        var rasterAdapt=Programs.Create<RasterCameraAdaptShader>();
         using var targets=new CameraExposureTargets();
-        using var histogram=TestFramework.CreateTestGBuffer(64,1,PixelInternalFormat.Rg32f);
-        using var result=TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.R32f);
-        using var previous=TestFramework.CreateTexture(1,1,PixelInternalFormat.R32f,[0f]);
-        using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,
-            Enumerable.Range(0,width*height).SelectMany(i=>new[]{.02f+((i*31)%101)*.03f,.04f+((i*7)%89)*.1f,.01f+((i*13)%67)*.02f,1f}).ToArray());
+        var pixels=new float[width*height*4];
+        for(int y=0;y<height;y++)for(int x=0;x<width;x++)
+        {
+            // Exact binary fractions avoid source-half quantization in the independent expectation.
+            float level=weighted?MathF.Pow(2,((x/2+y/2)%17)-8):32;
+            int i=(y*width+x)*4;
+            pixels[i]=pixels[i+1]=pixels[i+2]=level;pixels[i+3]=1;
+        }
+        using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.Rgba16f,pixels);
         using var camera=TestFrameCamera.CreateIdentity(width,height,.1f);
-        using var draw=new PostprocessDraw();
-        var settings=new CameraExposureSettings().Snapshot();
+        var settings=new CameraExposureSettings().Snapshot() with {CenterWeighted=weighted,LowPercentile=0,HighPercentile=1};
         meter.SceneRadiance=source;meter.Histogram=targets.Histogram;meter.Capture(settings,true);
         adapt.Histogram=targets.Histogram;adapt.PreviousExposure=targets.Exposure;adapt.OutputExposure=targets.WriteTarget;adapt.FrameInputs=camera;adapt.Capture(settings,true);
-        rasterMeter.Source=source;rasterMeter.Capture(settings,true);
-        rasterAdapt.Source=histogram[0];rasterAdapt.Previous=previous;rasterAdapt.Frame=camera;rasterAdapt.Capture(settings,true);
-        var meterPipeline=draw.Prepare(rasterMeter,histogram);var adaptPipeline=draw.Prepare(rasterAdapt,result);
-        /// <summary>Submits the retained production raster passes through the graphics boundary.</summary>
-        void Raster()=>Assert.True(GraphicsCommandContext.TryRun("Tests.RasterExposure",[meterPipeline,adaptPipeline],true,commands=>{draw.Submit(commands,meterPipeline,histogram);draw.Submit(commands,adaptPipeline,result);}));
-        /// <summary>Submits the dependent compute pair through its production resource boundary.</summary>
+        /// <summary>Submits the dependent production pair through its resource boundary.</summary>
         void Compute()=>Assert.True(CameraExposureDispatch.TryRun(meter,adapt));
-        Raster();Compute();
-        float[] rasterBins=histogram[0].ReadPixels();uint[] computeBins=ExposureTestStorage.Read<uint>(targets.Histogram);
-        for(int bin=0;bin<64;bin++)
+        Compute();
+        uint[] bins=ExposureTestStorage.Read<uint>(targets.Histogram);
+        int samples=((width+1)/2)*((height+1)/2),groupBound=((samples+CameraExposureTargets.HistogramGroupCount*64-1)/(CameraExposureTargets.HistogramGroupCount*64))*64;
+        uint weightScale=(uint)Math.Min(4096,Math.Floor(1073741824d/(groupBound*128d)));
+        ulong count=0;for(int i=0;i<bins.Length;i+=2)count+=bins[i];
+        double referenceSum=0;ulong referenceCount=0;
+        for(int y=0;y<height;y+=2)for(int x=0;x<width;x+=2)
         {
-            float weight=0,shifted=0;
-            for(int group=0;group<36;group++){int index=(group*64+bin)*2;weight+=computeBins[index]/4096f;shifted+=computeBins[index+1]/1048576f;}
-            // Conservative accumulated encoding bounds include weight rounding and its shifted-log contribution.
-            Assert.InRange(weight,rasterBins[bin*2]-.282f,rasterBins[bin*2]+.282f);
-            float sum=shifted-16*weight;
-            Assert.InRange(sum,rasterBins[bin*2+1]-3.4f,rasterBins[bin*2+1]+3.4f);
+            double cx=2d*(x+Math.Min(2,width-x)*.5)/width-1;
+            double cy=2d*(y+Math.Min(2,height-y)*.5)/height-1;
+            double weight=weighted?.25+.75*Math.Exp(-2*(cx*cx+cy*cy)):1;
+            uint encodedWeight=(uint)Math.Round(weight*weightScale);
+            referenceCount+=encodedWeight;
+            referenceSum+=encodedWeight*Math.Log2(pixels[(y*width+x)*4]);
         }
-        float expected=result[0].ReadPixels()[0],actual=ExposureTestStorage.Read<float>(targets.WriteTarget)[0];
-        Assert.InRange(actual,expected-.0003f,expected+.0003f);
-        var rasterGpu=new List<double>();var rasterCpu=new List<double>();var computeGpu=new List<double>();var computeCpu=new List<double>();
-        for(int i=0;i<8;i++)
-            if((i&1)==0){Measure(Raster,rasterGpu,rasterCpu);Measure(Compute,computeGpu,computeCpu);}
-            else {Measure(Compute,computeGpu,computeCpu);Measure(Raster,rasterGpu,rasterCpu);}
+        if(!weighted)Assert.Equal(referenceCount,count);
+        else Assert.InRange((double)count,(double)referenceCount-samples,(double)referenceCount+samples);
+        float actual=ExposureTestStorage.Read<float>(targets.WriteTarget)[0];
+        float expected=Math.Clamp(MathF.Log2(.18f)-(float)(referenceSum/referenceCount),settings.MinEV,settings.MaxEV);
+        Assert.InRange(actual,expected-.0005f,expected+.0005f);
+        for(int i=0;i<3;i++)Compute();
+        var gpu=new List<double>();var cpu=new List<double>();
+        for(int i=0;i<8;i++)Measure(Compute,gpu,cpu);
         var histogramGpu=new List<double>();var adaptationGpu=new List<double>();var stageCpu=new List<double>();
         for(int i=0;i<8;i++)
         {
-            Measure(()=>{meter.Dispatch(36);GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);},histogramGpu,stageCpu);
+            Measure(()=>{meter.Dispatch(CameraExposureTargets.HistogramGroupCount);GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);},histogramGpu,stageCpu);
             Measure(()=>{adapt.Dispatch(1);GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);},adaptationGpu,stageCpu);
         }
-        /// <summary>Reports the middle pair of eight alternating samples.</summary>
-        double Median(List<double> samples)=>samples.Order().Skip(3).Take(2).Average();
-        log.WriteLine($"Exposure {width}x{height}, fixed 2304 samples: raster GPU median={Median(rasterGpu):F4}ms CPU submission median={Median(rasterCpu):F4}ms; compute GPU median={Median(computeGpu):F4}ms CPU submission median={Median(computeCpu):F4}ms; compute histogram GPU median={Median(histogramGpu):F4}ms adaptation GPU median={Median(adaptationGpu):F4}ms; raster storage=520bytes compute storage=18440bytes; raster draws=2 compute dispatches=2 framebuffer targets=0; EV error={actual-expected:G5}; GPU={GL.GetString(StringName.Renderer)}. Synthetic timings, not live frame cost.");
+        /// <summary>Reports the middle pair of eight warm samples.</summary>
+        double Median(List<double> values)=>values.Order().Skip(3).Take(2).Average();
+        log.WriteLine($"Dense exposure {width}x{height}, weighted={weighted}, {samples} half-resolution boxes, weightScale={weightScale}: pair GPU={Median(gpu):F4}ms CPU submission={Median(cpu):F4}ms histogram GPU={Median(histogramGpu):F4}ms adaptation GPU={Median(adaptationGpu):F4}ms; histogram={CameraExposureTargets.HistogramGroupCount*512}bytes two history buffers=64bytes; no intermediate texture. Synthetic component timing, not live frame cost. GPU={GL.GetString(StringName.Renderer)}.");
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion
     #region Private
-    /// <summary>Separates synchronous elapsed GPU work from host submission duration.</summary>
+    /// <summary>Separates completed GPU execution from CPU submission without timing uploads or readbacks.</summary>
     private static void Measure(Action submit,List<double> gpu,List<double> cpu)
     {
         using var timer=GpuTimerQuery.Create();timer.Begin();

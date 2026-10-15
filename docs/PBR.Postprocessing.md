@@ -1217,21 +1217,34 @@ Focused GPU validation passed 21 cases: two packed-composite cases (standalone a
 
 ## Compute camera exposure validation
 
-Camera metering now classifies each fixed-grid sample once with shared uint histograms, then
+Camera metering now averages every 2 by 2 scene footprint and classifies the dense
+half-resolution population with shared uint histograms, then
 reduces percentile statistics and adapts GPU buffer history. Bloom, LightShafts, luma and final
 borrow the published typed EV SSBO. The restored compute boundary and two storage barriers
 preserve scene scheduling, settings/reset semantics and exactly-once final exposure. See
 [PBR.CameraExposure.md](PBR.CameraExposure.md) for encoding precision, integer overflow bounds,
 capability admission, buffer ownership and complete measurements.
 
-The shader-enabled build and 109/109 focused cases passed without skips or failures, including
+Initial dense sampling qualification (2026-10-14) passed 77 correctness checks, with three
+additional opt-in timing entries inactive in that run, and three separately executed timing
+cases. The former 36-group RTX 4090 synthetic uniform-input histogram/adaptation medians were 0.1065 ms at
+720p, 0.2202 ms at 1080p and 0.8397 ms at 2160p. These are component timings, not live-frame
+costs or appearance acceptance; baseline receipts are under artifacts/DenseCameraMetering.
+The current dispatch distributes the same dense input over 1,024 independent partial
+histograms, using a retained 512 KiB scratch buffer; its reduction consumes all partials.
+The selected 256-lane cooperative reduction lowers uniform-input pair costs to
+0.0512/0.0563/0.0860 ms at 720p/1080p/2160p on that RTX 4090 fixture. Varied weighted inputs
+also pass correctness checks and measure 0.0512/0.0568/0.0860 ms. These are synthetic component
+measurements, not live-frame performance; see the camera document for the tradeoff and receipt.
+
+Before dense sampling, the shader-enabled build and 109/109 focused cases passed without skips or failures, including
 standalone/LumOn runtime lifecycles and histogram/EV reference agreement. Authoritative receipts:
 artifacts/exposure-final-validation.log and artifacts/CameraExposure/exposure-final.trx.
 An independent 21-case GPU recheck also passed without skips; receipts:
 artifacts/exposure-independent-validation.log and artifacts/CameraExposure/exposure-independent.trx.
-At the matched 2,304-sample workload on RTX 4090, median compute-pair GPU costs were
+Historical measurements at the former 2,304-sample workload on RTX 4090 reported compute-pair GPU costs of
 0.0164/0.0164/0.0174 ms for 720p/1080p/2160p sources, versus raster
 0.6892/0.6922/0.6912 ms. These are warm synthetic device-query measurements, not live-frame
-performance. Two dispatches replace two draws; three FBOs and the metering VAO disappear;
-logical storage grows from 520 image bytes to 18,440 buffer bytes. Exposure samplers are
+performance, and do not qualify the current dense sampler. Two dispatches replace two draws; three FBOs and the metering VAO disappear;
+logical storage is 524,352 buffer bytes with the current partial histograms and expanded history. Exposure samplers are
 removed from all four graphics consumers. User-run visual acceptance remains deferred.

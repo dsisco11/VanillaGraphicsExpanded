@@ -18,9 +18,9 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     public void CapabilityAdmissionRequiresCompleteComputeAndConsumerContract()
     {
         EnsureShaderTestAvailable();
-        var supported=GpuSupport.Graphics with {MaxComputeWorkGroupInvocations=64,MaxComputeWorkGroupSize=System.Collections.Immutable.ImmutableArray.Create(64,1,1),MaxComputeWorkGroupCount=System.Collections.Immutable.ImmutableArray.Create(36,1,1),MaxComputeSharedMemorySize=512,MaxShaderStorageBufferBindings=3,MaxFragmentShaderStorageBlocks=1,MaxComputeShaderStorageBlocks=3,MaxShaderStorageBlockSize=18432};
+        var supported=GpuSupport.Graphics with {MaxComputeWorkGroupInvocations=256,MaxComputeWorkGroupSize=System.Collections.Immutable.ImmutableArray.Create(256,1,1),MaxComputeWorkGroupCount=System.Collections.Immutable.ImmutableArray.Create(CameraExposureTargets.HistogramGroupCount,1,1),MaxComputeSharedMemorySize=2560,MaxShaderStorageBufferBindings=3,MaxFragmentShaderStorageBlocks=1,MaxComputeShaderStorageBlocks=3,MaxShaderStorageBlockSize=CameraExposureTargets.HistogramGroupCount*512};
         Assert.True(CameraExposureDispatch.Supports(supported));
-        GraphicsCapabilities[] insufficient=[supported with {SupportsArbComputeShader=false},supported with {SupportsArbShaderImageLoadStore=false},supported with {SupportsArbShaderStorageBufferObject=false},supported with {SupportsArbGlSpirv=false},supported with {MaxComputeWorkGroupInvocations=63},supported with {MaxComputeWorkGroupSize=System.Collections.Immutable.ImmutableArray.Create(63,1,1)},supported with {MaxComputeWorkGroupCount=System.Collections.Immutable.ImmutableArray.Create(35,1,1)},supported with {MaxComputeSharedMemorySize=511},supported with {MaxShaderStorageBufferBindings=2},supported with {MaxFragmentShaderStorageBlocks=0},supported with {MaxComputeShaderStorageBlocks=2},supported with {MaxShaderStorageBlockSize=18431}];
+        GraphicsCapabilities[] insufficient=[supported with {SupportsArbComputeShader=false},supported with {SupportsArbShaderImageLoadStore=false},supported with {SupportsArbShaderStorageBufferObject=false},supported with {SupportsArbGlSpirv=false},supported with {MaxComputeWorkGroupInvocations=255},supported with {MaxComputeWorkGroupSize=System.Collections.Immutable.ImmutableArray.Create(255,1,1)},supported with {MaxComputeWorkGroupCount=System.Collections.Immutable.ImmutableArray.Create(CameraExposureTargets.HistogramGroupCount-1,1,1)},supported with {MaxComputeSharedMemorySize=2559},supported with {MaxShaderStorageBufferBindings=2},supported with {MaxFragmentShaderStorageBlocks=0},supported with {MaxComputeShaderStorageBlocks=2},supported with {MaxShaderStorageBlockSize=CameraExposureTargets.HistogramGroupCount*512-1}];
         Assert.All(insufficient,value=>Assert.False(CameraExposureDispatch.Supports(value)));
     }
     /// <summary>Generic borrowed metadata still rejects a 3D texture at a production 2D sampler boundary.</summary>
@@ -87,8 +87,8 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         using var source = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [stored, stored, stored, .37f]);
         rig.Meter(source, Settings(), publication.Buffer);
         var bins = rig.ReadHistogram();
-        AssertClose(2304, bins.Where((_, i) => i % 2 == 0).Sum(), .001f);
-        AssertClose(2304 * 5, bins.Where((_, i) => i % 2 == 1).Sum(), .06f);
+        AssertClose(1, bins.Where((_, i) => i % 2 == 0).Sum(), .001f);
+        AssertClose(5, bins.Where((_, i) => i % 2 == 1).Sum(), .06f);
         AssertClose(MathF.Log2(.18f) - 5, rig.Adapt(Settings(), 0, 0, true));
         Assert.Equal(new[] { stored, stored, stored, .37f }, source.ReadPixels());
     }
@@ -101,7 +101,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         using var rig = CreateRig();
         float[] levels = [.18f, 0, float.NaN, float.PositiveInfinity, MathF.Pow(2, 40), MathF.Pow(2, -17)];
         float[] pixels = Pixels(index => levels[index % levels.Length]);
-        using var source = TestFramework.CreateTexture(64, 36, PixelInternalFormat.Rgba32f, pixels);
+        using var source = TestFramework.CreateTexture(128, 72, PixelInternalFormat.Rgba32f, pixels);
         rig.Meter(source, Settings());
         float[] histogram = rig.ReadHistogram();
         AssertClose(384, histogram.Where((_, i) => i % 2 == 0).Sum(), .001f);
@@ -125,13 +125,13 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         EnsureShaderTestAvailable();
         using var rig=CreateRig();
         float[] pixels=Pixels(i=>MathF.Pow(2,-10+(i%61)*.4f));
-        using var source=TestFramework.CreateTexture(64,36,PixelInternalFormat.Rgba32f,pixels);
+        using var source=TestFramework.CreateTexture(128,72,PixelInternalFormat.Rgba32f,pixels);
         rig.Meter(source,Settings() with {CenterWeighted=weighted});
         float[] actual=rig.ReadHistogram();
         double[] counts=new double[64],sums=new double[64];int[] population=new int[64];
         for(int i=0;i<2304;i++)
         {
-            double level=Math.Log2(pixels[i*4]);int bin=Math.Clamp((int)((level+16)*64/56),0,63);
+            int sourceIndex=((i/64)*2*128+(i%64)*2)*4; double level=Math.Log2(pixels[sourceIndex]);int bin=Math.Clamp((int)((level+16)*64/56),0,63);
             double x=2*(i%64+.5)/64-1,y=2*(i/64+.5)/36-1;
             double weight=weighted?.25+.75*Math.Exp(-2*(x*x+y*y)):1;
             counts[bin]+=weight;sums[bin]+=weight*level;population[bin]++;
@@ -139,7 +139,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         for(int bin=0;bin<64;bin++)
         {
             double count=0,sum=0;
-            for(int group=0;group<36;group++){count+=actual[(group*64+bin)*2];sum+=actual[(group*64+bin)*2+1];}
+            for(int group=0;group<CameraExposureTargets.HistogramGroupCount;group++){count+=actual[(group*64+bin)*2];sum+=actual[(group*64+bin)*2+1];}
             double weightBound=population[bin]/8192.0+.0001;
             Assert.InRange(count,counts[bin]-weightBound,counts[bin]+weightBound);
             double sumBound=population[bin]*.002+.001;
@@ -147,19 +147,25 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         }
     }
     /// <summary>Maximum valid luminance filling a local bin cannot overflow integer atomics or contaminate adjacent bins.</summary>
-    [Fact]
-    public void UpperRangeUniformPopulationDoesNotOverflow()
+    [Theory]
+    [InlineData(1,1)]
+    [InlineData(801,401)]
+    public void UpperRangeUniformPopulationDoesNotOverflow(int width,int height)
     {
         EnsureShaderTestAvailable();using var rig=CreateRig();
-        using var source=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[MathF.Pow(2,39.99f),MathF.Pow(2,39.99f),MathF.Pow(2,39.99f),1f]);
+        float value=MathF.Pow(2,39.99f);
+        using var source=TestFramework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,
+            Enumerable.Range(0,width*height).SelectMany(_=>new[]{value,value,value,1f}).ToArray());
         rig.Meter(source,Settings());float[] bins=rig.ReadHistogram();
-        for(int group=0;group<36;group++)
-        {
-            int last=(group*64+63)*2;Assert.Equal(64,bins[last]);
-            AssertClose(64*39.99f,bins[last+1],.002f);
+        int samples=((width+1)/2)*((height+1)/2);
+        AssertClose(samples,bins.Where((_,i)=>i%128==126).Sum(),.01f);
+        AssertClose(39.99f,bins.Where((_,i)=>i%128==127).Sum()/samples,.001f);
+        for(int group=0;group<CameraExposureTargets.HistogramGroupCount;group++)
             for(int bin=0;bin<63;bin++){Assert.Equal(0,bins[(group*64+bin)*2]);Assert.Equal(0,bins[(group*64+bin)*2+1]);}
-        }
         AssertClose(-12,rig.Adapt(Settings(),0,0,true));
+        using var empty=TestFramework.CreateTexture(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,1f]);
+        rig.Meter(empty,Settings());
+        Assert.All(rig.ReadHistogram(),value=>Assert.Equal(0,value));
     }
     /// <summary>Percentile trimming removes sparse sun/dark outliers and retains the geometric scene mean.</summary>
     [Fact]
@@ -167,13 +173,13 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         using var rig = CreateRig();
-        using var outliers = TestFramework.CreateTexture(64, 36, PixelInternalFormat.Rgba32f,
+        using var outliers = TestFramework.CreateTexture(128, 72, PixelInternalFormat.Rgba32f,
             Pixels(i => i < 216 ? .001f : i >= 2304 - 216 ? 4096 : .18f));
         var trimmed = Settings() with { LowPercentile = .1f, HighPercentile = .9f };
         rig.Meter(outliers, trimmed);
         AssertClose(0, rig.Adapt(trimmed, 0, 0, true));
         Assert.True(MathF.Abs(rig.Adapt(Settings(), 0, 0, true)) > .25f);
-        using var partial = TestFramework.CreateTexture(64, 36, PixelInternalFormat.Rgba32f, Pixels(i => i < 576 ? .125f : 8));
+        using var partial = TestFramework.CreateTexture(128, 72, PixelInternalFormat.Rgba32f, Pixels(i => i < 576 ? .125f : 8));
         var settings = Settings() with { LowPercentile = .125f, HighPercentile = .875f };
         rig.Meter(partial, settings);
         // Retained population is one sixth log2(.125) and five sixths log2(8), giving mean log2=2.
@@ -186,10 +192,10 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         using var rig = CreateRig();
-        using var equal = TestFramework.CreateTexture(64, 36, PixelInternalFormat.Rgba32f, Pixels(i => i < 1152 ? 1 : 4));
+        using var equal = TestFramework.CreateTexture(128, 72, PixelInternalFormat.Rgba32f, Pixels(i => i < 1152 ? 1 : 4));
         rig.Meter(equal, Settings());
         AssertClose(MathF.Log2(.18f) - 1, rig.Adapt(Settings(), 0, 0, true));
-        using var central = TestFramework.CreateTexture(64, 36, PixelInternalFormat.Rgba32f,
+        using var central = TestFramework.CreateTexture(128, 72, PixelInternalFormat.Rgba32f,
             Pixels(i => Math.Abs(i % 64 - 32) < 8 && Math.Abs(i / 64 - 18) < 8 ? 16 : .18f));
         rig.Meter(central, Settings());
         float uniform = rig.Adapt(Settings(), 0, 0, true);
@@ -197,6 +203,75 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         rig.Meter(central, weighted);
         float center = rig.Adapt(weighted, 0, 0, true);
         Assert.True(center < uniform - .15f);
+    }
+
+    /// <summary>Dense footprints include a one-pixel lamp missed by the former isolated grid samples.</summary>
+    [Fact]
+    public void DenseCoverageIncludesLampBetweenFormerSampleLocations()
+    {
+        EnsureShaderTestAvailable();
+        using var rig=CreateRig();
+        var pixels=Pixels(_=>.18f);
+        pixels[0]=pixels[1]=pixels[2]=64;
+        using var scene=TestFramework.CreateTexture(128,72,PixelInternalFormat.Rgba32f,pixels);
+        rig.Meter(scene,Settings());
+        var histogram=rig.ReadHistogram();
+        AssertClose(2304,histogram.Where((_,i)=>i%2==0).Sum(),.001f);
+        double expected=(2303*Math.Log2(.18)+(Math.Log2((64+3*.18)/4)))/2304;
+        AssertClose((float)(Math.Log2(.18)-expected),rig.Adapt(Settings(),0,0,true),.0003f);
+        Assert.True(rig.Adapt(Settings(),0,0,true)<-.002f);
+    }
+
+    /// <summary>Odd edges, invalid footprints and centre weighting match an independent double-precision box reduction.</summary>
+    [Theory]
+    [InlineData(5,3,false,1f)]
+    [InlineData(131,75,true,1f)]
+    [InlineData(131,75,true,.0009765625f)]
+    [InlineData(801,401,true,1f)]
+    public void DenseOddFootprintsMatchIndependentReduction(int width,int height,bool weighted,float scale)
+    {
+        EnsureShaderTestAvailable();
+        using var rig=CreateRig();
+        using var publication=new TestFrameLightingPublication();publication.Capture(scale);
+        var pixels=new float[width*height*4];
+        for(int i=0;i<width*height;i++)
+        {
+            float level=MathF.Pow(2,-5+(i%19)*.5f)*scale;
+            pixels[i*4]=pixels[i*4+1]=pixels[i*4+2]=level;pixels[i*4+3]=1;
+        }
+        pixels[0]=float.NaN;
+        pixels[((height-1)*width+width-1)*4]=float.PositiveInfinity;
+        using var scene=TestFramework.CreateTexture(width,height,PixelInternalFormat.Rgba32f,pixels);
+        rig.Meter(scene,Settings() with {CenterWeighted=weighted},publication.Buffer);
+        var actual=rig.ReadHistogram();
+        var counts=new double[64];var sums=new double[64];var populations=new int[64];
+        for(int y=0;y<height;y+=2)for(int x=0;x<width;x+=2)
+        {
+            double total=0;int count=0;bool valid=true;
+            for(int dy=0;dy<2&&y+dy<height;dy++)for(int dx=0;dx<2&&x+dx<width;dx++)
+            {
+                float value=pixels[((y+dy)*width+x+dx)*4];
+                valid &= float.IsFinite(value);total+=Math.Max(value,0);count++;
+            }
+            if(!valid)continue;
+            double level=Math.Log2(total/count/scale);
+            int bin=Math.Clamp((int)((level+16)/56*64),0,63);
+            double cx=2*(x+Math.Min(2,width-x)*.5)/width-1;
+            double cy=2*(y+Math.Min(2,height-y)*.5)/height-1;
+            double weight=weighted?.25+.75*Math.Exp(-2*(cx*cx+cy*cy)):1;
+            counts[bin]+=weight;sums[bin]+=weight*level;populations[bin]++;
+        }
+        for(int bin=0;bin<64;bin++)
+        {
+            double count=0,sum=0;
+            for(int group=0;group<CameraExposureTargets.HistogramGroupCount;group++){count+=actual[(group*64+bin)*2];sum+=actual[(group*64+bin)*2+1];}
+            int samples=((width+1)/2)*((height+1)/2);
+            double encodingScale=Math.Min(4096,Math.Floor(1073741824d/(((samples+CameraExposureTargets.HistogramGroupCount*64-1)/(CameraExposureTargets.HistogramGroupCount*64))*64*128d)));
+            double weightBound=populations[bin]/(2*encodingScale)+.001;
+            double sumBound=populations[bin]*.003+.001;
+            Assert.InRange(count,counts[bin]-weightBound,counts[bin]+weightBound);
+            Assert.InRange(sum,sums[bin]-sumBound,sums[bin]+sumBound);
+        }
     }
     #endregion
     #region Adaptation
@@ -295,10 +370,10 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
     /// <summary>Builds controlled RGB samples with deliberately varying alpha that metering must ignore.</summary>
     private static float[] Pixels(Func<int, float> luminance)
     {
-        var result = new float[64 * 36 * 4];
-        for (int i = 0; i < 64 * 36; i++)
+        var result = new float[128 * 72 * 4];
+        for (int i = 0; i < 128 * 72; i++)
         {
-            float value = luminance(i);
+            float value = luminance((i/128/2)*64+(i%128/2));
             result[i * 4] = result[i * 4 + 1] = result[i * 4 + 2] = value;
             result[i * 4 + 3] = (i % 17) / 16f;
         }
@@ -316,6 +391,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         private readonly CameraHistogramShaderProgram meter;
         private readonly CameraAdaptShaderProgram adapt;
         private readonly CameraExposureTargets targets = new();
+        private float histogramScale=4096;
 
         #region Public API
         /// <summary>Allocates the production-sized histogram and scalar adaptation storage.</summary>
@@ -324,27 +400,30 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             this.meter = meter; this.adapt = adapt;
 
         }
-        /// <summary>Runs fixed-grid scene metering without modifying its source image.</summary>
+        /// <summary>Runs dense downscaled scene metering without modifying its source image.</summary>
         internal void Meter(GpuTexture texture, CameraExposureParameters settings, GpuShaderStorageBuffer? publication = null)
         {
+            int samples=((texture.Width+1)/2)*((texture.Height+1)/2);
+            int groupBound=((samples+CameraExposureTargets.HistogramGroupCount*64-1)/(CameraExposureTargets.HistogramGroupCount*64))*64;
+            histogramScale=Math.Min(4096,MathF.Floor(1073741824f/(groupBound*128f)));
             if (publication is not null) meter.FrameLightingInputs = publication;
             meter.SceneRadiance = texture; meter.Capture(settings, false);
             meter.Histogram = targets.Histogram;
-            meter.Dispatch(36);
+            meter.Dispatch(CameraExposureTargets.HistogramGroupCount);
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         /// <summary>Publishes an independent single-bin population whose mean implies the requested exposure target.</summary>
         internal void PublishTarget(float target)
         {
-            uint[] values = new uint[36 * 128];
-            values[64] = 4096; values[65] = (uint)MathF.Round((MathF.Log2(.18f) - target + 16) * 1048576);
+            uint[] values = new uint[CameraExposureTargets.HistogramGroupCount * 128];
+            values[64] = 4096; values[65] = (uint)MathF.Round((MathF.Log2(.18f) - target + 16) / 56 * 4096 * 128);
             targets.Histogram.UploadData(values);
         }
         /// <summary>Publishes an empty population to exercise missing scene statistics.</summary>
         internal void PublishEmpty()
         {
-            targets.Histogram.UploadData(new uint[36 * 128]);
+            targets.Histogram.UploadData(new uint[CameraExposureTargets.HistogramGroupCount * 128]);
         }
         /// <summary>Runs one production adaptation step with explicit previous EV, frame time and reset semantics.</summary>
         internal float Adapt(CameraExposureParameters settings, float previous, float dt, bool reset, VgeFrameUniformBuffer? sharedFrame = null)
@@ -369,8 +448,8 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
             float[] decoded = new float[encoded.Length];
             for (int i = 0; i < encoded.Length; i += 2)
             {
-                decoded[i] = encoded[i] / 4096f;
-                decoded[i + 1] = encoded[i + 1] / 1048576f - 16 * decoded[i];
+                decoded[i] = encoded[i] / histogramScale;
+                decoded[i + 1] = encoded[i + 1] / (histogramScale * 128f) * 56 - 16 * decoded[i];
             }
             return decoded;
         }
