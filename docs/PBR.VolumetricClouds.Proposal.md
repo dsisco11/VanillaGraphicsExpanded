@@ -14,7 +14,8 @@ multiple scattering, scalable tracing and reconstruction, and integration with a
 This is an independent implementation for VGE's rendering backend, not a dependency on Unreal.
 
 The renderer must support ground, inside-cloud and above-cloud views in both PBR modes. It must
-participate in celestial occlusion, cloud shadows, environmental lighting, fog and water reflections.
+participate in celestial occlusion, environmental lighting, fog and water reflections. Shadows cast
+by clouds onto the scene or atmosphere are deferred until virtual shadow maps are implemented.
 The owning requirement remains the unchecked volumetric-cloud item in
 [PBR.BaselineShading.todo](PBR.BaselineShading.todo).
 
@@ -45,7 +46,7 @@ it does not establish visual quality, performance, or a validated ownership hand
 
 Retain the native weather, tile and column-map producer as the source of cloud distribution and
 geometry. Consume its completed column map with matching placement metadata. VGE owns density evaluation, shader programs,
-noise resources, light transport, shadow products, render targets, history and composition.
+noise resources, light transport, render targets, history and composition.
 
 The native producer is retained deliberately: reimplementing regional weather, tile scheduling,
 blending, movement and column-height formulas would broaden the change beyond replacing cloud
@@ -136,11 +137,15 @@ approximation. A small octave count is the proposed starting model; energy compe
 parameters and density conversion require comparison against reference results. Native cloud
 brightness, daylight and sunset tint are not substitutes for physical incident illumination.
 
-Use a bounded light-transmittance representation for cloud shadows on terrain and atmospheric
-consumers. Evaluate a Beer-style shadow map for scalable distant shadows, with secondary light
-marching where close or in-cloud views justify the cost. All shadow and view evaluations must
-use the same density definition and compatible weather state. Environmental attenuation and water
-reflections must be accounted for explicitly rather than inferred from the visible cloud image.
+Shadows cast by clouds onto terrain, water, other scene receivers or atmospheric consumers are
+deferred until virtual shadow maps are implemented. Do not introduce a separate Beer shadow map,
+retained previous-frame cloud-shadow publication, or earlier map-generation schedule for those
+consumers in this work. Their integration will be specified with the virtual-shadow-map work.
+
+Light attenuation within the cloud volume remains part of cloud shading: it supplies cloud
+self-shadowing and uses the same density definition as view-ray integration. Visible attenuation
+of the sky and celestial disks also remains in scope through OIT. Environmental response and water
+reflections must be accounted for explicitly without adding the deferred cast-shadow system.
 
 ## Scene integration
 
@@ -168,8 +173,8 @@ must use their own camera/depth contract and must not reuse main-view history bl
 
 ## Quality and temporal behavior
 
-Provide bounded quality controls for trace resolution, view/light sample counts, shadow-map extent
-and resolution, and detail evaluation. Use lower-resolution tracing with depth-aware reconstruction
+Provide bounded quality controls for trace resolution, view/light sample counts and detail
+evaluation. Use lower-resolution tracing with depth-aware reconstruction
 where it preserves silhouettes, disocclusion and in-cloud movement.
 
 Temporal reconstruction is proposed where useful, not a prerequisite for a correct density model.
@@ -179,7 +184,7 @@ Reject incompatible history and bound stale contributions during rapid transitio
 that history remains valid merely because a texture handle is unchanged.
 
 Exact budgets and quality presets remain open until measured on the target renderer. Count native
-producer overhead, snapshot/upload cost, noise and weather storage, shadow resources, trace targets
+producer overhead, snapshot/upload cost, noise and weather storage, trace targets
 and history in the total memory and frame-time assessment.
 
 ## Acceptance and unresolved decisions
@@ -196,7 +201,7 @@ Before extrapolating an implementation plan, resolve:
 - The completed-map publication and single-owner scheduling contract, including cloud-mode changes.
 - The opacity-to-extinction mapping, restrained noise/edge-softness tuning and finite-domain edge behavior.
 - Aerial-transport and local-fog application without double attenuation; existing OIT composition is retained.
-- The shadow representation and environmental/reflection consumers.
+- The environmental/reflection consumers, excluding cast shadows deferred to virtual shadow maps.
 - Target hardware, quality budgets and reference scenes used for qualification.
 
 No completion claim follows from this proposal, and the parent requirement remains unchecked.

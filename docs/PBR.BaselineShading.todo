@@ -209,7 +209,8 @@ Tasks
     - Proposal for review: docs/PBR.VolumetricClouds.Proposal.md; implementation is not yet approved.
     - Define bounded 3D cloud density, altitude/weather controls, wind and volume lighting. Evaluate
       ray marching, light transmittance and a controlled multiple-scattering approximation.
-    - Integrate cloud/atmosphere ordering, sun occlusion and cloud shadows/environment lighting in
+    - Defer shadows cast by clouds until virtual shadow maps are implemented; retain cloud-volume self-shadowing.
+    - Integrate cloud/atmosphere ordering, sun occlusion and environment lighting in
       both PBR modes. Support ground, inside-cloud and above-cloud views without depth-order errors.
     - Add quality-scaled resolution/steps, empty-space skipping and temporal reconstruction where
       useful; invalidate history correctly on movement, weather changes and lighting transitions.
