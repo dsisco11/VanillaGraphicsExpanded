@@ -54,6 +54,10 @@ public sealed class ShaderStageSelectionTests
     [Theory]
     [InlineData("sky.vsh")]
     [InlineData("sky.fsh")]
+    [InlineData("nightsky.vsh")]
+    [InlineData("nightsky.fsh")]
+    [InlineData("celestialobject.vsh")]
+    [InlineData("celestialobject.fsh")]
     [InlineData("final.fsh")]
     public void RequiresProcessing_ReplacedEngineStage_ReturnsFalse(string shaderName)
     {

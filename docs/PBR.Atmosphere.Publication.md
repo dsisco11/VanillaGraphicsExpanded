@@ -1,29 +1,28 @@
 # Atmospheric lighting publication and sky ownership
 
-## Status and objective
+## Ownership
 
-Implemented ownership contract following the installed-engine consumer inspection. Runtime uses
-an independently registered fullscreen sky renderer and pre-blend atmospheric compatibility publication.
-The user accepted the replacement's appearance on 2026-10-11. Migration of legacy cloud lookup content belongs to the separate
-volumetric-cloud task; the compatibility adapter retains valid original lookup handles meanwhile.
+Runtime uses an independently registered fullscreen sky renderer and pre-blend atmospheric
+compatibility publication. The compatibility adapter retains valid native lookup handles
+for cloud consumers; volumetric cloud transport has its own rendering contract.
 
-Extend the existing atmospheric subsystem to own environmental lighting independently of the
+The atmospheric subsystem owns environmental lighting independently of the
 sky draw. The sky renderer consumes published state; it does not update engine lighting globals,
 advance frame counters, calculate ambient lighting, or reproduce `calcSunColor`.
 
-## Existing machinery
+## Atmospheric transport
 
-`AtmosphereModel`, `AtmosphereLookup`, and `AtmosphereBackend` already calculate atmospheric
+`AtmosphereModel`, `AtmosphereLookup`, and `AtmosphereBackend` calculate atmospheric
 transport with GPU computation and asynchronous CPU fallback. `AtmosphereLighting` carries
 direct solar illuminance in lux, diffuse environment response (E/pi), horizontal sky luminance
 and sky/aerial luminance in nits. Local extinction remains inverse metres; lookup transmission
 is dimensionless. Each directional source uses a declared amplitude, and all products in a
 completed publication share the same admitted medium and celestial inputs.
 `AtmosphereModSystem` publishes matching textures and lighting before scene rendering.
-Direct lighting, composite, liquids and LumOn already consume this publication.
+Direct lighting, composite, liquids and LumOn consume this publication.
 
 Keep these owners and their atomic publication. Do not create a second atmospheric integrator
-or run transport in a draw callback. The RGB model now admits solar and lunar sources through
+or run transport in a draw callback. The RGB model admits solar and lunar sources through
 the same transport backend and retained medium table. A complete publication also carries
 separately budgeted airglow and the diffuse integral of the owned stars/galaxy. Cloud-volume
 transport remains outside this model.
@@ -34,9 +33,7 @@ the shared unit-exposure peak-preserving shoulder and sRGB transfer for legacy c
 Fog uses the same transfer on `Horizon`. Compatibility daylight is clamped Rec.709-weighted
 luminance of that encoded ambient reference; it is an artistic visibility scalar, not physical
 irradiance or photometric luminance. No nighttime floor is added. Physical VGE consumers still
-read the original snapshot. The replacement's appearance was accepted by the user on 2026-10-11;
-this mapping remains an artistic approximation. The lunar/background extension has focused
-qualification tracked in PBR.PhotometricLighting.todo; its in-game appearance acceptance is pending.
+read the original snapshot. This mapping is an artistic approximation; physical consumers use the unencoded snapshot.
 
 ## Verified engine consumers and ordering
 
@@ -53,10 +50,9 @@ Inspection of installed `VintagestoryLib` and API assemblies found:
 | `Sunglow.FogColor` RGB and weight | Ambient modifier blending | Atmospheric compatibility publication |
 | `FogColorSky` | Constructed and mutated by the sky helper; no external field reader found in inspected assemblies | Compatibility only if a consumer requires it |
 
-The night-sky renderer maintains its own frame seed; do not accidentally advance or replace it.
 Installed `clouds.fsh` and `cloudmap.fsh` still call `getSkyGlowAt`, and `chunkopaque.fsh`
 contains a legacy `getSkyColorAt` path. Shader patching can alter reachable uses; verify the
-effective installed variants before declaring any legacy input obsolete.
+effective installed variants to identify required compatibility inputs.
 
 `AmbientManager.UpdateAmbient` runs at `Before`, order 0. Atmosphere publication currently runs
 at `Before`, order -0.5. Publish atmospheric ambient modifiers there, before blending. The
@@ -69,21 +65,17 @@ they overwrite the new publication. Do not manually run the ambient blend a seco
 `AtmosphereLighting` carries `LookupStorageScale` and `CalibrationGeneration` with its immutable
 CPU snapshot. `AtmosphereTextureSet` supports admitted fixed 1/16 light encoding, validates both
 smooth/solar-Mie/lunar-Mie sky and aerial arrays before upload, and commits its scale/identity after every upload
-succeeds. Coverage and attenuation remain dimensionless. The atmosphere producer now derives one
+succeeds. Coverage and attenuation remain dimensionless. The atmosphere producer derives one
 amplitude for the declared 100,000-lux solar zenith reference, scales reflected lunar transport
 to the 0.1-lux full-moon reference, and supplies physical celestial lux,
-sky/disk/aerial nits and environment E/pi. Runtime lookup upload now encodes lighting with fixed
+sky/disk/aerial nits and environment E/pi. Runtime lookup upload encodes lighting with fixed
 C=1/16, and sky/aerial consumers decode the matching generation once. The uploaded band maxima,
 maximum Mie phase, interpolation and narrowing allowances produce `ReconstructionMaximumNits`;
 that bound is committed with the same complete set. Invalid or unsupported lighting/extinction
-rejects the replacement before upload and retains the previous publication. Complete scene/storage migration remains
-tracked in `PBR.PhotometricLighting.todo`. Source conversion alone is not a releasable photometric
-pipeline. A camera exposure change does not rebuild these persistent lookups.
+rejects the replacement before upload and retains the previous publication. A camera exposure change does not rebuild these persistent lookups.
 
 Keep `AtmosphereModSystem` as lifecycle/scheduling composition. Put environmental derivation
 and engine adaptation in separate atmosphere-domain files with explicit input/output contracts.
-Move the `AtmosphereLighting` record to its own file when extending it, keeping lookup integration
-separate from snapshot representation.
 
 Publish compatibility values only from the same completed generation as visible sky and lighting
 textures. On pending work or failed upload, retain the previous complete generation. A frame
@@ -106,7 +98,7 @@ document the consumer's expected color convention and use the shared color conve
 needed. Keep HDR physical values untouched for VGE consumers. A global fog color is only a
 legacy approximation; aerial radiance and transmittance remain the physical transport inputs.
 
-Use a VGE-owned ambient modifier and remove/neutralize only the obsolete sky contribution.
+Use a VGE-owned ambient modifier and neutralize only the native sky contribution.
 Preserve weather, underwater, night vision and other ambient modifiers. Reset or restore ownership
 on world teardown or replacement disposal; drawing failures do not relinquish publication.
 Never clear the ambient modifier collection wholesale.
@@ -122,16 +114,17 @@ remaining consumers to physical atmospheric inputs. `SunsetMod` is not a physica
 
 ## Draw ownership
 
-The planned [owned stars and galaxy](PBR.StarsAndGalaxy.todo) extends this lifetime
+The [owned stars and galaxy](PBR.StarsAndGalaxy.todo) follows this lifetime
 and atomic-publication policy to a load-generated HDR source and instanced stars.
 Its source set and derived lighting must publish together when the cached illumination
 is activated. VGE independently registers CelestialRenderer at Opaque order 0.19.
 NativeNightSkyDrawRegistration unregisters the native night-render callback and both
 sun/moon draw callbacks through the public event manager. The native client-system registry and asset lifecycle
 remain intact. No Harmony night-draw patch or client-system replacement is used.
-The obsolete night-sky compatibility shader transformation is retired.
-Historical night-sky counter statements above describe the former separate renderer;
-no other inspected consumer reads that renderer's private counter.
+`sky.fsh`, `nightsky.fsh` and `celestialobject.fsh` are excluded from VGE's native
+shader patch selection. VGE's registered renderers own their scene-color output.
+Native liquid rendering retains its scene-color patch for the conditional ownership
+fallback in `LiquidRenderer` and `LiquidRenderHooks`.
 
 The moon has an independent `MoonRenderer` at Opaque order 0.195, after stars/galaxy
 and before atmospheric local fog/underwater coverage at 0.2. `Celestial.Moon` is a
@@ -166,7 +159,7 @@ moon compatibility allowance is withdrawn while owned lunar rendering is enabled
 Resize, reload, context changes and world teardown use existing graphics owners.
 Failure leaves native drawing disabled and retries only at reset/reload boundaries.
 
-The celestial generation owner now prepares and submits its own tiled HDR cube during
+The celestial generation owner prepares and submits its own tiled HDR cube during
 world loading, retaining a fenced complete cube, catalog, source quadrature, encoding
 and bounds. It uses the existing global sky quality selector and retains completed
 resources across failed replacements. The owned galaxy and immutable instanced star
@@ -231,8 +224,7 @@ interior occlusion and AO remain receiver operations. Frame bounds use the updat
 and uploaded aerial reconstruction envelope. LumOn prioritizes bounded direct relighting when
 the environment changes, and source replacement changes the surface dependency identity so
 dependent probes retire obsolete history. Ordinary celestial motion retains temporal probe
-history rather than clearing it every frame. Live appearance and runtime performance acceptance
-remain outstanding in the linked stars/galaxy checklist.
+history rather than clearing it every frame.
 
 The owned sky `IRenderer` runs at Opaque order 0.2. It owns a procedural fullscreen triangle through an empty VAO,
 camera-relative ray transforms, pipeline state and drawing, and reads the completed atmospheric
@@ -252,59 +244,13 @@ failures retain the last complete snapshot. Foreign ambient-slot replacements ar
 reactivating the vanilla sky callback. Shared daylight/fog fields still update even if the ambient
 color slot is missing or owned by another mod.
 
-## Validation and remaining acceptance
+## Verification coverage
 
-Current replacement cleanup and reload validation passed the SPIR-V-enabled Debug build
-with zero errors and 128 unchanged warnings. The subagent-run regression suite passed 300 tests
-with five explicit opt-in measurement skips and no failures. Coverage includes exact source
-preservation and native linking of both installed sky SSAO variants, complete lighting/sky/aerial
-publication retention on reload, owned sky effects and lifecycle, atmospheric-model regressions,
-frame inputs and runtime HDR handoff. All 431 production and 508 test shader variants reused
-compiler results; no shader compiler invocations or emission occurred in this build.
-Receipts: `artifacts/PbrColor/sky-task-current-repaired-build.log` and
-`artifacts/PbrColor/sky-task-current-repaired-focused.log/.trx`.
-The validation subagent independently reviewed the cleanup and reload lifetime changes.
-The user supplied visual acceptance on 2026-10-11: "yea it looks fine", resolving the parent
-task's remaining acceptance gate. This is overall appearance acceptance; no individual scene
-results or GPU timing measurements were supplied. The agent did not launch the game.
+The ownership and publication tests cover shader stage selection, native callback
+suppression, owned sky effects, camera-relative inputs, celestial draw ordering and
+GPU state restoration. Publication checks cover matching lighting and texture
+generations, pending and failed updates, reload, context changes and world teardown.
+Ambient compatibility tests cover modifier ordering, restoration and foreign ownership.
 
-The fullscreen replacement passed the SPIR-V-enabled Debug build and 203 focused atmosphere,
-frame-input and procedural-geometry tests, with five opt-in measurement skips and no failures.
-The suite exercises per-pixel camera rays, virtual-depth fog, and lifetime recovery without engine
-mesh uploads or deletions. See [fullscreen submission](PBR.Atmosphere.md#owned-fullscreen-submission)
-for receipts and the remaining live visual/performance acceptance.
-
-Historical persistent-ownership validation before fullscreen conversion passed: normal Debug build and 265 regression tests, with five
-explicit opt-in measurement skips and zero failures. Coverage includes suppression before the first
-snapshot, missing depth resources, mesh preparation exceptions, reset/reload recovery, disposal,
-and fresh daylight publication while preserving a foreign ambient-color slot. A stale incremental
-assembly initially failed the new daylight assertion; a forced rebuild and matching production/test
-DLL hashes preceded the clean run. Receipts: `artifacts/PbrColor/sky-no-fallback-build.log`,
-`sky-no-fallback-tests.log`, and `sky-no-fallback.trx`. No game was launched.
-
-Historical per-frame ownership validation passed: Debug build with zero errors (115 existing warnings;
-none in the changed ownership code/tests), and 266 regression tests passed with five explicit
-opt-in measurement skips and no GPU-availability skips. The earlier focused run passed 38/38;
-these overlap the broad suite. Coverage includes SSAO on/off native draw/state restoration,
-prefix installation, camera-relative input packing, modifier order/restoration and foreign
-ownership, frame seed wrapping/resource publication, and reload/resize/world retirement.
-Upload/deletion integration is checked through the engine API with fixture-owned native storage;
-this is not an in-game allocation or appearance measurement. Receipts:
-`artifacts/PbrColor/atmosphere-ownership-build.log`, `atmosphere-ownership-regression.log/.trx`,
-and `atmosphere-ownership-focused.log/.trx`.
-
-The following remain acceptance and coverage requirements for further consumer migration:
-
-- Resolve engine ambient RGB conventions and effective legacy cloud/chunk consumers.
-- Specify and test the physical-to-legacy brightness mapping, twilight opacity and night policy.
-- Verify publication precedes ambient blending and all sky/celestial consumers.
-- Test unchanged, pending and failed atmospheric generations without mixed lighting/textures.
-- Test exactly-once frame progression and retained independent night-sky behavior.
-- Test teardown/reload, missing resources and continued vanilla suppression without stale modifiers.
-- Validate owned rendering, celestial order and state restoration with focused GPU tests.
-- Obtain user-run day/twilight/night, weather and underwater visual checks; do not launch the game.
-
-Source evidence: `AtmosphereModSystem.cs`, `AtmosphereLookup.cs`, installed shader includes,
-and inspection receipts under `artifacts/PbrColor/atmosphere-global-consumers.txt` and
-`artifacts/PbrColor/hdr-installed-sky-il.txt`. These receipts describe the inspected installation,
-not every engine version or third-party mod.
+In-game appearance and runtime performance are tracked in the relevant planning
+checklists. Automated correctness checks do not establish visual quality or frame time.

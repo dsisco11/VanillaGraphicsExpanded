@@ -8,9 +8,9 @@ namespace VanillaGraphicsExpanded.PBR.SceneColor;
 internal static class SceneColorLegacyPatches
 {
     #region Public API
-    /// <summary>Identifies known OIT, sky and late scene sources whose RGB is authored in display units.</summary>
+    /// <summary>Identifies retained native OIT and late scene sources whose RGB is authored in display units.</summary>
     internal static bool Supports(string source) => IsOit(source) || source is
-        "particlescube.fsh" or "celestialobject.fsh" or "decals.fsh" or "wireframe.fsh"
+        "particlescube.fsh" or "decals.fsh" or "wireframe.fsh"
         or "lines.fsh" or "autocamera.fsh" or "helditem.fsh" or "woittest.fsh" or "transparentcompose.fsh";
 
     /// <summary>Adds decoding helpers before import expansion without modifying engine shader assets.</summary>
@@ -30,7 +30,7 @@ internal static class SceneColorLegacyPatches
         // Publish shared declarations before the first function that can consume them.
         var firstFunction = tree.Select(Query.Syntax<GlFunctionNode>()).First();
         editor.InsertBefore(firstFunction, "\nuniform int vge_sceneLinear;\nvec3 VgeCompatibilityLuminance(vec3 color);\nvec3 VgeStoreSceneLighting(vec3 physical);\n");
-        // Imported sky/cloud helpers add encoded-display noise to RGB and coverage. The
+        // Imported display-noise helpers add encoded-display noise to RGB and coverage. The
         // scene path keeps both quantities clean; the final display owner still dithers.
         if (tree.Select(Query.Syntax<GlFunctionNode>().Named("NoiseFromPixelPosition")).Any())
             editor.InsertAfter(Query.Syntax<GlFunctionNode>().Named("NoiseFromPixelPosition").InnerStart("body"),
@@ -155,7 +155,7 @@ internal static class SceneColorLegacyPatches
     #endregion
 
     #region Private
-    /// <summary>Separates known bucket contributors from sky and late straight-alpha draws.</summary>
+    /// <summary>Retains native bucket contributors, including liquids when their owned renderer cannot take over.</summary>
     private static bool IsOit(string source) => source is "chunkliquid.fsh" or "particlesquad.fsh"
         or "particlesquad2d.fsh" or "clouds.fsh" or "cloudvolumetric.fsh" or "aurora.fsh" or "blockhighlights.fsh";
 
