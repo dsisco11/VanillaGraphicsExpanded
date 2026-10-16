@@ -1,10 +1,15 @@
 # VGE-owned volumetric clouds driven by native weather
 
-Status: proposal for review. This document does not authorize implementation or define an
-implementation checklist.
+Status: design decisions reconciled for complete proposal review. This document does not authorize
+implementation or define an implementation checklist.
 
-Approved design decision: VGE owns separate Simple and Volumetric cloud shaders. This approval
-settles mode ownership; remaining proposal decisions and implementation planning are separate.
+The settled design uses separate VGE-owned Simple and Volumetric shaders, native mesh/column
+geometry, roughly cubic volumetric clouds with restrained shader noise, and existing OIT composition.
+Volumetric mode uses half-resolution tracing with temporal reconstruction and depth-aware upsampling,
+a full-resolution history-free reference mode, and one additional scattering octave beyond single
+scattering. Cast cloud shadows are deferred until virtual shadow maps. The details below express
+these decisions and their implementation/validation constraints; routine tuning is not a separate
+design-approval gate.
 
 ## Intended result
 
@@ -234,7 +239,7 @@ linear in-scattered radiance and transmittance. Use extinction in inverse metres
 world-unit conversion, and dimensionless transmittance. Terminate optically saturated rays and
 skip regions whose density bound proves they are empty.
 
-Use VGE's completed atmosphere publication for solar/lunar illumination and environmental response.
+Both cloud shaders use VGE's completed atmosphere publication for solar/lunar illumination and environmental response.
 Respect the publication's units, source attenuation and generation identity; do not multiply already
 attenuated lighting by the same atmospheric transmittance again. Cloud transport remains separate
 from the atmospheric integrator, as required by
@@ -255,8 +260,11 @@ deferred until virtual shadow maps are implemented. Do not introduce a separate 
 retained previous-frame cloud-shadow publication, or earlier map-generation schedule for those
 consumers in this work. Their integration will be specified with the virtual-shadow-map work.
 
-Light attenuation within the cloud volume remains part of cloud shading: it supplies cloud
-self-shadowing and uses the same density definition as view-ray integration. Visible attenuation
+Light attenuation within the cloud volume remains part of cloud shading. Following the selected
+UE approach, use bounded secondary light marching toward contributing solar/lunar sources to
+evaluate self-shadowing with the same density definition, including noise, as view-ray integration.
+Light sample counts and stepping are implementation tuning details, not a separate design decision.
+Visible attenuation
 of the sky and celestial disks also remains in scope through OIT. Environmental response and water
 reflections must be accounted for explicitly without adding the deferred cast-shadow system.
 
@@ -279,8 +287,11 @@ The separate [transparency proposal](PBR.Transparency.Proposal.md) is not a depe
 and is not approved by it. Validate the replacement against the current native cloud/OIT behavior,
 including particles and water before, within and behind clouds.
 
-Apply atmospheric aerial transport and local fog consistently along cloud contributions, avoiding
-double fogging from either a pre-fogged source or later scene composition. Inside-cloud views must
+Apply the existing VGE atmospheric aerial-transport and local-fog composition contract once along
+cloud contributions. Exclude native pre-lit colors and pre-applied fog, and verify the existing
+consumer paths during implementation planning to avoid duplicate atmospheric attenuation or
+weather-based dimming. This is integration verification, not an unresolved rendering-model choice.
+Inside-cloud views must
 integrate from the camera rather than treating clouds as a distant sky overlay. Reflection views
 must use their own camera/depth contract and must not reuse main-view history blindly.
 
@@ -309,7 +320,7 @@ Exact budgets remain open until measured on the target renderer. Count native
 producer overhead, native uploads, noise and weather storage, trace targets
 and history in the total memory and frame-time assessment.
 
-## Acceptance and unresolved decisions
+## Acceptance and implementation qualification
 
 Acceptance requires weather-coherent clear/thin/thick cloud scenes; moving sunlight and moonlight;
 ground, in-cloud and above-cloud views; grid recentering and view-distance changes; pause and time
@@ -328,12 +339,21 @@ Measure the tracing, reconstruction and memory costs separately. Reference-mode 
 performance qualification are explicit validation activities, not mandatory full-resolution work
 in routine correctness checks.
 
-Before extrapolating an implementation plan, resolve:
+Carry the following details into implementation planning and qualification rather than treating
+them as additional design decisions:
 
-- Review the proposed native-optical-depth mapping above; qualify restrained noise/edge-softness tuning and finite-domain edge behavior.
-- Aerial-transport and local-fog application without double attenuation; existing OIT composition is retained.
-- The environmental/reflection consumers, excluding cast shadows deferred to virtual shadow maps.
-- Target hardware, quality budgets and reference scenes used for qualification.
+- Verify the native optical-depth conversion against the installed producer/consumer units, and
+  tune noise strength, scale and exposed-edge softness against the cubic appearance requirement.
+- Verify existing atmosphere, local-fog, environmental and reflection consumers so physical inputs
+  and attenuation are applied once, preserving the established OIT and storage contracts.
+- Select bounded view/light stepping and temporal rejection parameters, and qualify finite-domain
+  edges, disocclusion and lifecycle transitions against the reference modes.
+- Record target hardware, resolution, reference scenes and measured GPU/memory costs. Establish
+  performance acceptance budgets from explicit targets; do not invent unmeasured performance claims.
+
+The main rendering and ownership choices are settled. Complete proposal review remains separate
+from implementation planning and may identify concrete discrepancies; this reconciliation does not
+claim that such a review or runtime qualification has already passed.
 
 No completion claim follows from this proposal, and the parent requirement remains unchecked.
 
