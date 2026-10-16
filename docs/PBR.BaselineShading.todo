@@ -217,6 +217,8 @@ Tasks
     - Define replacement of vanilla clouds and clean disable/reload behavior. Validate thin/thick
       clouds, moving sun, weather, disocclusion, water reflections and fog; measure GPU and memory cost.
 
+  ☐ Implement virtual shadow maps.
+
   ☐ Analyze the current PBR MRT textures and evaluate which can be combined together to just use individual channels of the same texture-layer in the G-Buffer array.
 
   ☐ Profile and optimize cached material-atlas restoration with batched uploads.
