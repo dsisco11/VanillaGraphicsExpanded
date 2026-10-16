@@ -206,6 +206,7 @@ Tasks
       migrate direct lighting, composite/display resolve, liquids and water-volume inputs together.
 
   ☐ Implement physically motivated volumetric clouds integrated with the sky.
+    - Proposal for review: docs/PBR.VolumetricClouds.Proposal.md; implementation is not yet approved.
     - Define bounded 3D cloud density, altitude/weather controls, wind and volume lighting. Evaluate
       ray marching, light transmittance and a controlled multiple-scattering approximation.
     - Integrate cloud/atmosphere ordering, sun occlusion and cloud shadows/environment lighting in
