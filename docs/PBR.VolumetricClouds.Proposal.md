@@ -130,8 +130,42 @@ runtime validation of lifecycle transitions and visual behavior remains required
 
 The native map stores vertical bounds divided by tile size. Preserve that coordinate convention
 when reconstructing the column volume, then convert path lengths to the units used for extinction.
-Define the opacity-to-extinction mapping explicitly: native opacity is not an inverse-metre value.
-It already includes native edge fading and perception effects; do not apply those factors twice.
+The proposed mapping preserves native optical thickness before detail is added. The installed
+`cloudvolumetric.fsh` integrates `1 - exp(-segmentLength * map.r)` with segment length expressed
+in units of 50 world units. Thus `map.r` is an extinction control per native tile unit, despite
+its opacity name; it is not a coverage alpha and must not be clamped to one or converted with
+`-log(1 - alpha)`. It already includes native edge fading and perception effects; do not apply
+those factors twice.
+
+Let `p = TextureMap.r`, `L = 50` world units for the inspected native producer/consumer pair,
+and `u` be the renderer's explicit metres-per-world-unit conversion. For valid nonnegative finite
+inputs, use:
+
+```
+sigmaBase = p / (L * u)                  // inverse metres
+sigmaT(x) = sigmaBase * detail(x)        // inside the native volume; zero outside
+Tsegment = exp(-sigmaT(x) * dsMetres)
+```
+
+With detail disabled (`detail = 1`), this reproduces native segment transmittance for the same
+ray and column intersection, independent of lighting. For example, `p = 2` across 50 world units
+gives `T = exp(-2)`, approximately 0.135. This is an optical-depth equivalence, not a promise of
+identical output color or OIT reconstruction. The installed map and volume shaders hardcode 50;
+do not silently substitute a changed CPU tile size without reconciling the producer's units.
+
+For restrained interior variation, use a bounded noise value `n(x)` in `[0,1]` and
+`detail(x) = (1 + a * (2*n(x) - 1)) * edge(x)`, with `0 <= a < 1` and
+`edge(x)` in `[0,1]`. The exposed-edge factor is one in the interior and softens density inward
+near the boundary of the connected cloud volume. Disable both variation and edge erosion for the
+native-transmittance reference. Interior variation alone cannot excavate zero-density holes;
+zero native extinction stays zero. Use the same density evaluation for view and light samples.
+
+Noise amplitude, spatial scale and exposed-edge softness remain visual tuning parameters. A
+centered noise multiplier does not guarantee preserved ray opacity, and edge erosion reduces
+optical thickness. Do not claim exact coverage preservation or apply automatic density compensation.
+Compare thin clouds and overcast scenes against the detail-disabled reference, keeping changes
+modest enough to preserve weather intent and the approved cubic silhouette. Reject nonfinite or
+negative map inputs rather than allowing invalid extinction into the transport calculation.
 
 Evaluate 3D noise at ray-march samples inside each native column's horizontal footprint and vertical
 bounds. Use restrained density variation and inward edge erosion to add fluff while preserving
@@ -276,7 +310,7 @@ native/VGE draws. Qualify its rendering cost separately from the volumetric path
 
 Before extrapolating an implementation plan, resolve:
 
-- The opacity-to-extinction mapping, restrained noise/edge-softness tuning and finite-domain edge behavior.
+- Review the proposed native-optical-depth mapping above; qualify restrained noise/edge-softness tuning and finite-domain edge behavior.
 - Aerial-transport and local-fog application without double attenuation; existing OIT composition is retained.
 - The environmental/reflection consumers, excluding cast shadows deferred to virtual shadow maps.
 - Target hardware, quality budgets and reference scenes used for qualification.
