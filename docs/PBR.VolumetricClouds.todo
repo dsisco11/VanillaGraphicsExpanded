@@ -5,7 +5,7 @@ Authority and scope
   Source: docs/PBR.VolumetricClouds.Proposal.md (approved 2026-10-16).
   Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
   Atmospheric contract: docs/PBR.Atmosphere.Publication.md.
-  This execution checklist records verification below; runtime implementation remains outstanding.
+  This execution checklist records verification below; visible cloud rendering and acceptance remain outstanding.
   The proposal governs scope; keep every task unchecked until its stated evidence exists.
   Preserve Off / Simple / Volumetric settings and both standalone PBR and PBR + LumOn operation.
   Retain native weather, geometry and column-map production; VGE owns visible shaders and lighting.
@@ -33,7 +33,7 @@ Implementation parameters to establish
   Target hardware, resolution and performance budgets are not specified. Record explicit targets
   before performance acceptance; absent targets leave that acceptance open without blocking math work.
   Reflection/environment wiring and map-readiness contracts are recorded in Phase 1 receipts below;
-  their runtime adapter validation remains outstanding.
+  focused adapter validation is recorded under Phase 2 below; live qualification remains outstanding.
 
 Phase 1: Verify inputs and define rendering contracts
   Outcome: subsequent work has concrete native-data and VGE-consumer contracts.
@@ -65,24 +65,26 @@ Phase 1: Verify inputs and define rendering contracts
 
 Phase 2: Implement native adapters and owned resource boundaries
   Depends on Phase 1. Outcome: coherent cloud inputs are available without changing weather ownership.
-  ☐ Implement narrow adapters for native map and Simple owners.
+  ✔ Implement narrow adapters for native map and Simple owners.
     - Acquire instances after creation. Borrow completed map plus current dimensions/offsets after
       generation; invalidate on failed generation, rebuild, reload or world change and omit unavailable
       cloud contributions. Never assume an in-place failed update retained valid contents.
     - Expose current Simple mesh/count/committed placement only after its update; do not cache meshes
       across callbacks, dispose them, or replace the native shader field.
     - Keep producer pause behavior and native shader subscriptions intact.
-  ☐ Establish VGE lifecycle, shader registration and resource owners.
+  ✔ Establish VGE lifecycle, shader registration and resource owners.
     - Separate mode ownership, borrowed-input adaptation, density/lighting, draw and history concerns.
     - Use existing GPU abstractions, settings/demand loading and shader build contracts; document units
       and ownership in APIs. Resource creation/replacement follows lifecycle changes, not every frame.
     - Prepare activation/restoration paths but activate each replacement only with its functioning
       draw consumer in the following phases; do not leave native drawing withdrawn by unfinished work.
-  ☐ Verify adapters with focused readiness/replacement/identity tests using deterministic inputs.
+  ✔ Verify adapters with focused readiness/replacement/identity tests using deterministic inputs.
     - Cover allocated-but-uninitialized input, failed generation, changed handles/dimensions, pause,
       stale-world references and ownership of disposal. No test should require launching the game.
-  ☐ Completion: adapters reject unavailable/stale inputs, preserve native ownership, and do not alter
+  ✔ Completion: adapters reject unavailable/stale inputs, preserve native ownership, and do not alter
     visible mode behavior before a corresponding VGE draw is ready.
+    - Completed 2026-10-16 after second review and independent audit-stage-completion against the
+      proposal, atmospheric contract, parent scope and Phase 1 receipts. See implementation evidence below.
 
 Phase 3: Deliver VGE Simple rendering
   Depends on Phase 2. Outcome: Simple uses the native mesh and VGE shaders at the native draw position.
@@ -240,8 +242,8 @@ Phase 1 contracts and source receipts (2026-10-16)
   Native producer and ownership contract
     - FluffyCloudsModSystem.StartClientSide creates map/volume owners at LevelFinalize, registers map
       at OIT .30, and registerCloudRenderer selects volume .31 for mode 1. Its settings watcher can
-      re-register the draw. Observe the end of registerCloudRenderer as well as initial acquisition;
-      withdraw only that draw while VGE owns Volumetric. Leave the map registration intact.
+      re-register the draw. Gate CloudRendererVolumetric.OnRenderFrame directly while VGE owns
+      Volumetric; leave native settings watchers and map/volume registrations intact.
     - CloudRenderer registers itself at OIT .35. Its renderClouds gate selects mode 2. Intercept
       OnRenderFrame only under active VGE Simple ownership, call CloudTick once if unpaused, then
       fetch cloudTilesMeshRef and QuantityCloudTiles. Preserve FrameWidth != 0 and current transforms.
@@ -256,9 +258,11 @@ Phase 1 contracts and source receipts (2026-10-16)
       native disposal retires native GL resources. VGE drops references and disposes only its resources.
     - Readiness instrumentation: prefix InitCloudTiles invalidates the allocation epoch and upload
       stamp, including same-size rebuilds/GL-name reuse. Successful WriteTexture completion marks
-      BOTH raw uploads for that epoch; isFirstTick=false is insufficient. Hook LoadShader entry/result
-      to withdraw readiness until successful compile; retain an existing upload stamp across reload
-      only if its allocation epoch is unchanged. Dispose/world exit invalidates the owner epoch.
+      BOTH raw uploads for that epoch; isFirstTick=false is insufficient. Existing shader-reload
+      admission withdraws readiness; validate the current native program's linked status on the next
+      producer callback, also observing program-reference replacement. Retain a raw upload stamp across
+      reload only for the unchanged allocation. Existing LeaveWorld revokes the owner epoch; native
+      disposal belongs to that world teardown, without a separate disposal-method patch.
     - At every map OnRenderFrame entry withdraw the previous frame publication. A successful return
       publishes only if mode 1 actually entered generation, raw uploads are valid, shader compile
       succeeded, framebuffer/storage validation passed and no submission error occurred. A finalizer
@@ -270,8 +274,8 @@ Phase 1 contracts and source receipts (2026-10-16)
       initialization from nonzero handles. Observe the next successful WriteTexture, then generation;
       until then omit VGE volume output, including paused activation without an observed upload.
       Re-enable may reuse a tracked upload only for the same live owner/allocation epoch.
-      Late acquisition also validates the current program's linked status at acquisition, or waits
-      for an observed successful LoadShader; do not require a missed constructor callback to recur.
+      Late acquisition validates the current program's linked status without requiring an observed
+      LoadShader invocation. A failed replacement remains unavailable until a valid program is observed.
 
   Borrowed input and units contract
     - One immutable draw descriptor captures world/session epoch, owner reference, allocation epoch,
@@ -428,3 +432,75 @@ Phase 1 contracts and source receipts (2026-10-16)
       / Scope and shared contracts and volumetric-cloud item -> subagent build/test receipts and
       Qualification matrix above. Both PBR modes remain required; no LumOn-only input dependency.
     - All groups inherit this checklist's Authority and scope, including virtual-shadow-map deferral.
+
+Phase 2 implementation and verification (2026-10-16)
+  Repository baseline: 84d51a1e. Installed VSEssentials.dll SHA256 remains the Phase 1 value above.
+  Source paths below are relative to VanillaGraphicsExpanded/; test names resolve in the test project.
+
+  Task-to-document and implementation traceability
+    - Native adapters -> Proposal / Ownership boundary, Simple cloud rendering, Publication and native
+      lifecycle; Phase 1 / Native producer and Borrowed input contracts -> PBR/Clouds/CloudNativeMapAdapter,
+      CloudMapPublication and CloudNativeSimpleAdapter, with three map producer hooks (generation,
+      upload and allocation) and a separate CloudVolumetricDrawHook ownership gate.
+      Certificates require supported storage/attachments/formats, linked program, an observed
+      successful joint raw upload and successful current-frame generation. Rebuilds invalidate before
+      deletion, including reused names. Reload/failure/teardown withdraw publication. Placement is copied
+      after generation; mesh access occurs after native tick or within a paused callback and ends at
+      submission. The Simple adapter performs update, capture and synchronous submission in one method;
+      no Simple tick/rebuild/reload observer or persistent mesh-borrow tracker is installed. Its actual
+      replacement callback is added with the functioning shader in Phase 3. Native owners retain their
+      shader subscriptions, fields and disposal authority.
+    - Lifecycle/resources -> Proposal / Publication and native lifecycle; Atmosphere.Publication / Ownership
+      and Publication contract; BaselineShading / Scope and shared contracts -> ModSystems/CloudModSystem,
+      PBR/Clouds/CloudNativeRuntime and CloudModeOwnership. Existing context registry, shader-reload admission
+      and cleanup owners supply lifecycle boundaries. World epochs/root matching reject obsolete owners.
+      VgeFrameRenderer.TryGetCurrentFrame allows unavailable camera inputs to be omitted without throwing
+      through native draws. No atmospheric publication, native compatibility allowance or user setting changes.
+      Ownership admission requires the selected functioning draw; the volume callback gate reconciles
+      the live preference at draw time and release disposes only accepted VGE resources. Native settings
+      watchers keep their registration authority; VGE performs no volume register/unregister operations.
+      No draw consumer is installed yet, so native drawing remains active. Dedicated shader declarations/build registration
+      accompany their actual Simple/Volumetric programs in Phases 3–4; GPU targets/history belong to their
+      later owners. No placeholder executable, duplicate shader registry or per-frame GPU allocation is added.
+    - Deterministic verification -> Proposal / Acceptance and implementation qualification and the Phase 2
+      test requirements -> CloudMapPublicationTests, CloudModeOwnershipTests,
+      CloudNativeSimpleAdapterTests, CloudNativeHookTests and GPU/CloudNativeAdapterTests. Cover uninitialized
+      allocation, failed in-place upload/generation, skipped native bodies, changed dimensions/handles,
+      same-name rebuild, reload failure/recovery, pause/current placement, disposed/uninitialized meshes,
+      missing camera, foreign/old-world roots, world-teardown invalidation, draw suppression/restoration
+      without registration changes and disposal ownership.
+      Three map observer hooks install against native methods and have no suppressing prefixes;
+      the volume draw gate permits native drawing until a functioning consumer owns the selected mode. Tiny
+      headless GL fixtures exercise link/storage/error checks and restore separate read/draw FBO bindings.
+
+  Original validation (subagent-run; receipts precede the approved adapter simplification)
+    - Environment/cache options match the Phase 1 baseline. Debug mod build:
+      dotnet build -c Debug --tl:off -v:minimal VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj -p:NuGetAudit=false --ignore-failed-sources
+      Passed, 0 errors and 15 existing nullable/obsolete warnings; all 450 production SPIR-V variants selected.
+    - Expanded focused tests, with the filter supplied as one quoted argument:
+      dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --tl:off -v:minimal -p:NuGetAudit=false --filter "FullyQualifiedName~CloudMapPublicationTests|FullyQualifiedName~CloudSimpleBorrowTests|FullyQualifiedName~CloudModeOwnershipTests|FullyQualifiedName~CloudNative|FullyQualifiedName~VgeFrameRendererTests|FullyQualifiedName~ShaderStageSelectionTests|FullyQualifiedName~SceneColor|FullyQualifiedName~AtmosphereAmbientPublicationTests|FullyQualifiedName~AtmosphereProgramBindingsTests|FullyQualifiedName~AtmospherePublicationTests|FullyQualifiedName~LiquidBlendPolicyTests|FullyQualifiedName~LiquidTransparencyTests|FullyQualifiedName~LiquidRenderHookTests|FullyQualifiedName~LiquidDrawTransformTests" --logger "trx;LogFileName=cloud-phase2-final.trx"
+      Passed 256/256, no skipped tests; production/test shader catalogs completed. After final observer
+      review and the additional current-setting restoration case, the affected cloud tests were rerun:
+      dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --tl:off -v:minimal -p:NuGetAudit=false --filter "FullyQualifiedName~CloudMapPublicationTests|FullyQualifiedName~CloudSimpleBorrowTests|FullyQualifiedName~CloudModeOwnershipTests|FullyQualifiedName~CloudNative" --logger "trx;LogFileName=cloud-phase2-reviewed.trx"
+      Passed 33/33, no skipped tests. The two receipts overlap; they cover 257 distinct tests in total.
+      Receipts: VanillaGraphicsExpanded.Tests/TestResults/cloud-phase2-final.trx and cloud-phase2-reviewed.trx.
+    - Second review and independent completion audit reconciled all Phase 2 items with controlling source
+      documents and current evidence. No required findings remain. Later shader/transport/history work,
+      live lifecycle/appearance, reflection dependency and measured performance acceptance remain open.
+      No game launch, native asset edits, live visual acceptance or performance measurement occurred.
+
+  Approved adapter simplification validation (2026-10-16, subagent-run)
+    - Native patch targets are reduced from twelve methods to four: CloudRendererMap.OnRenderFrame,
+      WriteTexture and InitCloudTiles, plus CloudRendererVolumetric.OnRenderFrame for draw ownership.
+      Shader readiness uses existing reload admission/current-program checks; teardown uses LeaveWorld.
+      Simple update/capture/submission is synchronous and installs no observer hooks before its draw exists.
+    - Debug build passed with 0 errors and 15 existing warnings, using the build/cache options above.
+      The focused regression filter used FullyQualifiedName~Cloud plus the existing camera, shader-stage,
+      scene-color, atmosphere and liquid filters above: 271 passed, 0 failed/skipped. After final test edits,
+      FullyQualifiedName~Cloud was rerun against the final tree: 64 passed, 0 failed/skipped. Receipts overlap;
+      do not add their counts. No cloud compiler warnings/errors. Current-setting draw gating, automatic
+      native restoration without registration changes, reload recovery without LoadShader interception,
+      upload/rebuild readiness, world invalidation and immediate post-tick mesh access are covered.
+    - Receipts: VanillaGraphicsExpanded.Tests/TestResults/cloud-adapter-simplification.trx and
+      cloud-adapter-simplification-reviewed.trx. Source review and linked proposal/checklist reconciliation
+      completed; visible shader delivery, live qualification and performance acceptance remain open.

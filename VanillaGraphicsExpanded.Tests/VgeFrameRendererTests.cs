@@ -28,9 +28,13 @@ public sealed class VgeFrameRendererTests
         api.Verify(a => a.Event.RegisterRenderer(renderer, EnumRenderStage.Before, "vge_frame_camera"), Times.Once);
         api.Verify(a => a.Event.RegisterRenderer(It.Is<VgeFrameResetRenderer>(reset => reset.RenderOrder == -10001), EnumRenderStage.Before, "vge_frame_reset"), Times.Once);
         Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
+        Assert.False(VgeFrameRenderer.TryGetCurrentFrame(api.Object, out _));
         renderer.BeginFrame();
         Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
         renderer.OnRenderFrame(.016f, EnumRenderStage.Before);
+        Assert.True(VgeFrameRenderer.TryGetCurrentFrame(api.Object, out uint currentFrame));
+        Assert.Equal(1u, currentFrame);
+        Assert.False(VgeFrameRenderer.TryGetCurrentFrame(new Mock<ICoreClientAPI>().Object, out _));
         byte[] published = VgeFrameRenderer.Current.Bytes.ToArray();
         Assert.Equal(VgeFrameRenderer.CurrentLightingCalibration.BlockReferenceLux,
             CameraExposureRenderer.LightingDiagnostics.BlockReferenceLux);

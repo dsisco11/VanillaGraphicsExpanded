@@ -33,6 +33,14 @@ internal sealed class VgeFrameRenderer : IRenderer
     internal static VgeFrameUniformBuffer Current => active is { published: true, disposed: false } owner
         ? owner.inputs : throw new InvalidOperationException("The shared world camera has not been published.");
 
+    /// <summary>Allows passive native adapters to omit unavailable inputs without disrupting a native draw callback.</summary>
+    internal static bool TryGetCurrentFrame(ICoreClientAPI api, out uint frame)
+    {
+        frame = 0;
+        if (active is not { published: true, disposed: false } owner || !ReferenceEquals(owner.api, api)) return false;
+        frame = owner.inputs.FrameIndex; return true;
+    }
+
     /// <summary>Reports the active source reference, using the nominated defaults before world publication.</summary>
     internal static PBR.LightingCalibration CurrentLightingCalibration => active is { published: true, disposed: false } owner
         ? owner.inputs.LightingCalibration : PBR.LightingCalibration.Default;

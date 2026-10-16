@@ -195,7 +195,9 @@ beyond available native columns is implied by a longer trace distance.
 
 Retain `CloudRendererMap.OnRenderFrame` at OIT order `0.30`. Replace the native
 `CloudRendererVolumetric` draw at `0.31` with an independently registered VGE cloud renderer at
-that order. The retained map callback owns weather ticking, tile commits and map generation;
+that order. Gate the native volumetric draw callback directly while VGE owns its replacement;
+leave native registration and settings watchers intact. The retained map callback owns weather
+ticking, tile commits and map generation;
 VGE must not call `CloudTick` separately. This preserves one native update path and supplies the
 completed map before VGE draws. Cast shadows are deferred, so they require no earlier producer
 callback or retained previous-frame publication.
@@ -217,8 +219,9 @@ VGE consumes that result without independently advancing cloud motion.
 
 Native mode `0` is Off, `1` is Volumetric, and `2` is Simple. In Volumetric mode the native map
 callback runs its producer work. Native settings changes can also re-register the native volumetric
-draw, so the ownership adapter must keep that draw withdrawn whenever VGE owns the volumetric path,
-including after setting changes. Off remains off. Simple uses the separate VGE shader and native
+draw; the callback ownership gate suppresses that draw whenever VGE owns the volumetric path,
+including after setting changes, without patching the watcher. Off remains off. Simple uses the
+separate VGE shader and native
 mesh producer described above. Mode transitions must select exactly one visible cloud path and
 preserve the selected producer's updates without forcing the user's setting to Volumetric.
 
@@ -227,8 +230,8 @@ handles and dimensions after generation, invalidate affected VGE history, and ne
 resources. Keep native shader-reload subscriptions intact; re-establish map readiness after reload
 and invalidate incompatible VGE history. Reload success must not be inferred from texture allocation.
 
-On VGE disable, withdraw its draws and restore native volumetric registration and simple draw/shader
-behavior according to the current cloud setting, not a preference saved at activation.
+On VGE disable, withdraw its draws and release native callback suppression. Native registration and
+simple draw/shader behavior follow the current cloud setting, not a preference saved at activation.
 Re-enable reacquires current owners and readiness.
 Avoid permanent changes to user settings. On world exit, drop borrowed references and dispose only
 VGE-owned resources; the native owner retains responsibility for its worker and resource teardown.
