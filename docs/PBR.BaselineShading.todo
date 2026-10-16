@@ -426,40 +426,6 @@ Tasks
     - Define replacement of vanilla clouds and clean disable/reload behavior. Validate thin/thick
       clouds, moving sun, weather, disocclusion, water reflections and fog; measure GPU and memory cost.
 
-  ☐ Implement industry-standard dynamic camera contrast adjustment for the HDR scene.
-    - Implementation contract and remaining visual/performance acceptance: docs/PBR.CameraExposure.md.
-      GPU histogram metering and bounded temporal exposure precede the existing stable tone curve;
-      lighting/refraction stay unexposed. Persisted automatic/manual controls share one camera model.
-    - Investigate established automatic exposure and adaptive tone-mapping approaches; define the
-      intended camera response, metering units and contrast behavior before selecting an algorithm.
-      Distinguish exposure adaptation from changes to the tone curve; do not substitute independent
-      per-frame minimum/maximum normalization for a temporally stable camera model.
-    - Meter scene-linear luminance after scene/OIT/late composition and before display conversion.
-      Evaluate bounded GPU histogram/percentile or log-luminance reduction with robust rejection of
-      isolated solar/emissive peaks and near-black outliers. Exclude UI/offscreen draws and define
-      metering relative to bloom/light shafts so generated glare cannot drive an exposure feedback loop.
-    - Define exposure compensation, a middle-gray target, minimum/maximum exposure in stops and
-      configurable metering behavior. Adapt over elapsed time with independently bounded brightening
-      and darkening rates; prevent pumping, flicker and frame-rate-dependent transitions.
-    - Define highlight shoulder, shadow toe and midtone contrast while preserving color ratios,
-      highlight detail and dark-scene intent. Evaluate whether exposure plus a stable tone curve
-      satisfies the requirement before adding local contrast adaptation or its additional history.
-    - Apply the camera response once at the shared final display boundary. Keep lighting caches,
-      atmospheric radiance and reflection/refraction inputs unexposed; coordinate any exposure-relative
-      bloom thresholds with the owned postprocessing tasks. Preserve grading order and final dithering.
-    - Integrate through the existing VGE-owned postprocessing and final composition owners;
-      scheduling, intermediate targets and final-shader ownership are documented in docs/PBR.Postprocessing.md.
-    - Use existing VGE shader, binding, PSO and resource owners with the GLSL 330 baseline; bound
-      reduction cost and history storage and avoid synchronous per-frame CPU luminance readback.
-      Define startup, camera-cut, teleport, world change, resize/reload and settings-reset behavior.
-    - Expose persisted controls through the existing graphics configuration, including a disable/manual
-      mode that retains predictable fixed exposure. Support both LumOn modes and current SDR output;
-      keep future native-HDR presentation compatible without making it an implementation prerequisite.
-    - Validate bright exterior/dark interior transitions, sun entering/leaving the frame, emissive
-      objects, underwater views, day/night changes and stationary scenes at varied frame rates.
-      Use focused subagent numerical/GPU tests for metering, adaptation, bounds, lifecycle and single
-      display conversion; obtain user-run visual acceptance and measure GPU time, bandwidth and memory.
-
   ☐ Analyze the current PBR MRT textures and evaluate which can be combined together to just use individual channels of the same texture-layer in the G-Buffer array.
 
   ☐ Profile and optimize cached material-atlas restoration with batched uploads.
