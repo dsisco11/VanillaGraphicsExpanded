@@ -144,19 +144,22 @@ reflections must be accounted for explicitly rather than inferred from the visib
 
 ## Scene integration
 
-Expose accumulated cloud radiance and transmittance with the depth information needed by the
-existing scene-composition contract. Preserve the frozen frame's lighting storage scale and range
-admission; coverage and depth do not receive lighting exposure or encoding.
+Retain the base game's existing volumetric-cloud OIT integration. The VGE renderer replaces density
+evaluation and lighting while submitting compatible cloud contributions to the existing accumulation
+and revealage buffers and resolve. Preserve the native depth-dependent bucket weighting and revealage
+behavior along the volume traversal rather than assigning the whole cloud to one representative depth.
+Preserve the frozen frame's lighting storage scale and range admission; coverage and depth do not
+receive lighting exposure or encoding.
 
 Clouds must attenuate the sky, sun, moon and stars behind them while remaining correctly occluded
 by terrain. Particles, translucent surfaces and water can lie before, within or behind the volume.
-A single cloud layer at one representative depth cannot establish correct ordering for all those
-cases. Select and document the volume/transparency integration contract before implementation,
-including the approximation imposed by the existing OIT representation.
+Use the existing OIT path for those interactions and retain the native scene/liquid-depth clipping
+semantics. Its bucket-based ordering is an accepted approximation; this proposal does not require
+exact surface/volume sorting or a new transparency representation.
 
-The separate [transparency proposal](PBR.Transparency.Proposal.md) is not assumed implemented or
-approved by this document. If required ordering cannot be delivered by the available composition
-contract, record that dependency rather than implementing a parallel transparency system.
+The separate [transparency proposal](PBR.Transparency.Proposal.md) is not a dependency of this work
+and is not approved by it. Validate the replacement against the current native cloud/OIT behavior,
+including particles and water before, within and behind clouds.
 
 Apply atmospheric aerial transport and local fog consistently along cloud contributions, avoiding
 double fogging from either a pre-fogged source or later scene composition. Inside-cloud views must
@@ -192,7 +195,7 @@ Before extrapolating an implementation plan, resolve:
 
 - The completed-map publication and single-owner scheduling contract, including cloud-mode changes.
 - The opacity-to-extinction mapping, restrained noise/edge-softness tuning and finite-domain edge behavior.
-- The volume/transparency and aerial-transport composition contract.
+- Aerial-transport and local-fog application without double attenuation; existing OIT composition is retained.
 - The shadow representation and environmental/reflection consumers.
 - Target hardware, quality budgets and reference scenes used for qualification.
 
