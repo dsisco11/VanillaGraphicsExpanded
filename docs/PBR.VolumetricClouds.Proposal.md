@@ -79,12 +79,43 @@ geometry. The VGE simple shader must evaluate the geometry's native shape contro
 native lighting with VGE's lighting inputs; legacy brightness/color attributes must not be mistaken
 for physical illumination. Simple shading does not require the volumetric density or noise model.
 
-The native simple renderer combines update and draw work in its OIT callback at order `0.35`.
-Define a separate ownership boundary that preserves its single update path and current mesh while
-replacing the visible shader/draw contribution. Do not simply unregister that callback and lose
-weather updates, or advance its update twice. The exact interception and resource handoff require
-source verification before implementation. Preserve native mesh ownership and handle replacement
-on rebuild; VGE owns and reloads its own shader and never disposes the borrowed mesh.
+The approved handoff intercepts `CloudRenderer.OnRenderFrame` at its existing OIT order `0.35`
+while VGE owns Simple rendering. Preserve the native Simple-mode check and call native `CloudTick`
+exactly once when unpaused. After that call, obtain the current `cloudTilesMeshRef`,
+`QuantityCloudTiles` and committed placement, submit the VGE draw, and suppress the original
+callback body. When VGE relinquishes ownership, let the original callback run normally. Do not
+unregister the callback, replace the native shader field, or reproduce native weather updates.
+
+VGE owns both vertex and fragment shader stages. The borrowed mesh is an instanced cube template;
+the vertex shader supplies much of its final shape. Preserve thickness-dependent height, tile
+placement, undulation, curvature and neighboring-face coverage using the native input layout:
+
+| Input | Contract |
+| --- | --- |
+| Vertex position, base color and face flags | Native cube template; base color is artistic metadata |
+| Normalized tile offsets | Rescale by `32767` for native instance placement |
+| Four neighboring thickness values | Shared-side visibility and fading |
+| Own thickness and thin-cloud mode | Native height controls |
+| Undulation mode and opaqueness | Movement and coverage controls |
+| Cloud brightness | Legacy artistic metadata, not physical illumination |
+
+Consume the existing instance stream of twelve shorts with a 24-byte stride without copying or
+rebuilding the mesh. Supply matching projection/model-view transforms, tile offset, cloud extent,
+altitude and animation inputs. Preserve the native perception effect through a shader-local input
+equivalent to its factor of `20`, without temporarily mutating shared engine uniforms.
+
+Replace native daylight/brightness multiplication, sunset coloring and precomputed fog coloration
+with VGE lighting and fog treatment. Retain the Simple path's adjusted OIT depth, coverage behavior
+and liquid-depth interaction. Map glow outputs explicitly to VGE's output contract rather than
+interpreting native bloom/glow metadata as physical cloud lighting.
+
+`CloudTick` can dispose and replace the mesh during a view-distance rebuild, so obtain the mesh
+after ticking and do not cache it across callbacks. While paused, draw the retained mesh with current
+camera transforms without ticking. VGE reloads its own shader independently; leave the native shader
+field and reload subscription intact for restoration. On disable, remove the interception's ownership
+so native behavior resumes according to the current setting. On world exit, release VGE resources
+and borrowed references, leaving mesh disposal to the native owner. This handoff is source-backed;
+runtime validation of lifecycle transitions and visual behavior remains required.
 
 ## Column-data interpretation and appearance
 
@@ -245,7 +276,6 @@ native/VGE draws. Qualify its rendering cost separately from the volumetric path
 
 Before extrapolating an implementation plan, resolve:
 
-- The Simple callback's update/draw separation and native mesh handoff to its VGE-owned shader.
 - The opacity-to-extinction mapping, restrained noise/edge-softness tuning and finite-domain edge behavior.
 - Aerial-transport and local-fog application without double attenuation; existing OIT composition is retained.
 - The environmental/reflection consumers, excluding cast shadows deferred to virtual shadow maps.
