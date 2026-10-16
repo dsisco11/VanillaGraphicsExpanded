@@ -6,7 +6,9 @@ implementation checklist.
 ## Intended result
 
 Replace native cloud drawing with a VGE-owned volumetric renderer while preserving the base
-game's weather-dependent cloud distribution, altitude and movement. Use the approach documented
+game's weather-dependent cloud distribution, column heights and bounds, altitude and movement.
+Preserve roughly cubic cloud masses with modest fluff from 3D shader noise inside the native
+column volume. Use the approach documented
 for Unreal Engine: ray-marched three-dimensional density, light transmittance, approximate
 multiple scattering, scalable tracing and reconstruction, and integration with atmospheric lighting.
 This is an independent implementation for VGE's rendering backend, not a dependency on Unreal.
@@ -36,69 +38,73 @@ constant-density vertical intervals using those colors before submitting OIT con
 
 These inputs are sufficient to preserve broad weather structure. They are not a complete 3D density
 field, physical extinction coefficients, or a direct measurement of visible sky coverage. VGE must
-supply the volume shape and optical interpretation. Source inspection establishes feasibility;
+supply internal density detail and optical interpretation within the native bounds. Source inspection establishes feasibility;
 it does not establish visual quality, performance, or a validated ownership handoff.
 
 ## Ownership boundary
 
-Retain the native weather and tile producer as the initial source of cloud distribution. Capture
-its committed raw data into VGE-owned storage. VGE owns density evaluation, shader programs,
+Retain the native weather, tile and column-map producer as the source of cloud distribution and
+geometry. Consume its completed column map with matching placement metadata. VGE owns density evaluation, shader programs,
 noise resources, light transport, shadow products, render targets, history and composition.
 
 The native producer is retained deliberately: reimplementing regional weather, tile scheduling,
-blending and movement would broaden the change beyond replacing cloud rendering. Direct weather-reader
-sampling remains an alternative only if the retained producer cannot satisfy a safe lifecycle
-contract. It is not a second concurrently active producer or an automatic fallback.
+blending, movement and column-height formulas would broaden the change beyond replacing cloud
+rendering. Do not introduce a second producer or replacement vertical profiles from raw weather controls.
 
-Do not use native `TextureCol` as physical lighting. Do not use the derived `TextureMap` as the
-authoritative density model: its opacity and bounds already include native shape formulas,
-edge fading and perception effects. Do not modify installed game shader assets.
+Use native `TextureMap` as the authoritative column envelope and opacity control. Do not use
+`TextureCol` as physical lighting. Native map generation remains a data dependency, while visible
+cloud rendering and lighting are VGE-owned. Do not modify installed game shader assets.
 
-The native producer currently allocates and uploads its own GPU data. Retaining it may initially
-retain those resources and costs even though VGE draws independently. Removing that overhead
+The native producer allocates and uploads its own GPU data and generates the column map, including
+an unused color attachment. Retain this pass and account for its costs even though VGE draws independently. Removing that overhead
 requires an explicit, verified separation of producer work from native rendering resources;
 full ownership of the VGE shader does not imply that separation already exists.
 
-## Weather-data interpretation
+## Column-data interpretation and appearance
 
 | Native input | Proposed interpretation |
 | --- | --- |
-| `SelfThickness` | Broad cloud amount and vertical development control |
-| `CloudOpaqueness` | Artistic input to a bounded density/extinction mapping |
-| `ThinCloudMode` | Blend between thin and vertically developed density profiles |
-| `UndulatingCloudMode` | Shape and undulation control |
+| `TextureMap.r` | Native opacity control, mapped explicitly to extinction |
+| `TextureMap.ba` | Native lower and upper column bounds in tile-relative vertical units |
+| Tile footprint and tile size | Horizontal column bounds and coordinate scale |
 | Cloud level | Base altitude of the cloud layer |
 | Committed center, grid dimensions and wind offsets | Consistent placement and advection |
-| `Brightness` | Legacy artistic metadata; excluded from physical illumination by default |
+| `TextureCol` | Unused by VGE cloud lighting |
 
-Normalize the native nonnegative short-valued controls according to their 0–32767 representation.
-Define and document the conversion to physical extinction rather than treating native opacity as
-inverse metres. Preserve the weather controls' broad intent without requiring the native block-shaped
-silhouette or native brightness formula.
+The native map stores vertical bounds divided by tile size. Preserve that coordinate convention
+when reconstructing the column volume, then convert path lengths to the units used for extinction.
+Define the opacity-to-extinction mapping explicitly: native opacity is not an inverse-metre value.
+It already includes native edge fading and perception effects; do not apply those factors twice.
 
-Generate bounded 3D density from smoothly sampled weather controls, a vertical profile, and
-VGE-owned base/detail noise. Detail must preserve clear regions and remain subordinate to the
-weather envelope. Coordinate anchoring must keep fine structure stable when the tile grid recenters
+Evaluate 3D noise at ray-march samples inside each native column's horizontal footprint and vertical
+bounds. Use restrained density variation and inward edge erosion to add fluff while preserving
+broad faces, stepped heights and a recognizably cubic silhouette. Do not expand density beyond
+the native bounds, smooth away the native steps, or replace the masses with rounded cumulus shapes.
+Adjacent occupied columns form a connected volume: avoid independently eroding their shared
+interior faces into artificial seams. Detail must preserve clear regions. A complete generated
+3D density texture is not required; reusable noise textures or procedural shader noise can supply detail.
+Coordinate anchoring must keep fine structure continuous across columns and stable when the tile grid recenters
 and move it consistently with cloud advection. A second independent wind translation must not
 double-advect the native distribution.
 
 The finite weather grid defines the supported domain. Edge treatment must avoid stretched border
-tiles or an abrupt visible cutoff. Missing regional weather is not evidence of physically clear
-sky: the adapter must distinguish unavailable input from valid zero cloud amount where the native
-interface permits it. No extension beyond available weather data is implied by a longer trace distance.
+tiles or an abrupt visible cutoff. The derived map alone cannot distinguish unavailable regional
+weather from valid zero opacity; do not infer additional weather availability from it. No extension
+beyond available native columns is implied by a longer trace distance.
 
 ## Publication and native lifecycle
 
-Capture a coherent snapshot at the main-thread commit/upload boundary before the worker is released
-to mutate tiles again. Include tile values, dimensions, committed spatial state and a generation
-identity. Do not read the public `Tiles` array opportunistically from the draw callback. Per-frame
-camera-relative placement and continuous wind motion must be derived consistently from that committed
-state; camera movement alone must not require rebuilding the weather texture.
+Consume the completed native map-generation result with matching dimensions, spatial placement and
+publication identity. Its bounds depend on per-frame undulation as well as committed tile data;
+a tile commit alone does not identify the final map. Do not read the worker-mutated `Tiles` array
+from VGE drawing. Borrow the map read-only during its valid lifetime, or copy it into VGE-owned
+storage if consumer scheduling requires a retained snapshot. A retained handle alone does not freeze
+texture contents. Camera-relative placement and continuous wind motion must match the consumed map.
 
 `CloudRendererMap.OnRenderFrame` currently advances `CloudTick` only when native volumetric mode is
 enabled. Unregistering the renderer or switching clouds off therefore cannot be used as the sole
-replacement mechanism. The ownership adapter must preserve one update/commit path while suppressing
-native map shading and volumetric drawing. The ordinary mesh-cloud path must also remain suppressed
+replacement mechanism. The ownership adapter must preserve one update/commit and map-generation path
+while suppressing native volumetric drawing. The ordinary mesh-cloud path must also remain suppressed
 while VGE owns clouds, including after user setting changes.
 
 The exact hook and scheduling point require verification before implementation. In particular,
@@ -178,13 +184,14 @@ and history in the total memory and frame-time assessment.
 Acceptance requires weather-coherent clear/thin/thick cloud scenes; moving sunlight and moonlight;
 ground, in-cloud and above-cloud views; grid recentering and view-distance changes; pause and time
 changes; fog, terrain, particles, water and reflection ordering; and clean disable/reload/world changes.
-Validate both PBR modes. Focused automated checks can establish data, math and lifecycle contracts;
+Validate roughly cubic silhouettes, modest fluff, preserved native heights/bounds and the absence
+of artificial seams between connected columns. Validate both PBR modes. Focused automated checks can establish data, math and lifecycle contracts;
 the user performs in-game visual acceptance. GPU timing and memory measurements are separate evidence.
 
 Before extrapolating an implementation plan, resolve:
 
-- The native commit hook and single-owner scheduling contract, including cloud-mode changes.
-- The weather-to-density mapping, layer thickness and finite-domain edge behavior.
+- The completed-map publication and single-owner scheduling contract, including cloud-mode changes.
+- The opacity-to-extinction mapping, restrained noise/edge-softness tuning and finite-domain edge behavior.
 - The volume/transparency and aerial-transport composition contract.
 - The shadow representation and environmental/reflection consumers.
 - Target hardware, quality budgets and reference scenes used for qualification.
