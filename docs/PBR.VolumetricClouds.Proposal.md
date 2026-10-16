@@ -95,29 +95,45 @@ beyond available native columns is implied by a longer trace distance.
 
 ## Publication and native lifecycle
 
-Consume the completed native map-generation result with matching dimensions, spatial placement and
-publication identity. Its bounds depend on per-frame undulation as well as committed tile data;
-a tile commit alone does not identify the final map. Do not read the worker-mutated `Tiles` array
-from VGE drawing. Borrow the map read-only during its valid lifetime, or copy it into VGE-owned
-storage if consumer scheduling requires a retained snapshot. A retained handle alone does not freeze
-texture contents. Camera-relative placement and continuous wind motion must match the consumed map.
+Retain `CloudRendererMap.OnRenderFrame` at OIT order `0.30`. Replace the native
+`CloudRendererVolumetric` draw at `0.31` with an independently registered VGE cloud renderer at
+that order. The retained map callback owns weather ticking, tile commits and map generation;
+VGE must not call `CloudTick` separately. This preserves one native update path and supplies the
+completed map before VGE draws. Cast shadows are deferred, so they require no earlier producer
+callback or retained previous-frame publication.
 
-`CloudRendererMap.OnRenderFrame` currently advances `CloudTick` only when native volumetric mode is
-enabled. Unregistering the renderer or switching clouds off therefore cannot be used as the sole
-replacement mechanism. The ownership adapter must preserve one update/commit and map-generation path
-while suppressing native volumetric drawing. The ordinary mesh-cloud path must also remain suppressed
-while VGE owns clouds, including after user setting changes.
+Borrow the completed native map read-only for same-frame drawing, obtaining its current texture
+handle, dimensions and matching spatial placement after generation. This path requires neither
+CPU readback nor a snapshot copy. Bounds depend on per-frame undulation as well as committed tiles,
+so a tile commit alone does not identify the completed map. Do not read the worker-mutated `Tiles`
+array from VGE drawing. A retained texture handle does not freeze its contents or extend its lifetime.
 
-The exact hook and scheduling point require verification before implementation. In particular,
-the snapshot must be available before its VGE consumers, preserve pause/time-speed behavior, and
-avoid advancing native weather processing twice. Capture failures retain the last complete snapshot
-only while its spatial domain and world identity remain valid. Before the first valid snapshot,
-publish an explicit unavailable state and omit the owned cloud contribution.
+Acquire native map and draw-owner instances after their creation at `LevelFinalize`. Readiness
+requires initialized tile data uploaded to the map inputs and successful map generation, not merely
+allocated textures. Until ready, or if generation fails, mark the current map unavailable and omit
+the VGE cloud contribution. Do not assume that an in-place failed update preserves a usable snapshot.
 
-View-distance changes replace the native grid and texture handles. Shader reload, world teardown,
-feature disable and re-enable must release VGE resources and restore native registrations/settings
-only according to recorded ownership. Avoid permanent changes to the user's cloud preference.
-Never dispose engine-owned textures. Retired or mixed-generation data must not remain reachable.
+Preserve native pause and time-speed behavior. While paused, the map callback skips `CloudTick`
+and its animation-clock advance but still updates camera-relative placement and generates the map.
+VGE consumes that result without independently advancing cloud motion.
+
+Native mode `0` is Off, `1` is Volumetric, and `2` is Simple. In Volumetric mode the native map
+callback runs its producer work. Native settings changes can also re-register the native volumetric
+draw, so the ownership adapter must keep that draw withdrawn whenever VGE owns the volumetric path,
+including after setting changes. Off remains off. The Simple-cloud path is explicitly undecided:
+this proposal does not yet select preservation of native Simple clouds or their replacement by VGE.
+
+View-distance changes can recreate the grid and textures during a native commit. Obtain the new
+handles and dimensions after generation, invalidate affected VGE history, and never sample retired
+resources. Keep native shader-reload subscriptions intact; re-establish map readiness after reload
+and invalidate incompatible VGE history. Reload success must not be inferred from texture allocation.
+
+On VGE disable, withdraw its draw and restore native volumetric registration according to the current
+cloud setting, not a preference saved at activation. Re-enable reacquires current owners and readiness.
+Avoid permanent changes to user settings. On world exit, drop borrowed references and dispose only
+VGE-owned resources; the native owner retains responsibility for its worker and resource teardown.
+Prevent stale world identities or mixed-generation map metadata from reaching consumers. The callback
+contract is source-backed; readiness detection and lifecycle transitions still require runtime validation.
 
 ## Density integration and lighting
 
@@ -198,7 +214,7 @@ the user performs in-game visual acceptance. GPU timing and memory measurements 
 
 Before extrapolating an implementation plan, resolve:
 
-- The completed-map publication and single-owner scheduling contract, including cloud-mode changes.
+- Whether Simple mode retains native mesh clouds or uses VGE clouds; the Volumetric callback contract is defined above.
 - The opacity-to-extinction mapping, restrained noise/edge-softness tuning and finite-domain edge behavior.
 - Aerial-transport and local-fog application without double attenuation; existing OIT composition is retained.
 - The environmental/reflection consumers, excluding cast shadows deferred to virtual shadow maps.
