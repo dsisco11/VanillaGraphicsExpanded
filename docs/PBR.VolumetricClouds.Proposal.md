@@ -3,6 +3,9 @@
 Status: proposal for review. This document does not authorize implementation or define an
 implementation checklist.
 
+Approved design decision: VGE owns separate Simple and Volumetric cloud shaders. This approval
+settles mode ownership; remaining proposal decisions and implementation planning are separate.
+
 ## Intended result
 
 Replace native cloud drawing with a VGE-owned volumetric renderer while preserving the base
@@ -12,6 +15,9 @@ column volume. Use the approach documented
 for Unreal Engine: ray-marched three-dimensional density, light transmittance, approximate
 multiple scattering, scalable tracing and reconstruction, and integration with atmospheric lighting.
 This is an independent implementation for VGE's rendering backend, not a dependency on Unreal.
+
+Simple mode retains native mesh geometry and weather-driven shape with a separate VGE-owned shader.
+It preserves a cheaper block-shaped option without volumetric ray marching or 3D noise.
 
 The renderer must support ground, inside-cloud and above-cloud views in both PBR modes. It must
 participate in celestial occlusion, environmental lighting, fog and water reflections. Shadows cast
@@ -60,6 +66,25 @@ The native producer allocates and uploads its own GPU data and generates the col
 an unused color attachment. Retain this pass and account for its costs even though VGE draws independently. Removing that overhead
 requires an explicit, verified separation of producer work from native rendering resources;
 full ownership of the VGE shader does not imply that separation already exists.
+
+## Simple cloud rendering
+
+Preserve the user's cloud modes: Off draws no clouds; Simple uses native mesh geometry with a
+dedicated VGE-owned simple cloud shader; Volumetric uses the native column map with VGE-owned
+ray marching and restrained fluff. Both visible cloud shaders use VGE atmospheric lighting,
+scene-color storage and the existing OIT integration. Cast shadows remain deferred in both modes.
+
+Retain native mesh generation, tile attributes, weather updates, placement and block-shaped
+geometry. The VGE simple shader must evaluate the geometry's native shape controls while replacing
+native lighting with VGE's lighting inputs; legacy brightness/color attributes must not be mistaken
+for physical illumination. Simple shading does not require the volumetric density or noise model.
+
+The native simple renderer combines update and draw work in its OIT callback at order `0.35`.
+Define a separate ownership boundary that preserves its single update path and current mesh while
+replacing the visible shader/draw contribution. Do not simply unregister that callback and lose
+weather updates, or advance its update twice. The exact interception and resource handoff require
+source verification before implementation. Preserve native mesh ownership and handle replacement
+on rebuild; VGE owns and reloads its own shader and never disposes the borrowed mesh.
 
 ## Column-data interpretation and appearance
 
@@ -120,16 +145,18 @@ VGE consumes that result without independently advancing cloud motion.
 Native mode `0` is Off, `1` is Volumetric, and `2` is Simple. In Volumetric mode the native map
 callback runs its producer work. Native settings changes can also re-register the native volumetric
 draw, so the ownership adapter must keep that draw withdrawn whenever VGE owns the volumetric path,
-including after setting changes. Off remains off. The Simple-cloud path is explicitly undecided:
-this proposal does not yet select preservation of native Simple clouds or their replacement by VGE.
+including after setting changes. Off remains off. Simple uses the separate VGE shader and native
+mesh producer described above. Mode transitions must select exactly one visible cloud path and
+preserve the selected producer's updates without forcing the user's setting to Volumetric.
 
 View-distance changes can recreate the grid and textures during a native commit. Obtain the new
 handles and dimensions after generation, invalidate affected VGE history, and never sample retired
 resources. Keep native shader-reload subscriptions intact; re-establish map readiness after reload
 and invalidate incompatible VGE history. Reload success must not be inferred from texture allocation.
 
-On VGE disable, withdraw its draw and restore native volumetric registration according to the current
-cloud setting, not a preference saved at activation. Re-enable reacquires current owners and readiness.
+On VGE disable, withdraw its draws and restore native volumetric registration and simple draw/shader
+behavior according to the current cloud setting, not a preference saved at activation.
+Re-enable reacquires current owners and readiness.
 Avoid permanent changes to user settings. On world exit, drop borrowed references and dispose only
 VGE-owned resources; the native owner retains responsibility for its worker and resource teardown.
 Prevent stale world identities or mixed-generation map metadata from reaching consumers. The callback
@@ -212,9 +239,13 @@ Validate roughly cubic silhouettes, modest fluff, preserved native heights/bound
 of artificial seams between connected columns. Validate both PBR modes. Focused automated checks can establish data, math and lifecycle contracts;
 the user performs in-game visual acceptance. GPU timing and memory measurements are separate evidence.
 
+Validate Off/Simple/Volumetric switching and VGE disable/re-enable, including shader reload and mesh
+rebuild in Simple mode. Simple must retain the native block-shaped appearance and avoid duplicate
+native/VGE draws. Qualify its rendering cost separately from the volumetric path.
+
 Before extrapolating an implementation plan, resolve:
 
-- Whether Simple mode retains native mesh clouds or uses VGE clouds; the Volumetric callback contract is defined above.
+- The Simple callback's update/draw separation and native mesh handoff to its VGE-owned shader.
 - The opacity-to-extinction mapping, restrained noise/edge-softness tuning and finite-domain edge behavior.
 - Aerial-transport and local-fog application without double attenuation; existing OIT composition is retained.
 - The environmental/reflection consumers, excluding cast shadows deferred to virtual shadow maps.
