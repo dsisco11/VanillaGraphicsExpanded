@@ -4,6 +4,8 @@ Status: complete proposal approved by the user on 2026-10-16 following the propo
 Approval establishes the design contract; this document is not an implementation checklist and
 does not by itself authorize runtime implementation.
 
+Implementation checklist: [PBR.VolumetricClouds.todo](PBR.VolumetricClouds.todo).
+
 The settled design uses separate VGE-owned Simple and Volumetric shaders, native mesh/column
 geometry, roughly cubic volumetric clouds with restrained shader noise, and existing OIT composition.
 Volumetric mode uses half-resolution tracing with temporal reconstruction and depth-aware upsampling,

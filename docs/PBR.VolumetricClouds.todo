@@ -1,0 +1,223 @@
+VGE-owned Simple and Volumetric clouds
+=====================================
+
+Authority and scope
+  Source: docs/PBR.VolumetricClouds.Proposal.md (approved 2026-10-16).
+  Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
+  Atmospheric contract: docs/PBR.Atmosphere.Publication.md.
+  This is a planning-only execution checklist. No implementation or validation is claimed here.
+  The proposal governs scope; keep every task unchecked until its stated evidence exists.
+  Preserve Off / Simple / Volumetric settings and both standalone PBR and PBR + LumOn operation.
+  Retain native weather, geometry and column-map production; VGE owns visible shaders and lighting.
+  Preserve cubic shapes, native column bounds, existing OIT and the frozen scene-lighting scale.
+  Cast shadows onto scene/atmosphere are deferred to virtual shadow maps. Do not implement Beer
+  shadow maps, earlier map generation or previous-frame shadow publication for those consumers.
+  Do not implement the separate transparency proposal, replace weather simulation, generate a
+  complete cloud-density volume, alter installed shaders, or optimize away native map resources.
+
+Execution conventions
+  Use domain-focused files with thin composition roots and directional dependencies. Give every
+  shader its dedicated VGE program class and existing shader-build/registration contract.
+  Follow repository comments, visibility/region and resource-ownership conventions.
+  Run build/test tools through subagents. Keep ordinary correctness checks lightweight; full-size
+  reference captures and GPU timing are explicit qualification activities. Never launch the game
+  for visual acceptance; the user performs that acceptance.
+  Phase completion means its increment is verified, not that the entire feature is complete.
+  If a required existing integration is unavailable, record the dependency; do not silently add
+  an alternative renderer, weather producer, transparency system or shadow pipeline.
+
+Implementation parameters to establish
+  The native source evidence is from 1.22.7; verify installed contracts before relying on it.
+  Exact sample counts, coefficients, noise implementation, rejection thresholds and resource formats
+  are bounded implementation choices. They must satisfy the approved contracts, not reopen them.
+  Target hardware, resolution and performance budgets are not specified. Record explicit targets
+  before performance acceptance; absent targets leave that acceptance open without blocking math work.
+  Reflection/environment consumer wiring and map-readiness detection require source verification.
+
+Phase 1: Verify inputs and define rendering contracts
+  Outcome: subsequent work has concrete native-data and VGE-consumer contracts.
+  ☐ Reverify native producers, callbacks and resource lifetimes against the installed version.
+    - Record native map OIT 0.30, volumetric draw 0.31, Simple callback 0.35, settings watchers,
+      LevelFinalize creation, pause/time-speed behavior, reload and teardown ownership.
+    - Identify observable first tile upload and successful map-generation readiness; allocated
+      textures alone are insufficient. Verify rebuild detection and current placement metadata.
+    - Verify Simple's 12-short/24-byte instance layout, vertex inputs and post-CloudTick mesh access.
+    - Confirm map.r extinction semantics, map.ba units and the installed hardcoded 50-world-unit scale.
+  ☐ Specify VGE input/output contracts using existing owners.
+    - Define explicit metres-per-world-unit conversion, world/generation identity and borrowed-resource
+      validity. No worker Tiles reads, CPU map readback or copy for immediate same-frame drawing.
+    - Trace physical atmosphere, local fog, scene storage admission, liquid depth, OIT buffers/resolve,
+      environmental and reflection consumers; record where each attenuation/encoding occurs once.
+    - Define bounded HDR output admission before OIT draws and identify conditional native compatibility
+      allowances/patches that must remain for restored native paths and the retained cloud-map producer.
+    - Specify OIT-compatible intermediate payload for temporal reconstruction, preserving bucket
+      weighting/revealage rather than reducing the cloud to one depthless overlay.
+    - Define reflection camera/depth handling through existing consumers; no main-view history reuse.
+  ☐ Record baseline validation commands and representative scene matrix for both PBR modes.
+    - Establish current focused build/test baseline through a subagent; distinguish pre-existing failures.
+    - Record target hardware/resolution/budgets when available, without inventing acceptance numbers.
+  ☐ Completion: source receipts and input/output contracts cover both modes and their consumers;
+    readiness and ownership hooks are concrete, and unsupported dependencies are explicitly recorded.
+
+Phase 2: Implement native adapters and owned resource boundaries
+  Depends on Phase 1. Outcome: coherent cloud inputs are available without changing weather ownership.
+  ☐ Implement narrow adapters for native map and Simple owners.
+    - Acquire instances after creation. Borrow completed map plus current dimensions/offsets after
+      generation; invalidate on failed generation, rebuild, reload or world change and omit unavailable
+      cloud contributions. Never assume an in-place failed update retained valid contents.
+    - Expose current Simple mesh/count/committed placement only after its update; do not cache meshes
+      across callbacks, dispose them, or replace the native shader field.
+    - Keep producer pause behavior and native shader subscriptions intact.
+  ☐ Establish VGE lifecycle, shader registration and resource owners.
+    - Separate mode ownership, borrowed-input adaptation, density/lighting, draw and history concerns.
+    - Use existing GPU abstractions, settings/demand loading and shader build contracts; document units
+      and ownership in APIs. Resource creation/replacement follows lifecycle changes, not every frame.
+    - Prepare activation/restoration paths but activate each replacement only with its functioning
+      draw consumer in the following phases; do not leave native drawing withdrawn by unfinished work.
+  ☐ Verify adapters with focused readiness/replacement/identity tests using deterministic inputs.
+    - Cover allocated-but-uninitialized input, failed generation, changed handles/dimensions, pause,
+      stale-world references and ownership of disposal. No test should require launching the game.
+  ☐ Completion: adapters reject unavailable/stale inputs, preserve native ownership, and do not alter
+    visible mode behavior before a corresponding VGE draw is ready.
+
+Phase 3: Deliver VGE Simple rendering
+  Depends on Phase 2. Outcome: Simple uses the native mesh and VGE shaders at the native draw position.
+  ☐ Implement VGE Simple vertex/fragment programs consuming the existing layout directly.
+    - Preserve cube/face flags, normalized offsets rescaled by 32767, neighboring thickness, own
+      thickness, thin/undulating modes and opacity; no mesh copy or full volume/noise evaluation.
+    - Preserve height, placement, curvature, undulation and shared-face coverage; supply current
+      projection/model-view, tile offset, cloud extent/altitude and animation inputs.
+    - Supply perception intensity locally with the native factor 20; never mutate engine uniforms.
+    - Treat legacy brightness/base color as artistic metadata, not physical incident illumination.
+  ☐ Bind completed VGE atmosphere and scene-color contracts.
+    - Replace native daylight/sunset/fog coloration; apply existing fog once. Preserve adjusted OIT
+      depth, coverage and liquid-depth interaction. Map glow metadata to the existing VGE output owner.
+  ☐ Intercept CloudRenderer.OnRenderFrame at OIT 0.35 only while VGE owns Simple.
+    - Preserve mode gating; call native CloudTick once when unpaused, then obtain and draw the current
+      mesh and suppress the original body. Preserve the zero-width draw guard and paused camera updates.
+    - Relinquishing ownership lets the original callback run; retain native mesh/shader reload owners.
+    - Reconcile Simple native compatibility bounds/patch selection without breaking disable restoration.
+  ☐ Verify attribute decoding, geometry/coverage controls, local perception and finite HDR/OIT outputs.
+    - Exercise exactly-once tick/draw gating, paused draws and post-tick mesh replacement; run focused
+      shader compilation and small headless scenes through a subagent.
+  ☐ Completion: focused evidence establishes the Simple contract and restoration behavior; live
+    appearance/performance remain explicitly pending final acceptance.
+
+Phase 4: Deliver full-resolution volumetric reference transport
+  Depends on Phase 2 and the shared integration contracts exercised in Phase 3.
+  Outcome: a history-free reference implements the complete density, lighting and OIT model.
+  ☐ Implement bounded column intersection and density evaluation.
+    - Use native TextureMap.r and .ba, tile footprints, altitude and placement; never use TextureCol.
+    - Use sigmaBase = p / (50 * metresPerWorldUnit) and T = exp(-sigmaT * dsMetres).
+      Do not clamp p to one, reinterpret it as alpha, or duplicate native fading/perception factors.
+    - Reject negative/nonfinite inputs. Reconcile any producer-unit change explicitly.
+    - Evaluate detail = (1 + a*(2*n-1))*edge for n in [0,1], 0 <= a < 1 and edge in [0,1].
+      Provide detail=1 reference; keep zero native extinction zero and density outside columns zero.
+    - Soften exposed boundaries inward, not occupied shared faces. Keep broad faces/steps, clear regions
+      and connected clouds; no rounded replacement envelope or automatic density compensation.
+    - Anchor noise across tiles/recentering and native wind without double advection. Bound addressing
+      to available map data; no stretched border, abrupt added cutoff or invented missing weather.
+  ☐ Implement view and light transport using one shared density definition.
+    - Clip scene/liquid depths, integrate from camera inside clouds, handle above/below/horizontal rays,
+      skip only provably empty regions and terminate saturated rays with bounded sample work.
+    - Use completed solar/lunar/environment inputs and bounded secondary marches for self-shadowing.
+      Add exactly one approximate scattering octave beyond single scattering; tune finite coefficients.
+    - Apply atmosphere/local fog and storage encoding once; include physical output in frozen range
+      admission. Preserve existing cloud OIT depth-dependent weighting and revealage.
+  ☐ Register the VGE reference draw at OIT 0.31 with native map generation retained at 0.30.
+    - Never independently tick the map. Withdraw native volumetric drawing and keep it withdrawn after
+      native settings watchers re-register it. Restore current-setting behavior when VGE is disabled.
+    - Activate only the selected mode; preserve Off and Simple without forcing preferences.
+    - Integrate environmental/reflection consumers using Phase 1 contracts and their own camera/depth
+      inputs, without introducing deferred cast shadows or a second atmosphere integrator.
+    - Reconcile native volumetric compatibility paths while preserving restored native drawing and
+      the still-running native map/color pass and its legacy resource requirements.
+  ☐ Verify transport with analytic and small headless fixtures.
+    - No-detail constant columns match native transmittance; include p=2 over 50 units => exp(-2),
+      path subdivision, different world-unit conversions, p>1 and empty/invalid columns.
+    - Check connected-column edges, outside-volume zero density, stable advection and bounded noise.
+    - Verify view/light density agreement, single-plus-one-octave behavior, no duplicate attenuation,
+      OIT coverage/buckets, scene/liquid clipping, and both PBR modes without LumOn assumptions.
+  ☐ Completion: full-resolution history-free transport is functional and numerically verified;
+    it remains a reference mode, not an exact/converged lighting claim or the final default.
+
+Phase 5: Deliver half-resolution temporal rendering
+  Depends on Phase 4. Outcome: the approved default reconstructs the same OIT transport contract.
+  ☐ Trace at half view width and height with bounded size/format allocation.
+    - Preserve required bucket/revealage and depth metadata, finite HDR radiance and dimensionless
+      attenuation. Do not reconstruct only a flattened color layer.
+  ☐ Implement temporal reconstruction and depth-aware full-resolution upsampling.
+    - Account for camera and native cloud motion; distinguish recentering from actual advection.
+    - Reject/bound incompatible history for disocclusion, weather/lighting transitions, grid replacement,
+      resize, reload, mode/enable changes, unavailable input and world changes.
+    - Do not use texture-handle equality as history validity or reuse main-view history in reflections.
+    - Preserve foreground silhouettes, liquid clipping, celestial occlusion and OIT composition.
+  ☐ Expose the approved default and full-resolution history-free reference using existing settings/tools.
+    - Both use identical density/lighting/OIT semantics; reference bypasses reduced-resolution and
+      temporal operations. Keep Simple outside this path. Bound sample/detail controls.
+  ☐ Compare deterministic small scenes against the reference and verify history reset/reprojection.
+    - Cover static convergence, motion, newly exposed geometry, thin columns, weather/light changes,
+      mixed-depth transparency, resize and missing input; record precision tolerances and residuals.
+  ☐ Completion: half-resolution temporal rendering is the default and reference comparison is
+    available; correctness receipts distinguish temporal approximations from base transport errors.
+
+Phase 6: Qualify lifecycle and complete integration
+  Depends on Phases 3–5. Outcome: the combined feature preserves settings, ownership and scene contracts.
+  ☐ Verify the full Off/Simple/Volumetric and VGE enable/disable transition matrix.
+    - Cover repeated mode toggles, native watcher re-registration, current-setting restoration,
+      pause/time-speed changes, view-distance rebuild, shader reload success/failure and world re-entry.
+    - Establish exactly one visible draw and one selected producer-update path; verify no stale handles,
+      double ticks, native resource disposal, orphaned VGE resources or persistent preference changes.
+  ☐ Qualify scene integration in both PBR modes.
+    - Check sun/moon/stars/sky attenuation, terrain occlusion, particles/translucency/water before,
+      within and behind clouds, local fog/underwater treatment, environmental response and reflections.
+    - Verify no double fog/weather dimming, no display-color inputs in physical shading and matching
+      frame storage/range admission. Existing OIT approximation remains accepted.
+  ☐ Finish compatibility cleanup and permanent documentation.
+    - Update SceneColorLegacyPatches, SceneColorCloudInputs and compatibility publication only as
+      required by owned versus restored paths; retain still-used native map lookup/resource support.
+    - Update focused shader-stage/legacy-patch tests to assert real selection and restoration contracts.
+    - Remove temporary implementation scaffolding; preserve deliberate native producer dependencies.
+    - Document current runtime architecture, units, modes, lifecycle and debug/reference controls;
+      reconcile atmosphere publication docs without turning permanent docs into a historical log.
+  ☐ Run required build, focused CPU/GPU and relevant integration/package checks through subagents.
+    - Verify shader catalog/packaging includes owned programs and no installed game asset modification.
+    - Record versions, commands and results; keep source/headless/package receipts distinct from live QA.
+  ☐ Completion: required automated and packaging checks pass, docs match final behavior and lifecycle
+    evidence supports both modes. Human visual and measured performance gates remain below.
+
+Phase 7: Visual and performance acceptance
+  Depends on Phase 6. Outcome: the approved appearance and measured cost are qualified on explicit targets.
+  ☐ Prepare bounded reference scenes and user-run visual instructions.
+    - Cover clear/thin/thick/overcast weather; moving sun/moon; ground/in-cloud/above-cloud views;
+      grid recentering; edges/seams; fog/water/reflections/translucency; and both PBR modes.
+    - Compare restrained fluff to detail-disabled native-transmittance and full-resolution history-free
+      references. Confirm cubic masses, broad faces/steps and preserved native volume/weather intent.
+    - Confirm Simple retains block-shaped geometry and lower-cost rendering without temporal effects.
+  ☐ Obtain and record user visual acceptance, including motion/disocclusion and lifecycle transitions.
+    - Leave this unchecked while acceptance is missing or issues remain; headless checks are not a substitute.
+  ☐ Measure GPU/CPU and memory cost on recorded hardware/resolution/settings and matched scenes.
+    - Separate native producer/uploads, Simple, volumetric view/light tracing, reconstruction/upsampling
+      and integration costs. Include weather/noise, unused native color output, trace targets and history.
+    - Distinguish resident storage from scratch/transient reservations; compare default/reference modes.
+    - Check declared budgets; retain performance acceptance as pending if targets or measurements are absent.
+  ☐ Reconcile every proposal requirement with implementation and evidence, and review the final result.
+    - Record remaining defects/dependencies honestly; deferred virtual-shadow-map work stays deferred.
+  ☐ Completion: visual acceptance, measured budget qualification and final review are recorded;
+    no required acceptance gate is substituted by an automated or source-only receipt.
+
+Final acceptance
+  ☐ All preceding phase criteria and required checks are satisfied with linked evidence.
+  ☐ Approved scope is implemented, docs are reconciled and runtime/visual/performance limits are explicit.
+  ☐ Update the parent cloud task only after its required acceptance is satisfied; retain the separate
+    virtual-shadow-map task and cast-cloud-shadow deferral. Do not mark deferred shadows implemented.
+
+Proposal coverage map
+  Ownership and lifecycle: Phases 1–3, 4 activation, 6.
+  Simple shaders/geometry: Phase 3; scene/lifecycle qualification: Phases 6–7.
+  Native bounds, extinction, cubic fluff and finite domain: Phase 4; visual qualification: Phase 7.
+  Atmosphere, scattering, self-shadowing and OIT: Phases 1, 3–4, 6.
+  Half-resolution/history-free modes and history: Phases 4–5, 7.
+  Environment/reflection consumers: Phases 1, 4, 6–7.
+  Evidence/acceptance and measured costs: all phase criteria, Phases 6–7 and Final acceptance.
+  Cast shadows, transparency redesign and native-producer redesign: excluded in Authority and scope.
