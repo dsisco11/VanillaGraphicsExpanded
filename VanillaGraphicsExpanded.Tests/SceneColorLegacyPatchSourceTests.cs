@@ -42,6 +42,9 @@ public sealed class SceneColorLegacyPatchSourceTests
         Assert.True(patchedBody.IndexOf(decode, StringComparison.Ordinal)
             < patchedBody.IndexOf("float alpha = color.a;", StringComparison.Ordinal));
         Assert.Contains("if (!VgeOitInputsValid(color, 0.0, 0.0)) discard;", patchedBody);
+        string patched = tree.ToText();
+        Assert.True(patched.IndexOf("bool VgeOitInputsValid(", StringComparison.Ordinal)
+            < patched.IndexOf("void drawPixel(", StringComparison.Ordinal));
         // The safety/conversion prefix precedes all original alpha, depth-weight,
         // accumulation and revealage statements without changing their arithmetic.
         int originalStart = patchedBody.IndexOf("float alpha = color.a;", StringComparison.Ordinal);

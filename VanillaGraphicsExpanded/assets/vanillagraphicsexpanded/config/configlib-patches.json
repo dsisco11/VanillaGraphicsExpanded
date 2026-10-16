@@ -10,7 +10,7 @@
         "ingui": "vanillagraphicsexpanded:config-cloud-reference",
         "comment": "vanillagraphicsexpanded:config-cloud-reference-tooltip",
         "default": false,
-        "weight": 23
+        "weight": 25
       },
       "CLOUD_DETAIL": {
         "code": "Clouds.Detail",
@@ -19,7 +19,7 @@
         "ingui": "vanillagraphicsexpanded:config-cloud-detail",
         "comment": "vanillagraphicsexpanded:config-cloud-detail-tooltip",
         "default": true,
-        "weight": 23.1
+        "weight": 25.1
       },
       "CAMERA_ENABLED": {
         "code": "CameraExposure.Enabled",
@@ -210,7 +210,7 @@
         "ingui": "vanillagraphicsexpanded:config-cloud-view-samples",
         "comment": "vanillagraphicsexpanded:config-cloud-view-samples-tooltip",
         "default": 4,
-        "weight": 23.2,
+        "weight": 25.2,
         "range": {
           "min": 1,
           "max": 16,
@@ -224,7 +224,7 @@
         "ingui": "vanillagraphicsexpanded:config-cloud-light-samples",
         "comment": "vanillagraphicsexpanded:config-cloud-light-samples-tooltip",
         "default": 1,
-        "weight": 23.3,
+        "weight": 25.3,
         "range": {
           "min": 1,
           "max": 4,
@@ -266,7 +266,7 @@
         "ingui": "vanillagraphicsexpanded:config-shading-quality",
         "comment": "vanillagraphicsexpanded:config-shading-quality-tooltip",
         "default": 3,
-        "weight": 0.2,
+        "weight": 0,
         "values": [0, 1, 2, 3]
       },
       "WATER_REFRACTION_QUALITY": {
@@ -521,7 +521,7 @@
         "ingui": "vanillagraphicsexpanded:config-cloud-amplitude",
         "comment": "vanillagraphicsexpanded:config-cloud-amplitude-tooltip",
         "default": 0.15,
-        "weight": 23.4,
+        "weight": 25.4,
         "range": {
           "min": 0,
           "max": 0.95,
@@ -535,7 +535,7 @@
         "ingui": "vanillagraphicsexpanded:config-cloud-edge-width",
         "comment": "vanillagraphicsexpanded:config-cloud-edge-width-tooltip",
         "default": 2,
-        "weight": 23.5,
+        "weight": 25.5,
         "range": {
           "min": 0.01,
           "max": 10,
@@ -549,7 +549,7 @@
         "ingui": "vanillagraphicsexpanded:config-cloud-noise-scale",
         "comment": "vanillagraphicsexpanded:config-cloud-noise-scale-tooltip",
         "default": 0.08,
-        "weight": 23.6,
+        "weight": 25.6,
         "range": {
           "min": 0.001,
           "max": 1,
@@ -1026,6 +1026,7 @@
     }
   },
   "formatting": [
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-clouds", "weight": 24.9 },
     {
       "type": "separator",
       "title": "vanillagraphicsexpanded:config-section-postprocessing",

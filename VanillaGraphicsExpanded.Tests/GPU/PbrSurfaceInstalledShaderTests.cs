@@ -17,6 +17,15 @@ public sealed class PbrSurfaceInstalledShaderTests : RenderTestBase
     public PbrSurfaceInstalledShaderTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Variant validation
+    /// <summary>The native OIT diagnostic's early draw helper can call safety validation declared by later imports.</summary>
+    [Fact]
+    public void InstalledOitDiagnosticFragmentCompiles()
+    {
+        EnsureContextValid();
+        int shader = Compile(ShaderType.FragmentShader, Build("woittest.fsh", 0, 1, 0, 0, 0));
+        GL.DeleteShader(shader);
+    }
+
     /// <summary>Installed forward vertex publishers retain raw block fields and the decoded sky availability before interpolation.</summary>
     [Theory]
     [InlineData("standard", false)]

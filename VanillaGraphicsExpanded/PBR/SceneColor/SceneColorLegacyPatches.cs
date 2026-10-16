@@ -29,7 +29,7 @@ internal static class SceneColorLegacyPatches
         // Imported helpers can request extensions after native function definitions.
         // Publish shared declarations before the first function that can consume them.
         var firstFunction = tree.Select(Query.Syntax<GlFunctionNode>()).First();
-        editor.InsertBefore(firstFunction, "\nuniform int vge_sceneLinear;\nvec3 VgeCompatibilityLuminance(vec3 color);\nvec3 VgeStoreSceneLighting(vec3 physical);\n");
+        editor.InsertBefore(firstFunction, "\nuniform int vge_sceneLinear;\nbool VgeOitInputsValid(vec4 color, float glow, float depth);\nvec3 VgeCompatibilityLuminance(vec3 color);\nvec3 VgeStoreSceneLighting(vec3 physical);\n");
         // Imported display-noise helpers add encoded-display noise to RGB and coverage. The
         // scene path keeps both quantities clean; the final display owner still dithers.
         if (tree.Select(Query.Syntax<GlFunctionNode>().Named("NoiseFromPixelPosition")).Any())
