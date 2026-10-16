@@ -240,10 +240,15 @@ attenuated lighting by the same atmospheric transmittance again. Cloud transport
 from the atmospheric integrator, as required by
 [PBR.Atmosphere.Publication.md](PBR.Atmosphere.Publication.md).
 
-Evaluate directional scattering and cloud self-shadowing, with a controlled multiple-scattering
-approximation. A small octave count is the proposed starting model; energy compensation, phase
-parameters and density conversion require comparison against reference results. Native cloud
+Evaluate directional single scattering and cloud self-shadowing, with one additional scattering
+octave as the approved Unreal-style multiple-scattering approximation for Volumetric mode. This
+additional octave approximates higher-order transport; it is not an explicit simulation of just
+one extra physical bounce. Keep its cost bounded while providing softer, brighter thick-cloud
+interiors. Exact contribution, attenuation, phase and energy-compensation coefficients are
+implementation tuning choices requiring comparison against reference results. Native cloud
 brightness, daylight and sunset tint are not substitutes for physical incident illumination.
+The full-resolution reference mode uses this same lighting model. This decision does not add
+volumetric transport to Simple mode or change the deferral of cast cloud shadows.
 
 Shadows cast by clouds onto terrain, water, other scene receivers or atmospheric consumers are
 deferred until virtual shadow maps are implemented. Do not introduce a separate Beer shadow map,
