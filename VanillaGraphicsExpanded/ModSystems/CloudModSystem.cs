@@ -29,7 +29,7 @@ public sealed class CloudModSystem : ModSystem, IRenderer
     /// <summary>Prepares owned resources; native callbacks retain weather ticking and visible draw timing.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        if (stage == EnumRenderStage.Before) { runtime?.Update(); runtime?.PrepareSimple(); }
+        if (stage == EnumRenderStage.Before) { runtime?.Update(); runtime?.PrepareSimple(); runtime?.PrepareVolume(); }
     }
 
     /// <summary>Unregisters VGE callbacks and releases only its own lifetime.</summary>

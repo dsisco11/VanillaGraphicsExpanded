@@ -16,6 +16,7 @@ internal sealed class CloudNativeRuntime : IDisposable
     private static readonly AccessTools.FieldRef<FluffyCloudsModSystem, CloudRendererVolumetric> NativeVolume = AccessTools.FieldRefAccess<FluffyCloudsModSystem, CloudRendererVolumetric>("volumetric");
     private static readonly AccessTools.FieldRef<WeatherSystemClient, CloudRenderer> NativeSimple = AccessTools.FieldRefAccess<WeatherSystemClient, CloudRenderer>("cloudRenderer");
     private CloudSimpleRenderer? simple;
+    private CloudVolumeRenderer? volume;
     private static long nextWorld;
     private readonly ICoreClientAPI api;
     private readonly IDisposable reload;
@@ -68,6 +69,29 @@ internal sealed class CloudNativeRuntime : IDisposable
         candidate.Dispose();
     }
 
+    /// <summary>Transfers a functioning independent volume draw before scene lighting storage is frozen.</summary>
+    internal void PrepareVolume()
+    {
+        if (!worldReady || disposed || context == default || api.Settings.Int.Get("cloudRenderMode", 0) != 1) return;
+        if (Ownership.Owns(CloudMode.Volumetric)) { volume?.Prepare(); return; }
+        var candidate = new CloudVolumeRenderer(api, this);
+        try
+        {
+            if (candidate.Prepare() && Ownership.TryActivate(CloudMode.Volumetric, candidate, true))
+            {
+                volume = candidate;
+                api.Event.RegisterRenderer(candidate, EnumRenderStage.OIT, "vge_cloud_volume");
+                return;
+            }
+        }
+        catch (Exception error)
+        {
+            Ownership.Dispose(); volume = null;
+            api.Logger.Error("[VGE] Volumetric cloud preparation unavailable. {0}", error);
+        }
+        candidate.Dispose();
+    }
+
     /// <summary>Updates and draws the native Simple root at its existing OIT callback, suppressing only a committed replacement.</summary>
     internal bool RenderSimple(CloudRenderer owner, float deltaTime, EnumRenderStage stage)
     {
@@ -83,6 +107,11 @@ internal sealed class CloudNativeRuntime : IDisposable
     /// <summary>Includes the complete Simple response in frozen scene storage before native tile updates.</summary>
     internal static float SimpleMaximum(Atmosphere.AtmosphereLighting lighting, float localFogMaximum) =>
         Active is { } current && current.Ownership.Owns(CloudMode.Simple) ? CloudSimpleLighting.Maximum(lighting, localFogMaximum) : 0;
+
+    /// <summary>Reserves the complete physical volume response independently of the later native map.</summary>
+    internal static float VolumeMaximum(Atmosphere.AtmosphereLighting lighting, float localFogMaximum) =>
+        Active is { } current && current.Ownership.Owns(CloudMode.Volumetric)
+            ? CloudVolumeLighting.Maximum(lighting, localFogMaximum, CloudVolumeSettings.Default) : 0;
 
     /// <summary>Removes VGE subscriptions and consumers; native callbacks automatically resume through their draw gates.</summary>
     public void Dispose()
@@ -157,13 +186,13 @@ internal sealed class CloudNativeRuntime : IDisposable
         worldReady = false; world = Interlocked.Increment(ref nextWorld);
         DropInputs();
         try { Ownership.Dispose(); }
-        finally { context = default; simple = null; }
+        finally { context = default; simple = null; volume = null; }
     }
 
     /// <summary>Revokes certificates and drops strong native references without deleting native storage.</summary>
     private void DropInputs() { map?.Retire(); map = null; mapOwner = null; }
 
     /// <summary>Withdraws readiness immediately; the next producer callback validates the current linked program.</summary>
-    private bool WithdrawForReload() { map?.InvalidateShader(); simple?.Reset(); return true; }
+    private bool WithdrawForReload() { map?.InvalidateShader(); simple?.Reset(); volume?.Reset(); return true; }
     #endregion
 }

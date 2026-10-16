@@ -188,6 +188,37 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
         events.Verify(value => value.UnregisterRenderer(It.IsAny<IRenderer>(), It.IsAny<EnumRenderStage>()), Times.Never);
         api.VerifySet(value => value.Settings.Int["cloudRenderMode"] = It.IsAny<int>(), Times.Never);
     }
+    /// <summary>The independent volume callback never advances native weather and retains ownership across unavailable maps and reload.</summary>
+    [Fact]
+    public void ReferenceRendererRetainsItsGateUntilCurrentModeRelease()
+    {
+        fixture.EnsureContextValid();
+        var api = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
+        var events = new Mock<IClientEventAPI>(); api.SetupGet(value => value.Event).Returns(events.Object);
+        var system = new FluffyCloudsModSystem();
+        var nativeDraw = (CloudRendererVolumetric)RuntimeHelpers.GetUninitializedObject(typeof(CloudRendererVolumetric));
+        AccessTools.Field(typeof(FluffyCloudsModSystem), "volumetric").SetValue(system, nativeDraw);
+        api.Setup(value => value.ModLoader.GetModSystem<FluffyCloudsModSystem>(It.IsAny<bool>())).Returns(system);
+        int mode = 1; api.Setup(value => value.Settings.Int.Get("cloudRenderMode", 0)).Returns(() => mode);
+        using var runtime = new CloudNativeRuntime(api.Object);
+        events.Raise(value => value.LevelFinalize += null); runtime.Update();
+        var renderer = new CloudVolumeRenderer(api.Object, runtime);
+        AccessTools.Field(typeof(CloudNativeRuntime), "volume").SetValue(runtime, renderer);
+        Assert.Equal(.31, renderer.RenderOrder);
+        // Executable arithmetic is exercised separately by the real binary GPU fixtures.
+        Assert.True(runtime.Ownership.TryActivate(CloudMode.Volumetric, renderer, true));
+        api.Object.Event.RegisterRenderer(renderer, EnumRenderStage.OIT, "vge_cloud_volume");
+        renderer.OnRenderFrame(.1f, EnumRenderStage.OIT);
+        Assert.True(runtime.SuppressVolume(nativeDraw)); Assert.False(runtime.TryGetMap(out _));
+        events.Raise(value => value.ReloadShader += null);
+        Assert.True(runtime.SuppressVolume(nativeDraw));
+        mode = 0; renderer.OnRenderFrame(.1f, EnumRenderStage.OIT);
+        Assert.False(runtime.SuppressVolume(nativeDraw));
+        renderer.Dispose();
+        events.Verify(value => value.UnregisterRenderer(renderer, EnumRenderStage.OIT), Times.Once);
+        events.Verify(value => value.UnregisterRenderer(nativeDraw, It.IsAny<EnumRenderStage>()), Times.Never);
+        api.VerifySet(value => value.Settings.Int["cloudRenderMode"] = It.IsAny<int>(), Times.Never);
+    }
     #endregion
 
     #region Private

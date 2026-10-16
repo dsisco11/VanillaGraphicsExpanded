@@ -5,7 +5,7 @@ Authority and scope
   Source: docs/PBR.VolumetricClouds.Proposal.md (approved 2026-10-16).
   Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
   Atmospheric contract: docs/PBR.Atmosphere.Publication.md.
-  This execution checklist records verification below; visible cloud rendering and acceptance remain outstanding.
+  This checklist records delivered rendering increments below; temporal rendering and final acceptance remain outstanding.
   The proposal governs scope; keep every task unchecked until its stated evidence exists.
   Preserve Off / Simple / Volumetric settings and both standalone PBR and PBR + LumOn operation.
   Retain native weather, geometry and column-map production; VGE owns visible shaders and lighting.
@@ -115,7 +115,7 @@ Phase 3: Deliver VGE Simple rendering
 Phase 4: Deliver full-resolution volumetric reference transport
   Depends on Phase 2 and the shared integration contracts exercised in Phase 3.
   Outcome: a history-free reference implements the complete density, lighting and OIT model.
-  ☐ Implement bounded column intersection and density evaluation.
+  ✔ Implement bounded column intersection and density evaluation.
     - Use native TextureMap.r and .ba, tile footprints, altitude and placement; never use TextureCol.
     - Use sigmaBase = p / (50 * metresPerWorldUnit) and T = exp(-sigmaT * dsMetres).
       Do not clamp p to one, reinterpret it as alpha, or duplicate native fading/perception factors.
@@ -126,14 +126,14 @@ Phase 4: Deliver full-resolution volumetric reference transport
       and connected clouds; no rounded replacement envelope or automatic density compensation.
     - Anchor noise across tiles/recentering and native wind without double advection. Bound addressing
       to available map data; no stretched border, abrupt added cutoff or invented missing weather.
-  ☐ Implement view and light transport using one shared density definition.
+  ✔ Implement view and light transport using one shared density definition.
     - Clip scene/liquid depths, integrate from camera inside clouds, handle above/below/horizontal rays,
       skip only provably empty regions and terminate saturated rays with bounded sample work.
     - Use completed solar/lunar/environment inputs and bounded secondary marches for self-shadowing.
       Add exactly one approximate scattering octave beyond single scattering; tune finite coefficients.
     - Apply atmosphere/local fog and storage encoding once; include physical output in frozen range
       admission. Preserve existing cloud OIT depth-dependent weighting and revealage.
-  ☐ Register the VGE reference draw at OIT 0.31 with native map generation retained at 0.30.
+  ✔ Register the VGE reference draw at OIT 0.31 with native map generation retained at 0.30.
     - Never independently tick the map. Withdraw native volumetric drawing and keep it withdrawn after
       native settings watchers re-register it. Restore current-setting behavior when VGE is disabled.
     - Activate only the selected mode; preserve Off and Simple without forcing preferences.
@@ -141,14 +141,17 @@ Phase 4: Deliver full-resolution volumetric reference transport
       inputs, without introducing deferred cast shadows or a second atmosphere integrator.
     - Reconcile native volumetric compatibility paths while preserving restored native drawing and
       the still-running native map/color pass and its legacy resource requirements.
-  ☐ Verify transport with analytic and small headless fixtures.
+  ✔ Verify transport with analytic and small headless fixtures.
     - No-detail constant columns match native transmittance; include p=2 over 50 units => exp(-2),
       path subdivision, different world-unit conversions, p>1 and empty/invalid columns.
     - Check connected-column edges, outside-volume zero density, stable advection and bounded noise.
     - Verify view/light density agreement, single-plus-one-octave behavior, no duplicate attenuation,
       OIT coverage/buckets, scene/liquid clipping, and both PBR modes without LumOn assumptions.
-  ☐ Completion: full-resolution history-free transport is functional and numerically verified;
+  ✔ Completion: full-resolution history-free transport is functional and numerically verified;
     it remains a reference mode, not an exact/converged lighting claim or the final default.
+    - Completed 2026-10-16 after second review and independent audit-stage-completion against
+      the proposal, atmospheric publication, parent scope and inherited native contracts.
+      See Phase 4 implementation and verification below; later acceptance remains open.
 
 Phase 5: Deliver half-resolution temporal rendering
   Depends on Phase 4. Outcome: the approved default reconstructs the same OIT transport contract.
@@ -577,3 +580,94 @@ Phase 3 implementation and verification (2026-10-16)
     - Second review and independent linked-document audit reconciled every Simple task with the
       controlling sources and observed evidence. The layout finding was resolved and independently
       rechecked; no required findings remain for this increment. The parent cloud task stays open.
+
+Phase 4 implementation and verification (2026-10-16)
+  Task-to-document and implementation traceability
+    - Column density -> Proposal / Column-data interpretation and appearance, Ownership boundary;
+      Phase 1 / Borrowed input and units -> CloudVolumeParameters, CloudVolumeSettings and
+      includes/cloud_volume_density.glsl. Read-only nearest native map.r/ba, explicit finite domain,
+      sigma=p/(50*u), metre path conversion, no TextureCol, extra native fade or weather production.
+      Shared view/light density evaluates bounded material noise and only exposed inward edges.
+      Integer center/wind anchors cancel recentering; fractional wind is already in native placement.
+      No automatic optical-depth compensation or external density envelope is introduced.
+    - Transport/output -> Proposal / Density integration and lighting, Scene integration;
+      Atmosphere.Publication / Atmospheric transport and Publication contract; Phase 1 / Physical
+      lighting and OIT -> cloud_volume.fsh, CloudVolumeLighting and scene publication admission.
+      Horizontal DDA intersects actual per-column vertical bounds, including inside/parallel rays.
+      Both celestial sources use the same completed observer-based lux; HG(g=.6) single scattering
+      plus one isotropic octave (default contribution/occlusion .5/.5) use bounded secondary DDA.
+      Environment remains the published E/pi approximation, with no extra weather transmission.
+      Each interval transports straight source through existing aerial or underwater/local fog,
+      then encodes RGB once before front-to-back weighting. Native per-interval bucket revealage,
+      k*(1-R) accumulations, total transmission and separate glow coverage use the existing six
+      Transparent attachments and resolve/blending. No cast-shadow resource/publication is added.
+    - Scheduling/restoration -> Proposal / Publication and native lifecycle; parent BaselineShading
+      / Scope and cloud item; Phase 1 / Native producers, Environment and reflection boundary ->
+      CloudVolumeRenderer independently registers OIT .31 after successful preparation in Before,
+      before Opaque admission. CloudNativeRuntime retains map .30 and its existing observer/gate
+      boundaries, never ticks weather or changes native registrations/preferences. Same-frame
+      certificates are rechecked before synchronous submission. Missing input skips the owned draw;
+      failure retains suppression until reset/reload. Mode/context/world release retires only VGE
+      resources. Native volume/map compatibility allowances and pre-lit map-color resources remain
+      conservatively reserved for retained production and current-setting native restoration.
+      Existing environment/water consumes the physical atmosphere publication. Directional water
+      cloud imagery remains the explicitly unsupported existing reflection dependency from Phase 1;
+      this renderer never substitutes main-view depth/history for an unavailable reflection view.
+    - Verification -> Proposal / Acceptance and implementation qualification; Phase 4 / analytic
+      and small headless fixtures -> CloudVolumeLightingTests and GPU/CloudVolumeDrawTests,
+      alongside existing Cloud/native/map/mode tests and scene/atmosphere/liquid regressions.
+      Headless/source evidence does not establish live appearance or performance acceptance.
+  Implementation parameters
+    - Runtime metresPerWorldUnit=1; controlled submissions validate conversions within 1e-6..1e6.
+      DDA visits at most 402 cells for the admitted <=200-square native grid. View/light subdivisions
+      per occupied column default to 4/1 and are bounded to 1..16 / 1..4. Detail defaults to amplitude
+      .15, inward softness 2 world units and approximately .08 noise cells/world unit. The periodic
+      material lattice uses integer frequency over 12,800 world units for recenter/wind consistency.
+      Detail-disabled transport uses exact constant-column extinction. Typed controls are present;
+      exposing reference/default and sample/detail controls through existing tools remains Phase 5.
+    - Directional phase is HG(g=.6); the extra octave uses isotropic phase with .5 contribution and
+      .5 occlusion. Solar and lunar secondary rays share the view density. View transmission ends
+      below 1e-6; light saturation accounts for both single and extra-octave transmission, including
+      zero occlusion, without infinite optical depth. The pre-map source bound includes both phase
+      peaks, environment/aerial/local fog and conservative FP32 interval-accumulation headroom.
+
+  Focused evidence (subagent-run)
+    - Fresh baseline passed: Debug build 0 errors/15 existing warnings, 78/78 Cloud tests. Installed
+      VSEssentials.dll SHA256 remains the Phase 1 value. Installed native cloudmap/volume shaders and
+      committed placement source reconfirm the fifty-world-unit map convention and native advection.
+      The proposal's Epic Volumetric Cloud documentation was also consulted directly for ray-marched
+      self-shadowing and the one-octave approximation; no Unreal runtime dependency is introduced.
+    - Environment and build command match preceding receipts. Broad Debug build passed with 0 errors
+      and 15 existing nullable/obsolete warnings. Production 454 and test 532 shader variants are
+      current; dedicated cloud_volume contributes two stages through the existing catalog/packaging.
+    - Broad filter: FullyQualifiedName~Cloud plus VgeFrameRendererTests, ShaderStageSelectionTests,
+      SceneColor, AtmosphereAmbientPublicationTests, AtmosphereProgramBindingsTests,
+      AtmospherePublicationTests, LiquidBlendPolicyTests, LiquidTransparencyTests, LiquidRenderHookTests
+      and LiquidDrawTransformTests joined with | as one quoted --filter argument. Passed 314/314,
+      0 failed/skipped; VanillaGraphicsExpanded.Tests/TestResults/cloud-phase4-final.trx.
+    - The second review verified ownership, resource/lighting admission and all linked requirements.
+      Actual GPU edge fixtures exposed an incorrect compound occupancy return; explicit rejection
+      branches now establish shared versus exposed faces. Separate audit-stage-completion revisited
+      parallel entry/exit and interval clipping, adding both finite-grid borders and committed-wind
+      tests, and hardened the corresponding rejection paths. No diagnostic shader code remains.
+    - Affected final filter FullyQualifiedName~Cloud passed 107/107, 0 failed/skipped; receipt
+      cloud-phase4-audited.trx in the same directory. Final CPU-only source-envelope headroom was
+      widened for the admitted maximum interval count and its three CloudVolumeLightingTests passed
+      again (cloud-phase4-bound.trx). Final incremental Debug build passed, 0 warnings/errors.
+      No cloud warnings/errors occurred; the earlier 15 build warnings are existing repository ones.
+      These receipts overlap and must not be summed. The unaffected broad integration evidence remains
+      applicable; final audit changes affect only cloud traversal and its conservative source bound.
+    - GPU fixtures execute the actual owned binary program and native six-target blend policy with
+      analytic p=2/50 => exp(-2), p>1 and multiple metre conversions, subdivided paths, invalid/empty
+      columns/bounds, outside-domain zero density, connected/exposed faces, bounded stable noise,
+      recentering and fractional/committed wind, matching view/light edge detail, both sources and
+      zero/one additional octave, dense zero-occlusion stability, inside/horizontal/above/below rays,
+      opaque/liquid clipping, aerial/storage once, underwater/local fog and both PBR mode selections.
+      State restoration and borrowed texture survival are checked. Existing native map certificates,
+      draw gating and current-mode restoration remain covered; the independent callback additionally
+      retains its gate across missing maps/reload and unregisters itself exactly once on release.
+    - Independent audit reconciled every task with the controlling documents and final evidence.
+      No required findings remain for this reference increment. Directional reflection integration
+      remains the recorded existing dependency; temporal/default delivery, in-game lifecycle/visual
+      qualification, measured performance and parent acceptance remain unchecked. No game launch,
+      installed asset edit, cast-shadow implementation or performance acceptance claim occurred.
