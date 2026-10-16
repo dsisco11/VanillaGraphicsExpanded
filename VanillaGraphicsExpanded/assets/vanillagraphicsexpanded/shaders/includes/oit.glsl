@@ -20,10 +20,9 @@ float vgeOitBellCurve(float t)
     return exp(-n * n);
 }
 
-/** Converts straight-alpha radiance into the engine's bucket accumulation and revealage outputs. */
-void writeOit(vec4 color, float glow)
+/** Converts straight-alpha radiance with an explicit owner-adjusted depth into existing bucket outputs. */
+void writeOit(vec4 color, float glow, float depth)
 {
-    float depth = ((gl_FragCoord.z * 2.0) - 1.0) / gl_FragCoord.w;
     // Invalid fragments contribute neither accumulation, revealage nor glow.
     if (!VgeOitInputsValid(color, glow, depth)) discard;
     float bin = log((depth / VGE_OIT_BIN_SCALE) + 1.0);
@@ -48,6 +47,13 @@ void writeOit(vec4 color, float glow)
         1.0 - color.a * bin1,
         1.0 - color.a * bin2);
     outRevealage = 1.0 - color.a;
+}
+
+/** Uses the ordinary geometric fragment depth for transparent surface owners. */
+void writeOit(vec4 color, float glow)
+{
+    float depth = ((gl_FragCoord.z * 2.0) - 1.0) / gl_FragCoord.w;
+    writeOit(color, glow, depth);
 }
 
 /** Writes a non-emissive transparent surface. */

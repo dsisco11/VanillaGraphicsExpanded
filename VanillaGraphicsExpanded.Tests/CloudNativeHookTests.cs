@@ -23,6 +23,10 @@ public sealed class CloudNativeHookTests
                 Assert.NotEmpty(harmony.CreateClassProcessor(hook).Patch());
             }
             Assert.NotEmpty(harmony.CreateClassProcessor(typeof(CloudVolumetricDrawHook)).Patch());
+            Assert.NotEmpty(harmony.CreateClassProcessor(typeof(CloudSimpleDrawHook)).Patch());
+            Assert.True(CloudSimpleDrawHook.Prefix(
+                (Vintagestory.GameContent.CloudRenderer)System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(Vintagestory.GameContent.CloudRenderer)),
+                .1f, Vintagestory.API.Client.EnumRenderStage.OIT));
             Assert.True((bool)AccessTools.Method(typeof(CloudVolumetricDrawHook), "Prefix").Invoke(null,
                 [System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(typeof(FluffyClouds.CloudRendererVolumetric))])!);
         }

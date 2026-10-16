@@ -7,16 +7,72 @@ using Vintagestory.API.Common;
 using Vintagestory.Client;
 using Vintagestory.Client.NoObf;
 using Vintagestory.GameContent;
+using VanillaGraphicsExpanded.HarmonyPatches;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Checks immediate post-tick mesh submission and native placement without persistent borrow tracking.</summary>
 [Collection("GPU")]
-public sealed class CloudNativeSimpleAdapterTests
+public sealed class CloudNativeSimpleAdapterTests(HeadlessGLFixture fixture)
 {
     private static Action<CloudRenderer, float>? tick;
 
     #region Public API
+    /// <summary>The installed callback ticks once under selected ownership and resumes its original body after release.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void OwnedCallbackPreservesUpdateAndRestoration(bool paused)
+    {
+        fixture.EnsureContextValid();
+        var (api,owner,_,_)=Create();
+        api.SetupGet(value=>value.IsGamePaused).Returns(paused);
+        api.SetupGet(value=>value.Render.FrameWidth).Returns(0);
+        var uniforms=new DefaultShaderUniforms { PerceptionEffectIntensity=.25f };
+        api.SetupGet(value=>value.Render.ShaderUniforms).Returns(uniforms);
+        var weather=AccessTools.Field(typeof(CloudRenderer),"weatherSys").GetValue(owner) as WeatherSystemClient;
+        AccessTools.Field(typeof(WeatherSystemClient),"cloudRenderer").SetValue(weather,owner);
+        api.Setup(value=>value.ModLoader.GetModSystem<WeatherSystemClient>(It.IsAny<bool>())).Returns(weather!);
+        int mode=2; api.Setup(value=>value.Settings.Int.Get("cloudRenderMode",0)).Returns(()=>mode);
+        using var runtime=new CloudNativeRuntime(api.Object);
+        Mock.Get(api.Object.Event).Raise(value=>value.LevelFinalize+=null); runtime.Update();
+        var renderer=new CloudSimpleRenderer(api.Object);
+        AccessTools.Field(typeof(CloudNativeRuntime),"simple").SetValue(runtime,renderer);
+        Assert.True(runtime.Ownership.TryActivate(CloudMode.Simple,renderer,true));
+        int ticks=0; tick=(_,_)=>ticks++;
+        var harmony=new Harmony("vge.tests.cloud.simple.callback");
+        try
+        {
+            harmony.Patch(AccessTools.Method(typeof(CloudRenderer),nameof(CloudRenderer.CloudTick)),
+                prefix:new HarmonyMethod(AccessTools.Method(typeof(CloudNativeSimpleAdapterTests),nameof(Tick))));
+            Assert.NotEmpty(harmony.CreateClassProcessor(typeof(CloudSimpleDrawHook)).Patch());
+            owner.OnRenderFrame(.1f,EnumRenderStage.OIT);
+            Assert.Equal(paused?0:1,ticks);
+            Assert.False(CloudSimpleDrawHook.Prefix(owner,.1f,EnumRenderStage.OIT));
+            Assert.Equal(paused?0:2,ticks);
+            var foreign=(CloudRenderer)RuntimeHelpers.GetUninitializedObject(typeof(CloudRenderer));
+            Assert.True(CloudSimpleDrawHook.Prefix(foreign,.1f,EnumRenderStage.OIT));
+            mode=0; Assert.True(CloudSimpleDrawHook.Prefix(owner,.1f,EnumRenderStage.OIT));
+            mode=2; runtime.Update();
+            owner.OnRenderFrame(.1f,EnumRenderStage.OIT);
+            Assert.Equal(paused?0:3,ticks); // Original callback, still exactly one tick.
+            Assert.False(runtime.Ownership.Owns(CloudMode.Simple));
+            Assert.Equal(.25f,uniforms.PerceptionEffectIntensity);
+            Mock.Get(api.Object.Event).Raise(value=>value.LeaveWorld+=null);
+            Mock.Get(api.Object.Event).Raise(value=>value.LevelFinalize+=null); runtime.Update();
+            var nextRenderer=new CloudSimpleRenderer(api.Object);
+            AccessTools.Field(typeof(CloudNativeRuntime),"simple").SetValue(runtime,nextRenderer);
+            Assert.True(runtime.Ownership.TryActivate(CloudMode.Simple,nextRenderer,true));
+            Assert.True(CloudSimpleDrawHook.Prefix(owner,.1f,EnumRenderStage.OIT));
+            var nextOwner=(CloudRenderer)RuntimeHelpers.GetUninitializedObject(typeof(CloudRenderer));
+            AccessTools.Field(typeof(WeatherSystemClient),"cloudRenderer").SetValue(weather,nextOwner);
+            AccessTools.Field(typeof(CloudRenderer),"renderClouds").SetValue(nextOwner,false);
+            Assert.False(CloudSimpleDrawHook.Prefix(nextOwner,.1f,EnumRenderStage.OIT));
+        }
+        finally { harmony.UnpatchAll(harmony.Id); tick=null; }
+    }
+
     /// <summary>Paused rendering reads retained geometry and current placement without mutating or disposing native resources.</summary>
     [Fact]
     public void CurrentMeshAndPlacementMatchNativeInputs()
@@ -120,6 +176,7 @@ public sealed class CloudNativeSimpleAdapterTests
         AccessTools.Field(typeof(ClientWorldPlayerData), "entityplayer").SetValue(worldData, entity);
         AccessTools.Field(typeof(ClientPlayer), "worlddata").SetValue(player, worldData);
         var api = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
+        AccessTools.Field(typeof(CloudRenderer), "capi").SetValue(owner, api.Object);
         api.SetupGet(value => value.World.Player).Returns(player);
         api.SetupGet(value => value.World.BlockAccessor.MapSizeY).Returns(256);
         api.SetupGet(value => value.World.Calendar.TotalHours).Returns(123.5);

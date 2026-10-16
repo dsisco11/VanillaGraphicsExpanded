@@ -88,26 +88,29 @@ Phase 2: Implement native adapters and owned resource boundaries
 
 Phase 3: Deliver VGE Simple rendering
   Depends on Phase 2. Outcome: Simple uses the native mesh and VGE shaders at the native draw position.
-  ☐ Implement VGE Simple vertex/fragment programs consuming the existing layout directly.
+  ✔ Implement VGE Simple vertex/fragment programs consuming the existing layout directly.
     - Preserve cube/face flags, normalized offsets rescaled by 32767, neighboring thickness, own
       thickness, thin/undulating modes and opacity; no mesh copy or full volume/noise evaluation.
     - Preserve height, placement, curvature, undulation and shared-face coverage; supply current
       projection/model-view, tile offset, cloud extent/altitude and animation inputs.
     - Supply perception intensity locally with the native factor 20; never mutate engine uniforms.
     - Treat legacy brightness/base color as artistic metadata, not physical incident illumination.
-  ☐ Bind completed VGE atmosphere and scene-color contracts.
+  ✔ Bind completed VGE atmosphere and scene-color contracts.
     - Replace native daylight/sunset/fog coloration; apply existing fog once. Preserve adjusted OIT
       depth, coverage and liquid-depth interaction. Map glow metadata to the existing VGE output owner.
-  ☐ Intercept CloudRenderer.OnRenderFrame at OIT 0.35 only while VGE owns Simple.
+  ✔ Intercept CloudRenderer.OnRenderFrame at OIT 0.35 only while VGE owns Simple.
     - Preserve mode gating; call native CloudTick once when unpaused, then obtain and draw the current
       mesh and suppress the original body. Preserve the zero-width draw guard and paused camera updates.
     - Relinquishing ownership lets the original callback run; retain native mesh/shader reload owners.
     - Reconcile Simple native compatibility bounds/patch selection without breaking disable restoration.
-  ☐ Verify attribute decoding, geometry/coverage controls, local perception and finite HDR/OIT outputs.
+  ✔ Verify attribute decoding, geometry/coverage controls, local perception and finite HDR/OIT outputs.
     - Exercise exactly-once tick/draw gating, paused draws and post-tick mesh replacement; run focused
       shader compilation and small headless scenes through a subagent.
-  ☐ Completion: focused evidence establishes the Simple contract and restoration behavior; live
+  ✔ Completion: focused evidence establishes the Simple contract and restoration behavior; live
     appearance/performance remain explicitly pending final acceptance.
+    - Completed 2026-10-16 after implementation, second review and independent audit-stage-completion
+      against the proposal, atmospheric publication, parent scope and inherited native contracts.
+      See Phase 3 implementation and verification below; later feature/acceptance tasks stay open.
 
 Phase 4: Deliver full-resolution volumetric reference transport
   Depends on Phase 2 and the shared integration contracts exercised in Phase 3.
@@ -504,3 +507,73 @@ Phase 2 implementation and verification (2026-10-16)
     - Receipts: VanillaGraphicsExpanded.Tests/TestResults/cloud-adapter-simplification.trx and
       cloud-adapter-simplification-reviewed.trx. Source review and linked proposal/checklist reconciliation
       completed; visible shader delivery, live qualification and performance acceptance remain open.
+
+Phase 3 implementation and verification (2026-10-16)
+  Task-to-document and implementation traceability
+    - Simple geometry -> Proposal / Simple cloud rendering; Phase 1 / Borrowed input and units
+      contract -> CloudSimpleProgram, ICloudSimpleBindings, CloudSimpleParameters, CloudSimpleGeometry
+      and cloud_simple.vsh/fsh. The existing GpuProgram/offline-contract/library pipeline owns the
+      dedicated executable. Native position/RGBA/unsigned face streams and normalized 24-byte short
+      instances are consumed directly, without mesh copies. Native-compatible gradient noise is used
+      only for existing mesh undulation/perception, not volumetric density. Cached layout receipts
+      retain names/capacities/context identity under weak mesh keys; the actual borrow ends at the
+      synchronous callback. Invalid divisors, tightly packed replacement strides and instance ranges
+      are rejected. Thickness/thinness, neighbor fades, altitude, curvature and placement remain native.
+      Perception uses the native local factor 20 and PlayerPos/TimeCounter; engine uniforms are untouched.
+    - Physical lighting/output -> Proposal / Density integration and lighting, Scene integration;
+      Atmosphere.Publication / Atmospheric transport and Publication contract; Phase 1 / Physical
+      lighting and OIT contracts -> CloudSimpleLighting and SceneLightingPublicationRenderer.Assemble
+      admit the owned source before FreezeLightingStorage. Simple uses a bounded two-sided diffuse
+      shell: base artistic face RGB * (Environment + (Solar*abs(N.Sun) + Lunar*abs(N.Moon))/pi).
+      Native instance brightness/daylight/sunset and TextureCol do not supply incident illumination.
+      The observer-based atmosphere remains the existing approximation, with no altitude-resolved
+      incident solver. Aerial transport/lookup decoding and physical frame encoding each occur once.
+      The existing underwater/local-fog branch and normalized-view liquid-depth interaction remain;
+      only authored local fog/murk endpoints use compatibility color decoding before physical mixing.
+      Scene admission rechecks the exact atmosphere, native local endpoints and frozen bounds at draw.
+      Native compatibility patches and the conservative Simple allowance remain available for current-
+      setting restoration, including ownership release after frame freeze. The retained map/color
+      producer and its compatibility resources are unchanged. Neither PBR mode requires LumOn data.
+    - OIT/glow -> Phase 1 / OIT contract -> the existing oit.glsl owner accepts an explicit adjusted
+      Simple halfsmooth depth; ordinary callers retain their geometric-depth overload. RGB is encoded
+      before bucket weighting, using native weights/revealage and the shared six-target blending.
+      Simple clamps dimensionless unit endpoints against GPU rounding. Red glow metadata uses the
+      bounded base coverage response max(0,.25-localFog/2), with native face/thinness alpha coverage;
+      green/blue are zero. No native sky-glow/bloom color is added to physical radiance.
+    - Callback/lifecycle -> Proposal / Simple cloud rendering, Publication and native lifecycle;
+      parent BaselineShading / Scope and shared contracts -> CloudSimpleDrawHook intercepts only the
+      current native root at OIT .35 while CloudNativeRuntime owns Simple. Preparation runs before
+      Opaque admission. CloudNativeSimpleAdapter ticks once when running, captures the post-tick mesh
+      and submits synchronously; pause and zero-width behavior are preserved. Off and native volume
+      retain their selected paths. Mode release/disposal restores the original callback without
+      registration/settings writes. Reload/resize reset owned draw resources; context/world changes
+      retire them and old-world roots cannot reacquire the draw. Draw failure skips owned rendering
+      until reset/reload while preserving interception. Native meshes/shaders retain disposal and
+      reload ownership. This adds one Simple draw hook to the four retained adapter boundaries.
+
+  Focused evidence (subagent-run)
+    - Installed VSEssentials.dll SHA256 remains the Phase 1 value; native shader/source contracts were
+      rechecked. ShaderProgramBase.Use independently confirms PlayerPos and local perception binding.
+    - Build/cache options match the preceding receipts. Production 452 and test 530 SPIR-V variants
+      compile through the existing catalog; the added program contributes two shader stages.
+    - Broad filter: FullyQualifiedName~Cloud plus VgeFrameRendererTests, ShaderStageSelectionTests,
+      SceneColor, AtmosphereAmbientPublicationTests, AtmosphereProgramBindingsTests,
+      AtmospherePublicationTests, LiquidBlendPolicyTests, LiquidTransparencyTests, LiquidRenderHookTests
+      and LiquidDrawTransformTests, joined with | as one quoted --filter argument. Result: 285 passed,
+      0 failed/skipped; receipt VanillaGraphicsExpanded.Tests/TestResults/cloud-phase3-final.trx.
+    - Cloud-only review: 78 passed, 0 failed/skipped; cloud-phase3-reviewed.trx in the same directory.
+      The independent completion audit tightened cold native-layout validation for zero stride and
+      nonpositive instance counts. The affected tests were extended and rechecked against the final
+      tree: Debug build passed, 0 errors/15 existing warnings; 78 Cloud tests passed, 0 failed/skipped,
+      receipt cloud-phase3-audited.trx. No cloud compiler warnings/errors. The unaffected broad evidence
+      above remains applicable; no shader/lighting/lifecycle behavior changed in that final adjustment.
+      These receipts overlap; do not sum their counts. Tests execute the actual owned binary shader,
+      normalized-short geometry, physical source/aerial/storage arithmetic, native bucket weights,
+      finite/unit output domains, opaque/liquid depth behavior, face/neighbor/thin/undulation controls,
+      local perception, unchanged legacy-brightness response, malformed storage, native callback
+      restoration, post-tick replacement, paused updates and previous-world rejection.
+    - Live appearance, complete in-game lifecycle qualification, reflection integration and measured
+      performance remain under later acceptance tasks. No game launch or performance claim occurred.
+    - Second review and independent linked-document audit reconciled every Simple task with the
+      controlling sources and observed evidence. The layout finding was resolved and independently
+      rechecked; no required findings remain for this increment. The parent cloud task stays open.

@@ -140,7 +140,8 @@ internal sealed class SceneLightingPublicationRenderer : IRenderer
             frame.LightingCalibration, PbrShaderLightingMode.LumOnEnabled, indirect.Intensity,
             new Vector3(tint[0], tint[1], tint[2]), emission,
             LightingStorage.UpperBound((double)compatibilityMaximum + Atmosphere.Celestial.CelestialRenderer.MaximumNits
-                + Atmosphere.Celestial.MoonRenderer.MaximumNits));
+                + Atmosphere.Celestial.MoonRenderer.MaximumNits
+                + Clouds.CloudNativeRuntime.SimpleMaximum(atmosphere, compatibilityMaximum)));
     }
 
     /// <summary>Rejects missing, retired and differently framed source metadata.</summary>

@@ -19,17 +19,17 @@ public sealed class CloudModSystem : ModSystem, IRenderer
     /// <summary>Cloud GPU input adaptation is client-only and independent of LumOn.</summary>
     public override bool ShouldLoad(EnumAppSide side) => side == EnumAppSide.Client;
 
-    /// <summary>Registers a passive adapter lifetime. No unfinished VGE draw is activated.</summary>
+    /// <summary>Registers cloud input maintenance and preparation before frozen physical lighting admission.</summary>
     public override void StartClientSide(ICoreClientAPI api)
     {
         this.api = api; runtime = new(api);
         api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_cloud_inputs");
     }
 
-    /// <summary>Updates lifecycle demand without ticking weather or submitting a visible cloud draw.</summary>
+    /// <summary>Prepares owned resources; native callbacks retain weather ticking and visible draw timing.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
-        if (stage == EnumRenderStage.Before) runtime?.Update();
+        if (stage == EnumRenderStage.Before) { runtime?.Update(); runtime?.PrepareSimple(); }
     }
 
     /// <summary>Unregisters VGE callbacks and releases only its own lifetime.</summary>

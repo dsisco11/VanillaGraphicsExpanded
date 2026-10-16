@@ -5,6 +5,7 @@ using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using Vintagestory.API.Client;
+using Vintagestory.GameContent;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
@@ -13,12 +14,15 @@ internal sealed class CloudNativeRuntime : IDisposable
 {
     private static readonly AccessTools.FieldRef<FluffyCloudsModSystem, CloudRendererMap> NativeMap = AccessTools.FieldRefAccess<FluffyCloudsModSystem, CloudRendererMap>("map");
     private static readonly AccessTools.FieldRef<FluffyCloudsModSystem, CloudRendererVolumetric> NativeVolume = AccessTools.FieldRefAccess<FluffyCloudsModSystem, CloudRendererVolumetric>("volumetric");
+    private static readonly AccessTools.FieldRef<WeatherSystemClient, CloudRenderer> NativeSimple = AccessTools.FieldRefAccess<WeatherSystemClient, CloudRenderer>("cloudRenderer");
+    private CloudSimpleRenderer? simple;
     private static long nextWorld;
     private readonly ICoreClientAPI api;
     private readonly IDisposable reload;
     private CloudRendererMap? mapOwner;
     private CloudNativeMapAdapter? map;
     private WeakReference<CloudRendererMap>? previousWorldMap;
+    private WeakReference<CloudRenderer>? previousWorldSimple;
     private (nint Handle, long Generation) context;
     private bool worldReady, disposed;
     private long world;
@@ -49,6 +53,36 @@ internal sealed class CloudNativeRuntime : IDisposable
         if (current != context) { DropInputs(); Ownership.Dispose(); context = current; }
         Ownership.Update(current != default, api.Settings.Int.Get("cloudRenderMode", 0));
     }
+
+    /// <summary>Prepares the selected Simple consumer before Opaque lighting storage is frozen.</summary>
+    internal void PrepareSimple()
+    {
+        if (!worldReady || disposed || context == default || api.Settings.Int.Get("cloudRenderMode", 0) != 2) return;
+        if (Ownership.Owns(CloudMode.Simple)) { simple?.Prepare(); return; }
+        var candidate = new CloudSimpleRenderer(api);
+        try
+        {
+            if (candidate.Prepare() && Ownership.TryActivate(CloudMode.Simple, candidate, true)) { simple = candidate; return; }
+        }
+        catch (Exception error) { api.Logger.Error("[VGE] Simple cloud preparation unavailable. {0}", error); }
+        candidate.Dispose();
+    }
+
+    /// <summary>Updates and draws the native Simple root at its existing OIT callback, suppressing only a committed replacement.</summary>
+    internal bool RenderSimple(CloudRenderer owner, float deltaTime, EnumRenderStage stage)
+    {
+        Update();
+        if (!worldReady || disposed || stage != EnumRenderStage.OIT || !Ownership.Owns(CloudMode.Simple) || simple is null) return false;
+        var weather = api.ModLoader.GetModSystem<WeatherSystemClient>();
+        if (weather is null || !ReferenceEquals(NativeSimple(weather), owner)) return false;
+        if (previousWorldSimple is not null && previousWorldSimple.TryGetTarget(out var previous) && ReferenceEquals(previous, owner)) return false;
+        CloudNativeSimpleAdapter.Render(api, owner, deltaTime, world, TryGetFrame(out uint frame) ? frame : null, simple.Draw);
+        return true;
+    }
+
+    /// <summary>Includes the complete Simple response in frozen scene storage before native tile updates.</summary>
+    internal static float SimpleMaximum(Atmosphere.AtmosphereLighting lighting, float localFogMaximum) =>
+        Active is { } current && current.Ownership.Owns(CloudMode.Simple) ? CloudSimpleLighting.Maximum(lighting, localFogMaximum) : 0;
 
     /// <summary>Removes VGE subscriptions and consumers; native callbacks automatically resume through their draw gates.</summary>
     public void Dispose()
@@ -116,17 +150,20 @@ internal sealed class CloudNativeRuntime : IDisposable
             var native = api.ModLoader.GetModSystem<FluffyCloudsModSystem>();
             var previous = native is null ? null : NativeMap(native);
             previousWorldMap = previous is null ? null : new(previous);
+            var weather = api.ModLoader.GetModSystem<WeatherSystemClient>();
+            var previousSimple = weather is null ? null : NativeSimple(weather);
+            previousWorldSimple = previousSimple is null ? null : new(previousSimple);
         }
         worldReady = false; world = Interlocked.Increment(ref nextWorld);
         DropInputs();
         try { Ownership.Dispose(); }
-        finally { context = default; }
+        finally { context = default; simple = null; }
     }
 
     /// <summary>Revokes certificates and drops strong native references without deleting native storage.</summary>
     private void DropInputs() { map?.Retire(); map = null; mapOwner = null; }
 
     /// <summary>Withdraws readiness immediately; the next producer callback validates the current linked program.</summary>
-    private bool WithdrawForReload() { map?.InvalidateShader(); return true; }
+    private bool WithdrawForReload() { map?.InvalidateShader(); simple?.Reset(); return true; }
     #endregion
 }
