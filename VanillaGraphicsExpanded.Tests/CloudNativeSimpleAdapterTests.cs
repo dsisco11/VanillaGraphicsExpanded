@@ -94,19 +94,23 @@ public sealed class CloudNativeSimpleAdapterTests(HeadlessGLFixture fixture)
 
     /// <summary>A rebuild during ticking is observed immediately; pause skips ticking and unavailable drawing never skips a running update.</summary>
     [Theory]
-    [InlineData(false, 800, true)]
-    [InlineData(true, 800, true)]
-    [InlineData(false, 0, true)]
-    [InlineData(false, 800, false)]
-    public void TickAndSubmissionRemainInOneCallback(bool paused, int width, bool camera)
+    [InlineData(false, 800, true, 0f)]
+    [InlineData(false, 800, true, 60f)]
+    [InlineData(false, 800, true, 120f)]
+    [InlineData(true, 800, true, 120f)]
+    [InlineData(false, 0, true, 60f)]
+    [InlineData(false, 800, false, 60f)]
+    public void TickAndSubmissionRemainInOneCallback(bool paused, int width, bool camera, float speed)
     {
         var (api, owner, original, _) = Create();
         api.SetupGet(value => value.IsGamePaused).Returns(paused);
         api.SetupGet(value => value.Render.FrameWidth).Returns(width);
+        api.SetupGet(value => value.World.Calendar.SpeedOfTime).Returns(speed);
         var replacement = Mesh(); int ticks = 0, draws = 0;
         tick = (current, dt) =>
         {
             Assert.Same(owner, current); Assert.Equal(.125f, dt); ticks++;
+            Assert.Equal(speed, api.Object.World.Calendar.SpeedOfTime); // Native tick owns time-speed conversion.
             AccessTools.Field(typeof(CloudRenderer), "cloudTilesMeshRef").SetValue(owner, replacement);
         };
         var harmony = new Harmony("vge.tests.cloud.simple.tick");

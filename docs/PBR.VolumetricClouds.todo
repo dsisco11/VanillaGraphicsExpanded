@@ -5,7 +5,7 @@ Authority and scope
   Source: docs/PBR.VolumetricClouds.Proposal.md (approved 2026-10-16).
   Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
   Atmospheric contract: docs/PBR.Atmosphere.Publication.md.
-  This checklist records delivered rendering increments below; integration qualification and final acceptance remain outstanding.
+  This checklist records delivered rendering increments below; final acceptance remains outstanding.
   The proposal governs scope; keep every task unchecked until its stated evidence exists.
   Preserve Off / Simple / Volumetric settings and both standalone PBR and PBR + LumOn operation.
   Retain native weather, geometry and column-map production; VGE owns visible shaders and lighting.
@@ -179,28 +179,33 @@ Phase 5: Deliver half-resolution temporal rendering
 
 Phase 6: Qualify lifecycle and complete integration
   Depends on Phases 3–5. Outcome: the combined feature preserves settings, ownership and scene contracts.
-  ☐ Verify the full Off/Simple/Volumetric and VGE enable/disable transition matrix.
+  ✔ Verify the full Off/Simple/Volumetric and VGE enable/disable transition matrix.
     - Cover repeated mode toggles, native watcher re-registration, current-setting restoration,
       pause/time-speed changes, view-distance rebuild, shader reload success/failure and world re-entry.
     - Establish exactly one visible draw and one selected producer-update path; verify no stale handles,
       double ticks, native resource disposal, orphaned VGE resources or persistent preference changes.
-  ☐ Qualify scene integration in both PBR modes.
+  ✔ Qualify scene integration in both PBR modes.
     - Check sun/moon/stars/sky attenuation, terrain occlusion, particles/translucency/water before,
       within and behind clouds, local fog/underwater treatment, environmental response and reflections.
     - Verify no double fog/weather dimming, no display-color inputs in physical shading and matching
       frame storage/range admission. Existing OIT approximation remains accepted.
-  ☐ Finish compatibility cleanup and permanent documentation.
+  ✔ Finish compatibility cleanup and permanent documentation.
     - Update SceneColorLegacyPatches, SceneColorCloudInputs and compatibility publication only as
       required by owned versus restored paths; retain still-used native map lookup/resource support.
     - Update focused shader-stage/legacy-patch tests to assert real selection and restoration contracts.
     - Remove temporary implementation scaffolding; preserve deliberate native producer dependencies.
     - Document current runtime architecture, units, modes, lifecycle and debug/reference controls;
       reconcile atmosphere publication docs without turning permanent docs into a historical log.
-  ☐ Run required build, focused CPU/GPU and relevant integration/package checks through subagents.
+  ✔ Run required build, focused CPU/GPU and relevant integration/package checks through subagents.
     - Verify shader catalog/packaging includes owned programs and no installed game asset modification.
     - Record versions, commands and results; keep source/headless/package receipts distinct from live QA.
-  ☐ Completion: required automated and packaging checks pass, docs match final behavior and lifecycle
+  ✔ Completion: required automated and packaging checks pass, docs match final behavior and lifecycle
     evidence supports both modes. Human visual and measured performance gates remain below.
+    - Runtime architecture: docs/PBR.Clouds.md. Automated/source qualification is distinct from the
+      user-run in-game transitions and appearance acceptance below. Directional reflected cloud imagery
+      remains the explicit unavailable-consumer dependency recorded in Phase 1, not a completed feature.
+    - Completed 2026-10-16 after second review and independent audit-stage-completion, including
+      direct inspection of the final 467/467 test receipt and source/asset contracts. See evidence below.
 
 Phase 7: Visual and performance acceptance
   Depends on Phase 6. Outcome: the approved appearance and measured cost are qualified on explicit targets.
@@ -808,3 +813,109 @@ Phase 5 implementation and verification (2026-10-16)
       user visual acceptance, hardware/resolution budgets and measured GPU/CPU/memory costs remain
       under Phases 6-7. No game launch, installed shader edit, cast-shadow implementation or parent
       completion claim occurred. The parent baseline cloud task remains open.
+
+Phase 6 implementation and verification (2026-10-16)
+  Task-to-document and implementation traceability
+    - Lifecycle matrix -> Proposal / Simple cloud rendering, Publication and native lifecycle;
+      Phase 1 / Native producer and ownership contract, Map readiness and borrowing;
+      parent BaselineShading / Scope and cloud item -> CloudNativeRuntime, CloudModeOwnership,
+      CloudSimpleRenderer and CloudVolumeRenderer. Released mode/context consumers are removed
+      from runtime references even when disposal throws. Reload withdraws all dependent resources;
+      callback removal failure cannot bypass independent owned resource cleanup. Current native
+      watcher registration and preferences remain authoritative; no new native hook or tick is added.
+      CloudLifecycleTests exercises all nine ordered mode pairs under both PBR selections, three
+      enable/disable cycles, repeated native registerCloudRenderer calls, failed draw admission,
+      retained suppression and reload reset. It uses real draw lifetimes with controlled initial
+      ownership, not a claim of live shader activation. Its exceptional teardown case allocates
+      actual reduced images/FBO and verifies retirement after native event removal throws.
+      Existing CloudNativeSimpleAdapterTests and GPU/CloudNativeAdapterTests cover post-tick mesh
+      replacement, paused camera placement, zero-width update, unavailable/foreign/old-world roots,
+      raw upload failures, allocation rebuilds, shader failure/recovery and volume non-ticking gates.
+      Simple dt forwarding is checked at native time speeds 0/60/120; actual speed conversion remains
+      native-owned. CloudTemporalHistoryTests covers frame/identity/motion/reset compatibility.
+    - Scene integration -> Proposal / Density integration and lighting, Scene integration;
+      Atmosphere.Publication / Atmospheric transport, Publication contract, Draw ownership;
+      Phase 1 / Physical lighting, fog and frame admission, OIT payload, Environment and reflection
+      boundary -> existing owned cloud transport/reconstruction and LiquidPipelineStates; no transport
+      model change. GPU/CloudSimpleDrawTests, CloudVolumeDrawTests and CloudVolumeReconstructionTests
+      exercise both PBR selections, physical source/storage once, current opaque/liquid boundaries,
+      native OIT payloads, ordinary surface contributions before/within/behind and disocclusion.
+      Default/reference comparisons additionally exercise nonzero aerial and underwater medium;
+      existing analytic reference tests separately establish the transport math. Existing celestial,
+      scene-color/OIT and liquid checks qualify the shared composition owners. Source ordering puts
+      sky/stars/disks before later cloud OIT, retaining attenuation rather than adding source fades.
+      pbr_liquid.glsl still uses Environment*skyVisibility*reflectance plus direct/point response:
+      directional reflected cloud imagery has no existing consumer and remains the explicit inherited
+      dependency. No substitute reflected camera, main-view history reuse or cast shadow is added.
+    - Compatibility and documentation -> Proposal / Ownership boundary, Simple cloud rendering,
+      Publication and native lifecycle; Atmosphere.Publication / Ownership and Verified engine
+      consumers; Phase 1 / native compatibility allowances -> SceneColorLegacyPatches and stage
+      selection retain restored native visible fragments. New tests parse actual installed sources
+      to verify conditional native decoding before integration/weighting and untouched cloudmap
+      production. Native geometry stages remain unpatched. SceneColorCloudInputs and compatibility
+      publication deliberately retain native allowances for same-frame ownership release and map
+      color production; owned source admission remains separate. Retained legacy lookup handles and
+      unused TextureCol are necessary producer dependencies, not temporary scaffolding.
+      docs/PBR.Clouds.md documents current architecture, units, modes, lifecycle, storage/quality
+      controls and limitations; Atmosphere.Publication links it and identifies actual lookup users.
+      No removed-feature narrative or implementation staging is placed in permanent documentation.
+    - Build/package qualification -> Proposal / Acceptance and implementation qualification;
+      parent / compiled shader and independent-mode contracts -> current build/test outputs,
+      generated shader catalog tests and output-asset hash verification. Build output/package-copy
+      receipts remain distinct from live/runtime acceptance. Native version/hash and installed shader
+      before/after hashes verify the supported source baseline and absence of installed asset edits.
+
+  Focused evidence (subagent-run)
+    - Fresh baseline Debug build passed with 0 errors and 15 existing nullable/obsolete warnings,
+      53.20 seconds. Baseline Cloud filter passed 149/149, 0 failed/skipped, 6m35s;
+      VanillaGraphicsExpanded.Tests/TestResults/cloud-phase6-baseline.trx. Build environment and
+      command match Phase 5 receipts. Baseline precedes current lifecycle/scene additions.
+    - Installed VSEssentials.dll remains 1.22.7 with the Phase 1 SHA256. Rechecked native callback
+      source confirms unchanged watcher registration, pause and one selected tick path. Simple
+      clamps dt before speed conversion; map converts speed before clamping. VGE forwards dt and
+      does not duplicate either policy. World teardown leaves native worker/resources native-owned.
+    - Lifecycle/stage/source focused run initially passed 50/52; two source fixtures used the wrong
+      native include directory. Correcting to assets/game/shaderincludes/oit.fsh passed all 5
+      SceneColorLegacyPatchSourceTests. Initial compile-only failures in saved nullable LumOn
+      selections were corrected before execution. These intermediate receipts are superseded by
+      the final run and are not separate completion claims.
+    - Catalog qualification exposed stale pre-existing aggregate expectations. Current declaration
+      inventory is 175 programs, 224 distinct stages, 486 assignments and 501 binary selections.
+      ShaderBuildTool/Program.cs explicitly omits tests/ identities for production emission, yielding
+      457 distributable variants; the generated-catalog test now checks both boundaries. Identity
+      equality, source enumeration and the five exact cloud stage-pair contracts remain enforced;
+      no production registration, program membership or shader was changed to satisfy these counts.
+    - Read-only output-asset qualification covers all five cloud programs and seven unique stages:
+      every SPIR-V SHA256 matches its production digest manifest and Debug mod asset copy; source
+      stages, manifest, config and language copies match their sources. This checks compiled output
+      and the packaging asset contract; no ZIP release/archive creation or installed asset edit is
+      implied. Final regression and unchanged installed shader checks are recorded below.
+    - Final frozen-source Debug mod build passed, 0 warnings/errors, 5.19 seconds. Production 457
+      and test 535 shader variants are current. Final broad command:
+      dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug
+      --tl:off -v:minimal -p:NuGetAudit=false --filter <one quoted filter below>
+      --logger "trx;LogFileName=cloud-phase6-final.trx". Filter: FullyQualifiedName~Cloud plus
+      VgeFrameRendererTests, ShaderStageSelectionTests, SceneColor, AtmosphereAmbientPublicationTests,
+      AtmosphereProgramBindingsTests, AtmospherePublicationTests, LiquidBlendPolicyTests,
+      LiquidTransparencyTests, LiquidRenderHookTests, LiquidDrawTransformTests, SunDiskDrawTests,
+      MoonDiskDrawTests, CelestialDrawTests, OitStorageArithmeticTests, EngineOitAccumulationFormatTests,
+      GeneratedShaderCatalogTests, ShaderRegistryTests, ProductionShaderAccessorTests and
+      SpirvInventoryTests.PackagedBuildDigestsMatchEveryCompiledVariant joined with |, each prefixed
+      FullyQualifiedName~. Passed 467/467, 0 failed/skipped, 6m32s. Receipt:
+      VanillaGraphicsExpanded.Tests/TestResults/cloud-phase6-final.trx. This final run supersedes
+      affected intermediate lifecycle/source/catalog failures; overlapping counts are not summed.
+    - New aerial and underwater default/reference comparison maxima (attenuation/normalized payload)
+      were .007073492/.006876707 and .007073492/.005790949. Worst existing motion residuals remain
+      .01938590/.01939387 within the unchanged .021/.045 tolerances. Both PBR selections passed
+      owned Simple, reference and default reconstruction checks. All 18 ordered mode-pair cases
+      and exceptional GPU teardown passed, alongside current registry membership and digest checks.
+    - After the final build, all 7 cloud-stage digest/output/source-copy checks and all source-asset
+      output-copy comparisons passed. The 6 installed native cloud shader before/after hashes and
+      VSEssentials.dll hash are unchanged. Source/headless/output-asset evidence does not establish
+      live appearance, in-game lifecycle acceptance or measured GPU/CPU/resident memory costs.
+      No game launch, release archive generation, installed shader edit or cast-shadow work occurred.
+    - Second review reconciled lifecycle failure paths, every linked requirement, current documentation
+      and final fixtures. The independent completion audit directly re-read controlling sources and
+      inspected final test results and catalog/package evidence: no unresolved findings remain for
+      this increment. Phase 7 and Final acceptance remain unchecked, as does the parent cloud task.
+      Directional reflected-cloud imagery remains the recorded unavailable-consumer dependency.

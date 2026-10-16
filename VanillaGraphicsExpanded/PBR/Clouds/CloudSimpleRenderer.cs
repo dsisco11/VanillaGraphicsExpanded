@@ -101,7 +101,7 @@ internal sealed class CloudSimpleRenderer : IDisposable
     public void Dispose()
     {
         if (disposed) return; disposed = true;
-        unregisterResize(); RenderingCleanup.Run(Reset, lifetime.Dispose);
+        RenderingCleanup.Run(unregisterResize, Reset, lifetime.Dispose);
     }
 
     /// <summary>Retries resources at existing reload/resize boundaries without relinquishing visible ownership.</summary>

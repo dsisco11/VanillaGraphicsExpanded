@@ -56,6 +56,11 @@ public sealed class ShaderRegistryTests
     [InlineData("tests/pbr_direct_fullscreen", "tests/fullscreen_uv.vsh", "pbr_direct_lighting.fsh", 1)]
     [InlineData("tests/trace_probe_anchor", "tests/trace_probe_anchor.vsh", "lumon_probe_atlas_trace.fsh", 32)]
     [InlineData("tests/worldprobe_debug", "lumon_debug.vsh", "lumon_debug_view_world_probe_irradiance_combined.fsh", 4)]
+    [InlineData("cloud_simple", "cloud_simple.vsh", "cloud_simple.fsh", 1)]
+    [InlineData("cloud_volume", "cloud_volume.vsh", "cloud_volume.fsh", 1)]
+    [InlineData("cloud_volume_trace", "cloud_volume.vsh", "cloud_volume_trace.fsh", 1)]
+    [InlineData("cloud_volume_temporal", "cloud_volume.vsh", "cloud_volume_temporal.fsh", 1)]
+    [InlineData("cloud_volume_resolve", "cloud_volume.vsh", "cloud_volume_resolve.fsh", 1)]
     public void PairingsAreDeclared(string program, string vertex, string fragment, int budget)
     {
         var contract = Registry.FindProgram(program);

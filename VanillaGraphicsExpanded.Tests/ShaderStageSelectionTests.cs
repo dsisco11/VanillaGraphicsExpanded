@@ -32,6 +32,8 @@ public sealed class ShaderStageSelectionTests
     [InlineData("instanced.fsh")]
     [InlineData("chunktransparent.vsh")]
     [InlineData("chunktransparent.fsh")]
+    [InlineData("clouds.fsh")]
+    [InlineData("cloudvolumetric.fsh")]
     public void RequiresProcessing_PatchedStage_ReturnsTrue(string shaderName)
     {
         bool requiresProcessing = EngineShaderProcessingHook.RequiresProcessing(shaderName, "#version 330 core\n");
@@ -60,6 +62,17 @@ public sealed class ShaderStageSelectionTests
     [InlineData("celestialobject.fsh")]
     [InlineData("final.fsh")]
     public void RequiresProcessing_ReplacedEngineStage_ReturnsFalse(string shaderName)
+    {
+        Assert.False(EngineShaderProcessingHook.RequiresProcessing(shaderName, "#version 330 core\n"));
+    }
+
+    /// <summary>Native geometry and the retained pre-lit map producer keep their own code; restored visible fragments retain scene conversion.</summary>
+    [Theory]
+    [InlineData("clouds.vsh")]
+    [InlineData("cloudmap.vsh")]
+    [InlineData("cloudmap.fsh")]
+    [InlineData("cloudvolumetric.vsh")]
+    public void RequiresProcessing_NativeCloudProducerAndGeometryRemainUntouched(string shaderName)
     {
         Assert.False(EngineShaderProcessingHook.RequiresProcessing(shaderName, "#version 330 core\n"));
     }

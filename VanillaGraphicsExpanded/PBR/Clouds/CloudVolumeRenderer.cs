@@ -134,8 +134,8 @@ internal sealed class CloudVolumeRenderer : IRenderer
     public void Dispose()
     {
         if (disposed) return; disposed = true;
-        api.Event.UnregisterRenderer(this, EnumRenderStage.OIT); unregisterResize();
-        RenderingCleanup.Run(Reset, reconstruction.Dispose, () => { geometry?.Dispose(); geometry = null; }, lifetime.Dispose);
+        RenderingCleanup.Run(() => api.Event.UnregisterRenderer(this, EnumRenderStage.OIT), unregisterResize,
+            Reset, reconstruction.Dispose, () => { geometry?.Dispose(); geometry = null; }, lifetime.Dispose);
     }
     #endregion
     #endregion

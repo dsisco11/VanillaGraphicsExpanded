@@ -155,7 +155,7 @@ internal static class SceneColorLegacyPatches
     #endregion
 
     #region Private
-    /// <summary>Retains native bucket contributors, including liquids when their owned renderer cannot take over.</summary>
+    /// <summary>Retains native bucket contributors for current-setting restoration, including cloud fragments and conditional liquid fallback.</summary>
     private static bool IsOit(string source) => source is "chunkliquid.fsh" or "particlesquad.fsh"
         or "particlesquad2d.fsh" or "clouds.fsh" or "cloudvolumetric.fsh" or "aurora.fsh" or "blockhighlights.fsh";
 

@@ -4,7 +4,9 @@
 
 Runtime uses an independently registered fullscreen sky renderer and pre-blend atmospheric
 compatibility publication. The compatibility adapter retains valid native lookup handles
-for cloud consumers; volumetric cloud transport has its own rendering contract.
+for the retained native cloud-map producer and restored native paths.
+[Owned cloud rendering](PBR.Clouds.md) consumes completed physical lighting and aerial transport
+independently, preserving the existing OIT contract and frozen scene-storage scale.
 
 The atmospheric subsystem owns environmental lighting independently of the
 sky draw. The sky renderer consumes published state; it does not update engine lighting globals,
@@ -50,9 +52,11 @@ Inspection of installed `VintagestoryLib` and API assemblies found:
 | `Sunglow.FogColor` RGB and weight | Ambient modifier blending | Atmospheric compatibility publication |
 | `FogColorSky` | Constructed and mutated by the sky helper; no external field reader found in inspected assemblies | Compatibility only if a consumer requires it |
 
-Installed `clouds.fsh` and `cloudmap.fsh` still call `getSkyGlowAt`, and `chunkopaque.fsh`
-contains a legacy `getSkyColorAt` path. Shader patching can alter reachable uses; verify the
-effective installed variants to identify required compatibility inputs.
+Installed `cloudmap.fsh` still calls `getSkyGlowAt` while producing native column controls and
+an unused pre-lit color attachment. Native `clouds.fsh` retains its lookup dependency for
+restoration; VGE Simple and Volumetric shading do not sample these display-color lookups.
+`chunkopaque.fsh` also contains a legacy `getSkyColorAt` path. Shader patching can alter reachable
+uses; valid native sky/glow handles remain necessary for retained consumers.
 
 `AmbientManager.UpdateAmbient` runs at `Before`, order 0. Atmosphere publication currently runs
 at `Before`, order -0.5. Publish atmospheric ambient modifiers there, before blending. The

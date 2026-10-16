@@ -21,6 +21,24 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Simple has the same physical response and native OIT coverage with either receiver-lighting mode.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BothPbrModesUseIndependentSimpleLighting(bool lumOn)
+    {
+        EnsureShaderTestAvailable();
+        bool? previous = PbrShaderLightingMode.GenerationLumOnEnabled;
+        try
+        {
+            PbrShaderLightingMode.GenerationLumOnEnabled = lumOn;
+            var result = Draw(.125f, .25f, 2);
+            float expected = ((10 + 33 / MathF.PI) * .75f + 2) * .125f;
+            Assert.InRange(result.Radiance.X, expected * .998f, expected * 1.002f);
+            Assert.InRange(result.Reveal, 0, .0001f);
+        }
+        finally { PbrShaderLightingMode.GenerationLumOnEnabled = previous; }
+    }
     /// <summary>Both source directions and environment retain physical RGB; aerial loss/scatter and frame encoding enter once.</summary>
     [Theory]
     [InlineData(1f,0f,0f)]

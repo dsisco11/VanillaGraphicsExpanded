@@ -51,8 +51,20 @@ internal sealed class CloudNativeRuntime : IDisposable
     {
         if (disposed || !worldReady) return;
         var current = RenderContextRegistry.Current();
-        if (current != context) { DropInputs(); Ownership.Dispose(); context = current; }
-        Ownership.Update(current != default, api.Settings.Int.Get("cloudRenderMode", 0));
+        if (current != context)
+        {
+            DropInputs();
+            try { Ownership.Dispose(); }
+            finally { simple = null; volume = null; context = current; }
+        }
+        try { Ownership.Update(current != default, api.Settings.Int.Get("cloudRenderMode", 0)); }
+        finally
+        {
+            // Mode release disposes the selected consumer. Retaining it here would let
+            // a later reload reset a retired lifetime instead of just the live draw.
+            if (!Ownership.Owns(CloudMode.Simple)) simple = null;
+            if (!Ownership.Owns(CloudMode.Volumetric)) volume = null;
+        }
     }
 
     /// <summary>Prepares the selected Simple consumer before Opaque lighting storage is frozen.</summary>
@@ -193,6 +205,11 @@ internal sealed class CloudNativeRuntime : IDisposable
     private void DropInputs() { map?.Retire(); map = null; mapOwner = null; }
 
     /// <summary>Withdraws readiness immediately; the next producer callback validates the current linked program.</summary>
-    private bool WithdrawForReload() { map?.InvalidateShader(); simple?.Reset(); volume?.Reset(); return true; }
+    private bool WithdrawForReload()
+    {
+        // Withdraw every dependent publication even if one resource cleanup fails.
+        RenderingCleanup.Run(() => map?.InvalidateShader(), () => simple?.Reset(), () => volume?.Reset());
+        return true;
+    }
     #endregion
 }

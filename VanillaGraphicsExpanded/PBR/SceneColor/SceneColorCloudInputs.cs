@@ -6,7 +6,7 @@ using Vintagestory.GameContent;
 
 namespace VanillaGraphicsExpanded.PBR.SceneColor;
 
-/// <summary>Captures the ordinary native cloud owner's geometry and color envelope before its later tile commit.</summary>
+/// <summary>Reserves restored native Simple geometry and color before its later tile commit, including mid-frame ownership release.</summary>
 internal readonly record struct SceneColorCloudInputs(uint FrameIndex, CloudRenderer? Owner,
     float CloudsLength, float PositionRadius, float GlobalBrightnessMagnitude, float VertexMaximum)
 {

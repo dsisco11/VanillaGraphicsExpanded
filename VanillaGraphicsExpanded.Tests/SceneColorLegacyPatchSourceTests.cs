@@ -49,5 +49,47 @@ public sealed class SceneColorLegacyPatchSourceTests
         Assert.Equal(Regex.Replace(originalBody, @"\s+", ""),
             Regex.Replace(originalBody[..originalBodyStart] + patchedBody[originalStart..], @"\s+", ""));
     }
+
+    /// <summary>Native fallback fragments retain conversion even while their dedicated VGE replacements are selected.</summary>
+    [Theory]
+    [InlineData("clouds.fsh")]
+    [InlineData("cloudvolumetric.fsh")]
+    public void RestoredCloudFragmentsRetainConditionalSceneConversion(string name)
+    {
+        string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
+        string shaders = Path.Combine(root, "assets/game/shaders");
+        string source = File.ReadAllText(Path.Combine(shaders, name));
+        source = source.Replace("#include oit.fsh", File.ReadAllText(Path.Combine(root, "assets/game/shaderincludes/oit.fsh")));
+        var tree = SyntaxTree.Parse(source, GlslSchema.Instance);
+        ShaderCapability declared = ShaderCapability.None;
+        Assert.True(VanillaShaderPatches.TryApplyPatches(null, tree, name, feature => declared |= feature));
+        Assert.True(declared.HasFlag(ShaderCapability.SceneColorConvention));
+        string patched = tree.ToText();
+        Assert.Contains("if (vge_sceneLinear != 0)", patched);
+        Assert.Contains("VgeStoreSceneLighting(VgeCompatibilityLuminance(", patched);
+        if (name == "clouds.fsh")
+        {
+            Assert.Contains("#define OIT VgeLegacyOit", patched);
+            Assert.Contains("OIT(col, 0.0, faux)", patched);
+        }
+        else
+        {
+            string traverse = tree.Select(Query.Syntax<GlFunctionNode>().Named("traverse")).OfType<GlFunctionNode>().Single().Body.ToText();
+            Assert.Equal(1, traverse.Split("col.rgb = VgeStoreSceneLighting(VgeCompatibilityLuminance(col.rgb));").Length - 1);
+            Assert.True(traverse.IndexOf("col.rgb =", StringComparison.Ordinal) < traverse.IndexOf("float v =", StringComparison.Ordinal));
+            Assert.Contains("if (vge_sceneLinear == 0)", patched);
+        }
+    }
+
+    /// <summary>The native map still generates its own color attachment and lookup-dependent controls without scene-color patching.</summary>
+    [Fact]
+    public void RetainedCloudMapProducerIsUnmodified()
+    {
+        string root = Environment.GetEnvironmentVariable("VINTAGE_STORY") ?? "G:/Vintagestory";
+        var tree = SyntaxTree.Parse(File.ReadAllText(Path.Combine(root, "assets/game/shaders/cloudmap.fsh")), GlslSchema.Instance);
+        string original = tree.ToText();
+        Assert.False(VanillaShaderPatches.TryApplyPatches(null, tree, "cloudmap.fsh", _ => Assert.Fail("Unexpected producer capability")));
+        Assert.Equal(original, tree.ToText());
+    }
     #endregion
 }

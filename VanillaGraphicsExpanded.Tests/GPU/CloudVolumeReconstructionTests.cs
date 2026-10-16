@@ -26,6 +26,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
     [InlineData("static")][InlineData("thin")][InlineData("thin-height")][InlineData("detail")][InlineData("lit")][InlineData("terrain")][InlineData("liquid")]
     [InlineData("camera")][InlineData("rotation")][InlineData("motion")][InlineData("weather")][InlineData("lighting")][InlineData("mixed")][InlineData("odd")]
     [InlineData("particle-before")][InlineData("particle-within")][InlineData("particle-behind")]
+    [InlineData("aerial")][InlineData("underwater")]
     public void DefaultReconstructsAllBucketsAgainstReference(string scene)
     {
         EnsureShaderTestAvailable();
@@ -72,6 +73,28 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         }
         view.Capture(2,2,10,1,0,"static"); view.Render(2,true);
         Assert.All(view.ReadDefault()[1],value=>Assert.True(value<1));
+    }
+    /// <summary>The complete reduced path remains independent of LumOn and uses the same physical publication.</summary>
+    [Theory]
+    [InlineData(false)][InlineData(true)]
+    public void BothPbrModesReconstructTheSamePhysicalResponse(bool lumOn)
+    {
+        EnsureShaderTestAvailable();
+        bool? previous = PbrShaderLightingMode.GenerationLumOnEnabled;
+        try
+        {
+            PbrShaderLightingMode.GenerationLumOnEnabled = lumOn;
+            using var view = CreateScene(8, 8);
+            view.Capture(0, 2, 10, .125f, 0, "aerial"); view.Render(0, false);
+            view.Capture(1, 2, 10, .125f, 0, "aerial"); view.Render(1, true);
+            var actual = view.ReadDefault(); var reference = view.ReadReference();
+            Assert.Contains(actual[1], value => value < 1);
+            Assert.Contains(actual[3], value => value > 0);
+            for (int layer = 0; layer < 6; layer++)
+            for (int i = 0; i < actual[layer].Length; i++)
+                Assert.InRange(Math.Abs(actual[layer][i] - reference[layer][i]), 0, layer < 2 ? .021 : .045 * 1.25);
+        }
+        finally { PbrShaderLightingMode.GenerationLumOnEnabled = previous; }
     }
     /// <summary>Reduced physical radiance is unaffected by exposure storage; only final accumulated RGB is scaled.</summary>
     [Fact]
@@ -165,7 +188,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         private float shift,lastShift;
         private readonly float[] previousProjection=new float[16],currentProjection=new float[16];
         private float surfaceDepth;
-        private bool detail;
+        private bool detail,underwater;
 
         #region Public API
         #region View preparation
@@ -193,7 +216,11 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         /// <summary>Captures one explicit cloud/camera state, including per-pixel opaque and liquid discontinuities.</summary>
         internal void Capture(uint frame,float extinction,float environment,float scale,float offset,string scene)
         {
-            shift=offset; detail=scene=="detail";
+            shift=offset; detail=scene=="detail"; underwater=scene=="underwater";
+            float aerialLoss=underwater ? .99f : scene=="aerial" ? .25f : 0;
+            float aerialScatter=underwater?100:scene=="aerial"?2:0;
+            aerial.UploadDataImmediate([aerialScatter/16,aerialScatter/16,aerialScatter/16,0,0,0,0,0],0,0,0,1,2,1,0);
+            loss.UploadDataImmediate([aerialLoss,aerialLoss,aerialLoss,0],0,0,0,1,1,1,0);
             surfaceDepth=scene=="particle-before"?20:scene=="particle-within"?60:scene=="particle-behind"?160:0;
             var view=Mat4f.Create();
             if(scene=="rotation")
@@ -216,7 +243,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             }
             opaque.UploadDataImmediate(depths);liquid.UploadDataImmediate(liquids);
             var lighting=new AtmosphereLighting(Vector3.UnitY,scene=="lit"?new(30):Vector3.Zero,new(environment),Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
-                { Moon=-Vector3.UnitY,Lunar=scene=="lit"?new(3):Vector3.Zero,CalibrationGeneration=1,LookupStorageScale=LightingStorage.PersistentScale };
+                { Moon=-Vector3.UnitY,Lunar=scene=="lit"?new(3):Vector3.Zero,CalibrationGeneration=1,
+                    LookupStorageScale=LightingStorage.PersistentScale,ReconstructionMaximumNits=aerialScatter };
             var placement=new CloudPlacement(0,0,0,0,0,0,offset,0,new(offset,0,-50),0);
             Configure(reference,reference.Parameters,placement,lighting);Configure(trace,trace.Parameters,placement,lighting);Configure(resolve,resolve.Parameters,placement,lighting);
         }
@@ -287,7 +315,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         /// <summary>Supplies identical physical transport inputs to all tracing consumers.</summary>
         private void Configure(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudPlacement placement,AtmosphereLighting lighting)
         {
-            parameters.CaptureMap(4,placement,1,CloudVolumeSettings.Default with {Detail=detail});parameters.CaptureLighting(lighting,0,Vector4.Zero,Vector3.Zero);
+            parameters.CaptureMap(4,placement,1,CloudVolumeSettings.Default with {Detail=detail});
+            parameters.CaptureLighting(lighting,underwater?1:0,new(underwater ? .02f : 0,0,0,0),Vector3.Zero);
             program.Map=map.TextureId;program.SceneDepth=opaque.TextureId;program.LiquidDepth=liquid.TextureId;program.AerialRadiance=aerial;program.AerialAttenuation=loss;
         }
         /// <summary>Binds an alternate physical-history set, including unfiltered depth metadata.</summary>

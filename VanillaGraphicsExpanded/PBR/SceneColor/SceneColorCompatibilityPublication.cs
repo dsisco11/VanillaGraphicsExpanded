@@ -49,6 +49,8 @@ internal readonly record struct SceneColorCompatibilityPublication(uint FrameInd
             throw new ArgumentException("Native underwater tint must be finite nonnegative authored RGB.");
         var mapSystem = api.ModLoader.GetModSystem<FluffyCloudsModSystem>();
         var map = mapSystem is null ? null : MapOwner(mapSystem);
+        // Keep the native map-color allowance: the retained producer still emits it,
+        // and a mid-frame ownership release can restore the native visible consumer.
         bool mapEnabled = map is not null && MapEnabled(map);
         float mapGain = mapEnabled ? Math.Max(Math.Abs(MapBrightness(map!)),
             Math.Abs(api.Ambient.BlendedCloudBrightness)) : 0;
