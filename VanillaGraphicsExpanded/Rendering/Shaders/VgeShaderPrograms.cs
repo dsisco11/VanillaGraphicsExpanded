@@ -16,6 +16,9 @@ internal static class VgeShaderPrograms
     {
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudSimpleProgram.Contract.Identity, () => new PBR.Clouds.CloudSimpleProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudVolumeProgram.Contract.Identity, () => new PBR.Clouds.CloudVolumeProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudTraceProgram.Contract.Identity, () => new PBR.Clouds.CloudTraceProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudTemporalProgram.Contract.Identity, () => new PBR.Clouds.CloudTemporalProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudResolveProgram.Contract.Identity, () => new PBR.Clouds.CloudResolveProgram());
         GpuShaderProgramLibraries.Declare(api,"pbr_bloom_local_exposure",
             ()=>new PBR.Postprocessing.BloomShaderProgram { LocalExposureEnabled=true },
             new Contracts.ShaderSettings(PBR.Postprocessing.BloomShaderProgram.Contract).With("VGE_LOCAL_EXPOSURE","true"));

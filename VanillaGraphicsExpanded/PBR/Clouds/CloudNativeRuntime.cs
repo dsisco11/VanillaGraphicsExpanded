@@ -111,7 +111,7 @@ internal sealed class CloudNativeRuntime : IDisposable
     /// <summary>Reserves the complete physical volume response independently of the later native map.</summary>
     internal static float VolumeMaximum(Atmosphere.AtmosphereLighting lighting, float localFogMaximum) =>
         Active is { } current && current.Ownership.Owns(CloudMode.Volumetric)
-            ? CloudVolumeLighting.Maximum(lighting, localFogMaximum, CloudVolumeSettings.Default) : 0;
+            ? CloudVolumeLighting.Maximum(lighting, localFogMaximum, current.volume?.Settings ?? CloudVolumeSettings.Default) : 0;
 
     /// <summary>Removes VGE subscriptions and consumers; native callbacks automatically resume through their draw gates.</summary>
     public void Dispose()

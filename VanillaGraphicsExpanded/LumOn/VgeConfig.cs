@@ -1443,6 +1443,10 @@ public class VgeConfig
     [JsonProperty]
     public PBR.Atmosphere.AtmosphereSettings Atmosphere { get; set; } = new();
 
+    /// <summary>Quality and reference controls for the independently owned cloud renderer.</summary>
+    [JsonProperty]
+    public PBR.Clouds.CloudRenderingSettings Clouds { get; set; } = new();
+
     // ════════════════════════════════════════════════════════════════════════
     // Texture Streaming (PBO)
     // ════════════════════════════════════════════════════════════════════════
@@ -1504,6 +1508,8 @@ public class VgeConfig
         MaterialAtlas.Sanitize();
         Atmosphere ??= new PBR.Atmosphere.AtmosphereSettings();
         Atmosphere.Sanitize();
+        Clouds ??= new PBR.Clouds.CloudRenderingSettings();
+        Clouds.Sanitize();
 
         TextureStreaming ??= new TextureStreamingConfig();
         TextureStreaming.Sanitize();

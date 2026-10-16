@@ -3,6 +3,24 @@
   "file": "VanillaGraphicsExpanded.json",
   "settings": {
     "boolean": {
+      "CLOUD_REFERENCE": {
+        "code": "Clouds.FullResolutionReference",
+        "clientSide": true,
+        "name": "Clouds/FullResolutionReference",
+        "ingui": "vanillagraphicsexpanded:config-cloud-reference",
+        "comment": "vanillagraphicsexpanded:config-cloud-reference-tooltip",
+        "default": false,
+        "weight": 23
+      },
+      "CLOUD_DETAIL": {
+        "code": "Clouds.Detail",
+        "clientSide": true,
+        "name": "Clouds/Detail",
+        "ingui": "vanillagraphicsexpanded:config-cloud-detail",
+        "comment": "vanillagraphicsexpanded:config-cloud-detail-tooltip",
+        "default": true,
+        "weight": 23.1
+      },
       "CAMERA_ENABLED": {
         "code": "CameraExposure.Enabled",
         "clientSide": true,
@@ -185,6 +203,34 @@
       }
     },
     "integer": {
+      "CLOUD_VIEW_SAMPLES": {
+        "code": "Clouds.ViewSamples",
+        "clientSide": true,
+        "name": "Clouds/ViewSamples",
+        "ingui": "vanillagraphicsexpanded:config-cloud-view-samples",
+        "comment": "vanillagraphicsexpanded:config-cloud-view-samples-tooltip",
+        "default": 4,
+        "weight": 23.2,
+        "range": {
+          "min": 1,
+          "max": 16,
+          "step": 1
+        }
+      },
+      "CLOUD_LIGHT_SAMPLES": {
+        "code": "Clouds.LightSamples",
+        "clientSide": true,
+        "name": "Clouds/LightSamples",
+        "ingui": "vanillagraphicsexpanded:config-cloud-light-samples",
+        "comment": "vanillagraphicsexpanded:config-cloud-light-samples-tooltip",
+        "default": 1,
+        "weight": 23.3,
+        "range": {
+          "min": 1,
+          "max": 4,
+          "step": 1
+        }
+      },
       "POST_BLOOMLEVELS": {
         "code": "Postprocessing.BloomLevels",
         "clientSide": true,
@@ -468,6 +514,48 @@
       }
     },
     "float": {
+      "CLOUD_DETAIL_AMPLITUDE": {
+        "code": "Clouds.DetailAmplitude",
+        "clientSide": true,
+        "name": "Clouds/DetailAmplitude",
+        "ingui": "vanillagraphicsexpanded:config-cloud-amplitude",
+        "comment": "vanillagraphicsexpanded:config-cloud-amplitude-tooltip",
+        "default": 0.15,
+        "weight": 23.4,
+        "range": {
+          "min": 0,
+          "max": 0.95,
+          "step": 0.01
+        }
+      },
+      "CLOUD_EDGE_WIDTH": {
+        "code": "Clouds.EdgeWidth",
+        "clientSide": true,
+        "name": "Clouds/EdgeWidth",
+        "ingui": "vanillagraphicsexpanded:config-cloud-edge-width",
+        "comment": "vanillagraphicsexpanded:config-cloud-edge-width-tooltip",
+        "default": 2,
+        "weight": 23.5,
+        "range": {
+          "min": 0.01,
+          "max": 10,
+          "step": 0.01
+        }
+      },
+      "CLOUD_NOISE_SCALE": {
+        "code": "Clouds.NoiseScale",
+        "clientSide": true,
+        "name": "Clouds/NoiseScale",
+        "ingui": "vanillagraphicsexpanded:config-cloud-noise-scale",
+        "comment": "vanillagraphicsexpanded:config-cloud-noise-scale-tooltip",
+        "default": 0.08,
+        "weight": 23.6,
+        "range": {
+          "min": 0.001,
+          "max": 1,
+          "step": 0.001
+        }
+      },
       "POST_BLOOMSTRENGTH": {
         "code": "Postprocessing.BloomStrength",
         "clientSide": true,

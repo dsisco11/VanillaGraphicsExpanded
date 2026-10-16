@@ -5,7 +5,7 @@ Authority and scope
   Source: docs/PBR.VolumetricClouds.Proposal.md (approved 2026-10-16).
   Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
   Atmospheric contract: docs/PBR.Atmosphere.Publication.md.
-  This checklist records delivered rendering increments below; temporal rendering and final acceptance remain outstanding.
+  This checklist records delivered rendering increments below; integration qualification and final acceptance remain outstanding.
   The proposal governs scope; keep every task unchecked until its stated evidence exists.
   Preserve Off / Simple / Volumetric settings and both standalone PBR and PBR + LumOn operation.
   Retain native weather, geometry and column-map production; VGE owns visible shaders and lighting.
@@ -155,23 +155,27 @@ Phase 4: Deliver full-resolution volumetric reference transport
 
 Phase 5: Deliver half-resolution temporal rendering
   Depends on Phase 4. Outcome: the approved default reconstructs the same OIT transport contract.
-  ☐ Trace at half view width and height with bounded size/format allocation.
+  ✔ Trace at half view width and height with bounded size/format allocation.
     - Preserve required bucket/revealage and depth metadata, finite HDR radiance and dimensionless
       attenuation. Do not reconstruct only a flattened color layer.
-  ☐ Implement temporal reconstruction and depth-aware full-resolution upsampling.
+  ✔ Implement temporal reconstruction and depth-aware full-resolution upsampling.
     - Account for camera and native cloud motion; distinguish recentering from actual advection.
     - Reject/bound incompatible history for disocclusion, weather/lighting transitions, grid replacement,
       resize, reload, mode/enable changes, unavailable input and world changes.
     - Do not use texture-handle equality as history validity or reuse main-view history in reflections.
     - Preserve foreground silhouettes, liquid clipping, celestial occlusion and OIT composition.
-  ☐ Expose the approved default and full-resolution history-free reference using existing settings/tools.
+  ✔ Expose the approved default and full-resolution history-free reference using existing settings/tools.
     - Both use identical density/lighting/OIT semantics; reference bypasses reduced-resolution and
       temporal operations. Keep Simple outside this path. Bound sample/detail controls.
-  ☐ Compare deterministic small scenes against the reference and verify history reset/reprojection.
+  ✔ Compare deterministic small scenes against the reference and verify history reset/reprojection.
     - Cover static convergence, motion, newly exposed geometry, thin columns, weather/light changes,
       mixed-depth transparency, resize and missing input; record precision tolerances and residuals.
-  ☐ Completion: half-resolution temporal rendering is the default and reference comparison is
+  ✔ Completion: half-resolution temporal rendering is the default and reference comparison is
     available; correctness receipts distinguish temporal approximations from base transport errors.
+
+    - Completed 2026-10-16 after implementation, second review and independent audit-stage-completion
+      against the approved proposal, atmosphere publication, parent scope and inherited OIT/lifecycle
+      contracts. See Phase 5 implementation and verification below; later acceptance remains open.
 
 Phase 6: Qualify lifecycle and complete integration
   Depends on Phases 3–5. Outcome: the combined feature preserves settings, ownership and scene contracts.
@@ -624,7 +628,7 @@ Phase 4 implementation and verification (2026-10-16)
       .15, inward softness 2 world units and approximately .08 noise cells/world unit. The periodic
       material lattice uses integer frequency over 12,800 world units for recenter/wind consistency.
       Detail-disabled transport uses exact constant-column extinction. Typed controls are present;
-      exposing reference/default and sample/detail controls through existing tools remains Phase 5.
+      reference/default and sample/detail settings exposure is recorded under Phase 5.
     - Directional phase is HG(g=.6); the extra octave uses isotropic phase with .5 contribution and
       .5 occlusion. Solar and lunar secondary rays share the view density. View transmission ends
       below 1e-6; light saturation accounts for both single and extra-octave transmission, including
@@ -668,6 +672,139 @@ Phase 4 implementation and verification (2026-10-16)
       retains its gate across missing maps/reload and unregisters itself exactly once on release.
     - Independent audit reconciled every task with the controlling documents and final evidence.
       No required findings remain for this reference increment. Directional reflection integration
-      remains the recorded existing dependency; temporal/default delivery, in-game lifecycle/visual
-      qualification, measured performance and parent acceptance remain unchecked. No game launch,
+      remains the recorded existing dependency; temporal/default delivery and in-game lifecycle/visual
+      qualification were outside this reference increment. Current acceptance state is recorded in
+      the later phases; measured performance and parent acceptance remain unchecked. No game launch,
       installed asset edit, cast-shadow implementation or performance acceptance claim occurred.
+
+Phase 5 implementation and verification (2026-10-16)
+  Task-to-document and implementation traceability
+    - Reduced targets -> Proposal / Quality and temporal behavior, Ownership boundary;
+      Phase 1 / OIT and temporal payload contract -> CloudVolumeSurface, CloudVolumeReconstruction,
+      CloudTraceProgram and cloud_volume_trace.fsh. Ceil-half extents cover odd view dimensions.
+      Each of three persistent sets holds FP32 RGB bin revealage, scalar overall revealage, RGBA
+      glow metadata, three RGBA accumulations and RGBA first/last contributing depth plus native
+      opaque/liquid depth. Replacement writes preserve neutral empty pixels; internal passes do
+      not blend against or sample the live engine OIT targets. Pipelines/images persist between
+      frames and are retired on resize/reload/disposal. The view is bounded to 16,384 per dimension
+      and nominal total image allocation to 1 GiB before allocation. Nominal texel storage is
+      288 bytes per reduced pixel across trace and two history sets; this is calculated allocation,
+      not measured resident memory. Native producer and other resources are additional costs.
+    - History/reprojection -> Proposal / Quality and temporal behavior, Publication and native
+      lifecycle; Phase 1 / borrowed input and temporal payload -> CloudTemporalHistory,
+      CloudTemporalParameters, CloudTemporalProgram and cloud_volume_temporal.fsh. Weak producer
+      identity plus world/allocation/shader/content certificates, exact view extent/projection,
+      camera cuts/frame continuity, calibration, settings, medium and completed light publication
+      admit history. Native placement differences remove integer recentering and committed wind;
+      residual wind already exists in placement. This matches the actual trace origin without
+      adding a second camera/wind translation. Current inverse view and retained previous view-
+      projection handle camera rotation. Rotating two-by-two phases select exact view pixels;
+      phase-aware nearest history selection accounts for the prior phase and odd trailing tiles.
+      Missing input, bypass, reload, resize and release withdraw history. No reflection view uses it.
+      Native worker source confirms raw uploads on completed worker commits with a 40-ms sleep:
+      upload identity must be monotonic, but a routine upload alone does not discard convergence.
+      Current depth/support and optical-change rejection plus neighborhood bounds handle weather.
+    - Reconstruction/composition -> Proposal / Scene integration, Density integration and lighting;
+      Atmosphere.Publication / Atmospheric transport and Publication contract; Phase 1 / OIT and
+      temporal payload -> CloudResolveProgram, cloud_volume_resolve.fsh and shared transport/
+      visibility includes. Every accepted sample uses common weights for all six payload channels,
+      including weighted alpha and attenuation. History radiance remains physical FP32; only final
+      accumulated RGB receives the frozen scene encoding. No alpha/reveal/depth exposure or second
+      premultiplication is applied. Shared integration keeps density, self-shadowing, one extra
+      scattering octave and aerial/local fog identical to the direct reference. Full-view density-
+      only validation checks current coverage, all bins and both native clips. Rejected pixels run
+      the common exact reference integration, preserving thin columns and foreground/liquid edges.
+      Final submission uses existing Reveal/Reveal/Glow/Add/Add/Add blending and native resolve.
+      No new producer, atmosphere integration, native hook, reflection or cast-shadow path is added.
+    - Controls -> Proposal / Quality and temporal behavior, Simple cloud rendering; parent
+      BaselineShading / Scope and shared contracts -> CloudRenderingSettings, VgeConfig.Clouds,
+      existing ConfigLib mappings and English labels. Clouds.FullResolutionReference defaults false;
+      setting it true bypasses reduced tracing/history/upsampling and invalidates retained history.
+      ViewSamples (1..16), LightSamples (1..4), Detail, DetailAmplitude (0..0.95), EdgeWidth (.01..10)
+      and NoiseScale (.001..1) use identical immutable selections for reference/default and source
+      admission before Opaque. Nonfinite persisted values restore bounded defaults. Simple has no
+      dependency on these passes. Permanent architecture documentation remains the later cleanup task.
+    - Verification -> Proposal / Acceptance and implementation qualification; Phase 5 / deterministic
+      reference/reset comparison -> CloudTemporalHistoryTests and GPU/CloudVolumeReconstructionTests,
+      alongside existing analytic CloudVolumeDrawTests and cloud/native/scene regressions. Tiny views
+      exercise real owned shader binaries and native six-target blending. These comparisons measure
+      reconstruction error against the same transport model; independent analytic transport checks
+      remain separate. Live appearance, complete lifecycle qualification and measured performance
+      remain later acceptance requirements.
+
+  Implementation parameters and review
+    - Temporal weight is .75, with one shared acceptance decision for the entire payload. First/last
+      support compatibility allows max(2 world units, 2% representative distance), extent difference
+      max(2 world units, 5% thickness), and native depth difference <=2e-5. Overall/bin transmission
+      jumps >.05 reject history; previous channels are clamped to a compatible 3x3 current neighborhood.
+      Invalid/nonfinite/negative previous channels reject the entire record. Static accepted history
+      residual decays by .75 per update; it is bounded accumulation, not an unlimited previous layer.
+    - Four-tap phase-aware upsampling accepts support differences <=max(2 world units, 1% far depth),
+      native depth differences <=2e-5 and each overall/bin transmission difference <=.02. All channels
+      share normalized accepted weights. Current clear pixels remain clear. When no spatial sample is
+      accepted, the pixel runs full-resolution common transport. Density validation and fallback
+      are intentional costs; neither quarter-area lighting traces nor reconstruction establish speedup.
+    - Numerical comparison tolerances are .021 absolute for overall/bin attenuation and .045 for
+      other payload error divided by max(1, environment*frameScale). CPU/observable temporal probes
+      use 1e-5 attenuation/alpha and 1e-4 accumulated-RGB tolerances. Measured residuals and final
+      receipts are recorded below. No game launch or performance acceptance occurred.
+    - Second source review reconciled native placement, rotating sample phase, resource retirement,
+      source admission and linked-document requirements. The separate completion audit revisited
+      native worker cadence and corrected unconditional upload resets: ordinary monotonic weather
+      commits retain only depth/transport-compatible bounded history, while lifecycle changes reset it.
+
+  Focused evidence (subagent-run)
+    - Fresh baseline: Debug mod build passed with 0 errors and 15 existing nullable/obsolete warnings;
+      107 Cloud tests passed, 0 failed/skipped (cloud-phase5-baseline.trx). Installed 1.22.7
+      VSEssentials.dll SHA256 was rechecked and remains the Phase 1 value. Native worker/upload and
+      camera-relative placement excerpts match that binary and the retained producer contract.
+    - Build environment/command match prior receipts: NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages,
+      MSBUILDDISABLENODEREUSE=1; dotnet build -c Debug --tl:off -v:minimal
+      VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj -p:NuGetAudit=false --ignore-failed-sources.
+      Reviewed Debug build passed, 0 errors/15 existing warnings, 17.79 seconds. The final test build
+      compiled the corrected CPU/shader policy with no new cloud diagnostics. Production 457 and
+      test 535 unique shader variants are current; three new fragment stages share the procedural
+      volume vertex source through their own dedicated program contracts/catalog registration.
+    - Final broad command: dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj
+      -c Debug --tl:off -v:minimal -p:NuGetAudit=false --filter <one quoted filter below>
+      --logger "trx;LogFileName=cloud-phase5-final.trx". Filter: FullyQualifiedName~Cloud plus
+      VgeFrameRendererTests, ShaderStageSelectionTests, SceneColor, AtmosphereAmbientPublicationTests,
+      AtmosphereProgramBindingsTests, AtmospherePublicationTests, LiquidBlendPolicyTests,
+      LiquidTransparencyTests, LiquidRenderHookTests and LiquidDrawTransformTests joined with |.
+      Passed 356/356, 0 failed/skipped, 5m01s. Receipt:
+      VanillaGraphicsExpanded.Tests/TestResults/cloud-phase5-final.trx.
+    - This final receipt contains all 27 GPU reconstruction cases and 15 CPU history/control cases,
+      including the final upload/weather policy. Intermediate cloud-phase5-reviewed.trx (141 tests)
+      and cloud-phase5-audited.trx (148 tests) precede final policy correction; their overlapping
+      evidence is superseded where affected. Counts must not be summed. No additional run is needed
+      after source-only region grouping and planning-document edits.
+    - Actual GPU cases cover static, thin extinction, thin vertical envelopes, default density detail,
+      solar/lunar lighting, camera translation/rotation, native motion, weather/lighting transitions,
+      terrain, liquid, odd views, newly occluded/exposed pixels and missing/empty cloud contributions.
+      Seeded ordinary native surface payloads at before/within/behind depths verify existing OIT
+      composition. Every pass checks state restoration. Persistent images/pipelines are reused and
+      every owned attachment/framebuffer is retired on replacement/disposal fixtures. CPU tests
+      cover owner/world/allocation/shader/content rollback, resize/cuts, settings/medium/lighting/
+      calibration changes, missing input and camera/wind/recentering with monotonic weather commits.
+    - Maximum measured overall/bin attenuation residual was .01938590 (motion); maximum other-payload
+      error / max(1, environment*frameScale) was .01939387 (motion), within .021/.045 tolerances.
+      Representative attenuation/normalized-payload residuals: static .007073492/.007238674;
+      thin .001068652/.000093496; thin height .006525278/.006229281;
+      detail .01527733/.01572595; camera .01671702/.01668992;
+      rotation .006399125/.006548596; weather/lighting .006727755/.006883812;
+      terrain/mixed .01226491/.01375344; liquid .007101864/.01299581;
+      lit .007073492/.01330194; odd .006545514/.006698275.
+      Before/within/behind surface residuals were <=.006444395/.007238674.
+    - Observable synthetic history verifies the shared .75 weight: current .4 and compatible old .42
+      produce .415 for attenuation/alpha and matching RGB weights. Invalid/depth/nonfinite/motion/
+      rapid-weather records retain current .4. Eight accepted static updates leave .002002245 residual
+      against analytic .02*.75^8=.002002258. Exposure changes do not rescale physical history; RGB
+      encoding changes only at final submission. These fixtures establish bounded reconstruction
+      behavior, not converged physical light transport, live visual quality or measured performance.
+    - The independent audit directly revisited linked sources and rechecked final worker-cadence,
+      motion/phase, resource and OIT/storage requirements against source and final receipts. Required
+      findings are resolved; no evidence gaps remain for this rendering increment. Full in-game
+      lifecycle/integration qualification, directional reflection dependency, permanent documentation,
+      user visual acceptance, hardware/resolution budgets and measured GPU/CPU/memory costs remain
+      under Phases 6-7. No game launch, installed shader edit, cast-shadow implementation or parent
+      completion claim occurred. The parent baseline cloud task remains open.

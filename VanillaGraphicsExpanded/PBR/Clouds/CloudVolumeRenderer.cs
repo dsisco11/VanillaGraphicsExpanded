@@ -14,7 +14,7 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
-/// <summary>Draws history-free reference transport at the native volume order; never advances native weather.</summary>
+/// <summary>Draws reconstructed or reference transport at the native volume order; never advances native weather.</summary>
 internal sealed class CloudVolumeRenderer : IRenderer
 {
     internal static readonly VertexLayoutDesc Layout = new([]);
@@ -22,6 +22,8 @@ internal sealed class CloudVolumeRenderer : IRenderer
     private readonly CloudNativeRuntime runtime;
     private readonly GraphicsPipelineLifetime lifetime = new();
     private readonly Action unregisterResize;
+    private readonly CloudVolumeReconstruction reconstruction;
+    private bool reference;
     private ArrayGraphicsGeometry? geometry;
     private GpuFramebuffer? target;
     private GraphicsPipeline? pipeline;
@@ -29,6 +31,9 @@ internal sealed class CloudVolumeRenderer : IRenderer
     private bool failed, disposed;
 
     #region Public API
+    #region Preparation and admission
+    /// <summary>Retains the exact bounded quality admitted before the scene lighting scale is frozen.</summary>
+    internal CloudVolumeSettings Settings { get; private set; } = CloudVolumeSettings.Default;
     /// <summary>Consumes native generation at .30 before the later Simple callback.</summary>
     public double RenderOrder => .31;
     /// <summary>Clouds are independent of visible terrain chunks.</summary>
@@ -37,39 +42,44 @@ internal sealed class CloudVolumeRenderer : IRenderer
     internal CloudVolumeRenderer(ICoreClientAPI api, CloudNativeRuntime runtime)
     {
         this.api = api; this.runtime = runtime;
+        reconstruction = new(api);
         unregisterResize = ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder, Reset);
     }
     /// <summary>Admits the dedicated executable and procedural geometry before visible ownership.</summary>
     internal bool Prepare()
     {
         if (disposed || failed || AtmosphereModSystem.Lighting is null || !GpuUniformRingSystem.TryGetCurrent(out _)) return false;
+        Settings = ConfigModSystem.Config.Clouds.Capture();
+        reference = ConfigModSystem.Config.Clouds.FullResolutionReference;
         program = GpuShaderProgramLibraries.Get<CloudVolumeProgram>(api, "cloud_volume");
-        if (program?.EnsureReady() != true) return false;
+        if (program?.EnsureReady() != true || (!reference && !reconstruction.Prepare())) return false;
         geometry ??= new(Layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         return true;
     }
+    #endregion
+    #region Submission
     /// <summary>Samples only the certified same-frame map and the main view's explicit depth/target contract.</summary>
     public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
     {
         runtime.Update();
         if (disposed || failed || stage != EnumRenderStage.OIT || !runtime.Ownership.Owns(CloudMode.Volumetric)
-            || program is null || geometry is null || !runtime.TryGetMap(out var input)) return;
+            || program is null || geometry is null || !runtime.TryGetMap(out var input)) { reconstruction.Invalidate(); return; }
         var render = api.Render;
         var buffers = render.FrameBuffers;
         if (render.FrameWidth <= 0 || render.FrameHeight <= 0 || buffers.Count <= (int)EnumFrameBuffer.Transparent
-            || buffers.Count <= (int)EnumFrameBuffer.Primary || buffers.Count <= (int)EnumFrameBuffer.LiquidDepth) return;
+            || buffers.Count <= (int)EnumFrameBuffer.Primary || buffers.Count <= (int)EnumFrameBuffer.LiquidDepth) { reconstruction.Invalidate(); return; }
         var transparent = buffers[(int)EnumFrameBuffer.Transparent];
         var primary = buffers[(int)EnumFrameBuffer.Primary]; var liquid = buffers[(int)EnumFrameBuffer.LiquidDepth];
         if (transparent is null || primary is null || liquid is null || primary.DepthTextureId == 0 || liquid.DepthTextureId == 0
-            || render.CurrentRenderStage != EnumRenderStage.OIT || render.CurrentFrameBuffer?.FboId != transparent.FboId) return;
+            || render.CurrentRenderStage != EnumRenderStage.OIT || render.CurrentFrameBuffer?.FboId != transparent.FboId) { reconstruction.Invalidate(); return; }
         var lighting = AtmosphereModSystem.Lighting;
-        if (lighting is null || AtmosphereModSystem.AerialRadianceTexture is null || AtmosphereModSystem.AerialAttenuationTexture is null) return;
+        if (lighting is null || AtmosphereModSystem.AerialRadianceTexture is null || AtmosphereModSystem.AerialAttenuationTexture is null) { reconstruction.Invalidate(); return; }
         try
         {
             // Environmental response is already included in the immutable atmosphere publication.
             // No directional reflection consumer exists here: never substitute main-view depth for it.
             SceneLightingPublicationRenderer.RequireNativeInputs("cloud_volume");
-            program.Parameters.Capture(api, input, lighting, CloudVolumeSettings.Default);
+            program.Parameters.Capture(api, input, lighting, Settings);
             program.Map = input.Storage.Map; program.SceneDepth = primary.DepthTextureId; program.LiquidDepth = liquid.DepthTextureId;
             program.AerialRadiance = AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuation = AtmosphereModSystem.AerialAttenuationTexture;
@@ -81,6 +91,13 @@ internal sealed class CloudVolumeRenderer : IRenderer
                 catch { replacement.Dispose(); throw; }
                 target?.Dispose(); target = replacement;
             }
+            if (!reference)
+            {
+                reconstruction.Draw(input, lighting, Settings, target, primary.DepthTextureId, liquid.DepthTextureId, geometry,
+                    () => runtime.TryGetMap(out var current) && current == input);
+                return;
+            }
+            reconstruction.Invalidate();
             var pass = new RenderPassDesc(target, LiquidPipelineStates.SurfaceOutputs);
             using var metadata = new RenderPassTargets(pass);
             var description = new GraphicsPipelineDesc(program.GraphicsIdentity!, Layout, metadata.Signature,
@@ -101,23 +118,26 @@ internal sealed class CloudVolumeRenderer : IRenderer
         }
         catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
-            failed = true;
+            reconstruction.Invalidate(); failed = true;
             api.Logger.Error("[VGE] Volumetric cloud drawing disabled until reload/reset; native drawing remains suppressed. {0}", error);
         }
     }
+    #endregion
+    #region Resource lifecycle
     /// <summary>Expires owned pipeline and borrowed framebuffer metadata without touching native texture storage.</summary>
     internal void Reset()
     {
         failed = false; program = null;
-        RenderingCleanup.Run(() => { pipeline?.Dispose(); pipeline = null; }, () => { target?.Dispose(); target = null; });
+        RenderingCleanup.Run(reconstruction.Reset, () => { pipeline?.Dispose(); pipeline = null; }, () => { target?.Dispose(); target = null; });
     }
     /// <summary>Withdraws the independent draw before retiring VGE-only resources.</summary>
     public void Dispose()
     {
         if (disposed) return; disposed = true;
         api.Event.UnregisterRenderer(this, EnumRenderStage.OIT); unregisterResize();
-        RenderingCleanup.Run(Reset, () => { geometry?.Dispose(); geometry = null; }, lifetime.Dispose);
+        RenderingCleanup.Run(Reset, reconstruction.Dispose, () => { geometry?.Dispose(); geometry = null; }, lifetime.Dispose);
     }
+    #endregion
     #endregion
 }
 
