@@ -44,6 +44,8 @@
   "config-water-refraction": "Water Refraction",
   "config-water-refraction-tooltip": "Enable water background refraction. Disabling releases refraction-only snapshots and retains straight-through water transmission. Water lighting, waves and medium effects remain active.",
   "config-section-water": "Water Settings",
+  "config-shading-quality": "Shading quality",
+  "config-shading-quality-tooltip": "Shared shading quality: 0 = low, 1 = medium, 2 = high, 3 = very high (default). Currently selects a 16, 32, 64 or 128 pixel material-energy lookup. Changes apply without a restart; sky and water quality are independent.",
   "config-water-quality": "Water Quality",
   "config-water-quality-tooltip": "0 = pixel-normal offset, 1 = ray marching x2, 2 = ray marching x4, 3 = ray marching x8 (default). Pixel-normal offset distorts the background using wave detail without bending it across flat water. Ray marching follows visible background geometry within the selected sample budget. Background resolution is selected independently; no restart is required.",
   "config-water-background-resolution": "Water background resolution",

@@ -14,6 +14,7 @@ internal sealed class RuntimeLightingHost : IDisposable
     private readonly LumOnModSystem lighting;
     private readonly VanillaGraphicsExpanded.Rendering.VgeFrameRenderer frameCamera;
     private readonly VanillaGraphicsExpanded.Rendering.VgeLightsRenderer lights;
+    private readonly RuntimeLightingFramePublication framePublication;
     private readonly VanillaGraphicsExpanded.Rendering.DepthHierarchyRenderer hierarchy;
     private readonly WorldProbeModSystem world;
     private readonly DirectLightingBufferManager direct;
@@ -36,6 +37,7 @@ internal sealed class RuntimeLightingHost : IDisposable
         CameraWorld = new(RuntimeEngineServices.CameraPlayer(camera));
         frameCamera = new(RuntimeEngineServices.Client(api, api.Event, CameraWorld.World, api.Render, api.Shader));
         lights = new(api);
+        framePublication=new(api);
         hierarchy = new(api);
         lighting = new(() => cache.Config, _ => camera(), (_, materials) => cache.CreateSource(materials));
         int resolution = cache.Config.WorldProbeClipmap.ClipmapResolution;
@@ -63,7 +65,7 @@ internal sealed class RuntimeLightingHost : IDisposable
     public void Dispose()
     {
         compositeRenderer?.Dispose(); directRenderer?.Dispose();
-        world.Dispose(); lighting.Dispose(); hierarchy.Dispose(); direct.Dispose(); frameCamera.Dispose(); lights.Dispose();
+        world.Dispose(); lighting.Dispose(); hierarchy.Dispose(); direct.Dispose(); framePublication.Dispose(); frameCamera.Dispose(); lights.Dispose();
     }
     #endregion
 }

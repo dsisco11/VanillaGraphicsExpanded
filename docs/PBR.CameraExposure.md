@@ -90,12 +90,21 @@ scene display endpoint.
 ### Physical-light storage support
 
 The camera owner also provides `FreezeLightingStorage` for calibrated scene producers. It
-requires the current frame and completed point-light publication, admits an outward physical
-component bound, and dispatches `pbr_frame_lighting` once before the first consuming draw.
-The retained 32-byte SSBO contains P, 1/P, the physical bound, validity and frame/calibration
+requires the current frame and completed point-light publication, validates finite physical
+source-envelope metadata, and dispatches `pbr_frame_lighting` once before the first consuming draw.
+The retained 32-byte SSBO contains P, 1/P, the source estimate, validity and frame/calibration
 identities. The automatic seed reads the previous completed EV buffer; startup, camera cuts
 and manual mode use the bounded manual seed. Subsequent metering writes a separate exposure
 buffer and leaves the frozen scale unchanged. Initial freezing after metering is rejected.
+
+Storage follows the selected camera multiplier, floored at 7.147944e-6 with finite reciprocal
+and conversion arithmetic. It is not forced to the persistent C=1/16 scale or reduced by an
+estimated extreme specular peak. A separate bright highlight therefore cannot lower the
+encoding scale of faint pixels. Format-specific scene clamps contain exceptional values;
+these may clip and lose highlight energy. Source metadata continues to enforce publication
+coherence but does not guarantee an unclipped image. Persistent cache/history invalidity
+and rejection remain strict. See
+[the highlight containment contract](PBR.MicrofacetStorage.Evaluation.md#approved-highlight-policy).
 
 Physical consumers explicitly adopt `IPhotometricFrameBindings`. Sun, sky, block, punctual
 and material-emission sources are calibrated. Connected transport, scene storage, metering

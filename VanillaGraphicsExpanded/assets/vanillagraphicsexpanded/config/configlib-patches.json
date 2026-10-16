@@ -213,6 +213,16 @@
           64
         ]
       },
+      "SHADING_QUALITY": {
+        "code": "ShadingQuality",
+        "clientSide": true,
+        "name": "ShadingQuality",
+        "ingui": "vanillagraphicsexpanded:config-shading-quality",
+        "comment": "vanillagraphicsexpanded:config-shading-quality-tooltip",
+        "default": 3,
+        "weight": 0.2,
+        "values": [0, 1, 2, 3]
+      },
       "WATER_REFRACTION_QUALITY": {
         "code": "WaterRefractionQuality",
         "clientSide": true,

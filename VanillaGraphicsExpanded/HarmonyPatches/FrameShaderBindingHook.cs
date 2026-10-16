@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.HarmonyPatches;
 /// <summary>Restores the universal frame and light publications for engine-owned programs importing VGE shared data.</summary>
 internal static class FrameShaderBindingHook
 {
-    private static readonly Dictionary<int, (bool Frame, bool Lights, bool Storage)> consumers = new();
+    private static readonly Dictionary<int, (bool Frame, bool Lights, bool Storage, bool Energy)> consumers = new();
 
     #region Public API
     /// <summary>Routes engine program use through the shared snapshots without making ownership effect-specific.</summary>
@@ -37,10 +37,11 @@ internal static class FrameShaderBindingHook
         {
             membership = (GL.GetUniformBlockIndex(program, "VgeFrameUBO") >= 0,
                 GL.GetUniformBlockIndex(program, "VgeLightsUBO") >= 0,
-                GL.GetProgramResourceIndex(program, ProgramInterface.ShaderStorageBlock, "FrozenFrameLighting") >= 0);
+                GL.GetProgramResourceIndex(program, ProgramInterface.ShaderStorageBlock, "FrozenFrameLighting") >= 0,
+                GL.GetUniformLocation(program, "vge_microfacetEnergy") >= 0);
             consumers.Add(program, membership);
         }
-        if (!membership.Frame && !membership.Lights && !membership.Storage) return;
+        if (!membership.Frame && !membership.Lights && !membership.Storage && !membership.Energy) return;
         if (membership.Storage)
         {
             var api = VgeFrameRenderer.ActiveApi;
@@ -70,6 +71,11 @@ internal static class FrameShaderBindingHook
             throw new InvalidOperationException("The engine camera consumer could not bind its shared frame snapshot.");
         if (membership.Lights && !VgeLightsRenderer.Current.TryBindToSlot(GpuBindingRegistry.Ubo.Lights))
             throw new InvalidOperationException("The engine light consumer could not bind its shared light snapshot.");
+        if (membership.Energy)
+        {
+            PBR.Materials.Energy.MicrofacetEnergyLookup.Prepare().Bind(GpuBindingRegistry.Sampler.MicrofacetEnergy);
+            GpuSamplers.LinearClamp.Bind(GpuBindingRegistry.Sampler.MicrofacetEnergy);
+        }
     }
     #endregion
 }

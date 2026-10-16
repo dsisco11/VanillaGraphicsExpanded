@@ -3,6 +3,7 @@
 @import "./pbr_scene_storage.glsl"
 @import "./pbr_finite_disk_brdf.glsl"
 @import "./pbr_photometric.glsl"
+@import "./pbr_microfacet_energy.glsl"
 
 
 
@@ -50,13 +51,19 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     float roughness = clamp(material.r, .04, 1.0);
     bool underwater = cameraUnderwater > .7;
     float cosine = clamp(dot(N, V), 0.0, 1.0);
-    float fresnel = water ? VgeLiquidFresnel(cosine, underwater) : fresnelSchlick(cosine, vec3(.04)).r;
-    vec3 F0 = vec3(water ? .02037 : .04);
+    float metallic = water ? 0.0 : clamp(material.g,0.0,1.0);
+    vec3 F0 = water ? vec3(.02037) : mix(vec3(.04),tint,metallic);
+    VgeLobeEnergy energy = VgeEvaluateMicrofacetEnergy(F0,roughness,cosine);
+    if(!energy.valid) return vec4(0);
+    vec3 surfaceBudget = vec3(1)-energy.reflectance;
+    // Retain exact underwater total internal reflection; rough-interface transmission uses the shared lobe budget.
+    float fresnel = energy.reflectance.r;
+    if(water && underwater && VgeLiquidFresnel(cosine,true)>=1.0) { fresnel=1.0; surfaceBudget=vec3(0); }
     vec3 L = normalize(vge_atmosphereSunDirection);
     vec3 solar = max(vge_atmosphereSolar, vec3(0)) * vge_skyVisibility * VgeLiquidVisibility();
     vec3 reflected = VgeFiniteDiskSpecularBRDF(N, V, L, F0, roughness,
         liquidSun.w > 0.0 ? liquidSun.w : VGE_SOLAR_ANGULAR_RADIUS)
-        * solar * max(dot(N,L), 0.0);
+        * energy.compensation * solar * max(dot(N,L), 0.0);
 #if VGE_LIQUID_CAPTURE_MODE == 1
     // The GPU test captures this direct-sun term before medium and OIT composition.
     return vec4(liquidMediumControl.w > .5 ? VgeStoreSceneLighting(reflected)
@@ -97,7 +104,7 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
         refractedSource = solar * VgeWaterPhase(-L, waterOutgoing, medium.anisotropy)
             + max(bodyLight, vec3(0)) * .25;
     }
-    vec3 diffuse = tint * solar * max(dot(N,L), 0.0) / 3.14159265359;
+    vec3 diffuse = surfaceBudget*(1.0-metallic)*tint*solar*max(dot(N,L),0.0)/3.14159265359;
 #if DYNLIGHTS > 0
     for (int i = 0; i < min(pointLightQuantity, DYNLIGHTS); ++i)
     {
@@ -110,12 +117,13 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
             mediumSource += max(light, vec3(0)) * VgeWaterPhase(-direction, V, medium.anisotropy);
         if (refractedSourceNeeded)
             refractedSource += max(light, vec3(0)) * VgeWaterPhase(-direction, waterOutgoing, medium.anisotropy);
-        reflected += cookTorranceBRDF(N,V,direction,F0,roughness) * light * max(dot(N,direction),0.0);
-        diffuse += tint * VgeDiffuseIncident(light) * max(dot(N,direction),0.0);
+        reflected += cookTorranceBRDF(N,V,direction,F0,roughness)*energy.compensation*light*max(dot(N,direction),0.0);
+        diffuse += surfaceBudget*(1.0-metallic)*tint*VgeDiffuseIncident(light)*max(dot(N,direction),0.0);
     }
 #endif
     // Environment reflection is intentionally local and bounded: no active framebuffer feedback or SSR holes.
-    reflected += max(vge_atmosphereEnvironment, vec3(0)) * vge_skyVisibility * fresnel * (1.0 - .5 * roughness);
+    vec3 environmentReflectance = water && fresnel>=1.0 ? vec3(1) : energy.reflectance;
+    reflected += max(vge_atmosphereEnvironment,vec3(0))*vge_skyVisibility*environmentReflectance;
     float alpha = 1.0;
     vec3 radiance = vec3(0);
     vec3 refractedRadiance = vec3(0);
@@ -152,7 +160,7 @@ vec4 VgeLiquidSurface(vec4 textureColor, vec4 material, bool lava, bool fullAlph
     else
     {
         // Milk/dyes/oil and emissive lava retain distinct opaque body response; no water absorption is inferred.
-        radiance = reflected + diffuse + tint * bodyLight + VgeEmissionLuminance(tint, emission);
+        radiance = reflected + diffuse + surfaceBudget*(1.0-metallic)*tint*bodyLight + VgeEmissionLuminance(tint, emission);
     }
     // Fade premultiplied color and coverage together. The residual original background
     // is exactly (1-confidence)*(1-fallbackAlpha), rather than adding it to a complete refracted source.

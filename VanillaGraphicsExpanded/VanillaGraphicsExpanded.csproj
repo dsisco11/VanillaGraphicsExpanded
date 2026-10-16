@@ -20,7 +20,23 @@
   <!-- Expose internal types to test project -->
   <ItemGroup>
     <InternalsVisibleTo Include="VanillaGraphicsExpanded.Tests" />
+    <EmbeddedResource Include="PBR/Materials/Energy/ggx-energy.bin" LogicalName="VGE.MicrofacetEnergy" />
   </ItemGroup>
+
+  <!-- Generate only absent source data, before resource discovery. Existing assets are never refreshed by timestamps. -->
+  <Target Name="GenerateMissingMicrofacetEnergy"
+          BeforeTargets="PrepareForBuild"
+          Condition="'$(DesignTimeBuild)' != 'true' And !Exists('$(MSBuildProjectDirectory)/PBR/Materials/Energy/ggx-energy.bin')">
+    <PropertyGroup>
+      <_GeneratedMicrofacetEnergy>$(IntermediateOutputPath)ggx-energy.generated.bin</_GeneratedMicrofacetEnergy>
+    </PropertyGroup>
+    <MakeDir Directories="$(IntermediateOutputPath);$(MSBuildProjectDirectory)/PBR/Materials/Energy" />
+    <Message Importance="high" Text="[MicrofacetEnergy] Generating missing ggx-energy.bin..." />
+    <!-- Publish only a complete result; failed generation leaves the source asset absent for the next build. -->
+    <Exec WorkingDirectory="$(MSBuildProjectDirectory)"
+          Command="dotnet run --project &quot;$(MSBuildProjectDirectory)/../tools/MicrofacetEnergy/MicrofacetEnergy.csproj&quot; --configuration &quot;$(Configuration)&quot; --verbosity quiet -- &quot;$(_GeneratedMicrofacetEnergy)&quot;" />
+    <Move SourceFiles="$(_GeneratedMicrofacetEnergy)" DestinationFiles="$(MSBuildProjectDirectory)/PBR/Materials/Energy/ggx-energy.bin" />
+  </Target>
 
   <ItemGroup>
     <Reference Include="VintagestoryAPI">

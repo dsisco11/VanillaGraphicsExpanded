@@ -4,10 +4,11 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.PBR;
 
 /// <summary>Declares the GPU binding contract for PBRDirectLightingShaderProgram.</summary>
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.Materials.Energy.IMicrofacetEnergyBindings), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
 [ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
-internal interface IPBRDirectLightingShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings
+internal interface IPBRDirectLightingShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings, VanillaGraphicsExpanded.PBR.Materials.Energy.IMicrofacetEnergyBindings
 {
     #region Public API
     /// <summary>Supplies the shared dynamic-light list without effect-specific copies.</summary>

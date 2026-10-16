@@ -1405,6 +1405,10 @@ public class VgeConfig
     [JsonProperty]
     public PBR.Postprocessing.PostprocessSettings Postprocessing { get; set; } = new();
 
+    /// <summary>Selects the shared shading-quality level from zero through three, independently of sky and water quality.</summary>
+    [JsonProperty]
+    public int ShadingQuality { get; set; } = PBR.ShadingQuality.Default;
+
     /// <summary>Enables bounded screen-space water refraction and optional opaque snapshots.</summary>
     [JsonProperty]
     public bool WaterRefractionEnabled { get; set; } = false;
@@ -1486,6 +1490,7 @@ public class VgeConfig
         CameraExposure ??= new();
         Postprocessing ??= new();
         Postprocessing.LocalExposure ??= new();
+        ShadingQuality = PBR.ShadingQuality.Normalize(ShadingQuality);
         // Preserve the saved enable flag while restoring unsupported quality/resolution values to defaults.
         if (WaterRefractionQuality is < 0 or > 3) WaterRefractionQuality = 3;
         if (WaterRefractionBackgroundScale is not (1 or 2)) WaterRefractionBackgroundScale = 2;

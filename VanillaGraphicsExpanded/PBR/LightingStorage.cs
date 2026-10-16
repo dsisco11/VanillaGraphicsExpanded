@@ -14,7 +14,7 @@ internal static class LightingStorage
     internal const float DirectionalMaximum = 131072;
     /// <summary>Minimum frame scale preserving the nominated packed-storage torch fixture.</summary>
     internal const float MinimumFrameScale = 7.147944e-6f;
-    /// <summary>Assembled non-disk stored-light budget, leaving separate disk/glare headroom.</summary>
+    /// <summary>Reference stored-light budget for diagnostics and explicit fixtures; not a universal scene-peak guarantee.</summary>
     internal const float FrameBudget = 16000;
     /// <summary>Rounds a nonnegative physical bound outward for publication as Float32 metadata.</summary>
     internal static float UpperBound(double value)
@@ -24,18 +24,17 @@ internal static class LightingStorage
         float rounded = (float)value;
         return rounded < value ? MathF.BitIncrement(rounded) : rounded;
     }
-    /// <summary>Selects the reference frame scale with downward rounding and rejects lost torch retention.</summary>
+    /// <summary>Selects camera-driven storage while retaining the nominated faint-light floor; scene writes contain outliers.</summary>
     internal static float FrameScale(float cameraMultiplier, float physicalBound)
     {
         if (!float.IsFinite(cameraMultiplier) || cameraMultiplier <= 0
             || !float.IsFinite(physicalBound) || physicalBound < 0)
             throw new ArgumentOutOfRangeException(nameof(physicalBound));
-        double selected = Math.Max(cameraMultiplier, PersistentScale);
-        if (physicalBound > 0) selected = Math.Min(selected, (double)FrameBudget / physicalBound);
-        float scale = (float)selected;
-        if (scale > selected) scale = MathF.BitDecrement(scale);
-        if (scale < MinimumFrameScale || !float.IsFinite(1 / scale) || !float.IsFinite(scale / PersistentScale))
-            throw new ArgumentOutOfRangeException(nameof(physicalBound), "The frame exceeds the retained-light storage domain.");
+        // A hypothetical narrow specular peak must not reduce precision across every other pixel.
+        // Bounds remain source-coherence metadata; destination clamps own exceptional scene values.
+        float scale = Math.Max(cameraMultiplier, MinimumFrameScale);
+        if (!float.IsFinite(1 / scale) || !float.IsFinite(scale / PersistentScale))
+            throw new ArgumentOutOfRangeException(nameof(cameraMultiplier), "The camera scale exceeds supported storage arithmetic.");
         return scale;
     }
     /// <summary>Checks fixed-scale publication before encoding; signed SH coefficients keep their signs.</summary>

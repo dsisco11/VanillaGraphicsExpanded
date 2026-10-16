@@ -1,5 +1,6 @@
 #ifndef LUMON_NEAR_FIELD_CACHE_HANDOFF_GLSL
 #define LUMON_NEAR_FIELD_CACHE_HANDOFF_GLSL
+@import "./pbr_persistent_lighting.glsl"
 
 /** Selects a finite cache neighborhood and the segment that must be proven clear before interpolation. */
 bool lumonNearFieldCacheCoverage(vec3 position, out int level, out float radius, out float traceDistance)
@@ -56,7 +57,9 @@ LumOnWorldProbeRadianceSample lumonSampleLocalCache(vec3 position, vec3 directio
         if (lumonWorldProbeDecodeHitDistanceSigned(sampleValue.a) < radius) continue;
         vec3 lighting = sampleValue.a < 0.0 ?
             max(lumonWorldProbeGetSkyTint(), vec3(0.0)) * clamp(texelFetch(worldProbeVis0, scalar, 0).z, 0.0, 1.0) :
-            max(sampleValue.rgb, vec3(0.0));
+            VgeDecodePersistentLight(max(sampleValue.rgb, vec3(0.0)));
+        // Cache RGB carries fixed C storage, while sky tint and this function's result
+        // are physical radiance. Decode once before the caller stores its screen sample.
         // Reproject the lookup direction, not the radiance magnitude. A constant
         // incident field must remain constant as the sample moves between probes.
         result.radiance += lighting * weight;

@@ -14,7 +14,7 @@ namespace VanillaGraphicsExpanded.LumOn.Scene;
 /// <remarks>
 /// v1 payload:
 /// - RGBA32UI, one texel per surface id.
-/// - x/y/z: base color (0..255) (linear)
+/// - x/y/z: linear diffuse transport albedo (0..255), with metallic rejection and averaged interface-energy partition
 /// - w: low byte roughness (0..255), upper half binary16 neutral emission in nits times the fixed persistent scale
 /// </remarks>
 internal sealed class LumonScenePbrSurfaceLutRegistry
@@ -189,10 +189,11 @@ internal sealed class LumonScenePbrSurfaceLutRegistry
     {
         float emission = PBR.LightingStorage.EncodePersistent(surface.Emissive * PBR.LightingCalibration.EmissionReferenceNits);
         int o = surfaceId * 4;
-
-        lutData[o + 0] = Float01ToByte(surface.DiffuseAlbedo.X);
-        lutData[o + 1] = Float01ToByte(surface.DiffuseAlbedo.Y);
-        lutData[o + 2] = Float01ToByte(surface.DiffuseAlbedo.Z);
+        // This producer is Lambertian-only; reserve the hemispherical interface reflectance once per material.
+        var diffuse = PBR.Materials.Energy.MicrofacetEnergyTable.Shared.DiffuseAlbedo(surface);
+        lutData[o + 0] = Float01ToByte(diffuse.X);
+        lutData[o + 1] = Float01ToByte(diffuse.Y);
+        lutData[o + 2] = Float01ToByte(diffuse.Z);
         // Admission precedes every write; source power is never clipped into a valid material.
         Half packedEmission = (Half)emission;
         lutData[o + 3] = Float01ToByte(surface.Roughness) | ((uint)BitConverter.HalfToUInt16Bits(packedEmission) << 16);

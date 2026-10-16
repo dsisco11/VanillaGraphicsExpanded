@@ -4,9 +4,10 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.LumOn;
 
 /// <summary>Declares the GPU binding contract for LumOnCombineShaderProgram.</summary>
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.Materials.Energy.IMicrofacetEnergyBindings), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
-internal interface ILumOnCombineShaderProgramBindings
+internal interface ILumOnCombineShaderProgramBindings : VanillaGraphicsExpanded.PBR.Materials.Energy.IMicrofacetEnergyBindings
 {
     #region Public API
     /// <summary>Supplies common camera and frame values from the universal view snapshot.</summary>

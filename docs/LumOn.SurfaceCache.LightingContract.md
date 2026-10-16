@@ -22,6 +22,22 @@ Lighting uses calibrated photometric scene-linear RGB: incident irradiance is lu
 
 `L_out = (E_direct + E_indirect) * diffuseAlbedo / pi + emission`.
 
+The material adapter reserves the projected-view-average compensated specular fraction
+before publishing diffuseAlbedo. Resolved materials, the LUT's default material and the
+world-probe missing-material fallback use that same budget; the latter retains its magenta
+diagnostic color. Source base color, F0 and emission retain their separate meanings.
+The cache remains view-independent and diffuse-only: it does not bake the microfacet
+compensation W or a specular highlight into outgoing radiance. A receiver evaluates its
+own compensated material response once after gathering incident lighting. See
+[the shared material energy model](PBR.MaterialColorAndDisplay.md#microfacet-energy-model).
+
+The near-field distant-cache handoff returns physical directional radiance, matching the
+general world-probe sampler. Positive-alpha world-probe RGB must be decoded from C=1/16
+before interpolation; the sky branch already supplies physical radiance. The screen trace
+then encodes its result once for persistent history. Omitting this decode creates samples
+16 times too dark and inconsistent material illumination between local hits and fallback.
+Distance eligibility, support confidence and cache/history admission remain independent.
+
 Apply the hit surface's albedo exactly once. Do not multiply emission by albedo or divide it by pi. Irradiance stored on a receiver excludes that receiver's albedo. Direct and indirect incident lighting are lux; outgoing lighting and emission are nits. Light-bearing persistent RGB and packed neutral emission use C=1/16, while readiness, counts and geometry remain unscaled. Decode incident lighting before the material response and outgoing lighting before transport. Physical updates outside the admitted nonnegative scalar domain (maximum 1,048,064) are rejected before history changes. Defensive binary16 storage protection does not turn clipping or nonfinite input into a valid publication.
 
 ## Supported light adaptation

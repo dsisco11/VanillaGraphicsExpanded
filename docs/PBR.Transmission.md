@@ -10,6 +10,16 @@ Transmission uses solar irradiance, sky visibility and actual shadow-map visibil
 
 This is a thin-surface approximation inspired by foliage shading, not an exact Unreal shader port. It adds no thickness tracing, screen-space blur, new geometry, colored cast shadows or multiple scattering through leaf layers. Existing shadow-map bias and resolution still affect apparent leaf self-shadowing.
 
+## Surface energy partition
+
+The candidate compensated surface response reserves the same specular reflectance R used
+by direct reflection. Transmitted backlighting is weighted by 1-R as well as the authored
+transmission strength. Front direct diffuse receives the complementary 1-strength factor;
+specular remains separate. This prevents adding the full front diffuse budget on top of
+transmitted light. Directionless environment lighting remains an isotropic approximation,
+and this model does not integrate transport through multiple leaf layers. Lookup and
+qualification details are in [the material energy contract](PBR.MaterialColorAndDisplay.md#microfacet-energy-model).
+
 ## Material storage
 
 The material atlas now stores RGBA16F: roughness, metallic, emissive, transmission. RGB procedural generation, RGB disk caches and override-image alpha masks retain their contracts. Every upload combines cached/generated RGB with current material transmission; changing strength does not require baking a new RGB tile.

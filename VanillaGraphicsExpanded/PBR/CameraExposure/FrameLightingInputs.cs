@@ -12,10 +12,7 @@ internal sealed class FrameLightingInputs : CpuUniformBuffer
     /// <summary>Validates the entire selection domain before changing the retained publication.</summary>
     internal void Capture(float physicalBound, float manualMultiplier, bool automaticHistory, uint frame, uint calibrationGeneration)
     {
-        // The camera floor proves admission independently of the previous automatic multiplier.
-        _ = LightingStorage.FrameScale(LightingStorage.PersistentScale, physicalBound);
-        if (physicalBound > 0 && MathF.BitDecrement(LightingStorage.FrameBudget / physicalBound) < LightingStorage.MinimumFrameScale)
-            throw new ArgumentOutOfRangeException(nameof(physicalBound), "Downward GPU guard rounding loses retained-light precision.");
+        // Source metadata stays validated without treating its estimated peak as an all-pixel precision constraint.
         if (!float.IsFinite(manualMultiplier) || manualMultiplier <= 0 || calibrationGeneration == 0)
             throw new ArgumentOutOfRangeException(nameof(manualMultiplier));
         _ = LightingStorage.FrameScale(manualMultiplier, physicalBound);

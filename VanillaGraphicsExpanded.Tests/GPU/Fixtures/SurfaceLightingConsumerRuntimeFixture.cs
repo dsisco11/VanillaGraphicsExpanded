@@ -88,6 +88,7 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
         var world = new Mock<IClientWorldAccessor>(MockBehavior.Strict);
         if (pbrComposition)
         {
+            Assert.Null(VanillaGraphicsExpanded.PBR.Postprocessing.AmbientOcclusionRenderer.Texture);
             EngineUniforms.SunPosition3D = new Vintagestory.API.MathTools.Vec3f(0, 0, -1);
         }
         world.SetupGet(api => api.Player).Returns(RuntimeEngineServices.CameraPlayer(Camera));
@@ -124,7 +125,7 @@ internal sealed partial class SurfaceLightingConsumerRuntimeFixture : IDisposabl
             int index = (y * edge + x) * 4;
             colors[index] = receiver.Albedo.X; colors[index + 1] = receiver.Albedo.Y; colors[index + 2] = receiver.Albedo.Z; colors[index + 3] = .5f;
             materials[index] = receiver.Roughness; materials[index + 1] = receiver.Metallic;
-            materials[index + 2] = receiver.Emission; materials[index + 3] = receiver.Reflectivity;
+            materials[index + 2] = receiver.Emission; materials[index + 3] = receiver.Transmission;
         }
         Cache.Terrain.UploadTerrain(Cache.Buffers,
             raster?.Depth ?? Enumerable.Repeat(depth,edge*edge).ToArray(),

@@ -103,9 +103,9 @@ public sealed class PhotometricLightingTests
             Assert.Throws<ArgumentOutOfRangeException>(() => LightingStorage.EncodePersistent(invalid));
     }
 
-    /// <summary>Outward bounds and downward scales retain conservative budget arithmetic across camera changes.</summary>
+    /// <summary>Metadata remains outward rounded while camera-driven storage preserves faint light independently of scene peaks.</summary>
     [Fact]
-    public void FrameScaleAndTemporalConversionStayWithinBudget()
+    public void FrameScaleFollowsCameraWhileTemporalConversionRetainsStrictLimits()
     {
         double exactBound = 945821327.847;
         float bound = LightingStorage.UpperBound(exactBound);
@@ -113,17 +113,20 @@ public sealed class PhotometricLightingTests
         foreach (float camera in new[] { .001f, .0625f, 1f, 16f })
         {
             float scale = LightingStorage.FrameScale(camera, bound);
-            Assert.True((double)scale * bound <= LightingStorage.FrameBudget);
+            Assert.Equal(camera, scale);
             Assert.True(scale >= LightingStorage.MinimumFrameScale);
         }
-        Assert.Equal(.0625f, LightingStorage.FrameScale(.001f, 0));
+        Assert.Equal(.001f, LightingStorage.FrameScale(.001f, 0));
+        Assert.Equal(LightingStorage.MinimumFrameScale, LightingStorage.FrameScale(float.Epsilon, float.MaxValue));
+        Assert.Equal(1, LightingStorage.FrameScale(1, float.MaxValue));
         Assert.Equal(16f, LightingStorage.FrameScale(16, 0));
         Assert.Equal(8, LightingStorage.RescaleHistory(2, .5f, .125f, 65504));
         Assert.Throws<ArgumentOutOfRangeException>(() => LightingStorage.RescaleHistory(65504, 1, .0625f, 65504));
-        Assert.Throws<ArgumentOutOfRangeException>(() => LightingStorage.FrameScale(1, float.MaxValue));
         Assert.Throws<ArgumentOutOfRangeException>(() => LightingStorage.FrameScale(0, 1));
         Assert.Throws<ArgumentOutOfRangeException>(() => LightingStorage.FrameScale(float.MaxValue, 0));
         Assert.Throws<ArgumentOutOfRangeException>(() => LightingStorage.RescaleHistory(0, float.Epsilon, float.MaxValue, 65504));
+        foreach(float invalid in new[]{-1f,float.NaN,float.PositiveInfinity})
+            Assert.Throws<ArgumentOutOfRangeException>(() => LightingStorage.FrameScale(1,invalid));
     }
 
     /// <summary>Originating component bounds survive independent current-source removal before frame summation.</summary>

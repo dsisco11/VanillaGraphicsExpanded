@@ -212,7 +212,11 @@ public sealed class SurfaceLightingEnvironmentTests : RenderTestBase
         Assert.InRange(sky,1,(int)rays-1);
         Assert.True(room.BounceSample(page:8,rays:rays));
         var indirect=room.Read(room.Snapshot.IndirectIrradiance,page:8);
-        float expected=32*(64f/255f)*(rays-sky)/rays;
+        // The cache encodes view-independent diffuse transport after reserving the projected
+        // average specular budget, then quantizes that coefficient to its existing byte channel.
+        float budget=PBR.Materials.Energy.MicrofacetEnergyTable.Shared.DiffuseAlbedo(
+            new(.5f,0,0,new(.25f),new(.04f))).X;
+        float expected=32*(MathF.Round(budget*255)/255)*(rays-sky)/rays;
         Assert.InRange(indirect[0],expected-.04f,expected+.04f);
         Assert.Equal(1,indirect[3]);
     }

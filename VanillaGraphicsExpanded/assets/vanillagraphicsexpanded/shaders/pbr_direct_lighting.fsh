@@ -106,8 +106,7 @@ void main()
     accumSpecular *= sunPcfVis;
 
     vec3 transmission = VgeTransmission(baseColor, N, V, Lsun, rgbaLightIn * skyVisibility,
-        metallic, m.a, sunPcfVis);
-    accumDiffuse += transmission;
+        metallic, m.a, sunPcfVis, roughness);
 
     // Vanilla passes camPos into applyLight: its point-light array is in view space.
     // Measure distance there, then rotate the direction into the world space of N and V.
@@ -133,6 +132,8 @@ void main()
             accumSpecular);
     }
 
+    // Thin transmission spends the same non-specular budget as front diffuse reflection.
+    accumDiffuse = accumDiffuse * (1.0-clamp(m.a,0.0,1.0)) + transmission;
     // No fog in this pass (fog applied in final composite)
 
     // Emissive stored separately

@@ -139,7 +139,9 @@ public sealed class PbrTerrainCaptureGpuTests : RenderTestBase
             float[] tint = [.2f, .8f, .1f];
             for (int channel = 0; channel < 3; channel++)
             {
-                float expected = tint[channel] * .5f * factor / MathF.PI;
+                var energy = PBR.Materials.Energy.MicrofacetEnergyTable.Shared.Sample(.8f,sideView ? 0 : 1);
+                float remaining=1-PBR.Materials.Energy.MicrofacetEnergyTable.Reflectance(energy,new(.04f)).X;
+                float expected = tint[channel] * .5f * factor * remaining / MathF.PI;
                 Assert.InRange(actual[channel], expected - .00001f, expected + .00001f);
             }
         }

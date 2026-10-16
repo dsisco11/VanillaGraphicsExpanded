@@ -86,8 +86,8 @@ vec3 VgeFiniteDiskSpecularBRDF(vec3 N, vec3 V, vec3 L, vec3 F0, float roughness,
     // denominator can otherwise lose precision at the minimum supported roughness.
     float compensatedDistribution = nh == 1.0 ? 1.0 / (VGE_PI * extendedA2)
         : (a2 / distributionDenominator) * (a2 / distributionDenominator) / (VGE_PI * extendedA2);
-    float geometry = geometrySchlickGGX(nv, r) * geometrySchlickGGX(nl, r);
+    float visibility = VgeSmithGgxVisibility(nv, nl, r);
     vec3 fresnel = fresnelSchlick(vh, F0);
-    return fresnel * compensatedDistribution * geometry / (4.0 * nv * nl + 0.000001);
+    return fresnel * compensatedDistribution * visibility;
 }
 #endif

@@ -47,10 +47,12 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         double lux = storageScale * lumens / (4 * Math.PI * distance * distance);
         float[] actual = [diffuse.R, diffuse.G, diffuse.B];
         double[] colors = [.5, .25, .125];
+        var response = MicrofacetEnergyReference.NormalResponse(.5, .04);
         for (int channel = 0; channel < 3; channel++)
-            Assert.InRange(actual[channel], .96 * colors[channel] * lux / Math.PI * .99999,
-                .96 * colors[channel] * lux / Math.PI * 1.00001);
-        Assert.InRange(specular.R, .16 * lux / Math.PI * .99999, .16 * lux / Math.PI * 1.00001);
+            Assert.InRange(actual[channel], (1-response.Reflection) * colors[channel] * lux / Math.PI * .9999,
+                (1-response.Reflection) * colors[channel] * lux / Math.PI * 1.0001);
+        Assert.InRange(specular.R, .16 * response.Gain * lux / Math.PI * .9999,
+            .16 * response.Gain * lux / Math.PI * 1.0001);
     }
 
     /// <summary>Backlit dielectric leaves transmit colored sunlight without creating specular or emissive light.</summary>
@@ -82,7 +84,8 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         Assert.InRange(emissive.R + emissive.G + emissive.B, 0, .0001f);
         for (int i = 0; i < 3; i++)
         {
-            float expected = tint[i] * transmission * (1 - metallic) / MathF.PI;
+            double remaining=1-MicrofacetEnergyReference.NormalResponse((float)(Half).8f,.04).Reflection;
+            float expected = (float)((float)(Half)tint[i] * transmission * (1-metallic) * remaining / Math.PI);
             Assert.InRange(actual[i], expected - .001f, expected + .001f);
             Assert.InRange(isolated[i], expected - .001f, expected + .001f);
         }
@@ -147,7 +150,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
 
             // Roughness, metallic, emissiveScalar, reflectivity
-            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.0f, 0.0f, 1.0f });
+            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.0f, 0.0f, 0.0f });
 
             using var dummyShadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1.0f });
 
@@ -162,11 +165,10 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
 
             var dd = ReadPixelFromAttachment(output, 0);
 
-            // With N=V=L and dielectric metallic=0:
-            // FresnelSchlick(1, F0) = F0, kD = (1-F0), diffuseBrdf = kD*baseColor.
-            // Solar input is irradiance, so diffuse radiance requires the Lambertian inverse-pi factor.
-            float F0 = 0.04f;
-            float kd = (1.0f - F0) / MathF.PI;
+            // Diffuse receives the hemisphere energy left after the compensated specular lobe.
+            // Solar input is irradiance, so diffuse radiance requires Lambertian inverse-pi.
+            var response = MicrofacetEnergyReference.NormalResponse(.5, .04);
+            float kd = (float)((1-response.Reflection) / Math.PI);
             float expectedR = kd * baseColor.r;
             float expectedG = kd * baseColor.g;
             float expectedB = kd * baseColor.b;
@@ -278,8 +280,9 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
         for (int channel = 0; channel < colors.Length; channel++)
         {
             float f0 = .04f * (1f - metallic) + colors[channel] * metallic;
-            AssertNear(PbrSolarBrdfTests.NormalIncidenceExpected(f0, .5f), actualSpecular[channel], .001f);
-            AssertNear((1f - f0) * (1f - metallic) * colors[channel] / MathF.PI,
+            var response = MicrofacetEnergyReference.NormalResponse(.5, f0);
+            AssertNear((float)(PbrSolarBrdfTests.NormalIncidenceExpected(f0, .5f)*response.Gain), actualSpecular[channel], .001f);
+            AssertNear((float)((1-response.Reflection) * (1-metallic) * (1-materialAlpha) * colors[channel] / Math.PI),
                 actualDiffuse[channel], .001f);
         }
     }
@@ -383,7 +386,7 @@ public sealed class PbrDirectLightingFunctionalTests : LumOnShaderFunctionalTest
             using var primaryScene = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.6f, 0.6f, 0.6f, 1f });
             using var primaryDepth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 0.0f });
             using var gBufferNormal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.5f, 0.5f, 1.0f, 1.0f });
-            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.4f, 0.0f, 0.0f, 1.0f });
+            using var gBufferMaterial = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, new[] { 0.4f, 0.0f, 0.0f, 0.0f });
             using var dummyShadow = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, new[] { 1.0f });
 
             // Depth zero at the center reconstructs viewPos=(0,0,-1).

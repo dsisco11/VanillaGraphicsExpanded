@@ -45,32 +45,31 @@ vec3 pbrSpecularFactorFromFresnel(vec3 F)
 @return Normal distribution value
 */
 float distributionGGX(vec3 N, vec3 H, float roughness) {
-    float a = roughness * roughness;
+    float a = clamp(roughness, 0.04, 1.0);
+    a *= a;
     float a2 = a * a;
-    float NdotH = max(dot(N, H), 0.0);
+    float NdotH = clamp(dot(N, H), 0.0, 1.0);
     float NdotH2 = NdotH * NdotH;
     
     float num = a2;
-    float denom = (NdotH2 * (a2 - 1.0) + 1.0);
+    // Preserve the narrow mirror peak without subtracting nearly equal numbers.
+    if (NdotH == 1.0) return 1.0 / (VGE_PI * a2);
+    float denom = (1.0 - NdotH2) + a2 * NdotH2;
     denom = VGE_PI * denom * denom;
     
     return num / denom;
 }
 
-/*
-@description Schlick-GGX geometry function
-@param NdotV - Dot product of normal and view
-@param roughness - Surface roughness
-@return Geometry attenuation
-*/
-float geometrySchlickGGX(float NdotV, float roughness) {
-    float r = (roughness + 1.0);
-    float k = (r * r) / 8.0;
-    
-    float num = NdotV;
-    float denom = NdotV * (1.0 - k) + k;
-    
-    return num / denom;
+/** Evaluates height-correlated Smith GGX visibility, with the projected-area factors canceled analytically. */
+float VgeSmithGgxVisibility(float NdotV, float NdotL, float roughness)
+{
+    if (NdotV <= 0.0 || NdotL <= 0.0) return 0.0;
+    float r = clamp(roughness, 0.04, 1.0);
+    float a2 = r * r * r * r;
+    float viewLength = sqrt(a2 + (1.0 - a2) * NdotV * NdotV);
+    float lightLength = sqrt(a2 + (1.0 - a2) * NdotL * NdotL);
+    // Both terms are positive in the admitted hemisphere. An additive epsilon would alter grazing energy.
+    return 0.5 / (NdotL * viewLength + NdotV * lightLength);
 }
 
 /*
@@ -84,10 +83,7 @@ float geometrySchlickGGX(float NdotV, float roughness) {
 float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
     float NdotV = max(dot(N, V), 0.0);
     float NdotL = max(dot(N, L), 0.0);
-    float ggx2 = geometrySchlickGGX(NdotV, roughness);
-    float ggx1 = geometrySchlickGGX(NdotL, roughness);
-    
-    return ggx1 * ggx2;
+    return 4.0 * NdotV * NdotL * VgeSmithGgxVisibility(NdotV, NdotL, roughness);
 }
 
 /*
@@ -100,16 +96,15 @@ float geometrySmith(vec3 N, vec3 V, vec3 L, float roughness) {
 @return Specular reflection component
 */
 vec3 cookTorranceBRDF(vec3 N, vec3 V, vec3 L, vec3 F0, float roughness) {
-    vec3 H = normalize(V + L);
+    float nv = max(dot(N, V), 0.0), nl = max(dot(N, L), 0.0);
+    vec3 halfVector = V + L;
+    if (nv <= 0.0 || nl <= 0.0 || dot(halfVector, halfVector) <= 0.0) return vec3(0.0);
+    vec3 H = normalize(halfVector);
     
     float NDF = distributionGGX(N, H, roughness);
-    float G   = geometrySmith(N, V, L, roughness);
+    float visibility = VgeSmithGgxVisibility(nv, nl, roughness);
     vec3 F    = fresnelSchlick(max(dot(H, V), 0.0), F0);
     
-    vec3 numerator    = NDF * G * F;
-    float denominator = 4.0 * max(dot(N, V), 0.0) * max(dot(N, L), 0.0) + 0.000001; // Prevent divide by zero
-    vec3 specular     = numerator / denominator;
-    
-    return specular;
+    return NDF * F * visibility;
 }
 #endif // VGE_PBRFUNCTIONS_FSH

@@ -119,9 +119,8 @@ internal sealed class CameraExposureRenderer : IRenderer
         // Access proves the current light-list publication has completed; never borrow a stale list.
         _ = VgeLightsRenderer.Current;
         float bound = bounds.Total;
-        // A frozen dispatch does not read back its validity flag. Reject unsupported
-        // physical bounds on the CPU first; either camera seed then admits the same
-        // minimum-retention domain under the selected scale rule.
+        // The dispatch does not read back validity. Validate finite source metadata before
+        // freezing; camera exposure selects P and scene writes contain exceptional peaks.
         _ = LightingStorage.FrameScale(1, bound);
         if (calibrationGeneration == 0) throw new ArgumentOutOfRangeException(nameof(calibrationGeneration));
         if (calibrationGeneration != VgeFrameRenderer.Current.CalibrationGeneration)

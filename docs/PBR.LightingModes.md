@@ -37,6 +37,30 @@ The extra target costs eight bytes per pixel of storage plus its write/read band
 allocated across mode switches as part of the shared G-buffer; switching does not resize or recreate
 terrain targets. Existing material, normal/height and patch-identity channels retain their meanings.
 
+## Shared material response
+
+The default microfacet implementation uses the same compensated directional reflectance
+in standalone composition, LumOn receiver composition and the forward local-block fallback.
+Incident environment E/pi is treated as isotropic radiance: reflected environment is input*R,
+and diffuse is input*(1-R)*(1-metallic)*baseColor. This supersedes the historical
+roughness-dependent specular approximation above; a fully rough metal is not forced black.
+It does not create directional environment reflections.
+
+SurfaceCache continues to store diffuse outgoing light plus emission. Its material adapters
+reserve a projected-view-average specular fraction without baking view-dependent specular
+or W into the cache. Receiver compensation is evaluated once from gathered incident light.
+Persistent incident/diffuse formats are separate from transient specular storage qualification.
+Near-field hits and distant world-probe fallback both return physical directional radiance.
+The local-cache handoff decodes fixed-C RGB before screen history re-encodes it, matching
+the general world-probe path. This corrects a factor-16 darkening on fallback directions
+without changing source intensity, support confidence or missing-direction policy.
+The default implementation remains subject to the approved highlight policy and validation documented in
+[PBR.MicrofacetStorage.Evaluation.md](PBR.MicrofacetStorage.Evaluation.md).
+The shared `ShadingQuality` setting selects the RG16F receiver lookup resolution in both
+lighting modes; cache material calibration retains the full-precision physical reference.
+Sizes, filtering and precision tradeoffs are documented in
+[the material energy contract](PBR.MaterialColorAndDisplay.md#microfacet-energy-model).
+
 ## LumOn composition and lifecycle
 
 The LumOn variant consumes published indirect illumination once and does not add the standalone

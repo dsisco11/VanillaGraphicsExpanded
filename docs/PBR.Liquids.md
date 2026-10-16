@@ -45,6 +45,16 @@ The RGBA material atlas supplies roughness, metallic, emission and transmission.
 
 Water uses IOR 1.333, dielectric Fresnel including underwater total internal reflection, GGX direct reflection, geometric surface normals, atmosphere solar/environment inputs, shadow cascades and view-space dynamic lights. Explicit material-owned absorption/scattering replaces albedo-derived extinction and tint-based scattering; see [water medium units, measured reference and transport](PBR.WaterMedium.md). An oriented boundary capture supplies RGB transport to opaque composition. After successful composition, OIT supplies the interface response without repeating bulk extinction. The bounded opaque-depth proxy remains a fallback when capture is unavailable; finite sky paths are supported when captured boundaries establish an exit; transparent-receiver coverage remains unresolved.
 
+The default microfacet model applies the shared compensation W to punctual and finite-disk
+surface reflection and uses its directional reflectance R for environment reflection and the
+complementary interface transmission budget. Underwater total internal reflection retains
+unit reflectance and zero interface transmission. Non-water liquid body diffuse reserves
+1-R and suppresses metallic diffuse. Water-volume coefficients, phase functions, source
+calibration and boundary transport remain independently owned. Scalar OIT coverage and the
+refraction fallback remain approximations; normalizing premultiplied reflection by coverage
+requires its own storage bound. That qualification is still open. See
+[the material energy contract](PBR.MaterialColorAndDisplay.md#microfacet-energy-model).
+
 Transmission defaults to straight-through weighted OIT. Optional [water refraction](PBR.WaterRefraction.md) uses immutable pre-transport opaque radiance/depth and replaces the OIT background on accepted hits. Missing hits retain straight-through transmission. Scene reflection is not implemented. Scalar revealage and display-space engine composition remain approximations; their improvements have separate tasks.
 
 ## Wave displacement and liquid-depth ownership

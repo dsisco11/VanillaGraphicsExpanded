@@ -1,18 +1,19 @@
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.PBR.Materials.Energy;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Executes native vertex face storage simultaneously with frozen fragment lighting storage.</summary>
+/// <summary>Executes native vertex face storage simultaneously with frozen lighting and material-energy storage.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
-    /// <summary>Actual installed decal declarations retain slot three while production frame decoding reads its separate slot.</summary>
+    /// <summary>Installed decal declarations retain slot three while frame decoding and energy lookup read separate slots.</summary>
     [Fact]
     public void NativeFaceDataAndFrozenLightingCoexistAcrossStages()
     {
@@ -28,8 +29,9 @@ public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) :
         int vertex = shaders.Compile(ShaderType.VertexShader, "#version 430 core\n" + faceType + "\n" + faceBlock +
             "\nlayout(location=0)in vec2 position;flat out vec3 physical;void main(){physical=faces[0].xyz;gl_Position=vec4(position,0,1);}");
         string helper = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_frame_lighting.glsl"));
-        int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n" + helper +
-            "\nflat in vec3 physical;layout(location=0)out vec4 outColor;void main(){outColor=vec4(VgeStoreFrameLight(physical),VgeFrameLightingValid(42u,7u)?1:0);}");
+        string energy = File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "assets/shaders/includes/pbr_microfacet_energy.glsl"));
+        int fragment = shaders.Compile(ShaderType.FragmentShader, "#version 430 core\n" + energy + helper +
+            "\nflat in vec3 physical;layout(location=0)out vec4 outColor;void main(){vec2 e=VgeDirectionalAlbedo(.5,1);outColor=vec4(VgeStoreFrameLight(physical)*vec3(e,1),VgeFrameLightingValid(42u,7u)?1:0);}");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var face = GpuShaderStorageBuffer.Create(debugName: "Tests.NativeFaceData");
         using var frame = GpuShaderStorageBuffer.Create(debugName: "Tests.NativeFrozenFrame");
@@ -51,7 +53,12 @@ public sealed class NativeFrameLightingBindingTests(HeadlessGLFixture fixture) :
             using var framework = new ShaderTestFramework();
             using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
             framework.RenderQuadTo(program.ProgramId, target);
-            Assert.Equal(new float[] { 2.75f, 3.25f, 4.25f, 1 }, target[0].ReadPixels());
+            var lookup = MicrofacetTextureReference.Sample(MicrofacetEnergyLookup.Prepare().Width,.5f,1);
+            var coefficients=lookup.Value;
+            float[] actual = target[0].ReadPixels();
+            float[] expected = [2.75f*coefficients.X, 3.25f*coefficients.Y, 4.25f, 1];
+            float[] error=[2.75f*lookup.Error.X+.000002f,3.25f*lookup.Error.Y+.000002f,.000002f,.000002f];
+            for(int channel=0;channel<4;channel++) Assert.InRange(actual[channel],expected[channel]-error[channel],expected[channel]+error[channel]);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally

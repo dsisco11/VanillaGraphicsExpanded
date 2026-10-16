@@ -20,7 +20,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         EnsureContextValid();
         var scene = new SpatialLightingScene { SourceAlbedo = new(.125f, .25f, .5f) };
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
-        var receiver = new RuntimeReceiverSurface(new(.5f, .25f, .125f), Emission: .5f, Reflectivity: 1);
+        var receiver = new RuntimeReceiverSurface(new(.5f, .25f, .125f), Emission: 1f/32, Transmission: 0);
         runtime.Receiver = (_, _) => receiver;
         runtime.EngineUniforms.SunPosition3D = new(0, 0, 1);
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
@@ -48,7 +48,7 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
             Assert.Same(direct, runtime.Direct.Radiance);
             Assert.Same(atlas, runtime.Cache.IrradianceAtlas());
             Assert.Equal(primary, PrimaryLighting(runtime));
-            var expectedIncident = scene.SourceAlbedo.Value * (light / MathF.PI);
+            var expectedIncident = SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene);
             SurfaceLightingNumericalRuntimeTests.AssertPixels(runtime.SceneLinearPixels(), (x, y) =>
             {
                 int offset = (y * 4 + x) * 4;
@@ -69,11 +69,9 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene, pbrComposition: true);
         runtime.Cache.Config.LumOn.TemporalAlpha = .9f;
         runtime.Cache.Config.LumOn.ProbeAtlasTexelsPerFrame = 8;
-        // The production material atlas stores albedo in RGBA8 UNORM before lighting.
-        var albedo = scene.SourceAlbedo ?? new Vector3(scene.Reflectance);
-        var capturedAlbedo = new Vector3(MathF.Round(albedo.X * 255), MathF.Round(albedo.Y * 255), MathF.Round(albedo.Z * 255)) / 255;
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
-        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene,
+            expectedWorldRadiance: SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene));
         Assert.All(runtime.FinalPixels().Where((_, i) => i % 4 != 3), value => Assert.True(float.IsFinite(value) && value > .001f));
         var reference = runtime.SceneLinearPixels();
         var oldAtlas = runtime.Cache.IrradianceAtlas();
@@ -83,7 +81,8 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         runtime.Cache.RequestAtlasRecreation();
         runtime.Frame();
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
-        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene,
+            expectedWorldRadiance: SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene));
         Assert.NotSame(oldAtlas, runtime.Cache.IrradianceAtlas());
         Assert.False(oldAtlas!.IsValid);
         Assert.Same(screen, runtime.Screen.IndirectFullTex);
@@ -92,7 +91,8 @@ public sealed class SurfaceLightingPbrLifetimeTests : RenderTestBase
         runtime.Cache.ChangeBlockLight(32);
         runtime.Frame();
         SurfaceLightingRefreshSynchronization.RefreshAndFreeze(runtime);
-        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene, expectedWorldRadiance: capturedAlbedo * (scene.BlockLight / MathF.PI));
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime, scene,
+            expectedWorldRadiance: SurfaceLightingNumericalRuntimeTests.DiffuseSourceOutgoing(scene));
         AssertClose(reference, runtime.SceneLinearPixels(), .01f);
     }
     #endregion

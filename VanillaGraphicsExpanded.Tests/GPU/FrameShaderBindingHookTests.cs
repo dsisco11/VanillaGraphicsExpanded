@@ -6,6 +6,8 @@ using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
+using VanillaGraphicsExpanded.PBR.Materials.Energy;
+using VanillaGraphicsExpanded.ModSystems;
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 
@@ -36,7 +38,10 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         Mock.Get(render).SetupGet(value => value.CurrentRenderStage).Returns(offscreen ? EnumRenderStage.Opaque : EnumRenderStage.Ortho);
         Mock.Get(render).SetupGet(value => value.CurrentFrameBuffer).Returns(offscreen ? new FrameBufferRef { FboId=999 } : buffers[(int)EnumFrameBuffer.Primary]);
         var api = RuntimeEngineServices.Client(assets.Api,events.Api,world.Object,render,assets.Api.Shader);
-        using var publisher = new VgeFrameRenderer(api);
+        // The shared camera also owns decoded engine light-table calibration; supply
+        // its actual native world boundary rather than an interface-only world mock.
+        var cameraWorld=new RuntimeCameraWorld(RuntimeEngineServices.CameraPlayer(()=>new LumOnCameraState(0,0,0,0,0,0,0)));
+        using var publisher = new VgeFrameRenderer(RuntimeEngineServices.Client(api,events.Api,cameraWorld.World,render,assets.Api.Shader));
         using var lightsPublisher = new VgeLightsRenderer(api);
         render.ShaderUniforms.PointLightsCount = 1;
         render.ShaderUniforms.PointLightColors3[0] = .25f;
@@ -139,6 +144,72 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             StateCache.Current.UseProgram(0);
         }
     }
+
+    /// <summary>The actual engine-use hook restores filtered unit32 after foreign bindings and live quality replacement.</summary>
+    [Fact]
+    public void NativeEnergySamplerTracksQualityWithoutMembershipReset()
+    {
+        EnsureContextValid();
+        using var platform=new EngineShaderPlatformScope();
+        using var shaders=new TerrainShaderTestFixture();
+        string helper=File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes/pbr_microfacet_energy.glsl"));
+        int vertex=shaders.Compile(ShaderType.VertexShader,"#version 330 core\nlayout(location=0)in vec2 position;void main(){gl_Position=vec4(position,0,1);}");
+        int fragment=shaders.Compile(ShaderType.FragmentShader,"#version 330 core\n"+helper+
+            "\nlayout(location=0)out vec4 result;void main(){result=vec4(VgeDirectionalAlbedo(.37,.003),0,1);}");
+        using var program=GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex,fragment));
+        using var target=CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);
+        var engine=new FrameConsumerProgram(program.ProgramId);
+        var harmony=new Harmony("tests.energy-native."+Guid.NewGuid());
+        var previousProgram=ShaderProgramBase.CurrentShaderProgram;
+        int previousQuality=ConfigModSystem.Config.ShadingQuality;
+        FrameShaderBindingHook.ApplyPatches(harmony,_=>{});
+        FrameShaderBindingHook.ClearUniformCache();
+        try
+        {
+            GL.GetInteger(GetPName.MaxCombinedTextureImageUnits,out int units);
+            Assert.True(units>GpuBindingRegistry.Sampler.MicrofacetEnergy);
+            GL.GetProgram(program.ProgramId,GetProgramParameterName.ActiveUniforms,out int activeUniforms);
+            GL.GetInteger(GetPName.MaxTextureImageUnits,out int fragmentSamplers);
+            Assert.Equal(1,activeUniforms);
+            Assert.True(activeUniforms<=fragmentSamplers);
+            GL.BindFramebuffer(FramebufferTarget.Framebuffer,target.FboId);GL.Viewport(0,0,1,1);
+            GL.Disable(EnableCap.DepthTest);GL.Disable(EnableCap.Blend);GL.Disable(EnableCap.CullFace);
+            GL.Disable(EnableCap.ScissorTest);GL.ColorMask(true,true,true,true);
+            foreach(int quality in new[]{3,0,1,2,3})
+            {
+                ConfigModSystem.Config.ShadingQuality=quality;
+                int unit=GpuBindingRegistry.Sampler.MicrofacetEnergy;
+                StateCache.Current.BindTexture(TextureTarget.Texture2D,unit,0);
+                StateCache.Current.BindSampler(unit,0);
+                engine.Use();
+                var selected=MicrofacetEnergyLookup.Prepare();
+                GL.GetInteger(GetPName.ActiveTexture,out int priorActive);
+                int binding;
+                // Inspect without binding: a texture scope here would conceal a missing hook.
+                GL.ActiveTexture(TextureUnit.Texture0+unit);
+                try { GL.GetInteger(GetPName.TextureBinding2D,out binding); }
+                finally { GL.ActiveTexture((TextureUnit)priorActive); }
+                Assert.Equal(selected.TextureId,binding);
+                GL.GetInteger((GetIndexedPName)All.SamplerBinding,unit,out int sampler);
+                Assert.Equal(GpuSamplers.LinearClamp.SamplerId,sampler);
+                // Draw directly: a general test framework must not repair a missing hook binding.
+                RenderFullscreenQuad(program.ProgramId);
+                var expected=MicrofacetTextureReference.Sample(selected.Width,.37f,.003f);
+                var actual=ReadPixelsFloat(target);
+                Assert.InRange(Math.Abs(actual[0]-expected.Value.X),0,expected.Error.X);
+                Assert.InRange(Math.Abs(actual[1]-expected.Value.Y),0,expected.Error.Y);
+                Assert.Equal(1,actual[3]);
+                Assert.Equal(ErrorCode.NoError,GL.GetError());
+            }
+        }
+        finally
+        {
+            ConfigModSystem.Config.ShadingQuality=previousQuality;
+            MicrofacetEnergyLookup.Prepare();
+            harmony.UnpatchAll(harmony.Id);FrameShaderBindingHook.ClearUniformCache();
+            ShaderProgramBase.CurrentShaderProgram=previousProgram;StateCache.Current.UseProgram(0);
+        }
+    }
     #endregion
     #region Private
     /// <summary>Reads the actual retained slice selected at a shared frame or light slot.</summary>
@@ -165,7 +236,8 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         internal FrameConsumerProgram(int program)
         {
             ProgramId=program;
-            uniformLocations["vge_pbrRoute"]=GpuProgramLayout.TryBuild(program).GetUniformLocation(program,"vge_pbrRoute");
+            int route=GpuProgramLayout.TryBuild(program).GetUniformLocation(program,"vge_pbrRoute");
+            if(route>=0)uniformLocations["vge_pbrRoute"]=route;
         }
         #endregion
     }

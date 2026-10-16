@@ -98,7 +98,12 @@ internal static class SurfaceLightingRefreshSynchronization
                         (sx + sz * resolution) * worldTile + x) << 2);
                     Assert.True(radiance[index + 3] > 0, $"Missing world direction: slot={slot}, texel=({x},{y}).");
                     for (int channel = 0; channel < 3; channel++)
-                        Assert.InRange(Math.Abs(radiance[index + channel] - expected[channel]), 0, .01f);
+                    {
+                        // Directional cache RGB uses fixed persistent encoding; alpha is metadata.
+                        float physical=VanillaGraphicsExpanded.PBR.LightingStorage.DecodePersistent(radiance[index+channel]);
+                        Assert.True(Math.Abs(physical - expected[channel])<=.01f,
+                            $"World direction slot={slot}, texel=({x},{y}), channel={channel}: expected physical {expected[channel]}, actual decoded {physical}.");
+                    }
                 }
             }
         }

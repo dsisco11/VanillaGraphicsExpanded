@@ -5,10 +5,13 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.PBR.Materials.WorldProbes;
 
+/// <summary>Builds face-indexed diffuse transport coefficients from resolved material surfaces.</summary>
 internal static class BlockFaceDerivedSurfaceLookupBuilder
 {
     private const int FacesPerBlock = 6;
 
+    #region Public API
+    /// <summary>Counts resolved faces and explicit missing-material fallbacks in one complete lookup.</summary>
     public readonly record struct Stats(
         int MaxBlockId,
         int TotalFaces,
@@ -26,6 +29,7 @@ internal static class BlockFaceDerivedSurfaceLookupBuilder
             DefaultsUsed: 0);
     }
 
+    /// <summary>Publishes deterministic per-face energy-partitioned diffuse coefficients without changing source material colors.</summary>
     public static DerivedSurface[] Build(
         IList<Block> blocks,
         IReadOnlyDictionary<AssetLocation, PbrMaterialSurface> surfaceByTexture,
@@ -89,7 +93,7 @@ internal static class BlockFaceDerivedSurfaceLookupBuilder
                     continue;
                 }
 
-                ds = new DerivedSurface(surf.DiffuseAlbedo, surf.SpecularF0);
+                ds = new DerivedSurface(Energy.MicrofacetEnergyTable.Shared.DiffuseAlbedo(surf), surf.SpecularF0);
                 resolvedFaces++;
                 arr[blockId * FacesPerBlock + face] = ds;
             }
@@ -106,4 +110,5 @@ internal static class BlockFaceDerivedSurfaceLookupBuilder
 
         return arr;
     }
+    #endregion
 }

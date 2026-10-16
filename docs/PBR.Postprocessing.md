@@ -15,6 +15,13 @@ standard blending for the following overlay stage.
 
 ## Responsibilities and order
 
+Scene storage uses camera-driven frozen pre-exposure rather than reducing all pixels to
+fit a hypothetical specular maximum. Existing format-specific scene and postprocessing
+guards contain exceptional values; this can clip highlight energy and does not establish
+an overflow-free blend chain. Persistent cache/history validity is independently enforced.
+See [the highlight policy](PBR.MicrofacetStorage.Evaluation.md#approved-highlight-policy)
+and [camera storage ownership](PBR.CameraExposure.md#physical-light-storage-support).
+
 ### Optional local exposure
 
 `Postprocessing.LocalExposure.Enabled` defaults to true following user acceptance.

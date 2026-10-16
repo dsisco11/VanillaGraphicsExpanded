@@ -87,6 +87,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
             () => { var owner = directLightingRenderer; directLightingRenderer = null; owner?.Dispose(); },
             () => { var owner = pbrCompositeRenderer; pbrCompositeRenderer = null; owner?.Dispose(); },
             () => { var owner = directLightingBufferManager; directLightingBufferManager = null; owner?.Dispose(); },
+            () => PBR.Materials.Energy.MicrofacetEnergyLookup.Retire(),
             () => base.Dispose());
     }
 
@@ -97,6 +98,7 @@ public sealed class PbrModSystem : ModSystem, IRenderer
             return;
         }
 
+        PBR.Materials.Energy.MicrofacetEnergyLookup.Prepare();
         directLightingBufferManager ??= new DirectLightingBufferManager(capi);
         skyRenderer ??= new PBR.Atmosphere.AtmosphereSkyRenderer(capi, gBufferManager);
         nightSky ??= new PBR.Atmosphere.Celestial.CelestialRenderer(capi, gBufferManager);

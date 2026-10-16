@@ -4,10 +4,11 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 namespace VanillaGraphicsExpanded.PBR.Liquids;
 
 /// <summary>Declares the GPU binding contract for LiquidShaderProgram.</summary>
+[ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.Materials.Energy.IMicrofacetEnergyBindings), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderInterfaceLocations), Defaults = true)]
 [ShaderBindingSet(typeof(IShaderIncludeBindings), Defaults = true)]
 [ShaderBindingSet(typeof(VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings), Defaults = true)]
-internal interface ILiquidShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings
+internal interface ILiquidShaderProgramBindings : VanillaGraphicsExpanded.PBR.CameraExposure.IPhotometricFrameBindings, VanillaGraphicsExpanded.PBR.Materials.Energy.IMicrofacetEnergyBindings
 {
     #region Public API
     /// <summary>Supplies the shared dynamic lights; boundary-only variants do not consume this block.</summary>

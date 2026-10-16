@@ -1,5 +1,6 @@
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
+using VanillaGraphicsExpanded.PBR.Materials.Energy;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -105,9 +106,9 @@ public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : 
         float[] dark=Render();
         // Independent scalar material evaluation isolates direct/emissive radiance from the two indirect terms.
         double f0=.04*(1-metallic)+.5*metallic;
-        double fresnel=f0+(1-f0)*Math.Pow(1-nDotV,5);
-        double diffuse=lumon&&!pbr?1-metallic:(1-fresnel)*(1-metallic);
-        double spec=lumon&&!pbr?0:2*fresnel*(1-roughness);
+        double reflectance=MicrofacetEnergyTable.Reflectance(MicrofacetEnergyTable.Shared.Sample(roughness,nDotV),new((float)f0)).X;
+        double diffuse=lumon&&!pbr?1-metallic:(1-reflectance)*(1-metallic);
+        double spec=lumon&&!pbr?0:2*reflectance;
         double diffuseVisibility=1+(ao-1)*Math.Clamp(diffuseStrength,0,1);
         double derivedSpecular=Math.Clamp(Math.Pow(nDotV+ao,Math.Pow(2,-16*roughness-1))-1+ao,0,1);
         double specularVisibility=1+(derivedSpecular-1)*Math.Clamp(specularStrength,0,1);

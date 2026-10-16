@@ -18,6 +18,7 @@ internal sealed class SurfaceLightingScreenTraceFixture : IDisposable
     private readonly LumonScenePageTableGpuResources pageStorage;
     private readonly GpuShaderStorageBuffer work, metadata, slots, readiness;
     private readonly SurfaceLightingDispatch producer;
+    private readonly VgeFrameUniformBuffer lightingFrame = TestFrameCamera.CreateIdentity(Edge, Edge);
     private readonly LumonSceneCaptureWorkGpu[] capture;
     private readonly LumonSceneRelightWorkGpu[] lighting;
     private readonly VectorInt3 origin, dimensions;
@@ -79,6 +80,9 @@ internal sealed class SurfaceLightingScreenTraceFixture : IDisposable
         readiness = Buffer<uint>(new uint[capture.Length + 1]);
         pageStorage.PageTableMip0.UploadDataImmediate(entries, 0, 0, 0, 128, 128, count);
         producer = new(assets.Api);
+        // This isolated compute fixture has no registered world-camera renderer. Supply
+        // an owned, complete frame through the producer's existing calibration adapter.
+        producer.FrameInputs = lightingFrame;
     }
 
     /// <summary>Creates initialized typed storage through the GPU ownership abstraction.</summary>
@@ -94,7 +98,7 @@ internal sealed class SurfaceLightingScreenTraceFixture : IDisposable
     /// <summary>Releases only owned storage, leaving borrowed geometry and material registry lifetimes unchanged.</summary>
     public void Dispose()
     {
-        producer.Dispose(); work.Dispose(); metadata.Dispose(); slots.Dispose(); readiness.Dispose();
+        producer.Dispose(); lightingFrame.Dispose(); work.Dispose(); metadata.Dispose(); slots.Dispose(); readiness.Dispose();
         pageStorage.Dispose(); atlas.Dispose(); assets.Dispose();
     }
     #endregion

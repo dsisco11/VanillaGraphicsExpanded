@@ -162,7 +162,96 @@ Tasks
       allocation/storage changes. Do not use reduced call counts alone as completion evidence.
       Contract: docs/PBR.Postprocessing.md; retain results there and remove temporary diagnostics.
 
-  ☐ Implement microfacet multiple-scattering energy compensation consistently across the PBR pipeline.
+  ☑ Implement microfacet multiple-scattering energy compensation consistently across the PBR pipeline.
+    User accepted in-game appearance on 2026-10-15. Before completion, the user requested
+    an RG16F texture lookup and a shared Shading quality option. The refactor is complete:
+    quality 0/1/2/3 selects 16/32/64/128 square texels, default 3, hardware
+    bilinear clamp filtering and no mips. Existing full-precision CPU material calibration
+    remains stable across quality changes. Earlier buffer and package receipts below are
+    historical; testing uses the normal Debug launcher without a separate package.
+    Final validation passes 448 distinct focused cases with no unresolved selected failures,
+    including native sampler rebinding and live quality replacement. Both shader catalogs
+    pass (450 production / 528 fixture variants); the normal Debug build and copied shader
+    inputs match the tested assembly. Receipts: artifacts/MicrofacetEnergy/TextureLookupValidation.md
+    and texture-default-debug-receipt.json. Default actual GPU errors against 360 independent
+    references are 0.07937% relative E / 0.0005511 absolute Ef; the latter includes the
+    separately qualified half-output filter precision allowance. Lower-tier tradeoffs and
+    warm synthetic cost are documented in docs/PBR.MaterialColorAndDisplay.md.
+    Initial investigation (2026-10-15): independent double-precision visible-normal and
+    NDF integration matched the previous GGX/Schlick masking response.
+    At roughness 0.04 and NdotV 0.001, previous E=0.0006296484 requires white-reflector
+    W=1588.19. At NdotV 0.01 it still requires W=181.42. These are intrinsic losses of
+    the previous masking model, not lookup noise. A 128x128 lookup with a warped view axis
+    reached 0.474% maximum relative E error across 256 seeded off-grid checks, but interpolation
+    accuracy does not remove those large gains or qualify storage bounds.
+    User-approved height-correlated Smith visibility, using the same GGX distribution and
+    Fresnel with algebraic cancellation instead of the additive Cook denominator epsilon,
+    gives E=0.907625/W=1.10178 at the first case. Its sampled maximum W is 3.258891 across
+    45 roughness/view cases. This is an approved model change, not equivalent arithmetic or
+    a qualified global bound. Numerical sources/receipts: artifacts/MicrofacetEnergy.
+    The default implementation now shares compensation across direct, environment, forward,
+    liquid and diffuse-cache material routes. The retained 128x128 Float32 source table uses quadratic
+    roughness and quartic view coordinates; independent corner/off-grid checks found maximum
+    relative E error 0.03246% and absolute Ef error 0.000281. All 450 production shader variants
+    compile; 260 distinct checks pass across overlapping runs, including GPU/table and white-furnace checks.
+    Receipts: artifacts/MicrofacetEnergy/GpuValidation.md and StoragePrecision.md (104 CPU precision checks).
+    The nine registered-consumer fixture gaps are now resolved using the real camera-owned
+    frame freeze. Updated physical references include source calibration, cache material-byte
+    encoding, radius attenuation and HDR emission units, retaining numerical tolerances.
+    Runtime handoff correction passes 52/52 focused checks, including those nine cases and
+    independent world/screen directional inputs plus full-image material assertions in both
+    gather modes. The local-cache handoff previously encoded positive-alpha world radiance
+    twice; it now decodes C=1/16 before interpolation and the caller's single encode.
+    Receipt: artifacts/MicrofacetEnergy/runtime-handoff-corrected.trx. Six retained-lighting,
+    reload/history and movement cases also pass (runtime-lifetime.trx). Final Release focused
+    qualification passes 390/390 with zero skipped (release-focused.trx), including the 450
+    production and 528 fixture shader variants. The user subsequently accepted in-game
+    appearance; the subsequent texture/quality refactor is validated as recorded above.
+    Five additional material-readiness cases now pass in Release after supplying their
+    fixture-owned camera through the existing producer adapter, with original assertions
+    unchanged. See artifacts/MicrofacetEnergy/nearfield-readiness-owned-frame.trx and
+    RuntimeValidation.md. This fixture-only follow-up leaves production behavior unchanged.
+    User-run acceptance uses the normal debug launcher and its default Debug build. The
+    implementation and embedded lookup are unconditional; no separate package or feature flag
+    is required. The archived Release ZIP and Candidate/receipt.json are build evidence only.
+    The earlier buffer implementation's Debug receipt is default-debug-receipt.json;
+    the current RG16F implementation uses texture-default-debug-receipt.json. Both are
+    under artifacts/MicrofacetEnergy. No game was launched for headless checks.
+    Practical highlight containment is now user-approved instead of widening transient formats:
+    freeze camera-driven P with the retained faint-light floor, contain exceptional scene RGB at
+    each destination range, and keep invalid persistent/cache/history rejection strict. Source
+    estimates enforce coherence, not an unclipped-image certificate or scene-wide scale reduction.
+    Runtime selection is implemented; 146 distinct containment/storage/EV100/history checks pass,
+    with both 450/528 shader catalogs passing. Receipt:
+    artifacts/MicrofacetEnergy/CameraContainmentValidation.md. No scene-lighting attachment formats, source powers,
+    minimum roughness or emitter sizes change. Appearance was subsequently accepted. Numerical
+    source estimates use 40M punctual for opaque, 42M for normalized liquid surfaces and 3
+    times disk radiance. They are not a certified universal Float32 envelope or a requirement
+    to preserve every extreme highlight under the approved containment policy.
+    The earlier wider transient HDR evaluation remains historical evidence, not the selected
+    implementation. Source inventory, selected highlight policy and logical memory costs are in
+    docs/PBR.MicrofacetStorage.Evaluation.md. Persistent incident/diffuse targets remain separate.
+    The completed photometric tasklist was removed
+    in commit 863b6c7d; consult its preceding revision for historical qualification and the
+    retained FrameLightingBounds/LightingStorage and scene/atmosphere/water contracts for
+    current behavior. Do not recreate the retired plan or assume its bounds survive this change.
+    Storage follow-up: joint numerical scans found compensated punctual response witnesses
+    of 4.74 million (retained masking) and 39.26 million (stable correlated masking) per unit
+    incident light, exceeding the old 66,560 certificate. Finite-disk mirror-cone witnesses
+    also exceed the old 0.9-times-disk bound: 5.73 and 1.37 respectively. These sampled
+    counterexamples disprove reuse of the old bounds; they are not replacement certificates.
+    Camera-driven scale and separate faint-pixel retention are now checked together with
+    actual exceptional-highlight containment. The user approved height-correlated Smith GGX explicitly.
+    Consumer inventory: deferred direct and native forward/late/OIT routes share
+    pbr_direct_brdf; liquids separately call the punctual and finite-disk helpers.
+    Standalone composition and LumOn's receiver response share VgeEnvironmentSplit;
+    forward LumOn's block-light fallback now uses that same split. Liquid environment
+    reflection and interface transmission now share the compensated surface-energy budget.
+    The current Surface Cache stores Lambertian diffuse outgoing radiance plus emission;
+    it does not bake view-dependent microfacet specular. Therefore the extreme specular
+    witnesses do not establish an existing persistent-cache overflow. Requalify actual
+    cache/probe inputs and material weighting, keeping compensation at the receiver once,
+    rather than multiplying already reflected cached outgoing lighting by W.
     - Use a directional-albedo lookup indexed by material roughness and NdotV, with reflectance E
       and its Fresnel-weighted term Ef. Apply the compensation W = 1 + F0 * (1 - E) / E and
       estimate compensated lobe reflectance as W * (E * F0 + Ef * (F90 - F0)). Retain explicit
@@ -185,7 +274,11 @@ Tasks
       coherent publication, reload and retirement. Avoid new fullscreen passes or per-frame CPU
       integration; measure lookup bandwidth, shader cost and any persistent resource overhead.
     - Requalify photometric HDR/pre-exposure and persistent-lighting storage bounds and precision
-      after compensation increases reflected radiance. Coordinate with docs/PBR.PhotometricLighting.todo;
+      after compensation increases reflected radiance. For transient scenes, use the approved
+      practical containment policy rather than requiring preservation of every extreme peak;
+      validate camera-driven scale selection, destination containment and separate faint-pixel
+      retention. Keep persistent/history validity strict. Coordinate with the retired photometric
+      tasklist at 863b6c7d^ and the retained storage contracts identified above;
       do not claim this corrects the centered finite-disk integration discrepancy without evidence.
     - Run focused subagent numerical/GPU and lifecycle checks for white-furnace energy, reflectance
       extremes, roughness/grazing limits, lookup convergence and matching direct/environment response.

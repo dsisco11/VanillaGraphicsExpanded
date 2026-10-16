@@ -215,6 +215,7 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             GLFW.MakeContextCurrent(_glfwWindow);
             GL.LoadBindings(new GLFWBindingsContext());
             TestUniformRing.Dispose();
+            VanillaGraphicsExpanded.PBR.Materials.Energy.MicrofacetEnergyLookup.Retire();
             VanillaGraphicsExpanded.Rendering.GpuSamplers.Dispose();
             CleanupGpuResources();
             Rendering.Integration.RenderContextRegistry.Retire(this);

@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR;
 
-/// <summary>Retains physical component bounds so source removal cannot discard brighter compatible history.</summary>
+/// <summary>Retains physical source-envelope estimates for coherence and compatible history, separately from scene containment.</summary>
 internal readonly record struct FrameLightingBounds(double Surface, double WaterReflection,
     double BoundaryScattering, double SurfaceScattering, double AirSky, double Additive)
 {
@@ -47,17 +47,18 @@ internal readonly record struct FrameLightingBounds(double Surface, double Water
             indirect * arithmeticGuard, emissionMaximumNits * arithmeticGuard,
             atmosphere.ReconstructionMaximumNits, compatibilityMaximumNits);
     }
-    /// <summary>Assembles the qualified nonrecursive scene topology from published lux, candela and nits maxima.</summary>
+    /// <summary>Estimates nonrecursive scene envelopes from source maxima without selecting the transient storage scale.</summary>
     internal static FrameLightingBounds FromSources(double solarLux, double diskNits, double summedPointCandela,
         double environmentEOverPi, double blockLux, double indirectNits, double emissionNits, double aerialNits, double additiveNits)
     {
         Validate(solarLux); Validate(diskNits); Validate(summedPointCandela); Validate(environmentEOverPi);
         Validate(blockLux); Validate(indirectNits); Validate(emissionNits); Validate(aerialNits); Validate(additiveNits);
-        // Use the qualified finite-disk/punctual response bounds and existing nonrecursive
-        // water/air topology. Producer rounding allowances enter through the supplied maxima.
+        // The selected microfacet response replaces the previous smaller specular coefficients.
+        // These source estimates detect publication changes; they are not an overflow-free
+        // storage certificate. Actual scene destinations independently contain highlight outliers.
         double diffuse = (blockLux + Math.PI * environmentEOverPi) / (4 * Math.PI);
-        return new(.9 * diskNits + (66560 + 1 / Math.PI) * summedPointCandela + 2 * solarLux / Math.PI + indirectNits + emissionNits,
-            2 * diskNits + 200000 * summedPointCandela + environmentEOverPi,
+        return new(3 * diskNits + (40000000 + 1 / Math.PI) * summedPointCandela + 2 * solarLux / Math.PI + indirectNits + emissionNits,
+            3 * diskNits + 42000000 * summedPointCandela + environmentEOverPi,
             64 * solarLux + diffuse, (2 / .0722) * (64 * (solarLux + summedPointCandela) + diffuse),
             3 * aerialNits, additiveNits);
     }

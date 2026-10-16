@@ -4,6 +4,7 @@ using System.Numerics;
 
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.PBR.Materials.WorldProbes;
+using VanillaGraphicsExpanded.PBR.Materials.Energy;
 
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -12,8 +13,11 @@ using Xunit;
 
 namespace VanillaGraphicsExpanded.Tests.Unit.PBR.Materials.WorldProbes;
 
+/// <summary>Checks derived diffuse transport budgets while retaining authored source materials and fallback diagnostics.</summary>
 public sealed class BlockFaceDerivedSurfaceLookupBuilderTests
 {
+    #region Public API
+    /// <summary>Repeated lookup construction preserves deterministic metadata and resolved projected-average material coefficients.</summary>
     [Fact]
     public void Build_IsDeterministicForSameInputs()
     {
@@ -48,6 +52,15 @@ public sealed class BlockFaceDerivedSurfaceLookupBuilderTests
         Assert.Equal(3, statsA.MaxBlockId);
         Assert.Equal((3 + 1) * 6, statsA.TotalFaces);
         Assert.True(statsA.ResolvedFaces > 0);
+        PbrMaterialSurface authored=surfaceByTexture[texKey];
+        Vector3 expected=MicrofacetEnergyTable.Shared.DiffuseAlbedo(authored);
+        for(int face=0;face<6;face++)
+        {
+            Assert.Equal(expected,a[3*6+face].DiffuseAlbedo);
+            Assert.Equal(authored.SpecularF0,a[3*6+face].SpecularF0);
+        }
+        Assert.Equal(new Vector3(.2f,.3f,.4f),authored.DiffuseAlbedo);
+        Assert.Equal(0,authored.Emissive);
 
         // Sanity: all derived terms should stay in [0,1] for this setup.
         foreach (DerivedSurface ds in a)
@@ -60,4 +73,24 @@ public sealed class BlockFaceDerivedSurfaceLookupBuilderTests
             Assert.InRange(ds.SpecularF0.Z, 0f, 1f);
         }
     }
+
+    /// <summary>Missing-material transport retains magenta diagnostics after reserving the default interface reflection budget.</summary>
+    [Fact]
+    public void MissingSurfaceUsesCompensatedMagentaFallback()
+    {
+        var block=new Block {BlockId=3,Code=new("game","missing"),Textures=new Dictionary<string,CompositeTexture>
+            {["all"]=new CompositeTexture(new AssetLocation("game","block/missing"))}};
+        var result=BlockFaceDerivedSurfaceLookupBuilder.Build([block],new Dictionary<AssetLocation,PbrMaterialSurface>(),out var stats);
+        Vector3 expected=MicrofacetEnergyTable.Shared.DiffuseAlbedo(new(PbrMaterialSurface.Default.Roughness,
+            0,0,new(1,0,1),new(.04f)));
+        Assert.True(stats.DefaultsUsed>0);
+        for(int face=0;face<6;face++)
+        {
+            Assert.Equal(DerivedSurface.Default,result[18+face]);
+            Assert.Equal(expected,result[18+face].DiffuseAlbedo);
+            Assert.Equal(new Vector3(.04f),result[18+face].SpecularF0);
+        }
+        Assert.InRange(expected.X,0.0001f,.9999f);Assert.Equal(0,expected.Y);Assert.Equal(expected.X,expected.Z);
+    }
+    #endregion
 }

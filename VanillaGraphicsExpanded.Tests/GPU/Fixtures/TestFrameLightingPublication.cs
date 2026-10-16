@@ -41,8 +41,12 @@ internal sealed class TestFrameLightingPublication : IDisposable
         if (property is not null && property.GetValue(program) is null) property.SetValue(program, Buffer);
     }
 
-    /// <summary>Supplies the same quantity publication to raw native/diagnostic shader executables.</summary>
-    internal void Bind() => GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, Buffer.BufferId);
+    /// <summary>Supplies physical storage and the immutable material-energy publication to raw native/diagnostic executables.</summary>
+    internal void Bind()
+    {
+        GL.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, GpuBindingRegistry.Ssbo.FrameLighting, Buffer.BufferId);
+        Helpers.MicrofacetTextureReference.Bind();
+    }
 
     /// <summary>Retires the publication after its borrowed programs and draws finish.</summary>
     public void Dispose() { buffer?.Dispose(); buffer = null; }

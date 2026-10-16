@@ -129,7 +129,7 @@ public sealed class PbrSolarBrdfTests(HeadlessGLFixture fixture) : RenderTestBas
         double alphaSquared = alpha * alpha;
         double sine = Math.Sin(AtmosphereSolarDisk.AngularRadius) * (1 - r * r);
         double extended = alphaSquared + .25 * sine * (3 * alpha + sine) / 1.001;
-        return (float)(f0 / (Math.PI * extended * (4 + .000001)));
+        return (float)(f0 / (4 * Math.PI * extended));
     }
     #endregion
     #endregion

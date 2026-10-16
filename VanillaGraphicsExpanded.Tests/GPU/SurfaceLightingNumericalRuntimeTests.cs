@@ -1,4 +1,6 @@
 using System.Numerics;
+using VanillaGraphicsExpanded.PBR.Materials.Energy;
+using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -12,7 +14,7 @@ public sealed class SurfaceLightingNumericalRuntimeTests : RenderTestBase
     public SurfaceLightingNumericalRuntimeTests(HeadlessGLFixture fixture) : base(fixture) { }
 
     #region Analytic gather
-    /// <summary>A direct-only uniform enclosure has outgoing radiance 32 times per-channel reflectance divided by pi.</summary>
+    /// <summary>A direct-only uniform enclosure transports decoded block lux through its quantized diffuse material budget.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
     public void ConstantRadianceMatchesBothGatherConventions(bool sh9)
@@ -21,9 +23,46 @@ public sealed class SurfaceLightingNumericalRuntimeTests : RenderTestBase
         var scene = new SpatialLightingScene { SourceAlbedo = new Vector3(.125f, .25f, .5f) };
         using var runtime = new SurfaceLightingConsumerRuntimeFixture(sh9, scene);
         SeedAndFreeze(runtime);
-        for (int i = 0; i < 24; i++) runtime.Frame();
-        var expected = scene.SourceAlbedo.Value * (32 / MathF.PI);
+        var expected = DiffuseSourceOutgoing(scene);
+        SurfaceLightingRefreshSynchronization.CompleteConsumers(runtime,scene,expectedWorldRadiance:expected);
+        AssertConstantScreenInput(runtime,expected);
         AssertPixels(runtime.FinalPixels(), (_, _) => expected, .08f, "analytic enclosure");
+    }
+
+    /// <summary>Derives room outgoing radiance from authored raw light, active source calibration and byte material encoding.</summary>
+    internal static Vector3 DiffuseSourceOutgoing(SpatialLightingScene scene)
+    {
+        var calibration=VgeFrameRenderer.CurrentLightingCalibration;
+        float raw=Math.Clamp(MathF.Round(Math.Clamp(scene.BlockLight/32f,0,1)*255)/255,0,1);
+        double floor=calibration.AccessorBlockReferenceLux>0?calibration.AccessorBlockNeutralFloor:calibration.BlockNeutralFloor;
+        double coefficient=calibration.AccessorBlockReferenceLux>0?calibration.AccessorBlockReferenceLux:calibration.BlockReferenceLux;
+        double amplitude=Math.Max(raw-floor,0);
+        double lux=coefficient*Math.Pow(amplitude,4)/(Math.Pow(amplitude,3)+.064);
+        var diffuse=MicrofacetEnergyTable.Shared.DiffuseAlbedo(new(.5f,0,0,
+            scene.SourceAlbedo??new(scene.Reflectance),new(.04f)));
+        // The actual compact cache material is unsigned-byte diffuse transport, not raw albedo.
+        for(int channel=0;channel<3;channel++)diffuse[channel]=(int)(Math.Clamp(diffuse[channel],0,1)*255+.5f)/255f;
+        return diffuse*(float)(lux/Math.PI);
+    }
+
+    /// <summary>Checks persistent directional inputs before comparing a constant-field gather to its analytic source.</summary>
+    internal static void AssertConstantScreenInput(SurfaceLightingConsumerRuntimeFixture runtime,Vector3 expected)
+    {
+        var atlas=runtime.Screen.ScreenProbeAtlasFilteredTex!;
+        var radiance=atlas.ReadPixels();
+        var meta=runtime.Screen.ScreenProbeAtlasMetaFilteredTex!.ReadPixels();
+        // Both local hits and distant-cache fallbacks must arrive in the same physical units.
+        // The fixed cache encoding is decoded only for RGB; confidence keeps its own meaning.
+        for(int i=0;i<atlas.Width*atlas.Height;i++)
+        {
+            Assert.True(meta[i*2]>0,$"Missing screen direction ({i%atlas.Width},{i/atlas.Width}).");
+            for(int channel=0;channel<3;channel++)
+            {
+                float physical=VanillaGraphicsExpanded.PBR.LightingStorage.DecodePersistent(radiance[i*4+channel]);
+                Assert.True(Math.Abs(physical-expected[channel])<=.01f,
+                    $"Screen direction ({i%atlas.Width},{i/atlas.Width}), channel={channel}: expected physical {expected[channel]}, actual {physical}.");
+            }
+        }
     }
     #endregion
 

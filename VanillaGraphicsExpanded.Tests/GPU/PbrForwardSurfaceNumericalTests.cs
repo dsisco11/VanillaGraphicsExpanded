@@ -4,6 +4,7 @@ using System.Text.RegularExpressions;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR.Materials.Energy;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -95,6 +96,7 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             GL.AttachShader(program, vertex); GL.AttachShader(program, fragment); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
+            Helpers.MicrofacetTextureReference.Bind();
             using var frame = new VgeFrameUniformBuffer();
             Assert.True(frame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
             using var inputs = new FixtureUniformInputs(program, 64);
@@ -127,32 +129,49 @@ public sealed class PbrForwardSurfaceNumericalTests : RenderTestBase
             framework.RenderQuadTo(program, output);
             float[] actual = output[0].ReadPixels();
             float factor = scenario is 1 or 9 or 15 ? 64f : scenario is 2 or 3 or 8 or 14 ? LightingCalibration.EnginePointCandelaPerUnit : 0f;
-            float[] radiance = new float[3];
+            float[,] radiance = new float[4,3];
+            var lookup=MicrofacetTextureReference.Sample(MicrofacetEnergyLookup.Prepare().Width,.5f,1);
+            double eLow=lookup.Value.X-lookup.Error.X,eHigh=lookup.Value.X+lookup.Error.X;
+            double efLow=Math.Max(0,lookup.Value.Y-lookup.Error.Y),efHigh=lookup.Value.Y+lookup.Error.Y;
+            double gainLow=1+.04*(1-eHigh)/eHigh,gainHigh=1+.04*(1-eLow)/eLow;
+            double reflectedLow=gainLow*(eLow*.04+efLow*.96),reflectedHigh=gainHigh*(eHigh*.04+efHigh*.96);
+            // Propagate only the declared texture precision through the material-energy
+            // coefficients. Source lux, physical BRDF and the arithmetic margin stay fixed.
+            var responses=new[]{(Reflection:reflectedLow,Gain:gainLow),(Reflection:reflectedLow,Gain:gainHigh),
+                (Reflection:reflectedHigh,Gain:gainLow),(Reflection:reflectedHigh,Gain:gainHigh)};
+            for(int variant=0;variant<responses.Length;variant++)
+            {
+            var response=responses[variant];
+            float diffuseWeight = (float)(1-response.Reflection);
+            float specularGain = (float)response.Gain;
             for (int channel = 0; channel < 3; channel++)
             {
                 float irradiance = scenario == 4 ? new[] { .2f, .4f, .8f }[channel] / MathF.PI : factor;
                 float linear = (channel + 1) * .2f * irradiance;
-                // At normal incidence and roughness .5, dielectric GGX contributes 4*.04/pi.
-                // Direct diffuse retains 1-F0; emission and environment use their separate contracts.
-                float normalSpecular = .16f / MathF.PI;
+                // Direct specular receives W once; diffuse uses the remaining integrated energy.
+                float normalSpecular = .16f * specularGain / MathF.PI;
                 if (scenario is 2 or 3 or 8 or 14)
-                    linear = (.96f * (channel + 1) * .2f / MathF.PI + normalSpecular) * factor;
+                    linear = (diffuseWeight * (channel + 1) * .2f / MathF.PI + normalSpecular) * factor;
                 if (scenario == 4)
-                    linear = (.96f * (channel + 1) * .2f / MathF.PI + PbrSolarBrdfTests.NormalIncidenceExpected(.04f, .5f))
+                    linear = (diffuseWeight * (channel + 1) * .2f / MathF.PI + PbrSolarBrdfTests.NormalIncidenceExpected(.04f, .5f)*specularGain)
                         * new[] { .2f, .4f, .8f }[channel];
-                if (scenario == 6) linear = new[] { .2f,.4f,.8f }[channel] * (.96f * (channel + 1) * .2f + .02f);
-                if (scenario == 10) linear = (.96f * (channel + 1) * .2f / MathF.PI + PbrSolarBrdfTests.NormalIncidenceExpected(.04f, .5f)) * (.3f + channel * .2f);
+                if (scenario == 6) linear = new[] { .2f,.4f,.8f }[channel]
+                    * (float)(diffuseWeight * (channel + 1) * .2 + response.Reflection);
+                if (scenario == 10) linear = (diffuseWeight * (channel + 1) * .2f / MathF.PI
+                    + PbrSolarBrdfTests.NormalIncidenceExpected(.04f, .5f)*specularGain) * (.3f + channel * .2f);
                 if (scenario == 12) linear = new[]{.04f,.09f,.16f}[channel];
                 if (scenario >= 16)
                 {
                     double lux = (scenario == 18 ? 2000 : 1000) / (4 * Math.PI * (scenario == 17 ? 4 : 1));
-                    linear = (float)((.96 * (channel + 1) * .2 / Math.PI + .16 / Math.PI) * lux);
+                    linear = (float)((diffuseWeight * (channel + 1) * .2 / Math.PI + normalSpecular) * lux);
                 }
-                radiance[channel] = linear;
+                radiance[variant,channel] = linear;
+            }
             }
             // Forward scene lighting is unexposed radiance; the final pass owns display conversion.
             for (int channel = 0; channel < 3; channel++)
-                Assert.InRange(actual[channel], radiance[channel] - .0001f, radiance[channel] + .0001f);
+                Assert.InRange(actual[channel], Enumerable.Range(0,4).Min(variant=>radiance[variant,channel]) - .0001f,
+                    Enumerable.Range(0,4).Max(variant=>radiance[variant,channel]) + .0001f);
             Assert.InRange(actual[3], .36999f, .37001f);
         }
         finally { GL.DeleteProgram(program); GL.DeleteShader(vertex); GL.DeleteShader(fragment); }

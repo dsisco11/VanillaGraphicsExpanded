@@ -92,7 +92,9 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         var shadowedSunAndPoint = RenderReceiver(0f, 100f, 0f, pointLight: true, emission: .8f);
 
         // The unit engine point payload is calibrated candela, evaluated one metre from this normal-incidence receiver.
-        float expectedDiffuse = .6f * .96f / MathF.PI * LightingCalibration.EnginePointCandelaPerUnit;
+        var response = MicrofacetEnergyReference.NormalResponse((float)(Half).4f, .04);
+        float expectedDiffuse = (float)((float)(Half).6f * (1-response.Reflection) / Math.PI
+            * LightingCalibration.EnginePointCandelaPerUnit);
         Assert.InRange(pointOnly[0], expectedDiffuse - .0001f, expectedDiffuse + .0001f);
         Assert.True(pointOnly[4] > .001f && pointOnly[8] > .3f);
         for (int attachment = 0; attachment < 3; attachment++)
@@ -185,7 +187,7 @@ public sealed class PbrDirectLightingShadowTests : LumOnShaderFunctionalTestBase
         using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, upward ? [.5f, 1f, .5f, 1f] : [.5f, .5f, 1f, explicitPosition ? -1f : 1f]);
         using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, -1f, 1f]);
         using var environment = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [0f, 0f, 0f, skyVisibility]);
-        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [color is null ? .4f : .9f, 0f, emission, 1f]);
+        using var material = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba16f, [color is null ? .4f : .9f, 0f, emission, 0f]);
         // A depth-format texture is required by sampler2DShadow. The production resource setters
         // bind the comparison sampler; the test must not repair or replace that binding itself.
         using var shadow = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent32f);

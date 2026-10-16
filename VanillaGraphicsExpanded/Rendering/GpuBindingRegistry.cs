@@ -72,6 +72,8 @@ internal static partial class GpuBindingRegistry
     /// </summary>
     internal static class Sampler
     {
+        /// <summary>Shared material-energy texture, separate from existing engine and owned material sampler slots.</summary>
+        internal const int MicrofacetEnergy = 32;
         internal static class LumOnScene
         {
             public const int PatchIdGBuffer = 0;
