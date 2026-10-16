@@ -1,7 +1,8 @@
 # VGE-owned volumetric clouds driven by native weather
 
-Status: design decisions reconciled for complete proposal review. This document does not authorize
-implementation or define an implementation checklist.
+Status: complete proposal approved by the user on 2026-10-16 following the proposal logic review.
+Approval establishes the design contract; this document is not an implementation checklist and
+does not by itself authorize runtime implementation.
 
 The settled design uses separate VGE-owned Simple and Volumetric shaders, native mesh/column
 geometry, roughly cubic volumetric clouds with restrained shader noise, and existing OIT composition.
@@ -351,9 +352,9 @@ them as additional design decisions:
 - Record target hardware, resolution, reference scenes and measured GPU/memory costs. Establish
   performance acceptance budgets from explicit targets; do not invent unmeasured performance claims.
 
-The main rendering and ownership choices are settled. Complete proposal review remains separate
-from implementation planning and may identify concrete discrepancies; this reconciliation does not
-claim that such a review or runtime qualification has already passed.
+The complete proposal has been reviewed for internal logic and approved. Implementation planning
+and runtime qualification remain separate; proposal approval does not establish implementation
+correctness, visual acceptance or measured performance.
 
 No completion claim follows from this proposal, and the parent requirement remains unchecked.
 
