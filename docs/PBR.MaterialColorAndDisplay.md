@@ -165,6 +165,16 @@ Normal Debug and Release builds run `tools/MicrofacetEnergy` only when
 assets are preserved regardless of timestamps or generator changes; deliberate regeneration
 requires removing the asset or running the tool explicitly. Generation first writes an
 intermediate file and publishes it after successful completion. Design-time builds skip it.
+The generator precomputes the shared disk sequence and fixed hemisphere terms once,
+then integrates independent directions using portable `Vector<double>` lanes alongside
+the existing material-row parallelism. Unsupported CPUs and leftover sample directions
+use the scalar path. Accumulation stays double precision; the serialized Float32 table
+is byte-identical to the qualified source in tested four-lane, two-lane, scalar and Debug runs.
+Three interleaved fresh-process Release runs per variant on the development machine gave
+median wall times of 1.286 seconds originally, 0.769 seconds with precomputation alone,
+and 0.304 seconds with SIMD (including startup/write, excluding compilation). These are
+generator timings, not game performance. Numerical corner/odd-count checks cover 180
+cases across the three execution modes. Receipts: `artifacts/MicrofacetEnergy/GeneratorOptimization`.
 
 The general `ShadingQuality` setting is independent of sky and water quality. Levels
 0/1/2/3 select 16/32/64/128 square texels, using 1/4/16/64 KiB of GPU texture payload.
