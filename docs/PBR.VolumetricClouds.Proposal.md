@@ -281,18 +281,27 @@ must use their own camera/depth contract and must not reuse main-view history bl
 
 ## Quality and temporal behavior
 
-Provide bounded quality controls for trace resolution, view/light sample counts and detail
-evaluation. Use lower-resolution tracing with depth-aware reconstruction
-where it preserves silhouettes, disocclusion and in-cloud movement.
+The approved default for Volumetric mode is half-resolution tracing (half the view width and
+height), with temporal reconstruction and depth-aware upsampling to full resolution. Preserve
+silhouettes, disocclusion and in-cloud movement, and reconstruct the cloud contributions needed by
+the existing OIT contract rather than flattening them into a single depthless color overlay.
 
-Temporal reconstruction is proposed where useful, not a prerequisite for a correct density model.
+Provide a full-resolution, history-free reference mode for validation. It uses the same density,
+lighting and OIT contracts while bypassing temporal accumulation and reduced-resolution upsampling.
+It is a comparison mode, not a claim of converged or exact light transport. Simple mode remains
+ordinary mesh rendering and does not use this volumetric reconstruction path.
+
+Provide bounded controls for view/light sample counts and detail evaluation. Exact ray counts,
+noise settings and additional quality presets are implementation tuning choices informed by
+measurement, not prerequisites for this approved resolution/reconstruction strategy.
+
 History must account for camera and cloud motion, weather changes, lighting changes, grid replacement,
 resize and reload. Reprojection must distinguish a grid-coordinate change from actual cloud motion.
 Reject incompatible history and bound stale contributions during rapid transitions. Do not assume
 that history remains valid merely because a texture handle is unchanged.
 
-Exact budgets and quality presets remain open until measured on the target renderer. Count native
-producer overhead, snapshot/upload cost, noise and weather storage, trace targets
+Exact budgets remain open until measured on the target renderer. Count native
+producer overhead, native uploads, noise and weather storage, trace targets
 and history in the total memory and frame-time assessment.
 
 ## Acceptance and unresolved decisions
@@ -307,6 +316,12 @@ the user performs in-game visual acceptance. GPU timing and memory measurements 
 Validate Off/Simple/Volumetric switching and VGE disable/re-enable, including shader reload and mesh
 rebuild in Simple mode. Simple must retain the native block-shaped appearance and avoid duplicate
 native/VGE draws. Qualify its rendering cost separately from the volumetric path.
+
+Compare the default volumetric mode against the full-resolution, history-free reference during
+camera/cloud movement, disocclusion, weather and lighting transitions, and history invalidation.
+Measure the tracing, reconstruction and memory costs separately. Reference-mode captures and
+performance qualification are explicit validation activities, not mandatory full-resolution work
+in routine correctness checks.
 
 Before extrapolating an implementation plan, resolve:
 
