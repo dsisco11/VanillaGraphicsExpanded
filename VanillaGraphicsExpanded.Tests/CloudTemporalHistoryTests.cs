@@ -15,6 +15,19 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class CloudTemporalHistoryTests
 {
     #region Public API
+    /// <summary>Full-view reconstruction consumes reduced payloads without importing a density or lighting march.</summary>
+    [Fact]
+    public void FullViewResolveCannotRetraceCloudTransport()
+    {
+        string source=File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/shaders/cloud_volume_resolve.fsh"));
+        Assert.DoesNotContain("CloudVisibility",source);
+        Assert.DoesNotContain("CloudIntegrate",source);
+        Assert.DoesNotContain("CloudLightDepth",source);
+        Assert.DoesNotContain("cloudMap",source);
+        Assert.DoesNotContain("cloud_volume_transport.glsl",source);
+        Assert.DoesNotContain("cloud_volume_visibility.glsl",source);
+        Assert.DoesNotContain("cloud_volume_density.glsl",source);
+    }
     /// <summary>Reusable handles cannot carry history across independent content, lifecycle or view changes.</summary>
     [Theory]
     [InlineData("owner")][InlineData("world")][InlineData("allocation")][InlineData("upload")][InlineData("shader")]

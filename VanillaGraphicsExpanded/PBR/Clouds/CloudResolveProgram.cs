@@ -10,7 +10,6 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 [ShaderStage("Contract", ShaderStageKind.Fragment, "cloud_volume_resolve.fsh")]
 internal sealed partial class CloudResolveProgram : GpuProgram, ICloudResolveBindings
 {
-    internal readonly CloudVolumeParameters Parameters;
     internal readonly CloudTemporalParameters Temporal;
     private VgeFrameUniformBuffer? frame;
     private GpuShaderStorageBuffer? lighting;
@@ -19,7 +18,6 @@ internal sealed partial class CloudResolveProgram : GpuProgram, ICloudResolveBin
     /// <summary>Registers the dedicated resource contract and owns its parameter block.</summary>
     public CloudResolveProgram()
     {
-        Parameters = OwnUniformBuffer(new CloudVolumeParameters());
         Temporal = OwnUniformBuffer(new CloudTemporalParameters());
         ProgramLayout.RegisterContract(Contract.Stages[0].Bindings);
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
@@ -31,12 +29,10 @@ internal sealed partial class CloudResolveProgram : GpuProgram, ICloudResolveBin
     /// <summary>Accepts matching controlled-view frozen lighting storage.</summary>
     internal GpuShaderStorageBuffer? Lighting { get => lighting; set { RequireInputMutation(); lighting = value; } }
     /// <summary>Uses the current camera without changing it.</summary>
-    CpuUniformBuffer ICloudVolumeBindings.FrameInputs => frame ?? VgeFrameRenderer.Current;
-    /// <summary>Publishes the owned submission block.</summary>
-    CpuUniformBuffer ICloudVolumeBindings.Inputs => Parameters;
+    CpuUniformBuffer ICloudResolveBindings.FrameInputs => frame ?? VgeFrameRenderer.Current;
     /// <summary>Encodes against the frozen view publication.</summary>
     GpuShaderStorageBuffer CameraExposure.IPhotometricFrameBindings.FrameLighting => lighting ?? CameraExposure.CameraExposureRenderer.FrozenLighting;
     /// <summary>Publishes owned reprojection parameters.</summary>
-    CpuUniformBuffer ICloudTraceBindings.TemporalInputs => Temporal;
+    CpuUniformBuffer ICloudResolveBindings.TemporalInputs => Temporal;
     #endregion
 }

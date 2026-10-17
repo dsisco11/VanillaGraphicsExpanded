@@ -114,8 +114,14 @@ settings and completed lighting. Monotonic routine uploads may retain history, w
 support/depth and optical-change checks on the GPU. Cuts, missing input, replacements, mode
 release, reload and reset invalidate history. Accepted history has weight .75, clamped to a
 compatible current neighborhood; attenuation jumps above .05 reject it. Spatial reconstruction
-validates full-view density/coverage and both depth clips. Rejected spatial pixels use the same
-full-resolution transport as the reference, preserving current silhouettes and disocclusion.
+uses four phase-aware reduced samples and current opaque/liquid depth. Foreground distances
+reject incompatible samples; all six payload channels share normalized weights, including clear
+samples at cloud edges. Clouds fully in front of both depth clips can be reconstructed across
+background depth changes. If bilinear taps are rejected, a bounded 3x3 reduced stencil selects
+the nearest depth-compatible payload. If none exists, submission is neutral OIT. Resolve
+never evaluates density or lighting. Small features absent from the reduced samples and newly
+exposed partial cloud intervals remain reconstruction limitations; reference mode is available
+for comparison.
 
 The persisted `Clouds` config and ConfigLib expose:
 
@@ -138,8 +144,9 @@ Reduced targets and pipelines persist across stable frames. Resize/reload retire
 resources; wrappers never delete engine attachments. Allocation is bounded before creation to
 view dimensions <=16,384 and nominal trace/history image storage <=1 GiB. The three sets require
 288 bytes per reduced pixel, excluding native producer data and other resources. This is a
-calculated texel allocation, not measured resident memory. Full-view density validation and
-fallback have additional work; half-resolution lighting alone does not establish a speedup.
+calculated texel allocation, not measured resident memory. Full-view resolve is bounded
+texture reconstruction; density and light marching are confined to reduced tracing or the explicit
+reference mode. Performance requires GPU measurement and is not established by allocation bounds.
 
 ## Compatibility and qualification
 

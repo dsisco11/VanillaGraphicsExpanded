@@ -711,8 +711,8 @@ Phase 5 implementation and verification (2026-10-16)
       Current depth/support and optical-change rejection plus neighborhood bounds handle weather.
     - Reconstruction/composition -> Proposal / Scene integration, Density integration and lighting;
       Atmosphere.Publication / Atmospheric transport and Publication contract; Phase 1 / OIT and
-      temporal payload -> CloudResolveProgram, cloud_volume_resolve.fsh and shared transport/
-      visibility includes. Every accepted sample uses common weights for all six payload channels,
+      temporal payload -> CloudResolveProgram, cloud_volume_resolve.fsh and reduced physical history.
+      Every accepted sample uses common weights for all six payload channels,
       including weighted alpha and attenuation. History radiance remains physical FP32; only final
       accumulated RGB receives the frozen scene encoding. No alpha/reveal/depth exposure or second
       premultiplication is applied. Shared integration keeps density, self-shadowing, one extra
@@ -744,13 +744,17 @@ Phase 5 implementation and verification (2026-10-16)
       jumps >.05 reject history; previous channels are clamped to a compatible 3x3 current neighborhood.
       Invalid/nonfinite/negative previous channels reject the entire record. Static accepted history
       residual decays by .75 per update; it is bounded accumulation, not an unlimited previous layer.
-    - Four-tap phase-aware upsampling accepts support differences <=max(2 world units, 1% far depth),
-      native depth differences <=2e-5 and each overall/bin transmission difference <=.02. All channels
-      share normalized accepted weights. Current clear pixels remain clear. When no spatial sample is
-      accepted, the pixel runs full-resolution common transport. Density validation and fallback
-      are intentional costs; neither quarter-area lighting traces nor reconstruction establish speedup.
-    - Numerical comparison tolerances are .021 absolute for overall/bin attenuation and .045 for
-      other payload error divided by max(1, environment*frameScale). CPU/observable temporal probes
+    - Four-tap phase-aware upsampling compares reconstructed opaque/liquid foreground distances,
+      with max(2 world units, 1% foreground distance) tolerance and shared bilateral weights for
+      all six payload channels. Samples wholly in front of both clips can survive background-depth
+      changes. Cloud intervals extending behind a new foreground clip are conservatively rejected.
+      Rejected bilinear taps use the nearest depth-compatible payload in a bounded 3x3 reduced
+      stencil; no compatible sample submits neutral OIT. Resolve never evaluates density/transport.
+      Reduced sampling can miss narrow silhouettes and newly exposed partial cloud intervals.
+      Full-resolution reference mode remains separate; live quality/performance gates stay open.
+    - Reconstruction comparisons retain .021 attenuation and .045 normalized-payload tolerances
+      outside the one-pixel full-resolution reference neighborhood envelope. Raw pointwise errors
+      are recorded separately because spatial filtering is approximate. CPU/observable temporal probes
       use 1e-5 attenuation/alpha and 1e-4 accumulated-RGB tolerances. Measured residuals and final
       receipts are recorded below. No game launch or performance acceptance occurred.
     - Second source review reconciled native placement, rotating sample phase, resource retirement,
@@ -919,3 +923,37 @@ Phase 6 implementation and verification (2026-10-16)
       inspected final test results and catalog/package evidence: no unresolved findings remain for
       this increment. Phase 7 and Final acceptance remain unchecked, as does the parent cloud task.
       Directional reflected-cloud imagery remains the recorded unavailable-consumer dependency.
+Reduced-resolution resolve correction (2026-10-16)
+  - Default rendering keeps ceil-half width/height tracing and physical temporal reconstruction.
+    CloudResolveProgram now has its own depth/history/scene-encoding bindings, with no cloud-map,
+    density parameters or atmosphere textures. The unused visibility march include is removed.
+  - Full-view resolve performs four-tap phase-aware depth filtering. Rejected bilinear taps may
+    select one nearest depth-compatible payload from a bounded 3x3 reduced stencil. All six OIT
+    channels use the same weights or selected record; no compatible record writes neutral OIT.
+    No default resolve branch evaluates density, self-shadowing or complete transport. The explicit
+    full-resolution reference remains available separately.
+  - Comparison methodology distinguishes raw pointwise filtering error from error outside the
+    one-pixel spatial reference envelope. Original .021 attenuation/.045 normalized-payload
+    tolerances remain for the envelope. Authored zero-map payloads verify exact interpolation,
+    shared channel weights, once-only physical RGB encoding and native Glow blending. Foreground
+    occlusion, partial in-cloud disocclusion and recovery have explicit GPU regression coverage.
+  - Final production and fixture SPIRV/C# builds passed. Combined cloud CPU, source, binding,
+    registry and shader-selection checks passed 156/156, with no failed or skipped tests:
+    VanillaGraphicsExpanded.Tests/TestResults/cloud-resolve-final-contracts.trx.
+  - Final reconstruction/history checks passed 48/48, with no failed/skipped tests:
+    VanillaGraphicsExpanded.Tests/TestResults/cloud-resolve-final.trx. Targeted interpolation and
+    disocclusion probes passed 2/2 (cloud-resolve-fallback-probes.trx). The combined suite exercises
+    19 reference scenes, both PBR modes, physical history/exposure, exact foreground rejection,
+    partial in-cloud support/recovery and bounded allocation/lifecycle behavior. Counts overlap.
+    Raw worst pointwise attenuation/normalized-payload errors are .1639446/.1695056 (detail);
+    thin vertical support gives .1466798/.09988339. These are spatial filtering errors, not the
+    smaller historical receipts from a resolve which could retrace full-resolution transport.
+    All scenes passed the one-pixel reference-envelope tolerances recorded above.
+  - Matched candidate DLL/source hashes (SHA256):
+    DLL: 890CE98C2C14E736EBF95CFE0FD27CEDCDBDE95360BCE07741B1B58FA50EB0E5
+    Resolve source: 5F0C0407299B199E6DB40774C16ADE50BAEFAB877D1C1220FB70EF4B96E23203
+    The validated candidate is artifacts/cloud-resolve-test-bin; no live performance or appearance
+    result is inferred from its compilation, hashes or headless GPU checks.
+  - The candidate was built in isolation; the running game was not modified or restarted. A fresh
+    capture is required to measure performance. Reduced view/light marching is unchanged, and
+    the in-game appearance/performance acceptance gates remain unchecked.

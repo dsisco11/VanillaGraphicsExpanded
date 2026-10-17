@@ -21,6 +21,31 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
 {
     #region Public API
     #region Reference comparisons
+    /// <summary>Resolve reconstructs supplied physical payloads independently of cloud map density and rejects foreground occlusion.</summary>
+    [Fact]
+    public void FullViewResolveUsesReducedPayloadWithoutDensityEvaluation()
+    {
+        EnsureShaderTestAvailable(); using var view=CreateScene(9,7);
+        view.Capture(0,0,10,.125f,0,"static");
+        var reconstructed=view.ResolveAuthoredHistory();
+        Assert.All(reconstructed[1],value=>Assert.InRange(Math.Abs(value-.4f),0,.00001));
+        Assert.All(reconstructed[0],value=>Assert.InRange(Math.Abs(value-.6f),0,.00001));
+        // The authored history contains physical RGB 8, encoded once with this view's one-eighth storage scale.
+        for(int layer=3;layer<6;layer++)
+        for(int i=0;i<reconstructed[layer].Length;i++)
+            Assert.InRange(Math.Abs(reconstructed[layer][i]-(i%4==3?.6f:1f)),0,.00001);
+        var patterned=view.ResolveAuthoredHistory(patterned:true);
+        Assert.InRange(Math.Abs(patterned[1][1]-.12f),0,.00001);
+        for(int channel=0;channel<3;channel++) Assert.InRange(Math.Abs(patterned[0][3+channel]-.18f),0,.00001);
+        // Native Glow uses SrcAlpha for alpha as well as RGB, so a cleared target stores squared alpha.
+        Assert.InRange(Math.Abs(patterned[2][7]-.18f*.18f),0,.00001);
+        for(int layer=3;layer<6;layer++) for(int channel=0;channel<4;channel++)
+            Assert.InRange(Math.Abs(patterned[layer][4+channel]-(channel==3?.18f:.3f)),0,.00001);
+        view.Capture(1,0,10,.125f,0,"moving-edge");
+        var clipped=view.ResolveAuthoredHistory();
+        for(int y=0;y<7;y++) for(int x=0;x<9;x++)
+            Assert.InRange(Math.Abs(clipped[1][y*9+x]-((x+y)%3==0?1f:.4f)),0,.00001);
+    }
     /// <summary>Small deterministic scenes bound temporal/spatial residuals independently of the common transport model.</summary>
     [Theory]
     [InlineData("static")][InlineData("thin")][InlineData("thin-height")][InlineData("detail")][InlineData("lit")][InlineData("terrain")][InlineData("liquid")]
@@ -51,11 +76,12 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
                     float error=Math.Abs(a-b);
                     if(layer is 0 or 1) { maxAttenuation=Math.Max(maxAttenuation,error); Assert.InRange(a,0,1); }
                     else maxRadiance=Math.Max(maxRadiance,error/Math.Max(1,environment*scale));
+                    AssertWithinSpatialReference(actual[layer],reference[layer],i,layer==0?3:layer==1?1:4,
+                        scene=="odd"?9:8,scene=="odd"?7:8,layer<2?.021f:.045f*Math.Max(1,environment*scale));
                 }
             }
         }
         output.WriteLine($"{scene}: max attenuation absolute={maxAttenuation:G7}; max payload error / max(1,environment*scale)={maxRadiance:G7}");
-        Assert.InRange(maxAttenuation,0,.021f); Assert.InRange(maxRadiance,0,.045f);
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     /// <summary>New opaque silhouettes cannot inherit a cloud behind a previous depth, even inside one reduced pixel.</summary>
@@ -69,7 +95,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         for(int i=0;i<actual[1].Length;i++)
         {
             if(reference[1][i]==1) Assert.Equal(1,actual[1][i]);
-            Assert.InRange(Math.Abs(reference[1][i]-actual[1][i]),0,.021);
+            AssertWithinSpatialReference(actual[1],reference[1],i,1,9,7,.021f);
         }
         view.Capture(2,2,10,1,0,"static"); view.Render(2,true);
         Assert.All(view.ReadDefault()[1],value=>Assert.True(value<1));
@@ -92,7 +118,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             Assert.Contains(actual[3], value => value > 0);
             for (int layer = 0; layer < 6; layer++)
             for (int i = 0; i < actual[layer].Length; i++)
-                Assert.InRange(Math.Abs(actual[layer][i] - reference[layer][i]), 0, layer < 2 ? .021 : .045 * 1.25);
+                AssertWithinSpatialReference(actual[layer],reference[layer],i,layer==0?3:layer==1?1:4,8,8,
+                    layer<2?.021f:.045f*1.25f);
         }
         finally { PbrShaderLightingMode.GenerationLumOnEnabled = previous; }
     }
@@ -162,6 +189,19 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
     #endregion
 
     #region Private
+    /// <summary>Bounds approximation by the one-pixel bilinear footprint, preserving the original residual tolerance outside its reference envelope.</summary>
+    private static void AssertWithinSpatialReference(float[] actual,float[] reference,int index,int components,int width,int height,float tolerance)
+    {
+        int pixel=index/components,x=pixel%width,y=pixel/width,channel=index%components;
+        float low=reference[index],high=low;
+        for(int dy=-1;dy<=1;dy++) for(int dx=-1;dx<=1;dx++)
+        {
+            int sample=(Math.Clamp(y+dy,0,height-1)*width+Math.Clamp(x+dx,0,width-1))*components+channel;
+            low=Math.Min(low,reference[sample]);high=Math.Max(high,reference[sample]);
+        }
+        Assert.True(actual[index]>=low-tolerance&&actual[index]<=high+tolerance,
+            $"Pixel({x},{y}) channel{channel}: {actual[index]:G9} outside reference footprint [{low:G9},{high:G9}] +/- {tolerance:G9}");
+    }
     /// <summary>Creates independent owned executables, persistent reduced storage and a tiny view without native engine state.</summary>
     private CloudScene CreateScene(int width,int height)=>new(width,height,Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),
         Programs.Create<CloudTemporalProgram>(),Programs.Create<CloudResolveProgram>());
@@ -246,10 +286,30 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
                 { Moon=-Vector3.UnitY,Lunar=scene=="lit"?new(3):Vector3.Zero,CalibrationGeneration=1,
                     LookupStorageScale=LightingStorage.PersistentScale,ReconstructionMaximumNits=aerialScatter };
             var placement=new CloudPlacement(0,0,0,0,0,0,offset,0,new(offset,0,-50),0);
-            Configure(reference,reference.Parameters,placement,lighting);Configure(trace,trace.Parameters,placement,lighting);Configure(resolve,resolve.Parameters,placement,lighting);
+            Configure(reference,reference.Parameters,placement,lighting);Configure(trace,trace.Parameters,placement,lighting);
+            resolve.SceneDepth=opaque.TextureId;resolve.LiquidDepth=liquid.TextureId;
         }
         #endregion
         #region Submission and history probes
+        /// <summary>Supplies a known physical reduced payload while the independent density map remains empty.</summary>
+        internal float[][] ResolveAuthoredHistory(bool patterned=false)
+        {
+            for(int layer=0;layer<7;layer++)
+            {
+                int components=layer==0?3:layer==1?1:4;
+                float[] values=new float[lowWidth*lowHeight*components];
+                for(int pixel=0;pixel<lowWidth*lowHeight;pixel++)
+                for(int channel=0;channel<components;channel++)
+                {
+                    float factor=patterned?(float)(pixel%lowWidth+1)/lowWidth:1;
+                    values[pixel*components+channel]=layer==6?(channel==0?50:channel==1?100:Depth(1000)):
+                        factor*(layer==0?.6f:layer==1?.4f:layer==2?(channel==3?.6f:0):channel==3?.6f:8);
+                }
+                historyA.Images[layer].UploadDataImmediate(values);
+            }
+            resolve.Temporal.Capture(projection,Vector3.Zero,lowWidth,lowHeight,0,0,false);
+            BindHistory(resolve,historyA); Draw(resolve,result,true); return ReadDefault();
+        }
         /// <summary>Executes real reduced trace/history/resolve binaries and the direct reference, restoring inherited state after each pass.</summary>
         internal void Render(uint frame,bool valid)
         {

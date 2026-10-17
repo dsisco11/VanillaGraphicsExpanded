@@ -51,7 +51,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         var previous=swap?second!:first!; var next=swap?first!:second!;
         var camera=VgeFrameRenderer.Current;
         Capture(traceProgram,traceProgram.Parameters,input,lighting,settings,sceneDepth,liquidDepth);
-        Capture(resolveProgram,resolveProgram.Parameters,input,lighting,settings,sceneDepth,liquidDepth);
+        resolveProgram.SceneDepth=sceneDepth; resolveProgram.LiquidDepth=liquidDepth;
         // The immutable publication and native content certificates identify compatibility. New
         // map generation numbers alone do not: the native producer legitimately writes every frame.
         foreach(var temporal in new[]{traceProgram.Temporal,temporalProgram.Temporal,resolveProgram.Temporal})
@@ -122,7 +122,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         program.History2=surface.Images[2].TextureId; program.History3=surface.Images[3].TextureId;
         program.History4=surface.Images[4].TextureId; program.History5=surface.Images[5].TextureId; program.History6=surface.Images[6].TextureId;
     }
-    /// <summary>Captures matching physical inputs for reduced tracing and exact rejected-pixel fallback.</summary>
+    /// <summary>Captures physical density and lighting inputs only for reduced tracing.</summary>
     private void Capture(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudMapInput input,AtmosphereLighting lighting,
         CloudVolumeSettings settings,int sceneDepth,int liquidDepth)
     {
