@@ -1,4 +1,5 @@
 using System;
+using System.Reactive.Linq;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.Rendering;
@@ -13,6 +14,9 @@ internal sealed class CameraExposureRenderer : IRenderer
     private System.IDisposable? reloadRegistration;
     private static CameraExposureRenderer? active;
     private readonly ICoreClientAPI api;
+    private readonly PipelineEnablement enablement;
+    private readonly bool ownsEnablement;
+    private readonly IDisposable localExposureBinding;
     private readonly CameraExposureHistory history = new();
     private readonly Action unregisterResize;
     private CameraExposureTargets? targets;
@@ -33,9 +37,16 @@ internal sealed class CameraExposureRenderer : IRenderer
     #region Public API
     #region Lifetime
     /// <summary>Registers frame timing and resource lifecycle independently of the display shader.</summary>
-    internal CameraExposureRenderer(ICoreClientAPI api)
+    internal CameraExposureRenderer(ICoreClientAPI api,PipelineEnablement? enablement=null)
     {
         this.api = api;
+        ownsEnablement=enablement is null;this.enablement=enablement??new PipelineEnablement(api);
+        localExposureBinding=this.enablement.LocalExposure.Subscribe(enabled=>
+        {
+            // A spatial display-mode transition invalidates the automatic exposure history.
+            reset|=localExposureEnabled!=enabled;
+            localExposureEnabled=enabled;
+        });
         unregisterResize = ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder, Retire);
         api.Event.LeaveWorld += Retire;
         reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload);
@@ -51,6 +62,7 @@ internal sealed class CameraExposureRenderer : IRenderer
     {
         if (disposed) return;
         disposed = true;
+        localExposureBinding.Dispose();if(ownsEnablement) enablement.Dispose();
         if (ReferenceEquals(active, this)) active = null;
         api.Event.UnregisterRenderer(this, EnumRenderStage.Before);
         api.Event.LeaveWorld -= Retire;
@@ -67,9 +79,6 @@ internal sealed class CameraExposureRenderer : IRenderer
         published = false;
         lightingFrozen = false;
         settings = ConfigModSystem.Config.CameraExposure.Snapshot();
-        bool requested=ConfigModSystem.Config.Postprocessing.LocalExposure?.Enabled??true;
-        reset|=localExposureEnabled!=requested;
-        localExposureEnabled=requested;
         var position = api.World.Player.Entity.Pos;
         reset |= history.Capture(settings, dt, position.X, position.Y, position.Z,
             position.Yaw, position.Pitch, position.Dimension, (int)api.Render.CameraType);

@@ -97,6 +97,12 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         var loader = new Mock<IModLoader>();
         loader.Setup(value => value.GetModSystem<Vintagestory.GameContent.WeatherSystemClient>(It.IsAny<bool>())).Returns((Vintagestory.GameContent.WeatherSystemClient)null!);
         api.SetupGet(value => value.ModLoader).Returns(loader.Object);
+        var nativeChanges = new Dictionary<string, OnSettingsChanged<int>>();
+        api.Setup(value => value.Settings.Int.AddWatcher(It.IsAny<string>(), It.IsAny<OnSettingsChanged<int>>()))
+            .Callback<string, OnSettingsChanged<int>>((key, callback) => nativeChanges[key] = nativeChanges.TryGetValue(key, out var existing) ? existing + callback : callback);
+        api.SetupGet(value => value.Settings.Int["ssaoQuality"]).Returns(ssaoQuality);
+        api.SetupGet(value => value.Settings.Int["godRays"]).Returns(2);
+        api.SetupGet(value => value.Settings.Bool["bloom"]).Returns(true);
         programs.Initialize(api.Object);
         using var frameCamera = new VgeFrameRenderer(api.Object);
         using var lights = new VgeLightsRenderer(api.Object);
@@ -124,6 +130,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var post = new PostprocessPipeline(api.Object);
         using var shaftOcclusion = new LightShaftOcclusionRenderer(api.Object);
         using var hierarchy = new DepthHierarchyRenderer(api.Object);
+        hierarchy.SetEnabled(true);
         using var ambientOcclusion = new AmbientOcclusionRenderer(api.Object, gbuffer);
         api.SetupGet(value => value.Settings.Int["ssaoQuality"]).Returns(ssaoQuality);
         api.SetupGet(value => value.Settings.Int["godRays"]).Returns(2);
@@ -187,6 +194,14 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.True(shaftOcclusion.RenderOrder < composite.RenderOrder);
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             int earlyOcclusion = LightShaftOcclusionRenderer.Texture!.TextureId;
+            // A screen-pass gate suppresses publication while preserving the persistent feature's allocation.
+            Vintagestory.Client.ScreenManager.Platform.DoPostProcessingEffects = false;
+            shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
+            Assert.Null(LightShaftOcclusionRenderer.Texture);
+            Assert.True(GL.IsTexture(earlyOcclusion));
+            Vintagestory.Client.ScreenManager.Platform.DoPostProcessingEffects = true;
+            shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
+            Assert.Equal(earlyOcclusion, LightShaftOcclusionRenderer.Texture!.TextureId);
             hierarchy.OnRenderFrame(0, EnumRenderStage.Before);
             ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
             Assert.Null(AmbientOcclusionRenderer.Texture);
@@ -202,11 +217,13 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.Null(AmbientOcclusionRenderer.Texture);
             ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             api.SetupGet(value => value.Settings.Int["ssaoQuality"]).Returns(0);
+            nativeChanges["ssaoQuality"](0);
             ambientOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.Null(AmbientOcclusionRenderer.Texture);
             Assert.Null(aoMasks.Texture);Assert.Equal(0,aoMasks.StorageBytes);
             if(maskBeforeDisable!=0)Assert.False(GL.IsTexture(maskBeforeDisable));
             api.SetupGet(value => value.Settings.Int["ssaoQuality"]).Returns(ssaoQuality);
+            nativeChanges["ssaoQuality"](ssaoQuality);
 
             Assert.Equal(2, LightShaftOcclusionRenderer.Texture.Width);
             Assert.Equal(2, LightShaftOcclusionRenderer.Texture.Height);
@@ -282,6 +299,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             int beforeRetire = CameraExposureRenderer.DisplayExposure().Buffer!.BufferId;
             // Manual camera gain retires histogram history even while spatial local exposure remains enabled.
             ConfigModSystem.Config.Postprocessing.LocalExposure.Enabled=true;
+            LiveConfigReload.NotifyAll(api.Object);
             ConfigModSystem.Config.CameraExposure = new() { Enabled = false };
             camera.OnRenderFrame(0, EnumRenderStage.Before);
             CameraExposureRenderer.MeterScene();
@@ -380,11 +398,13 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             int beforeNativeDisable = LightShaftOcclusionRenderer.Texture!.TextureId;
             api.SetupGet(value => value.Settings.Int["godRays"]).Returns(0);
+            nativeChanges["godRays"](0);
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Before);
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.Null(LightShaftOcclusionRenderer.Texture);
             Assert.False(GL.IsTexture(beforeNativeDisable));
             api.SetupGet(value => value.Settings.Int["godRays"]).Returns(2);
+            nativeChanges["godRays"](2);
             shaftOcclusion.OnRenderFrame(0, EnumRenderStage.Opaque);
             int beforeShaftReload = LightShaftOcclusionRenderer.Texture!.TextureId;
             hierarchy.OnRenderFrame(0,EnumRenderStage.Opaque);

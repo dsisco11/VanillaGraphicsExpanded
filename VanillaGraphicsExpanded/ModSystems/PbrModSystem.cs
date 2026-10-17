@@ -37,6 +37,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
     private PBR.Postprocessing.LightShaftOcclusionRenderer? lightShaftOcclusion;
     private PBR.Postprocessing.AmbientOcclusionRenderer? ambientOcclusion;
     private DepthHierarchyRenderer? depthHierarchy;
+    private DepthHierarchyEnablement? depthHierarchyEnablement;
+    private PipelineEnablement? pipelineEnablement;
 
     public override bool ShouldLoad(EnumAppSide forSide) => forSide == EnumAppSide.Client;
 
@@ -70,11 +72,13 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         Rendering.Integration.RenderingCleanup.Run(
             () => api?.Event.UnregisterRenderer(this, EnumRenderStage.Before),
             () => { var owner = ambientOcclusion; ambientOcclusion = null; owner?.Dispose(); },
+            () => { var owner = depthHierarchyEnablement; depthHierarchyEnablement = null; owner?.Dispose(); },
             () => { var owner = depthHierarchy; depthHierarchy = null; owner?.Dispose(); },
             () => { var owner = lightShaftOcclusion; lightShaftOcclusion = null; owner?.Dispose(); },
             () => { var owner = postprocessing; postprocessing = null; owner?.Dispose(); },
             () => { var owner = sceneLighting; sceneLighting = null; owner?.Dispose(); },
             () => { var owner = cameraExposure; cameraExposure = null; owner?.Dispose(); },
+            () => { var owner = pipelineEnablement; pipelineEnablement = null; owner?.Dispose(); },
             () => { var owner = sceneColor; sceneColor = null; owner?.Dispose(); },
             () => { var owner = liquidRenderer; liquidRenderer = null; owner?.Dispose(); },
             () => { var owner = skyRenderer; skyRenderer = null; owner?.Dispose(); },
@@ -125,13 +129,14 @@ public sealed class PbrModSystem : ModSystem, IRenderer
             () => PbrShaderLightingMode.LumOnEnabled);
         sceneColor ??= new PBR.SceneColor.SceneColorPipeline(capi, pbrCompositeRenderer,
             directLightingRenderer, directLightingBufferManager, skyRenderer, particleCapture);
-        cameraExposure ??= new PBR.CameraExposure.CameraExposureRenderer(capi);
+        pipelineEnablement ??= new PipelineEnablement(capi);
+        cameraExposure ??= new PBR.CameraExposure.CameraExposureRenderer(capi,pipelineEnablement);
         sceneLighting ??= new PBR.SceneColor.SceneLightingPublicationRenderer(capi);
-        postprocessing ??= new PBR.Postprocessing.PostprocessPipeline(capi);
-        lightShaftOcclusion ??= new PBR.Postprocessing.LightShaftOcclusionRenderer(capi);
-        depthHierarchy ??= new DepthHierarchyRenderer(capi,
-            () => PBR.Clouds.CloudNativeRuntime.Active?.Ownership.Owns(PBR.Clouds.CloudMode.Volumetric) == true);
-        ambientOcclusion ??= new PBR.Postprocessing.AmbientOcclusionRenderer(capi, gBufferManager);
+        postprocessing ??= new PBR.Postprocessing.PostprocessPipeline(capi, pipelineEnablement);
+        lightShaftOcclusion ??= new PBR.Postprocessing.LightShaftOcclusionRenderer(capi, pipelineEnablement);
+        depthHierarchy ??= new DepthHierarchyRenderer(capi);
+        depthHierarchyEnablement ??= new DepthHierarchyEnablement(pipelineEnablement,depthHierarchy);
+        ambientOcclusion ??= new PBR.Postprocessing.AmbientOcclusionRenderer(capi, gBufferManager,pipelineEnablement);
         waterRefractionCapture ??= new PBR.Liquids.WaterRefractionCapture(capi, directLightingRenderer, pbrCompositeRenderer);
 
         capi.Logger.Debug("[VGE] PbrModSystem ensured ({0})", reason);

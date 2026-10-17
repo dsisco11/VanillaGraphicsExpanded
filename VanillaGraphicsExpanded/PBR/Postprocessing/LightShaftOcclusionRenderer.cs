@@ -1,4 +1,5 @@
 using System;
+using System.Reactive.Linq;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -11,6 +12,10 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
 {
     private System.IDisposable? reloadRegistration;
     private readonly ICoreClientAPI api;
+    private readonly PipelineEnablement enablement;
+    private readonly bool ownsEnablement;
+    private readonly IDisposable enablementBinding;
+    private bool enabled,disposed;
     private readonly Action unregisterResize;
     private readonly LightShaftRenderer shafts=new();
     private PostprocessDraw? draw;
@@ -26,9 +31,11 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
     /// <summary>Exposes only this frame's completed occlusion; missing means zero occlusion.</summary>
     internal static GpuTexture? Texture=>active is {published:true} owner?owner.shafts.Occlusion:null;
     /// <summary>Registers frame invalidation and pre-lighting publication under the shared screen lifetime.</summary>
-    internal LightShaftOcclusionRenderer(ICoreClientAPI api)
+    internal LightShaftOcclusionRenderer(ICoreClientAPI api,PipelineEnablement? enablement=null)
     {
         this.api=api; active=this;
+        ownsEnablement=enablement is null;this.enablement=enablement??new PipelineEnablement(api);
+        enablementBinding=this.enablement.LightShaftOcclusion.Subscribe(SetEnabled);
         unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,Retire);
         api.Event.RegisterRenderer(this,EnumRenderStage.Before,"vge_lightshaft_reset");
         api.Event.RegisterRenderer(this,EnumRenderStage.Opaque,"vge_lightshaft_occlusion");
@@ -38,11 +45,11 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
     public void OnRenderFrame(float deltaTime,EnumRenderStage stage)
     {
         published=false;
-        if(stage!=EnumRenderStage.Opaque) return;
-        var native=EnginePostprocessInputs.Capture(ScreenManager.Platform,api);
-        if(!native.LightShafts) { if(draw is not null) Retire(); return; }
+        if(disposed || stage!=EnumRenderStage.Opaque) return;
+        var native=enablement.NativePostprocess.Value;
+        if(!enabled || !ScreenManager.Platform.DoPostProcessingEffects) return;
         var primary=api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        var settings=ConfigModSystem.Config.Postprocessing.Snapshot();
+        var settings=enablement.Settings.Value.Postprocess;
         draw??=new(); depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         var pipeline=shafts.Prepare(api,draw,primary.Width,primary.Height,native.LightShaftQuality,settings.LightShaftSamples,occlusionOnly:true);
         if(!GraphicsCommandContext.TryRun("LightShafts.Occlusion",[pipeline],true,commands=>
@@ -53,12 +60,16 @@ internal sealed class LightShaftOcclusionRenderer : IRenderer
     /// <summary>Withdraws publication before unregistering and deleting its resources.</summary>
     public void Dispose()
     {
+        if(disposed) return;disposed=true;
+        enablementBinding.Dispose();if(ownsEnablement) enablement.Dispose();
         if(ReferenceEquals(active,this)) active=null;
         api.Event.UnregisterRenderer(this,EnumRenderStage.Before); api.Event.UnregisterRenderer(this,EnumRenderStage.Opaque);
         reloadRegistration?.Dispose(); api.Event.LeaveWorld-=Retire; unregisterResize(); Retire();
     }
     #endregion
     #region Private
+    /// <summary>Withdraws occlusion and retires its resources when native persistent demand turns off.</summary>
+    private void SetEnabled(bool value) { if(enabled==value) return; enabled=value; if(!enabled) Retire(); }
     /// <summary>Retires executable references before images and clears every publication.</summary>
     private void Retire()
     {

@@ -1,16 +1,32 @@
 using System.Runtime.CompilerServices;
+using System.Reactive.Disposables;
 using HarmonyLib;
 using Moq;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
+using VanillaGraphicsExpanded.PBR;
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 
 namespace VanillaGraphicsExpanded.Tests;
 
 /// <summary>Verifies native graphics settings remain authoritative at the owned postprocessing boundary.</summary>
+[Collection("GPU")]
 public sealed class EnginePostprocessInputsTests
 {
     #region Public API
+    /// <summary>A transient pass gate masks effects without changing cached qualities or persistent eligibility.</summary>
+    [Fact]
+    public void PassGatePreservesCachedSettingsAndQuality()
+    {
+        var cached = new EnginePostprocessInputs(true, true, true, true, 2, 3);
+        var disabled = cached.ForPass(false);
+        Assert.False(disabled.Bloom); Assert.False(disabled.LightShafts);
+        Assert.False(disabled.Ssao); Assert.False(disabled.Fxaa);
+        Assert.Equal(2, disabled.SsaoQuality); Assert.Equal(3, disabled.LightShaftQuality);
+        Assert.True(cached.Ssao); Assert.True(cached.LightShafts);
+        Assert.Equal(cached, cached.ForPass(true));
+    }
+
     /// <summary>Native settings override stale render flags while the engine-wide postprocessing gate remains effective.</summary>
     [Theory]
     [InlineData(true, true, 1, 2, true)]
@@ -20,6 +36,8 @@ public sealed class EnginePostprocessInputsTests
     [InlineData(true, false, 5, 0, false)]
     public void CaptureUsesNativeSettingsAndEngineGate(bool enabled, bool bloom, int godRays, int ssao, bool fxaa)
     {
+        bool? previousGeneration = PbrShaderLightingMode.GenerationLumOnEnabled;
+        using var restoreGeneration = Disposable.Create(() => PbrShaderLightingMode.GenerationLumOnEnabled = previousGeneration);
         // Avoid constructing a native window: capture only needs the native postprocessing gate.
         var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));
         platform.DoPostProcessingEffects = enabled;
@@ -33,7 +51,8 @@ public sealed class EnginePostprocessInputsTests
         api.SetupGet(x => x.Settings.Int["ssaoQuality"]).Returns(ssao);
         api.SetupGet(x => x.Settings.Bool["fxaa"]).Returns(fxaa);
 
-        var inputs = EnginePostprocessInputs.Capture(platform, api.Object);
+        using var enablement = new PipelineEnablement(api.Object);
+        var inputs = enablement.NativePostprocess.Value.ForPass(platform.DoPostProcessingEffects);
 
         Assert.Equal(enabled && bloom, inputs.Bloom);
         Assert.Equal(enabled && godRays > 0, inputs.LightShafts);

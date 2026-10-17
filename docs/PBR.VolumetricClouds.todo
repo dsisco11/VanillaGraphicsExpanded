@@ -985,3 +985,41 @@ Shared depth-hierarchy reuse (2026-10-16)
   - Isolated candidate: artifacts/cloud-hzb-test-bin/VanillaGraphicsExpanded.dll, SHA256
     EB2DE979E257EA425172D91E5B0960A9DA5B97A5983BD74811454C543FEB0B73.
     The running game was not modified or launched. No performance or visual acceptance is claimed.
+Change-driven hierarchy enablement (2026-10-16)
+  - Removed the optional additionalDemand callback and all per-frame consumer/settings eligibility
+    evaluation from DepthHierarchyRenderer. It starts disabled and exposes cached Enabled state;
+    SetEnabled changes allocation/publication lifetime only when the execution state transitions.
+  - PbrModSystem owns DepthHierarchyEnablement. It captures SSAO quality once, registers its native
+    settings watcher, and listens to the frozen LumOn generation and active actual volumetric
+    ownership. Mode selection without functioning ownership does not request depth storage.
+    Stable frame callbacks never reread settings or poll consumers for eligibility.
+  - Cloud ownership emits notifications on actual activation/release, including teardown, rather
+    than on each native mode check. The shader-mode event publishes a frozen non-null generation;
+    queued configuration and asset-lifetime resets do not prematurely choose a new mode.
+  - Disabling immediately withdraws publication/releases resources; reenabling allocates lazily.
+    Resize, world teardown and shader reload retain their independent publication/resource hooks.
+    Enabled frames still regenerate current scene depth once in Opaque and validate frame/view.
+  - Installed engine inspection confirms DoPostProcessingEffects is a transient screen-pass gate:
+    ScreenManager.Render writes false, then GuiScreenRunningGame.RenderToPrimary writes true
+    before the world loop every frame. It is not frozen as a persistent eligibility setting and
+    its setter is not hooked. Evidence: artifacts/DepthHierarchyEnablement/native-postprocessing-gate.txt.
+  - Validation: isolated shader-enabled build passed (0 errors, existing repository analyzer
+    warnings); 91/91 focused checks passed with no skips. Coverage includes native settings
+    notifications, frozen mode changes, actual cloud activation/release, unchanged disabled
+    frames without settings reads, unsubscribe/stale callbacks, immediate retirement/recreation,
+    hierarchy lifecycle, cloud ownership/draw, composition shutdown, scene color and LumOn.
+    Receipt: artifacts/DepthHierarchyEnablement/focused.trx; build.log and focused.log are siblings.
+  - Native SSAO UI and preset changes use the watcher-enabled settings indexer; preset shader
+    reload suppression does not silence settings notifications. No reload polling or extra native
+    settings hook is required. Native inspection evidence is retained in the same artifact folder.
+    No game launch/deployment or visual/performance qualification occurred.
+
+Shared reactive enablement (2026-10-16)
+  - PipelineEnablement now owns the shared native watchers, applied VGE configuration snapshot,
+    frozen LumOn generation and actual volume ownership sources. Rx.NET cached conditions feed
+    hierarchy demand, AO, shaft occlusion, bloom, shaft radiance and local exposure.
+  - DepthHierarchyEnablement binds the shared hierarchy condition; renderer resource transitions
+    stay with their owning renderers. The camera observes local-exposure changes to reset history.
+    Transient pass gates and current-frame resource validity remain checked at draw boundaries.
+  - Architecture: docs/Rendering.Enablement.md. Focused build and correctness receipts:
+    artifacts/ReactiveEnablement/validation.md. Live visual/performance acceptance stays open.

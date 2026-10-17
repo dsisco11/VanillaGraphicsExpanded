@@ -101,10 +101,16 @@ virtual-shadow-map owner; no Beer shadow map or earlier producer callback is int
 ## Shared depth inputs
 
 Volumetric tracing, its full-resolution reference and reconstruction borrow mip zero of the
-shared `DepthHierarchyRenderer` material-depth texture. The PBR composition root registers
-owned Volumetric clouds as an additional producer demand, so the hierarchy is available with
-LumOn and SSAO disabled. Simple and Off do not independently request it. The shared owner
-builds once in Opaque before the cloud OIT callback and retains allocation/lifecycle ownership.
+shared `DepthHierarchyRenderer` material-depth texture. The PBR composition root owns
+`PipelineEnablement`, whose shared Rx conditions track SSAO demand, frozen LumOn generation and
+actual Volumetric ownership notifications. `DepthHierarchyEnablement` binds their combined cached
+condition to the depth renderer. See [render enablement](Rendering.Enablement.md). The hierarchy is available
+with LumOn and SSAO disabled when Volumetric clouds own rendering. Simple and Off do not
+independently request it. Disabled transitions withdraw publication and
+release depth resources once; stable frames read only the cached enablement flag. The native
+postprocessing flag toggles within every screen frame and is not a persistent enablement factor.
+The shared owner rebuilds current scene depth once per enabled frame in Opaque before the cloud
+OIT callback and retains allocation/lifecycle ownership.
 Cloud submission requires matching current frame, camera identity, extent and a valid resource;
 a missing or stale publication invalidates cloud history and skips submission.
 

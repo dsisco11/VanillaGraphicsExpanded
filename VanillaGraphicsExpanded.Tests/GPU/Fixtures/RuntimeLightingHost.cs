@@ -39,6 +39,7 @@ internal sealed class RuntimeLightingHost : IDisposable
         lights = new(api);
         framePublication=new(api);
         hierarchy = new(api);
+        hierarchy.SetEnabled(true);
         lighting = new(() => cache.Config, _ => camera(), (_, materials) => cache.CreateSource(materials));
         int resolution = cache.Config.WorldProbeClipmap.ClipmapResolution;
         world.StartClientSide(api);

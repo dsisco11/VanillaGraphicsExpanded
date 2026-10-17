@@ -1,4 +1,6 @@
 using System;
+using System.Reactive.Linq;
+using System.Reactive.Disposables;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
@@ -14,6 +16,9 @@ internal sealed class PostprocessPipeline : IRenderer
     private System.IDisposable? reloadRegistration;
     private static PostprocessPipeline? active;
     private readonly ICoreClientAPI api;
+    private readonly PipelineEnablement enablement;
+    private readonly bool ownsEnablement;
+    private readonly CompositeDisposable enablementBindings=new();
     private readonly Action unregisterResize;
     private readonly BloomRenderer bloom=new();
     private readonly LightShaftRenderer rays=new();
@@ -33,9 +38,13 @@ internal sealed class PostprocessPipeline : IRenderer
     #region Public API
     #region Lifetime
     /// <summary>Registers owned postprocessing and final composition while preserving the presentation handoff.</summary>
-    internal PostprocessPipeline(ICoreClientAPI api)
+    internal PostprocessPipeline(ICoreClientAPI api,PipelineEnablement? enablement=null)
     {
         this.api=api;
+        ownsEnablement=enablement is null;this.enablement=enablement??new PipelineEnablement(api);
+        enablementBindings.Add(this.enablement.Bloom.Subscribe(value=>{if(!value) {bloomTexture=null;bloom.Dispose();}}));
+        enablementBindings.Add(this.enablement.LightShaftRadiance.Subscribe(value=>{if(!value) {rayTexture=null;rays.Dispose();}}));
+        enablementBindings.Add(this.enablement.LocalExposure.Subscribe(value=>{if(!value) local.Dispose();}));
         unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,Retire);
         api.Event.RegisterRenderer(this,EnumRenderStage.Before,"vge_postprocess");
         api.Event.LeaveWorld+=RetireWorld; reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload); active=this;
@@ -52,13 +61,15 @@ internal sealed class PostprocessPipeline : IRenderer
     public void OnRenderFrame(float deltaTime,EnumRenderStage stage)
     {
         if(disposed||stage!=EnumRenderStage.Before) return;
-        published=false; captured=true; settings=ConfigModSystem.Config.Postprocessing.Snapshot();
-        localSettings=(ConfigModSystem.Config.Postprocessing.LocalExposure??new()).Snapshot();
+        published=false; captured=true;
+        var configuration=enablement.Settings.Value;settings=configuration.Postprocess;
+        localSettings=configuration.LocalExposure;
     }
     /// <summary>Unregisters all callbacks before retiring owned resources.</summary>
     public void Dispose()
     {
         if(disposed) return; disposed=true;
+        enablementBindings.Dispose();if(ownsEnablement) enablement.Dispose();
         if(ReferenceEquals(active,this)) active=null;
         api.Event.UnregisterRenderer(this,EnumRenderStage.Before); api.Event.LeaveWorld-=RetireWorld; reloadRegistration?.Dispose();
         unregisterResize(); RetireWorld();
@@ -70,7 +81,7 @@ internal sealed class PostprocessPipeline : IRenderer
     {
         if(!SceneColorPipeline.HasSceneInput) return false;
         var owner=active??throw new InvalidOperationException("VGE postprocessing owner is unavailable.");
-        owner.Render(EnginePostprocessInputs.Capture(platform,owner.api));
+        owner.Render(owner.enablement.NativePostprocess.Value.ForPass(platform.DoPostProcessingEffects));
         // Preserve the installed method's documented exit target/state for the following overlay stage.
         var primary=owner.api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         platform.LoadFrameBuffer(EnumFrameBuffer.Primary);
@@ -130,18 +141,18 @@ internal sealed class PostprocessPipeline : IRenderer
         var exposure=CameraExposureRenderer.DisplayExposure();
         var primary=api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         draw??=new(); neutral??=new(1,1,"Postprocess.Neutral",clear:true);
-        bool useBloom=engine.Bloom&&settings.BloomStrength>0;
-        bool useRays=engine.LightShafts&&settings.LightShaftStrength>0&&settings.LightShaftLimit>0;
+        bool useBloom=engine.Bloom&&enablement.Bloom.Value;
+        bool useRays=engine.LightShafts&&enablement.LightShaftRadiance.Value;
         var pipelines=new List<GraphicsPipeline>();
         // Capture typed inputs once for this framebuffer publication, before entering a pass.
         scene??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[0]));
         // Publish scene-only guidance before bloom captures source-local exposure.
         // Glare never feeds the base or the global camera meter.
-        if(localSettings.Enabled) local.Render(api,scene,localSettings); else local.Dispose();
+        if(localSettings.Enabled) local.Render(api,scene,localSettings);
         if(useBloom) pipelines.Add(bloom.Prepare(api,draw,primary.Width,primary.Height,settings.BloomLevels,
             localSettings,localSettings.Enabled ? local.BaseTexture : null,CameraExposureRenderer.DisplayLogMiddleGray));
-        else bloom.Dispose();
-        if(useRays) pipelines.Add(rays.Prepare(api,draw,primary.Width,primary.Height,engine.LightShaftQuality,settings.LightShaftSamples)); else rays.Dispose();
+
+        if(useRays) pipelines.Add(rays.Prepare(api,draw,primary.Width,primary.Height,engine.LightShaftQuality,settings.LightShaftSamples));
         if(useRays) depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         if(useRays) glow??=resources.Own(new BorrowedTexture(primary.ColorTextureIds[1]));
         pipelines.AddRange(retained.Prepare(api,draw));

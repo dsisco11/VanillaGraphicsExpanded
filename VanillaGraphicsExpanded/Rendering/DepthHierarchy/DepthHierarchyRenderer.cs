@@ -1,6 +1,4 @@
 using System;
-using VanillaGraphicsExpanded.PBR;
-using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Profiling;
@@ -14,7 +12,6 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     private System.IDisposable? reloadRegistration;
     private static DepthHierarchyRenderer? active;
     private readonly ICoreClientAPI api;
-    private readonly Func<bool>? additionalDemand;
     private readonly Action unregisterResize;
     private readonly DepthHierarchyPass pass=new();
     private GpuResourceCollection resources=new();
@@ -24,6 +21,15 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     private uint frameIndex;
     #region Public API
     #region Publication
+    /// <summary>Gets the cached execution state established by consumer change notifications.</summary>
+    internal bool Enabled { get; private set; }
+    /// <summary>Changes execution state only on a transition and withdraws resources immediately when disabled.</summary>
+    internal void SetEnabled(bool enabled)
+    {
+        if(disposed || Enabled==enabled) return;
+        Enabled=enabled;
+        if(!enabled) Retire();
+    }
     /// <summary>Runs after corrected receiver capture and before the earliest hierarchy consumer.</summary>
     public double RenderOrder=>8.7;
     /// <summary>Depth hierarchy is independent of chunk rendering distance.</summary>
@@ -48,9 +54,9 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     }
     #endregion
     #region Lifecycle and execution
-    /// <summary>Registers publication/lifetime boundaries and optional demand from another shared consumer.</summary>
-    internal DepthHierarchyRenderer(ICoreClientAPI api,Func<bool>? additionalDemand=null) {
-        this.api=api;this.additionalDemand=additionalDemand;active=this;
+    /// <summary>Registers publication and lifetime boundaries; consumer policy enables execution explicitly.</summary>
+    internal DepthHierarchyRenderer(ICoreClientAPI api) {
+        this.api=api;active=this;
         unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,Retire);
         api.Event.RegisterRenderer(this,EnumRenderStage.Before,"vge_depth_reset");
         api.Event.RegisterRenderer(this,EnumRenderStage.Opaque,"vge_depth_hierarchy");
@@ -58,11 +64,9 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     }
     /// <summary>Builds only for enabled consumers, then atomically publishes the completed current-view hierarchy.</summary>
     public void OnRenderFrame(float deltaTime,EnumRenderStage stage) {
-        if(disposed)return;
+        if(disposed || !Enabled)return;
         if(stage==EnumRenderStage.Before) {published=false;view=null;return;}
         if(stage!=EnumRenderStage.Opaque || published)return;
-        bool required=PbrShaderLightingMode.LumOnEnabled || EnginePostprocessInputs.Capture(ScreenManager.Platform,api).Ssao || additionalDemand?.Invoke()==true;
-        if(!required) {Retire();return;}
         var primary=api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
         compute??=DepthHierarchyComputeShader.Create(api);
@@ -75,7 +79,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     }
     /// <summary>Unregisters lifecycle callbacks before withdrawing storage.</summary>
     public void Dispose() {
-        if(disposed)return;disposed=true;if(ReferenceEquals(active,this))active=null;
+        if(disposed)return;disposed=true;Enabled=false;if(ReferenceEquals(active,this))active=null;
         api.Event.UnregisterRenderer(this,EnumRenderStage.Before);api.Event.UnregisterRenderer(this,EnumRenderStage.Opaque);
         reloadRegistration?.Dispose();api.Event.LeaveWorld-=Retire;unregisterResize();Retire();
     }

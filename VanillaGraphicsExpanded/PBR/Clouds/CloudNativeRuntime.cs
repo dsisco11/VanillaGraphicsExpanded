@@ -32,6 +32,8 @@ internal sealed class CloudNativeRuntime : IDisposable
     #region Lifecycle
     /// <summary>Routes native producer hooks to the current client lifetime.</summary>
     internal static CloudNativeRuntime? Active { get; private set; }
+    /// <summary>Signals changes to the active client's actual volumetric consumer ownership.</summary>
+    internal static event Action? VolumeOwnershipChanged;
     /// <summary>Remains empty until a functioning selected draw consumer transfers its owned resources.</summary>
     internal CloudModeOwnership Ownership { get; } = new();
     /// <summary>Identifies a world independently of reusable engine objects and GL names.</summary>
@@ -41,9 +43,11 @@ internal sealed class CloudNativeRuntime : IDisposable
     internal CloudNativeRuntime(ICoreClientAPI api)
     {
         this.api = api; Active = this;
+        Ownership.VolumetricChanged += NotifyVolumeOwnershipChanged;
         api.Event.LevelFinalize += BeginWorld;
         api.Event.LeaveWorld += EndWorld;
         reload = EngineShaderReload.Register(api, WithdrawForReload);
+        VolumeOwnershipChanged?.Invoke();
     }
 
     /// <summary>Reconciles context and current mode demand without allocating GPU resources or changing native registrations.</summary>
@@ -130,8 +134,11 @@ internal sealed class CloudNativeRuntime : IDisposable
     {
         if (disposed) return;
         disposed = true;
-        if (ReferenceEquals(Active, this)) Active = null;
+        bool wasActive=ReferenceEquals(Active,this);
+        if(wasActive) Active=null;
         RenderingCleanup.Run(
+            () => { if(wasActive) VolumeOwnershipChanged?.Invoke(); },
+            () => Ownership.VolumetricChanged -= NotifyVolumeOwnershipChanged,
             () => api.Event.LevelFinalize -= BeginWorld,
             () => api.Event.LeaveWorld -= EndWorld,
             reload.Dispose, EndWorld);
@@ -180,6 +187,11 @@ internal sealed class CloudNativeRuntime : IDisposable
     #endregion
 
     #region Private
+    /// <summary>Forwards ownership transitions only from the active client lifetime.</summary>
+    private void NotifyVolumeOwnershipChanged()
+    {
+        if(ReferenceEquals(Active,this)) VolumeOwnershipChanged?.Invoke();
+    }
     /// <summary>Starts a fresh world after invalidating any previously observed world.</summary>
     private void BeginWorld() { EndWorld(); worldReady = true; }
 

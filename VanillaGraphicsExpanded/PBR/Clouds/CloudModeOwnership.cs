@@ -13,6 +13,8 @@ internal sealed class CloudModeOwnership : IDisposable
     private bool enabled;
 
     #region Public API
+    /// <summary>Signals actual volumetric consumer activation or release, independently of mode polling.</summary>
+    internal event Action? VolumetricChanged;
     /// <summary>Reports a committed draw lifetime, independently of temporary per-frame input availability.</summary>
     internal bool Owns(CloudMode mode) => consumer is not null && owned == mode;
 
@@ -30,6 +32,7 @@ internal sealed class CloudModeOwnership : IDisposable
         ArgumentNullException.ThrowIfNull(drawResources);
         if (!enabled || !functioningDraw || selected != mode || mode == CloudMode.Off || consumer is not null) return false;
         consumer = drawResources; owned = mode;
+        if(mode==CloudMode.Volumetric) VolumetricChanged?.Invoke();
         return true;
     }
 
@@ -46,8 +49,11 @@ internal sealed class CloudModeOwnership : IDisposable
     private void Release()
     {
         var retiring = consumer;
+        bool wasVolumetric=retiring is not null && owned==CloudMode.Volumetric;
         consumer = null; owned = CloudMode.Off;
-        retiring?.Dispose();
+        // Clear admission before notifying consumers; cleanup still runs if an observer fails.
+        try { if(wasVolumetric) VolumetricChanged?.Invoke(); }
+        finally { retiring?.Dispose(); }
     }
     #endregion
 }

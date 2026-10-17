@@ -15,6 +15,14 @@ standard blending for the following overlay stage.
 
 ## Responsibilities and order
 
+Persistent effect eligibility and native graphics controls come from the shared
+[`PipelineEnablement` conditions](Rendering.Enablement.md). Native settings are captured once and
+updated through watchers; applied VGE settings publish as one immutable snapshot. AO, shaft
+occlusion, bloom, shaft radiance and local exposure consume cached conditions. Disabled transitions
+retire effect resources once. The camera observes the same local-exposure condition to reset its
+history. Current-frame publication and the native transient screen-pass gate remain checked at
+their rendering boundaries; skipping a pass does not change persistent demand.
+
 Scene storage uses camera-driven frozen pre-exposure rather than reducing all pixels to
 fit a hypothetical specular maximum. Existing format-specific scene and postprocessing
 guards contain exceptional values; this can clip highlight energy and does not establish
