@@ -61,6 +61,22 @@ supported domain; no border stretching or invented weather extends it. VGE never
 a complete density volume. Native `TextureCol` remains allocated/generated but is not a VGE
 physical-lighting input. Native owners alone dispose their resources.
 
+## Cloud height summaries
+
+`CloudHierarchy` builds coarse RG32F min/max height summaries at the volumetric draw boundary,
+after native map generation and before reduced tracing. The native map remains the logical leaf
+level; owned mip zero reduces 2-by-2 native columns. Higher mips combine minimum lower and maximum
+upper bounds in world units relative to the cloud layer. Logical power-of-two padding contributes
+empty intervals without fetching out-of-map texels. Empty summaries use positive/negative infinity.
+
+Each GPU generation rebuilds the summaries even when CPU controls were not uploaded. Compatible
+frames reuse storage; source lifetime changes, reload, reset and disposal retire it. Publication
+requires completed image-write barriers, sampler visibility and the exact current native descriptor
+plus the reduction executable revision. Source observation precedes depth/lighting admission so
+an unavailable draw cannot retain an invalid source lifetime. Native textures remain borrowed.
+Unavailable or failed construction leaves the existing column traversal usable. View and light
+traversal currently continue to use that traversal; the summaries do not yet skip cloud regions.
+
 ## Density, lighting and scene composition
 
 Volumetric density uses native horizontal footprints and vertical bounds. Periodic procedural

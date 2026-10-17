@@ -1,9 +1,10 @@
 using System;
 using System.Numerics;
+using VanillaGraphicsExpanded.PBR.Clouds;
 
-namespace VanillaGraphicsExpanded.PBR.Clouds;
+namespace VanillaGraphicsExpanded.Tests;
 
-/// <summary>Defines the conservative world-unit interval algebra used by coarse cloud summaries.</summary>
+/// <summary>Models conservative interval reduction on the CPU for contract checks; runtime reduction stays on the GPU.</summary>
 internal readonly record struct CloudHeightInterval(float Lower, float Upper)
 {
     #region Public API

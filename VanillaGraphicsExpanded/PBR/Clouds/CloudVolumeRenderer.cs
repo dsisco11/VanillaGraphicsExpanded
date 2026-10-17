@@ -23,6 +23,7 @@ internal sealed class CloudVolumeRenderer : IRenderer
     private readonly GraphicsPipelineLifetime lifetime = new();
     private readonly Action unregisterResize;
     private readonly CloudVolumeReconstruction reconstruction;
+    private readonly CloudHierarchy cloudHierarchy;
     private bool reference;
     private ArrayGraphicsGeometry? geometry;
     private GpuFramebuffer? target;
@@ -43,6 +44,7 @@ internal sealed class CloudVolumeRenderer : IRenderer
     {
         this.api = api; this.runtime = runtime;
         reconstruction = new(api);
+        cloudHierarchy = new(() => CloudHierarchyComputeShader.Create(api));
         unregisterResize = ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder, Reset);
     }
     /// <summary>Admits the dedicated executable and procedural geometry before visible ownership.</summary>
@@ -63,7 +65,8 @@ internal sealed class CloudVolumeRenderer : IRenderer
     {
         runtime.Update();
         if (disposed || failed || stage != EnumRenderStage.OIT || !runtime.Ownership.Owns(CloudMode.Volumetric)
-            || program is null || geometry is null || !runtime.TryGetMap(out var input)) { reconstruction.Invalidate(); return; }
+            || program is null || geometry is null || !runtime.TryGetMap(out var input)) { cloudHierarchy.Reset(); reconstruction.Invalidate(); return; }
+        cloudHierarchy.ObserveSource(input);
         var render = api.Render;
         var buffers = render.FrameBuffers;
         if (render.FrameWidth <= 0 || render.FrameHeight <= 0 || buffers.Count <= (int)EnumFrameBuffer.Transparent
@@ -95,10 +98,15 @@ internal sealed class CloudVolumeRenderer : IRenderer
             }
             if (!reference)
             {
+                // This same-context boundary follows native map generation. Missing summaries retain
+                // the existing DDA; hierarchical tracing is admitted separately by its consumer.
+                var source = new CloudHierarchySource(input);
+                cloudHierarchy.TryBuild(input, () => runtime.TryGetMap(out var current) && source.Matches(current));
                 reconstruction.Draw(input, lighting, Settings, target, hierarchy.TextureId, primary.DepthTextureId, liquid.DepthTextureId, geometry,
                     () => runtime.TryGetMap(out var current) && current == input);
                 return;
             }
+            cloudHierarchy.Reset();
             reconstruction.Invalidate();
             var pass = new RenderPassDesc(target, LiquidPipelineStates.SurfaceOutputs);
             using var metadata = new RenderPassTargets(pass);
@@ -130,14 +138,14 @@ internal sealed class CloudVolumeRenderer : IRenderer
     internal void Reset()
     {
         failed = false; program = null;
-        RenderingCleanup.Run(reconstruction.Reset, () => { pipeline?.Dispose(); pipeline = null; }, () => { target?.Dispose(); target = null; });
+        RenderingCleanup.Run(cloudHierarchy.Reset, reconstruction.Reset, () => { pipeline?.Dispose(); pipeline = null; }, () => { target?.Dispose(); target = null; });
     }
     /// <summary>Withdraws the independent draw before retiring VGE-only resources.</summary>
     public void Dispose()
     {
         if (disposed) return; disposed = true;
         RenderingCleanup.Run(() => api.Event.UnregisterRenderer(this, EnumRenderStage.OIT), unregisterResize,
-            Reset, reconstruction.Dispose, () => { geometry?.Dispose(); geometry = null; }, lifetime.Dispose);
+            Reset, cloudHierarchy.Dispose, reconstruction.Dispose, () => { geometry?.Dispose(); geometry = null; }, lifetime.Dispose);
     }
     #endregion
     #endregion

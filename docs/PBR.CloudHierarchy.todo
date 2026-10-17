@@ -59,12 +59,12 @@ Phase 1: Establish hierarchy contracts and independent bounds oracle
 
 Phase 2: Generate and publish owned coarse summaries
   Depends on Phase 1. Outcome: current certified summaries are available before tracing.
-  ☐ Implement the hierarchy resource owner and dedicated reduction shader/program contracts.
+  ✔ Implement the hierarchy resource owner and dedicated reduction shader/program contracts.
     - Allocate only coarse RG32F mips; borrow the native map read-only as logical leaves.
     - First reduction reads 2-by-2 native texels with explicit source bounds checks. Later reductions
       combine summary intervals; empty children never contaminate valid minima/maxima.
     - Preserve infinities for empty nodes and retain conservative bounds without filtering averages.
-  ☐ Integrate GPU construction after successful native map generation and before VGE tracing,
+  ✔ Integrate GPU construction after successful native map generation and before VGE tracing,
     through the existing publication/draw boundary; do not tick or reschedule native weather.
     - Rebuild for every newly published generation, including in-place animation with unchanged
       CPU weather uploads. Reuse allocations across ordinary frames when layout remains compatible.
@@ -73,12 +73,16 @@ Phase 2: Generate and publish owned coarse summaries
     - Withdraw stale/failed certificates; match the exact borrowed source immediately before use.
     - Retire owned storage on source/lifetime invalidation, world teardown, reload or disposal;
       native resources remain native-owned. Use existing DDA when summaries are unavailable.
-  ☐ Compare GPU reductions with the independent oracle, including empty-root and padded-edge cases.
+  ✔ Compare GPU reductions with the independent oracle, including empty-root and padded-edge cases.
     - Exercise source replacement, reused texture names, failed generation/build, layout changes,
       executable invalidation and unchanged-allocation animated generations.
     - Test-only readback may verify results; production must not read map or hierarchy texels to CPU.
-  ☐ Completion: focused build/shader/GPU checks pass; publication and fallback lifecycle checks
+  ✔ Completion: focused build/shader/GPU checks pass; publication and fallback lifecycle checks
     show current summaries, no duplicate leaf allocation and no stale-resource sampling.
+    - Completed 2026-10-16 after second review and independent audit-stage-completion against
+      the proposal and inherited documents. The retirement finding was resolved and rechecked;
+      fresh build/shader evidence and 82 distinct passing checks are recorded below. Later phases
+      and live/performance acceptance remain unchecked.
 
 Phase 3: Accelerate reduced-resolution view traversal
   Depends on Phase 2. Outcome: view rays skip conservatively without changing occupied integration.
@@ -172,7 +176,7 @@ Phase 1 contracts and source receipts
       interpretation and Publication and native lifecycle -> installed methods/shader above,
       CloudNativeMapAdapter/CloudMapPublication and unchanged CloudColumn/CloudOccupied semantics.
     Geometry/certificates -> proposal Representation and Ownership and publication ->
-      CloudHierarchyLayout, CloudHeightInterval and CloudHierarchySource. Intervals are relative to
+      CloudHierarchyLayout, the test-side CloudHeightInterval and CloudHierarchySource. Intervals are relative to
       the cloud layer in world units, not absolute altitude; current CloudPlacement supplies the
       transform. Source matching includes reference owner, world, allocation, upload, shader,
       generation, frame, storage and placement. A fresh native borrow and completed GPU-build
@@ -200,3 +204,51 @@ Phase 1 contracts and source receipts
       the final suite includes those cases, so do not add those counts together.
     These are source/CPU contract checks, not GPU hierarchy correctness, visual acceptance or
     performance qualification. GPU reduction/traversal remains in subsequent unchecked phases.
+
+Phase 2 contracts and verification
+  Task-to-document traceability
+    Owned reduction -> proposal Representation; PBR.Clouds.md Borrowed map contract and Cloud height
+      summaries; PBR.VolumetricClouds.todo native-data/unit receipts -> CloudHierarchy,
+      CloudHierarchyComputeShader, ICloudHierarchyBindings and cloud_hierarchy.csh. Owned RG32F
+      starts above native leaves; explicit texel bounds, all-channel finite admission, positive
+      extinction and strict BA ordering match CloudColumn/CloudOccupied. The CPU interval model
+      belongs to tests, not runtime rendering. GPU tests enumerate descendants independently.
+    Scheduling/publication/lifecycle -> proposal Ownership and publication; inherited volumetric
+      proposal Publication and native lifecycle; PBR.Clouds.md Scheduling and ownership ->
+      CloudVolumeRenderer observes fresh sources before depth/lighting gates and builds just before
+      reduced tracing, without ticking weather or adding hooks. CloudHierarchy brackets submission
+      with fresh-source checks, orders each image level and final sampler reads, and certificates
+      include native source identity plus the owned executable revision. Generation changes revoke
+      contents while preserving compatible storage; allocation/world/owner/shader changes retire it.
+      Failed optional builds retain original DDA rendering. Missing input, reload, reset, mode/world
+      retirement and disposal release owned resources only. Full-resolution reference remains DDA.
+    GPU checks -> proposal Acceptance and native-leaf contract -> CloudHierarchyTests compares every
+      mip to CloudHierarchyBoundsOracle for empty/sparse/dense maps, odd/max dimensions, invalid
+      controls and padded edges. It checks in-place animation without upload changes, same-name
+      lifetime replacements, revoked/failed builds, unavailable/retired executables and external
+      state/image restoration. Test-only framebuffer readback does not enter production rendering.
+    Preserved boundaries -> parent cloud scope and PBR.Atmosphere.Publication.md Ownership ->
+      native producer, scene HZB, atmosphere, PMJ sampling, history/resolve and OIT remain unchanged.
+      Hierarchical traversal is intentionally not enabled until the following implementation work.
+
+  Focused validation (2026-10-16)
+    Through the validation subagent, with NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages:
+      dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj --no-restore
+        -p:UseSharedCompilation=false -m:1 -nr:false -o artifacts/cloud-hierarchy-test-bin -v:normal
+    Passed: 0 errors, 179 baseline warnings; none reference the new hierarchy files. Production
+      catalog 458 variants and test catalog 536 variants include the dedicated hierarchy compute.
+      artifacts/CloudHierarchy/phase2-build-retry.log. The earlier parallel build stalled and was
+      cancelled; only the completed serial retry supplies build evidence.
+      dotnet test artifacts/cloud-hierarchy-test-bin/VanillaGraphicsExpanded.Tests.dll
+        --filter 'FullyQualifiedName~CloudHierarchyTests|FullyQualifiedName~CloudHierarchyBoundsTests|FullyQualifiedName~CloudHierarchyLayoutTests|FullyQualifiedName~CloudHierarchySourceTests|FullyQualifiedName~CloudMapPublicationTests'
+        --logger 'trx;LogFileName=phase2-focused.trx' --ResultsDirectory artifacts/CloudHierarchy
+    Passed: 45/45, 0 failed/skipped, including 10 new actual-GPU reduction/lifetime cases.
+      dotnet test artifacts/cloud-hierarchy-test-bin/VanillaGraphicsExpanded.Tests.dll
+        --filter 'FullyQualifiedName~CloudLifecycleTests|FullyQualifiedName~CloudModeOwnershipTests|FullyQualifiedName~CloudNativeHookTests|FullyQualifiedName~CloudVolumeDrawTests.ConstantColumnMatchesNativeBeerLambert|FullyQualifiedName~CloudVolumeDrawTests.SceneAndLiquidDepthClipTransport|FullyQualifiedName~CloudVolumeDrawTests.BothPbrModesUseIndependentCloudTransport|FullyQualifiedName~CloudVolumeDrawTests.VerticalRaysUseActualColumnBounds'
+        --logger 'trx;LogFileName=phase2-regression.trx' --ResultsDirectory artifacts/CloudHierarchy
+    Passed: 37/37, 0 failed/skipped. Final disjoint suites total 82 passing checks; the 35-case
+      baseline is repeated inside the 45-case suite and is not added again. Matching logs/TRX and
+      phase2-candidate-hashes.json are under artifacts/CloudHierarchy. Candidate hashes cover seven
+      changed source/shader/test files and the two compiled assemblies; documentation is separate.
+    This establishes GPU reduction/publication correctness and selected regression contracts,
+      not accelerated traversal, live appearance or end-to-end performance. No game launch or deployment.
