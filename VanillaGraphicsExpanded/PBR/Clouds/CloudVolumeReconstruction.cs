@@ -64,8 +64,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
             history.Capture(input,camera,settings,lighting,traceProgram.Parameters,width,height,temporal);
         BindHistory(temporalProgram,previous); BindHistory(resolveProgram,next);
         temporalProgram.Current0=trace!.Images[0].TextureId; temporalProgram.Current1=trace.Images[1].TextureId;
-        temporalProgram.Current2=trace.Images[2].TextureId; temporalProgram.Current3=trace.Images[3].TextureId;
-        temporalProgram.Current4=trace.Images[4].TextureId; temporalProgram.Current5=trace.Images[5].TextureId;
+        temporalProgram.Current2=trace.Images[2].TextureId;
         var tracePass=trace.Prepare(lifetime,traceProgram); var temporalPass=next.Prepare(lifetime,temporalProgram);
         var pass=new RenderPassDesc(target,LiquidPipelineStates.SurfaceOutputs);
         using var metadata=new RenderPassTargets(pass);
@@ -128,8 +127,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     private static void BindHistory(ICloudHistoryBindings program,CloudVolumeSurface surface)
     {
         program.History0=surface.Images[0].TextureId; program.History1=surface.Images[1].TextureId;
-        program.History2=surface.Images[2].TextureId; program.History3=surface.Images[3].TextureId;
-        program.History4=surface.Images[4].TextureId; program.History5=surface.Images[5].TextureId;
+        program.History2=surface.Images[2].TextureId;
     }
     /// <summary>Captures physical density and lighting inputs only for reduced tracing.</summary>
     private void Capture(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudMapInput input,AtmosphereLighting lighting,

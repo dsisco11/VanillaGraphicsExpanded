@@ -3,27 +3,18 @@
 @import "./includes/vge_frame_ubo.glsl"
 @import "./includes/cloud_temporal_parameters.glsl"
 @import "./includes/cloud_history.glsl"
-layout(location=0) out vec3 outOitRevealBins;
-layout(location=1) out float outRevealage;
-layout(location=2) out vec4 outOitAccumulation0;
-layout(location=3) out vec4 outOitAccumulation1;
-layout(location=4) out vec4 outOitAccumulation2;
-layout(location=5) out vec4 outCloudDepth;
+layout(location=0) out vec4 outCloudRadianceTransmission;
+layout(location=1) out vec4 outCloudBucketTransmission;
+layout(location=2) out vec4 outCloudDepth;
 uniform sampler2D current0;
 uniform sampler2D current1;
 uniform sampler2D current2;
-uniform sampler2D current3;
-uniform sampler2D current4;
-uniform sampler2D current5;
-/** Reads one complete current trace layer. */
+/** Reads radiance/transmission, bucket transmissions or unfiltered depth metadata. */
 vec4 CloudCurrentFetch(int layer,ivec2 pixel)
 {
     if(layer==0) return texelFetch(current0,pixel,0);
     if(layer==1) return texelFetch(current1,pixel,0);
-    if(layer==2) return texelFetch(current2,pixel,0);
-    if(layer==3) return texelFetch(current3,pixel,0);
-    if(layer==4) return texelFetch(current4,pixel,0);
-    return texelFetch(current5,pixel,0);
+    return texelFetch(current2,pixel,0);
 }
 
 /** Reconstructs camera-relative positions from this view's inverse transforms. */
@@ -41,13 +32,13 @@ bool CloudHistoryCompatible(vec4 a,vec4 b,float expected)
     if(abs((b.x+b.y)*.5-expected)>max(2.0,expected*.02)) return false;
     return abs((b.y-b.x)-(a.y-a.x))<=max(2.0,(a.y-a.x)*.05);
 }
-/** Uses one history weight for every color/alpha/reveal channel; depth remains the current trace receipt. */
+/** Filters physical radiance and attenuation factors together; depth remains the current trace receipt. */
 void main()
 {
     ivec2 pixel=ivec2(gl_FragCoord.xy), size=ivec2(cloudTrace.xy);
-    vec4 data[6]; for(int i=0;i<6;i++) data[i]=CloudCurrentFetch(i,pixel);
-    vec4 meta=data[5]; bool accepted=false; ivec2 previous=ivec2(0);
-    if(cloudHistory.x>.5 && meta.y>0.0 && data[1].x<1.0)
+    vec4 data[3]; for(int i=0;i<3;i++) data[i]=CloudCurrentFetch(i,pixel);
+    vec4 meta=data[2]; bool accepted=false; ivec2 previous=ivec2(0);
+    if(cloudHistory.x>.5 && meta.y>0.0 && data[0].a<1.0)
     {
         vec2 uv=CloudTraceUv(pixel,cloudTrace.zw);
         vec3 point=normalize(CloudTemporalPoint(uv,1.0))*((meta.x+meta.y)*.5)+cloudPreviousTranslation.xyz;
@@ -61,7 +52,7 @@ void main()
                 // Previous phase is retained explicitly: reject a projection farther than one reduced pixel.
                 vec2 sampleUv=CloudTraceUv(previous,cloudHistory.yz);
                 if(length((sampleUv-oldUv)*vgeFrame.screenSize)<=2.83)
-                    accepted=CloudHistoryCompatible(meta,CloudHistoryFetch(5,previous),length(point));
+                    accepted=CloudHistoryCompatible(meta,CloudHistoryFetch(2,previous),length(point));
             }
         }
     }
@@ -69,15 +60,15 @@ void main()
     {
         // A fresh upload is not necessarily a discontinuity. Reject rapid optical changes
         // explicitly, then bound gradual weather and self-shadow changes by current samples.
-        if(abs(data[1].x-CloudHistoryFetch(1,previous).x)>.05) accepted=false;
-        if(any(greaterThan(abs(data[0].xyz-CloudHistoryFetch(0,previous).xyz),vec3(.05)))) accepted=false;
+        if(abs(data[0].a-CloudHistoryFetch(0,previous).a)>.05) accepted=false;
+        if(any(greaterThan(abs(data[1].xyz-CloudHistoryFetch(1,previous).xyz),vec3(.05)))) accepted=false;
     }
     if(accepted)
     {
         // Clamp every previous channel to the compatible current neighborhood. This bounds stale
         // lighting/weather response and preserves the current frame's admitted radiance envelope.
-        vec4 low[5],high[5],old[5]; bool finite=true;
-        for(int i=0;i<5;i++)
+        vec4 low[2],high[2],old[2]; bool finite=true;
+        for(int i=0;i<2;i++)
         {
             low[i]=data[i]; high[i]=data[i]; old[i]=CloudHistoryFetch(i,previous);
             if(any(isnan(old[i]))||any(isinf(old[i]))||any(lessThan(old[i],vec4(0)))) finite=false;
@@ -85,12 +76,13 @@ void main()
         for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++)
         {
             ivec2 n=clamp(pixel+ivec2(x,y),ivec2(0),size-1);
-            vec4 m=CloudCurrentFetch(5,n);
+            vec4 m=CloudCurrentFetch(2,n);
             if(!CloudHistoryCompatible(meta,m,(meta.x+meta.y)*.5)) continue;
-            for(int i=0;i<5;i++) { vec4 c=CloudCurrentFetch(i,n); low[i]=min(low[i],c); high[i]=max(high[i],c); }
+            for(int i=0;i<2;i++) { vec4 c=CloudCurrentFetch(i,n); low[i]=min(low[i],c); high[i]=max(high[i],c); }
         }
-        if(finite) for(int i=0;i<5;i++) data[i]=mix(data[i],clamp(old[i],low[i],high[i]),cloudHistory.w);
+        if(finite) for(int i=0;i<2;i++) data[i]=mix(data[i],clamp(old[i],low[i],high[i]),cloudHistory.w);
     }
-    outOitRevealBins=clamp(data[0].xyz,0.0,1.0); outRevealage=clamp(data[1].x,0.0,1.0);
-    outOitAccumulation0=data[2]; outOitAccumulation1=data[3]; outOitAccumulation2=data[4]; outCloudDepth=meta;
+    outCloudRadianceTransmission=vec4(max(data[0].rgb,vec3(0)),clamp(data[0].a,0.0,1.0));
+    outCloudBucketTransmission=vec4(clamp(data[1].xyz,0.0,1.0),0);
+    outCloudDepth=meta;
 }

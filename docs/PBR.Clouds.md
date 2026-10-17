@@ -179,11 +179,23 @@ are a separate cloud-owned resource. Shared resource reuse alone does not establ
 
 Volumetric mode defaults to ceil-half width/height tracing with a rotating 2x2 pixel phase,
 bounded temporal accumulation and depth-aware full-view reconstruction. `CloudVolumeReconstruction`
-owns three persistent six-attachment FP32 sets: trace and two histories. The sixth attachment
-stores first/last contributing distance and current opaque/liquid depth. The five optical channels
-share acceptance and interpolation weights. Internal passes use replacement writes and never
-sample live native OIT accumulation. RGB remains physical until final submission. Non-emissive
-native glow RGB is zero; its opacity is reconstructed as one minus overall transmission at submission.
+owns three persistent sets of three RGBA32F images: trace and two histories. Image zero stores
+integrated physical RGB radiance with overall transmission in alpha; image one stores three bucket
+transmissions with a zero spare channel. Image two stores first/last contributing distance and
+current opaque/liquid depth. The two optical images share acceptance and interpolation weights.
+Internal passes use replacement writes and never sample live native OIT accumulation. Resolve
+reconstructs each admitted reduced tap's native accumulations as
+`vec4(radiance, 1 - transmission) * (1 - bucketTransmission)` before spatial interpolation.
+This retains color/coverage covariance across neighboring taps. RGB encoding follows interpolation
+at final scene submission. Non-emissive native glow RGB is zero; its opacity is
+reconstructed as one minus overall transmission at submission.
+
+Temporal clamping operates on radiance and attenuation factors rather than their OIT products.
+This preserves each unfiltered trace's bucket formula but does not make temporal interpolation
+commute with multiplication: changing cloud coverage or lighting can change reconstructed bucket
+contributions. Spatial interpolation operates on reconstructed products to avoid introducing that
+additional error between neighboring rays. The native full-resolution reference remains available
+for quality comparisons.
 
 `CloudTemporalHistory` retains only the previous compatible view certificate. Native placement
 differences distinguish camera/cloud movement from grid recentering. History requires consecutive
@@ -193,7 +205,7 @@ support/depth and optical-change checks on the GPU. Cuts, missing input, replace
 release, reload and reset invalidate history. Accepted history has weight .75, clamped to a
 compatible current neighborhood; attenuation jumps above .05 reject it. Spatial reconstruction
 uses four phase-aware reduced samples and current opaque/liquid depth. Foreground distances
-reject incompatible samples; all five optical payload channels share normalized weights, including clear
+reject incompatible samples; both optical payload images share normalized weights, including clear
 samples at cloud edges. Clouds fully in front of both depth clips can be reconstructed across
 background depth changes. If bilinear taps are rejected, a bounded 3x3 reduced stencil selects
 the nearest depth-compatible payload. If none exists, submission is neutral OIT. Resolve
@@ -221,7 +233,7 @@ volumetric controls.
 Reduced targets and pipelines persist across stable frames. Resize/reload retire their owned
 resources; wrappers never delete engine attachments. Allocation is bounded before creation to
 view dimensions <=16,384 and nominal trace/history image storage <=1 GiB. The three sets require
-240 bytes per reduced pixel, excluding native producer data and other resources. This is a
+144 bytes per reduced pixel, excluding native producer data and other resources. This is a
 calculated texel allocation, not measured resident memory. Full-view resolve is bounded
 texture reconstruction; density and light marching are confined to reduced tracing or the explicit
 reference mode. Performance requires GPU measurement and is not established by allocation bounds.

@@ -230,7 +230,16 @@ Tasks
       fallback. Automated integration qualification is recorded there; total GPU benefit and user-run
       live acceptance remain open, so this parent item is not complete.
 
-  ☐ Compact volumetric cloud intermediates and reconstruct native OIT accumulation bins at resolve.
+  ✔ Compact volumetric cloud intermediates and reconstruct native OIT accumulation bins at resolve. @done(26-10-17)
+    - Implementation uses three named RGBA32F images per set, with physical radiance/transmission,
+      bucket transmissions and unchanged depth metadata. Resolve reconstructs products per admitted
+      tap before spatial interpolation to retain neighboring color/coverage covariance; temporal
+      history filters the compact factors. Native OIT outputs and sampling budgets remain unchanged.
+    - Automated qualification: 94 unique passing checks across the final targeted and qualification
+      receipts. Paired 512x512 synthetic three-pass GPU medians improved by about 0.05 ms in all
+      three measured scenes (11-24%); this is not whole-game frame-time or other-resolution proof.
+      Evidence: artifacts/compact-cloud-validation/validation.md. User confirmed the packaged build's
+      cloud edges, moving/lighting transitions and overlapping transparency look acceptable (2026-10-17).
     - Store integrated physical RGB radiance and overall transmission, three bucket transmissions,
       and existing depth metadata instead of three separately accumulated RGBA bucket textures.
       A uniform array-compatible layout uses three RGBA32F layers per trace/history block:

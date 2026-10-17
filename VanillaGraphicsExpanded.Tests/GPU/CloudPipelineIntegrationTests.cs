@@ -60,7 +60,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture) : L
                 var actual = scene.ReadOutput();
                 for (int layer = 0; layer < 6; layer++) Assert.Equal(expected[layer], actual[layer]);
                 var traced = ReadPrivate<CloudVolumeSurface>(accelerated, "trace");
-                for (int layer = 0; layer < 6; layer++) Assert.Equal(expectedTrace[layer], traced.Images[layer].ReadPixels());
+                for (int layer = 0; layer < 3; layer++) Assert.Equal(expectedTrace[layer], traced.Images[layer].ReadPixels());
                 Assert.Contains(actual[1], value => value < 1);
 
                 // Revocation must reject all three passes, leave OIT untouched and never commit history.

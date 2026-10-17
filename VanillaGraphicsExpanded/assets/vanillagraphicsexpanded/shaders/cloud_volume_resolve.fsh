@@ -30,6 +30,19 @@ float CloudResolveWeight(vec4 meta,vec2 sampleUv,vec2 currentDepth,float limit)
     return error<=1.0?1.0/(1.0+error):0.0;
 }
 
+/** Reconstructs each tap's native products before interpolation to retain spatial color/coverage covariance. */
+void CloudResolveAccumulate(inout vec4 value[4],ivec2 pixel,float weight)
+{
+    vec4 radianceTransmission=CloudHistoryFetch(0,pixel);
+    vec3 buckets=clamp(CloudHistoryFetch(1,pixel).xyz,0.0,1.0);
+    float transmission=clamp(radianceTransmission.a,0.0,1.0);
+    vec4 radianceOpacity=vec4(max(radianceTransmission.rgb,vec3(0)),1.0-transmission);
+    value[0]+=weight*vec4(buckets,transmission);
+    value[1]+=weight*(radianceOpacity*(1.0-buckets.x));
+    value[2]+=weight*(radianceOpacity*(1.0-buckets.y));
+    value[3]+=weight*(radianceOpacity*(1.0-buckets.z));
+}
+
 /** Reconstructs all OIT channels together from reduced physical transport; never retraces rejected pixels. */
 void main()
 {
@@ -40,17 +53,17 @@ void main()
     float limit=min(depth.x,depth.y);
     vec2 position=(gl_FragCoord.xy-cloudTrace.zw-vec2(.5))*.5;
     ivec2 base=ivec2(floor(position)),size=ivec2(cloudTrace.xy); vec2 f=fract(position);
-    vec4 value[5]; for(int i=0;i<5;i++) value[i]=vec4(0);
+    vec4 value[4]; for(int i=0;i<4;i++) value[i]=vec4(0);
     float total=0.0;
     for(int y=0;y<2;y++) for(int x=0;x<2;x++)
     {
         ivec2 pixel=clamp(base+ivec2(x,y),ivec2(0),size-1);
-        vec4 meta=CloudHistoryFetch(5,pixel);
+        vec4 meta=CloudHistoryFetch(2,pixel);
         float weight=CloudResolveWeight(meta,CloudTraceUv(pixel,cloudTrace.zw),depth,limit)
             *(x==0?1.0-f.x:f.x)*(y==0?1.0-f.y:f.y);
         if(weight<=0.0) continue;
         total+=weight;
-        for(int i=0;i<5;i++) value[i]+=weight*CloudHistoryFetch(i,pixel);
+        CloudResolveAccumulate(value,pixel,weight);
     }
     if(total<=1e-5)
     {
@@ -62,7 +75,7 @@ void main()
         {
             ivec2 pixel=clamp(center+ivec2(x,y),ivec2(0),size-1);
             vec2 sampleUv=CloudTraceUv(pixel,cloudTrace.zw);
-            float weight=CloudResolveWeight(CloudHistoryFetch(5,pixel),sampleUv,depth,limit);
+            float weight=CloudResolveWeight(CloudHistoryFetch(2,pixel),sampleUv,depth,limit);
             if(weight<=0.0) continue;
             vec2 delta=(sampleUv-uv)*vgeFrame.screenSize;
             float score=dot(delta,delta)/weight;
@@ -71,7 +84,8 @@ void main()
         if(best<1e30)
         {
             total=1.0;
-            for(int i=0;i<5;i++) value[i]=CloudHistoryFetch(i,selected);
+            for(int i=0;i<4;i++) value[i]=vec4(0);
+            CloudResolveAccumulate(value,selected,1.0);
         }
     }
     if(total<=1e-5)
@@ -81,11 +95,11 @@ void main()
         outOitAccumulation0=vec4(0); outOitAccumulation1=vec4(0); outOitAccumulation2=vec4(0);
         return;
     }
-    for(int i=0;i<5;i++) value[i]/=total;
-    outOitRevealBins=clamp(value[0].xyz,0.0,1.0); outRevealage=clamp(value[1].x,0.0,1.0);
+    for(int i=0;i<4;i++) value[i]/=total;
+    outOitRevealBins=clamp(value[0].xyz,0.0,1.0); outRevealage=clamp(value[0].a,0.0,1.0);
     outOitGlow=vec4(0,0,0,1.0-outRevealage);
-    // History remains physical. Encode only accumulated RGB once at submission; weighted alpha is untouched.
-    outOitAccumulation0=vec4(VgeStoreSceneLighting(value[2].rgb),value[2].a);
-    outOitAccumulation1=vec4(VgeStoreSceneLighting(value[3].rgb),value[3].a);
-    outOitAccumulation2=vec4(VgeStoreSceneLighting(value[4].rgb),value[4].a);
+    // Encode only the reconstructed, spatially filtered products at final submission.
+    outOitAccumulation0=vec4(VgeStoreSceneLighting(value[1].rgb),value[1].a);
+    outOitAccumulation1=vec4(VgeStoreSceneLighting(value[2].rgb),value[2].a);
+    outOitAccumulation2=vec4(VgeStoreSceneLighting(value[3].rgb),value[3].a);
 }

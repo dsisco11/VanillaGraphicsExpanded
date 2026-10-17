@@ -9,11 +9,8 @@
 @import "./pbr_scene_storage.glsl"
 @import "./pbr_color.glsl"
 #ifdef VGE_CLOUD_PHYSICAL
-layout(location=0) out vec3 outOitRevealBins;
-layout(location=1) out float outRevealage;
-layout(location=2) out vec4 outOitAccumulation0;
-layout(location=3) out vec4 outOitAccumulation1;
-layout(location=4) out vec4 outOitAccumulation2;
+layout(location=0) out vec4 outCloudRadianceTransmission;
+layout(location=1) out vec4 outCloudBucketTransmission;
 /** Weights one cloud contribution in the native transparency depth bins. */
 float vgeOitBellCurve(float t) { float n=t/.832; return exp(-n*n); }
 #else
@@ -57,12 +54,12 @@ vec3 CloudEncode(vec3 source)
     return VgeStoreSceneLighting(source);
 #endif
 }
-/** Keeps all native depth buckets and separate attenuation with first/last contributing depth. */
-struct CloudPayload { vec3 bins; float reveal; vec4 glow; vec4 a0; vec4 a1; vec4 a2; vec4 depth; };
+/** Retains integrated radiance and attenuation independently of the final native OIT products. */
+struct CloudPayload { vec3 bins; float reveal; vec3 radiance; vec4 depth; };
 /** Initializes neutral cloud transport, including both view-specific depth clips. */
 CloudPayload CloudEmpty(vec2 uv)
 {
-    return CloudPayload(vec3(1),1.0,vec4(0),vec4(0),vec4(0),vec4(0),
+    return CloudPayload(vec3(1),1.0,vec3(0),
         vec4(0,0,CloudOpaqueDepth(uv),textureLod(liquidDepth,uv,0.0).r));
 }
 /** Evaluates identical transport for reference and reduced traces. */
@@ -114,17 +111,21 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
         }
         if(transmission<1e-6||!CloudAdvance(ray)) break;
     }
-    k.a=clamp(1.0-transmission,0.0,1.0);
     result.bins=clamp(reveal,0.0,1.0); result.reveal=clamp(transmission,0.0,1.0);
-    result.a0=k*(1.0-reveal.x); result.a1=k*(1.0-reveal.y); result.a2=k*(1.0-reveal.z);
-    result.glow=vec4(0,0,0,k.a);
+    result.radiance=k.rgb;
 }
-/** Routes intact native payload for replacement or existing OIT blending. */
+/** Stores physical factors for reconstruction, or submits native products for the direct reference. */
 void CloudWrite(CloudPayload p)
 {
-    outOitRevealBins=p.bins; outRevealage=p.reveal;
-#ifndef VGE_CLOUD_PHYSICAL
-    outOitGlow=p.glow;
+#ifdef VGE_CLOUD_PHYSICAL
+    outCloudRadianceTransmission=vec4(p.radiance,p.reveal);
+    outCloudBucketTransmission=vec4(p.bins,0);
+#else
+    // The reference retains its original encoding-before-weighting contract without reconstruction.
+    vec4 k=vec4(p.radiance,clamp(1.0-p.reveal,0.0,1.0));
+    outOitRevealBins=p.bins; outRevealage=p.reveal; outOitGlow=vec4(0,0,0,k.a);
+    outOitAccumulation0=k*(1.0-p.bins.x);
+    outOitAccumulation1=k*(1.0-p.bins.y);
+    outOitAccumulation2=k*(1.0-p.bins.z);
 #endif
-    outOitAccumulation0=p.a0; outOitAccumulation1=p.a1; outOitAccumulation2=p.a2;
 }

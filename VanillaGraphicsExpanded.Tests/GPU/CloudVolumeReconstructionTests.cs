@@ -47,14 +47,14 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             {
                 view.SetDirectionalLights(sun, moon, sources);
                 view.UseHierarchy(null); view.RenderTrace(frame); var original = view.ReadTraceRecord();
-                bool illuminated = Enumerable.Range(2, 3).Any(layer => original[layer].Where((value, index) =>
+                bool illuminated = Enumerable.Range(0, 1).Any(layer => original[layer].Where((value, index) =>
                     index % 4 != 3 && Math.Abs(value - ambient[layer][index]) > 1e-6f).Any());
                 if (sources == 1) observedSolar |= illuminated;
                 if (sources == 2) observedLunar |= illuminated;
                 view.UseHierarchy(hierarchy); view.RenderTrace(frame); var accelerated = view.ReadTraceRecord();
-                for (int layer = 0; layer < 6; layer++) Assert.Equal(original[layer], accelerated[layer]);
+                for (int layer = 0; layer < 3; layer++) Assert.Equal(original[layer], accelerated[layer]);
                 view.UseHierarchy(hierarchy, mismatch: true); view.RenderTrace(frame); var fallback = view.ReadTraceRecord();
-                for (int layer = 0; layer < 6; layer++) Assert.Equal(original[layer], fallback[layer]);
+                for (int layer = 0; layer < 3; layer++) Assert.Equal(original[layer], fallback[layer]);
             }
         }
         Assert.True(observedSolar && observedLunar, "Both self-shadowed directional sources must affect the tested illumination.");
@@ -77,13 +77,13 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             view.AuthorHierarchyColumns(foreground);
             view.UseHierarchy(null);
             view.RenderTrace(frame); var original = view.ReadTraceRecord();
-            observedCloud |= original[1].Any(value => value < .99999f);
+            observedCloud |= original[0].Where((_, i) => i % 4 == 3).Any(value => value < .99999f);
             view.UseHierarchy(hierarchy);
             view.RenderTrace(frame); var accelerated = view.ReadTraceRecord();
-            for (int layer = 0; layer < 6; layer++) Assert.Equal(original[layer], accelerated[layer]);
+            for (int layer = 0; layer < 3; layer++) Assert.Equal(original[layer], accelerated[layer]);
             view.UseHierarchy(hierarchy, mismatch: true);
             view.RenderTrace(frame); var fallback = view.ReadTraceRecord();
-            for (int layer = 0; layer < 6; layer++) Assert.Equal(original[layer], fallback[layer]);
+            for (int layer = 0; layer < 3; layer++) Assert.Equal(original[layer], fallback[layer]);
         }
         Assert.True(observedCloud, "The comparison must exercise non-neutral cloud transport.");
     }
@@ -99,7 +99,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         // The authored history contains physical RGB 8, encoded once with this view's one-eighth storage scale.
         for(int layer=3;layer<6;layer++)
         for(int i=0;i<reconstructed[layer].Length;i++)
-            Assert.InRange(Math.Abs(reconstructed[layer][i]-(i%4==3?.6f:1f)),0,.00001);
+            Assert.InRange(Math.Abs(reconstructed[layer][i]-(i%4==3?.24f:.4f)),0,.00001);
         // The native Glow blend squares source alpha on a cleared target. Resolve must derive it from transmission.
         for(int pixel=0;pixel<reconstructed[1].Length;pixel++)
         {
@@ -109,11 +109,11 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         }
         var patterned=view.ResolveAuthoredHistory(patterned:true);
         Assert.InRange(Math.Abs(patterned[1][1]-.82f),0,.00001);
-        for(int channel=0;channel<3;channel++) Assert.InRange(Math.Abs(patterned[0][3+channel]-.18f),0,.00001);
+        for(int channel=0;channel<3;channel++) Assert.InRange(Math.Abs(patterned[0][3+channel]-.88f),0,.00001);
         // Native Glow uses SrcAlpha for alpha as well as RGB, so a cleared target stores squared alpha.
         Assert.InRange(Math.Abs(patterned[2][7]-.18f*.18f),0,.00001);
         for(int layer=3;layer<6;layer++) for(int channel=0;channel<4;channel++)
-            Assert.InRange(Math.Abs(patterned[layer][4+channel]-(channel==3?.18f:.3f)),0,.00001);
+            Assert.InRange(Math.Abs(patterned[layer][4+channel]-(channel==3?.024f:.04f)),0,.00001);
         view.Capture(1,0,10,.125f,0,"moving-edge");
         var clipped=view.ResolveAuthoredHistory();
         for(int y=0;y<7;y++) for(int x=0;x<9;x++)
@@ -432,7 +432,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         {
             var size=CloudVolumeSurface.Dimensions(extent.Item1,extent.Item2);
             var surface=new CloudVolumeSurface(size.Width,size.Height,"Tests.Cloud.Resize");
-            Assert.Equal(6,surface.Images.Length);
+            Assert.Equal(3,surface.Images.Length);
             var images=surface.Images.Select(image=>image.TextureId).ToArray();int framebuffer=surface.Target.FboId;
             var a=surface.Prepare(lifetime,program);var b=surface.Prepare(lifetime,program);
             Assert.Same(a.Pipeline,b.Pipeline);Assert.Equal(size.Width,surface.Target.Width);Assert.Equal(size.Height,surface.Target.Height);
@@ -456,7 +456,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
     }
     /// <summary>Accepted history uses identical bounded weights for every OIT channel; incompatible records reject atomically.</summary>
     [Theory]
-    [InlineData("valid",.415f)][InlineData("invalid",.4f)][InlineData("depth",.4f)][InlineData("nan",.4f)][InlineData("motion",.4f)][InlineData("weather",.4f)]
+    [InlineData("valid",.415f)][InlineData("invalid",.4f)][InlineData("depth",.4f)][InlineData("nan",.4f)][InlineData("motion",.4f)][InlineData("weather",.4f)][InlineData("buckets",.4f)]
     public void TemporalWeightsAndRejectionAreNumericallyObservable(string scenario,float expected)
     {
         EnsureShaderTestAvailable(); using var view=CreateScene(6,6);
@@ -466,8 +466,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         Assert.InRange(Math.Abs(images[2][4*4+3]-(1-expected)),0,.00001);
         for(int i=3;i<6;i++)
         {
-            Assert.InRange(Math.Abs(images[i][4*4]-expected*10),0,.0001);
-            Assert.InRange(Math.Abs(images[i][4*4+3]-expected),0,.00001);
+            Assert.InRange(Math.Abs(images[i][4*4]-expected*10*(1-expected)),0,.0001);
+            Assert.InRange(Math.Abs(images[i][4*4+3]-(1-expected)*(1-expected)),0,.00001);
         }
     }
     #endregion
@@ -500,316 +500,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             $"Pixel({x},{y}) channel{channel}: {actual[index]:G9} outside reference footprint [{low:G9},{high:G9}] +/- {tolerance:G9}");
     }
     /// <summary>Creates independent owned executables, persistent reduced storage and a tiny view without native engine state.</summary>
-    private CloudScene CreateScene(int width,int height,bool mipmappedOpaque=false,int nativeMapWidth=4)=>new(width,height,Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),
+    private CloudReconstructionScene CreateScene(int width,int height,bool mipmappedOpaque=false,int nativeMapWidth=4)=>new(width,height,Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),
         Programs.Create<CloudTemporalProgram>(),Programs.Create<CloudResolveProgram>(),mipmappedOpaque,nativeMapWidth);
 
-    /// <summary>Owns synthetic native inputs and executes the same three pass structure as the runtime.</summary>
-    private sealed class CloudScene : IDisposable
-    {
-        private readonly int width,height,lowWidth,lowHeight;
-        private readonly CloudVolumeProgram reference;
-        private readonly CloudTraceProgram trace;
-        private readonly CloudTemporalProgram temporal;
-        private readonly CloudResolveProgram resolve;
-        private readonly List<IDisposable> owned=[];
-        private readonly VgeFrameUniformBuffer camera;
-        private readonly TestFrameLightingPublication storage;
-        private readonly DynamicTexture2D map,opaque,visibility,liquid;
-        private readonly DynamicTexture3D aerial,loss;
-        private readonly CloudVolumeSurface traced,historyA,historyB;
-        private readonly CloudOitSurface result,expected;
-        private readonly GraphicsPipelineLifetime lifetime;
-        private readonly ArrayGraphicsGeometry geometry;
-        private readonly float[] projection=[4,0,0,0,0,4,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0];
-        private readonly float[] inverse=new float[16];
-        private CloudVolumeSurface? last;
-        private float shift,lastShift;
-        private readonly float[] previousProjection=new float[16],currentProjection=new float[16];
-        private float surfaceDepth;
-        private bool detail,underwater;
-        private int referenceSamples=4;
-        private AtmosphereLighting? capturedLighting;
-        private CloudPlacement capturedPlacement;
-
-        #region Public API
-        #region View preparation
-        /// <summary>Allocates small deterministic targets and independently authored column/depth/atmospheric fixtures.</summary>
-        internal CloudScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve,bool mipmappedOpaque,int nativeMapWidth)
-        {
-            this.width=width;this.height=height;this.reference=reference;this.trace=trace;this.temporal=temporal;this.resolve=resolve;
-            (lowWidth,lowHeight)=CloudVolumeSurface.Dimensions(width,height);
-            camera=Own(new VgeFrameUniformBuffer()); storage=Own(new TestFrameLightingPublication());
-            map=Own(DynamicTexture2D.Create(nativeMapWidth,nativeMapWidth,PixelInternalFormat.Rgba32f));
-            int levels=1;for(int extent=Math.Max(width,height);extent>1;extent>>=1)levels++;
-            opaque=Own(mipmappedOpaque?DynamicTexture2D.CreateMipmapped(width,height,PixelInternalFormat.R32f,levels):
-                DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
-            visibility=Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
-            liquid=Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
-            aerial=Own(DynamicTexture3D.Create(1,2,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
-            loss=Own(DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
-            aerial.UploadDataImmediate(new float[8],0,0,0,1,2,1,0);loss.UploadDataImmediate(new float[4],0,0,0,1,1,1,0);
-            traced=Own(new CloudVolumeSurface(lowWidth,lowHeight,"Tests.Cloud.Trace"));
-            historyA=Own(new CloudVolumeSurface(lowWidth,lowHeight,"Tests.Cloud.HistoryA"));historyB=Own(new CloudVolumeSurface(lowWidth,lowHeight,"Tests.Cloud.HistoryB"));
-            result=Own(new CloudOitSurface(width,height,"Tests.Cloud.Default"));expected=Own(new CloudOitSurface(width,height,"Tests.Cloud.Reference"));
-            lifetime=Own(new GraphicsPipelineLifetime());
-            geometry=Own(new ArrayGraphicsGeometry(CloudVolumeRenderer.Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3));
-            Mat4f.Invert(inverse,projection);
-            reference.Frame=camera;trace.Frame=camera;temporal.Frame=camera;resolve.Frame=camera;
-            reference.Lighting=storage.Buffer;trace.Lighting=storage.Buffer;resolve.Lighting=storage.Buffer;
-            trace.PmjJitter=Own(CloudPmjJitterTexture.Create());
-        }
-        /// <summary>Seeds adversarial coarse levels and enables mip selection so an accidental implicit LOD becomes observable.</summary>
-        internal void SetOpaqueCoarseDepth(float depth)
-        {
-            using var binding=StateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,opaque.TextureId);
-            GL.TexParameter(TextureTarget.Texture2D,TextureParameterName.TextureMinFilter,(int)TextureMinFilter.NearestMipmapNearest);
-            for(int level=1;level<opaque.MipLevels;level++)
-            {
-                int mipWidth=Math.Max(1,width>>level),mipHeight=Math.Max(1,height>>level);
-                GL.TexSubImage2D(TextureTarget.Texture2D,level,0,0,mipWidth,mipHeight,PixelFormat.Red,PixelType.Float,
-                    Enumerable.Repeat(depth,mipWidth*mipHeight).ToArray());
-            }
-        }
-        /// <summary>Authors surviving foreground particles independently of the corrected material-depth input.</summary>
-        internal void SetVisibilityForeground()
-        {
-            float[] depths=new float[width*height];
-            for(int y=0;y<height;y++)for(int x=0;x<width;x++)depths[y*width+x]=Depth((x+y)%3==0?20:1000);
-            visibility.UploadDataImmediate(depths);
-        }
-        /// <summary>Captures one explicit cloud/camera state, including per-pixel opaque and liquid discontinuities.</summary>
-        internal void Capture(uint frame,float extinction,float environment,float scale,float offset,string scene)
-        {
-            shift=offset; detail=scene is "detail" or "detail-lit"; underwater=scene=="underwater";
-            float aerialLoss=underwater ? .99f : scene=="aerial" ? .25f : 0;
-            float aerialScatter=underwater?100:scene=="aerial"?2:0;
-            aerial.UploadDataImmediate([aerialScatter/16,aerialScatter/16,aerialScatter/16,0,0,0,0,0],0,0,0,1,2,1,0);
-            loss.UploadDataImmediate([aerialLoss,aerialLoss,aerialLoss,0],0,0,0,1,1,1,0);
-            surfaceDepth=scene=="particle-before"?20:scene=="particle-within"?60:scene=="particle-behind"?160:0;
-            var view=Mat4f.Create();
-            if(scene=="rotation")
-            {
-                float angle=(frame%4)*.003f,c=MathF.Cos(angle),s=MathF.Sin(angle);
-                view=[c,0,-s,0,0,1,0,0,s,0,c,0,0,0,0,1];
-            }
-            var inverseView=new float[16];Mat4f.Invert(inverseView,view);Mat4f.Mul(currentProjection,projection,view);
-            if(frame==0)currentProjection.CopyTo(previousProjection,0);
-            camera.Capture(projection,view,inverse,inverseView,previousProjection,currentProjection,new(width,height),0,frame,Vector3.Zero,Vector3.Zero,0,new(.1f,1000));
-            storage.Capture(scale,frame);
-            float[] columns=new float[map.Width*map.Width*4];for(int i=0;i<map.Width*map.Width;i++){columns[i*4]=extinction;columns[i*4+2]=scene=="thin-height"?-.01f:-.5f;columns[i*4+3]=scene=="thin-height"?.01f:.5f;}
-            map.UploadDataImmediate(columns);
-            float[] depths=new float[width*height],liquids=new float[width*height];
-            for(int y=0;y<height;y++)for(int x=0;x<width;x++)
-            {
-                bool foreground=(scene is "terrain" or "mixed")&&x<width/2 || scene=="moving-edge"&&(x+y)%3==0;
-                depths[y*width+x]=Depth(foreground?20:1000);
-                liquids[y*width+x]=Depth((scene is "liquid" or "mixed")&&y<height/2?60:1000);
-            }
-            opaque.UploadDataImmediate(depths);visibility.UploadDataImmediate(depths);liquid.UploadDataImmediate(liquids);
-            var lighting=new AtmosphereLighting(Vector3.UnitY,scene is "lit" or "detail-lit"?new(30):Vector3.Zero,new(environment),Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
-                { Moon=-Vector3.UnitY,Lunar=scene is "lit" or "detail-lit"?new(3):Vector3.Zero,CalibrationGeneration=1,
-                    LookupStorageScale=LightingStorage.PersistentScale,ReconstructionMaximumNits=aerialScatter };
-            var placement=new CloudPlacement(0,0,0,0,0,0,offset,0,new(offset,0,-50),0);
-            capturedLighting = lighting; capturedPlacement = placement;
-            Configure(reference,reference.Parameters,placement,lighting);Configure(trace,trace.Parameters,placement,lighting);
-            resolve.SceneDepth=opaque.TextureId;resolve.VisibilityDepth=visibility.TextureId;resolve.LiquidDepth=liquid.TextureId;
-        }
-        #endregion
-        #region Submission and history probes
-        /// <summary>Authors independent directional sources while preserving the captured medium, environment and quality selection.</summary>
-        internal void SetDirectionalLights(Vector3 sun, Vector3 moon, int sources)
-        {
-            var original = capturedLighting ?? throw new InvalidOperationException("Capture lighting before changing directions.");
-            var lighting = original with { Sun = sun, Moon = moon,
-                Solar = (sources & 1) != 0 ? original.Solar : Vector3.Zero,
-                Lunar = (sources & 2) != 0 ? original.Lunar : Vector3.Zero };
-            Configure(reference, reference.Parameters, capturedPlacement, lighting);
-            Configure(trace, trace.Parameters, capturedPlacement, lighting);
-        }
-        /// <summary>Authors sparse stepped clouds and optional opaque/visibility/liquid foreground clips independently of the hierarchy.</summary>
-        internal void AuthorHierarchyColumns(bool foreground)
-        {
-            float[] columns = new float[map.Width * map.Width * 4];
-            for (int z = 0; z < map.Width; z++)
-            for (int x = 0; x < map.Width; x++)
-            {
-                if ((x + 2 * z) % 4 == 0) continue;
-                int index = (z * map.Width + x) * 4;
-                columns[index] = .125f;
-                columns[index + 2] = (x + z) % 3 == 0 ? 1 : -.5f;
-                columns[index + 3] = columns[index + 2] + 1;
-            }
-            map.UploadDataImmediate(columns);
-            if (!foreground) return;
-            SetVisibilityForeground();
-            opaque.UploadDataImmediate(Enumerable.Range(0, width * height).Select(i => Depth(i % 5 == 0 ? 20 : 1000)).ToArray());
-            liquid.UploadDataImmediate(Enumerable.Range(0, width * height).Select(i => Depth(i % 7 == 0 ? 60 : 1000)).ToArray());
-        }
-        /// <summary>Binds only exact-source summaries; a deliberately mismatched certificate exercises explicit DDA fallback.</summary>
-        internal void UseHierarchy(CloudHierarchy? hierarchy, bool mismatch = false)
-        {
-            if (hierarchy is null) { trace.SetHierarchy(null); return; }
-            var input = new CloudMapInput(this, 1, 1, 1, 1, 1, 1,
-                new(map.TextureId, 2, 3, 4, map.Width, 50, 5), default);
-            Assert.True(hierarchy.TryBuild(input, () => true), hierarchy.Failure);
-            bool available = hierarchy.TryGetCurrent(mismatch ? input with { Generation = 2 } : input, out var bounds);
-            Assert.Equal(!mismatch, available);
-            trace.SetHierarchy(available ? bounds : null);
-        }
-        /// <summary>Reads the complete traced OIT record including first/last cloud and foreground distances.</summary>
-        internal float[][] ReadTraceRecord() => traced.Images.Select(image => image.ReadPixels()).ToArray();
-        /// <summary>Selects the allowed dense midpoint budget independently of reduced tracing.</summary>
-        internal void SetReferenceSamples(int count) { referenceSamples=count; }
-        /// <summary>Executes deterministic full-resolution midpoint transport without changing history.</summary>
-        internal void RenderReference() { Draw(reference,expected.Target,true); }
-        /// <summary>Executes one reduced sample phase without running temporal or spatial reconstruction.</summary>
-        internal void RenderTrace(uint frame)
-        {
-            trace.Temporal.Capture(previousProjection,Vector3.Zero,lowWidth,lowHeight,frame,unchecked(frame-1),false);
-            Draw(trace,traced.Target,false);
-        }
-        /// <summary>Authors separate sampling dimensions to isolate view and secondary transport behavior.</summary>
-        internal void SetJitterDimensions(float view,float light)
-        {
-            var values=Own(DynamicTexture2D.Create(1,1,PixelInternalFormat.Rg32f));
-            values.UploadDataImmediate(new[]{view,light});trace.PmjJitter=values;
-        }
-        /// <summary>Supplies a known physical reduced payload while the independent density map remains empty.</summary>
-        internal float[][] ResolveAuthoredHistory(bool patterned=false)
-        {
-            for(int layer=0;layer<6;layer++)
-            {
-                int components=layer==0?3:layer==1?1:4;
-                float[] values=new float[lowWidth*lowHeight*components];
-                for(int pixel=0;pixel<lowWidth*lowHeight;pixel++)
-                for(int channel=0;channel<components;channel++)
-                {
-                    float factor=patterned?(float)(pixel%lowWidth+1)/lowWidth:1;
-                    values[pixel*components+channel]=layer==5?(channel==0?50:channel==1?100:Depth(1000)):
-                        layer==1?1-factor*.6f:factor*(layer==0?.6f:channel==3?.6f:8);
-                }
-                historyA.Images[layer].UploadDataImmediate(values);
-            }
-            resolve.Temporal.Capture(projection,Vector3.Zero,lowWidth,lowHeight,0,0,false);
-            BindHistory(resolve,historyA); Draw(resolve,result.Target,true); return ReadDefault();
-        }
-        /// <summary>Executes real reduced trace/history/resolve binaries and the direct reference, restoring inherited state after each pass.</summary>
-        internal void Render(uint frame,bool valid)
-        {
-            var previous=(frame&1)==0?historyA:historyB;var next=(frame&1)==0?historyB:historyA;
-            foreach(var p in new[]{trace.Temporal,temporal.Temporal,resolve.Temporal})
-                p.Capture(previousProjection,new(lastShift-shift,0,0),lowWidth,lowHeight,frame,unchecked(frame-1),valid);
-            BindHistory(temporal,previous);BindHistory(resolve,next);
-            temporal.Current0=traced.Images[0].TextureId;temporal.Current1=traced.Images[1].TextureId;temporal.Current2=traced.Images[2].TextureId;
-            temporal.Current3=traced.Images[3].TextureId;temporal.Current4=traced.Images[4].TextureId;temporal.Current5=traced.Images[5].TextureId;
-            Draw(trace,traced.Target,false);Draw(temporal,next.Target,false);Draw(resolve,result.Target,true);Draw(reference,expected.Target,true);last=next;lastShift=shift;currentProjection.CopyTo(previousProjection,0);
-        }
-        /// <summary>Authors distinguishable current/history payloads to prove interpolation and whole-record rejection on the GPU.</summary>
-        internal float[][] ProbeHistory(string scenario)
-        {
-            for(int layer=0;layer<6;layer++)
-            {
-                int components=layer==0?3:layer==1?1:4;
-                float[] a=new float[lowWidth*lowHeight*components],b=new float[a.Length];
-                for(int pixel=0;pixel<lowWidth*lowHeight;pixel++)
-                {
-                    float current=pixel==4?.4f:pixel%2==0?.2f:.8f;
-                    for(int channel=0;channel<components;channel++)
-                    {
-                        int index=pixel*components+channel;
-                        a[index]=current*((layer>=2&&channel<3)?10:1);b[index]=.42f*((layer>=2&&channel<3)?10:1);
-                        if(scenario=="weather"&&layer==1)b[index]=.8f;
-                        if(layer==5)
-                        {
-                            a[index]=b[index]=channel==0?10:channel==1?20:1;
-                            if(scenario=="depth"&&channel==2)b[index]=.9f;
-                        }
-                    }
-                }
-                if(scenario=="nan"&&layer==2)b[4*4]=float.NaN;
-                traced.Images[layer].UploadDataImmediate(a);historyA.Images[layer].UploadDataImmediate(b);
-            }
-            temporal.Temporal.Capture(projection,scenario=="motion"?new(100,0,0):Vector3.Zero,lowWidth,lowHeight,0,0,scenario!="invalid");
-            temporal.Current0=traced.Images[0].TextureId;temporal.Current1=traced.Images[1].TextureId;temporal.Current2=traced.Images[2].TextureId;
-            temporal.Current3=traced.Images[3].TextureId;temporal.Current4=traced.Images[4].TextureId;temporal.Current5=traced.Images[5].TextureId;
-            BindHistory(temporal,historyA);Draw(temporal,historyB.Target,false);last=historyB;return ReadHistory();
-        }
-        /// <summary>Advances a fixed trace through alternate history storage to expose the bounded temporal recurrence.</summary>
-        internal float[][] AdvanceProbeHistory()
-        {
-            var next=ReferenceEquals(last,historyA)?historyB:historyA;
-            BindHistory(temporal,last!);Draw(temporal,next.Target,false);last=next;return ReadHistory();
-        }
-        #endregion
-        #region Readback and disposal
-        /// <summary>Reads test-only full-resolution reconstructed payloads.</summary>
-        internal float[][] ReadDefault()=>result.Images.Take(6).Select(image=>image.ReadPixels()).ToArray();
-        /// <summary>Reads test-only direct reference payloads for numerical comparison.</summary>
-        internal float[][] ReadReference()=>expected.Images.Take(6).Select(image=>image.ReadPixels()).ToArray();
-        /// <summary>Reads reduced transport independently of temporal accumulation.</summary>
-        internal float[][] ReadTrace()=>ReadNativePayload(traced);
-        /// <summary>Reads physical history to verify exposure-independent storage.</summary>
-        internal float[][] ReadHistory()=>ReadNativePayload(last!);
-        /// <summary>Releases fixture-owned resources in reverse dependency order.</summary>
-        public void Dispose(){for(int i=owned.Count-1;i>=0;i--)owned[i].Dispose();}
-        #endregion
-        #endregion
-        #region Private
-        /// <summary>Converts compact physical storage into native OIT channel order for reference comparisons.</summary>
-        private static float[][] ReadNativePayload(CloudVolumeSurface surface)
-        {
-            var images=surface.Images.Select(image=>image.ReadPixels()).ToArray();
-            float[] glow=new float[images[1].Length*4];
-            for(int i=0;i<images[1].Length;i++) glow[i*4+3]=1-images[1][i];
-            return [images[0],images[1],glow,images[2],images[3],images[4]];
-        }
-        /// <summary>Records an owned fixture allocation without transferring any production resource.</summary>
-        private T Own<T>(T resource) where T:IDisposable {owned.Add(resource);return resource;}
-        /// <summary>Supplies identical physical transport inputs to all tracing consumers.</summary>
-        private void Configure(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudPlacement placement,AtmosphereLighting lighting)
-        {
-            parameters.CaptureMap(map.Width,placement,1,CloudVolumeSettings.Default with {Detail=detail,ViewSamples=ReferenceEquals(program,reference)?referenceSamples:4});
-            parameters.CaptureLighting(lighting,underwater?1:0,new(underwater ? .02f : 0,0,0,0),Vector3.Zero);
-            program.Map=map.TextureId;program.SceneDepth=opaque.TextureId;program.VisibilityDepth=visibility.TextureId;program.LiquidDepth=liquid.TextureId;program.AerialRadiance=aerial;program.AerialAttenuation=loss;
-        }
-        /// <summary>Binds an alternate physical-history set, including unfiltered depth metadata.</summary>
-        private static void BindHistory(ICloudHistoryBindings program,CloudVolumeSurface surface)
-        {
-            program.History0=surface.Images[0].TextureId;program.History1=surface.Images[1].TextureId;program.History2=surface.Images[2].TextureId;
-            program.History3=surface.Images[3].TextureId;program.History4=surface.Images[4].TextureId;program.History5=surface.Images[5].TextureId;
-        }
-        /// <summary>Uses replacement writes internally and the real six-target native blend policy for final composition.</summary>
-        private void Draw(GpuProgram program,GpuFramebuffer target,bool oit)
-        {
-            RenderPassColor[] outputs=oit?[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
-                new(2,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(3,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
-                new(4,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(5,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]:CloudVolumeSurface.Outputs;
-            if(oit&&surfaceDepth>0)
-            {
-                // Independently seed an ordinary translucent surface's native OIT payload at
-                // before/within/behind depths; the cloud must preserve existing bucket composition.
-                float bin=MathF.Log(surfaceDepth/30+1),alpha=.25f;
-                float[] weights=Enumerable.Range(0,3).Select(i=>i==2&&bin>2?1:MathF.Exp(-MathF.Pow((bin-i)/.832f,2))).ToArray();
-                var colors=new List<RenderPassColor>{new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1-alpha*weights[0],1-alpha*weights[1],1-alpha*weights[2],1)),
-                    new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1-alpha,0,0,0)),new(2,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,.2f))};
-                for(int i=0;i<3;i++)
-                {
-                    float a=alpha*MathF.Exp(-surfaceDepth/3000)*weights[i];
-                    colors.Add(new(i+3,AttachmentLoad.Clear,Clear:ColorClearValue.Float(3*a,2*a,a,a)));
-                }
-                outputs=colors.ToArray();
-            }
-            var pass=new RenderPassDesc(target,outputs);using var metadata=new RenderPassTargets(pass);
-            using var pipeline=new GraphicsPipeline(lifetime,new(program.GraphicsIdentity!,CloudVolumeRenderer.Layout,metadata.Signature,DynamicPipelineState.Viewport,
-                blending:oit?LiquidPipelineStates.SurfaceBlending:null),program);
-            int vao=GL.GetInteger(GetPName.VertexArrayBinding),fbo=GL.GetInteger(GetPName.DrawFramebufferBinding);
-            Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.Reconstruction",[pipeline],true,commands=>{
-                commands.BeginPass(pass);commands.SetPipeline(pipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});commands.Draw(geometry,new(0,3));commands.EndPass();}));
-            Assert.Equal(vao,GL.GetInteger(GetPName.VertexArrayBinding));Assert.Equal(fbo,GL.GetInteger(GetPName.DrawFramebufferBinding));
-        }
-        /// <summary>Independently authors perspective depth for the controlled projection.</summary>
-        private static float Depth(float distance)=>(1.00020002f-.200020002f/distance)*.5f+.5f;
-        #endregion
-    }
     #endregion
 }
