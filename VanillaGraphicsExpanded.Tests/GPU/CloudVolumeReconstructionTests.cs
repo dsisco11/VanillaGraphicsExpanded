@@ -21,6 +21,44 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
 {
     #region Public API
     #region Reference comparisons
+    /// <summary>Solar/lunar directions preserve self-shadowed illumination and every payload channel under combined view/light skipping.</summary>
+    [Theory]
+    [InlineData(0, false)]
+    [InlineData(0, true)]
+    [InlineData(1, false)]
+    [InlineData(1, true)]
+    [InlineData(2, false)]
+    [InlineData(2, true)]
+    public void HierarchicalSecondaryLightingMatchesOriginal(int directions, bool detail)
+    {
+        EnsureShaderTestAvailable();
+        using var hierarchy = new CloudHierarchy(() => CloudHierarchyComputeShader.Create(Programs.Api));
+        using var view = CreateScene(9, 7, nativeMapWidth: 21);
+        Vector3 sun = directions == 0 ? Vector3.UnitY : directions == 1 ? Vector3.UnitX : Vector3.Normalize(new(1, .2f, .35f));
+        Vector3 moon = directions == 0 ? -Vector3.UnitY : directions == 1 ? Vector3.UnitZ : Vector3.Normalize(new(-.4f, .6f, -1));
+        bool observedSolar = false, observedLunar = false;
+        foreach (uint frame in new uint[] { 0, 3, 4 })
+        {
+            view.Capture(frame, .125f, 10, 1, 0, detail ? "detail-lit" : "lit");
+            view.AuthorHierarchyColumns(foreground: true);
+            view.SetDirectionalLights(sun, moon, 0);
+            view.UseHierarchy(null); view.RenderTrace(frame); var ambient = view.ReadTraceRecord();
+            foreach (int sources in new[] { 1, 2, 3 })
+            {
+                view.SetDirectionalLights(sun, moon, sources);
+                view.UseHierarchy(null); view.RenderTrace(frame); var original = view.ReadTraceRecord();
+                bool illuminated = Enumerable.Range(3, 3).Any(layer => original[layer].Where((value, index) =>
+                    index % 4 != 3 && Math.Abs(value - ambient[layer][index]) > 1e-6f).Any());
+                if (sources == 1) observedSolar |= illuminated;
+                if (sources == 2) observedLunar |= illuminated;
+                view.UseHierarchy(hierarchy); view.RenderTrace(frame); var accelerated = view.ReadTraceRecord();
+                for (int layer = 0; layer < 7; layer++) Assert.Equal(original[layer], accelerated[layer]);
+                view.UseHierarchy(hierarchy, mismatch: true); view.RenderTrace(frame); var fallback = view.ReadTraceRecord();
+                for (int layer = 0; layer < 7; layer++) Assert.Equal(original[layer], fallback[layer]);
+            }
+        }
+        Assert.True(observedSolar && observedLunar, "Both self-shadowed directional sources must affect the tested illumination.");
+    }
     /// <summary>Actual reduced transport preserves every OIT/depth channel and PMJ frame with certified view skipping or DDA fallback.</summary>
     [Theory]
     [InlineData(false, false)]
@@ -481,6 +519,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         private float surfaceDepth;
         private bool detail,underwater;
         private int referenceSamples=4;
+        private AtmosphereLighting? capturedLighting;
+        private CloudPlacement capturedPlacement;
 
         #region Public API
         #region View preparation
@@ -561,11 +601,22 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
                 { Moon=-Vector3.UnitY,Lunar=scene is "lit" or "detail-lit"?new(3):Vector3.Zero,CalibrationGeneration=1,
                     LookupStorageScale=LightingStorage.PersistentScale,ReconstructionMaximumNits=aerialScatter };
             var placement=new CloudPlacement(0,0,0,0,0,0,offset,0,new(offset,0,-50),0);
+            capturedLighting = lighting; capturedPlacement = placement;
             Configure(reference,reference.Parameters,placement,lighting);Configure(trace,trace.Parameters,placement,lighting);
             resolve.SceneDepth=opaque.TextureId;resolve.VisibilityDepth=visibility.TextureId;resolve.LiquidDepth=liquid.TextureId;
         }
         #endregion
         #region Submission and history probes
+        /// <summary>Authors independent directional sources while preserving the captured medium, environment and quality selection.</summary>
+        internal void SetDirectionalLights(Vector3 sun, Vector3 moon, int sources)
+        {
+            var original = capturedLighting ?? throw new InvalidOperationException("Capture lighting before changing directions.");
+            var lighting = original with { Sun = sun, Moon = moon,
+                Solar = (sources & 1) != 0 ? original.Solar : Vector3.Zero,
+                Lunar = (sources & 2) != 0 ? original.Lunar : Vector3.Zero };
+            Configure(reference, reference.Parameters, capturedPlacement, lighting);
+            Configure(trace, trace.Parameters, capturedPlacement, lighting);
+        }
         /// <summary>Authors sparse stepped clouds and optional opaque/visibility/liquid foreground clips independently of the hierarchy.</summary>
         internal void AuthorHierarchyColumns(bool foreground)
         {

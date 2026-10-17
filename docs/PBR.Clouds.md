@@ -75,16 +75,23 @@ requires completed image-write barriers, sampler visibility and the exact curren
 plus the reduction executable revision. Source observation precedes depth/lighting admission so
 an unavailable draw cannot retain an invalid source lifetime. Native textures remain borrowed.
 Unavailable, mismatched or failed construction selects the existing column traversal explicitly.
-Reduced view rays use the certified summaries to reject the root or skip groups whose complete
-horizontal ray segment misses their height interval. Owned mip indices are one below logical
-hierarchy levels; the finest summaries descend directly to native columns. Secondary-light rays
-and the deterministic full-resolution reference retain native-column DDA.
+Reduced view and secondary solar/lunar rays use the same certified summaries to reject the root or
+skip groups whose complete horizontal ray segment misses their height interval. Owned mip indices
+are one below logical
+hierarchy levels; the finest summaries descend directly to native columns. Secondary rays operate
+in the finite native map domain independently of camera visibility and scene-depth clipping.
+The deterministic full-resolution reference retains native-column DDA for view and light rays.
 
-Surviving view intervals keep the original DDA clocks, sample counts, PMJ indices and integration
+Surviving view and light intervals keep the original DDA clocks, sample counts, PMJ indices and integration
 order. Group skips replay boundary additions without native column fetches, preserving accumulated
 float rounding and tied-axis crossings. Nodes already covering the current ray height descend
 without computing an exit clock. Work-limit fallback resumes native leaf work instead of discarding
 density. These reductions in leaf queries do not establish a GPU performance improvement.
+
+`cloud_volume_light.glsl` integrates secondary optical depth after density and optional hierarchy
+helpers are available. Its 1e7-world-unit limit, finite optical-depth saturation and per-column
+quadrature are shared by accelerated and DDA paths. Solar/lunar phase decorrelation remains at
+the directional-light caller. This does not publish cloud shadows onto scene receivers.
 
 ## Density, lighting and scene composition
 

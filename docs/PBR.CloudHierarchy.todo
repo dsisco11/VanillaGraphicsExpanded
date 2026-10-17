@@ -109,15 +109,15 @@ Phase 3: Accelerate reduced-resolution view traversal
 
 Phase 4: Accelerate secondary self-lighting traversal
   Depends on Phase 3. Outcome: solar/lunar secondary rays use the same conservative summaries.
-  ☐ Reuse hierarchy traversal for existing bounded secondary marches in accelerated tracing.
+  ☑ Reuse hierarchy traversal for existing bounded secondary marches in accelerated tracing.
     - Preserve light-ray limits, occupied intervals, density evaluation, integration sample counts,
       solar/lunar decorrelation and PMJ dimensions; support off-camera rays and finite map exits.
     - Preserve the unaccelerated comparison path and existing fallback; add no cast-shadow consumer.
-  ☐ Compare optical depths, illumination and all OIT payload channels with the original path using
+  ☑ Compare optical depths, illumination and all OIT payload channels with the original path using
     identical PMJ frames/settings, sun/moon directions, sparse/dense and separated-height maps.
     - Exercise horizontal/vertical lights, boundary starts, inside-cloud origins and long empty spans.
     - Independently check secondary occupied intervals; equivalent view output alone is insufficient.
-  ☐ Completion: focused CPU/GPU checks establish view and secondary-light equivalence while
+  ☑ Completion: focused CPU/GPU checks establish view and secondary-light equivalence while
     foreground depth clipping, scene storage encoding and OIT composition retain existing contracts.
 
 Phase 5: Qualify pipeline integration and reconcile documentation
@@ -323,3 +323,50 @@ Phase 3 contracts and verification
       artifacts/CloudHierarchy/phase3-candidate-hashes.json (12 source/shader/test files and two DLLs).
     Headless correctness/probe counts are not GPU timing or live acceptance. No game launch or
       deployment. Secondary-light acceleration and end-to-end performance remain unchecked work.
+
+Phase 4 contracts and verification
+  Task-to-document traceability
+    Secondary reuse -> proposal Traversal and Acceptance; PBR.Clouds.md Cloud height summaries;
+      inherited volumetric proposal Density integration and lighting -> cloud_volume_light.glsl
+      owns the extracted bounded optical-depth march, imported after density and optional hierarchy
+      helpers. Reduced tracing alone enables the guarded shared CloudHierarchySeek call. Native
+      map boundaries, 1e7 limit, occupied intervals, sample counts, phase/salt, density evaluation,
+      finite tau clamp and existing saturation predicate are unchanged. Camera/foreground bounds
+      do not restrict secondary rays; the deterministic full-resolution reference retains DDA.
+    Optical/interval qualification -> proposal Acceptance and conservative native bounds ->
+      SecondaryIntervalsAndOpticalDepthMatchOriginal compares actual GPU light optical depths and
+      ordered secondary intervals exactly with DDA for 21/200-wide empty/sparse/dense stepped maps,
+      detail off/on, three light samples, inside/outside origins, ties, parallel/vertical/horizontal
+      directions, finite exits and empty spans. The direct-box oracle independently checks every
+      interval with the established bounded float-recurrence qualification. Constant-density tau
+      also agrees with independent CPU interval integration including the original saturation.
+    Lighting/payload/fallback -> proposal Acceptance; inherited atmospheric publication Ownership
+      and parent no-cast-shadow scope -> HierarchicalSecondaryLightingMatchesOriginal verifies
+      solar-only, lunar-only and combined illumination at vertical, horizontal and slanted direction
+      pairs, detail off/on and identical PMJ frames. Both sources must visibly affect the numeric
+      RGB accumulations. Every seven-channel trace record agrees exactly with original transport
+      and source-mismatch fallback while opaque/visibility/liquid clips remain active. Source
+      certification, sampling dimensions, OIT, scene storage, history and resolve are unchanged;
+      no cast-shadow consumer or additional native hook is introduced.
+
+  Focused validation (2026-10-17)
+    Validation subagent, NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages:
+      dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj --no-restore
+        -p:UseSharedCompilation=false -m:1 -nr:false -o artifacts/cloud-hierarchy-test-bin -v:normal
+    Passed with 0 errors and 179 baseline warnings; production/test catalogs verify 458/537 variants.
+      artifacts/CloudHierarchy/phase4-build.log records the shader-enabled build.
+      dotnet test artifacts/cloud-hierarchy-test-bin/VanillaGraphicsExpanded.Tests.dll --filter <filter>
+        --logger 'trx;LogFileName=phase4-<suite>.trx' --ResultsDirectory artifacts/CloudHierarchy
+    Exact filters and command template: artifacts/CloudHierarchy/phase4-commands.json.
+      focused: 10/10 new secondary interval/optical-depth and directional payload cases, 1m14s.
+      reduced-regression: 18/18 retained traversal, PMJ, reconstruction and depth cases, 2m36s.
+      draw-regression: 10/10 direct transport, clipping, storage-mode and vertical-bound cases, 26s.
+      All 38 freshly executed cases passed with no failures/skips; corresponding phase4 suite logs
+      and TRX files are under artifacts/CloudHierarchy. The 72 unaffected baseline cases retain
+      Phase 3 receipts: phase4-receipt-comparison.json verifies their unchanged source contracts.
+      Combined coverage is 110 distinct passing checks, not 110 freshly executed tests.
+    Immutable source/shader/test and DLL identities: phase4-candidate-hashes.json in that directory.
+      Second review found no remaining implementation or documentation discrepancies. Independent
+      completion audit passed on 2026-10-17, verified candidate hashes and found no unresolved issues.
+    Headless equivalence and reduced leaf probes do not establish GPU timing or live appearance.
+      No game launch or deployment; integration qualification and measured performance remain open.

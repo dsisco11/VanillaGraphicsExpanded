@@ -4,6 +4,7 @@
 #ifdef VGE_CLOUD_HIERARCHY
 @import "./cloud_volume_hierarchy.glsl"
 #endif
+@import "./cloud_volume_light.glsl"
 @import "./atmosphere_aerial.glsl"
 @import "./pbr_scene_storage.glsl"
 @import "./pbr_color.glsl"

@@ -21,11 +21,31 @@ public sealed class CloudHierarchyTraversalTests(HeadlessGLFixture fixture) : Lu
     [InlineData(200)]
     public void OrderedIntervalsMatchOriginalDdaAndIndependentGeometry(int width)
     {
+        RunTraversal(width, secondary: false, detail: false);
+    }
+
+    /// <summary>Actual bounded light marches preserve independent intervals and optical depth with midpoint and PMJ detail sampling.</summary>
+    [Theory]
+    [InlineData(21, false)]
+    [InlineData(21, true)]
+    [InlineData(200, false)]
+    [InlineData(200, true)]
+    public void SecondaryIntervalsAndOpticalDepthMatchOriginal(int width, bool detail)
+    {
+        RunTraversal(width, secondary: true, detail: detail);
+    }
+    #endregion
+
+    #region Private
+    #region Fixture execution
+    /// <summary>Runs actual native and accelerated traversal against the independent column oracle and optional light integrator.</summary>
+    private void RunTraversal(int width, bool secondary, bool detail)
+    {
         EnsureShaderTestAvailable();
         using var owner = new CloudHierarchy(() => CloudHierarchyComputeShader.Create(Programs.Api));
         using var native = TestFramework.CreateTexture(width, width, PixelInternalFormat.Rgba32f);
         using var volume = new CloudVolumeParameters();
-        volume.CaptureMap(width, default, 1, CloudVolumeSettings.Default);
+        volume.CaptureMap(width, default, 1, CloudVolumeSettings.Default with { Detail = detail, LightSamples = 3 });
         int shader = BuiltShaderFixture.LoadFixture("tests/cloud-traversal.csh", ShaderType.ComputeShader);
         int program = GL.CreateProgram();
         try
@@ -46,15 +66,25 @@ public sealed class CloudHierarchyTraversalTests(HeadlessGLFixture fixture) : Lu
                 Assert.True(owner.TryGetCurrent(input, out var bounds));
                 foreach (var (origin, direction) in Rays(width))
                 {
-                    const float limit = 100000;
-                    var original = Trace(program, volume, native, bounds!, origin, direction, limit, false);
-                    var accelerated = Trace(program, volume, native, bounds!, origin, direction, limit, true);
+                    float limit = secondary ? 1e7f : 100000;
+                    var original = Trace(program, volume, native, bounds!, origin, direction, limit, false, secondary);
+                    var accelerated = Trace(program, volume, native, bounds!, origin, direction, limit, true, secondary);
                     Assert.Equal(original.Intervals, accelerated.Intervals);
                     Assert.True(accelerated.Probes <= original.Probes);
                     probesSaved += original.Probes - accelerated.Probes;
                     skippedBesideCloud |= original.Intervals.Length > 0 && accelerated.Probes < original.Probes;
                     var oracle = CloudTraversalOracle.Intersections(columns, width, origin, direction, limit);
                     CheckGeometry(columns, width, origin, direction, limit, accelerated.Intervals, oracle);
+                    if (secondary)
+                    {
+                        Assert.Equal(original.OpticalDepth, accelerated.OpticalDepth);
+                        Assert.True(float.IsFinite(accelerated.OpticalDepth) && accelerated.OpticalDepth >= 0);
+                        if (!detail)
+                        {
+                            float analytic = ConstantOpticalDepth(columns, width, original.Intervals);
+                            Assert.InRange(Math.Abs(analytic - accelerated.OpticalDepth), 0, Math.Max(1, analytic) * 1e-5);
+                        }
+                    }
                 }
             }
             Assert.True(probesSaved > width, "Empty/coarse-missed groups must avoid native leaf queries.");
@@ -68,7 +98,20 @@ public sealed class CloudHierarchyTraversalTests(HeadlessGLFixture fixture) : Lu
     }
     #endregion
 
-    #region Private
+    #region Independent checks
+    /// <summary>Integrates admitted interval lengths independently on the CPU, including the unchanged native light saturation.</summary>
+    private static float ConstantOpticalDepth(Vector4[] columns, int width, Vector4[] intervals)
+    {
+        float tau = 0;
+        foreach (var interval in intervals)
+        {
+            float extinction = columns[(int)interval.W * width + (int)interval.Z].X / 50;
+            tau = MathF.Min(1e30f, tau + extinction * (interval.Y - interval.X));
+            if (tau >= 64) break;
+        }
+        return tau;
+    }
+
     /// <summary>Qualifies native float corner slivers individually while requiring every substantive independent intersection.</summary>
     private static void CheckGeometry(Vector4[] columns, int width, Vector3 origin, Vector3 direction, float limit,
         Vector4[] intervals, List<(double Near, double Far, int X, int Z)> oracle)
@@ -104,16 +147,19 @@ public sealed class CloudHierarchyTraversalTests(HeadlessGLFixture fixture) : Lu
         }
     }
 
+    #endregion
+    #region GPU dispatch
+
     /// <summary>Executes the actual imported traversal and reads test-only interval/probe records.</summary>
-    private static (Vector4[] Intervals, int Probes) Trace(int program, CloudVolumeParameters volume,
-        DynamicTexture2D native, DynamicTexture2D bounds, Vector3 origin, Vector3 direction, float limit, bool accelerated)
+    private static (Vector4[] Intervals, int Probes, float OpticalDepth) Trace(int program, CloudVolumeParameters volume,
+        DynamicTexture2D native, DynamicTexture2D bounds, Vector3 origin, Vector3 direction, float limit, bool accelerated, bool secondary)
     {
         using var ray = new PackedUniformBuffer(32);
         using var traversal = new PackedUniformBuffer(16);
-        float[] rayData = [origin.X, origin.Y, origin.Z, limit, direction.X, direction.Y, direction.Z, accelerated ? 1 : 0];
+        float[] rayData = [origin.X, origin.Y, origin.Z, limit, direction.X, direction.Y, direction.Z, (secondary ? 2 : 0) + (accelerated ? 1 : 0)];
         ray.SetBytes(MemoryMarshal.AsBytes(rayData.AsSpan()));
         byte[] state = new byte[16];
-        UboPacking.WriteIVec4(state, 0, 1, bounds.MipLevels - 1, 0, 0); traversal.SetBytes(state);
+        UboPacking.WriteIVec4(state, 0, accelerated ? 1 : 0, bounds.MipLevels - 1, 0, 0); traversal.SetBytes(state);
         using var output = GpuShaderStorageBuffer.Create();
         output.UploadData(new float[403 * 4]);
         GL.UseProgram(program);
@@ -128,8 +174,11 @@ public sealed class CloudHierarchyTraversalTests(HeadlessGLFixture fixture) : Lu
         GL.UseProgram(0); StateCache.Current.InvalidateAll();
         int count = (int)result[402 * 4];
         Assert.InRange(count, 0, 402);
-        return (MemoryMarshal.Cast<float, Vector4>(result.AsSpan(0, count * 4)).ToArray(), (int)result[402 * 4 + 1]);
+        return (MemoryMarshal.Cast<float, Vector4>(result.AsSpan(0, count * 4)).ToArray(), (int)result[402 * 4 + 1], result[402 * 4 + 2]);
     }
+
+    #endregion
+    #region Authored inputs
 
     /// <summary>Includes empty, sparse and dense stepped heights with a far corner that logical padding cannot duplicate.</summary>
     private static Vector4[] Columns(int width, int pattern)
@@ -170,5 +219,6 @@ public sealed class CloudHierarchyTraversalTests(HeadlessGLFixture fixture) : Lu
             yield return (origin, direction);
         }
     }
+    #endregion
     #endregion
 }

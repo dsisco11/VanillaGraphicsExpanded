@@ -1,8 +1,11 @@
 #version 430 core
+#define VGE_CLOUD_PMJ
+#define VGE_CLOUD_HIERARCHY
 @import "../includes/cloud_volume_parameters.glsl"
 @import "../includes/cloud_volume_sampling.glsl"
 @import "../includes/cloud_volume_density.glsl"
 @import "../includes/cloud_volume_hierarchy.glsl"
+@import "../includes/cloud_volume_light.glsl"
 layout(local_size_x=1) in;
 layout(std140) uniform CloudRayTestInputs { vec4 testOriginLimit; vec4 testDirectionMode; };
 layout(std430) buffer CloudTraversalTestResult { vec4 intervals[402]; vec4 counts; };
@@ -11,6 +14,8 @@ layout(std430) buffer CloudTraversalTestResult { vec4 intervals[402]; vec4 count
 void main()
 {
     counts=vec4(0);
+    if(testDirectionMode.w>=2.0)
+        counts.z=CloudLightDepth(testOriginLimit.xyz,testDirectionMode.xyz,.37);
     CloudRay ray;
     if(!CloudStart(testOriginLimit.xyz,testDirectionMode.xyz,testOriginLimit.w,ray)) return;
     for(int step=0;step<402;step++)
