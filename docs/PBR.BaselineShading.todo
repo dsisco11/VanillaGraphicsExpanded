@@ -230,6 +230,16 @@ Tasks
       fallback. Automated integration qualification is recorded there; total GPU benefit and user-run
       live acceptance remain open, so this parent item is not complete.
 
+  ☐ Reduce redundant GPU state restoration between consecutive VGE graphics passes.
+    - Cloud trace, temporal and resolve already use cached GraphicsPipelineDesc declarations within
+      one GraphicsCommandContext boundary. Inspect shared RenderPass and shader activation scopes:
+      each pass currently restores framebuffer/draw-buffer routing and shader state before the next.
+    - Support direct transitions between owned passes through the shared pipeline APIs, retaining
+      required target, shader, viewport, blend and resource changes. Restore inherited engine state
+      at the outer boundary; preserve exception-safe cleanup, resource authority and standalone passes.
+    - Verify consecutive and standalone passes, early exits and exceptions with subagent-run focused
+      tests. Compare captured state transitions and unchanged outputs before claiming reduced overhead.
+
   ☐ Implement virtual shadow maps.
 
   ☐ Analyze the current PBR MRT textures and evaluate which can be combined together to just use individual channels of the same texture-layer in the G-Buffer array.
