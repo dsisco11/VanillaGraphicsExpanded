@@ -321,6 +321,31 @@ Tasks
       Release package rebuilt and packaged IL verified; no GPU/frame-time speedup is claimed.
       Evidence: ../artifacts/framebuffer-routing-cache/validation.md.
 
+  ☐ Migrate eligible fixed offscreen targets to StaticGpuFramebuffer and retain reusable pass declarations.
+    - Prioritize all eleven LumOn screen targets, both world-probe atlas targets, direct-lighting
+      targets, owned bloom/light-shaft/luminance targets, AO outputs and minimum-child mip targets.
+      Include water-volume transport, water-refraction capture/publication/reduction, and the owned
+      particle before-depth, after-depth and resolve targets. Include fixed celestial-generation
+      scratch and per-face/mip destinations where their tracked allocation lifetimes permit it.
+    - Preserve fixed attachment/output mappings, including sparse capture routes. Temporal rotation
+      swaps complete texture/FBO sets; keep those configurations static across role changes.
+      Retain pass declarations per target and load/store/area contract so steady-state submission
+      does not reconstruct descriptors or repeat static routing certification. Preserve executable
+      reload and PSO compatibility handling independently of these target declarations.
+    - Convert the owned PBR composite target's in-place resize path to coordinated allocation
+      replacement. Release refraction borrowers before replacing shared composite storage; retire
+      FBOs before attachment wrappers and backing images on resize, reload, failure and teardown.
+    - Keep engine/window/OIT wrappers, engine-image particle draw/SSAO-restore targets, primary/final
+      presentation destinations, and retargetable material/blitter/readback helpers dynamic.
+      Managed metadata wrappers around engine-owned textures do not establish immutable storage
+      ownership. Do not freeze external allocations merely because their current bindings are stable.
+    - Verify migrations with subagent-run focused GPU tests covering resize, history rotation,
+      clear/preserve variants, sparse routes, partial construction, reload, retirement and engine
+      handoff. Compare outputs and capture steady-state routing comparisons, snapshots, completeness
+      queries and native routing writes; establish that eligible predeclared static passes bypass
+      this work. Reconcile current architecture documentation and rebuild the canonical package;
+      distinguish API call reductions from measured GPU/frame-time improvements.
+
   ☐ Preserve texture binding caching for lifecycle-aware borrowed rendering inputs.
     - Inspect raw integer sampler inputs, including cloud scene/visibility/liquid depth. Reuse or
       extend existing borrowed resource references so allocation identity and retirement are known.
