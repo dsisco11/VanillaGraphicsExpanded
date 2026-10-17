@@ -9,7 +9,16 @@ not part of the current production implementation.
 
 VGE graphics/compute executables are independent `IGpuProgram` owners. The existing StateCache
 program-scope chain retains owner/revision/originating-context borrows; raw scopes remain binding-only.
-GraphicsCommandContext owns exactly-once ShaderActivation and rejects stale prepared pipeline revisions.
+GraphicsCommandContext captures one incoming program scope and rejects stale prepared pipeline revisions.
+Consecutive draws transition directly between prepared owners and publish inputs on every draw.
+`EndPass` releases active image borrows and clears the pass selection; it leaves the current shader
+and draw framebuffer selected until another pass changes them or the outer boundary exits.
+`RenderPassSequence` captures each touched framebuffer's original output routing once and restores
+it at boundary exit before the inherited framebuffer bindings are restored. Passes bind only the
+draw direction, preserving the independent read binding. Framebuffer lifetime borrows prevent
+retirement until routing restoration finishes, while completed-pass attachment changes and storage
+resize remain permitted. Each new pass refreshes changed attachments and publishes its full route.
+Standalone `RenderPass.Begin` scopes retain immediate routing and binding restoration on disposal.
 Standalone owner scopes replay validated retained inputs; managed complete boundaries restore their
 resource snapshots after activation cleanup, then fixed/dynamic state. No second activation stack or
 current-owner dictionary is introduced.
@@ -86,7 +95,7 @@ below accounts for the eleven retired capture invocations, including the removed
 | [FramebufferBindingHook](../VanillaGraphicsExpanded/HarmonyPatches/FramebufferBindingHook.cs) | Successful setter postfix observes combined read/draw FBO binding without another GL call. Does not establish blend/routing or arbitrary mod coverage. |
 | [GpuProgram](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.cs), IGpuProgram workflows, terrain material/scene-slot binding hooks | Shader owner and prepared resource publication remain authoritative; native program tracking alone does not restore engine ownership. Texture/UBO inputs may change on every draw with the same executable. |
 | [CompleteGraphicsBoundary](../VanillaGraphicsExpanded/Rendering/Integration/CompleteGraphicsBoundary.cs), [EngineBoundaryScope](../VanillaGraphicsExpanded/Rendering/EngineBoundaryScope.cs) | Explicit restoration of declared effects and prepared resource footprints. Resolve unknown incoming fields once at entry; restore shader owner, borrowed bindings and independent read/draw FBOs, then draw state. Complete descriptions supply full PSO restoration coverage; engine compatibility adapters retain their explicitly partial scopes. |
-| GpuFramebuffer creation/routing and scratch helpers | Framebuffer blend storage is retired; complete pipeline descriptions own VGE blend policy. Raw draw/read-buffer routing is FBO-local resource state. RenderPass owns routing and restores borrowed engine routing. |
+| GpuFramebuffer creation/routing and scratch helpers | Complete pipeline descriptions own VGE blend policy. Draw/read-buffer routing is FBO-local resource state. Standalone RenderPass scopes restore routing immediately; GraphicsCommandContext defers it through RenderPassSequence until the outer boundary exits. |
 | Engine compatibility scopes, explicit external invalidation, [StateCache.ScissorScope](../VanillaGraphicsExpanded/Rendering/StateCache.ScissorScope.cs) | Retained for bounded engine-owned operations; the legacy fixed-function capture is test-only. Scissor helper preserves enable, not a general dynamic rectangle contract. Complete VGE draws use the full boundary contract. |
 | Unmapped engine overloads, other mods and unobserved external stencil/equation/rasterizer/sampling/clip changes | Unknown to current cache unless independently restored. Query required unknown fields at entry, establish complete state, restore and invalidate affected knowledge at declared external boundaries. No untracked mutation inside complete submission. |
 
@@ -2163,9 +2172,11 @@ No live-game visual acceptance or frame-time improvement is claimed.
 `Rendering/Pipeline/Passes/RenderPassDesc` freezes borrowed target references, sparse output routing,
 typed color clears, independent depth/stencil intentions and an optional pixel render area.
 `RenderPass.Begin` requires an existing complete `EngineBoundaryScope`; it cannot create a nested
-pass or a second restoration cache. The boundary owns drawing-state restoration. The pass restores
-its target's draw routing and the incoming independent read/draw framebuffer bindings, and registers
-cleanup with the boundary so exceptional exits cannot leave borrowed resources locked.
+pass or a second restoration cache. The boundary owns drawing-state restoration. A standalone pass
+restores its target's draw routing and the incoming independent read/draw framebuffer bindings.
+GraphicsCommandContext instead shares a RenderPassSequence, retaining original target routes until
+outer cleanup and transitioning directly between draw targets. Both paths register cleanup with the
+boundary so exceptional exits cannot leave borrowed resources locked.
 
 Target signatures retain exact formats, effective samples and actual attached depth/stencil aspects.
 A packed image attached only to depth does not imply a stencil attachment. Dimensions and resource
@@ -2182,6 +2193,8 @@ native sample count, including driver rounding. An active pass retains non-ownin
 to the framebuffer, images and managed backing resources; their resize/replacement/retirement APIs
 reject until the pass ends. Pass disposal never disposes those resources. External raw mutation is
 prohibited during the pass and remains the external owner's responsibility at publication boundaries.
+Deferred routing restoration holds an additional framebuffer lifetime reference until boundary exit;
+it prevents disposal or handle transfer while permitting completed-pass retargeting and image resize.
 
 `GpuFramebuffer.PublishRenderPassMetadata` discovers wrapped images at an explicit publication
 boundary, retaining exact image selections without acquiring ownership. Failed or missing publication

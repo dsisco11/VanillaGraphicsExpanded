@@ -127,10 +127,15 @@ public sealed partial class GpuFramebuffer : GpuResource
 
     #region Rendering
     /// <summary>Binds this framebuffer after rejecting retired images and refreshing changed image bindings.</summary>
-    public void Bind()
+    public void Bind() => Bind(FramebufferTarget.Framebuffer);
+
+    /// <summary>Refreshes changed images on the draw binding, optionally selecting the read alias for compatibility.</summary>
+    internal void Bind(FramebufferTarget bindingTarget)
     {
+        if (bindingTarget is not (FramebufferTarget.Framebuffer or FramebufferTarget.DrawFramebuffer))
+            throw new ArgumentOutOfRangeException(nameof(bindingTarget));
         ValidateAttachments();
-        StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
+        StateCache.Current.BindFramebuffer(bindingTarget, fboId);
         if (attachmentsDirty)
         {
             // Shared image changes can affect several FBOs; refresh each FBO lazily

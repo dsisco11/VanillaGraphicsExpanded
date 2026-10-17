@@ -13,8 +13,8 @@ internal sealed class RenderPass : IDisposable
     private readonly RenderPassDesc description;
     private readonly EngineBoundaryScope boundary;
     private readonly RenderPassTargets targets;
-    private readonly StateCache.FramebufferScope bindings;
-    private readonly DrawBuffersEnum[] previousRouting;
+    private readonly StateCache.FramebufferScope? bindings;
+    private readonly DrawBuffersEnum[]? previousRouting;
     private bool disposed;
     internal RenderTargetSignature Signature => targets.Signature;
     internal RenderArea Area => targets.Area;
@@ -44,8 +44,8 @@ internal sealed class RenderPass : IDisposable
         }
     }
 
-    /// <summary>Validates metadata and intentions before setup; failed setup restores routing and borrowed bindings.</summary>
-    internal static RenderPass Begin(RenderPassDesc description, EngineBoundaryScope boundary)
+    /// <summary>Validates metadata and intentions before setup; optional sequence ownership defers routing restoration.</summary>
+    internal static RenderPass Begin(RenderPassDesc description, EngineBoundaryScope boundary, RenderPassSequence? sequence = null)
     {
         ArgumentNullException.ThrowIfNull(description);
         var cache = StateCache.Current;
@@ -56,7 +56,7 @@ internal sealed class RenderPass : IDisposable
         if (!boundary.Snapshot.Coverage.Contains(required, GpuSupport.Graphics.MaxDrawBuffers))
             throw new InvalidOperationException("Render passes require complete graphics restoration coverage.");
         if (active is not null) throw new InvalidOperationException("Render passes cannot nest.");
-        var pass = new RenderPass(description, boundary);
+        var pass = new RenderPass(description, boundary, sequence);
         boundary.AddCleanup(EngineBoundaryCleanup.Framebuffers, pass, pass.Abandon);
         return pass;
     }
@@ -86,7 +86,7 @@ internal sealed class RenderPass : IDisposable
         pipeline.ValidateTargets(Signature);
     }
 
-    /// <summary>Ends target authority and restores routing/bindings without disposing borrowed storage.</summary>
+    /// <summary>Ends image authority; standalone passes also restore routing and bindings immediately.</summary>
     public void Dispose()
     {
         if (disposed) return;
@@ -96,9 +96,9 @@ internal sealed class RenderPass : IDisposable
         {
             // Store discard permits undefined contents. Retaining them is a legal conservative
             // implementation, including partial areas and independently preserved packed aspects.
-            try { RestoreRouting(); }
+            try { if (previousRouting is not null) RestoreRouting(); }
             catch (Exception error) { failures.Add(error); }
-            try { bindings.Dispose(); }
+            try { bindings?.Dispose(); }
             catch (Exception error) { failures.Add(error); }
         }
         finally { targets.Dispose(); active = null; }
@@ -108,27 +108,31 @@ internal sealed class RenderPass : IDisposable
 
     #region Private
     /// <summary>Acquires resources first, then changes routing and applies validated load operations.</summary>
-    private RenderPass(RenderPassDesc description, EngineBoundaryScope boundary)
+    private RenderPass(RenderPassDesc description, EngineBoundaryScope boundary, RenderPassSequence? sequence)
     {
         this.description = description; this.boundary = boundary;
         targets = new(description);
-        try { bindings = StateCache.Current.BindFramebufferScope(); }
+        try { if (sequence is null) bindings = StateCache.Current.BindFramebufferScope(); }
         catch { targets.Dispose(); throw; }
-        previousRouting = new DrawBuffersEnum[GpuSupport.Graphics.MaxDrawBuffers];
+        if (sequence is null) previousRouting = new DrawBuffersEnum[GpuSupport.Graphics.MaxDrawBuffers];
         bool routingCaptured = false;
         try
         {
             using var errors = new GlDebug.ErrorScope("Render pass setup");
-            description.Target.Bind();
-            for (int i = 0; i < previousRouting.Length; i++)
-                previousRouting[i] = (DrawBuffersEnum)GL.GetInteger(GetPName.DrawBuffer0 + i);
-            GlDebug.ThrowIfErrors("Render pass routing capture");
-            routingCaptured = true;
             var routing = new DrawBuffersEnum[Math.Max(1, description.Colors.Count)];
             for (int i = 0; i < description.Colors.Count; i++)
                 routing[i] = description.Colors[i].SurfaceBuffer ?? (description.Colors[i].Attachment < 0 ? DrawBuffersEnum.None
                     : DrawBuffersEnum.ColorAttachment0 + description.Colors[i].Attachment);
-            GL.DrawBuffers(routing.Length, routing);
+            if (sequence is not null) sequence.Bind(description.Target, routing);
+            else
+            {
+                description.Target.Bind();
+                for (int i = 0; i < previousRouting!.Length; i++)
+                    previousRouting[i] = (DrawBuffersEnum)GL.GetInteger(GetPName.DrawBuffer0 + i);
+                GlDebug.ThrowIfErrors("Render pass routing capture");
+                routingCaptured = true;
+                GL.DrawBuffers(routing.Length, routing);
+            }
             description.Target.ValidatePassCompleteness(routing);
             StateCache.Current.ApplyDynamic(Viewport);
             RenderPassOperations.Load(description, Area);
@@ -141,7 +145,7 @@ internal sealed class RenderPass : IDisposable
             {
                 try { if (routingCaptured) RestoreRouting(); }
                 catch (Exception error) { failures.Add(error); }
-                try { bindings.Dispose(); }
+                try { bindings?.Dispose(); }
                 catch (Exception error) { failures.Add(error); }
             }
             finally { targets.Dispose(); active = null; }
@@ -159,8 +163,8 @@ internal sealed class RenderPass : IDisposable
         using var errors = new GlDebug.ErrorScope("Render pass routing restoration");
         StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, description.Target.FboId);
         // Window surfaces may expose grouped selectors such as Back, which DrawBuffers rejects.
-        if (description.Target.FboId == 0) GL.DrawBuffer((DrawBufferMode)previousRouting[0]);
-        else GL.DrawBuffers(previousRouting.Length, previousRouting);
+        if (description.Target.FboId == 0) GL.DrawBuffer((DrawBufferMode)previousRouting![0]);
+        else GL.DrawBuffers(previousRouting!.Length, previousRouting);
     }
     #endregion
 }

@@ -49,12 +49,18 @@ public sealed partial class GpuFramebuffer
     #endregion
 
     #region Internal API
-    /// <summary>Checks completeness after image or routing changes, retaining no draw-state values.</summary>
+    /// <summary>Checks the already-selected draw target after image or routing changes without disturbing the read binding.</summary>
     internal void ValidatePassCompleteness(DrawBuffersEnum[] routing)
     {
+        if (StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer) != fboId)
+            throw new InvalidOperationException("Pass completeness requires this framebuffer's draw binding.");
         if (checkedPassRevision == AttachmentRevision && checkedPassRouting is not null
             && checkedPassRouting.AsSpan().SequenceEqual(routing)) return;
-        if (!CheckStatus(out var error)) throw new InvalidOperationException(error);
+        // Pass setup already refreshed and bound the images. A general-purpose CheckStatus scope
+        // would needlessly select the read alias and restore it before every changed output route.
+        var status = GL.CheckFramebufferStatus(FramebufferTarget.DrawFramebuffer);
+        if (status != FramebufferErrorCode.FramebufferComplete)
+            throw new InvalidOperationException($"Framebuffer incomplete: {status}");
         checkedPassRevision = AttachmentRevision;
         checkedPassRouting = routing.ToArray();
     }

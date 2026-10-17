@@ -10,6 +10,7 @@ public abstract class GpuResource : IDisposable
 {
     private int disposed;
     private int activePassReferences;
+    private int lifetimeReferences;
     private readonly GpuResourceManager? deletionManager = GpuResourceManagerSystem.CurrentManager;
     private readonly (nint Handle, long Generation) nativeContext = Integration.RenderContextRegistry.Current();
     protected virtual (nint Handle, long Generation) NativeProgramContext => default;
@@ -34,10 +35,10 @@ public abstract class GpuResource : IDisposable
 
     protected virtual bool OwnsResource => true;
 
-    /// <summary>Transfers the native handle only after active pass borrowers have released the resource.</summary>
+    /// <summary>Transfers the native handle only after active pass and deferred restoration borrowers release it.</summary>
     public virtual nint Detach()
     {
-        RequireMutableStorage();
+        RequireRetirement();
         if (IsDisposed)
         {
             return 0;
@@ -55,10 +56,10 @@ public abstract class GpuResource : IDisposable
         return Detach();
     }
 
-    /// <summary>Retires storage exactly once, rejecting retirement while an immediate pass borrows it.</summary>
+    /// <summary>Retires storage exactly once after active pass and deferred restoration borrows have ended.</summary>
     public void Dispose()
     {
-        RequireMutableStorage();
+        RequireRetirement();
         if (Interlocked.Exchange(ref disposed, 1) != 0)
         {
             return;
@@ -97,6 +98,26 @@ public abstract class GpuResource : IDisposable
 
     /// <summary>Releases a matching immediate pass reference without retiring the resource.</summary>
     internal void ReleasePassReference() => Interlocked.Decrement(ref activePassReferences);
+
+    /// <summary>Prevents handle retirement while allowing storage or attachment mutation outside an active pass.</summary>
+    internal void RetainLifetimeReference()
+    {
+        ObjectDisposedException.ThrowIf(IsDisposed, this);
+        Interlocked.Increment(ref lifetimeReferences);
+    }
+
+    /// <summary>Ends a native-handle borrow without disposing or mutating the resource.</summary>
+    internal void ReleaseLifetimeReference() => Interlocked.Decrement(ref lifetimeReferences);
+    #endregion
+
+    #region Private
+    /// <summary>Preserves native names needed by deferred restoration independently of active image mutation guards.</summary>
+    private void RequireRetirement()
+    {
+        RequireMutableStorage();
+        if (Volatile.Read(ref lifetimeReferences) != 0)
+            throw new InvalidOperationException("End the graphics boundary before retiring its borrowed resource.");
+    }
     #endregion
 
     protected virtual void OnDetached(nint id)

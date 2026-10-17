@@ -42,6 +42,9 @@ restores the enclosing validated owner's inputs. Direct `Use` establishes a trac
 by `Stop`; `TryUse` reports failure as a Boolean. Raw scopes restore bindings only. StateCache's
 existing program-scope chain retains owner/revision/context borrows; no separate current-owner table
 is used. Every activation publishes retained inputs even when the native program ID is unchanged.
+Within a `GraphicsCommandContext`, shader changes bind the next owner directly. One program scope
+captures the incoming owner for restoration at boundary exit; `EndPass` ends image authority without
+reactivating that owner or releasing samplers between owned passes.
 See [pipeline boundaries](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime).
 
 ## Shared workflows and compatibility

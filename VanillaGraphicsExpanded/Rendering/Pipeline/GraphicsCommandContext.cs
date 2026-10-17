@@ -4,7 +4,6 @@ using System.Linq;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Rendering.Pipeline.State;
-using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline;
 
@@ -13,10 +12,11 @@ internal sealed class GraphicsCommandContext
 {
     private readonly EngineBoundaryScope boundary;
     private readonly HashSet<GraphicsPipeline> pipelines;
+    private readonly RenderPassSequence sequence;
     private RenderPass? pass;
     private GraphicsPipeline? pipeline;
     private GraphicsDynamicState dynamics = new();
-    private ShaderActivation? activation;
+    private IDisposable? activation;
     private bool submitting;
     private bool finished;
 
@@ -60,7 +60,7 @@ internal sealed class GraphicsCommandContext
     {
         RequireMutable();
         if (pass is not null) throw new InvalidOperationException("End the current pass before beginning another.");
-        pass = RenderPass.Begin(description, boundary);
+        pass = RenderPass.Begin(description, boundary, sequence);
         pipeline = null;
         dynamics = new();
     }
@@ -105,15 +105,11 @@ internal sealed class GraphicsCommandContext
         finally { submitting = false; }
     }
 
-    /// <summary>Releases shader ownership before restoring the pass's borrowed framebuffer bindings.</summary>
+    /// <summary>Ends active image authority while retaining shader and target routing until the outer boundary.</summary>
     internal void EndPass()
     {
         RequireMutable();
         var current = pass ?? throw new InvalidOperationException("No active pass.");
-        var shader = activation;
-        activation = null;
-        // On failure the enclosing boundary still attempts framebuffer and draw-state cleanup.
-        shader?.Dispose();
         current.Dispose();
         pass = null;
         pipeline = null;
@@ -123,18 +119,16 @@ internal sealed class GraphicsCommandContext
     #endregion
 
     #region Private
-    /// <summary>Retains one activation owner so draws and exceptional boundary cleanup share its lifetime.</summary>
+    /// <summary>Captures incoming shader ownership once, then transitions directly and republishes inputs on every draw.</summary>
     private void ActivateShader(GraphicsPipeline selected)
     {
-        if (activation is null || !ReferenceEquals(activation.Program, selected.Shader))
+        if (activation is null)
         {
-            var previous = activation;
-            activation = null;
-            previous?.Dispose();
-            activation = new ShaderActivation(selected.Shader);
+            // Register before activation: even failed input publication must restore the original owner.
+            activation = StateCache.Current.CaptureProgramScope(false);
             boundary.AddCleanup(EngineBoundaryCleanup.Shader, activation);
         }
-        else selected.Shader.Use();
+        selected.Shader.Use();
     }
 
     /// <summary>Retains the already resolved boundary and its exact pipeline set.</summary>
@@ -142,6 +136,7 @@ internal sealed class GraphicsCommandContext
     {
         this.boundary = boundary;
         this.pipelines = new(pipelines);
+        sequence = new(boundary);
     }
 
     /// <summary>Rejects escaped contexts and callbacks attempting to mutate an in-flight submission.</summary>
@@ -152,15 +147,5 @@ internal sealed class GraphicsCommandContext
         StateCache.Current.RequireEngineBoundary(boundary);
     }
 
-    /// <summary>Makes an existing shader ownership scope safe for both early and boundary cleanup.</summary>
-    private sealed class ShaderActivation : IDisposable
-    {
-        private IDisposable? scope;
-        internal GpuProgram Program { get; }
-        /// <summary>Uses the scoped VGE activation path, including generated input publication.</summary>
-        internal ShaderActivation(GpuProgram program) { Program = program; scope = program.UseScope(false); }
-        /// <summary>Consumes the ownership scope once even when restoration throws.</summary>
-        public void Dispose() { var value = scope; scope = null; value?.Dispose(); }
-    }
     #endregion
 }
