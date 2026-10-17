@@ -11,7 +11,9 @@ internal sealed partial class StateCache
         if (face is not (StencilFace.Front or StencilFace.Back or StencilFace.FrontAndBack)) throw new ArgumentOutOfRangeException(nameof(face));
         if (!Enum.IsDefined(function)) throw new ArgumentOutOfRangeException(nameof(function));
         reference = Math.Max(0, reference);
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(stencil:
+            (face == StencilFace.Back ? default : StencilStateKnowledge.FrontStencilFunction)
+            | (face == StencilFace.Front ? default : StencilStateKnowledge.BackStencilFunction), completeGraphics: true);
         bool front = face != StencilFace.Back, back = face != StencilFace.Front;
         if ((!front || stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilFunction) && stencil.FrontStencilFunction == (function, reference, mask))
             && (!back || stencilKnown.HasFlag(StencilStateKnowledge.BackStencilFunction) && stencil.BackStencilFunction == (function, reference, mask))) return;
@@ -29,7 +31,9 @@ internal sealed partial class StateCache
     {
         if (face is not (StencilFace.Front or StencilFace.Back or StencilFace.FrontAndBack)) throw new ArgumentOutOfRangeException(nameof(face));
         
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(stencil:
+            (face == StencilFace.Back ? default : StencilStateKnowledge.FrontStencilMask)
+            | (face == StencilFace.Front ? default : StencilStateKnowledge.BackStencilMask), completeGraphics: true);
         bool front = face != StencilFace.Back, back = face != StencilFace.Front;
         if ((!front || stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilMask) && stencil.FrontStencilMask == mask)
             && (!back || stencilKnown.HasFlag(StencilStateKnowledge.BackStencilMask) && stencil.BackStencilMask == mask)) return;
@@ -47,7 +51,9 @@ internal sealed partial class StateCache
     {
         if (face is not (StencilFace.Front or StencilFace.Back or StencilFace.FrontAndBack)) throw new ArgumentOutOfRangeException(nameof(face));
         if (!Enum.IsDefined(fail) || !Enum.IsDefined(depthFail) || !Enum.IsDefined(pass)) throw new ArgumentOutOfRangeException(nameof(fail));
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(stencil:
+            (face == StencilFace.Back ? default : StencilStateKnowledge.FrontStencilOperation)
+            | (face == StencilFace.Front ? default : StencilStateKnowledge.BackStencilOperation), completeGraphics: true);
         bool front = face != StencilFace.Back, back = face != StencilFace.Front;
         if ((!front || stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilOperation) && stencil.FrontStencilOperation == (fail, depthFail, pass))
             && (!back || stencilKnown.HasFlag(StencilStateKnowledge.BackStencilOperation) && stencil.BackStencilOperation == (fail, depthFail, pass))) return;

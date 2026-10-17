@@ -11,7 +11,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes Multisample, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetMultisampleEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(sampling: SamplingStateKnowledge.Multisample, completeGraphics: true);
         if (samplingKnown.HasFlag(SamplingStateKnowledge.Multisample) && sampling.Multisample == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         samplingKnown &= ~SamplingStateKnowledge.Multisample;
@@ -26,7 +26,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes SampleCoverage, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetSampleCoverageEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(sampling: SamplingStateKnowledge.SampleCoverageEnabled, completeGraphics: true);
         if (samplingKnown.HasFlag(SamplingStateKnowledge.SampleCoverageEnabled) && sampling.SampleCoverageEnabled == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         samplingKnown &= ~SamplingStateKnowledge.SampleCoverageEnabled;
@@ -41,7 +41,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes SampleMask, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetSampleMaskEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(sampling: SamplingStateKnowledge.SampleMask, completeGraphics: true);
         if (samplingKnown.HasFlag(SamplingStateKnowledge.SampleMask) && sampling.SampleMask == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         samplingKnown &= ~SamplingStateKnowledge.SampleMask;
@@ -56,7 +56,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes SampleAlphaToCoverage, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetSampleAlphaToCoverageEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(sampling: SamplingStateKnowledge.SampleAlphaToCoverage, completeGraphics: true);
         if (samplingKnown.HasFlag(SamplingStateKnowledge.SampleAlphaToCoverage) && sampling.SampleAlphaToCoverage == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         samplingKnown &= ~SamplingStateKnowledge.SampleAlphaToCoverage;
@@ -71,7 +71,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes SampleAlphaToOne, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetSampleAlphaToOneEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(sampling: SamplingStateKnowledge.SampleAlphaToOne, completeGraphics: true);
         if (samplingKnown.HasFlag(SamplingStateKnowledge.SampleAlphaToOne) && sampling.SampleAlphaToOne == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         samplingKnown &= ~SamplingStateKnowledge.SampleAlphaToOne;
@@ -86,7 +86,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes SampleShading, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetSampleShadingEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(sampling: SamplingStateKnowledge.SampleShading, completeGraphics: true);
         if (!GpuSupport.Graphics.SampleShading)
         {
             if (enabled) throw new NotSupportedException("SampleShading is unavailable.");

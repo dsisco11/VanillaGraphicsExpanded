@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.Rendering.Integration;
@@ -21,18 +22,13 @@ internal static class CompleteGraphicsBoundary
         ArgumentNullException.ThrowIfNull(programs);
         ArgumentNullException.ThrowIfNull(operation);
         if (!conditionalRenderingInactive || !cache.TryVerifyInactiveTransformFeedback()) return false;
-        var coverage = new PipelineStateCoverage(clearColor: true);
-        bool hasPipeline = false;
+        // Pass descriptions arrive later. Retain the bounded clear envelope even for preserving passes.
+        var coverage = RenderPassOperations.ClearCoverage.Union(new(dynamic: DynamicDrawStateKnowledge.Viewport,
+            clearColor: true));
         foreach (var pipeline in pipelines)
         {
             coverage = coverage.Union(PipelineStateCoverage.From(pipeline));
-            hasPipeline = true;
         }
-        // A clear-only pass has no shader executable, but its load operations still need
-        // complete drawing-state restoration. Draw remains impossible without a declared pipeline.
-        if (!hasPipeline) coverage = new(DepthStateKnowledge.All, RasterizerStateKnowledge.All,
-            PrimitiveAssemblyStateKnowledge.All, DynamicDrawStateKnowledge.All, BlendStateKnowledge.All,
-            clearColor: true, completeGraphics: true);
         var resources = new EngineBoundaryResources(textures: [(0, OpenTK.Graphics.OpenGL.TextureTarget.Texture2D)]);
         foreach (var program in programs)
         {

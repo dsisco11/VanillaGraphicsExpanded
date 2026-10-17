@@ -12,11 +12,20 @@ internal sealed class PipelineStateCoverage
     internal RasterizerStateKnowledge Rasterizer { get; }
     internal PrimitiveAssemblyStateKnowledge Assembly { get; }
     internal DynamicDrawStateKnowledge Dynamic { get; }
+    internal StencilStateKnowledge Stencil { get; }
+    internal SamplingStateKnowledge Sampling { get; }
+    internal OutputStateKnowledge Output { get; }
+    internal bool SampleMaskWords { get; }
     internal BlendStateKnowledge GlobalBlend { get; }
     internal bool ClearColor { get; }
-    /// <summary>Includes every complete graphics category field, including inactive parameters.</summary>
+    /// <summary>Admits complete graphics operations without implicitly granting field mutation authority.</summary>
     internal bool CompleteGraphics { get; }
     internal static PipelineStateCoverage Empty { get; } = new();
+    /// <summary>Retains conservative authority for application paths that still establish every parameter.</summary>
+    internal static PipelineStateCoverage FullGraphics { get; } = new(DepthStateKnowledge.All,
+        RasterizerStateKnowledge.All, PrimitiveAssemblyStateKnowledge.All, DynamicDrawStateKnowledge.All,
+        BlendStateKnowledge.All, completeGraphics: true, stencil: StencilStateKnowledge.All,
+        sampling: SamplingStateKnowledge.All, output: OutputStateKnowledge.All, sampleMaskWords: true);
 
     #region Public API
     #region Declaration composition
@@ -25,13 +34,16 @@ internal sealed class PipelineStateCoverage
         RasterizerStateKnowledge rasterizer = default, PrimitiveAssemblyStateKnowledge assembly = default,
         DynamicDrawStateKnowledge dynamic = default, BlendStateKnowledge globalBlend = default,
         bool clearColor = false, IReadOnlyDictionary<int, BlendStateKnowledge>? indexedBlend = null,
-        bool completeGraphics = false)
+        bool completeGraphics = false, StencilStateKnowledge stencil = default,
+        SamplingStateKnowledge sampling = default, OutputStateKnowledge output = default,
+        bool sampleMaskWords = false)
     {
         if (!DepthStateKnowledge.All.HasFlag(depth) || !RasterizerStateKnowledge.All.HasFlag(rasterizer)
             || !PrimitiveAssemblyStateKnowledge.All.HasFlag(assembly) || !DynamicDrawStateKnowledge.All.HasFlag(dynamic)
-            || !BlendStateKnowledge.All.HasFlag(globalBlend)) throw new ArgumentOutOfRangeException(nameof(depth));
-        // Full graphics coverage includes inactive parameters as well as enable values.
-        // Partial boundaries retain their established field set; category masks do not grant new authority.
+            || !BlendStateKnowledge.All.HasFlag(globalBlend) || !StencilStateKnowledge.All.HasFlag(stencil)
+            || !SamplingStateKnowledge.All.HasFlag(sampling) || !OutputStateKnowledge.All.HasFlag(output))
+            throw new ArgumentOutOfRangeException(nameof(depth));
+        // Admission is independent of write groups. Partial helpers retain their established field set.
         const DepthStateKnowledge fullDepth = DepthStateKnowledge.DepthRange;
         const RasterizerStateKnowledge fullRaster = RasterizerStateKnowledge.CullMode | RasterizerStateKnowledge.FrontFace
             | RasterizerStateKnowledge.PolygonModes | RasterizerStateKnowledge.PolygonOffset | RasterizerStateKnowledge.DepthClamp
@@ -40,15 +52,13 @@ internal sealed class PipelineStateCoverage
         const PrimitiveAssemblyStateKnowledge fullAssembly = PrimitiveAssemblyStateKnowledge.RestartIndex
             | PrimitiveAssemblyStateKnowledge.PrimitiveRestart | PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex;
         const DynamicDrawStateKnowledge fullDynamic = DynamicDrawStateKnowledge.Scissor | DynamicDrawStateKnowledge.BlendConstant;
-        if (completeGraphics)
-        {
-            depth |= fullDepth; rasterizer |= fullRaster; assembly |= fullAssembly; dynamic |= fullDynamic;
-        }
-        else if ((depth & fullDepth) != 0 || (rasterizer & fullRaster) != 0
-            || (assembly & fullAssembly) != 0 || (dynamic & fullDynamic) != 0)
+        if (!completeGraphics && ((depth & fullDepth) != 0 || (rasterizer & fullRaster) != 0
+            || (assembly & fullAssembly) != 0 || (dynamic & fullDynamic) != 0
+            || stencil != default || sampling != default || output != default || sampleMaskWords))
             throw new ArgumentException("These fields require complete graphics boundary coverage.");
         Depth = depth; Rasterizer = rasterizer; Assembly = assembly; Dynamic = dynamic;
         GlobalBlend = globalBlend; ClearColor = clearColor; CompleteGraphics = completeGraphics;
+        Stencil = stencil; Sampling = sampling; Output = output; SampleMaskWords = sampleMaskWords;
         outputs = new();
         if (indexedBlend is null) return;
         foreach (var entry in indexedBlend)
@@ -94,9 +104,20 @@ internal sealed class PipelineStateCoverage
     internal static PipelineStateCoverage From(GraphicsPipelineDesc descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);
-        return new(DepthStateKnowledge.All, RasterizerStateKnowledge.All,
-            PrimitiveAssemblyStateKnowledge.All, DynamicDrawStateKnowledge.All,
-            BlendStateKnowledge.All, completeGraphics: true);
+        return FullGraphics;
+    }
+
+    /// <summary>Copies prepared potential write groups, preserving indexed slots and global native aliases.</summary>
+    internal static PipelineStateCoverage From(GraphicsStateRelevance relevance)
+    {
+        ArgumentNullException.ThrowIfNull(relevance);
+        var indexed = new Dictionary<int, BlendStateKnowledge>();
+        for (int slot = 0; slot < relevance.Blending.Count; slot++)
+            if (relevance.Blending[slot] != BlendStateKnowledge.None) indexed.Add(slot, relevance.Blending[slot]);
+        return new(relevance.Depth, relevance.Rasterizer, relevance.Assembly, relevance.Dynamic,
+            relevance.GlobalBlend, indexedBlend: indexed, completeGraphics: true,
+            stencil: relevance.Stencil, sampling: relevance.Sampling, output: relevance.Output,
+            sampleMaskWords: relevance.SampleMaskWords);
     }
 
     /// <summary>Combines independent descriptor, dynamic and helper effects without sharing mutable payloads.</summary>
@@ -110,7 +131,9 @@ internal sealed class PipelineStateCoverage
             combined[entry.Key] = previous | entry.Value;
         }
         return new(Depth | other.Depth, Rasterizer | other.Rasterizer, Assembly | other.Assembly,
-            Dynamic | other.Dynamic, GlobalBlend | other.GlobalBlend, ClearColor || other.ClearColor, combined, CompleteGraphics || other.CompleteGraphics);
+            Dynamic | other.Dynamic, GlobalBlend | other.GlobalBlend, ClearColor || other.ClearColor, combined,
+            CompleteGraphics || other.CompleteGraphics, Stencil | other.Stencil, Sampling | other.Sampling,
+            Output | other.Output, SampleMaskWords || other.SampleMaskWords);
     }
 
     #endregion
@@ -130,6 +153,8 @@ internal sealed class PipelineStateCoverage
     {
         if (!Depth.HasFlag(operation.Depth) || !Rasterizer.HasFlag(operation.Rasterizer)
             || !Assembly.HasFlag(operation.Assembly) || !Dynamic.HasFlag(operation.Dynamic)
+            || !Stencil.HasFlag(operation.Stencil) || !Sampling.HasFlag(operation.Sampling)
+            || !Output.HasFlag(operation.Output) || (operation.SampleMaskWords && !SampleMaskWords)
             || (operation.ClearColor && !ClearColor) || (operation.CompleteGraphics && !CompleteGraphics)) return false;
         operation.ValidateOutputCount(outputCount);
         for (int i = 0; i < outputCount; i++)

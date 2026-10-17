@@ -11,7 +11,7 @@ internal sealed partial class StateCache
     internal void SetLogicOperation(LogicOp operation)
     {
         if (!Enum.IsDefined(operation)) throw new ArgumentOutOfRangeException(nameof(operation));
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(output: OutputStateKnowledge.LogicOperation, completeGraphics: true);
         if (outputKnown.HasFlag(OutputStateKnowledge.LogicOperation) && output.LogicOperation == operation) return;
         outputKnown &= ~OutputStateKnowledge.LogicOperation;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();

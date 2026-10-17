@@ -52,57 +52,57 @@ internal sealed partial class StateCache
             assembly.PrimitiveRestartFixedIndex = QueryBoundary(() => GL.IsEnabled(EnableCap.PrimitiveRestartFixedIndex));
             assemblyKnown |= PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex;
         }
-        if (coverage.CompleteGraphics && !samplingKnown.HasFlag(SamplingStateKnowledge.Multisample))
+        if (coverage.Sampling.HasFlag(SamplingStateKnowledge.Multisample) && !samplingKnown.HasFlag(SamplingStateKnowledge.Multisample))
         {
             sampling.Multisample = QueryBoundary(() => GL.IsEnabled(EnableCap.Multisample));
             samplingKnown |= SamplingStateKnowledge.Multisample;
         }
-        if (coverage.CompleteGraphics && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleCoverageEnabled))
+        if (coverage.Sampling.HasFlag(SamplingStateKnowledge.SampleCoverageEnabled) && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleCoverageEnabled))
         {
             sampling.SampleCoverageEnabled = QueryBoundary(() => GL.IsEnabled(EnableCap.SampleCoverage));
             samplingKnown |= SamplingStateKnowledge.SampleCoverageEnabled;
         }
-        if (coverage.CompleteGraphics && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleMask))
+        if (coverage.Sampling.HasFlag(SamplingStateKnowledge.SampleMask) && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleMask))
         {
             sampling.SampleMask = QueryBoundary(() => GL.IsEnabled(EnableCap.SampleMask));
             samplingKnown |= SamplingStateKnowledge.SampleMask;
         }
-        if (coverage.CompleteGraphics && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleAlphaToCoverage))
+        if (coverage.Sampling.HasFlag(SamplingStateKnowledge.SampleAlphaToCoverage) && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleAlphaToCoverage))
         {
             sampling.SampleAlphaToCoverage = QueryBoundary(() => GL.IsEnabled(EnableCap.SampleAlphaToCoverage));
             samplingKnown |= SamplingStateKnowledge.SampleAlphaToCoverage;
         }
-        if (coverage.CompleteGraphics && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleAlphaToOne))
+        if (coverage.Sampling.HasFlag(SamplingStateKnowledge.SampleAlphaToOne) && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleAlphaToOne))
         {
             sampling.SampleAlphaToOne = QueryBoundary(() => GL.IsEnabled(EnableCap.SampleAlphaToOne));
             samplingKnown |= SamplingStateKnowledge.SampleAlphaToOne;
         }
-        if (coverage.CompleteGraphics && support.SampleShading && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleShading))
+        if (coverage.Sampling.HasFlag(SamplingStateKnowledge.SampleShading) && support.SampleShading && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleShading))
         {
             sampling.SampleShading = QueryBoundary(() => GL.IsEnabled(EnableCap.SampleShading));
             samplingKnown |= SamplingStateKnowledge.SampleShading;
         }
-        if (coverage.CompleteGraphics && !stencilKnown.HasFlag(StencilStateKnowledge.TestEnabled))
+        if (coverage.Stencil.HasFlag(StencilStateKnowledge.TestEnabled) && !stencilKnown.HasFlag(StencilStateKnowledge.TestEnabled))
         {
             stencil.TestEnabled = QueryBoundary(() => GL.IsEnabled(EnableCap.StencilTest));
             stencilKnown |= StencilStateKnowledge.TestEnabled;
         }
-        if (coverage.CompleteGraphics && !outputKnown.HasFlag(OutputStateKnowledge.FramebufferSrgb))
+        if (coverage.Output.HasFlag(OutputStateKnowledge.FramebufferSrgb) && !outputKnown.HasFlag(OutputStateKnowledge.FramebufferSrgb))
         {
             output.FramebufferSrgb = QueryBoundary(() => GL.IsEnabled(EnableCap.FramebufferSrgb));
             outputKnown |= OutputStateKnowledge.FramebufferSrgb;
         }
-        if (coverage.CompleteGraphics && !outputKnown.HasFlag(OutputStateKnowledge.Dither))
+        if (coverage.Output.HasFlag(OutputStateKnowledge.Dither) && !outputKnown.HasFlag(OutputStateKnowledge.Dither))
         {
             output.Dither = QueryBoundary(() => GL.IsEnabled(EnableCap.Dither));
             outputKnown |= OutputStateKnowledge.Dither;
         }
-        if (coverage.CompleteGraphics && !outputKnown.HasFlag(OutputStateKnowledge.ColorLogicOp))
+        if (coverage.Output.HasFlag(OutputStateKnowledge.ColorLogicOp) && !outputKnown.HasFlag(OutputStateKnowledge.ColorLogicOp))
         {
             output.ColorLogicOp = QueryBoundary(() => GL.IsEnabled(EnableCap.ColorLogicOp));
             outputKnown |= OutputStateKnowledge.ColorLogicOp;
         }
-        if (coverage.CompleteGraphics && !outputKnown.HasFlag(OutputStateKnowledge.LogicOperation))
+        if (coverage.Output.HasFlag(OutputStateKnowledge.LogicOperation) && !outputKnown.HasFlag(OutputStateKnowledge.LogicOperation))
         {
             output.LogicOperation = QueryBoundary(() => (LogicOp)GL.GetInteger(GetPName.LogicOpMode));
             outputKnown |= OutputStateKnowledge.LogicOperation;
@@ -136,7 +136,7 @@ internal sealed partial class StateCache
             rasterizer.PolygonOffset = (QueryBoundary(() => GL.GetFloat(GetPName.PolygonOffsetFactor)), QueryBoundary(() => GL.GetFloat(GetPName.PolygonOffsetUnits)));
             rasterizerKnown |= RasterizerStateKnowledge.PolygonOffset;
         }
-        if (coverage.CompleteGraphics && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleCoverage))
+        if (coverage.Sampling.HasFlag(SamplingStateKnowledge.SampleCoverage) && !samplingKnown.HasFlag(SamplingStateKnowledge.SampleCoverage))
         {
             sampling.SampleCoverage = (QueryBoundary(() => GL.GetFloat(GetPName.SampleCoverageValue)), QueryBoundary(() => GL.GetBoolean(GetPName.SampleCoverageInvert)));
             samplingKnown |= SamplingStateKnowledge.SampleCoverage;
@@ -156,42 +156,42 @@ internal sealed partial class StateCache
             dynamicState.BlendConstant = QueryBoundary(() => { float[] value = new float[4]; GL.GetFloat(GetPName.BlendColor, value); return (value[0], value[1], value[2], value[3]); });
             dynamicKnown |= DynamicDrawStateKnowledge.BlendConstant;
         }
-        if (coverage.CompleteGraphics && !stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilFunction))
+        if (coverage.Stencil.HasFlag(StencilStateKnowledge.FrontStencilFunction) && !stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilFunction))
         {
             stencil.FrontStencilFunction = (QueryBoundary(() => (StencilFunction)GL.GetInteger(GetPName.StencilFunc)), QueryBoundary(() => GL.GetInteger(GetPName.StencilRef)), QueryBoundary(() => unchecked((uint)GL.GetInteger(GetPName.StencilValueMask))));
             stencilKnown |= StencilStateKnowledge.FrontStencilFunction;
         }
-        if (coverage.CompleteGraphics && !stencilKnown.HasFlag(StencilStateKnowledge.BackStencilFunction))
+        if (coverage.Stencil.HasFlag(StencilStateKnowledge.BackStencilFunction) && !stencilKnown.HasFlag(StencilStateKnowledge.BackStencilFunction))
         {
             stencil.BackStencilFunction = (QueryBoundary(() => (StencilFunction)GL.GetInteger(GetPName.StencilBackFunc)), QueryBoundary(() => GL.GetInteger(GetPName.StencilBackRef)), QueryBoundary(() => unchecked((uint)GL.GetInteger(GetPName.StencilBackValueMask))));
             stencilKnown |= StencilStateKnowledge.BackStencilFunction;
         }
-        if (coverage.CompleteGraphics && !stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilMask))
+        if (coverage.Stencil.HasFlag(StencilStateKnowledge.FrontStencilMask) && !stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilMask))
         {
             stencil.FrontStencilMask = QueryBoundary(() => unchecked((uint)GL.GetInteger(GetPName.StencilWritemask)));
             stencilKnown |= StencilStateKnowledge.FrontStencilMask;
         }
-        if (coverage.CompleteGraphics && !stencilKnown.HasFlag(StencilStateKnowledge.BackStencilMask))
+        if (coverage.Stencil.HasFlag(StencilStateKnowledge.BackStencilMask) && !stencilKnown.HasFlag(StencilStateKnowledge.BackStencilMask))
         {
             stencil.BackStencilMask = QueryBoundary(() => unchecked((uint)GL.GetInteger(GetPName.StencilBackWritemask)));
             stencilKnown |= StencilStateKnowledge.BackStencilMask;
         }
-        if (coverage.CompleteGraphics && !stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilOperation))
+        if (coverage.Stencil.HasFlag(StencilStateKnowledge.FrontStencilOperation) && !stencilKnown.HasFlag(StencilStateKnowledge.FrontStencilOperation))
         {
             stencil.FrontStencilOperation = (QueryBoundary(() => (StencilOp)GL.GetInteger(GetPName.StencilFail)), QueryBoundary(() => (StencilOp)GL.GetInteger(GetPName.StencilPassDepthFail)), QueryBoundary(() => (StencilOp)GL.GetInteger(GetPName.StencilPassDepthPass)));
             stencilKnown |= StencilStateKnowledge.FrontStencilOperation;
         }
-        if (coverage.CompleteGraphics && !stencilKnown.HasFlag(StencilStateKnowledge.BackStencilOperation))
+        if (coverage.Stencil.HasFlag(StencilStateKnowledge.BackStencilOperation) && !stencilKnown.HasFlag(StencilStateKnowledge.BackStencilOperation))
         {
             stencil.BackStencilOperation = (QueryBoundary(() => (StencilOp)GL.GetInteger(GetPName.StencilBackFail)), QueryBoundary(() => (StencilOp)GL.GetInteger(GetPName.StencilBackPassDepthFail)), QueryBoundary(() => (StencilOp)GL.GetInteger(GetPName.StencilBackPassDepthPass)));
             stencilKnown |= StencilStateKnowledge.BackStencilOperation;
         }
-        if (coverage.CompleteGraphics && support.SampleShading && !samplingKnown.HasFlag(SamplingStateKnowledge.MinimumSampleShading))
+        if (coverage.Sampling.HasFlag(SamplingStateKnowledge.MinimumSampleShading) && support.SampleShading && !samplingKnown.HasFlag(SamplingStateKnowledge.MinimumSampleShading))
         {
             sampling.MinimumSampleShading = QueryBoundary(() => GL.GetFloat((GetPName)All.MinSampleShadingValue));
             samplingKnown |= SamplingStateKnowledge.MinimumSampleShading;
         }
-        for (int index = 0; coverage.CompleteGraphics && index < support.MaxSampleMaskWords; index++)
+        for (int index = 0; coverage.SampleMaskWords && index < support.MaxSampleMaskWords; index++)
         {
             int word = index;
             if (!sampleMasks.ContainsKey(word))

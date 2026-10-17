@@ -313,8 +313,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         using var target = DynamicGpuFramebuffer.CreateSingle(texture)!;
         lifetime.Attach(() => { target.Dispose(); texture.Dispose(); });
         var cache = StateCache.Current;
-        var coverage = new PipelineStateCoverage(DepthStateKnowledge.All, RasterizerStateKnowledge.All,
-            PrimitiveAssemblyStateKnowledge.All, DynamicDrawStateKnowledge.All, BlendStateKnowledge.All, clearColor: true, completeGraphics: true);
+        var coverage = PipelineStateCoverage.FullGraphics.Union(new(clearColor: true));
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RetirementPass", coverage), out var boundary));
         var pass = RenderPass.Begin(new(target, [new(0)]), boundary!);
         Assert.Throws<InvalidOperationException>(target.Dispose);

@@ -11,7 +11,7 @@ internal sealed partial class StateCache
     internal void SetSampleCoverage(float value, bool invert)
     {
         if (!float.IsFinite(value) || value < 0 || value > 1) throw new ArgumentOutOfRangeException(nameof(value));
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(sampling: SamplingStateKnowledge.SampleCoverage, completeGraphics: true);
         if (samplingKnown.HasFlag(SamplingStateKnowledge.SampleCoverage) && sampling.SampleCoverage == (value, invert)) return;
         samplingKnown &= ~SamplingStateKnowledge.SampleCoverage;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
@@ -27,7 +27,7 @@ internal sealed partial class StateCache
     {
         if (!GpuSupport.Graphics.SampleShading) throw new NotSupportedException("Sample shading is unavailable.");
         if (!float.IsFinite(value) || value < 0 || value > 1) throw new ArgumentOutOfRangeException(nameof(value));
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(sampling: SamplingStateKnowledge.MinimumSampleShading, completeGraphics: true);
         if (samplingKnown.HasFlag(SamplingStateKnowledge.MinimumSampleShading) && sampling.MinimumSampleShading == value) return;
         samplingKnown &= ~SamplingStateKnowledge.MinimumSampleShading;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
@@ -42,7 +42,7 @@ internal sealed partial class StateCache
     internal void SetSampleMask(int index, uint value)
     {
         if (index < 0 || index >= GpuSupport.Graphics.MaxSampleMaskWords) throw new ArgumentOutOfRangeException(nameof(index));
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(sampleMaskWords: true, completeGraphics: true);
         if (sampleMasks.TryGetValue(index, out uint known) && known == value) return;
         sampleMasks.Remove(index);
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();

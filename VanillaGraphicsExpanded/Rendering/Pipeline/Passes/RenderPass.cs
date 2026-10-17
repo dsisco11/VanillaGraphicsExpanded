@@ -49,9 +49,7 @@ internal sealed class RenderPass : IDisposable
         ArgumentNullException.ThrowIfNull(description);
         var cache = StateCache.Current;
         cache.RequireEngineBoundary(boundary);
-        var required = new PipelineStateCoverage(depth: DepthStateKnowledge.WriteEnabled,
-            rasterizer: RasterizerStateKnowledge.ScissorEnabled, dynamic: DynamicDrawStateKnowledge.Viewport,
-            globalBlend: BlendStateKnowledge.WriteMask, completeGraphics: true);
+        var required = RenderPassOperations.ClearCoverage.Union(new(dynamic: DynamicDrawStateKnowledge.Viewport));
         if (!boundary.Snapshot.Coverage.Contains(required, GpuSupport.Graphics.MaxDrawBuffers))
             throw new InvalidOperationException("Render passes require complete graphics restoration coverage.");
         if (active is not null) throw new InvalidOperationException("Render passes cannot nest.");

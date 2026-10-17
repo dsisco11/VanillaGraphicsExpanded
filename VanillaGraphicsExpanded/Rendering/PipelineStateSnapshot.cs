@@ -65,12 +65,12 @@ internal sealed class PipelineStateSnapshot
         RasterizerKnown = rasterizerKnown & coverage.Rasterizer;
         AssemblyKnown = assemblyKnown & coverage.Assembly;
         DynamicKnown = dynamicKnown & coverage.Dynamic;
-        SamplingKnown = coverage.CompleteGraphics ? samplingKnown : default;
-        StencilKnown = coverage.CompleteGraphics ? stencilKnown : default;
-        OutputKnown = coverage.CompleteGraphics ? outputKnown : default;
+        SamplingKnown = samplingKnown & coverage.Sampling;
+        StencilKnown = stencilKnown & coverage.Stencil;
+        OutputKnown = outputKnown & coverage.Output;
         Coverage = coverage; Depth = depth; Rasterizer = rasterizer;
         Sampling = sampling; Stencil = stencil; Output = output;
-        this.sampleMasks = sampleMasks is null ? null : new(sampleMasks);
+        this.sampleMasks = !coverage.SampleMaskWords || sampleMasks is null ? null : new(sampleMasks);
         Assembly = assembly; Dynamic = dynamic; ClearColor = clearColor;
         this.blend = (BlendState[])blend.Clone();
         this.blendKnown = (BlendStateKnowledge[])blendKnown.Clone();

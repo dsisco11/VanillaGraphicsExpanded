@@ -1,6 +1,7 @@
 # PSO state relevance
 
-Status: approved. Scope: design only; runtime application and boundary behavior remain unchanged.
+Status: approved. Current implementation is described below; remaining work is tracked in the linked
+execution checklist.
 
 ## Recommendation
 
@@ -23,11 +24,14 @@ owned work could mutate, even if that field becomes irrelevant to the last draw 
 - `StateCache.ApplyGraphicsState` establishes all supported parameters, including line width for
   filled triangles, a zero scissor rectangle when scissoring is disabled, and neutral blend state
   through every native output slot.
-- `PipelineStateCoverage.From(GraphicsPipelineDesc)` requests all drawing fields. Its
-  `CompleteGraphics` flag also expands coverage independently of the requested fields.
+- `PipelineStateCoverage.From(GraphicsPipelineDesc)` explicitly requests all drawing fields.
+  Complete admission is separate from sparse field authority, including stencil, sampling and output
+  groups. Prepared relevance can be converted to sparse coverage, but raster boundaries still use
+  full coverage while application remains unconditional.
 - `GraphicsCommandContext` validates the actual pass and geometry before application. Pass load
   operations have their own state requirements and run before drawing; a context can clear without
-  any PSO. Boundary restoration already compares saved values with current cache knowledge.
+  any PSO using bounded helper coverage. Setters validate exact write groups; boundary capture and
+  restoration use covered knowledge independently of complete admission.
 
 These behaviors are consistent with the current
 [complete graphics contract](Rendering.AuthoritativePipelineState.md). This proposal changes what

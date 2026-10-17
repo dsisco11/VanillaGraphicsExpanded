@@ -10,7 +10,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes PrimitiveRestart, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetPrimitiveRestartEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(assembly: PrimitiveAssemblyStateKnowledge.PrimitiveRestart, completeGraphics: true);
         if (assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PrimitiveRestart) && assembly.PrimitiveRestart == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PrimitiveRestart;
@@ -25,7 +25,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes PrimitiveRestartFixedIndex, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetPrimitiveRestartFixedIndexEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(assembly: PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex, completeGraphics: true);
         if (!GpuSupport.Graphics.FixedIndexRestart)
         {
             if (enabled) throw new NotSupportedException("PrimitiveRestartFixedIndex is unavailable.");

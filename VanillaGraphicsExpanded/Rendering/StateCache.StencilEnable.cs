@@ -10,7 +10,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes StencilTest, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetStencilTestEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(stencil: StencilStateKnowledge.TestEnabled, completeGraphics: true);
         if (stencilKnown.HasFlag(StencilStateKnowledge.TestEnabled) && stencil.TestEnabled == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         stencilKnown &= ~StencilStateKnowledge.TestEnabled;

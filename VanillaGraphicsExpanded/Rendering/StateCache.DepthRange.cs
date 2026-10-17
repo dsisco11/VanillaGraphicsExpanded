@@ -11,7 +11,7 @@ internal sealed partial class StateCache
     internal void SetDepthRange(double near, double far)
     {
         if (!double.IsFinite(near) || !double.IsFinite(far) || near < 0 || near > 1 || far < 0 || far > 1) throw new ArgumentOutOfRangeException(nameof(near));
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(depth: DepthStateKnowledge.DepthRange, completeGraphics: true);
         if (depthKnown.HasFlag(DepthStateKnowledge.DepthRange) && depth.DepthRange == (near, far)) return;
         depthKnown &= ~DepthStateKnowledge.DepthRange;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();

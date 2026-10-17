@@ -39,7 +39,7 @@ internal sealed partial class StateCache
             var snapshot = new PipelineStateSnapshot(declaration.Coverage,
                 depth, rasterizer, assembly, dynamicState, clearColor, blend,
                 sampling, stencil, output,
-                declaration.Coverage.CompleteGraphics ? sampleMasks : null,
+                declaration.Coverage.SampleMaskWords ? sampleMasks : null,
                 depthKnown, rasterizerKnown, assemblyKnown, dynamicKnown, samplingKnown, stencilKnown, outputKnown, blendKnown);
             scope = new EngineBoundaryScope(this, snapshot);
             if (resources is not null) CaptureBoundaryBindings(scope, resources);

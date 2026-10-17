@@ -1,6 +1,7 @@
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
 namespace VanillaGraphicsExpanded.Tests;
 
@@ -8,6 +9,7 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class PipelineStateCoverageTests
 {
     #region Public API
+    #region Partial descriptor contracts
     /// <summary>Both default and explicit intents map to exactly the same affected native fields.</summary>
     [Theory]
     [InlineData(false)]
@@ -75,7 +77,9 @@ public sealed class PipelineStateCoverageTests
         var missing = new GlPipelineDesc(default, GlPipelineStateMask.From(GlPipelineStateId.BlendEnableIndexed), validate: false);
         Assert.Throws<ArgumentException>(() => PipelineStateCoverage.From(missing));
     }
-    /// <summary>Unified knowledge masks cannot authorize new fields in partial boundaries.</summary>
+    #endregion
+    #region Sparse complete authority
+    /// <summary>Complete draw admission does not implicitly authorize dormant or unmentioned native writes.</summary>
     [Fact]
     public void CompleteOnlyFieldsRequireExplicitBoundaryAuthority()
     {
@@ -84,11 +88,97 @@ public sealed class PipelineStateCoverageTests
         Assert.Throws<ArgumentException>(() => new PipelineStateCoverage(assembly: PrimitiveAssemblyStateKnowledge.RestartIndex));
         Assert.Throws<ArgumentException>(() => new PipelineStateCoverage(dynamic: DynamicDrawStateKnowledge.Scissor));
         var complete = new PipelineStateCoverage(completeGraphics: true);
-        Assert.True(complete.Depth.HasFlag(DepthStateKnowledge.DepthRange));
-        Assert.True(complete.Rasterizer.HasFlag(RasterizerStateKnowledge.DepthClamp));
-        Assert.True(complete.Assembly.HasFlag(PrimitiveAssemblyStateKnowledge.RestartIndex));
-        Assert.True(complete.Dynamic.HasFlag(DynamicDrawStateKnowledge.Scissor | DynamicDrawStateKnowledge.BlendConstant));
-        Assert.False(complete.Dynamic.HasFlag(DynamicDrawStateKnowledge.Viewport));
+        Assert.True(complete.CompleteGraphics);
+        Assert.Equal(DepthStateKnowledge.None, complete.Depth);
+        Assert.Equal(RasterizerStateKnowledge.None, complete.Rasterizer);
+        Assert.Equal(PrimitiveAssemblyStateKnowledge.None, complete.Assembly);
+        Assert.Equal(DynamicDrawStateKnowledge.None, complete.Dynamic);
+        Assert.Equal(StencilStateKnowledge.None, complete.Stencil);
+        Assert.Equal(SamplingStateKnowledge.None, complete.Sampling);
+        Assert.Equal(OutputStateKnowledge.None, complete.Output);
+        Assert.False(complete.SampleMaskWords);
+        Assert.False(complete.Contains(new PipelineStateCoverage(rasterizer: RasterizerStateKnowledge.LineWidth), 8));
     }
+
+    /// <summary>Sparse native groups compose independently of complete admission and keep caller payloads detached.</summary>
+    [Fact]
+    public void SparseCompleteGroupsUnionWithoutExpandingTheirAuthority()
+    {
+        var first = new PipelineStateCoverage(depth: DepthStateKnowledge.DepthRange, completeGraphics: true,
+            stencil: StencilStateKnowledge.FrontStencilFunction, sampling: SamplingStateKnowledge.SampleCoverage);
+        var second = new PipelineStateCoverage(dynamic: DynamicDrawStateKnowledge.BlendConstant, completeGraphics: true,
+            output: OutputStateKnowledge.Dither, sampleMaskWords: true,
+            indexedBlend: new Dictionary<int, BlendStateKnowledge> { [2] = BlendStateKnowledge.Factors });
+        var combined = first.Union(second);
+        Assert.True(combined.Contains(first, 8)); Assert.True(combined.Contains(second, 8));
+        Assert.False(first.Contains(second, 8)); Assert.False(second.Contains(first, 8));
+        Assert.Equal(DepthStateKnowledge.DepthRange, combined.Depth);
+        Assert.Equal(StencilStateKnowledge.FrontStencilFunction, combined.Stencil);
+        Assert.Equal(SamplingStateKnowledge.SampleCoverage, combined.Sampling);
+        Assert.Equal(OutputStateKnowledge.Dither, combined.Output);
+        Assert.True(combined.SampleMaskWords);
+        Assert.Equal(RasterizerStateKnowledge.None, combined.Rasterizer);
+        Assert.Equal(BlendStateKnowledge.None, combined.BlendAt(1));
+        Assert.Equal(BlendStateKnowledge.Factors, combined.BlendAt(2));
+        Assert.False(combined.Contains(new PipelineStateCoverage(completeGraphics: true,
+            stencil: StencilStateKnowledge.BackStencilFunction), 8));
+        Assert.False(combined.Contains(new PipelineStateCoverage(completeGraphics: true,
+            sampling: SamplingStateKnowledge.SampleMask), 8));
+        Assert.False(combined.Contains(new PipelineStateCoverage(completeGraphics: true,
+            output: OutputStateKnowledge.LogicOperation), 8));
+        Assert.False(new PipelineStateCoverage(completeGraphics: true).Contains(
+            new PipelineStateCoverage(completeGraphics: true, sampleMaskWords: true), 8));
+        Assert.False(PipelineStateCoverage.Empty.Contains(new PipelineStateCoverage(completeGraphics: true), 8));
+    }
+
+    /// <summary>Sparse blend slots cannot narrow the native effects of global combined factor and equation setters.</summary>
+    [Fact]
+    public void SparseBlendUnionPreservesGlobalNativeAliases()
+    {
+        var local = new PipelineStateCoverage(indexedBlend: new Dictionary<int, BlendStateKnowledge>
+        { [1] = BlendStateKnowledge.Factors | BlendStateKnowledge.Equations });
+        var aliases = new PipelineStateCoverage(globalBlend: BlendStateKnowledge.Factors | BlendStateKnowledge.Equations);
+        Assert.False(local.Contains(aliases, 4));
+        var combined = local.Union(aliases);
+        for (int slot = 0; slot < 4; slot++)
+            Assert.Equal(BlendStateKnowledge.Factors | BlendStateKnowledge.Equations, combined.BlendAt(slot));
+        Assert.True(combined.Contains(aliases, 4));
+        Assert.False(combined.Contains(new PipelineStateCoverage(globalBlend: BlendStateKnowledge.WriteMask), 4));
+        Assert.Equal(BlendStateKnowledge.None, local.BlendAt(0));
+    }
+
+    /// <summary>New complete category masks reject malformed bits and cannot widen legacy partial helper contracts.</summary>
+    [Fact]
+    public void NewSparseGroupsRequireValidMasksAndCompleteAdmission()
+    {
+        Assert.Throws<ArgumentException>(() => new PipelineStateCoverage(stencil: StencilStateKnowledge.TestEnabled));
+        Assert.Throws<ArgumentException>(() => new PipelineStateCoverage(sampling: SamplingStateKnowledge.SampleCoverage));
+        Assert.Throws<ArgumentException>(() => new PipelineStateCoverage(output: OutputStateKnowledge.Dither));
+        Assert.Throws<ArgumentException>(() => new PipelineStateCoverage(sampleMaskWords: true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new PipelineStateCoverage(completeGraphics: true,
+            stencil: (StencilStateKnowledge)128));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new PipelineStateCoverage(completeGraphics: true,
+            output: (OutputStateKnowledge)128));
+    }
+
+    /// <summary>Clear helper authority covers only its bounded actual native writes, including all-output color-mask aliases.</summary>
+    [Fact]
+    public void ClearEnvelopeIsIndependentFromCompleteDrawFields()
+    {
+        var value = RenderPassOperations.ClearCoverage;
+        Assert.True(value.CompleteGraphics);
+        Assert.Equal(DepthStateKnowledge.WriteEnabled, value.Depth);
+        Assert.Equal(RasterizerStateKnowledge.RasterizerDiscard | RasterizerStateKnowledge.ScissorEnabled, value.Rasterizer);
+        Assert.Equal(DynamicDrawStateKnowledge.Scissor, value.Dynamic);
+        Assert.Equal(StencilStateKnowledge.FrontStencilMask | StencilStateKnowledge.BackStencilMask, value.Stencil);
+        Assert.Equal(OutputStateKnowledge.FramebufferSrgb | OutputStateKnowledge.Dither, value.Output);
+        Assert.Equal(SamplingStateKnowledge.None, value.Sampling);
+        Assert.Equal(PrimitiveAssemblyStateKnowledge.None, value.Assembly);
+        Assert.False(value.SampleMaskWords); Assert.False(value.ClearColor);
+        for (int slot = 0; slot < 8; slot++) Assert.Equal(BlendStateKnowledge.WriteMask, value.BlendAt(slot));
+        Assert.False(value.Contains(PipelineStateCoverage.FullGraphics, 8));
+        Assert.True(PipelineStateCoverage.FullGraphics.Contains(value, 8));
+    }
+    #endregion
     #endregion
 }

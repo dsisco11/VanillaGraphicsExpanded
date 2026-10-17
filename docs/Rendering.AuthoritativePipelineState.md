@@ -484,7 +484,9 @@ supported mask words and native output slots, including dormant parameters.
 executable revision. It derives potential native write groups from complete authored state, target
 aspects/formats, sparse output slots and primitive selectors, separately from live cache knowledge.
 No application path or boundary currently consumes this metadata: `StateCache.ApplyGraphicsState`
-still applies conservative complete state and `PipelineStateCoverage.From` still covers all fields.
+still applies conservative complete state and `PipelineStateCoverage.From(GraphicsPipelineDesc)`
+still returns explicit `FullGraphics` coverage. `From(GraphicsStateRelevance)` separately converts
+prepared groups to sparse coverage for coordinated application changes.
 This metadata does not claim setter reductions or replace partial `GlPipelineDesc` mutation intent.
 
 Ordinary vertex-stage output follows assembly topology. Tessellation-only output uses the existing
@@ -511,6 +513,33 @@ Combined native writes and aliases retain their complete groups:
 
 These are group identifiers only. Skipping future irrelevant application must not mark a declared
 value known/applied; capture/restoration authority remains a separate concern owned by StateCache.
+
+### Sparse boundary authority and clear helpers
+
+`PipelineStateCoverage.CompleteGraphics` admits complete operations but grants no implicit fields.
+Depth, raster, assembly, dynamic, stencil, sampling and output masks independently declare native
+write authority. Sample-mask words have a separate all-word group; indexed blending retains per-slot
+groups plus global aliases. `Union` and `Contains` include these groups independently of admission.
+Complete-only fields still require explicit complete admission; legacy partial descriptor/helper
+semantics remain unchanged.
+
+Boundary entry resolves only requested unknown groups and masks copied knowledge to that coverage.
+It snapshots sample-mask words only when requested. Existing saved/current comparisons restore
+covered changed groups and retain independent failure invalidation. Setters validate their actual
+native write group before unchanged-value suppression: complete admission alone cannot authorize
+an unrelated function, reference, mask, enable, or parameter tuple. Combined and global setters
+require their full write extent. This does not introduce a dirty tracker or another state owner.
+
+`RenderPassOperations.ClearCoverage` declares discard, framebuffer sRGB, dither, scissor enable and
+rectangle, all output write masks, depth write mask and both stencil write masks. Typed clear values
+remain operation inputs. Since pass intentions arrive after boundary entry, graphics contexts include
+this bounded envelope and viewport even when no clear ultimately runs. Legacy clear-color helper
+authority remains explicitly included by the graphics boundary. A context with no PSO therefore has
+helper authority rather than full raster-state authority; unrelated setters reject before native work.
+Preserve/Discard-only loads do not apply clear state. Raster contexts union this envelope with explicit
+full coverage for all declared pipelines, preserving existing unconditional application until both
+application and its coverage switch to prepared relevance together. Resource footprints, originating
+context checks, shader admission and ordered independent cleanup retain their existing owners.
 
 [GpuSupport.Graphics](../VanillaGraphicsExpanded/Rendering/GpuSupport.Graphics.cs) extends the existing
 capability capture with vertex binding/stride/offset limits, sample-mask words, line/point ranges and
@@ -2556,7 +2585,7 @@ all migrated families; the legacy inventory above tracks every retired capture e
 | Liquid depth/surface/volume | LiquidGraphicsSubmission prepares ordinary pool metadata before entry and routes the existing manager's per-pool hook through GraphicsCommandContext.Draw. Engine culling, mini-dimension origin/model-view staging and atlas selection remain in their original order. EngineLiquidPoolGeometry validates native stream layout/capacity once and current allocation groups on each submission. | Liquid adapter tests and existing liquid shader/transport regressions; installed engine pool source/IL establishes the ordinary indexed path and UseSsbo behavior. |
 | Single state/blend owner and compatibility cleanup | Production legacy capture and temporary FullscreenBoundary are removed; reference implementations live only in test fixtures. GpuFramebuffer blend storage is removed. Complete pipelines own VGE draws. G-buffer, particle and terrain/tessellation hooks remain explicit engine-owned compatibility paths. | Indexed-blend pipeline tests, historical negative control, direct-lighting comparison and engine-boundary regressions. |
 
-Clear-only command contexts have no executable but still resolve complete drawing-state coverage;
+Clear-only command contexts have no executable and resolve bounded clear-helper coverage plus viewport;
 they cannot draw without a declared pipeline. Window surfaces are distinct from image attachments:
 metadata includes actual color encoding/channel widths, samples and depth/stencil aspects. Unknown
 window formats reject. The original window draw selector is restored with DrawBuffer because

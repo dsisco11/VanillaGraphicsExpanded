@@ -5,6 +5,14 @@ namespace VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 /// <summary>Executes attachment intentions through the shared cache under the caller's restoration boundary.</summary>
 internal static class RenderPassOperations
 {
+    /// <summary>Covers every native write made by a typed attachment clear, independently of draw state.</summary>
+    internal static PipelineStateCoverage ClearCoverage { get; } = new(
+        depth: DepthStateKnowledge.WriteEnabled,
+        rasterizer: RasterizerStateKnowledge.RasterizerDiscard | RasterizerStateKnowledge.ScissorEnabled,
+        dynamic: DynamicDrawStateKnowledge.Scissor, globalBlend: BlendStateKnowledge.WriteMask,
+        completeGraphics: true, stencil: StencilStateKnowledge.FrontStencilMask | StencilStateKnowledge.BackStencilMask,
+        output: OutputStateKnowledge.FramebufferSrgb | OutputStateKnowledge.Dither);
+
     #region Public API
     /// <summary>Establishes clear-only state independently of preceding draw write masks and scissor.</summary>
     internal static void Load(RenderPassDesc description, RenderArea area)

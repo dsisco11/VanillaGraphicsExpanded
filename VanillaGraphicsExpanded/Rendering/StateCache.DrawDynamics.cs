@@ -11,7 +11,7 @@ internal sealed partial class StateCache
     internal void SetScissor(int x, int y, int width, int height)
     {
         if (width < 0 || height < 0) throw new ArgumentOutOfRangeException(nameof(width));
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(dynamic: DynamicDrawStateKnowledge.Scissor, completeGraphics: true);
         if (dynamicKnown.HasFlag(DynamicDrawStateKnowledge.Scissor) && dynamicState.Scissor == (x, y, width, height)) return;
         dynamicKnown &= ~DynamicDrawStateKnowledge.Scissor;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
@@ -27,7 +27,7 @@ internal sealed partial class StateCache
     {
         if (!float.IsFinite(r) || !float.IsFinite(g) || !float.IsFinite(b) || !float.IsFinite(a)) throw new ArgumentOutOfRangeException(nameof(r));
         r = Math.Clamp(r, 0, 1); g = Math.Clamp(g, 0, 1); b = Math.Clamp(b, 0, 1); a = Math.Clamp(a, 0, 1);
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(dynamic: DynamicDrawStateKnowledge.BlendConstant, completeGraphics: true);
         if (dynamicKnown.HasFlag(DynamicDrawStateKnowledge.BlendConstant) && dynamicState.BlendConstant == (r, g, b, a)) return;
         dynamicKnown &= ~DynamicDrawStateKnowledge.BlendConstant;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();

@@ -204,6 +204,31 @@ public sealed class GraphicsStateRelevanceTests
         Assert.True(coverage.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.PointSize));
         Assert.True(coverage.Dynamic.HasFlag(DynamicDrawStateKnowledge.Scissor | DynamicDrawStateKnowledge.BlendConstant));
     }
+
+    /// <summary>Prepared relevance converts into sparse complete authority without widening dormant native groups.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PreparedRelevanceRetainsSparseGroupsAndGlobalAliases(bool independent)
+    {
+        var target = new RenderTargetSignature([new(null, true), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba8ui)]);
+        var relevance = Derive(caps: Capabilities() with { IndependentBlend = independent }, targets: target,
+            blends: [new(), new() { Enabled = true }, new()], sampling: new() { MaskEnabled = true });
+        var coverage = PipelineStateCoverage.From(relevance);
+        Assert.True(coverage.CompleteGraphics);
+        Assert.Equal(relevance.Depth, coverage.Depth); Assert.Equal(relevance.Stencil, coverage.Stencil);
+        Assert.Equal(relevance.Rasterizer, coverage.Rasterizer); Assert.Equal(relevance.Dynamic, coverage.Dynamic);
+        Assert.Equal(relevance.Assembly, coverage.Assembly); Assert.Equal(relevance.Sampling, coverage.Sampling);
+        Assert.Equal(relevance.Output, coverage.Output); Assert.Equal(relevance.SampleMaskWords, coverage.SampleMaskWords);
+        Assert.Equal(relevance.GlobalBlend, coverage.GlobalBlend);
+        for (int slot = 0; slot < 8; slot++)
+            Assert.Equal(relevance.GlobalBlend | (slot < relevance.Blending.Count ? relevance.Blending[slot] : BlendStateKnowledge.None),
+                coverage.BlendAt(slot));
+        Assert.False(coverage.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.PointSize));
+        Assert.False(coverage.Dynamic.HasFlag(DynamicDrawStateKnowledge.Scissor));
+        Assert.False(coverage.Contains(new PipelineStateCoverage(rasterizer: RasterizerStateKnowledge.LineWidth), 8));
+        Assert.False(coverage.ClearColor);
+    }
     #endregion
     #endregion
 

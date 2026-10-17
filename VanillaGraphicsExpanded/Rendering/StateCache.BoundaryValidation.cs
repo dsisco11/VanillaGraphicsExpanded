@@ -30,19 +30,13 @@ internal sealed partial class StateCache
     #endregion
 
     #region Private
-    /// <summary>Requires complete drawing-state coverage before complete-only state can change.</summary>
-    private void ValidateCompleteMutation()
-    {
-        if (resolvingBoundary) throw new InvalidOperationException("Drawing state cannot change during boundary resolution.");
-        if (activeBoundary is not null && !activeBoundary.Snapshot.Coverage.CompleteGraphics)
-            throw new InvalidOperationException("Managed operation exceeds the declared complete graphics coverage.");
-    }
-
     /// <summary>Checks a scalar or indexed setter without allocating coverage objects in managed draws.</summary>
     private void ValidateBoundaryMutation(DepthStateKnowledge depth = default,
         RasterizerStateKnowledge rasterizer = default, PrimitiveAssemblyStateKnowledge assembly = default,
         DynamicDrawStateKnowledge dynamic = default, BlendStateKnowledge blend = default,
-        int index = -1, bool clearColor = false)
+        int index = -1, bool clearColor = false, StencilStateKnowledge stencil = default,
+        SamplingStateKnowledge sampling = default, OutputStateKnowledge output = default,
+        bool sampleMaskWords = false, bool completeGraphics = false)
     {
         if (resolvingBoundary) throw new InvalidOperationException("Drawing state cannot change during boundary resolution.");
         if (activeBoundary is null) return;
@@ -50,6 +44,9 @@ internal sealed partial class StateCache
         var coverage = snapshot.Coverage;
         bool permitted = coverage.Depth.HasFlag(depth) && coverage.Rasterizer.HasFlag(rasterizer)
             && coverage.Assembly.HasFlag(assembly) && coverage.Dynamic.HasFlag(dynamic)
+            && coverage.Stencil.HasFlag(stencil) && coverage.Sampling.HasFlag(sampling)
+            && coverage.Output.HasFlag(output) && (!sampleMaskWords || coverage.SampleMaskWords)
+            && (!completeGraphics || coverage.CompleteGraphics)
             && (!clearColor || coverage.ClearColor);
         if (blend != BlendStateKnowledge.None)
         {

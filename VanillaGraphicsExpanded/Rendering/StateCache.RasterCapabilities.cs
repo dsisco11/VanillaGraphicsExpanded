@@ -11,7 +11,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes DepthClamp, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetDepthClampEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.DepthClamp, completeGraphics: true);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.DepthClamp) && rasterizer.DepthClamp == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         rasterizerKnown &= ~RasterizerStateKnowledge.DepthClamp;
@@ -26,7 +26,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes RasterizerDiscard, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetRasterizerDiscardEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.RasterizerDiscard, completeGraphics: true);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.RasterizerDiscard) && rasterizer.RasterizerDiscard == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         rasterizerKnown &= ~RasterizerStateKnowledge.RasterizerDiscard;
@@ -41,7 +41,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes PolygonOffsetFill, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetPolygonOffsetFillEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PolygonOffsetFill, completeGraphics: true);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonOffsetFill) && rasterizer.PolygonOffsetFill == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonOffsetFill;
@@ -56,7 +56,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes PolygonOffsetLine, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetPolygonOffsetLineEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PolygonOffsetLine, completeGraphics: true);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonOffsetLine) && rasterizer.PolygonOffsetLine == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonOffsetLine;
@@ -71,7 +71,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes PolygonOffsetPoint, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetPolygonOffsetPointEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PolygonOffsetPoint, completeGraphics: true);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonOffsetPoint) && rasterizer.PolygonOffsetPoint == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonOffsetPoint;
@@ -86,7 +86,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes ProgramPointSize, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetProgramPointSizeEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ProgramPointSize, completeGraphics: true);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.ProgramPointSize) && rasterizer.ProgramPointSize == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         rasterizerKnown &= ~RasterizerStateKnowledge.ProgramPointSize;

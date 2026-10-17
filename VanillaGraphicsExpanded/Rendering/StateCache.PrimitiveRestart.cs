@@ -11,7 +11,7 @@ internal sealed partial class StateCache
     internal void SetRestartIndex(uint index)
     {
         
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(assembly: PrimitiveAssemblyStateKnowledge.RestartIndex, completeGraphics: true);
         if (assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.RestartIndex) && assembly.RestartIndex == index) return;
         assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.RestartIndex;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();

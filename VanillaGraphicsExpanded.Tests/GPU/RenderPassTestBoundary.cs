@@ -12,9 +12,7 @@ internal static class RenderPassTestBoundary
     internal static void Run(Action<EngineBoundaryScope> operation)
     {
         var cache = StateCache.Current;
-        var coverage = new PipelineStateCoverage(DepthStateKnowledge.All, RasterizerStateKnowledge.All,
-            PrimitiveAssemblyStateKnowledge.All, DynamicDrawStateKnowledge.All, BlendStateKnowledge.All,
-            clearColor: true, completeGraphics: true);
+        var coverage = PipelineStateCoverage.FullGraphics.Union(new(clearColor: true));
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RenderPassTest", coverage), out var boundary),
             cache.BoundaryEntryFailure?.ToString());
         using (boundary!) boundary!.Run(() => operation(boundary));

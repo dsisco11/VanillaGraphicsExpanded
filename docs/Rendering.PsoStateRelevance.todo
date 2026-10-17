@@ -75,28 +75,36 @@ Phase 1: Preserve declarations and derive prepared relevance
 Phase 2: Separate sparse authority from complete admission
   Depends on Phase 1. Outcome: sparse coverage and helper envelopes are verified and ready for
   coordinated activation; the existing full application still has sufficient restoration authority.
-  ☐ Separate complete-graphics admission from automatic all-field coverage expansion.
+  ☑ Separate complete-graphics admission from automatic all-field coverage expansion.
     - Add sparse potential-write composition from prepared relevance while preserving complete-draw
       validation, resource footprints, context identity and rejection of undeclared operations.
     - Keep the active full-application boundary conservative until Phase 3 switches both together.
       Do not run existing unconditional setters under the new sparse authority.
     - Preserve explicit partial GlPipelineDesc/helper semantics and existing non-graphics boundaries.
-  ☐ Define the bounded clear-operation envelope from RenderPassOperations.Load.
+  ☑ Define the bounded clear-operation envelope from RenderPassOperations.Load.
     - Include discard, sRGB, dither, scissor enable/rectangle, indexed color masks, depth write mask
       and front/back stencil write masks, expanding global aliases to all affected native slots.
     - Keep clear values as operation inputs. Clear-only contexts need helper coverage without a PSO;
       Preserve/Discard-only loads perform no clear-state application. Preserve other helper coverage.
-  ☐ Refine shared coverage/query/knowledge/restoration groups where required.
+  ☑ Refine shared coverage/query/knowledge/restoration groups where required.
     - Combined factor/equation/stencil/polygon setters cover their full actual native writes.
       Without independent blending, global factor/equation writes cover all slots and retain existing
       capability compatibility validation; sparse routes do not narrow global native effects.
     - Capture potential writes before mutation using existing known cache state where possible.
       Keep saved/current comparisons; do not introduce a new dirty tracker or invalidate whole
       categories to represent a dormant field. Preserve failure cleanup and conservative invalidation.
-  ☐ Verify sparse union/Contains, indexed/global aliases, complete admission without full expansion,
+  ☑ Verify sparse union/Contains, indexed/global aliases, complete admission without full expansion,
     undeclared-mutation rejection, clear-only footprints and retained partial-helper behavior.
-  ☐ Completion: focused subagent-run coverage/boundary checks pass; all current active setters still
+  ☑ Completion: focused subagent-run coverage/boundary checks pass; all current active setters still
     have authority, and sparse application can be enabled without missing restoration fields.
+    - Verified after second review and independent audit-stage-completion: 195/195 focused cases
+      passed in each of Debug and Release, zero failures/skips. Covers sparse union/global aliases,
+      selective capture, known/warm reuse, invalidation, combined-field restoration, rejection before
+      redundant suppression, clear-only pixels/handback and Preserve/Discard helper no-ops.
+      Raster application retains explicit FullGraphics authority; no sparse raster activation occurred.
+      Receipts: ../artifacts/pso-state-relevance/phase2/phase2-debug.trx and
+      ../artifacts/pso-state-relevance/phase2/phase2-release.trx. Commands, filter and build/test logs
+      are retained in ../artifacts/pso-state-relevance/phase2/. No package, live or timing claim.
 
 Phase 3: Apply relevant groups and activate matching boundary coverage
   Depends on Phase 2. Outcome: production complete draws leave dormant state untouched and establish

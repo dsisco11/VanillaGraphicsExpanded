@@ -10,7 +10,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes FramebufferSrgb, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetFramebufferSrgbEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(output: OutputStateKnowledge.FramebufferSrgb, completeGraphics: true);
         if (outputKnown.HasFlag(OutputStateKnowledge.FramebufferSrgb) && output.FramebufferSrgb == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         outputKnown &= ~OutputStateKnowledge.FramebufferSrgb;
@@ -25,7 +25,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes Dither, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetDitherEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(output: OutputStateKnowledge.Dither, completeGraphics: true);
         if (outputKnown.HasFlag(OutputStateKnowledge.Dither) && output.Dither == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         outputKnown &= ~OutputStateKnowledge.Dither;
@@ -40,7 +40,7 @@ internal sealed partial class StateCache
     /// <summary>Establishes ColorLogicOp, preserving independent category knowledge and optional diagnostics.</summary>
     internal void SetColorLogicOpEnabled(bool enabled)
     {
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(output: OutputStateKnowledge.ColorLogicOp, completeGraphics: true);
         if (outputKnown.HasFlag(OutputStateKnowledge.ColorLogicOp) && output.ColorLogicOp == enabled) return;
         // Withhold knowledge until the native operation and any enabled diagnostics succeed.
         outputKnown &= ~OutputStateKnowledge.ColorLogicOp;

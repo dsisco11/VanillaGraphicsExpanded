@@ -11,7 +11,7 @@ internal sealed partial class StateCache
     internal void SetCullMode(CullFaceMode mode)
     {
         if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.CullMode, completeGraphics: true);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.CullMode) && rasterizer.CullMode == mode) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.CullMode;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
@@ -26,7 +26,7 @@ internal sealed partial class StateCache
     internal void SetFrontFace(FrontFaceDirection winding)
     {
         if (!Enum.IsDefined(winding)) throw new ArgumentOutOfRangeException(nameof(winding));
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.FrontFace, completeGraphics: true);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.FrontFace) && rasterizer.FrontFace == winding) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.FrontFace;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
@@ -41,7 +41,7 @@ internal sealed partial class StateCache
     internal void SetPolygonOffset(float factor, float units)
     {
         if (!float.IsFinite(factor) || !float.IsFinite(units)) throw new ArgumentOutOfRangeException(nameof(factor));
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PolygonOffset, completeGraphics: true);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonOffset) && rasterizer.PolygonOffset == (factor, units)) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonOffset;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
@@ -57,7 +57,7 @@ internal sealed partial class StateCache
     {
         if (!Enum.IsDefined(front) || !Enum.IsDefined(back)) throw new ArgumentOutOfRangeException(nameof(front));
         if (GpuSupport.Graphics.CoreProfile && front != back) throw new NotSupportedException("Core polygon modes must match.");
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PolygonModes, completeGraphics: true);
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonModes) && rasterizer.PolygonModes == (front, back)) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonModes;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
@@ -74,7 +74,7 @@ internal sealed partial class StateCache
         if (face is not (MaterialFace.Front or MaterialFace.Back or MaterialFace.FrontAndBack) || !Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(face));
         if (face == MaterialFace.FrontAndBack) { SetPolygonModes(mode, mode); return; }
         if (GpuSupport.Graphics.CoreProfile) throw new NotSupportedException("Single-face polygon modes require compatibility profile.");
-        ValidateCompleteMutation();
+        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PolygonModes, completeGraphics: true);
         bool known = rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonModes);
         var previous = rasterizer.PolygonModes;
         if (known && (face == MaterialFace.Front ? previous.Front : previous.Back) == mode) return;
