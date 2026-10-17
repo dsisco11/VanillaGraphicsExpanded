@@ -60,7 +60,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture) : L
                 var actual = scene.ReadOutput();
                 for (int layer = 0; layer < 6; layer++) Assert.Equal(expected[layer], actual[layer]);
                 var traced = ReadPrivate<CloudVolumeSurface>(accelerated, "trace");
-                for (int layer = 0; layer < 7; layer++) Assert.Equal(expectedTrace[layer], traced.Images[layer].ReadPixels());
+                for (int layer = 0; layer < 6; layer++) Assert.Equal(expectedTrace[layer], traced.Images[layer].ReadPixels());
                 Assert.Contains(actual[1], value => value < 1);
 
                 // Revocation must reject all three passes, leave OIT untouched and never commit history.
@@ -116,7 +116,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture) : L
         private readonly DynamicTexture2D map;
         private DynamicTexture2D depth = null!, visibility = null!, liquid = null!;
         private readonly DynamicTexture3D aerial, loss;
-        private CloudVolumeSurface output = null!;
+        private CloudOitSurface output = null!;
         private int width, height;
         private readonly ArrayGraphicsGeometry geometry;
         private readonly DynamicTexture3D? previousAerial = AtmosphereModSystem.AerialRadianceTexture;
@@ -193,7 +193,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture) : L
             depth = Own(DynamicTexture2D.Create(width, height, PixelInternalFormat.R32f));
             visibility = Own(DynamicTexture2D.Create(width, height, PixelInternalFormat.R32f));
             liquid = Own(DynamicTexture2D.Create(width, height, PixelInternalFormat.R32f));
-            output = Own(new CloudVolumeSurface(width, height, "Tests.Cloud.ScheduledOit"));
+            output = Own(new CloudOitSurface(width, height, "Tests.Cloud.ScheduledOit"));
         }
         #endregion
 

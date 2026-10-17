@@ -31,7 +31,7 @@ internal sealed class CloudPerformanceScene : IDisposable
     private readonly DynamicTexture2D map;
     private DynamicTexture2D depth = null!, visibility = null!, liquid = null!;
     private readonly DynamicTexture3D aerial, loss;
-    private CloudVolumeSurface output = null!;
+    private CloudOitSurface output = null!;
     private int width, height;
     private readonly int mapWidth;
     private readonly string pattern, viewpoint;
@@ -121,7 +121,7 @@ internal sealed class CloudPerformanceScene : IDisposable
         depth = Own(DynamicTexture2D.Create(width, height, PixelInternalFormat.R32f));
         visibility = Own(DynamicTexture2D.Create(width, height, PixelInternalFormat.R32f));
         liquid = Own(DynamicTexture2D.Create(width, height, PixelInternalFormat.R32f));
-        output = Own(new CloudVolumeSurface(width, height, "Tests.Cloud.ScheduledOit"));
+        output = Own(new CloudOitSurface(width, height, "Tests.Cloud.ScheduledOit"));
         float[] empty=Enumerable.Repeat(1f,width*height).ToArray();
         depth.UploadDataImmediate(empty); visibility.UploadDataImmediate(empty); liquid.UploadDataImmediate(empty);
     }

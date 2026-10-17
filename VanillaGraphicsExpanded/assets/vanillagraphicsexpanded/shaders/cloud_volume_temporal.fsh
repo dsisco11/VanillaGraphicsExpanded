@@ -3,15 +3,18 @@
 @import "./includes/vge_frame_ubo.glsl"
 @import "./includes/cloud_temporal_parameters.glsl"
 @import "./includes/cloud_history.glsl"
-@import "./includes/oit.glsl"
-layout(location=6) out vec4 outCloudDepth;
+layout(location=0) out vec3 outOitRevealBins;
+layout(location=1) out float outRevealage;
+layout(location=2) out vec4 outOitAccumulation0;
+layout(location=3) out vec4 outOitAccumulation1;
+layout(location=4) out vec4 outOitAccumulation2;
+layout(location=5) out vec4 outCloudDepth;
 uniform sampler2D current0;
 uniform sampler2D current1;
 uniform sampler2D current2;
 uniform sampler2D current3;
 uniform sampler2D current4;
 uniform sampler2D current5;
-uniform sampler2D current6;
 /** Reads one complete current trace layer. */
 vec4 CloudCurrentFetch(int layer,ivec2 pixel)
 {
@@ -20,8 +23,7 @@ vec4 CloudCurrentFetch(int layer,ivec2 pixel)
     if(layer==2) return texelFetch(current2,pixel,0);
     if(layer==3) return texelFetch(current3,pixel,0);
     if(layer==4) return texelFetch(current4,pixel,0);
-    if(layer==5) return texelFetch(current5,pixel,0);
-    return texelFetch(current6,pixel,0);
+    return texelFetch(current5,pixel,0);
 }
 
 /** Reconstructs camera-relative positions from this view's inverse transforms. */
@@ -43,8 +45,8 @@ bool CloudHistoryCompatible(vec4 a,vec4 b,float expected)
 void main()
 {
     ivec2 pixel=ivec2(gl_FragCoord.xy), size=ivec2(cloudTrace.xy);
-    vec4 data[7]; for(int i=0;i<7;i++) data[i]=CloudCurrentFetch(i,pixel);
-    vec4 meta=data[6]; bool accepted=false; ivec2 previous=ivec2(0);
+    vec4 data[6]; for(int i=0;i<6;i++) data[i]=CloudCurrentFetch(i,pixel);
+    vec4 meta=data[5]; bool accepted=false; ivec2 previous=ivec2(0);
     if(cloudHistory.x>.5 && meta.y>0.0 && data[1].x<1.0)
     {
         vec2 uv=CloudTraceUv(pixel,cloudTrace.zw);
@@ -59,7 +61,7 @@ void main()
                 // Previous phase is retained explicitly: reject a projection farther than one reduced pixel.
                 vec2 sampleUv=CloudTraceUv(previous,cloudHistory.yz);
                 if(length((sampleUv-oldUv)*vgeFrame.screenSize)<=2.83)
-                    accepted=CloudHistoryCompatible(meta,CloudHistoryFetch(6,previous),length(point));
+                    accepted=CloudHistoryCompatible(meta,CloudHistoryFetch(5,previous),length(point));
             }
         }
     }
@@ -74,8 +76,8 @@ void main()
     {
         // Clamp every previous channel to the compatible current neighborhood. This bounds stale
         // lighting/weather response and preserves the current frame's admitted radiance envelope.
-        vec4 low[6],high[6],old[6]; bool finite=true;
-        for(int i=0;i<6;i++)
+        vec4 low[5],high[5],old[5]; bool finite=true;
+        for(int i=0;i<5;i++)
         {
             low[i]=data[i]; high[i]=data[i]; old[i]=CloudHistoryFetch(i,previous);
             if(any(isnan(old[i]))||any(isinf(old[i]))||any(lessThan(old[i],vec4(0)))) finite=false;
@@ -83,13 +85,12 @@ void main()
         for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++)
         {
             ivec2 n=clamp(pixel+ivec2(x,y),ivec2(0),size-1);
-            vec4 m=CloudCurrentFetch(6,n);
+            vec4 m=CloudCurrentFetch(5,n);
             if(!CloudHistoryCompatible(meta,m,(meta.x+meta.y)*.5)) continue;
-            for(int i=0;i<6;i++) { vec4 c=CloudCurrentFetch(i,n); low[i]=min(low[i],c); high[i]=max(high[i],c); }
+            for(int i=0;i<5;i++) { vec4 c=CloudCurrentFetch(i,n); low[i]=min(low[i],c); high[i]=max(high[i],c); }
         }
-        if(finite) for(int i=0;i<6;i++) data[i]=mix(data[i],clamp(old[i],low[i],high[i]),cloudHistory.w);
+        if(finite) for(int i=0;i<5;i++) data[i]=mix(data[i],clamp(old[i],low[i],high[i]),cloudHistory.w);
     }
     outOitRevealBins=clamp(data[0].xyz,0.0,1.0); outRevealage=clamp(data[1].x,0.0,1.0);
-    outOitGlow=vec4(0,0,0,clamp(data[2].a,0.0,1.0));
-    outOitAccumulation0=data[3]; outOitAccumulation1=data[4]; outOitAccumulation2=data[5]; outCloudDepth=meta;
+    outOitAccumulation0=data[2]; outOitAccumulation1=data[3]; outOitAccumulation2=data[4]; outCloudDepth=meta;
 }

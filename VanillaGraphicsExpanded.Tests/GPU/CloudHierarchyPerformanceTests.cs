@@ -67,7 +67,7 @@ public sealed class CloudHierarchyPerformanceTests(HeadlessGLFixture fixture, IT
             if(round==-1 || round==rounds-1)
             {
                 var originalHistory=scene.ReadCommittedHistory(original); var acceleratedHistory=scene.ReadCommittedHistory(accelerated);
-                for(int layer=0;layer<7;layer++) Assert.Equal(originalHistory[layer],acceleratedHistory[layer]);
+                for(int layer=0;layer<6;layer++) Assert.Equal(originalHistory[layer],acceleratedHistory[layer]);
                 // Repeat matching frames only after both histories have committed the same inputs.
                 original.Invalidate(); accelerated.Invalidate();
                 scene.Clear(); Assert.True(scene.Draw(original,input,null,()=>true)); var expected=scene.ReadOutput();
@@ -103,7 +103,7 @@ public sealed class CloudHierarchyPerformanceTests(HeadlessGLFixture fixture, IT
             pairedSavingsGpuMs=originalCosts.Zip(acceleratedCosts,(a,b)=>a[4]-b[4]).ToArray(),
             originalAllocationIds=originalIds,acceleratedAllocationIds=acceleratedIds,hierarchyId,
             hierarchyPayloadBytes=hierarchy.Layout!.PayloadBytes,
-            reconstructionPayloadBytes=288L*((width+1)/2)*((height+1)/2),
+            reconstructionPayloadBytes=240L*((width+1)/2)*((height+1)/2),
             note="Same candidate with hierarchy unavailable versus certified. Total encloses reduction and actual production Draw including preparation/submission. Identical nine timestamp observations per path. Native producer, shared scene HZB, synthetic input upload, neutral target clear, allocation/first-use compilation, readback and query waits excluded. Synthetic controlled GPU costs are not live whole-frame timings."
         },new JsonSerializerOptions{WriteIndented=true}));
         log.WriteLine($"{width}x{height} map={nativeWidth} {pattern}/{viewpoint} LumOn={lumOn}: DDA {Median(originalCosts.Select(a=>a[4])):F4}ms hierarchy {Median(acceleratedCosts.Select(a=>a[4])):F4}ms paired saving {Median(originalCosts.Zip(acceleratedCosts,(a,b)=>a[4]-b[4])):F4}ms");

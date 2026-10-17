@@ -47,14 +47,14 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             {
                 view.SetDirectionalLights(sun, moon, sources);
                 view.UseHierarchy(null); view.RenderTrace(frame); var original = view.ReadTraceRecord();
-                bool illuminated = Enumerable.Range(3, 3).Any(layer => original[layer].Where((value, index) =>
+                bool illuminated = Enumerable.Range(2, 3).Any(layer => original[layer].Where((value, index) =>
                     index % 4 != 3 && Math.Abs(value - ambient[layer][index]) > 1e-6f).Any());
                 if (sources == 1) observedSolar |= illuminated;
                 if (sources == 2) observedLunar |= illuminated;
                 view.UseHierarchy(hierarchy); view.RenderTrace(frame); var accelerated = view.ReadTraceRecord();
-                for (int layer = 0; layer < 7; layer++) Assert.Equal(original[layer], accelerated[layer]);
+                for (int layer = 0; layer < 6; layer++) Assert.Equal(original[layer], accelerated[layer]);
                 view.UseHierarchy(hierarchy, mismatch: true); view.RenderTrace(frame); var fallback = view.ReadTraceRecord();
-                for (int layer = 0; layer < 7; layer++) Assert.Equal(original[layer], fallback[layer]);
+                for (int layer = 0; layer < 6; layer++) Assert.Equal(original[layer], fallback[layer]);
             }
         }
         Assert.True(observedSolar && observedLunar, "Both self-shadowed directional sources must affect the tested illumination.");
@@ -80,10 +80,10 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             observedCloud |= original[1].Any(value => value < .99999f);
             view.UseHierarchy(hierarchy);
             view.RenderTrace(frame); var accelerated = view.ReadTraceRecord();
-            for (int layer = 0; layer < 7; layer++) Assert.Equal(original[layer], accelerated[layer]);
+            for (int layer = 0; layer < 6; layer++) Assert.Equal(original[layer], accelerated[layer]);
             view.UseHierarchy(hierarchy, mismatch: true);
             view.RenderTrace(frame); var fallback = view.ReadTraceRecord();
-            for (int layer = 0; layer < 7; layer++) Assert.Equal(original[layer], fallback[layer]);
+            for (int layer = 0; layer < 6; layer++) Assert.Equal(original[layer], fallback[layer]);
         }
         Assert.True(observedCloud, "The comparison must exercise non-neutral cloud transport.");
     }
@@ -100,8 +100,15 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         for(int layer=3;layer<6;layer++)
         for(int i=0;i<reconstructed[layer].Length;i++)
             Assert.InRange(Math.Abs(reconstructed[layer][i]-(i%4==3?.6f:1f)),0,.00001);
+        // The native Glow blend squares source alpha on a cleared target. Resolve must derive it from transmission.
+        for(int pixel=0;pixel<reconstructed[1].Length;pixel++)
+        {
+            float opacity=1-reconstructed[1][pixel];
+            for(int channel=0;channel<3;channel++) Assert.Equal(0,reconstructed[2][pixel*4+channel]);
+            Assert.InRange(Math.Abs(reconstructed[2][pixel*4+3]-opacity*opacity),0,.00001);
+        }
         var patterned=view.ResolveAuthoredHistory(patterned:true);
-        Assert.InRange(Math.Abs(patterned[1][1]-.12f),0,.00001);
+        Assert.InRange(Math.Abs(patterned[1][1]-.82f),0,.00001);
         for(int channel=0;channel<3;channel++) Assert.InRange(Math.Abs(patterned[0][3+channel]-.18f),0,.00001);
         // Native Glow uses SrcAlpha for alpha as well as RGB, so a cleared target stores squared alpha.
         Assert.InRange(Math.Abs(patterned[2][7]-.18f*.18f),0,.00001);
@@ -425,6 +432,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         {
             var size=CloudVolumeSurface.Dimensions(extent.Item1,extent.Item2);
             var surface=new CloudVolumeSurface(size.Width,size.Height,"Tests.Cloud.Resize");
+            Assert.Equal(6,surface.Images.Length);
             var images=surface.Images.Select(image=>image.TextureId).ToArray();int framebuffer=surface.Target.FboId;
             var a=surface.Prepare(lifetime,program);var b=surface.Prepare(lifetime,program);
             Assert.Same(a.Pipeline,b.Pipeline);Assert.Equal(size.Width,surface.Target.Width);Assert.Equal(size.Height,surface.Target.Height);
@@ -455,7 +463,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         view.Capture(0,2,10,1,0,"static"); var images=view.ProbeHistory(scenario);
         Assert.InRange(Math.Abs(images[1][4]-expected),0,.00001);
         Assert.InRange(Math.Abs(images[0][4*3]-expected),0,.00001);
-        Assert.InRange(Math.Abs(images[2][4*4+3]-expected),0,.00001);
+        Assert.InRange(Math.Abs(images[2][4*4+3]-(1-expected)),0,.00001);
         for(int i=3;i<6;i++)
         {
             Assert.InRange(Math.Abs(images[i][4*4]-expected*10),0,.0001);
@@ -508,7 +516,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         private readonly TestFrameLightingPublication storage;
         private readonly DynamicTexture2D map,opaque,visibility,liquid;
         private readonly DynamicTexture3D aerial,loss;
-        private readonly CloudVolumeSurface traced,historyA,historyB,result,expected;
+        private readonly CloudVolumeSurface traced,historyA,historyB;
+        private readonly CloudOitSurface result,expected;
         private readonly GraphicsPipelineLifetime lifetime;
         private readonly ArrayGraphicsGeometry geometry;
         private readonly float[] projection=[4,0,0,0,0,4,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0];
@@ -541,7 +550,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             aerial.UploadDataImmediate(new float[8],0,0,0,1,2,1,0);loss.UploadDataImmediate(new float[4],0,0,0,1,1,1,0);
             traced=Own(new CloudVolumeSurface(lowWidth,lowHeight,"Tests.Cloud.Trace"));
             historyA=Own(new CloudVolumeSurface(lowWidth,lowHeight,"Tests.Cloud.HistoryA"));historyB=Own(new CloudVolumeSurface(lowWidth,lowHeight,"Tests.Cloud.HistoryB"));
-            result=Own(new CloudVolumeSurface(width,height,"Tests.Cloud.Default"));expected=Own(new CloudVolumeSurface(width,height,"Tests.Cloud.Reference"));
+            result=Own(new CloudOitSurface(width,height,"Tests.Cloud.Default"));expected=Own(new CloudOitSurface(width,height,"Tests.Cloud.Reference"));
             lifetime=Own(new GraphicsPipelineLifetime());
             geometry=Own(new ArrayGraphicsGeometry(CloudVolumeRenderer.Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3));
             Mat4f.Invert(inverse,projection);
@@ -652,12 +661,12 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         /// <summary>Selects the allowed dense midpoint budget independently of reduced tracing.</summary>
         internal void SetReferenceSamples(int count) { referenceSamples=count; }
         /// <summary>Executes deterministic full-resolution midpoint transport without changing history.</summary>
-        internal void RenderReference() { Draw(reference,expected,true); }
+        internal void RenderReference() { Draw(reference,expected.Target,true); }
         /// <summary>Executes one reduced sample phase without running temporal or spatial reconstruction.</summary>
         internal void RenderTrace(uint frame)
         {
             trace.Temporal.Capture(previousProjection,Vector3.Zero,lowWidth,lowHeight,frame,unchecked(frame-1),false);
-            Draw(trace,traced,false);
+            Draw(trace,traced.Target,false);
         }
         /// <summary>Authors separate sampling dimensions to isolate view and secondary transport behavior.</summary>
         internal void SetJitterDimensions(float view,float light)
@@ -668,7 +677,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         /// <summary>Supplies a known physical reduced payload while the independent density map remains empty.</summary>
         internal float[][] ResolveAuthoredHistory(bool patterned=false)
         {
-            for(int layer=0;layer<7;layer++)
+            for(int layer=0;layer<6;layer++)
             {
                 int components=layer==0?3:layer==1?1:4;
                 float[] values=new float[lowWidth*lowHeight*components];
@@ -676,13 +685,13 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
                 for(int channel=0;channel<components;channel++)
                 {
                     float factor=patterned?(float)(pixel%lowWidth+1)/lowWidth:1;
-                    values[pixel*components+channel]=layer==6?(channel==0?50:channel==1?100:Depth(1000)):
-                        factor*(layer==0?.6f:layer==1?.4f:layer==2?(channel==3?.6f:0):channel==3?.6f:8);
+                    values[pixel*components+channel]=layer==5?(channel==0?50:channel==1?100:Depth(1000)):
+                        layer==1?1-factor*.6f:factor*(layer==0?.6f:channel==3?.6f:8);
                 }
                 historyA.Images[layer].UploadDataImmediate(values);
             }
             resolve.Temporal.Capture(projection,Vector3.Zero,lowWidth,lowHeight,0,0,false);
-            BindHistory(resolve,historyA); Draw(resolve,result,true); return ReadDefault();
+            BindHistory(resolve,historyA); Draw(resolve,result.Target,true); return ReadDefault();
         }
         /// <summary>Executes real reduced trace/history/resolve binaries and the direct reference, restoring inherited state after each pass.</summary>
         internal void Render(uint frame,bool valid)
@@ -692,13 +701,13 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
                 p.Capture(previousProjection,new(lastShift-shift,0,0),lowWidth,lowHeight,frame,unchecked(frame-1),valid);
             BindHistory(temporal,previous);BindHistory(resolve,next);
             temporal.Current0=traced.Images[0].TextureId;temporal.Current1=traced.Images[1].TextureId;temporal.Current2=traced.Images[2].TextureId;
-            temporal.Current3=traced.Images[3].TextureId;temporal.Current4=traced.Images[4].TextureId;temporal.Current5=traced.Images[5].TextureId;temporal.Current6=traced.Images[6].TextureId;
-            Draw(trace,traced,false);Draw(temporal,next,false);Draw(resolve,result,true);Draw(reference,expected,true);last=next;lastShift=shift;currentProjection.CopyTo(previousProjection,0);
+            temporal.Current3=traced.Images[3].TextureId;temporal.Current4=traced.Images[4].TextureId;temporal.Current5=traced.Images[5].TextureId;
+            Draw(trace,traced.Target,false);Draw(temporal,next.Target,false);Draw(resolve,result.Target,true);Draw(reference,expected.Target,true);last=next;lastShift=shift;currentProjection.CopyTo(previousProjection,0);
         }
         /// <summary>Authors distinguishable current/history payloads to prove interpolation and whole-record rejection on the GPU.</summary>
         internal float[][] ProbeHistory(string scenario)
         {
-            for(int layer=0;layer<7;layer++)
+            for(int layer=0;layer<6;layer++)
             {
                 int components=layer==0?3:layer==1?1:4;
                 float[] a=new float[lowWidth*lowHeight*components],b=new float[a.Length];
@@ -708,28 +717,28 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
                     for(int channel=0;channel<components;channel++)
                     {
                         int index=pixel*components+channel;
-                        a[index]=current*((layer>=3&&channel<3)?10:1);b[index]=.42f*((layer>=3&&channel<3)?10:1);
+                        a[index]=current*((layer>=2&&channel<3)?10:1);b[index]=.42f*((layer>=2&&channel<3)?10:1);
                         if(scenario=="weather"&&layer==1)b[index]=.8f;
-                        if(layer==6)
+                        if(layer==5)
                         {
                             a[index]=b[index]=channel==0?10:channel==1?20:1;
                             if(scenario=="depth"&&channel==2)b[index]=.9f;
                         }
                     }
                 }
-                if(scenario=="nan"&&layer==3)b[4*4]=float.NaN;
+                if(scenario=="nan"&&layer==2)b[4*4]=float.NaN;
                 traced.Images[layer].UploadDataImmediate(a);historyA.Images[layer].UploadDataImmediate(b);
             }
             temporal.Temporal.Capture(projection,scenario=="motion"?new(100,0,0):Vector3.Zero,lowWidth,lowHeight,0,0,scenario!="invalid");
             temporal.Current0=traced.Images[0].TextureId;temporal.Current1=traced.Images[1].TextureId;temporal.Current2=traced.Images[2].TextureId;
-            temporal.Current3=traced.Images[3].TextureId;temporal.Current4=traced.Images[4].TextureId;temporal.Current5=traced.Images[5].TextureId;temporal.Current6=traced.Images[6].TextureId;
-            BindHistory(temporal,historyA);Draw(temporal,historyB,false);last=historyB;return ReadHistory();
+            temporal.Current3=traced.Images[3].TextureId;temporal.Current4=traced.Images[4].TextureId;temporal.Current5=traced.Images[5].TextureId;
+            BindHistory(temporal,historyA);Draw(temporal,historyB.Target,false);last=historyB;return ReadHistory();
         }
         /// <summary>Advances a fixed trace through alternate history storage to expose the bounded temporal recurrence.</summary>
         internal float[][] AdvanceProbeHistory()
         {
             var next=ReferenceEquals(last,historyA)?historyB:historyA;
-            BindHistory(temporal,last!);Draw(temporal,next,false);last=next;return ReadHistory();
+            BindHistory(temporal,last!);Draw(temporal,next.Target,false);last=next;return ReadHistory();
         }
         #endregion
         #region Readback and disposal
@@ -738,14 +747,22 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         /// <summary>Reads test-only direct reference payloads for numerical comparison.</summary>
         internal float[][] ReadReference()=>expected.Images.Take(6).Select(image=>image.ReadPixels()).ToArray();
         /// <summary>Reads reduced transport independently of temporal accumulation.</summary>
-        internal float[][] ReadTrace()=>traced.Images.Take(6).Select(image=>image.ReadPixels()).ToArray();
+        internal float[][] ReadTrace()=>ReadNativePayload(traced);
         /// <summary>Reads physical history to verify exposure-independent storage.</summary>
-        internal float[][] ReadHistory()=>last!.Images.Take(6).Select(image=>image.ReadPixels()).ToArray();
+        internal float[][] ReadHistory()=>ReadNativePayload(last!);
         /// <summary>Releases fixture-owned resources in reverse dependency order.</summary>
         public void Dispose(){for(int i=owned.Count-1;i>=0;i--)owned[i].Dispose();}
         #endregion
         #endregion
         #region Private
+        /// <summary>Converts compact physical storage into native OIT channel order for reference comparisons.</summary>
+        private static float[][] ReadNativePayload(CloudVolumeSurface surface)
+        {
+            var images=surface.Images.Select(image=>image.ReadPixels()).ToArray();
+            float[] glow=new float[images[1].Length*4];
+            for(int i=0;i<images[1].Length;i++) glow[i*4+3]=1-images[1][i];
+            return [images[0],images[1],glow,images[2],images[3],images[4]];
+        }
         /// <summary>Records an owned fixture allocation without transferring any production resource.</summary>
         private T Own<T>(T resource) where T:IDisposable {owned.Add(resource);return resource;}
         /// <summary>Supplies identical physical transport inputs to all tracing consumers.</summary>
@@ -759,10 +776,10 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         private static void BindHistory(ICloudHistoryBindings program,CloudVolumeSurface surface)
         {
             program.History0=surface.Images[0].TextureId;program.History1=surface.Images[1].TextureId;program.History2=surface.Images[2].TextureId;
-            program.History3=surface.Images[3].TextureId;program.History4=surface.Images[4].TextureId;program.History5=surface.Images[5].TextureId;program.History6=surface.Images[6].TextureId;
+            program.History3=surface.Images[3].TextureId;program.History4=surface.Images[4].TextureId;program.History5=surface.Images[5].TextureId;
         }
         /// <summary>Uses replacement writes internally and the real six-target native blend policy for final composition.</summary>
-        private void Draw(GpuProgram program,CloudVolumeSurface surface,bool oit)
+        private void Draw(GpuProgram program,GpuFramebuffer target,bool oit)
         {
             RenderPassColor[] outputs=oit?[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
                 new(2,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(3,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
@@ -782,7 +799,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
                 }
                 outputs=colors.ToArray();
             }
-            var pass=new RenderPassDesc(surface.Target,outputs);using var metadata=new RenderPassTargets(pass);
+            var pass=new RenderPassDesc(target,outputs);using var metadata=new RenderPassTargets(pass);
             using var pipeline=new GraphicsPipeline(lifetime,new(program.GraphicsIdentity!,CloudVolumeRenderer.Layout,metadata.Signature,DynamicPipelineState.Viewport,
                 blending:oit?LiquidPipelineStates.SurfaceBlending:null),program);
             int vao=GL.GetInteger(GetPName.VertexArrayBinding),fbo=GL.GetInteger(GetPName.DrawFramebufferBinding);

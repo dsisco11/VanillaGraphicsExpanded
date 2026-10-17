@@ -8,7 +8,17 @@
 @import "./atmosphere_aerial.glsl"
 @import "./pbr_scene_storage.glsl"
 @import "./pbr_color.glsl"
+#ifdef VGE_CLOUD_PHYSICAL
+layout(location=0) out vec3 outOitRevealBins;
+layout(location=1) out float outRevealage;
+layout(location=2) out vec4 outOitAccumulation0;
+layout(location=3) out vec4 outOitAccumulation1;
+layout(location=4) out vec4 outOitAccumulation2;
+/** Weights one cloud contribution in the native transparency depth bins. */
+float vgeOitBellCurve(float t) { float n=t/.832; return exp(-n*n); }
+#else
 @import "./oit.glsl"
+#endif
 @import "./cloud_depth.glsl"
 
 /** Reconstructs this view's camera-relative position with its own inverse projection/view. */
@@ -112,6 +122,9 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
 /** Routes intact native payload for replacement or existing OIT blending. */
 void CloudWrite(CloudPayload p)
 {
-    outOitRevealBins=p.bins; outRevealage=p.reveal; outOitGlow=p.glow;
+    outOitRevealBins=p.bins; outRevealage=p.reveal;
+#ifndef VGE_CLOUD_PHYSICAL
+    outOitGlow=p.glow;
+#endif
     outOitAccumulation0=p.a0; outOitAccumulation1=p.a1; outOitAccumulation2=p.a2;
 }

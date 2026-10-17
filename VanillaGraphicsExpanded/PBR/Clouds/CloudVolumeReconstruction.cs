@@ -65,7 +65,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         BindHistory(temporalProgram,previous); BindHistory(resolveProgram,next);
         temporalProgram.Current0=trace!.Images[0].TextureId; temporalProgram.Current1=trace.Images[1].TextureId;
         temporalProgram.Current2=trace.Images[2].TextureId; temporalProgram.Current3=trace.Images[3].TextureId;
-        temporalProgram.Current4=trace.Images[4].TextureId; temporalProgram.Current5=trace.Images[5].TextureId; temporalProgram.Current6=trace.Images[6].TextureId;
+        temporalProgram.Current4=trace.Images[4].TextureId; temporalProgram.Current5=trace.Images[5].TextureId;
         var tracePass=trace.Prepare(lifetime,traceProgram); var temporalPass=next.Prepare(lifetime,temporalProgram);
         var pass=new RenderPassDesc(target,LiquidPipelineStates.SurfaceOutputs);
         using var metadata=new RenderPassTargets(pass);
@@ -124,12 +124,12 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         RenderingCleanup.Run(()=>{trace?.Dispose();trace=null;},()=>{first?.Dispose();first=null;},()=>{second?.Dispose();second=null;});
         width=height=0;
     }
-    /// <summary>Binds the complete native-compatible payload; all images belong to an alternate non-writing set.</summary>
+    /// <summary>Binds the compact physical payload; all images belong to an alternate non-writing set.</summary>
     private static void BindHistory(ICloudHistoryBindings program,CloudVolumeSurface surface)
     {
         program.History0=surface.Images[0].TextureId; program.History1=surface.Images[1].TextureId;
         program.History2=surface.Images[2].TextureId; program.History3=surface.Images[3].TextureId;
-        program.History4=surface.Images[4].TextureId; program.History5=surface.Images[5].TextureId; program.History6=surface.Images[6].TextureId;
+        program.History4=surface.Images[4].TextureId; program.History5=surface.Images[5].TextureId;
     }
     /// <summary>Captures physical density and lighting inputs only for reduced tracing.</summary>
     private void Capture(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudMapInput input,AtmosphereLighting lighting,

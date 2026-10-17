@@ -40,17 +40,17 @@ void main()
     float limit=min(depth.x,depth.y);
     vec2 position=(gl_FragCoord.xy-cloudTrace.zw-vec2(.5))*.5;
     ivec2 base=ivec2(floor(position)),size=ivec2(cloudTrace.xy); vec2 f=fract(position);
-    vec4 value[6]; for(int i=0;i<6;i++) value[i]=vec4(0);
+    vec4 value[5]; for(int i=0;i<5;i++) value[i]=vec4(0);
     float total=0.0;
     for(int y=0;y<2;y++) for(int x=0;x<2;x++)
     {
         ivec2 pixel=clamp(base+ivec2(x,y),ivec2(0),size-1);
-        vec4 meta=CloudHistoryFetch(6,pixel);
+        vec4 meta=CloudHistoryFetch(5,pixel);
         float weight=CloudResolveWeight(meta,CloudTraceUv(pixel,cloudTrace.zw),depth,limit)
             *(x==0?1.0-f.x:f.x)*(y==0?1.0-f.y:f.y);
         if(weight<=0.0) continue;
         total+=weight;
-        for(int i=0;i<6;i++) value[i]+=weight*CloudHistoryFetch(i,pixel);
+        for(int i=0;i<5;i++) value[i]+=weight*CloudHistoryFetch(i,pixel);
     }
     if(total<=1e-5)
     {
@@ -62,7 +62,7 @@ void main()
         {
             ivec2 pixel=clamp(center+ivec2(x,y),ivec2(0),size-1);
             vec2 sampleUv=CloudTraceUv(pixel,cloudTrace.zw);
-            float weight=CloudResolveWeight(CloudHistoryFetch(6,pixel),sampleUv,depth,limit);
+            float weight=CloudResolveWeight(CloudHistoryFetch(5,pixel),sampleUv,depth,limit);
             if(weight<=0.0) continue;
             vec2 delta=(sampleUv-uv)*vgeFrame.screenSize;
             float score=dot(delta,delta)/weight;
@@ -71,7 +71,7 @@ void main()
         if(best<1e30)
         {
             total=1.0;
-            for(int i=0;i<6;i++) value[i]=CloudHistoryFetch(i,selected);
+            for(int i=0;i<5;i++) value[i]=CloudHistoryFetch(i,selected);
         }
     }
     if(total<=1e-5)
@@ -81,11 +81,11 @@ void main()
         outOitAccumulation0=vec4(0); outOitAccumulation1=vec4(0); outOitAccumulation2=vec4(0);
         return;
     }
-    for(int i=0;i<6;i++) value[i]/=total;
+    for(int i=0;i<5;i++) value[i]/=total;
     outOitRevealBins=clamp(value[0].xyz,0.0,1.0); outRevealage=clamp(value[1].x,0.0,1.0);
-    outOitGlow=vec4(0,0,0,clamp(value[2].a,0.0,1.0));
+    outOitGlow=vec4(0,0,0,1.0-outRevealage);
     // History remains physical. Encode only accumulated RGB once at submission; weighted alpha is untouched.
-    outOitAccumulation0=vec4(VgeStoreSceneLighting(value[3].rgb),value[3].a);
-    outOitAccumulation1=vec4(VgeStoreSceneLighting(value[4].rgb),value[4].a);
-    outOitAccumulation2=vec4(VgeStoreSceneLighting(value[5].rgb),value[5].a);
+    outOitAccumulation0=vec4(VgeStoreSceneLighting(value[2].rgb),value[2].a);
+    outOitAccumulation1=vec4(VgeStoreSceneLighting(value[3].rgb),value[3].a);
+    outOitAccumulation2=vec4(VgeStoreSceneLighting(value[4].rgb),value[4].a);
 }

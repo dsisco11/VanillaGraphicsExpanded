@@ -5,7 +5,7 @@
 #define VGE_CLOUD_HIERARCHY
 @import "./includes/cloud_volume_transport.glsl"
 @import "./includes/cloud_temporal_parameters.glsl"
-layout(location=6) out vec4 outCloudDepth;
+layout(location=5) out vec4 outCloudDepth;
 /** Traces a rotating two-by-two phase, retaining neutral pixels and complete OIT/depth metadata. */
 void main()
 {

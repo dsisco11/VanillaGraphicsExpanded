@@ -25,8 +25,5 @@ internal interface ICloudHistoryBindings
     /// <summary>Borrows physical history payload layer 5, without sampling a current draw attachment.</summary>
     [ShaderBinding("history5",ShaderBindingKind.Sampler,12,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
     int History5 { set; }
-    /// <summary>Borrows physical history payload layer 6, without sampling a current draw attachment.</summary>
-    [ShaderBinding("history6",ShaderBindingKind.Sampler,13,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    int History6 { set; }
     #endregion
 }

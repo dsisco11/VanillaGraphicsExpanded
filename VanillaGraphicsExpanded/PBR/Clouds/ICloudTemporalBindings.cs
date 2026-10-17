@@ -32,8 +32,5 @@ internal interface ICloudTemporalBindings : ICloudHistoryBindings
     /// <summary>Reads current physical trace layer 5 independently of previous history.</summary>
     [ShaderBinding("current5",ShaderBindingKind.Sampler,5,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
     int Current5 { set; }
-    /// <summary>Reads current physical trace layer 6 independently of previous history.</summary>
-    [ShaderBinding("current6",ShaderBindingKind.Sampler,6,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    int Current6 { set; }
     #endregion
 }
