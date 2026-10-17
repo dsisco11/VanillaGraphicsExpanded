@@ -355,6 +355,56 @@ Tasks
       and liquid-pool handoff qualification; no live appearance or GPU/frame-time gain is claimed.
       Evidence: ../artifacts/static-framebuffer-migration/validation.md.
 
+  ☐ Share a graphics boundary across contiguous VGE-owned sky contributors.
+    - Coordinate celestial background/stars, moon, sun and atmosphere submissions through the
+      existing GraphicsCommandContext/RenderPassSequence ownership path. Preserve contributor order,
+      blending, target routing and preparation/admission behavior; restore inherited engine state
+      once when the owned sequence ends instead of between adjacent contributors.
+    - Establish which callbacks can safely share authority. Preserve engine and third-party renderer
+      interleaving; do not extend a boundary across unknown external work or reorder contributors
+      merely to batch them. Keep success, skipped draws, failures and teardown independently safe.
+    - Use the laggy-clouds capture as baseline: moon restoration at events 1123–1133 is immediately
+      reversed by sun setup at 1136–1146. Evidence is retained in
+      ../artifacts/LaggyCloudState/confirmed-state-events.json.
+    - Verify through subagent-run focused GPU tests and matched call captures: unchanged sky/glow
+      output, render ordering, shader/resource ownership and engine handoff, including failures.
+      Demonstrate removal of intermediate routing/state restoration while retaining necessary
+      shader, resource and blending transitions. Separate call savings from GPU/frame-time claims.
+
+  ☐ Design PSO state-relevance semantics for parameters that cannot affect the declared draw.
+    - Write a proposal describing how PSO definitions recognize irrelevant state, distinguishing
+      irrelevant/dormant parameters from explicit default values and unknown live cache knowledge.
+      Evaluate derived relevance from existing declarations versus any necessary explicit policy;
+      retain a single shared state owner rather than adding renderer-specific bypasses.
+    - Define dependencies on primitive topology/polygon mode, scissor and depth/stencil enables,
+      blend enables and routed outputs. Explain line/point parameters, disabled scissor rectangles
+      and inactive blend parameters using concrete draw examples; account for clear operations
+      whose state requirements differ from those of raster draws.
+    - Specify preparation-time derivation, dynamic dependencies, validation, pipeline identity and
+      equality/cache behavior. Preserve authored values so a later relevant draw establishes them
+      correctly; do not equate an ignored parameter with permission to leave an enabled feature
+      using stale state. Define mutation/restoration coverage separately from declared values.
+    - Reconcile the proposal with Rendering.AuthoritativePipelineState.md and the complete-graphics
+      contract. Resolve the design before implementing relevance-aware state application below;
+      this task produces the design, not runtime changes or a separate implementation checklist.
+
+  ☐ Suppress application and restoration of draw-irrelevant graphics state.
+    - Implement the resolved PSO state-relevance design above in the shared pipeline application
+      and boundary coverage paths. Preserve dormant inherited parameters instead of normalizing
+      them to PSO defaults when they cannot affect the draw.
+    - Cover the captured cases: line width for filled triangles, scissor rectangles with scissoring
+      disabled, and blend parameters for disabled or unrouted outputs. Preserve applicable defaults
+      and establish the declared values before a subsequent draw makes those parameters relevant.
+      Do not remove necessary depth/cull/blend changes or weaken exact engine-state handoff.
+    - Keep relevance distinct from ordinary unchanged-value suppression. Unmodified dormant state
+      should require neither a native setter nor a compensating restoration; retain reliable cache
+      knowledge and conservative external-mutation invalidation through the existing StateCache.
+    - Verify with subagent-run focused GPU tests and captured native calls across inactive→active,
+      topology/output changes, clear/preserve operations, mixed indexed blending and failure paths.
+      Compare pixels and exact inherited state, demonstrate reduced setters/restoration, reconcile
+      current architecture documentation and rebuild the canonical package. Do not infer GPU-time
+      or frame-rate improvement from call counts alone.
+
   ☐ Preserve texture binding caching for lifecycle-aware borrowed rendering inputs.
     - Inspect raw integer sampler inputs, including cloud scene/visibility/liquid depth. Reuse or
       extend existing borrowed resource references so allocation identity and retirement are known.
