@@ -37,12 +37,12 @@ Implementation choices and conservative bounds
 Phase 1: Preserve declarations and derive prepared relevance
   Outcome: complete authored values and immutable relevance metadata have executable contracts;
   production application and boundary coverage remain on their existing conservative path.
-  ☐ Reverify declaration, preparation and call-group ownership against current source.
+  ☑ Reverify declaration, preparation and call-group ownership against current source.
     - Inspect GraphicsPipelineDesc, PipelineCanonicalization, GraphicsPipeline lifetime/preparation,
       StateCache complete application, category knowledge, PipelineStateCoverage and pass validation.
     - Record native setters that update combined fields or alias all output slots; use their actual
       write groups as the unit of relevance/coverage, distinct from declared values and validity bits.
-  ☐ Preserve dormant authored intent and predictable pipeline identity.
+  ☑ Preserve dormant authored intent and predictable pipeline identity.
     - Remove destructive disabled-value canonicalization for depth/stencil, raster, blend, sampling
       and assembly settings. Retain only semantically lossless representation normalization.
     - Validate all authored enums, ranges, finite values and capabilities before derivation, including
@@ -50,18 +50,27 @@ Phase 1: Preserve declarations and derive prepared relevance
       declarations with different dormant authored values remain distinct.
     - Keep declared dynamic values required and validated even when dormant. Preserve concrete
       defaults for undeclared dynamic slots; neither omitted nor skipped values inherit intent.
-  ☐ Derive immutable field/group and indexed-slot relevance with prepared pipelines.
+  ☑ Derive immutable field/group and indexed-slot relevance with prepared pipelines.
     - Derive static selectors from topology, polygon mode, enables, target aspects/formats/samples,
       sparse output slots, equations and constant-factor use. Validate against matched pass signatures.
     - Resolve emitted primitive information during preparation where verified metadata exists;
       otherwise use the conservative unknown-output path. Rebuild with executable reload/lifetime.
     - Current dynamic values do not toggle selectors. Document the future-selector rule: predeclare
       union coverage before entry and resolve the operation mask before application.
-  ☐ Verify authored retention, equality/hash differences, lossless normalization, invalid dormant
+  ☑ Verify authored retention, equality/hash differences, lossless normalization, invalid dormant
     settings, explicit defaults, dynamic requirements, sparse/integer targets, emitted primitive
     fallback and reload metadata. Update obsolete canonical-equality expectations with intent checks.
-  ☐ Completion: focused subagent-run contracts pass; every dependency-table row maps to a derived
+  ☑ Completion: focused subagent-run contracts pass; every dependency-table row maps to a derived
     group or an explicit conservative rule, without activating sparse application prematurely.
+    - Verified after second review and independent audit-stage-completion: 101/101 focused cases
+      passed in each of Debug and Release, zero failures/skips. Includes actual tessellation metadata,
+      reload/target contracts and global-blending fallback MRT pixels plus exact factor restoration.
+      Authored retention requires selecting enabled blend intent on the existing global fallback;
+      application and boundary coverage otherwise retain conservative full-state behavior.
+      Receipts: ../artifacts/pso-state-relevance/phase1/phase1-final-debug.trx and
+      ../artifacts/pso-state-relevance/phase1/phase1-final-release.trx. Build/test logs:
+      ../artifacts/pso-phase1-final-debug.log and ../artifacts/pso-phase1-final-release.log.
+      No package, live appearance or timing acceptance is claimed; those are not required here.
 
 Phase 2: Separate sparse authority from complete admission
   Depends on Phase 1. Outcome: sparse coverage and helper envelopes are verified and ready for

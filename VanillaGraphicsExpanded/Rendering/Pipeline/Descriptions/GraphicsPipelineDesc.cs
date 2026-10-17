@@ -40,10 +40,7 @@ internal sealed class GraphicsPipelineDesc : IEquatable<GraphicsPipelineDesc>
         // Validate authored values before canonicalization so invalid inactive enums never silently pass.
         PipelineDescriptionValidation.Validate(this, capabilities);
         DepthStencil = PipelineCanonicalization.DepthStencil(DepthStencil);
-        Rasterizer = PipelineCanonicalization.Rasterizer(Rasterizer);
-        Blending = new(Blending.Select(PipelineCanonicalization.Blend));
         Sampling = PipelineCanonicalization.Sampling(Sampling);
-        Assembly = PipelineCanonicalization.Assembly(Assembly);
     }
     #endregion
 

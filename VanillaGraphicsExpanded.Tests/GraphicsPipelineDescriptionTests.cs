@@ -63,20 +63,70 @@ public sealed class GraphicsPipelineDescriptionTests
         Assert.False((object)pipeline.Blending is IList<ColorBlendDesc>);
     }
 
-    /// <summary>Inactive native values canonicalize while later enabled descriptions retain their complete intent.</summary>
+    /// <summary>Dormant authored values remain concrete and distinguish reusable identities before their features activate.</summary>
     [Fact]
-    public void DisabledValuesCanonicalizeWithoutLosingEnabledIntent()
+    public void DisabledValuesRetainAuthoredIntentAndIdentity()
     {
-        Assert.Equal(Create(), Create(rasterizer: new() { CullMode = CullFaceMode.Front, DepthBiasFactor = 3 },
-            depth: new() { Front = new() { Pass = StencilOp.Replace } },
+        var baseline = Create();
+        GraphicsPipelineDesc[] dormant = [
+            Create(depth: new() { DepthComparison = DepthFunction.Greater }),
+            Create(depth: new() { Front = new() { Pass = StencilOp.Replace } }),
+            Create(depth: new() { Back = new() { WriteMask = 15 } }),
+            Create(rasterizer: new() { CullMode = CullFaceMode.Front }),
+            Create(rasterizer: new() { DepthBiasFactor = 3 }),
+            Create(rasterizer: new() { LineStippleFactor = 2 }),
+            Create(rasterizer: new() { AlphaReference = .3f }),
+            Create(blending: [new() { SourceRgb = BlendingFactorSrc.SrcAlpha }]),
+            Create(blending: [new() { RgbEquation = BlendEquationMode.Min }]),
+            Create(sampling: new() { Coverage = .3f }),
+            Create(sampling: new() { CoverageInvert = true }),
+            Create(sampling: new() { MinimumSampleShading = .5f }),
+            Create(sampling: new() { Masks = new([17u]) }),
+            Create(assembly: new() { RestartIndex = 17 }),
+            Create(assembly: new() { PatchVertices = 7 })];
+        foreach (var authored in dormant)
+        {
+            Assert.NotEqual(baseline, authored);
+            Assert.NotEqual(baseline.GetHashCode(), authored.GetHashCode());
+        }
+        var retained = Create(rasterizer: new() { CullMode = CullFaceMode.Front, DepthBiasFactor = 3 },
+            depth: new() { DepthComparison = DepthFunction.Greater, Front = new() { Pass = StencilOp.Replace } },
             blending: [new() { SourceRgb = BlendingFactorSrc.SrcAlpha }],
-            sampling: new() { Coverage = .3f, CoverageInvert = true, MinimumSampleShading = .5f },
-            assembly: new() { RestartIndex = 17, PatchVertices = 7 }));
+            sampling: new() { Coverage = .3f, CoverageInvert = true, MinimumSampleShading = .5f, Masks = new([17u]) },
+            assembly: new() { RestartIndex = 17, PatchVertices = 7 });
+        Assert.Equal(DepthFunction.Greater, retained.DepthStencil.DepthComparison);
+        Assert.Equal(StencilOp.Replace, retained.DepthStencil.Front.Pass);
+        Assert.Equal(CullFaceMode.Front, retained.Rasterizer.CullMode);
+        Assert.Equal(3, retained.Rasterizer.DepthBiasFactor);
+        Assert.Equal(BlendingFactorSrc.SrcAlpha, retained.Blending[0].SourceRgb);
+        Assert.Equal(.3f, retained.Sampling.Coverage);
+        Assert.True(retained.Sampling.CoverageInvert);
+        Assert.Equal(.5f, retained.Sampling.MinimumSampleShading);
+        Assert.Equal(17u, retained.Sampling.Masks![0]);
+        Assert.Equal(uint.MaxValue, retained.Sampling.GetMaskWord(0));
+        Assert.Equal(17u, retained.Assembly.RestartIndex);
+        Assert.Equal(7, retained.Assembly.PatchVertices);
         Assert.NotEqual(Create(rasterizer: new() { Cull = true }),
             Create(rasterizer: new() { Cull = true, CullMode = CullFaceMode.Front }));
         Assert.NotEqual(Create(blending: [new() { Enabled = true }]),
             Create(blending: [new() { Enabled = true, SourceRgb = BlendingFactorSrc.SrcAlpha }]));
         Assert.NotEqual(Create(), Create(blending: [new() { WriteAlpha = false }]));
+    }
+
+    /// <summary>Ignored MIN/MAX operands retain authored factors, while representation-only masks still normalize.</summary>
+    [Fact]
+    public void OnlyLosslessRepresentationsNormalize()
+    {
+        var minimum = new ColorBlendDesc { Enabled = true, RgbEquation = BlendEquationMode.Min,
+            AlphaEquation = BlendEquationMode.Max, SourceRgb = BlendingFactorSrc.SrcAlpha,
+            DestinationRgb = BlendingFactorDest.DstColor, SourceAlpha = BlendingFactorSrc.DstAlpha,
+            DestinationAlpha = BlendingFactorDest.One };
+        Assert.Equal(minimum, Create(blending: [minimum]).Blending[0]);
+        Assert.NotEqual(Create(blending: [minimum]), Create(blending: [minimum with { SourceRgb = BlendingFactorSrc.One }]));
+        Assert.Equal(Create(depth: new() { Front = new() { ReadMask = 255, WriteMask = 255 } }), Create());
+        Assert.Equal(Create(sampling: new() { Masks = new([17u]) }),
+            Create(sampling: new() { Masks = new([17u, uint.MaxValue]) }));
+        Assert.Equal(Create(), Create(sampling: new() { Masks = new([uint.MaxValue, uint.MaxValue]) }));
     }
 
     /// <summary>All draw-relevant description families participate in reusable identity.</summary>
@@ -184,6 +234,26 @@ public sealed class GraphicsPipelineDescriptionTests
         Assert.Throws<NotSupportedException>(() => Create(capabilities: Capabilities() with { DepthClamp = false }, rasterizer: new() { DepthClamp = true }));
         Assert.Throws<NotSupportedException>(() => Create(capabilities: Capabilities() with { SampleShading = false }, sampling: new() { SampleShading = true }));
         Assert.Throws<NotSupportedException>(() => Create(capabilities: Capabilities() with { FixedIndexRestart = false }, assembly: new() { FixedIndexRestart = true }));
+    }
+
+    /// <summary>Disabled features cannot conceal malformed operands behind relevance filtering or normalization.</summary>
+    [Fact]
+    public void InvalidDormantOperandsRejectBeforePublication()
+    {
+        Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { Front = new() { ReadMask = 256 } }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { Back = new() { WriteMask = 256 } }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { Front = new() { Pass = (StencilOp)(-1) } }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { CullMode = (CullFaceMode)(-1) }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { DepthBiasFactor = float.NaN }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { AlphaReference = float.PositiveInfinity }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { LineStippleFactor = 0 }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { SourceRgb = (BlendingFactorSrc)(-1) }]));
+        Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { RgbEquation = (BlendEquationMode)(-1) }]));
+        Assert.ThrowsAny<ArgumentException>(() => Create(sampling: new() { Coverage = 2 }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(sampling: new() { MinimumSampleShading = float.NaN }));
+        Assert.Throws<NotSupportedException>(() => Create(sampling: new() { Masks = new([1u, 2u, 3u]) }));
+        Assert.ThrowsAny<ArgumentException>(() => Create(assembly: new() { PatchVertices = 0 }));
+        Assert.Throws<NotSupportedException>(() => Create(assembly: new() { PatchVertices = 33 }));
     }
     #endregion
     #region Field-sensitive identity

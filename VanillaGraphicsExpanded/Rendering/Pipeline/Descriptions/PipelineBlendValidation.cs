@@ -26,9 +26,12 @@ internal static class PipelineBlendValidation
                 throw new ArgumentException("Constant blend factors require declared blend-constant dynamics.");
         }
         // Pre-ARB_draw_buffers_blend supports indexed enables/masks, but equations/factors remain global.
-        var active = value.Blending.Where(b => b.Enabled).Select(PipelineCanonicalization.Blend).ToArray();
-        if (!caps.IndependentBlend && active.Select(b => (b.RgbEquation, b.AlphaEquation, b.SourceRgb,
-            b.DestinationRgb, b.SourceAlpha, b.DestinationAlpha)).Distinct().Count() > 1)
+        var active = value.Blending.Where(b => b.Enabled).ToArray();
+        if (!caps.IndependentBlend && active.Select(b => (b.RgbEquation, b.AlphaEquation,
+            SourceRgb: PipelineCanonicalization.UsesFactors(b.RgbEquation) ? b.SourceRgb : BlendingFactorSrc.One,
+            DestinationRgb: PipelineCanonicalization.UsesFactors(b.RgbEquation) ? b.DestinationRgb : BlendingFactorDest.Zero,
+            SourceAlpha: PipelineCanonicalization.UsesFactors(b.AlphaEquation) ? b.SourceAlpha : BlendingFactorSrc.One,
+            DestinationAlpha: PipelineCanonicalization.UsesFactors(b.AlphaEquation) ? b.DestinationAlpha : BlendingFactorDest.Zero)).Distinct().Count() > 1)
             throw new NotSupportedException("Independent output equations/factors are unavailable.");
         if (value.Output.FramebufferSrgb && !value.Targets.Colors.Any(s => s.Format is PixelInternalFormat.Srgb8 or PixelInternalFormat.Srgb8Alpha8))
             throw new ArgumentException("Framebuffer sRGB requires an sRGB target.");

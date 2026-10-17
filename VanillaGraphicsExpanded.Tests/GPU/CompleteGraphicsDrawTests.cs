@@ -49,6 +49,58 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
         }
         finally { cache.ApplyGraphicsState(description, new GraphicsDynamicState { Viewport = new() { Width = 8, Height = 8 } }); }
     }
+
+    /// <summary>Global fallback uses enabled output intent even when an earlier disabled output retains different factors.</summary>
+    [Fact]
+    public void GlobalBlendFallbackIgnoresDormantEarlierOutputFactors()
+    {
+        fixture.MakeCurrent();
+        using var draw = new FullscreenDraw();
+        var original = GpuSupport.Graphics;
+        var capabilityField = HarmonyLib.AccessTools.Field(typeof(GpuSupport), "graphics");
+        var cache = StateCache.Current;
+        try
+        {
+            // The real context supports global blending; only the optional independent path is disabled.
+            capabilityField.SetValue(null, original with { IndependentBlend = false });
+            var baseline = Description();
+            var description = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout, baseline.Targets,
+                baseline.Dynamics, blending: [new() { SourceRgb = BlendingFactorSrc.Zero, DestinationRgb = BlendingFactorDest.One },
+                    new() { Enabled = true }, new()]);
+            GL.Disable(EnableCap.ScissorTest); GL.Disable(EnableCap.RasterizerDiscard); GL.ColorMask(true, true, true, true);
+            for (int slot = 0; slot < 3; slot++) GL.ClearBuffer(ClearBuffer.Color, slot, new float[4]);
+            GL.BlendFunc(BlendingFactor.Zero, BlendingFactor.One);
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
+            cache.InvalidateAll();
+            Assert.True(CompleteGraphicsBoundary.TryRun("GlobalBlendFallback", [description], [], true, _ =>
+            {
+                cache.ApplyGraphicsState(description, new() { Viewport = new() { Width = 8, Height = 8 } });
+                GL.GetInteger((GetIndexedPName)GetPName.BlendSrcRgb, 1, out int source);
+                GL.GetInteger((GetIndexedPName)GetPName.BlendDstRgb, 1, out int destination);
+                Assert.Equal((int)BlendingFactorSrc.One, source);
+                Assert.Equal((int)BlendingFactorDest.Zero, destination);
+                draw.Render();
+            }));
+            draw.AssertPixels();
+            for (int slot = 0; slot < cache.MaxDrawBuffers; slot++)
+            {
+                GL.GetInteger((GetIndexedPName)GetPName.BlendSrcRgb, slot, out int source);
+                GL.GetInteger((GetIndexedPName)GetPName.BlendDstRgb, slot, out int destination);
+                Assert.Equal((int)BlendingFactorSrc.Zero, source);
+                Assert.Equal((int)BlendingFactorDest.One, destination);
+                GL.GetInteger((GetIndexedPName)GetPName.BlendSrcAlpha, slot, out int alphaSource);
+                GL.GetInteger((GetIndexedPName)GetPName.BlendDstAlpha, slot, out int alphaDestination);
+                Assert.Equal((int)BlendingFactorSrc.Zero, alphaSource);
+                Assert.Equal((int)BlendingFactorDest.One, alphaDestination);
+            }
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            capabilityField.SetValue(null, original);
+            cache.InvalidateAll();
+        }
+    }
     #endregion
     #region Private
     /// <summary>Uses the lighting consumer's three-color fullscreen shape without migrating its production renderer.</summary>

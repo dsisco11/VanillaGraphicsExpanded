@@ -12,8 +12,8 @@ internal static class PipelineFixedFunctionValidation
     {
         var depth = value.DepthStencil;
         Defined(depth.DepthComparison);
-        ValidateStencil(depth.Front, depth.StencilTest);
-        ValidateStencil(depth.Back, depth.StencilTest);
+        ValidateStencil(depth.Front);
+        ValidateStencil(depth.Back);
         var raster = value.Rasterizer;
         Defined(raster.CullMode); Defined(raster.FrontFace); Defined(raster.PolygonMode); Defined(raster.ProvokingVertex);
         Finite(raster.DepthBiasFactor); Finite(raster.DepthBiasUnits);
@@ -52,14 +52,14 @@ internal static class PipelineFixedFunctionValidation
     #endregion
 
     #region Private
-    /// <summary>Validates both disabled authored faces and active attachment-width constraints.</summary>
-    private static void ValidateStencil(StencilFaceDesc face, bool enabled)
+    /// <summary>Validates both active and dormant faces against the supported eight-bit representation.</summary>
+    private static void ValidateStencil(StencilFaceDesc face)
     {
         ArgumentNullException.ThrowIfNull(face);
         Defined(face.Comparison); Defined(face.Fail); Defined(face.DepthFail); Defined(face.Pass);
         // Every supported stencil target has eight bits. All-ones is the portable construction default.
-        if (enabled && ((face.ReadMask > 255 && face.ReadMask != uint.MaxValue)
-            || (face.WriteMask > 255 && face.WriteMask != uint.MaxValue)))
+        if ((face.ReadMask > 255 && face.ReadMask != uint.MaxValue)
+            || (face.WriteMask > 255 && face.WriteMask != uint.MaxValue))
             throw new ArgumentException("Stencil mask exceeds the target's eight-bit aspect.");
     }
     /// <summary>Rejects undefined native enum values in all configurations.</summary>

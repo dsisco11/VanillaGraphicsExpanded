@@ -14,6 +14,8 @@ internal sealed class GraphicsPipeline : IDisposable
     internal GpuProgram Shader { get; }
     internal ulong ExecutableRevision { get; }
     internal GpuPreparedBindings Bindings { get; }
+    /// <summary>Prepared relevance metadata; native application and restoration still use conservative coverage.</summary>
+    internal GraphicsStateRelevance Relevance { get; }
 
     #region Public API
     /// <summary>Publishes only after shader readiness and all executable/description contracts have passed.</summary>
@@ -28,6 +30,7 @@ internal sealed class GraphicsPipeline : IDisposable
             throw new InvalidOperationException("The installed shader selection does not match the graphics description.");
         PipelineDescriptionValidation.Validate(description, GpuSupport.Graphics);
         GraphicsInterfaceValidation.Validate(description, shader.GraphicsInterface);
+        Relevance = GraphicsStateRelevance.Derive(description, GpuSupport.Graphics, shader.GraphicsInterface);
         Bindings = shader.ProgramLayout.BinaryInterface?.PreparedBindings
             ?? throw new InvalidOperationException("The executable has no prepared resource contract.");
         this.lifetime = lifetime;

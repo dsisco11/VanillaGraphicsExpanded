@@ -45,20 +45,23 @@ public sealed class ConfigurableRasterizerDescriptionTests
         Assert.NotEqual(Create(new() { PolygonStipple = true }), Create(new() { PolygonStipple = true, PolygonStipplePattern = new(new byte[128]) }));
     }
 
-    /// <summary>Patterns are copied and structurally compared while inactive parameters canonicalize.</summary>
+    /// <summary>Patterns are copied and structurally compared with dormant authored parameters retained.</summary>
     [Fact]
-    public void PatternOwnershipAndInactiveCanonicalizationAreStable()
+    public void PatternOwnershipAndDormantAuthoredValuesAreStable()
     {
         byte[] bytes = Enumerable.Range(0, 128).Select(value => (byte)value).ToArray();
         var authored = new RasterizerDesc { PolygonStipplePattern = new(bytes), AlphaComparison = AlphaFunction.Less,
             AlphaReference = .5f, LineStippleFactor = 256, LineStipplePattern = 17 };
-        Assert.Equal(Create(new()), Create(authored));
+        var dormant = Create(authored);
+        Assert.NotEqual(Create(new()), dormant);
+        Assert.Equal(authored, dormant.Rasterizer);
         var enabled = Create(authored with { PolygonStipple = true, AlphaTest = true, LineStipple = true });
         var copy = Create(authored with { PolygonStipple = true, AlphaTest = true, LineStipple = true, PolygonStipplePattern = new(bytes.ToArray()) });
         Assert.Equal(enabled, copy);
         Assert.Equal(enabled.GetHashCode(), copy.GetHashCode());
         int hash = enabled.GetHashCode();
         bytes[0] = 255;
+        Assert.Equal(0, dormant.Rasterizer.PolygonStipplePattern[0]);
         Assert.Equal(0, enabled.Rasterizer.PolygonStipplePattern[0]);
         Assert.Equal(hash, enabled.GetHashCode());
         Assert.Equal(.5f, enabled.Rasterizer.AlphaReference);

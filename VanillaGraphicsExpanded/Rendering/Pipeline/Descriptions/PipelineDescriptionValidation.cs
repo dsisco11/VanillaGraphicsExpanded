@@ -49,7 +49,8 @@ internal static class PipelineDescriptionValidation
         bool patches = assembly.Topology == PrimitiveType.Patches;
         if (control != evaluation || patches != (control && evaluation) || assembly.PatchVertices < 1)
             throw new ArgumentException("Patch topology requires paired tessellation stages and a positive patch size.");
-        if (patches && (!caps.Tessellation || assembly.PatchVertices > caps.MaxPatchVertices)
+        // Retained dormant patch sizes must also be legal when the device supports patch state.
+        if (patches && !caps.Tessellation || caps.Tessellation && assembly.PatchVertices > caps.MaxPatchVertices
             || assembly.FixedIndexRestart && !caps.FixedIndexRestart)
             throw new NotSupportedException("Unsupported tessellation or restart configuration.");
         if (assembly.Restart && assembly.FixedIndexRestart)

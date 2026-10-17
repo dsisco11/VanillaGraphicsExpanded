@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Pipeline.State;
@@ -101,7 +102,9 @@ internal sealed partial class StateCache
         int count = MaxDrawBuffers;
         if (!GpuSupport.Graphics.IndependentBlend)
         {
-            var common = pipeline.Blending.Count == 0 ? NeutralBlend : pipeline.Blending[0];
+            // Dormant slot-zero operands cannot define the shared blend policy for enabled outputs.
+            // Description validation guarantees compatible active equations/factors on this path.
+            var common = pipeline.Blending.FirstOrDefault(value => value.Enabled) ?? NeutralBlend;
             SetBlendFunc(new(common.SourceRgb, common.DestinationRgb, common.SourceAlpha, common.DestinationAlpha));
             SetBlendEquation(common.RgbEquation, common.AlphaEquation);
         }

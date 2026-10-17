@@ -15,9 +15,11 @@ owned work could mutate, even if that field becomes irrelevant to the last draw 
 
 ## Current implementation
 
-- `GraphicsPipelineDesc` validates authored values, then `PipelineCanonicalization` replaces several
-  disabled parameters with defaults. Disabled blend factors, cull mode and stencil faces can lose
-  their authored values before application.
+- `GraphicsPipelineDesc` validates and retains dormant authored values. `PipelineCanonicalization`
+  normalizes only equivalent stencil-mask and sample-mask representations.
+- Prepared `GraphicsPipeline.Relevance` derives immutable potential write groups, using existing
+  tessellation output metadata where available and conservative geometry-output fallback. Runtime
+  application and boundary authority do not yet consume these groups.
 - `StateCache.ApplyGraphicsState` establishes all supported parameters, including line width for
   filled triangles, a zero scissor rectangle when scissoring is disabled, and neutral blend state
   through every native output slot.

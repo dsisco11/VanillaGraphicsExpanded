@@ -86,6 +86,47 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         Assert.Throws<ArgumentException>(() => cache.ApplyGraphicsState(Pipeline(true), new()));
         Assert.Equal(calls, cache.FixedFunctionCalls); Assert.False(GL.IsEnabled(EnableCap.StencilTest));
     }
+
+    /// <summary>Explicit dynamic slots remain required and validated even when their static selectors are dormant.</summary>
+    [Fact]
+    public void DormantDynamicSlotsRetainRequirementsAndConcreteDefaults()
+    {
+        fixture.MakeCurrent();
+        var cache = StateCache.Current;
+        var baseline = Pipeline(false);
+        var dormant = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout, baseline.Targets,
+            DynamicPipelineState.All, depthStencil: baseline.DepthStencil, rasterizer: baseline.Rasterizer,
+            blending: baseline.Blending, sampling: baseline.Sampling, assembly: baseline.Assembly);
+        var defaults = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout, baseline.Targets,
+            DynamicPipelineState.Viewport, depthStencil: baseline.DepthStencil, rasterizer: baseline.Rasterizer,
+            blending: baseline.Blending, sampling: baseline.Sampling, assembly: baseline.Assembly);
+        var valid = new GraphicsDynamicState { Viewport = new() { Width = 8, Height = 8 },
+            Scissor = (1, 2, 3, 4), StencilReference = (5, 6), BlendConstant = (.1f, .2f, .3f, .4f) };
+        cache.ApplyGraphicsState(baseline, Dynamics());
+        long calls = cache.FixedFunctionCalls;
+        foreach (var invalid in new[] { valid with { Scissor = null }, valid with { Scissor = (0, 0, -1, 1) },
+            valid with { StencilReference = null }, valid with { StencilReference = (256, 0) },
+            valid with { BlendConstant = null }, valid with { BlendConstant = (float.NaN, 0, 0, 0) } })
+        {
+            Assert.Throws<ArgumentException>(() => cache.ApplyGraphicsState(dormant, invalid));
+            Assert.Equal(calls, cache.FixedFunctionCalls);
+        }
+        try
+        {
+            cache.ApplyGraphicsState(dormant, valid);
+            int[] rectangle = new int[4]; GL.GetInteger(GetPName.ScissorBox, rectangle);
+            Assert.Equal(new[] { 1, 2, 3, 4 }, rectangle);
+            // Omitting dynamic declarations keeps concrete defaults, independent of the preceding draw.
+            cache.ApplyGraphicsState(defaults, new() { Viewport = valid.Viewport });
+            GL.GetInteger(GetPName.ScissorBox, rectangle);
+            Assert.Equal(new[] { 0, 0, 0, 0 }, rectangle);
+            Assert.Equal(0, GL.GetInteger(GetPName.StencilRef));
+            Assert.Equal(0, GL.GetInteger(GetPName.StencilBackRef));
+            float[] constant = new float[4]; GL.GetFloat(GetPName.BlendColor, constant);
+            Assert.Equal(new float[4], constant);
+        }
+        finally { cache.ApplyGraphicsState(baseline, Dynamics()); }
+    }
     /// <summary>Records driver reference clamping against actual target stencil precision.</summary>
     [Fact]
     public void StencilReferenceNativeLimits()
@@ -130,9 +171,10 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
     public void SamplingInvalidationPreservesOtherCategories()
     {
         fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
-        cache.ApplyGraphicsState(Pipeline(false), Dynamics()); long calls = cache.FixedFunctionCalls;
+        var description = Pipeline(false);
+        cache.ApplyGraphicsState(description, Dynamics()); long calls = cache.FixedFunctionCalls;
         cache.Invalidate(EPipelineState.Sampling);
-        cache.SetDepthFunc(DepthFunction.Less); cache.SetScissor(2, 4, 11, 13); cache.SetBlendConstant(.125f, .25f, .5f, .75f);
+        cache.SetDepthFunc(description.DepthStencil.DepthComparison); cache.SetScissor(2, 4, 11, 13); cache.SetBlendConstant(.125f, .25f, .5f, .75f);
         Assert.Equal(calls, cache.FixedFunctionCalls);
         GL.SampleCoverage(.25f, true);
         cache.SetSampleCoverage(1, false); Assert.Equal(calls + 1, cache.FixedFunctionCalls);

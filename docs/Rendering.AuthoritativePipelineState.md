@@ -311,10 +311,10 @@ is complete.
 ## Configurable raster state contract
 
 All added settings are static pipeline inputs; no new dynamic declaration is needed. Authored inactive
-values are validated before canonicalization: disabled alpha parameters become Always/0, disabled line
-stipple becomes factor 1/pattern 0xffff, and disabled polygon stipple becomes the all-ones mask. A newly
-authored enabled description retains its complete parameters. Boundary snapshots preserve actual
-incoming parameters even while their enable is false, without canonicalizing engine state.
+values are validated and retained, including disabled alpha parameters, line stipple factor/pattern
+and polygon stipple masks. Descriptions preserve that intent independently of feature enables.
+Boundary snapshots preserve actual incoming parameters even while their enable is false, without
+canonicalizing engine state.
 
 Custom shader clip distances are unsupported. Graphics descriptions and prepared realizations
 carry no clip-enable mask, and shader packaging does not extract clipping outputs or analyze their
@@ -469,13 +469,48 @@ unsupported topology/stage combinations, device-limit violations and unavailable
 reject. Polygon mode applies equally to both faces. Clip and compatibility settings follow the
 configurable raster contract above; logic operations remain fixed neutral policy.
 
-Inactive culling, stencil, blending, bias, restart, patch size and sampling values resolve to explicit
-canonical values. Enabled configurations retain their full authored behavior; constructing another
-enabled description validates and retains its supplied settings. Color masks remain significant with
-blending disabled. Sample masks have an explicit all-ones suffix: `SamplingDesc.GetMaskWord(index)`
-resolves every native word, so a future state applier must visit all supported words, including omitted
-ones. Trailing all-ones words do not distinguish identities. This avoids device-dependent defaults and
-never permits stale native mask words to survive application.
+Inactive culling, stencil, blending, bias, restart, patch size and sampling values retain authored
+intent and participate in structural identity. Labels and native resource identities remain excluded.
+Normalization removes only equivalent representations: stencil all-bits masks resolve to the supported
+eight-bit width, and trailing all-ones sample-mask words do not distinguish identities. Invalid dormant
+settings still reject. Color masks remain significant with blending disabled. Sample masks retain
+their authored payload while disabled; `SamplingDesc.GetMaskWord(index)` resolves all ones when masking
+is disabled and supplies an all-ones suffix when enabled. Current complete application still visits all
+supported mask words and native output slots, including dormant parameters.
+
+### Prepared state relevance metadata
+
+`GraphicsPipeline.Relevance` retains immutable `GraphicsStateRelevance` alongside its validated
+executable revision. It derives potential native write groups from complete authored state, target
+aspects/formats, sparse output slots and primitive selectors, separately from live cache knowledge.
+No application path or boundary currently consumes this metadata: `StateCache.ApplyGraphicsState`
+still applies conservative complete state and `PipelineStateCoverage.From` still covers all fields.
+This metadata does not claim setter reductions or replace partial `GlPipelineDesc` mutation intent.
+
+Ordinary vertex-stage output follows assembly topology. Tessellation-only output uses the existing
+prepared `GraphicsExecutableInterface.TessellationOutput`; geometry shaders retain conservative
+primitive-family relevance because preparation retains their input type, not output type. Missing
+tessellation metadata is also conservative. Derivation performs no native query or shader source scan.
+Replacement realizations rebuild metadata after shader reload and retain existing exact-target and
+stale-executable validation. Current dynamic values do not toggle selectors; any future dynamic selector
+must predeclare its possible mutation union before entry and resolve operation relevance before use.
+
+The metadata retains conservative viewport, depth range, clipping, provoking vertex, discard, output
+interpretation, sampling enables and restart enables. Dependency rules for parameter payloads follow
+[the approved relevance design](Rendering.PsoStateRelevance.Proposal.md). Indexed output groups refer
+to fragment output locations in the validated signature, never attachment numbers or incidental routes.
+Combined native writes and aliases retain their complete groups:
+
+| Native operation | Relevance group and actual write extent |
+|---|---|
+| BlendFuncSeparatei / BlendEquationSeparatei | One slot's complete RGB/alpha factor or equation tuple; a single relevant channel includes all tuple operands. |
+| Global blend functions/equations | All native output slots, including unrouted slots; GlobalBlend records payload aliasing without making their indexed enables/masks relevant. |
+| StencilFuncSeparate / StencilOpSeparate | One face's function/reference/read-mask tuple or fail/depth-fail/pass tuple; FrontAndBack aliases both groups. |
+| PolygonMode / PolygonOffset / ClipControl | Complete front/back modes, factor/units, or origin/depth tuple respectively. |
+| Scissor / BlendColor / SampleCoverage | Complete rectangle, RGBA constant, or coverage/inversion tuple. |
+
+These are group identifiers only. Skipping future irrelevant application must not mark a declared
+value known/applied; capture/restoration authority remains a separate concern owned by StateCache.
 
 [GpuSupport.Graphics](../VanillaGraphicsExpanded/Rendering/GpuSupport.Graphics.cs) extends the existing
 capability capture with vertex binding/stride/offset limits, sample-mask words, line/point ranges and
