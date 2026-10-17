@@ -216,6 +216,11 @@ properties must not repeat binding attributes. Concrete abstract
 properties require an authored body or a defining partial declaration instead.
 
 Nullable `GpuTexture?` sampler properties preserve their authored null/unbind behavior.
+Sampler properties may also use `GpuTextureView?` with an explicit texture target and sampler policy.
+`GpuTextureView.CreateFromTexture` records the managed source allocation and exposes a restricted
+immutable mip/layer range. Generated submission validates source lifetime and view compatibility,
+and rejects overlap between the sampled view and an active framebuffer image on every use.
+Storage replacement invalidates managed views even when a native texture name is reused.
 Existing engine texture-ID setters can declare `int` sampler properties on the interface;
 they require an authored setter selecting the texture target and sampler policy. New
 generated setters use GPU resource types. Liquid keeps its seven engine-facing setters

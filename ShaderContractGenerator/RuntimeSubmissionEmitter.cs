@@ -177,7 +177,9 @@ internal static class RuntimeSubmissionEmitter
                     .Append("(binding").Append(i).Append(", ");
                 // Select the managed-resource overload even when a concrete texture also converts to an engine ID.
                 if (kind == ShaderBindingKind.Sampler && property.Type.SpecialType != SpecialType.System_Int32)
-                    text.Append("(global::VanillaGraphicsExpanded.Rendering.GpuTexture?)");
+                    text.Append(property.Type.ToDisplayString().TrimEnd('?') == "VanillaGraphicsExpanded.Rendering.GpuTextureView"
+                        ? "(global::VanillaGraphicsExpanded.Rendering.GpuTextureView?)"
+                        : "(global::VanillaGraphicsExpanded.Rendering.GpuTexture?)");
                 text.Append("input").Append(i);
                 if (validate && (kind == ShaderBindingKind.Image ||
                     (kind == ShaderBindingKind.Sampler && property.Type.SpecialType != SpecialType.System_Int32) ||

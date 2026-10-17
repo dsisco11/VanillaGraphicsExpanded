@@ -55,6 +55,11 @@ internal struct ShaderInputValidation
         texture.TextureId, (int)texture.TextureTarget, (int)texture.InternalFormat, texture.Width, texture.Height,
         texture.Depth, texture.StorageMipLevels, view, 0, 0, 0);
 
+    /// <summary>Snapshots a separate immutable view object and its fixed subresource range.</summary>
+    internal static InputKey TextureKey(GpuTextureView view) => new(view,
+        view.TextureId, (int)view.Target, (int)view.InternalFormat, 0, 0,
+        view.LayerCount, view.LevelCount, default, view.BaseLevel, view.BaseLayer, view.SourceTextureId);
+
     /// <summary>Snapshots the retained range and current owner-controlled capacity.</summary>
     internal static InputKey StorageKey(GpuStorageBufferBinding range) => new(range.Buffer!,
         range.Buffer!.BufferId, 0, 0, 0, 0, 0, 0, default, range.OffsetBytes, range.SizeBytes, range.Buffer.SizeBytes);

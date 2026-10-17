@@ -1,10 +1,6 @@
-uniform sampler2D history0;
-uniform sampler2D history1;
-uniform sampler2D history2;
-/** Fetches an unfiltered physical history channel without mixing unrelated depth records. */
+uniform sampler2DArray historyPayload;
+/** Fetches a block-local physical payload layer without exposing another block's writable images. */
 vec4 CloudHistoryFetch(int layer,ivec2 pixel)
 {
-    if(layer==0) return texelFetch(history0,pixel,0);
-    if(layer==1) return texelFetch(history1,pixel,0);
-    return texelFetch(history2,pixel,0);
+    return texelFetch(historyPayload,ivec3(pixel,layer),0);
 }

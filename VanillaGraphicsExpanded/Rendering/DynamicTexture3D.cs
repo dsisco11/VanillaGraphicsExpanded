@@ -5,9 +5,8 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>
-/// Encapsulates an OpenGL 3D texture or 2D texture array with lifecycle management.
-/// Used for LumOn octahedral radiance cache storage.
-/// Dimensions: (width, height, depth/layers) where each layer is one probe's octahedral map.
+/// Owns an OpenGL continuous 3D volume or an array of discrete two-dimensional layers.
+/// Optional immutable allocation supports texture views sharing restricted layer ranges.
 /// </summary>
 /// <remarks>
 /// For octahedral radiance cache, use Texture2DArray to avoid interpolation between probes.
@@ -60,6 +59,7 @@ public sealed class DynamicTexture3D : GpuTexture
     /// <param name="format">Internal pixel format (e.g., Rgba16f).</param>
     /// <param name="filter">Filtering mode for sampling. Default is Linear.</param>
     /// <param name="textureTarget">OpenGL texture target. Default is Texture2DArray (recommended for probes).</param>
+    /// <param name="immutableStorage">Allocates immutable storage suitable for texture views when true.</param>
     /// <returns>A new DynamicTexture3D instance.</returns>
     public static DynamicTexture3D Create(
         int width,
@@ -67,7 +67,8 @@ public sealed class DynamicTexture3D : GpuTexture
         int depth,
         PixelInternalFormat format,
         TextureFilterMode filter = TextureFilterMode.Linear,
-        TextureTarget textureTarget = TextureTarget.Texture2DArray)
+        TextureTarget textureTarget = TextureTarget.Texture2DArray,
+        bool immutableStorage = false)
     {
         if (width <= 0)
         {
@@ -92,7 +93,8 @@ public sealed class DynamicTexture3D : GpuTexture
             depth = depth,
             internalFormat = format,
             filterMode = filter,
-            textureTarget = textureTarget
+            textureTarget = textureTarget,
+            ImmutableLayeredStorage = immutableStorage
         };
 
         texture.AllocateOrReallocate3DTexture();

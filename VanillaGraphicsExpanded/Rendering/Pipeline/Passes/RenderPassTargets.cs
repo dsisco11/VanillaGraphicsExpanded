@@ -89,6 +89,7 @@ internal sealed class RenderPassTargets : IDisposable
             {
                 Borrow(pair.Value);
                 if (pair.Value.Resource is { } storage) Borrow(storage);
+                if (pair.Value.Resource is GpuTextureView { Source: { } source }) Borrow(source);
             }
         }
         catch { Dispose(); throw; }

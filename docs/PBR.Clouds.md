@@ -179,10 +179,19 @@ are a separate cloud-owned resource. Shared resource reuse alone does not establ
 
 Volumetric mode defaults to ceil-half width/height tracing with a rotating 2x2 pixel phase,
 bounded temporal accumulation and depth-aware full-view reconstruction. `CloudVolumeReconstruction`
-owns three persistent sets of three RGBA32F images: trace and two histories. Image zero stores
-integrated physical RGB radiance with overall transmission in alpha; image one stores three bucket
-transmissions with a zero spare channel. Image two stores first/last contributing distance and
-current opaque/liquid depth. The two optical images share acceptance and interpolation weights.
+owns one immutable nine-layer RGBA32F `Texture2DArray`, with three disjoint three-layer views.
+Each view has a persistent framebuffer with its three local layers attached to the payload outputs.
+Layer zero stores integrated physical RGB radiance with overall transmission in alpha; layer one
+stores three bucket transmissions with a zero spare channel. Layer two stores first/last
+contributing distance and current opaque/liquid depth. The two optical layers share acceptance
+and interpolation weights. Temporal sampling binds the current trace and previous history views;
+resolve binds the newly filtered history view. Typed view bindings reject overlap with active
+framebuffer images, and active target passes borrow both their view and the shared storage owner.
+
+The three blocks rotate between current trace, previous history and next history after successful
+OIT submission and history commit. A skipped or failed draw invalidates content history without
+advancing block roles. The block cursor is independent of the PMJ frame index. Framebuffer
+attachments stay fixed as roles rotate; each block caches its trace and temporal PSOs separately.
 Internal passes use replacement writes and never sample live native OIT accumulation. Resolve
 reconstructs each admitted reduced tap's native accumulations as
 `vec4(radiance, 1 - transmission) * (1 - bucketTransmission)` before spatial interpolation.

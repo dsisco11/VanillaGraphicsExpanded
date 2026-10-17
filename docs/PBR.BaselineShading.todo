@@ -253,7 +253,7 @@ Tasks
       Measure matched end-to-end cloud GPU cost, including trace, temporal and resolve; distinguish
       storage/fetch reductions from measured speedup and retain existing traversal/lighting quality.
 
-  ☐ Consolidate volumetric cloud trace and temporal history storage into one Texture2DArray.
+  ☑ Consolidate volumetric cloud trace and temporal history storage into one Texture2DArray.
     - Build on the validated compact cloud-payload task above: allocate nine RGBA32F layers as
       three independent three-layer blocks for current trace, previous history and next history.
       Use rotating block indices and advance roles only after successful frame submission/history
@@ -267,6 +267,10 @@ Tasks
     - Verify block rotation, read/write separation, history invalidation and resource retirement
       with subagent-run focused GPU tests against equivalent separate-texture storage. Compare
       outputs and capture bindings; measure any speedup rather than inferring it from object count.
+    - Verified: 162 unique passing generator/cloud/shared GPU cases; bit-exact separate-storage
+      comparisons, actual rotating bindings, interrupted-submission recovery and resource retirement.
+      Canonical Release package rebuilt. No speedup claim or measurement is attached to this change.
+      Evidence: ../artifacts/array-cloud-validation/validation.md.
 
   ☐ Reduce redundant GPU state restoration between consecutive VGE graphics passes.
     - Cloud trace, temporal and resolve already use cached GraphicsPipelineDesc declarations within

@@ -12,19 +12,19 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
-/// <summary>Owns reduced tracing, ping-pong physical history and depth-aware submission to existing native OIT.</summary>
+/// <summary>Owns reduced tracing, rotating physical history and depth-aware submission to existing native OIT.</summary>
 internal sealed class CloudVolumeReconstruction : IDisposable
 {
     private readonly ICoreClientAPI api;
     private readonly CloudTemporalHistory history=new();
     private readonly GraphicsPipelineLifetime lifetime=new();
-    private CloudVolumeSurface? trace,first,second;
+    private CloudVolumeStorage? storage;
     private CloudTraceProgram? traceProgram;
     private CloudTemporalProgram? temporalProgram;
     private CloudResolveProgram? resolveProgram;
     private GraphicsPipeline? resolvePipeline;
     private int width,height;
-    private bool swap;
+    private int cursor;
     private CloudPmjJitterTexture? pmjJitter;
 
     #region Public API
@@ -51,43 +51,48 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     internal bool Draw(CloudMapInput input,AtmosphereLighting lighting,CloudVolumeSettings settings,GpuFramebuffer target,
         int sceneDepth,int visibilityDepth,int liquidDepth,ArrayGraphicsGeometry geometry,Func<bool> current,CloudHierarchy? hierarchy=null)
     {
-        if(traceProgram is null||temporalProgram is null||resolveProgram is null) return false;
-        EnsureSize(api.Render.FrameWidth,api.Render.FrameHeight);
-        var previous=swap?second!:first!; var next=swap?first!:second!;
-        var camera=VgeFrameRenderer.Current;
-        Capture(traceProgram,traceProgram.Parameters,input,lighting,settings,sceneDepth,visibilityDepth,liquidDepth);
-        traceProgram.PmjJitter=pmjJitter;
-        resolveProgram.SceneDepth=sceneDepth; resolveProgram.VisibilityDepth=visibilityDepth; resolveProgram.LiquidDepth=liquidDepth;
-        // The immutable publication and native content certificates identify compatibility. New
-        // map generation numbers alone do not: the native producer legitimately writes every frame.
-        foreach(var temporal in new[]{traceProgram.Temporal,temporalProgram.Temporal,resolveProgram.Temporal})
-            history.Capture(input,camera,settings,lighting,traceProgram.Parameters,width,height,temporal);
-        BindHistory(temporalProgram,previous); BindHistory(resolveProgram,next);
-        temporalProgram.Current0=trace!.Images[0].TextureId; temporalProgram.Current1=trace.Images[1].TextureId;
-        temporalProgram.Current2=trace.Images[2].TextureId;
-        var tracePass=trace.Prepare(lifetime,traceProgram); var temporalPass=next.Prepare(lifetime,temporalProgram);
-        var pass=new RenderPassDesc(target,LiquidPipelineStates.SurfaceOutputs);
-        using var metadata=new RenderPassTargets(pass);
-        var description=new GraphicsPipelineDesc(resolveProgram.GraphicsIdentity!,CloudVolumeRenderer.Layout,metadata.Signature,
-            DynamicPipelineState.Viewport,blending:LiquidPipelineStates.SurfaceBlending);
-        if(resolvePipeline is null||resolvePipeline.Description!=description||!ReferenceEquals(resolvePipeline.Shader,resolveProgram)
-            ||resolvePipeline.ExecutableRevision!=resolveProgram.ExecutableRevision)
+        if(traceProgram is null||temporalProgram is null||resolveProgram is null) { Invalidate(); return false; }
+        try
         {
-            var replacement=new GraphicsPipeline(lifetime,description,resolveProgram); resolvePipeline?.Dispose(); resolvePipeline=replacement;
-        }
-        if(!current()) { Invalidate(); return false; }
-        // A current map can still outlive an unavailable summary. Explicitly select DDA in that case.
-        traceProgram.SetHierarchy(hierarchy is not null && hierarchy.TryGetCurrent(input,out var bounds)?bounds:null);
-        if(!GraphicsCommandContext.TryRun("Cloud.Volume.Temporal",[tracePass.Pipeline,temporalPass.Pipeline,resolvePipeline],true,commands=>
-        {
-            foreach(var item in new[]{tracePass,temporalPass,(Pass:pass,Pipeline:resolvePipeline)})
+            EnsureSize(api.Render.FrameWidth,api.Render.FrameHeight);
+            var trace=storage!.Blocks[cursor];
+            var previous=storage.Blocks[(cursor+1)%3]; var next=storage.Blocks[(cursor+2)%3];
+            var camera=VgeFrameRenderer.Current;
+            Capture(traceProgram,traceProgram.Parameters,input,lighting,settings,sceneDepth,visibilityDepth,liquidDepth);
+            traceProgram.PmjJitter=pmjJitter;
+            resolveProgram.SceneDepth=sceneDepth; resolveProgram.VisibilityDepth=visibilityDepth; resolveProgram.LiquidDepth=liquidDepth;
+            // The immutable publication and native content certificates identify compatibility. New
+            // map generation numbers alone do not: the native producer legitimately writes every frame.
+            foreach(var temporal in new[]{traceProgram.Temporal,temporalProgram.Temporal,resolveProgram.Temporal})
+                history.Capture(input,camera,settings,lighting,traceProgram.Parameters,width,height,temporal);
+            temporalProgram.HistoryPayload=previous.View; resolveProgram.HistoryPayload=next.View;
+            temporalProgram.CurrentPayload=trace.View;
+            var tracePass=trace.Prepare(lifetime,traceProgram); var temporalPass=next.Prepare(lifetime,temporalProgram);
+            var pass=new RenderPassDesc(target,LiquidPipelineStates.SurfaceOutputs);
+            using var metadata=new RenderPassTargets(pass);
+            var description=new GraphicsPipelineDesc(resolveProgram.GraphicsIdentity!,CloudVolumeRenderer.Layout,metadata.Signature,
+                DynamicPipelineState.Viewport,blending:LiquidPipelineStates.SurfaceBlending);
+            if(resolvePipeline is null||resolvePipeline.Description!=description||!ReferenceEquals(resolvePipeline.Shader,resolveProgram)
+                ||resolvePipeline.ExecutableRevision!=resolveProgram.ExecutableRevision)
             {
-                commands.BeginPass(item.Pass); commands.SetPipeline(item.Pipeline);
-                commands.SetDynamicState(new(){Viewport=commands.PassViewport}); commands.Draw(geometry,new(0,3)); commands.EndPass();
+                var replacement=new GraphicsPipeline(lifetime,description,resolveProgram); resolvePipeline?.Dispose(); resolvePipeline=replacement;
             }
-        })) { Invalidate(); throw new InvalidOperationException("Cloud reconstruction graphics boundary was rejected."); }
-        history.Commit(input,camera,settings,lighting,traceProgram.Parameters);
-        swap=!swap; return true;
+            if(!current()) { Invalidate(); return false; }
+            // A current map can still outlive an unavailable summary. Explicitly select DDA in that case.
+            traceProgram.SetHierarchy(hierarchy is not null && hierarchy.TryGetCurrent(input,out var bounds)?bounds:null);
+            if(!GraphicsCommandContext.TryRun("Cloud.Volume.Temporal",[tracePass.Pipeline,temporalPass.Pipeline,resolvePipeline],true,commands=>
+            {
+                foreach(var item in new[]{tracePass,temporalPass,(Pass:pass,Pipeline:resolvePipeline)})
+                {
+                    commands.BeginPass(item.Pass); commands.SetPipeline(item.Pipeline);
+                    commands.SetDynamicState(new(){Viewport=commands.PassViewport}); commands.Draw(geometry,new(0,3)); commands.EndPass();
+                }
+            })) { Invalidate(); throw new InvalidOperationException("Cloud reconstruction graphics boundary was rejected."); }
+            history.Commit(input,camera,settings,lighting,traceProgram.Parameters);
+            // Reuse the discarded previous block as the next trace; PMJ phase remains frame-driven.
+            cursor=(cursor+1)%3; return true;
+        }
+        catch { Invalidate(); throw; }
     }
     #endregion
     #region Resource lifecycle
@@ -107,27 +112,19 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     /// <summary>Replaces all history sets atomically on size changes; ordinary frames reuse persistent storage.</summary>
     private void EnsureSize(int viewWidth,int viewHeight)
     {
-        var size=CloudVolumeSurface.Dimensions(viewWidth,viewHeight);
-        if(trace is not null && width==size.Width && height==size.Height) return;
-        CloudVolumeSurface? a=null,b=null,c=null;
-        try
-        {
-            a=new(size.Width,size.Height,"Cloud.Trace"); b=new(size.Width,size.Height,"Cloud.History.A"); c=new(size.Width,size.Height,"Cloud.History.B");
-        }
-        catch { RenderingCleanup.Run(()=>a?.Dispose(),()=>b?.Dispose(),()=>c?.Dispose()); throw; }
-        ReleaseTargets(); trace=a; first=b; second=c; width=size.Width; height=size.Height; swap=false; Invalidate();
+        var size=CloudVolumeStorage.Dimensions(viewWidth,viewHeight);
+        if(storage is not null && width==size.Width && height==size.Height) return;
+        var replacement=new CloudVolumeStorage(size.Width,size.Height,"Cloud.Volume.Payload");
+        // Keep the old owner published until its retirement succeeds; never strand a replacement.
+        try { ReleaseTargets(); }
+        catch { replacement.Dispose(); throw; }
+        storage=replacement; width=size.Width; height=size.Height; cursor=0; Invalidate();
     }
-    /// <summary>Retires pipelines before their owned backing images and forgets allocation dimensions.</summary>
+    /// <summary>Retires every block before its shared allocation and forgets allocation dimensions and roles.</summary>
     private void ReleaseTargets()
     {
-        RenderingCleanup.Run(()=>{trace?.Dispose();trace=null;},()=>{first?.Dispose();first=null;},()=>{second?.Dispose();second=null;});
-        width=height=0;
-    }
-    /// <summary>Binds the compact physical payload; all images belong to an alternate non-writing set.</summary>
-    private static void BindHistory(ICloudHistoryBindings program,CloudVolumeSurface surface)
-    {
-        program.History0=surface.Images[0].TextureId; program.History1=surface.Images[1].TextureId;
-        program.History2=surface.Images[2].TextureId;
+        RenderingCleanup.Run(()=>{storage?.Dispose();storage=null;});
+        width=height=cursor=0;
     }
     /// <summary>Captures physical density and lighting inputs only for reduced tracing.</summary>
     private void Capture(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudMapInput input,AtmosphereLighting lighting,

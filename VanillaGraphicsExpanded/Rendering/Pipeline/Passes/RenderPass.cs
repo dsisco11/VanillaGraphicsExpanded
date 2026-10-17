@@ -21,6 +21,29 @@ internal sealed class RenderPass : IDisposable
     internal DynamicDrawState Viewport => new() { X = Area.X, Y = Area.Y, Width = Area.Width, Height = Area.Height };
 
     #region Public API
+    /// <summary>Rejects typed view sampling when its exposed storage overlaps any active framebuffer image.</summary>
+    internal static void ValidateSampledView(GpuTextureView view)
+    {
+        if (active is null) return;
+        foreach (var pair in active.description.Target.AttachmentImages)
+        {
+            var image = pair.Value;
+            var attachedView = image.Resource as GpuTextureView;
+            int source = attachedView?.SourceTextureId ?? image.TextureId;
+            if (source != view.SourceTextureId) continue;
+            int level = image.MipLevel + (attachedView?.BaseLevel ?? 0);
+            if (level < view.BaseLevel || level >= (long)view.BaseLevel + view.LevelCount) continue;
+            // A 3D view exposes one volume, not one z slice. Sampling it can reach every slice
+            // of the selected mip even though GL reports a view layer count of one.
+            if (view.Target == TextureTarget.Texture3D)
+                throw new InvalidOperationException("Sampled volume view overlaps an active framebuffer image.");
+            int first = (attachedView?.BaseLayer ?? 0) + (image.Layer ?? 0);
+            int count = image.Layer.HasValue ? 1 : attachedView?.LayerCount ?? int.MaxValue;
+            if (first < (long)view.BaseLayer + view.LayerCount && view.BaseLayer < (long)first + count)
+                throw new InvalidOperationException("Sampled texture view overlaps an active framebuffer image.");
+        }
+    }
+
     /// <summary>Validates metadata and intentions before setup; failed setup restores routing and borrowed bindings.</summary>
     internal static RenderPass Begin(RenderPassDesc description, EngineBoundaryScope boundary)
     {

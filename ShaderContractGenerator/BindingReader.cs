@@ -163,7 +163,8 @@ internal static class BindingReader
         type = type.TrimEnd('?');
         bool cpuBuffer = kind == ShaderBindingKind.UniformBlock && RuntimeSubmissionEmitter.IsCpuBuffer(property.Type);
         bool textureResource = kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image && IsTextureResource(property.Type);
-        bool resource = textureResource || (kind == ShaderBindingKind.StorageBlock && type == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding") || cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
+        bool textureView = kind == ShaderBindingKind.Sampler && type == "VanillaGraphicsExpanded.Rendering.GpuTextureView";
+        bool resource = textureView || textureResource || (kind == ShaderBindingKind.StorageBlock && type == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding") || cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
             (contract && kind == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32) ||
             (kind == ShaderBindingKind.Image && type == "VanillaGraphicsExpanded.Rendering.GpuTexture");
         if (kind == ShaderBindingKind.UniformLocation && !descriptor)

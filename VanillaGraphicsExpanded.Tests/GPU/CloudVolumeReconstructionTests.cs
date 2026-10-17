@@ -21,6 +21,24 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
 {
     #region Public API
     #region Reference comparisons
+    /// <summary>Shared-array views preserve complete outputs against independently allocated storage using identical shader binaries.</summary>
+    [Theory]
+    [InlineData("static")][InlineData("detail-lit")][InlineData("mixed")][InlineData("moving-edge")][InlineData("cloud-edge")]
+    public void ArrayPayloadMatchesIndependentBlockStorage(string scene)
+    {
+        EnsureShaderTestAvailable();using var shared=CreateScene(9,7);using var independent=CreateScene(9,7,independentStorage:true);
+        for(uint frame=0;frame<7;frame++)
+        {
+            float shift=frame*.015f;
+            shared.Capture(frame,.125f,10,1,shift,scene);independent.Capture(frame,.125f,10,1,shift,scene);
+            shared.Render(frame,frame>0);independent.Render(frame,frame>0);
+            var expected=independent.ReadDefault();var actual=shared.ReadDefault();
+            for(int layer=0;layer<6;layer++)Assert.Equal(expected[layer],actual[layer]);
+            expected=independent.ReadTraceRecord();actual=shared.ReadTraceRecord();
+            for(int layer=0;layer<3;layer++)Assert.Equal(expected[layer],actual[layer]);
+        }
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
     /// <summary>Solar/lunar directions preserve self-shadowed illumination and every payload channel under combined view/light skipping.</summary>
     [Theory]
     [InlineData(0, false)]
@@ -426,17 +444,37 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
     [Fact]
     public void ReducedTargetsReuseStableStorageAndRetireEveryAttachment()
     {
-        EnsureShaderTestAvailable();var program=Programs.Create<CloudTraceProgram>();
+        EnsureShaderTestAvailable();var program=Programs.Create<CloudTraceProgram>();var temporalProgram=Programs.Create<CloudTemporalProgram>();
         using var lifetime=new GraphicsPipelineLifetime();
         foreach(var extent in new[]{(9,7),(10,8),(5,3)})
         {
-            var size=CloudVolumeSurface.Dimensions(extent.Item1,extent.Item2);
-            var surface=new CloudVolumeSurface(size.Width,size.Height,"Tests.Cloud.Resize");
-            Assert.Equal(3,surface.Images.Length);
-            var images=surface.Images.Select(image=>image.TextureId).ToArray();int framebuffer=surface.Target.FboId;
-            var a=surface.Prepare(lifetime,program);var b=surface.Prepare(lifetime,program);
-            Assert.Same(a.Pipeline,b.Pipeline);Assert.Equal(size.Width,surface.Target.Width);Assert.Equal(size.Height,surface.Target.Height);
-            surface.Dispose();Assert.False(GL.IsFramebuffer(framebuffer));Assert.All(images,id=>Assert.False(GL.IsTexture(id)));
+            var size=CloudVolumeStorage.Dimensions(extent.Item1,extent.Item2);
+            var storage=new CloudVolumeStorage(size.Width,size.Height,"Tests.Cloud.Resize");
+            int owner=storage.Array.TextureId;
+            Assert.Equal(9,storage.Array.Depth);
+            Assert.Equal(3,storage.Blocks.Length);
+            var views=storage.Blocks.Select(block=>block.View.TextureId).ToArray();
+            var framebuffers=storage.Blocks.Select(block=>block.Target.FboId).ToArray();
+            for(int block=0;block<3;block++)
+            {
+                var surface=storage.Blocks[block];
+                CloudPayloadReadback.AssertAttachmentLayout(surface);
+                Assert.Equal(block*3,surface.View.BaseLayer);Assert.Equal(3,surface.View.LayerCount);
+                var a=surface.Prepare(lifetime,program);var temporal=surface.Prepare(lifetime,temporalProgram);
+                var b=surface.Prepare(lifetime,program);Assert.Same(temporal.Pipeline,surface.Prepare(lifetime,temporalProgram).Pipeline);
+                Assert.Same(a.Pipeline,b.Pipeline);Assert.Equal(size.Width,surface.Target.Width);Assert.Equal(size.Height,surface.Target.Height);
+                for(int layer=0;layer<3;layer++)
+                {
+                    float value=10*block+layer;
+                    CloudPayloadReadback.Upload(surface,layer,Enumerable.Repeat(value,size.Width*size.Height*4).ToArray());
+                }
+            }
+            // Distinct writes through the three disjoint views must not overwrite another block.
+            for(int block=0;block<3;block++)
+            for(int layer=0;layer<3;layer++)
+                Assert.All(CloudPayloadReadback.Read(storage.Blocks[block])[layer],value=>Assert.Equal(10*block+layer,value));
+            storage.Dispose();Assert.False(GL.IsTexture(owner));
+            Assert.All(framebuffers,id=>Assert.False(GL.IsFramebuffer(id)));Assert.All(views,id=>Assert.False(GL.IsTexture(id)));
         }
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
@@ -500,8 +538,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             $"Pixel({x},{y}) channel{channel}: {actual[index]:G9} outside reference footprint [{low:G9},{high:G9}] +/- {tolerance:G9}");
     }
     /// <summary>Creates independent owned executables, persistent reduced storage and a tiny view without native engine state.</summary>
-    private CloudReconstructionScene CreateScene(int width,int height,bool mipmappedOpaque=false,int nativeMapWidth=4)=>new(width,height,Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),
-        Programs.Create<CloudTemporalProgram>(),Programs.Create<CloudResolveProgram>(),mipmappedOpaque,nativeMapWidth);
+    private CloudReconstructionScene CreateScene(int width,int height,bool mipmappedOpaque=false,int nativeMapWidth=4,bool independentStorage=false)=>new(width,height,Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),
+        Programs.Create<CloudTemporalProgram>(),Programs.Create<CloudResolveProgram>(),mipmappedOpaque,nativeMapWidth,independentStorage);
 
     #endregion
 }

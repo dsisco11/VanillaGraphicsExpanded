@@ -46,10 +46,10 @@ internal sealed class CloudReconstructionScene : IDisposable
     #region Public API
     #region View preparation
     /// <summary>Allocates small deterministic targets and independently authored column/depth/atmospheric fixtures.</summary>
-    internal CloudReconstructionScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve,bool mipmappedOpaque,int nativeMapWidth)
+    internal CloudReconstructionScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve,bool mipmappedOpaque,int nativeMapWidth,bool independentStorage=false)
     {
         this.width=width;this.height=height;this.reference=reference;this.trace=trace;this.temporal=temporal;this.resolve=resolve;
-        (lowWidth,lowHeight)=CloudVolumeSurface.Dimensions(width,height);
+        (lowWidth,lowHeight)=CloudVolumeStorage.Dimensions(width,height);
         camera=Own(new VgeFrameUniformBuffer()); storage=Own(new TestFrameLightingPublication());
         map=Own(DynamicTexture2D.Create(nativeMapWidth,nativeMapWidth,PixelInternalFormat.Rgba32f));
         int levels=1;for(int extent=Math.Max(width,height);extent>1;extent>>=1)levels++;
@@ -60,8 +60,17 @@ internal sealed class CloudReconstructionScene : IDisposable
         aerial=Own(DynamicTexture3D.Create(1,2,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
         loss=Own(DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
         aerial.UploadDataImmediate(new float[8],0,0,0,1,2,1,0);loss.UploadDataImmediate(new float[4],0,0,0,1,1,1,0);
-        traced=Own(new CloudVolumeSurface(lowWidth,lowHeight,"Tests.Cloud.Trace"));
-        historyA=Own(new CloudVolumeSurface(lowWidth,lowHeight,"Tests.Cloud.HistoryA"));historyB=Own(new CloudVolumeSurface(lowWidth,lowHeight,"Tests.Cloud.HistoryB"));
+        if(independentStorage)
+        {
+            // Only storage sharing differs; both fixtures execute the current shader algorithm.
+            traced=CreateIndependentBlock("Tests.Cloud.IndependentTrace");
+            historyA=CreateIndependentBlock("Tests.Cloud.IndependentA");historyB=CreateIndependentBlock("Tests.Cloud.IndependentB");
+        }
+        else
+        {
+            var payloads=Own(new CloudVolumeStorage(lowWidth,lowHeight,"Tests.Cloud.Payloads"));
+            traced=payloads.Blocks[0];historyA=payloads.Blocks[1];historyB=payloads.Blocks[2];
+        }
         result=Own(new CloudOitSurface(width,height,"Tests.Cloud.Default"));expected=Own(new CloudOitSurface(width,height,"Tests.Cloud.Reference"));
         lifetime=Own(new GraphicsPipelineLifetime());
         geometry=Own(new ArrayGraphicsGeometry(CloudVolumeRenderer.Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3));
@@ -169,7 +178,7 @@ internal sealed class CloudReconstructionScene : IDisposable
         trace.SetHierarchy(available ? bounds : null);
     }
     /// <summary>Reads the complete traced OIT record including first/last cloud and foreground distances.</summary>
-    internal float[][] ReadTraceRecord() => traced.Images.Select(image => image.ReadPixels()).ToArray();
+    internal float[][] ReadTraceRecord() => CloudPayloadReadback.Read(traced);
     /// <summary>Selects the allowed dense midpoint budget independently of reduced tracing.</summary>
     internal void SetReferenceSamples(int count) { referenceSamples=count; }
     /// <summary>Executes deterministic full-resolution midpoint transport without changing history.</summary>
@@ -200,7 +209,7 @@ internal sealed class CloudReconstructionScene : IDisposable
                 values[pixel*components+channel]=layer==2?(channel==0?50:channel==1?100:Depth(1000)):
                     layer==0?(channel==3?1-factor*.6f:8*factor):channel<3?1-factor*.4f:0;
             }
-            historyA.Images[layer].UploadDataImmediate(values);
+            CloudPayloadReadback.Upload(historyA,layer,values);
         }
         resolve.Temporal.Capture(projection,Vector3.Zero,lowWidth,lowHeight,0,0,false);
         BindHistory(resolve,historyA); Draw(resolve,result.Target,true); return ReadDefault();
@@ -212,7 +221,7 @@ internal sealed class CloudReconstructionScene : IDisposable
         foreach(var p in new[]{trace.Temporal,temporal.Temporal,resolve.Temporal})
             p.Capture(previousProjection,new(lastShift-shift,0,0),lowWidth,lowHeight,frame,unchecked(frame-1),valid);
         BindHistory(temporal,previous);BindHistory(resolve,next);
-        temporal.Current0=traced.Images[0].TextureId;temporal.Current1=traced.Images[1].TextureId;temporal.Current2=traced.Images[2].TextureId;
+        temporal.CurrentPayload=traced.View;
         queuedPasses=[];
         Draw(trace,traced.Target,false);Draw(temporal,next.Target,false);Draw(resolve,result.Target,true);
         SubmitQueuedPasses();last=next;lastShift=shift;currentProjection.CopyTo(previousProjection,0);
@@ -242,10 +251,10 @@ internal sealed class CloudReconstructionScene : IDisposable
                 }
             }
             if(scenario=="nan"&&layer==0)b[4*4]=float.NaN;
-            traced.Images[layer].UploadDataImmediate(a);historyA.Images[layer].UploadDataImmediate(b);
+            CloudPayloadReadback.Upload(traced,layer,a);CloudPayloadReadback.Upload(historyA,layer,b);
         }
         temporal.Temporal.Capture(projection,scenario=="motion"?new(100,0,0):Vector3.Zero,lowWidth,lowHeight,0,0,scenario!="invalid");
-        temporal.Current0=traced.Images[0].TextureId;temporal.Current1=traced.Images[1].TextureId;temporal.Current2=traced.Images[2].TextureId;
+        temporal.CurrentPayload=traced.View;
         BindHistory(temporal,historyA);Draw(temporal,historyB.Target,false);last=historyB;return ReadHistory();
     }
     /// <summary>Advances a fixed trace through alternate history storage to expose the bounded temporal recurrence.</summary>
@@ -269,10 +278,16 @@ internal sealed class CloudReconstructionScene : IDisposable
     #endregion
     #endregion
     #region Private
+    /// <summary>Allocates an independent array for each block while retaining identical local layer addressing.</summary>
+    private CloudVolumeSurface CreateIndependentBlock(string name)
+    {
+        var array=Own(DynamicTexture3D.Create(lowWidth,lowHeight,3,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture2DArray,immutableStorage:true));array.SetDebugName(name);
+        return Own(new CloudVolumeSurface(array,0,name));
+    }
     /// <summary>Converts compact physical storage into native OIT channel order for reference comparisons.</summary>
     private static float[][] ReadNativePayload(CloudVolumeSurface surface)
     {
-        var images=surface.Images.Select(image=>image.ReadPixels()).ToArray();
+        var images=CloudPayloadReadback.Read(surface);
         int pixels=images[0].Length/4;
         float[] bins=new float[pixels*3],transmission=new float[pixels],glow=new float[pixels*4];
         float[][] accumulation=Enumerable.Range(0,3).Select(_=>new float[pixels*4]).ToArray();
@@ -300,7 +315,7 @@ internal sealed class CloudReconstructionScene : IDisposable
     /// <summary>Binds an alternate physical-history set, including unfiltered depth metadata.</summary>
     private static void BindHistory(ICloudHistoryBindings program,CloudVolumeSurface surface)
     {
-        program.History0=surface.Images[0].TextureId;program.History1=surface.Images[1].TextureId;program.History2=surface.Images[2].TextureId;
+        program.HistoryPayload=surface.View;
     }
     /// <summary>Uses replacement writes internally and the real six-target native blend policy for final composition.</summary>
     private void Draw(GpuProgram program,GpuFramebuffer target,bool oit)

@@ -104,6 +104,7 @@ public sealed class GpuFramebufferAttachment : GpuResource
     public override nint ResourceId
     {
         get => Volatile.Read(ref retired) != 0 ? 0
+            : resource is GpuTextureView view ? (view.IsValid ? view.ResourceId : 0)
             : resource is { } storage ? (storage.IsValid ? storage.ResourceId : 0) : externalId;
         protected set => Interlocked.Exchange(ref retired, 1);
     }

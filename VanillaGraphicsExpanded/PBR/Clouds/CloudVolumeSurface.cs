@@ -10,34 +10,35 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
-/// <summary>Owns FP32 radiance/transmission, bucket transmission and depth images for one reduced cloud payload.</summary>
+/// <summary>Owns one disjoint three-layer view, its framebuffer images and its replacement-write pipeline.</summary>
 internal sealed class CloudVolumeSurface : IDisposable
 {
-    internal readonly DynamicTexture2D[] Images=new DynamicTexture2D[3];
+    internal readonly GpuTextureView View;
     internal readonly GpuFramebuffer Target;
-    private GraphicsPipeline? pipeline;
+    private readonly GpuFramebufferAttachment[] images=new GpuFramebufferAttachment[3];
+    private readonly Dictionary<GpuProgram,GraphicsPipeline> pipelines=new(ReferenceEqualityComparer.Instance);
     internal static readonly RenderPassColor[] Outputs=[new(0),new(1),new(2)];
 
     #region Public API
-    /// <summary>Validates bounded allocations before touching GPU storage, using ceil-half extents for odd view sizes.</summary>
-    internal static (int Width,int Height) Dimensions(int width,int height)
+    /// <summary>Exposes exactly one payload block and preattaches its three local layers without owning the array.</summary>
+    internal CloudVolumeSurface(DynamicTexture3D array,int blockIndex,string name)
     {
-        if(width is <1 or >16384 || height is <1 or >16384) throw new ArgumentOutOfRangeException(nameof(width));
-        int w=(width+1)/2,h=(height+1)/2;
-        // Three live sets use 48 bytes per reduced pixel each, including all FP32 metadata.
-        if((long)w*h*144>1024L*1024*1024) throw new ArgumentOutOfRangeException(nameof(width),"Cloud targets exceed the one-GiB allocation ceiling.");
-        return(w,h);
-    }
-    /// <summary>Allocates one complete attachment set transactionally; native map/depth images are never owned here.</summary>
-    internal CloudVolumeSurface(int width,int height,string name)
-    {
-        string[] imageNames=["RadianceTransmission","BucketTransmission","Depth"];
+        ArgumentNullException.ThrowIfNull(array);
+        if(array.TextureTarget!=TextureTarget.Texture2DArray || array.InternalFormat!=PixelInternalFormat.Rgba32f
+            || (uint)blockIndex >= (uint)(array.Depth/3)) throw new ArgumentOutOfRangeException(nameof(blockIndex));
+        View=GpuTextureView.CreateFromTexture(array,TextureTarget.Texture2DArray,PixelInternalFormat.Rgba32f,0,1,blockIndex*3,3,name);
         try
         {
-            for(int i=0;i<Images.Length;i++) Images[i]=DynamicTexture2D.Create(width,height,PixelInternalFormat.Rgba32f,debugName:$"{name}.{imageNames[i]}");
-            Target=GpuFramebuffer.CreateMRT(Images,debugName:name)!;
+            // Layer indices are relative to the restricted view; each FBO is configured once.
+            for(int i=0;i<images.Length;i++) images[i]=GpuFramebufferAttachment.FromTexture(View,layer:i);
+            Target=GpuFramebuffer.Create(images,debugName:$"{name}.Framebuffer");
         }
-        catch { foreach(var image in Images) image?.Dispose(); throw; }
+        catch
+        {
+            var cleanup=new List<Action>();
+            foreach(var image in images) if(image is not null) cleanup.Add(image.Dispose);
+            cleanup.Add(View.Dispose); RenderingCleanup.Run(cleanup.ToArray()); throw;
+        }
     }
     /// <summary>Reuses a complete replacement-write pipeline until its executable or attachment contract changes.</summary>
     internal (RenderPassDesc Pass,GraphicsPipeline Pipeline) Prepare(GraphicsPipelineLifetime lifetime,GpuProgram program)
@@ -45,17 +46,22 @@ internal sealed class CloudVolumeSurface : IDisposable
         var pass=new RenderPassDesc(Target,Outputs);
         using var metadata=new RenderPassTargets(pass);
         var description=new GraphicsPipelineDesc(program.GraphicsIdentity!,CloudVolumeRenderer.Layout,metadata.Signature,DynamicPipelineState.Viewport);
-        if(pipeline is null||pipeline.Description!=description||!ReferenceEquals(pipeline.Shader,program)||pipeline.ExecutableRevision!=program.ExecutableRevision)
+        // Rotation changes a block's role. Retain both executables instead of replacing its PSO every frame.
+        if(!pipelines.TryGetValue(program,out var pipeline)||pipeline.Description!=description||pipeline.ExecutableRevision!=program.ExecutableRevision)
         {
-            var replacement=new GraphicsPipeline(lifetime,description,program); pipeline?.Dispose(); pipeline=replacement;
+            var replacement=new GraphicsPipeline(lifetime,description,program); pipeline?.Dispose();
+            pipelines[program]=pipeline=replacement;
         }
         return(pass,pipeline);
     }
-    /// <summary>Releases owned pipelines before framebuffer metadata and attachment storage.</summary>
+    /// <summary>Releases owned pipelines and framebuffer metadata before retiring the view, preserving its source array.</summary>
     public void Dispose()
     {
-        var actions=new List<Action>{()=>pipeline?.Dispose(),Target.Dispose};
-        foreach(var image in Images) actions.Add(image.Dispose);
+        var actions=new List<Action>();
+        foreach(var pipeline in pipelines.Values) actions.Add(pipeline.Dispose);
+        actions.Add(Target.Dispose);
+        foreach(var image in images) actions.Add(image.Dispose);
+        actions.Add(View.Dispose);
         RenderingCleanup.Run(actions.ToArray());
     }
     #endregion

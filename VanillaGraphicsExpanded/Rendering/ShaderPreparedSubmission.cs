@@ -31,6 +31,22 @@ internal static class ShaderPreparedSubmission
         history.Commit(binding, key);
     }
 
+    /// <summary>Checks view lifetime on every use and caches its immutable target and format compatibility.</summary>
+    internal static void ValidateSampler(GpuPreparedBindings.Entry binding, GpuTextureView? view, ref ShaderInputValidation history)
+    {
+        if (!binding.Active) return;
+        bool valid = view?.IsValid == true;
+        Require(binding, valid);
+        if (!valid) return;
+        var key = ShaderInputValidation.TextureKey(view!);
+        Pipeline.Passes.RenderPass.ValidateSampledView(view!);
+        if (history.Matches(binding, key)) return;
+        if (GpuPreparedBindings.CompatibleTextureTarget(binding.Type) != (int)view!.Target ||
+            !ShaderResourceFormatCompatibility.Matches(binding.Type, view.InternalFormat))
+            throw new InvalidOperationException($"Incompatible texture view for {binding.Contract.Name}.");
+        history.Commit(binding, key);
+    }
+
     /// <summary>Normalizes a default view before checking its retained successful compatibility.</summary>
     internal static void ValidateImage(GpuPreparedBindings.Entry binding, GpuTexture? texture, ref ShaderInputValidation history) =>
         ValidateImage(binding, DefaultImageView(binding, texture), ref history);
@@ -145,6 +161,14 @@ internal static class ShaderPreparedSubmission
         bool valid = texture?.IsValid == true;
         BindSampler(binding, valid ? texture!.TextureId : 0,
             valid ? texture!.TextureTarget : (TextureTarget)GpuPreparedBindings.CompatibleTextureTarget(binding.Type));
+    }
+    /// <summary>Publishes a storage-restricted view through the managed texture and sampler cache.</summary>
+    internal static void Sampler(GpuPreparedBindings.Entry binding, GpuTextureView? view)
+    {
+        if (!binding.Active) return;
+        bool valid = view?.IsValid == true;
+        BindSampler(binding, valid ? view!.TextureId : 0,
+            valid ? view!.Target : (TextureTarget)GpuPreparedBindings.CompatibleTextureTarget(binding.Type));
     }
     /// <summary>Publishes an engine handle using the authored target policy.</summary>
     internal static void Sampler(GpuPreparedBindings.Entry binding, int texture)

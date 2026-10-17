@@ -157,15 +157,17 @@ internal sealed class CloudPerformanceScene : IDisposable
     /// <summary>Reads all native OIT attachments independently of private trace and history storage.</summary>
     internal float[][] ReadOutput() => output.Images.Take(6).Select(image => image.ReadPixels()).ToArray();
     /// <summary>Returns live allocation identities for unchanged-size reuse qualification.</summary>
-    internal int[] AllocationIds(CloudVolumeReconstruction reconstruction) => new[]{"trace","first","second"}
-        .SelectMany(name=>Assert.IsType<CloudVolumeSurface>(AccessTools.Field(typeof(CloudVolumeReconstruction),name).GetValue(reconstruction)).Images)
-        .Select(image=>image.TextureId).ToArray();
-    /// <summary>Reads the history payload actually committed by the timed production draw, without redrawing it.</summary>
+    internal int[] AllocationIds(CloudVolumeReconstruction reconstruction)
+    {
+        var storage=Assert.IsType<CloudVolumeStorage>(AccessTools.Field(typeof(CloudVolumeReconstruction),"storage").GetValue(reconstruction));
+        return [storage.Array.TextureId,..storage.Blocks.Select(block=>block.View.TextureId)];
+    }
+    /// <summary>Reads the last successfully committed history block without redrawing it.</summary>
     internal float[][] ReadCommittedHistory(CloudVolumeReconstruction reconstruction)
     {
-        bool swapped=(bool)AccessTools.Field(typeof(CloudVolumeReconstruction),"swap").GetValue(reconstruction)!;
-        var surface=Assert.IsType<CloudVolumeSurface>(AccessTools.Field(typeof(CloudVolumeReconstruction),swapped?"second":"first").GetValue(reconstruction));
-        return surface.Images.Select(image=>image.ReadPixels()).ToArray();
+        var storage=Assert.IsType<CloudVolumeStorage>(AccessTools.Field(typeof(CloudVolumeReconstruction),"storage").GetValue(reconstruction));
+        int cursor=(int)AccessTools.Field(typeof(CloudVolumeReconstruction),"cursor").GetValue(reconstruction)!;
+        return CloudPayloadReadback.Read(storage.Blocks[(cursor+1)%3]);
     }
     /// <summary>Restores ambient publication before releasing fixture-owned resources in reverse dependency order.</summary>
     public void Dispose()
@@ -184,4 +186,3 @@ internal sealed class CloudPerformanceScene : IDisposable
     private static void SetAtmosphere(string name, DynamicTexture3D? value) => AccessTools.Property(typeof(AtmosphereModSystem), name).SetValue(null, value);
     #endregion
 }
-

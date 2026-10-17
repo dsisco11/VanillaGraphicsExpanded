@@ -30,6 +30,13 @@ public sealed class CloudShaderBindingsTests
             Assert.False(bindings.UniformBlocks.ContainsKey("CloudTraversalParameters"));
         }
         Assert.False(stages.Single(stage => stage.Identity == "cloud_volume_resolve.fsh").Bindings.Samplers.ContainsKey("cloudMap"));
+        var temporal=stages.Single(stage=>stage.Identity=="cloud_volume_temporal.fsh").Bindings;
+        Assert.Equal(2,temporal.Samplers.Count);
+        Assert.Equal((0,true),(temporal.Samplers["currentPayload"].Slot,temporal.Samplers["currentPayload"].Required));
+        Assert.Equal((7,true),(temporal.Samplers["historyPayload"].Slot,temporal.Samplers["historyPayload"].Required));
+        var resolve=stages.Single(stage=>stage.Identity=="cloud_volume_resolve.fsh").Bindings;
+        Assert.Contains("historyPayload",resolve.Samplers.Keys);
+        Assert.DoesNotContain("history0",resolve.Samplers.Keys);
     }
     #endregion
 }

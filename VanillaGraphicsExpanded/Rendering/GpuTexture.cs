@@ -29,6 +29,10 @@ public abstract class GpuTexture : GpuResource, IDisposable
     public TextureTarget TextureTarget => textureTarget;
     /// <summary>Reports the mip levels allocated by this texture owner without querying driver storage.</summary>
     internal int StorageMipLevels { get; private protected set; } = 1;
+    /// <summary>Identifies owner-side storage replacement independently of native handle reuse.</summary>
+    internal ulong StorageGeneration { get; private set; }
+    /// <summary>Selects immutable layered allocation so separate texture objects can share its storage.</summary>
+    internal bool ImmutableLayeredStorage { get; private protected set; }
     public TextureFilterMode FilterMode => filterMode;
     public string? DebugName => debugName;
 
@@ -129,6 +133,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         if (textureTarget == TextureTarget.TextureCubeMap && width != height)
             throw new InvalidOperationException("Cube texture faces must be square.");
 
+        StorageGeneration++;
         DeleteTextureIfAllocated();
 
         textureId = GL.GenTexture();
@@ -172,6 +177,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         if (textureTarget == TextureTarget.TextureCubeMap && width != height)
             throw new InvalidOperationException("Cube texture faces must be square.");
 
+        StorageGeneration++;
         using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
         Allocate2DStorageBound(mipLevels);
         StorageMipLevels = mipLevels;
@@ -185,6 +191,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         RequireMutableStorage();
         Ensure3DLike();
 
+        StorageGeneration++;
         DeleteTextureIfAllocated();
 
         textureId = GL.GenTexture();
@@ -228,6 +235,13 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
     private void Allocate3DStorageBound()
     {
+        if (ImmutableLayeredStorage)
+        {
+            // Reallocation already replaces the object name, so immutable allocation
+            // supports the same resize lifecycle without mutating shared old storage.
+            GL.TexStorage3D((TextureTarget3d)textureTarget, 1, (SizedInternalFormat)internalFormat, width, height, depth);
+            return;
+        }
         GL.TexImage3D(
             textureTarget,
             level: 0,

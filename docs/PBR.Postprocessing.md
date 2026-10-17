@@ -1145,12 +1145,13 @@ until the existing disposal boundary, as with other resource rebuilds.
   explicitly reject independent Resize: resize/recreate the backing array once and republish
   every layer attachment/FBO together. Do not call the old per-texture framebuffer Resize path
   on a collection of layers. Retire submissions before attachments before storage.
-- [GpuTexture](../VanillaGraphicsExpanded/Rendering/GpuTexture.cs) currently allocates with
-  TexImage2D/TexImage3D. [GpuTextureView](../VanillaGraphicsExpanded/Rendering/GpuTextureView.cs)
-  exists but requires immutable storage. It derives from GpuResource, not GpuTexture;
-  ShaderPreparedSubmission's typed sampler overloads accept GpuTexture, so views are not a
-  drop-in typed sampler input. A view-based migration would need immutable allocation/lifetime
-  support and a deliberate typed view-binding contract. Neither is needed for the first groups.
+- [GpuTextureView](../VanillaGraphicsExpanded/Rendering/GpuTextureView.cs) requires immutable
+  storage. `DynamicTexture3D.Create(..., immutableStorage: true)` supplies immutable array storage;
+  existing default allocations retain their mutable storage policy. Views derive from GpuResource,
+  and typed `GpuTextureView?` sampler declarations support them directly. Managed views track their
+  source allocation generation and reject overlapping active framebuffer images. A view-based
+  migration must select immutable storage and retain the shared owner through the view lifetime.
+  Postprocess consumers can instead attach and sample array layers through their existing owner.
 - GpuSupport already owns maximum texture size, array layers, color attachments, draw buffers
   and sampler capabilities. Validate through that owner. No TextureBarrier call was found in
   current rendering sources; do not quietly assume feedback synchronization is implemented.

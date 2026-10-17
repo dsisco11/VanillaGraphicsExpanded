@@ -21,9 +21,52 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Exercises production cloud scheduling with real binaries and controlled borrowed publications.</summary>
 [Collection("GPU")][Trait("Category", "GPU")]
-public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
+public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Each rotated production pass binds the intended disjoint block and restores inherited array bindings afterward.</summary>
+    [Fact]
+    public void RotatingArrayBlocksReachActualGpuSamplerBindings()
+    {
+        EnsureShaderTestAvailable();using var scene=new ScheduledScene(Programs);using var reconstruction=scene.CreateReconstruction();
+        using var sentinel=DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f);
+        using var currentScope=StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,0,sentinel.TextureId);
+        using var historyScope=StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray,7,sentinel.TextureId);
+        using var capture=new CloudArrayBindingCapture();var records=new List<object>();
+        for(uint frame=0;frame<4;frame++)
+        {
+            var input=scene.Capture(frame);capture.Draws.Clear();scene.Clear();
+            Assert.True(scene.Draw(reconstruction,input,null,()=>true));Assert.Equal(3,capture.Draws.Count);
+            var blocks=ReadPrivate<CloudVolumeStorage>(reconstruction,"storage").Blocks;int cursor=(int)(frame%3);
+            Assert.Equal(blocks[cursor].Target.FboId,capture.Draws[0].Framebuffer);
+            Assert.Equal(blocks[(cursor+2)%3].Target.FboId,capture.Draws[1].Framebuffer);
+            Assert.Equal(blocks[cursor].View.TextureId,capture.Draws[1].Current);
+            Assert.Equal(blocks[(cursor+1)%3].View.TextureId,capture.Draws[1].History);
+            Assert.Equal(blocks[(cursor+2)%3].View.TextureId,capture.Draws[2].History);
+            Assert.Equal((sentinel.TextureId,sentinel.TextureId),CloudArrayBindingCapture.ReadBindings());
+            records.Add(new{frame,cursor,array=ReadPrivate<CloudVolumeStorage>(reconstruction,"storage").Array.TextureId,
+                blocks=blocks.Select(block=>new{view=block.View.TextureId,baseLayer=block.View.BaseLayer,layers=block.View.LayerCount,framebuffer=block.Target.FboId}).ToArray(),
+                draws=capture.Draws.Select(draw=>new{framebuffer=draw.Framebuffer,currentPayload=draw.Current,historyPayload=draw.History}).ToArray()});
+        }
+        // Fail before temporal submission after trace has already written its current block.
+        var failedInput=scene.Capture(4);int heldCursor=ReadPrivate<int>(reconstruction,"cursor");
+        capture.Draws.Clear();capture.FailAtDraw=2;
+        Assert.Throws<InvalidOperationException>(()=>scene.Draw(reconstruction,failedInput,null,()=>true));
+        Assert.Equal(heldCursor,ReadPrivate<int>(reconstruction,"cursor"));
+        Assert.False(ReadPrivate<bool>(ReadPrivate<CloudTemporalHistory>(reconstruction,"history"),"valid"));
+        Assert.Equal((sentinel.TextureId,sentinel.TextureId),CloudArrayBindingCapture.ReadBindings());
+        capture.FailAtDraw=-1;capture.Draws.Clear();
+        Assert.True(scene.Draw(reconstruction,scene.Capture(5),null,()=>true));Assert.False(scene.HistoryEnabled);
+        // Both mutation and retirement require every failed-pass source borrow to have been released.
+        var retired=ReadPrivate<CloudVolumeStorage>(reconstruction,"storage");
+        Assert.True(retired.Array.Resize(2,2,9));reconstruction.Reset();Assert.False(retired.Array.IsValid);
+        scene.AssertBorrowedInputsAlive();scene.AttachPrograms(reconstruction);capture.Draws.Clear();
+        Assert.True(scene.Draw(reconstruction,scene.Capture(6),null,()=>true));Assert.False(scene.HistoryEnabled);
+        output.WriteLine("ARRAY_BINDING_CAPTURE="+System.Text.Json.JsonSerializer.Serialize(new{frames=records,
+            failedSubmission=2,cursorHeld=true,historyInvalidated=true,inheritedBindingsRestored=true,
+            recoveryHistoryRejected=true,resizeAfterFailure=true,resetRetiredStorage=true,resetRecovery=true}));
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
     /// <summary>Certified, revoked and failed summaries preserve complete production reconstruction in either lighting selection.</summary>
     [Theory]
     [InlineData(false)]
@@ -52,36 +95,40 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture) : L
                 scene.Clear();
                 Assert.True(scene.Draw(original, input, null, () => true));
                 var expected = scene.ReadOutput();
-                var expectedTrace = ReadPrivate<CloudVolumeSurface>(original, "trace").Images.Select(image => image.ReadPixels()).ToArray();
+                var expectedTrace = CloudPayloadReadback.Read(LastTrace(original));
                 scene.Clear();
                 Assert.True(scene.Draw(accelerated, input, selected, () => true));
+                Assert.Equal((int)((frame+1)%3),ReadPrivate<int>(accelerated,"cursor"));
                 Assert.Equal(frame is not (2 or 3), scene.HierarchyEnabled);
                 Assert.Equal(frame is not (0 or 2), scene.HistoryEnabled);
                 var actual = scene.ReadOutput();
                 for (int layer = 0; layer < 6; layer++) Assert.Equal(expected[layer], actual[layer]);
-                var traced = ReadPrivate<CloudVolumeSurface>(accelerated, "trace");
-                for (int layer = 0; layer < 3; layer++) Assert.Equal(expectedTrace[layer], traced.Images[layer].ReadPixels());
+                var traced = LastTrace(accelerated);
+                for (int layer = 0; layer < 3; layer++) Assert.Equal(expectedTrace[layer], CloudPayloadReadback.Read(traced)[layer]);
                 Assert.Contains(actual[1], value => value < 1);
 
                 // Revocation must reject all three passes, leave OIT untouched and never commit history.
                 if (frame == 1)
                 {
-                    bool swapped = ReadPrivate<bool>(accelerated, "swap");
+                    int cursor = ReadPrivate<int>(accelerated, "cursor");
                     Assert.False(scene.Draw(accelerated, input, hierarchy, () => false));
-                    Assert.Equal(swapped, ReadPrivate<bool>(accelerated, "swap"));
+                    Assert.Equal(cursor, ReadPrivate<int>(accelerated, "cursor"));
                     Assert.False(ReadPrivate<bool>(ReadPrivate<CloudTemporalHistory>(accelerated, "history"), "valid"));
                     var afterRejection = scene.ReadOutput();
                     for (int layer = 0; layer < 6; layer++) Assert.Equal(actual[layer], afterRejection[layer]);
+                    Assert.Throws<InvalidOperationException>(()=>scene.Draw(accelerated,input,hierarchy,()=>throw new InvalidOperationException("Revoked draw")));
+                    Assert.Equal(cursor,ReadPrivate<int>(accelerated,"cursor"));
+                    Assert.False(ReadPrivate<bool>(ReadPrivate<CloudTemporalHistory>(accelerated,"history"),"valid"));
                     original.Invalidate();
                 }
                 Assert.True(bounds!.IsValid);
             }
 
             // Reset is the common resize/reload boundary. Both domains retire owned storage only.
-            var oldTrace = ReadPrivate<CloudVolumeSurface>(accelerated, "trace");
+            var oldStorage = ReadPrivate<CloudVolumeStorage>(accelerated, "storage");
             Assert.True(hierarchy.TryGetCurrent(scene.Input, out var retired));
             accelerated.Reset(); hierarchy.Reset();
-            Assert.All(oldTrace.Images, image => Assert.False(image.IsValid));
+            Assert.False(oldStorage.Array.IsValid);Assert.All(oldStorage.Blocks,block=>Assert.False(block.View.IsValid));
             Assert.False(retired!.IsValid);
             scene.AssertBorrowedInputsAlive();
             scene.AttachPrograms(accelerated);
@@ -89,9 +136,9 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture) : L
             var replacement = scene.Capture(6) with { World = 2, Allocation = 2, Owner = new object() };
             Assert.True(hierarchy.TryBuild(replacement, () => true), hierarchy.Failure);
             scene.Clear(); Assert.True(scene.Draw(accelerated, replacement, hierarchy, () => true));
-            Assert.NotSame(oldTrace, ReadPrivate<CloudVolumeSurface>(accelerated, "trace"));
+            Assert.NotSame(oldStorage, ReadPrivate<CloudVolumeStorage>(accelerated, "storage"));
             Assert.True(scene.HierarchyEnabled);
-            Assert.Equal(6, ReadPrivate<CloudVolumeSurface>(accelerated, "trace").Target.Width);
+            Assert.Equal(6, LastTrace(accelerated).Target.Width);
             Assert.False(scene.HistoryEnabled);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -100,6 +147,9 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture) : L
     #endregion
 
     #region Private
+    /// <summary>Locates the trace written immediately before the successful role rotation.</summary>
+    private static CloudVolumeSurface LastTrace(CloudVolumeReconstruction reconstruction) =>
+        ReadPrivate<CloudVolumeStorage>(reconstruction,"storage").Blocks[(ReadPrivate<int>(reconstruction,"cursor")+2)%3];
     /// <summary>Observes private scheduler state without adding production diagnostics or alternate execution paths.</summary>
     private static T ReadPrivate<T>(object owner, string name) => (T)AccessTools.Field(owner.GetType(), name).GetValue(owner)!;
 

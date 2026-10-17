@@ -6,15 +6,11 @@
 layout(location=0) out vec4 outCloudRadianceTransmission;
 layout(location=1) out vec4 outCloudBucketTransmission;
 layout(location=2) out vec4 outCloudDepth;
-uniform sampler2D current0;
-uniform sampler2D current1;
-uniform sampler2D current2;
-/** Reads radiance/transmission, bucket transmissions or unfiltered depth metadata. */
+uniform sampler2DArray currentPayload;
+/** Fetches radiance, bucket transmissions or depth from the disjoint current trace block. */
 vec4 CloudCurrentFetch(int layer,ivec2 pixel)
 {
-    if(layer==0) return texelFetch(current0,pixel,0);
-    if(layer==1) return texelFetch(current1,pixel,0);
-    return texelFetch(current2,pixel,0);
+    return texelFetch(currentPayload,ivec3(pixel,layer),0);
 }
 
 /** Reconstructs camera-relative positions from this view's inverse transforms. */

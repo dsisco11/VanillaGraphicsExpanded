@@ -113,10 +113,11 @@ public sealed class CloudLifecycleTests(HeadlessGLFixture fixture)
         events.Raise(value => value.LevelFinalize += null); runtime.Update();
         var renderer = new CloudVolumeRenderer(api.Object, runtime);
         var reconstruction = AccessTools.Field(typeof(CloudVolumeRenderer), "reconstruction").GetValue(renderer)!;
-        var surface = new CloudVolumeSurface(1, 1, "Tests.Cloud.Teardown");
+        var storage = new CloudVolumeStorage(1, 1, "Tests.Cloud.Teardown");
+        var surface = storage.Blocks[0];
         int framebuffer = surface.Target.FboId;
-        int[] textures = surface.Images.Select(image => image.TextureId).ToArray();
-        AccessTools.Field(reconstruction.GetType(), "trace").SetValue(reconstruction, surface);
+        int[] textures = [storage.Array.TextureId,..storage.Blocks.Select(block=>block.View.TextureId)];
+        AccessTools.Field(reconstruction.GetType(), "storage").SetValue(reconstruction, storage);
         Assert.True(runtime.Ownership.TryActivate(CloudMode.Volumetric, renderer, true));
         events.Setup(value => value.UnregisterRenderer(renderer, EnumRenderStage.OIT)).Throws(new InvalidOperationException("event teardown"));
         var error = Assert.Throws<AggregateException>(() => runtime.Ownership.Dispose());
@@ -124,7 +125,7 @@ public sealed class CloudLifecycleTests(HeadlessGLFixture fixture)
         Assert.False(runtime.Ownership.Owns(CloudMode.Volumetric));
         Assert.False(GL.IsFramebuffer(framebuffer));
         Assert.All(textures, texture => Assert.False(GL.IsTexture(texture)));
-        Assert.Null(AccessTools.Field(reconstruction.GetType(), "trace").GetValue(reconstruction));
+        Assert.Null(AccessTools.Field(reconstruction.GetType(), "storage").GetValue(reconstruction));
         renderer.Dispose(); // No second event removal or resource retirement.
         events.Verify(value => value.UnregisterRenderer(renderer, EnumRenderStage.OIT), Times.Once);
     }

@@ -106,9 +106,9 @@ public sealed class CloudTemporalHistoryTests
     [Fact]
     public void BoundsHistoryStorageAndPersistsApprovedDefault()
     {
-        Assert.Equal((5,4),CloudVolumeSurface.Dimensions(9,7)); Assert.Equal((1,1),CloudVolumeSurface.Dimensions(1,1));
-        Assert.Throws<ArgumentOutOfRangeException>(()=>CloudVolumeSurface.Dimensions(0,7));
-        Assert.Throws<ArgumentOutOfRangeException>(()=>CloudVolumeSurface.Dimensions(16384,16384));
+        Assert.Equal((5,4),CloudVolumeStorage.Dimensions(9,7)); Assert.Equal((1,1),CloudVolumeStorage.Dimensions(1,1));
+        Assert.Throws<ArgumentOutOfRangeException>(()=>CloudVolumeStorage.Dimensions(0,7));
+        Assert.Throws<ArgumentOutOfRangeException>(()=>CloudVolumeStorage.Dimensions(16384,16384));
         var config=JsonConvert.DeserializeObject<VgeConfig>("{\"Clouds\":{\"ViewSamples\":999,\"LightSamples\":0,\"DetailAmplitude\":100}}")!;
         config.Sanitize(); Assert.False(config.Clouds.FullResolutionReference);
         var quality=config.Clouds.Capture(); Assert.Equal(16,quality.ViewSamples); Assert.Equal(1,quality.LightSamples); Assert.Equal(.95f,quality.DetailAmplitude);

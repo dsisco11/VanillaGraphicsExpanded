@@ -222,6 +222,36 @@ public sealed class RuntimeSubmissionTests
         Assert.Equal("|validate-sampler;sampler;", GeneratorFixture.Generate(source, supportSource: support).Run());
     }
 
+    /// <summary>Separate texture views retain typed submission without inheriting the owning texture wrapper.</summary>
+    [Fact]
+    public void TextureViewSamplerPublishesAtActivation()
+    {
+        string support = Support.Replace("public class GpuTexture { }", "public class GpuTexture { } public class GpuTextureView { }")
+            .Replace("public static void ValidateSampler(ulong binding, GpuTexture texture, ref ShaderInputValidation history)",
+                "public static void ValidateSampler(ulong binding, GpuTextureView texture, ref ShaderInputValidation history)");
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("source", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment,
+                    TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
+                VanillaGraphicsExpanded.Rendering.GpuTextureView Source { set; }
+            }
+            """ + Header + """
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader(); shader.Source = new();
+                    string before = VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls;
+                    shader.Use();
+                    return before + "|" + VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls;
+                }
+            }
+            """;
+        Assert.Equal("|validate-sampler;sampler;", GeneratorFixture.Generate(source, supportSource: support).Run());
+    }
+
     /// <summary>Compute owners retain storage ranges and atomic counters and publish them at every dispatch.</summary>
     [Fact]
     public void ComputeRangeAndCounterAssignmentsPublishOnlyAtDispatch()
