@@ -182,5 +182,6 @@ replaced with observable draw correctness and exact inherited restoration, not s
 Measured setter/restoration reductions establish reduced native work; they do not establish GPU
 time or frame-rate gains. At implementation, reconcile the complete-graphics, canonicalization,
 coverage and clear-only descriptions in `Rendering.AuthoritativePipelineState.md` with these
-semantics. This proposal creates no separate implementation checklist and authorizes no runtime
-change by itself. The approved design governs the separate implementation task.
+semantics. The approved design governs the separate implementation task, elaborated at the user's
+request in [the execution checklist](Rendering.PsoStateRelevance.todo). Creating that checklist does
+not begin runtime implementation.

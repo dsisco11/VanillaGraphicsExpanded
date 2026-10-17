@@ -1,0 +1,183 @@
+PSO state relevance
+===================
+
+Authority and scope
+  Source: docs/Rendering.PsoStateRelevance.Proposal.md (approved).
+  Parent: docs/PBR.BaselineShading.todo, suppress draw-irrelevant state application/restoration.
+  Existing contract: docs/Rendering.AuthoritativePipelineState.md.
+  Derive relevance from complete declarations and verified prepared executable information;
+  retain authored intent, a single StateCache owner and exact engine-state handback.
+  No renderer ignore flags, nullable intent, new geometry-adapter contract, renderer-local dirty
+  tracker, shader source scanning, draw-loop driver queries or reinterpretation of partial overrides.
+  Do not expand scope to texture binding caching, new sky scheduling or GPU-time optimization.
+
+Execution and evidence
+  Every task starts unchecked. Complete only when its stated evidence exists and linked documents
+  agree. Use subagents for build/test tools. Follow repository comments, visibility regions,
+  focused source responsibilities, existing preparation, resource lifetime and cleanup contracts.
+  Use lightweight focused tests routinely; distinguish source review, CPU contracts, GPU pixels,
+  exact state handback, native-call counters, canonical packaging and live appearance evidence.
+  Never launch the game for visual acceptance. No absolute timing target or mandatory live gate
+  is introduced by this plan; do not claim GPU/frame-time or appearance gains from headless checks.
+  Preserve all unrelated work and leave the parent implementation task unchecked until acceptance.
+
+Implementation choices and conservative bounds
+  Select names and source layout through the existing pipeline/state domains. The proposal fixes
+  semantics, not new public APIs or a second state owner.
+  Use verified output-primitive metadata if already available through executable preparation;
+  otherwise conservatively retain all affected primitive groups for geometry/tessellation shaders.
+  No metadata/reflection expansion is required merely to remove more setters.
+  Keep restart enables conservative because geometry adapters have no common indexing declaration.
+  Preserve current boundary entry shape: include the bounded clear-helper envelope even when the
+  callback ultimately uses only Preserve passes. Extra capture work is accepted; extra setters are not.
+  Keep conservative application for every field without an approved irrelevance proof, including
+  viewport, depth range, clip conventions/distances, provoking vertex, discard, sRGB, dither and
+  logic-op disable. Preserve sampling enables even for single-sample targets.
+
+Phase 1: Preserve declarations and derive prepared relevance
+  Outcome: complete authored values and immutable relevance metadata have executable contracts;
+  production application and boundary coverage remain on their existing conservative path.
+  ☐ Reverify declaration, preparation and call-group ownership against current source.
+    - Inspect GraphicsPipelineDesc, PipelineCanonicalization, GraphicsPipeline lifetime/preparation,
+      StateCache complete application, category knowledge, PipelineStateCoverage and pass validation.
+    - Record native setters that update combined fields or alias all output slots; use their actual
+      write groups as the unit of relevance/coverage, distinct from declared values and validity bits.
+  ☐ Preserve dormant authored intent and predictable pipeline identity.
+    - Remove destructive disabled-value canonicalization for depth/stencil, raster, blend, sampling
+      and assembly settings. Retain only semantically lossless representation normalization.
+    - Validate all authored enums, ranges, finite values and capabilities before derivation, including
+      dormant settings. Preserve structural equality/hashing, excluding labels and native identities;
+      declarations with different dormant authored values remain distinct.
+    - Keep declared dynamic values required and validated even when dormant. Preserve concrete
+      defaults for undeclared dynamic slots; neither omitted nor skipped values inherit intent.
+  ☐ Derive immutable field/group and indexed-slot relevance with prepared pipelines.
+    - Derive static selectors from topology, polygon mode, enables, target aspects/formats/samples,
+      sparse output slots, equations and constant-factor use. Validate against matched pass signatures.
+    - Resolve emitted primitive information during preparation where verified metadata exists;
+      otherwise use the conservative unknown-output path. Rebuild with executable reload/lifetime.
+    - Current dynamic values do not toggle selectors. Document the future-selector rule: predeclare
+      union coverage before entry and resolve the operation mask before application.
+  ☐ Verify authored retention, equality/hash differences, lossless normalization, invalid dormant
+    settings, explicit defaults, dynamic requirements, sparse/integer targets, emitted primitive
+    fallback and reload metadata. Update obsolete canonical-equality expectations with intent checks.
+  ☐ Completion: focused subagent-run contracts pass; every dependency-table row maps to a derived
+    group or an explicit conservative rule, without activating sparse application prematurely.
+
+Phase 2: Separate sparse authority from complete admission
+  Depends on Phase 1. Outcome: sparse coverage and helper envelopes are verified and ready for
+  coordinated activation; the existing full application still has sufficient restoration authority.
+  ☐ Separate complete-graphics admission from automatic all-field coverage expansion.
+    - Add sparse potential-write composition from prepared relevance while preserving complete-draw
+      validation, resource footprints, context identity and rejection of undeclared operations.
+    - Keep the active full-application boundary conservative until Phase 3 switches both together.
+      Do not run existing unconditional setters under the new sparse authority.
+    - Preserve explicit partial GlPipelineDesc/helper semantics and existing non-graphics boundaries.
+  ☐ Define the bounded clear-operation envelope from RenderPassOperations.Load.
+    - Include discard, sRGB, dither, scissor enable/rectangle, indexed color masks, depth write mask
+      and front/back stencil write masks, expanding global aliases to all affected native slots.
+    - Keep clear values as operation inputs. Clear-only contexts need helper coverage without a PSO;
+      Preserve/Discard-only loads perform no clear-state application. Preserve other helper coverage.
+  ☐ Refine shared coverage/query/knowledge/restoration groups where required.
+    - Combined factor/equation/stencil/polygon setters cover their full actual native writes.
+      Without independent blending, global factor/equation writes cover all slots and retain existing
+      capability compatibility validation; sparse routes do not narrow global native effects.
+    - Capture potential writes before mutation using existing known cache state where possible.
+      Keep saved/current comparisons; do not introduce a new dirty tracker or invalidate whole
+      categories to represent a dormant field. Preserve failure cleanup and conservative invalidation.
+  ☐ Verify sparse union/Contains, indexed/global aliases, complete admission without full expansion,
+    undeclared-mutation rejection, clear-only footprints and retained partial-helper behavior.
+  ☐ Completion: focused subagent-run coverage/boundary checks pass; all current active setters still
+    have authority, and sparse application can be enabled without missing restoration fields.
+
+Phase 3: Apply relevant groups and activate matching boundary coverage
+  Depends on Phase 2. Outcome: production complete draws leave dormant state untouched and establish
+  relevant declared values, with matching potential-write restoration coverage.
+  ☐ Switch complete application and boundary construction together to prepared relevance.
+    - Share resolved groups across application, mutation validation and restoration coverage.
+      Update any descriptor-only application paths conservatively without guessing executable output.
+    - Union all declared pipelines, existing resource/binding footprints and the clear envelope at entry.
+      Do not base restoration on only the final selected pipeline or last draw's relevance.
+    - Skip dormant setters without modifying their cached native values or marking declarations applied.
+      Retain unchanged-value suppression for relevant fields through the same existing setters.
+  ☐ Implement primitive and raster dependencies.
+    - Lines include polygon-mode Line. Gate line width/smoothing and compatibility stipple; stipple
+      parameters require enable. Fixed point size requires points and program point size disabled.
+    - Establish point-size enable and conservative sprite-origin/smoothing for point draws; gate
+      polygon-only controls and applicable offset enables, with bias parameters only when applicable.
+    - Gate polygon cull enable/mode appropriately; retain front-face orientation for polygons even
+      with culling disabled, preserving shader facing and two-sided stencil observations.
+    - Gate scissor rectangle by enable while still disabling inherited scissoring for unclipped draws.
+      Keep unknown emitted primitive groups conservative and all other approved conservative fields.
+  ☐ Implement depth/stencil, output, sampling and assembly dependencies.
+    - Depth aspect controls depth-test enable relevance; comparison/write mask require enabled test.
+      Stencil aspect controls test-enable relevance; face functions/references/ops/masks require test.
+      Preserve both stencil faces and conservative depth range/clip conventions.
+    - Apply color masks to routed slots regardless of blending. Apply blend enables for routed
+      blendable outputs, equations when enabled, factors for factor-using equation channels, and
+      blend constant only when consumed. MIN/MAX ignore factors; integer targets bypass blending.
+    - Leave holes/trailing outputs untouched. When either channel requires a combined setter,
+      submit all declared operands and preserve full native-call-group restoration/alias coverage.
+    - Gate coverage payload, mask words and minimum shading by their enables; keep sampling enables
+      conservative. Gate restart index by programmable restart without fixed-index override and
+      patch vertex count by patch topology; keep restart enables conservative across adapters.
+  ☐ Preserve clear/draw sequencing and exact native handback.
+    - Depth/stencil clears establish write masks independently of test enables; region clears
+      establish scissor independently of the following draw. Relevant draw state follows clear state.
+    - Restore changed inherited parameters even if incoming features were disabled or the last draw
+      leaves parameters dormant. Untouched groups emit no compensating restoration setters.
+    - On setter failure invalidate the affected group, attempt restoration, continue independent
+      cleanup and propagate fatal handoff failure through existing paths. Keep external invalidation.
+  ☐ Verify focused GPU transitions for triangle width 2/inherited 4 → line width 2 → triangle → restore 4,
+    disabled/active scissor and blend state, sparse output reuse, point-size modes and grouped writes.
+    Replace unconditional-default tests with observable pixels, authored intent and exact handback;
+    retain existing failure and validation strength.
+  ☐ Completion: focused subagent-run CPU/GPU checks pass with relevance active; no native application
+    exceeds declared authority, and no relevant feature inherits stale state.
+
+Phase 4: Qualify correctness and native-call reductions
+  Depends on Phase 3. Outcome: integrated evidence demonstrates unchanged rendering and exact handback
+  while eliminating the captured unnecessary setters/restoration.
+  ☐ Exercise the complete dependency/transition matrix in focused GPU fixtures.
+    - Filled/wireframe/line/point and unknown geometry/tessellation outputs; culling disabled with
+      front-face observations; applicable offsets and supported compatibility primitive controls.
+    - Dormant-to-active depth/stencil with present/absent aspects; sampling payloads and restart/patch
+      selectors; dynamic supplied/default values and invalid authored/dynamic declarations.
+    - Mixed indexed blending, integer targets, sparse routes becoming active, MIN/MAX versus factor
+      equations, blend constants and combined RGB/alpha writes; global fallback aliases where supported.
+    - Region/color/depth/stencil clears, clear-only and Preserve-only contexts; grouped cache knowledge,
+      skipped draws, shader reload, recovery, mutation failures and exact handback on failure.
+  ☐ Compare representative sky/cloud/fullscreen and point-resolve workloads under matched inputs.
+    - Use hostile inherited nondefault/dormant state. Compare all affected pixels and independently
+      inspect complete inherited state, not only parameters relevant to the last draw.
+    - Capture bounded native-call events/counters separating setup, draw application and restoration.
+      Demonstrate absent line/point setters for filled fullscreen draws, absent disabled scissor-box
+      normalization, and absent disabled/unrouted blend payload writes; retain necessary transitions.
+    - Use small focused fixtures and a controlled test-only conservative reference if needed. Avoid
+      preserving redundant production implementations or copying entire legacy shader pipelines.
+  ☐ Reconcile any old tests asserting unconditional dormant defaults without deleting correctness,
+    ownership or restoration coverage. Remove temporary diagnostic/reference scaffolding after its
+    required comparisons are recorded; retain useful regression tests for current contracts.
+  ☐ Completion: subagent-run focused regressions pass; evidence links inputs, output/state comparisons,
+    call groups and measured reductions. No timing, full-driver-trace or live-appearance claim is made.
+
+Phase 5: Reconcile contracts and qualify the canonical package
+  Depends on Phase 4. Outcome: documentation, tests and packaged code describe the same accepted behavior.
+  ☐ Update Rendering.AuthoritativePipelineState.md for complete observable draw control, authored
+    identity, prepared relevance, sparse mutation/restoration coverage and clear-only envelopes.
+    Update other affected current-state documents; retain the proposal as design authority rather
+    than rewriting architecture documentation as a historical log.
+  ☐ Run subagent-owned required builds, shader checks and focused Debug/Release regressions through
+    canonical repository tooling; rebuild the canonical package and verify it contains the tested code.
+    Record exact commands/results, configuration, source/package identity and material limitations.
+  ☐ Perform a second source/plan/proposal review and resolve every uncovered dependency or unsupported
+    scope change. Confirm conservative fallbacks, no renderer bypasses, exact external handoff,
+    independent cleanup and no unnecessary scaffolding; leave unrelated parent tasks untouched.
+  ☐ Completion: every proposal requirement has source and appropriate validation evidence, docs and
+    package agree, and the parent implementation task links that evidence before being marked complete.
+
+Final acceptance
+  ☐ Complete PSOs preserve all authored values while applying only relevant native write groups.
+  ☐ Dormant values/cache knowledge remain intact; later relevant draws establish intent before drawing.
+  ☐ Clear operations and indexed/global aliases have sufficient independent restoration authority.
+  ☐ Pixels and exact inherited state pass transition/failure checks; matched calls show reduced work.
+  ☐ Canonical package, current documentation and subagent-run validation receipts agree.

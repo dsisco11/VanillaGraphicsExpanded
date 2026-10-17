@@ -399,6 +399,7 @@ Tasks
       this task produces the design, not runtime changes or a separate implementation checklist.
 
   ☐ Suppress application and restoration of draw-irrelevant graphics state.
+    - Execution checklist: Rendering.PsoStateRelevance.todo, derived from the approved proposal.
     - Implement the resolved PSO state-relevance design above in the shared pipeline application
       and boundary coverage paths. Preserve dormant inherited parameters instead of normalizing
       them to PSO defaults when they cannot affect the draw.
