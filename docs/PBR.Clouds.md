@@ -251,6 +251,15 @@ bounded temporal filter is checked for noise reduction separately from offline s
 averaging; its fixed history weight and rejection/clamping do not imply vanishing noise or
 an unbiased transport estimator.
 
+`CloudHierarchyPerformanceTests` is an opt-in comparison of same-candidate DDA and certified
+hierarchy traversal through the production reconstruction scheduler. It records paired GPU
+construction, trace, temporal, resolve and independently measured total costs, plus CPU submission,
+adapter identity, allocation reuse and raw samples. The accelerated total includes a fresh reduction
+for each native generation. Synthetic map/depth authoring and shared native producer/scene-depth work
+remain outside both measured paths. Those controlled workloads do not establish live whole-frame
+costs or reproduce captured weather. Large separated-height gaps are adversarial shader-domain
+inputs, not a claim about normal native weather. Measurement cases are disabled in routine tests.
+
 These receipts establish source/automated contracts, not user visual
 acceptance or live frame time. Weather appearance, cubic fluff, motion, in-game lifecycle
 transitions and hardware-specific GPU/CPU/memory budgets remain acceptance activities in the

@@ -27,8 +27,8 @@ Implementation choices and acceptance inputs
   Select the GPU reduction submission mechanism and traversal implementation through existing
   rendering APIs; these are implementation choices, not authorization for a new GPU abstraction.
   Use the current native publication contract, not assumptions based on texture names or uploads.
-  Target hardware, resolutions, representative scenes and performance budgets are not specified.
-  Record those targets before performance acceptance; do not invent numbers or block math work.
+  Target hardware, resolutions and representative scenes are recorded during qualification.
+  The user requires a relative speed comparison, with no absolute time budget; do not invent one.
 
 Phase 1: Establish hierarchy contracts and independent bounds oracle
   Outcome: storage geometry, source identity and conservative reduction have executable checks.
@@ -137,8 +137,8 @@ Phase 5: Qualify pipeline integration and reconcile documentation
 
 Phase 6: Demonstrate end-to-end performance and live correctness
   Depends on Phase 5. Outcome: measured evidence establishes practical benefit and limitations.
-  ☐ Record target GPU/hardware, resolution, settings, build identity, scene matrix and budgets.
-  ☐ Measure original versus accelerated rendering on the same candidate and identical PMJ frames.
+  ☑ Record GPU/hardware, resolution, settings, build identity, scene matrix and relative speed criterion.
+  ☑ Measure original versus accelerated rendering on the same candidate and identical PMJ frames.
     - Include hierarchy construction plus view/light tracing in total cloud cost; separately record
       construction, trace and unchanged reconstruction costs without omitting setup overhead.
     - Include empty, sparse, dense overlapping and separated-height maps; ground, inside-cloud and
@@ -148,7 +148,7 @@ Phase 6: Demonstrate end-to-end performance and live correctness
     clipping and OIT composition in both PBR modes; do not infer appearance from headless checks.
   ☐ Reconcile any correctness or performance failures within approved scope and repeat affected
     checks. If benefit is not demonstrated, leave performance acceptance open and report findings.
-  ☐ Completion: recorded total costs demonstrate benefit against agreed targets, live acceptance
+  ☐ Completion: recorded total costs demonstrate relative benefit, live acceptance
     is recorded and limitations are explicit; no unresolved required gate is marked complete.
 
 Final acceptance
@@ -459,3 +459,147 @@ Phase 5 contracts and verification
       hashes and package identity, and confirmed the wider snapshot failure is pre-existing. Phase 6 and final
       acceptance remain unchecked: headless results and the 0.17-MiB payload do not establish total
       GPU benefit, live appearance, in-game lifecycle acceptance or reflected-cloud integration.
+
+Phase 6 qualification inputs (2026-10-17)
+  User-run visual acceptance
+    The user reports: "I have already verified ingame appearence as fine."
+    This records general in-game appearance acceptance; no unreported per-mode or scene-matrix
+      observations are inferred. Further performance improvements are a separate requested discussion,
+      not permission to change the approved rendering behavior during qualification.
+  Performance target and evidence
+    The user clarified: "arent discussing a performance target right now, jsut verify that its faster".
+      Local hardware discovery identifies an NVIDIA GeForce RTX 4090 (driver 610.88, 24,564 MiB);
+      an actual GL timing run must also record its GL renderer/version to rule out a software adapter.
+      No game launch, deployment, measured speedup or performance acceptance is implied by discovery.
+    Task -> source -> evidence: target/cost matrix -> proposal Acceptance and this checklist Execution
+      conventions / Phase 6 -> matched per-generation construction plus production reduced transport
+      and reconstruction timings are required, including sparse/dense/empty/separated maps, view
+      positions, animated inputs/padded edges and allocation reuse. Existing correctness/probe-count
+      receipts do not establish that benefit. Acceptance uses relative total GPU costs; no absolute millisecond budget is required.
+  Saved-setting observation and timing readiness
+    Read-only clientsettings.json inspection reports screenWidth=1846, screenHeight=980, ssaa=1,
+      cloudRenderMode=1 and viewDistance=1536. These are saved preferences, not a verified active
+      framebuffer or an agreed qualification target. That view distance implies the native 200-wide
+      maximum control map under the inspected producer formula. Saved VGE configuration contains
+      no explicit cloud controls; actual running quality must be captured rather than inferred.
+    Existing GpuTimerQuery and GpuTimestampQuery can measure completed GPU work. Production
+      GraphicsCommandContext has identifiable BeginPass/EndPass boundaries for reduced trace,
+      temporal filtering and resolve; test-only observation can separate these without changing
+      production sampling or adding runtime profiling policy. Total timing must also enclose
+      per-generation CloudHierarchy.TryBuild and production CloudVolumeReconstruction.Draw.
+    The saved 1846x980 extent was selected initially, not asserted as a live framebuffer.
+      The full matrix uses 129x73 after scaling pilots exposed expensive shader workloads; larger
+      extent controls are recorded separately rather than implied by the bounded matrix. No benchmark or regression
+      result is claimed from these saved settings or source inspection.
+  Relative-cost qualification method
+    User instruction supersedes the earlier request for an absolute budget. The chosen comparison
+      is RTX 4090, bounded 129x73 full-matrix extent, explicit synthetic 75-degree vertical field of view,
+      default CloudVolumeSettings and half-width/half-height tracing. No absolute speed target or
+      live framebuffer dimensions are inferred. Original means same-candidate DDA with summaries
+      unavailable; accelerated means certified summaries rebuilt for each native generation.
+    Phase 6 measurement -> proposal Acceptance / Ownership and publication; inherited volumetric
+      proposal Quality and temporal behavior / Publication and native lifecycle -> opt-in
+      CloudHierarchyPerformanceTests, CloudPerformanceScene and CloudPerformanceTimer. Both owners
+      execute actual CloudVolumeReconstruction.Draw. Equal timestamp observation counts measure
+      construction, trace, temporal and resolve; a separate outer interval covers construction and
+      complete production preparation/submission/restoration, rather than summing stage medians.
+      CPU submission is recorded separately from query-result waits. Paired inputs and PMJ frames
+      are identical, ordering alternates and first-use work is warmed outside recorded samples.
+    Matrix: 200-wide empty/sparse/dense/separated-height maps from ground/inside/above, plus odd
+      81-wide sparse/separated native-edge views. Native bounds animate each generation; solar/lunar
+      directions update periodically while matching completed lighting can retain temporal history.
+      Stable allocation identities and owned texture payload are recorded; payload is not residency.
+    Common retained native map production and scene-HZB work are outside both measured VGE paths;
+      synthetic uploads, neutral OIT clears, first-use allocation/compilation, output verification
+      readbacks and query waits are excluded identically. These controlled costs qualify relative
+      VGE cloud work, not complete game-frame timing. Selected output comparisons remain outside
+      timing. No runtime rendering algorithm changes or further performance optimization is included.
+
+  Measured relative costs (2026-10-17)
+    Candidate: canonical Debug build (not Release or live whole-frame qualification); production DLL SHA256
+      D88A182FC5DC078C3A3B93C19B1F903EA757130129DFDB958FB1D0FB598A6909.
+      SPIR-V uses the build tool's fixed -O optimization; Debug also emits -g metadata.
+      The three new files are opt-in benchmark fixtures only; inherited cloud runtime, shader and test
+      sources match the Phase 5 manifest without drift. Build passed 458/537 production/test shader
+      variants with 0 errors and 164 existing recompilation warnings. Existing production correctness
+      and packaging receipts remain applicable to unchanged source; no algorithm was modified.
+    Adapter: GL renderer NVIDIA GeForce RTX 4090/PCIe/SSE2, OpenGL 4.3.0 NVIDIA 610.88; hardware
+      CSVs record P0 and clocks/temperature before and after. No game process was observed. Host,
+      raw timing arrays, actual settings, lighting cadence, allocation identities and build hash are
+      recorded with each measured scene. These are controlled synthetic workloads, not native captures.
+    Final full matrix: 129x73, 28 scenes across both PBR selections, 24 paired frames after four
+      warmups, 672 pairs total; two xUnit theories passed in 5m35s with no failures/skips. Timed
+      committed history agrees in all seven channels, selected reconstructed OIT agrees in all six,
+      nonempty scenes contain cloud pixels and allocations remain stable. Each scene records 21/24
+      compatible history frames; lighting publication changes account for the other three.
+      A 513x273 dense-inside scale pilot passed both modes; a 1846x980 empty-ground control passed
+      both modes with 24 pairs each. The full nonempty matrix was not run at saved resolution.
+    Median total GPU costs, including fresh hierarchy construction (standalone PBR; PBR+LumOn
+      selection shows the same direction of change):
+      129x73 dense/ground: 88.443 ms DDA -> 65.784 ms hierarchy, 25.6% faster.
+      129x73 dense/above: 60.351 ms -> 34.325 ms, 43.1% faster.
+      129x73 dense/inside: 86.004 ms -> 143.063 ms, 66.3% slower.
+      129x73 sparse/inside: regression in both selections, approximately 20% slower.
+      1846x980 empty/ground: 4.307 ms -> 0.561 ms, approximately 87% faster; all 24 pairs win.
+      Dense-inside regression also persists at 513x273 (approximately 73 ms -> 132 ms).
+      Construction is approximately 0.03 ms on 200-wide maps; the significant regression is in
+      tracing, not reduction or unchanged temporal/resolve passes. CPU submission is recorded
+      separately and is much smaller than those GPU trace costs.
+    Separated-height 550-unit gaps are deliberately non-native shader-domain stress. The odd81
+      edge camera is 25 units inside the upper native boundary, not normal native camera-following
+      placement. Their regressions are retained in raw results, not presented as observed weather.
+      No single aggregate speedup is claimed across differently weighted scenes or resolutions.
+    Owned payload: 174,760 bytes hierarchy for width200; 43,688 bytes for width81. Reconstruction
+      payload per owner is 692,640 bytes at129x73 and130,253,760 bytes at1846x980, plus512 PMJ bytes.
+      Both original and accelerated retain the same reconstruction allocation; hierarchy is extra.
+      These are nominal texel payloads, not measured resident GPU memory or allocator overhead.
+    Evidence: artifacts/CloudHierarchy/phase6-result-summary.json contains all 32 final matrix/scale/
+      full-size-control records, stage medians, paired distributions and conditional empirical-frame
+      bootstrap intervals. Raw phase6-measurements, phase6-scale-pilot and phase6-full-size-control
+      directories and matching TRX/logs retain the observations. Smoke/pilot receipts are separate.
+      phase6-candidate-hashes.json records 90 inputs/binaries; phase6-candidate-recheck.json reports
+      zero drift. Exact commands: phase6-commands.json. The 53-receipt identity manifest is
+      phase6-receipt-hashes.json; no production or shader source changed during measurement.
+    Verdict: the hierarchy is faster for some tested views, but the unqualified relative-speed claim
+      is contradicted by relevant dense/sparse inside-cloud cases. Performance acceptance and Phase 6
+      completion remain open; regressions require the requested separate optimization discussion.
+      User appearance approval remains recorded. Detailed unreported live mode/scenario coverage and
+      whole-frame timing are not inferred. No game launch, deployment or optimization occurred.
+    Second review and independent linked-document audit verified the declared measurement work,
+      all 90 candidate hashes and all 53 receipt identities without drift. The first two Phase 6
+      tasks are satisfied for the named extents/workloads; they do not establish universal speedup,
+      full-resolution nonempty-scene costs or unreported detailed live coverage. The audit does not
+      pass Phase 6 completion: inside-cloud regressions remain unresolved pending optimization
+      discussion. General user appearance acceptance is retained without asking for a repeat.
+
+  User-requested 512x512 follow-up (2026-10-17)
+    Complete matrix at a 512x512 view with normal 256x256 reduced tracing, 75-degree vertical FOV,
+      RTX 4090 and the same optimized-SPIR-V candidate/quality/PMJ sequence as prior qualification.
+      All 90 candidate identities matched before and after, so the existing executable was reused.
+      The square frustum changes horizontal coverage from earlier widescreen cases; these results
+      compare matched 512x512 pairs and do not attribute cross-run differences to pixel count alone.
+    Passed both theory cases with no failures/skips in 7m26s: all 28 scenarios, both PBR selections,
+      24 paired samples plus four warmups each (672 paired observations). Exact selected seven-channel
+      committed history and six-channel reconstructed OIT comparisons, nonempty cloud coverage,
+      temporal admission and persistent allocation reuse passed. No algorithm or shader was changed.
+    Every one of the 22 nonempty scenarios is slower by median with the hierarchy; only the six
+      empty scenarios improve. Representative standalone PBR median total GPU costs, including each
+      generation's hierarchy construction:
+      Dense ground: 62.552 ms DDA -> 73.651 ms hierarchy (17.7% slower).
+      Dense inside: 100.680 ms -> 183.401 ms (82.2% slower).
+      Dense above: 37.713 ms -> 43.915 ms (16.4% slower).
+      Sparse inside: 30.711 ms -> 77.021 ms (150.8% slower).
+      Empty ground: 0.593 ms -> 0.151 ms (74.6% faster).
+      PBR + LumOn selection has the same outcome. Separated-height and odd-edge stress remain
+      separately identified as controlled shader-domain/boundary inputs, not captured native weather.
+    Evidence: artifacts/CloudHierarchy/phase6-512-result-summary.json, phase6-512-commands.json,
+      phase6-512-receipt-hashes.json, raw phase6-512-measurements directory and corresponding TRX/log.
+      Hardware before/after snapshots accompany this run. Common native producer and scene-depth
+      work, synthetic input uploads, neutral clears, first-use work, readback and query waits remain
+      excluded identically; actual owned construction and production Draw submission are included.
+    This requested resolution confirms relevant cloud-filled regressions. Empty-map improvement does
+      not satisfy general performance acceptance. Phase 6 completion remains open pending the
+      requested optimization discussion; user appearance acceptance remains recorded.
+    Second review and independent audit verified all 90 candidate and 36 new receipt hashes,
+      recomputed all 28 raw medians and confirmed paired-interval directions. No evidence defect
+      was found; the negative performance result leaves completion and final acceptance open.
