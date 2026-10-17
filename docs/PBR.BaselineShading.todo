@@ -230,6 +230,35 @@ Tasks
       fallback. Automated integration qualification is recorded there; total GPU benefit and user-run
       live acceptance remain open, so this parent item is not complete.
 
+  ☐ Compact volumetric cloud intermediates and reconstruct native OIT accumulation bins at resolve.
+    - Store integrated physical RGB radiance and overall transmission, three bucket transmissions,
+      and existing depth metadata instead of three separately accumulated RGBA bucket textures.
+      A uniform array-compatible layout uses three RGBA32F layers per trace/history block:
+      radiance/transmission, bucket transmissions/spare, and depth metadata (48 versus 80 bytes
+      per reduced pixel per block). Preserve final native OIT outputs, weighting and scene encoding.
+    - Reconstruct each bucket as vec4(radiance, 1 - transmission) * (1 - bucketTransmission).
+      Evaluate the changed temporal clamping and spatial filtering: filtering factors separately
+      does not generally equal filtering their products. Compare against the existing path at cloud
+      edges, lighting/weather transitions, disocclusions and overlapping transparent geometry.
+    - Use subagent-run focused correctness tests and user-run visual comparisons before adoption.
+      Measure matched end-to-end cloud GPU cost, including trace, temporal and resolve; distinguish
+      storage/fetch reductions from measured speedup and retain existing traversal/lighting quality.
+
+  ☐ Consolidate volumetric cloud trace and temporal history storage into one Texture2DArray.
+    - Build on the validated compact cloud-payload task above: allocate nine RGBA32F layers as
+      three independent three-layer blocks for current trace, previous history and next history.
+      Use rotating block indices and advance roles only after successful frame submission/history
+      commit. Preserve invalidation on skipped/failed frames and keep PMJ sampling indices independent.
+    - Expose disjoint block texture views so sampled images exclude the attached write block;
+      shader layer offsets alone must not be used to establish framebuffer-feedback safety.
+      Reuse existing immutable array storage, texture views, layer attachments and typed bindings.
+    - Precreate block framebuffer attachments and integrate alias/resource declarations with the
+      existing PSO system. Name the array and views; preserve resize/reload/disposal ownership,
+      exception-safe allocation, depth rejection and the final native OIT output contract.
+    - Verify block rotation, read/write separation, history invalidation and resource retirement
+      with subagent-run focused GPU tests against equivalent separate-texture storage. Compare
+      outputs and capture bindings; measure any speedup rather than inferring it from object count.
+
   ☐ Reduce redundant GPU state restoration between consecutive VGE graphics passes.
     - Cloud trace, temporal and resolve already use cached GraphicsPipelineDesc declarations within
       one GraphicsCommandContext boundary. Inspect shared RenderPass and shader activation scopes:
