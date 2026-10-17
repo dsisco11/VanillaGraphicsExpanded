@@ -1,6 +1,7 @@
 #version 330 core
 #extension GL_ARB_separate_shader_objects : require
 #define VGE_CLOUD_PHYSICAL
+#define VGE_CLOUD_PMJ
 @import "./includes/cloud_volume_transport.glsl"
 @import "./includes/cloud_temporal_parameters.glsl"
 layout(location=6) out vec4 outCloudDepth;

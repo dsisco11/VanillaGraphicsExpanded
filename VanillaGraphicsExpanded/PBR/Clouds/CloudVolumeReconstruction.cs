@@ -25,6 +25,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     private GraphicsPipeline? resolvePipeline;
     private int width,height;
     private bool swap;
+    private CloudPmjJitterTexture? pmjJitter;
 
     #region Public API
     #region Preparation and admission
@@ -36,7 +37,11 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         traceProgram=GpuShaderProgramLibraries.Get<CloudTraceProgram>(api,"cloud_volume_trace");
         temporalProgram=GpuShaderProgramLibraries.Get<CloudTemporalProgram>(api,"cloud_volume_temporal");
         resolveProgram=GpuShaderProgramLibraries.Get<CloudResolveProgram>(api,"cloud_volume_resolve");
-        return traceProgram?.EnsureReady()==true && temporalProgram?.EnsureReady()==true && resolveProgram?.EnsureReady()==true;
+        if(traceProgram?.EnsureReady()!=true || temporalProgram?.EnsureReady()!=true || resolveProgram?.EnsureReady()!=true) return false;
+        pmjJitter ??= CloudPmjJitterTexture.Create();
+        pmjJitter.EnsureCreated();
+        traceProgram.PmjJitter=pmjJitter;
+        return true;
     }
     /// <summary>Rejects content history immediately while retaining correctly sized owned allocations.</summary>
     internal void Invalidate() { history.Invalidate(); }
@@ -51,6 +56,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         var previous=swap?second!:first!; var next=swap?first!:second!;
         var camera=VgeFrameRenderer.Current;
         Capture(traceProgram,traceProgram.Parameters,input,lighting,settings,sceneDepth,visibilityDepth,liquidDepth);
+        traceProgram.PmjJitter=pmjJitter;
         resolveProgram.SceneDepth=sceneDepth; resolveProgram.VisibilityDepth=visibilityDepth; resolveProgram.LiquidDepth=liquidDepth;
         // The immutable publication and native content certificates identify compatibility. New
         // map generation numbers alone do not: the native producer legitimately writes every frame.
@@ -88,7 +94,8 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     internal void Reset()
     {
         Invalidate(); traceProgram=null; temporalProgram=null; resolveProgram=null;
-        RenderingCleanup.Run(()=>{resolvePipeline?.Dispose();resolvePipeline=null;},ReleaseTargets);
+        RenderingCleanup.Run(()=>{resolvePipeline?.Dispose();resolvePipeline=null;},ReleaseTargets,
+            ()=>{pmjJitter?.Dispose();pmjJitter=null;});
     }
     /// <summary>Releases only VGE resources; current native column and scene textures remain borrowed.</summary>
     public void Dispose() { RenderingCleanup.Run(Reset,lifetime.Dispose); }

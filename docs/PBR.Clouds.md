@@ -69,6 +69,18 @@ shared faces remain connected. Broad faces and stepped cubic masses remain. Nois
 placement, integer recentering and committed/residual wind without a second advection.
 Disabling detail also disables edge erosion, restoring constant-column optical depth.
 
+Reduced tracing jitters sample positions within each occupied integration segment using a
+cloud-owned 128-sample, Owen-scrambled PMJ sequence. It reuses the shared Sobol-based generator
+used by LumOn, with independent cloud seed and GPU lifetime; LumOn need not be enabled.
+View and secondary-light marches use separate sequence dimensions, with cell, view-sample and
+solar/lunar decorrelation. Full-resolution pixel identity selects a sequence offset, and the
+temporal index advances once per four-phase cycle so each scheduled pixel visits the complete
+sequence. Segment lengths, native column bounds and sample counts are unchanged.
+This sequence is not a spatial blue-noise mask. No density noise is added by sampling jitter.
+The full-resolution reference retains deterministic midpoint quadrature and has no PMJ sampler;
+constant-density mode also retains midpoint sampling. The sequence texture persists across
+ordinary frames and is retired with reconstruction resources on resize, reload or disposal.
+
 View and bounded secondary solar/lunar marches share this density definition. HG single
 scattering uses g=.6 and one isotropic approximate multiple-scattering octave with contribution
 and occlusion .5/.5. This approximates higher-order transport rather than a second explicit
@@ -150,7 +162,7 @@ The persisted `Clouds` config and ConfigLib expose:
 
 | Control | Default | Bounds/meaning |
 | --- | --- | --- |
-| `FullResolutionReference` | false | Full view, same transport, no history or upsampling |
+| `FullResolutionReference` | false | Full view, midpoint transport, no history or upsampling |
 | `ViewSamples` | 4 | 1..16 subdivisions per occupied column |
 | `LightSamples` | 1 | 1..4 subdivisions per occupied column |
 | `Detail` | true | Noise and exposed-edge erosion; false gives native-transmittance reference |
@@ -183,7 +195,21 @@ possible mid-frame release, while owned physical bounds are admitted separately.
 Headless fixtures qualify map certificates, post-tick borrowing, draw gates, mode transitions,
 native registration restoration, teardown, physical transport, OIT payloads, depth clipping,
 storage encoding and temporal reconstruction. Shader catalog and output-asset checks qualify
-packaged owned binaries. These receipts establish source/automated contracts, not user visual
+packaged owned binaries.
+
+Deterministic reconstruction fixtures retain per-frame reference comparisons. Detailed PMJ
+sampling is evaluated separately: a complete sequence at matching trace pixels measures
+transmission convergence against higher-budget midpoint references, whose numerical stability
+is checked independently. Full-view bucket and accumulation payloads are compared as a temporal
+mean against the same-budget midpoint reference with the existing spatial error budgets.
+Changing the reference subdivision count also changes the finite-budget OIT bucket weights;
+it cannot establish a converged bucket reference merely by increasing density samples.
+Finite values, attenuation bounds and clipping remain per-frame requirements. The actual
+bounded temporal filter is checked for noise reduction separately from offline sequence
+averaging; its fixed history weight and rejection/clamping do not imply vanishing noise or
+an unbiased transport estimator.
+
+These receipts establish source/automated contracts, not user visual
 acceptance or live frame time. Weather appearance, cubic fluff, motion, in-game lifecycle
 transitions and hardware-specific GPU/CPU/memory budgets remain acceptance activities in the
 linked checklist.

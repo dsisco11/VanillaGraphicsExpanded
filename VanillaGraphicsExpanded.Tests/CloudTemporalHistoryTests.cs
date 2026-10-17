@@ -15,6 +15,22 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class CloudTemporalHistoryTests
 {
     #region Public API
+    /// <summary>Only reduced tracing admits PMJ resources; reference and full-view resolve remain independent.</summary>
+    [Fact]
+    public void PmjSamplingIsRestrictedToReducedTransport()
+    {
+        string root=Path.Combine(AppContext.BaseDirectory,"assets/shaders");
+        Assert.Contains("#define VGE_CLOUD_PMJ",File.ReadAllText(Path.Combine(root,"cloud_volume_trace.fsh")));
+        Assert.DoesNotContain("VGE_CLOUD_PMJ",File.ReadAllText(Path.Combine(root,"cloud_volume.fsh")));
+        Assert.DoesNotContain("cloudPmjJitter",File.ReadAllText(Path.Combine(root,"cloud_volume_resolve.fsh")));
+        Assert.NotNull(typeof(ICloudTraceBindings).GetProperty("PmjJitter"));
+        var declaration=typeof(ICloudTraceBindings).GetProperty("PmjJitter")!.GetCustomAttributesData()
+            .Single(attribute=>attribute.AttributeType.Name=="ShaderBindingAttribute");
+        Assert.Equal("cloudPmjJitter",declaration.ConstructorArguments[0].Value);
+        Assert.Equal(7,declaration.ConstructorArguments[2].Value);
+        Assert.Null(typeof(ICloudVolumeBindings).GetProperty("PmjJitter"));
+        Assert.Null(typeof(ICloudResolveBindings).GetProperty("PmjJitter"));
+    }
     /// <summary>Cloud clipping uses exact shared hierarchy mip zero in both trace/reference transport and reconstruction.</summary>
     [Fact]
     public void SharedDepthClippingUsesExplicitMipZero()

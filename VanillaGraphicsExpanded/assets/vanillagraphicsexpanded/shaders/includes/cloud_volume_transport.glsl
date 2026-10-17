@@ -1,4 +1,5 @@
 @import "./cloud_volume_parameters.glsl"
+@import "./cloud_volume_sampling.glsl"
 @import "./cloud_volume_density.glsl"
 @import "./atmosphere_aerial.glsl"
 @import "./pbr_scene_storage.glsl"
@@ -16,10 +17,10 @@ vec3 CloudUnproject(vec2 ndc,float depth)
 /** Retains native volumetric halfsmooth distance for each integration interval's OIT bins. */
 float CloudAdjustedDepth(float x) { return x>500.0?x-250.0:x*x*x*(1.0-x/1000.0)/250000.0; }
 /** Bounded anisotropic single scattering plus exactly one isotropic approximate octave. */
-vec3 CloudDirectional(vec3 local,vec3 view,vec3 light,vec3 illuminance)
+vec3 CloudDirectional(vec3 local,vec3 view,vec3 light,vec3 illuminance,float jitter)
 {
     if(max(illuminance.r,max(illuminance.g,illuminance.b))<=0.0) return vec3(0);
-    float tau=CloudLightDepth(local,light), mu=clamp(dot(view,light),-1.0,1.0);
+    float tau=CloudLightDepth(local,light,jitter), mu=clamp(dot(view,light),-1.0,1.0);
     float phase=.64/(12.5663706144*pow(1.36-1.2*mu,1.5));
     return illuminance*(phase*exp(-tau)+volumeSamples.z/12.5663706144*exp(-volumeSamples.w*tau));
 }
@@ -61,6 +62,7 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     origin.xz+=volumeOffsetWidth.w*25.0;
     CloudRay ray;
     if(!CloudStart(origin,direction,limit,ray)) return;
+    vec2 jitter=volumeDetail.w>.5?CloudRayJitter(uv):vec2(.5);
     vec4 k=vec4(0); vec3 reveal=vec3(1); float transmission=1.0;
     for(int cellIndex=0;cellIndex<402;cellIndex++)
     {
@@ -69,10 +71,12 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
         {
             int count=volumeDetail.w>.5?int(volumeSamples.x):1;
             float ds=(far-near)/float(count);
+            // Shift the stratified samples inside this occupied interval without changing its quadrature weights.
+            float phase=volumeDetail.w>.5?CloudSegmentJitter(jitter.x,ray.cell,0,0x56494557u):.5;
             for(int i=0;i<16;i++)
             {
                 if(i>=count) break;
-                float t=near+(float(i)+.5)*ds;
+                float t=near+(float(i)+phase)*ds;
                 vec3 local=ray.o+direction*t;
                 float sigma=CloudDensity(local,ray.cell,data);
                 float alpha=clamp(1.0-exp(-sigma*(ds*volumeAnchorUnits.z)),0.0,1.0);
@@ -80,8 +84,8 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
                 if(result.depth.y==0.0) result.depth.x=near;
                 result.depth.y=far;
                 vec3 source=volumeEnvironment.rgb
-                    +CloudDirectional(local,direction,volumeSun.xyz,volumeSolar.rgb)
-                    +CloudDirectional(local,direction,volumeMoon.xyz,volumeLunar.rgb);
+                    +CloudDirectional(local,direction,volumeSun.xyz,volumeSolar.rgb,CloudSegmentJitter(jitter.y,ray.cell,i,0x53554E00u))
+                    +CloudDirectional(local,direction,volumeMoon.xyz,volumeLunar.rgb,CloudSegmentJitter(jitter.y,ray.cell,i,0x4D4F4F4Eu));
                 source=CloudTransport(source,direction*t);
                 // Encode only RGB, before view coverage and native bucket weighting.
                 k.rgb+=transmission*alpha*CloudEncode(source);

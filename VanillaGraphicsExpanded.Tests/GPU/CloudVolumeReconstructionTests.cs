@@ -46,9 +46,44 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         for(int y=0;y<7;y++) for(int x=0;x<9;x++)
             Assert.InRange(Math.Abs(clipped[1][y*9+x]-((x+y)%3==0?1f:.4f)),0,.00001);
     }
+    /// <summary>Detailed density samples vary across matching pixel phases and replay deterministically.</summary>
+    [Fact]
+    public void PmjTraceChangesAcrossCyclesAndReplaysExactly()
+    {
+        EnsureShaderTestAvailable();using var view=CreateScene(8,8);
+        view.Capture(0,2,10,1,0,"detail");view.Render(0,false);var first=view.ReadTrace();var reference=view.ReadReference();
+        view.Capture(4,2,10,1,0,"detail");view.Render(4,false);var next=view.ReadTrace();
+        Assert.Contains(Enumerable.Range(0,first[1].Length),i=>Math.Abs(first[1][i]-next[1][i])>1e-6f);
+        for(int layer=0;layer<6;layer++)Assert.Equal(reference[layer],view.ReadReference()[layer]);
+        view.Capture(0,2,10,1,0,"detail");view.Render(0,false);var replay=view.ReadTrace();
+        for(int layer=0;layer<6;layer++)Assert.Equal(first[layer],replay[layer]);
+        uint wrap=4u*CloudPmjJitterTexture.CycleLength;
+        view.Capture(wrap,2,10,1,0,"detail");view.Render(wrap,false);var cycled=view.ReadTrace();
+        for(int layer=0;layer<6;layer++)Assert.Equal(first[layer],cycled[layer]);
+        Assert.All(next.SelectMany(layer=>layer),value=>Assert.True(float.IsFinite(value)&&value>=0));
+    }
+    /// <summary>Homogeneous extinction remains unchanged when jitter advances at a matching pixel phase.</summary>
+    [Fact]
+    public void PmjPreservesHomogeneousTransmissionAtMatchingPixelPhases()
+    {
+        EnsureShaderTestAvailable();using var view=CreateScene(8,8);
+        view.Capture(0,2,10,1,0,"static");view.Render(0,false);var first=view.ReadTrace();
+        view.Capture(4,2,10,1,0,"static");view.Render(4,false);var next=view.ReadTrace();
+        for(int layer=0;layer<6;layer++)Assert.Equal(first[layer],next[layer]);
+    }
+    /// <summary>The second sampling dimension changes secondary lighting without moving view-density samples.</summary>
+    [Fact]
+    public void PmjLightDimensionIsIndependentOfViewExtinction()
+    {
+        EnsureShaderTestAvailable();using var view=CreateScene(8,8);
+        view.Capture(0,2,10,1,0,"detail-lit");view.SetJitterDimensions(.4f,.1f);view.Render(0,false);var first=view.ReadTrace();
+        view.SetJitterDimensions(.4f,.9f);view.Render(0,false);var next=view.ReadTrace();
+        Assert.Equal(first[1],next[1]);
+        Assert.Contains(Enumerable.Range(0,first[3].Length),i=>Math.Abs(first[3][i]-next[3][i])>1e-6f);
+    }
     /// <summary>Small deterministic scenes bound temporal/spatial residuals independently of the common transport model.</summary>
     [Theory]
-    [InlineData("static")][InlineData("thin")][InlineData("thin-height")][InlineData("detail")][InlineData("lit")][InlineData("terrain")][InlineData("liquid")]
+    [InlineData("static")][InlineData("thin")][InlineData("thin-height")][InlineData("lit")][InlineData("terrain")][InlineData("liquid")]
     [InlineData("camera")][InlineData("rotation")][InlineData("motion")][InlineData("weather")][InlineData("lighting")][InlineData("mixed")][InlineData("odd")]
     [InlineData("particle-before")][InlineData("particle-within")][InlineData("particle-behind")]
     [InlineData("aerial")][InlineData("underwater")]
@@ -83,6 +118,140 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         }
         output.WriteLine($"{scene}: max attenuation absolute={maxAttenuation:G7}; max payload error / max(1,environment*scale)={maxRadiance:G7}");
         Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    /// <summary>Measures stochastic quadrature against dense midpoint transport separately from deterministic reconstruction.</summary>
+    [Fact]
+    public void PmjEnsembleApproachesDenseReference()
+    {
+        const int cycleCount=CloudPmjJitterTexture.CycleLength;
+        EnsureShaderTestAvailable();using var view=CreateScene(8,8);
+        view.SetReferenceSamples(8);view.Capture(0,2,10,1,0,"detail");view.RenderReference();var eight=view.ReadReference();
+        view.SetReferenceSamples(16);view.Capture(0,2,10,1,0,"detail");view.RenderReference();var dense=view.ReadReference();
+        var sums=new double[16];double single=0,prefix=0;float maxReferenceDelta=0;
+        var payloadSums=Enumerable.Range(0,6).Select(layer=>new double[16*(layer==0?3:layer==1?1:4)]).ToArray();
+        for(int y=0;y<4;y++)for(int x=0;x<4;x++)
+            maxReferenceDelta=Math.Max(maxReferenceDelta,Math.Abs(eight[1][y*2*8+x*2]-dense[1][y*2*8+x*2]));
+        for(uint cycle=0;cycle<cycleCount;cycle++)
+        {
+            uint frame=cycle*4;view.Capture(frame,2,10,1,0,"detail");view.RenderTrace(frame);var payload=view.ReadTrace();var sample=payload[1];
+            for(int layer=0;layer<6;layer++)for(int i=0;i<payload[layer].Length;i++)payloadSums[layer][i]+=payload[layer][i];
+            for(int y=0;y<4;y++)for(int x=0;x<4;x++)
+            {
+                int i=y*4+x;double target=dense[1][y*2*8+x*2];sums[i]+=sample[i];
+                if(cycle==0)single+=Math.Pow(sample[i]-target,2);
+                if(cycle==7)prefix+=Math.Pow(sums[i]/8-target,2);
+            }
+        }
+        double error=0,maxError=0;
+        for(int y=0;y<4;y++)for(int x=0;x<4;x++)
+        {
+            double residual=Math.Abs(sums[y*4+x]/cycleCount-dense[1][y*2*8+x*2]);
+            error+=residual*residual;maxError=Math.Max(maxError,residual);
+        }
+        output.WriteLine($"PMJ{cycleCount}: reference8vs16max={maxReferenceDelta:G9}; singleRMSE={Math.Sqrt(single/16):G9}; prefix8RMSE={Math.Sqrt(prefix/16):G9}; ensembleRMSE={Math.Sqrt(error/16):G9}; ensembleMax={maxError:G9}");
+        for(int layer=0;layer<6;layer++)
+        {
+            if(layer==2)continue; // Trace Glow is straight alpha; native blended reference Glow stores squared alpha.
+            int components=layer==0?3:layer==1?1:4;double delta=0,residual=0;
+            for(int y=0;y<4;y++)for(int x=0;x<4;x++)for(int c=0;c<components;c++)
+            {
+                int a=(y*4+x)*components+c,b=(y*2*8+x*2)*components+c;
+                delta=Math.Max(delta,Math.Abs(eight[layer][b]-dense[layer][b]));
+                residual=Math.Max(residual,Math.Abs(payloadSums[layer][a]/cycleCount-dense[layer][b]));
+            }
+            output.WriteLine($"Aligned layer{layer}: ref8vs16max={delta:G9}; ensemble128MaxResidual={residual:G9}");
+        }
+        // Keep the established attenuation budget; verify the dense reference consumes less than one quarter.
+        Assert.InRange(maxReferenceDelta,0,.021f/4);
+        Assert.InRange(maxError,0,.021);
+        Assert.True(error<prefix&&prefix<single,"Progressive averaging must improve beyond both one sample and the eight-sample prefix.");
+    }
+    /// <summary>Measures the real bounded temporal filter separately from offline ensemble integration.</summary>
+    [Fact]
+    public void PmjTemporalNoiseReductionIsObservable()
+    {
+        EnsureShaderTestAvailable();using var view=CreateScene(8,8);
+        view.Capture(0,2,10,1,0,"detail");view.RenderReference();var midpointBins=view.ReadReference()[0];
+        view.SetReferenceSamples(16);view.Capture(0,2,10,1,0,"detail");view.RenderReference();var dense=view.ReadReference()[1];
+        double raw=0,filtered=0,meanResidual=0,rawBins=0,filteredBins=0;int count=0,changed=0,footprintFailures=0;float maxFootprintResidual=0;
+        for(uint frame=0;frame<64;frame++)
+        {
+            view.Capture(frame,2,10,1,0,"detail");view.Render(frame,frame>0);
+            if(frame<16)continue;
+            var tracePayload=view.ReadTrace();var historyPayload=view.ReadHistory();
+            var current=tracePayload[1];var history=historyPayload[1];
+            var resolved=view.ReadDefault()[1];
+            for(int y=0;y<8;y++)for(int x=0;x<8;x++)
+            {
+                float low=dense[y*8+x],high=low;
+                for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)
+                {
+                    float target=dense[Math.Clamp(y+dy,0,7)*8+Math.Clamp(x+dx,0,7)];
+                    low=Math.Min(low,target);high=Math.Max(high,target);
+                }
+                float residual=Math.Max(0,Math.Max(low-resolved[y*8+x],resolved[y*8+x]-high));
+                maxFootprintResidual=Math.Max(maxFootprintResidual,residual);if(residual>.021)footprintFailures++;
+            }
+            int phaseX=(int)(frame&1),phaseY=(int)((frame>>1)&1);
+            for(int y=0;y<4;y++)for(int x=0;x<4;x++)
+            {
+                int i=y*4+x;double target=dense[(y*2+phaseY)*8+x*2+phaseX];
+                raw+=Math.Pow(current[i]-target,2);filtered+=Math.Pow(history[i]-target,2);meanResidual+=history[i]-target;
+                for(int c=0;c<3;c++)
+                {
+                    double bucketTarget=midpointBins[((y*2+phaseY)*8+x*2+phaseX)*3+c];
+                    rawBins+=Math.Pow(tracePayload[0][i*3+c]-bucketTarget,2);
+                    filteredBins+=Math.Pow(historyPayload[0][i*3+c]-bucketTarget,2);
+                }
+                if(Math.Abs(current[i]-history[i])>1e-6)changed++;count++;
+            }
+        }
+        output.WriteLine($"Temporal post-warmup: rawRMSE={Math.Sqrt(raw/count):G9}; historyRMSE={Math.Sqrt(filtered/count):G9}; meanResidual={meanResidual/count:G9}; blendedRecords={changed}/{count}");
+        output.WriteLine($"Full-view post-warmup attenuation footprint: maxResidual={maxFootprintResidual:G9}; recordsOutsideExistingBudget={footprintFailures}/{48*64}");
+        output.WriteLine($"Temporal bins relative to same-budget midpoint: rawRMSE={Math.Sqrt(rawBins/(count*3)):G9}; historyRMSE={Math.Sqrt(filteredBins/(count*3)):G9}");
+        Assert.True(filtered<raw,"The actual bounded temporal filter must reduce this static scene's quadrature error.");
+        Assert.True(filteredBins<rawBins,"Bounded history must reduce bucket error relative to the unchanged finite-budget model.");
+        Assert.InRange(Math.Abs(meanResidual/count),0,.021);
+        Assert.True(changed>0);
+    }
+    /// <summary>Bounds ensemble full-view payload compatibility with the existing finite-budget bucket model.</summary>
+    [Fact]
+    public void PmjFullViewEnsemblePreservesFiniteBudgetPayload()
+    {
+        EnsureShaderTestAvailable();using var view=CreateScene(8,8);
+        view.Capture(0,2,10,1,0,"detail");view.RenderReference();var midpoint=view.ReadReference();
+        view.SetReferenceSamples(16);view.Capture(0,2,10,1,0,"detail");view.RenderReference();var dense=view.ReadReference();
+        var sums=midpoint.Select(values=>new double[values.Length]).ToArray();
+        float worst=0;string location="";
+        for(uint frame=0;frame<128;frame++)
+        {
+            view.Capture(frame,2,10,1,0,"detail");view.Render(frame,frame>0);var actual=view.ReadDefault();
+            for(int layer=0;layer<6;layer++)for(int i=0;i<actual[layer].Length;i++)
+            {
+                Assert.True(float.IsFinite(actual[layer][i])&&actual[layer][i]>=0);
+                if(layer<2)Assert.InRange(actual[layer][i],0,1);
+                sums[layer][i]+=actual[layer][i];
+                if(layer>1)continue;
+                float residual=FootprintResidual(actual[layer][i],midpoint[layer],i,layer==0?3:1,8,8);
+                if(residual>worst){worst=residual;location=$"frame{frame}/layer{layer}/element{i}: actual={actual[layer][i]:G9},midpoint={midpoint[layer][i]:G9},dense={dense[layer][i]:G9}";}
+            }
+        }
+        output.WriteLine($"Full-view worst startup+steady attenuation footprint residual={worst:G9} at {location}");
+        for(int layer=0;layer<6;layer++)
+        {
+            int components=layer==0?3:layer==1?1:4;double point=0;float denseFootprint=0,midpointFootprint=0;
+            for(int i=0;i<sums[layer].Length;i++)
+            {
+                float mean=(float)(sums[layer][i]/128);
+                point=Math.Max(point,Math.Abs(mean-dense[layer][i]));
+                denseFootprint=Math.Max(denseFootprint,FootprintResidual(mean,dense[layer],i,components,8,8));
+                midpointFootprint=Math.Max(midpointFootprint,FootprintResidual(mean,midpoint[layer],i,components,8,8));
+            }
+            output.WriteLine($"Full-view mean layer{layer}: densePointMax={point:G9}; denseFootprintMax={denseFootprint:G9}; midpointFootprintMax={midpointFootprint:G9}");
+            // Changing sample count changes the native bucket partition itself. The four-sample
+            // midpoint is the compatibility target; dense transmission is checked independently.
+            Assert.InRange(midpointFootprint,0,layer<2?.021f:.045f*10);
+        }
     }
     /// <summary>Opaque hierarchy coarse levels never alter precise cloud tracing, reference clipping or full-view reconstruction.</summary>
     [Theory]
@@ -231,6 +400,18 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
     #endregion
 
     #region Private
+    /// <summary>Measures excess outside the same bilinear neighborhood envelope used by deterministic reconstruction checks.</summary>
+    private static float FootprintResidual(float actual,float[] reference,int index,int components,int width,int height)
+    {
+        int pixel=index/components,x=pixel%width,y=pixel/width,channel=index%components;
+        float low=reference[index],high=low;
+        for(int dy=-1;dy<=1;dy++)for(int dx=-1;dx<=1;dx++)
+        {
+            float sample=reference[(Math.Clamp(y+dy,0,height-1)*width+Math.Clamp(x+dx,0,width-1))*components+channel];
+            low=Math.Min(low,sample);high=Math.Max(high,sample);
+        }
+        return Math.Max(0,Math.Max(low-actual,actual-high));
+    }
     /// <summary>Bounds approximation by the one-pixel bilinear footprint, preserving the original residual tolerance outside its reference envelope.</summary>
     private static void AssertWithinSpatialReference(float[] actual,float[] reference,int index,int components,int width,int height,float tolerance)
     {
@@ -271,6 +452,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         private readonly float[] previousProjection=new float[16],currentProjection=new float[16];
         private float surfaceDepth;
         private bool detail,underwater;
+        private int referenceSamples=4;
 
         #region Public API
         #region View preparation
@@ -297,6 +479,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             Mat4f.Invert(inverse,projection);
             reference.Frame=camera;trace.Frame=camera;temporal.Frame=camera;resolve.Frame=camera;
             reference.Lighting=storage.Buffer;trace.Lighting=storage.Buffer;resolve.Lighting=storage.Buffer;
+            trace.PmjJitter=Own(CloudPmjJitterTexture.Create());
         }
         /// <summary>Seeds adversarial coarse levels and enables mip selection so an accidental implicit LOD becomes observable.</summary>
         internal void SetOpaqueCoarseDepth(float depth)
@@ -320,7 +503,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         /// <summary>Captures one explicit cloud/camera state, including per-pixel opaque and liquid discontinuities.</summary>
         internal void Capture(uint frame,float extinction,float environment,float scale,float offset,string scene)
         {
-            shift=offset; detail=scene=="detail"; underwater=scene=="underwater";
+            shift=offset; detail=scene is "detail" or "detail-lit"; underwater=scene=="underwater";
             float aerialLoss=underwater ? .99f : scene=="aerial" ? .25f : 0;
             float aerialScatter=underwater?100:scene=="aerial"?2:0;
             aerial.UploadDataImmediate([aerialScatter/16,aerialScatter/16,aerialScatter/16,0,0,0,0,0],0,0,0,1,2,1,0);
@@ -346,8 +529,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
                 liquids[y*width+x]=Depth((scene is "liquid" or "mixed")&&y<height/2?60:1000);
             }
             opaque.UploadDataImmediate(depths);visibility.UploadDataImmediate(depths);liquid.UploadDataImmediate(liquids);
-            var lighting=new AtmosphereLighting(Vector3.UnitY,scene=="lit"?new(30):Vector3.Zero,new(environment),Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
-                { Moon=-Vector3.UnitY,Lunar=scene=="lit"?new(3):Vector3.Zero,CalibrationGeneration=1,
+            var lighting=new AtmosphereLighting(Vector3.UnitY,scene is "lit" or "detail-lit"?new(30):Vector3.Zero,new(environment),Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
+                { Moon=-Vector3.UnitY,Lunar=scene is "lit" or "detail-lit"?new(3):Vector3.Zero,CalibrationGeneration=1,
                     LookupStorageScale=LightingStorage.PersistentScale,ReconstructionMaximumNits=aerialScatter };
             var placement=new CloudPlacement(0,0,0,0,0,0,offset,0,new(offset,0,-50),0);
             Configure(reference,reference.Parameters,placement,lighting);Configure(trace,trace.Parameters,placement,lighting);
@@ -355,6 +538,22 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         }
         #endregion
         #region Submission and history probes
+        /// <summary>Selects the allowed dense midpoint budget independently of reduced tracing.</summary>
+        internal void SetReferenceSamples(int count) { referenceSamples=count; }
+        /// <summary>Executes deterministic full-resolution midpoint transport without changing history.</summary>
+        internal void RenderReference() { Draw(reference,expected,true); }
+        /// <summary>Executes one reduced sample phase without running temporal or spatial reconstruction.</summary>
+        internal void RenderTrace(uint frame)
+        {
+            trace.Temporal.Capture(previousProjection,Vector3.Zero,lowWidth,lowHeight,frame,unchecked(frame-1),false);
+            Draw(trace,traced,false);
+        }
+        /// <summary>Authors separate sampling dimensions to isolate view and secondary transport behavior.</summary>
+        internal void SetJitterDimensions(float view,float light)
+        {
+            var values=Own(DynamicTexture2D.Create(1,1,PixelInternalFormat.Rg32f));
+            values.UploadDataImmediate(new[]{view,light});trace.PmjJitter=values;
+        }
         /// <summary>Supplies a known physical reduced payload while the independent density map remains empty.</summary>
         internal float[][] ResolveAuthoredHistory(bool patterned=false)
         {
@@ -427,6 +626,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         internal float[][] ReadDefault()=>result.Images.Take(6).Select(image=>image.ReadPixels()).ToArray();
         /// <summary>Reads test-only direct reference payloads for numerical comparison.</summary>
         internal float[][] ReadReference()=>expected.Images.Take(6).Select(image=>image.ReadPixels()).ToArray();
+        /// <summary>Reads reduced transport independently of temporal accumulation.</summary>
+        internal float[][] ReadTrace()=>traced.Images.Take(6).Select(image=>image.ReadPixels()).ToArray();
         /// <summary>Reads physical history to verify exposure-independent storage.</summary>
         internal float[][] ReadHistory()=>last!.Images.Take(6).Select(image=>image.ReadPixels()).ToArray();
         /// <summary>Releases fixture-owned resources in reverse dependency order.</summary>
@@ -439,7 +640,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         /// <summary>Supplies identical physical transport inputs to all tracing consumers.</summary>
         private void Configure(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudPlacement placement,AtmosphereLighting lighting)
         {
-            parameters.CaptureMap(4,placement,1,CloudVolumeSettings.Default with {Detail=detail});
+            parameters.CaptureMap(4,placement,1,CloudVolumeSettings.Default with {Detail=detail,ViewSamples=ReferenceEquals(program,reference)?referenceSamples:4});
             parameters.CaptureLighting(lighting,underwater?1:0,new(underwater ? .02f : 0,0,0,0),Vector3.Zero);
             program.Map=map.TextureId;program.SceneDepth=opaque.TextureId;program.VisibilityDepth=visibility.TextureId;program.LiquidDepth=liquid.TextureId;program.AerialRadiance=aerial;program.AerialAttenuation=loss;
         }

@@ -111,7 +111,7 @@ bool CloudInterval(CloudRay ray,vec4 data,out float near,out float far)
     return far>near;
 }
 /** Integrates a bounded secondary ray through the same density and supported map domain. */
-float CloudLightDepth(vec3 local,vec3 direction)
+float CloudLightDepth(vec3 local,vec3 direction,float jitter)
 {
     CloudRay ray;
     if(!CloudStart(local,direction,1e7,ray)) return 0.0;
@@ -123,10 +123,11 @@ float CloudLightDepth(vec3 local,vec3 direction)
         {
             int count=volumeDetail.w>.5?int(volumeSamples.y):1;
             float ds=(far-near)/float(count);
+            float phase=volumeDetail.w>.5?CloudSegmentJitter(jitter,ray.cell,0,0x4C494748u):.5;
             for(int i=0;i<4;i++)
             {
                 if(i>=count) break;
-                tau=min(1e30,tau+CloudDensity(ray.o+ray.d*(near+(float(i)+.5)*ds),ray.cell,data)*(ds*volumeAnchorUnits.z));
+                tau=min(1e30,tau+CloudDensity(ray.o+ray.d*(near+(float(i)+phase)*ds),ray.cell,data)*(ds*volumeAnchorUnits.z));
             }
         }
         // Saturation must include the approximate octave, including its unoccluded endpoint.

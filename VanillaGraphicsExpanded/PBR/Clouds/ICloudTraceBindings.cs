@@ -11,5 +11,8 @@ internal interface ICloudTraceBindings : ICloudVolumeBindings
     /// <summary>Supplies reprojection, lifecycle admission and exact reduced trace phases.</summary>
     [ShaderBinding("CloudTemporalParameters",ShaderBindingKind.UniformBlock,GpuBindingRegistry.Ubo.Object,ShaderStageKind.Fragment)]
     CpuUniformBuffer TemporalInputs { get; }
+    /// <summary>Supplies cloud-owned scrambled PMJ offsets without depending on LumOn resource availability.</summary>
+    [ShaderBinding("cloudPmjJitter",ShaderBindingKind.Sampler,7,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? PmjJitter { set; }
     #endregion
 }

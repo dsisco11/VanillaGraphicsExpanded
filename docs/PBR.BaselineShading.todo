@@ -219,7 +219,10 @@ Tasks
     - Define replacement of vanilla clouds and clean disable/reload behavior. Validate thin/thick
       clouds, moving sun, weather, disocclusion, water reflections and fog; measure GPU and memory cost.
 
-  ☐ We should consider using the blue-noise sampling pattern used by LumOn for the volumetric cloud sampling pattern.
+  ☐ Validate PMJ-jittered volumetric cloud sampling in game. Reduced tracing now uses a cloud-owned
+    scrambled sequence from the shared LumOn sampling generator; reference transport remains midpoint.
+    This is temporal PMJ sampling, not a spatial blue-noise mask. Focused validation receipts:
+    artifacts/CloudPmj/validation.md. Live appearance and GPU/frame-time acceptance remain open.
   ☐ Evaluate what type of HZB accelleration structure would be suitable for volumetric cloud rendering.
 
   ☐ Implement virtual shadow maps.
