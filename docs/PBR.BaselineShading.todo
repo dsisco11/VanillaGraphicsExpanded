@@ -287,6 +287,42 @@ Tasks
       Canonical Release package rebuilt. These are API call reductions, not frame-time measurements.
       Evidence: ../artifacts/graphics-pass-transitions/validation.md.
 
+  ☐ Restore framebuffer routing through direct state access without rebinding each target.
+    - Use NamedFramebufferDrawBuffers for nonzero framebuffers when the existing DSA capability
+      permits it. Preserve the binding-based fallback and default-window routing semantics.
+    - Retain deferred restoration ownership, framebuffer lifetime guards and independent cleanup
+      after exceptions or context abandonment; restore inherited read/draw bindings correctly.
+    - Verify supported and fallback paths with subagent-run focused GPU tests. Compare captured
+      framebuffer binds and unchanged outputs against the current restoration path.
+
+  ☐ Suppress unchanged framebuffer draw-buffer routing through the shared state owner.
+    - Track routing per framebuffer in StateCache so repeated pass mappings avoid DrawBuffers.
+      Include disabled trailing outputs and default-window selectors in routing comparisons.
+    - Integrate scratch attachment helpers, standalone passes, deferred restoration and external
+      mutation invalidation. Invalidate retired/reused framebuffer identities; do not introduce
+      a separate live routing cache in RenderPassSequence or individual renderers.
+    - Verify unchanged/changed routes, retargeting, sparse outputs, restoration and failure handling
+      with subagent-run focused GPU tests; capture reduced routing calls and unchanged pixels.
+
+  ☐ Preserve texture binding caching for lifecycle-aware borrowed rendering inputs.
+    - Inspect raw integer sampler inputs, including cloud scene/visibility/liquid depth. Reuse or
+      extend existing borrowed resource references so allocation identity and retirement are known.
+    - Allow unchanged tracked inputs to retain texture-unit cache knowledge while preserving the
+      conservative invalidation path for untracked integer handles. Cover resize, native target
+      replacement, reload, handle reuse and borrowed-versus-owned disposal semantics.
+    - Verify publication, visibility rejection and boundary restoration with subagent-run focused
+      GPU tests. Compare actual texture binds and unchanged cloud outputs before claiming savings.
+
+  ☐ Remove engine fullscreen mesh binding resets from VGE-owned graphics draws.
+    - Inventory EngineFullscreenGeometry consumers that route owned fullscreen meshes through
+      RenderMesh, whose VAO/EBO unbinds prevent binding reuse between consecutive draws.
+    - Use existing VGE geometry submission abstractions for eligible consumers while preserving
+      vertex/UV layouts, indexed draw ranges, resource ownership and outer boundary restoration.
+      Retain engine-managed pool traversal where required; clouds already use direct array geometry.
+    - Verify representative fullscreen consumers, repeated draws, exceptions and retirement with
+      subagent-run focused GPU tests. Capture VAO/EBO call reductions and compare rendered outputs;
+      distinguish API call savings from measured GPU or frame-time improvements.
+
   ☐ Implement virtual shadow maps.
 
   ☐ Analyze the current PBR MRT textures and evaluate which can be combined together to just use individual channels of the same texture-layer in the G-Buffer array.
