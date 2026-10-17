@@ -33,9 +33,10 @@ internal sealed class CloudVolumeSurface : IDisposable
     {
         PixelInternalFormat[] formats=[PixelInternalFormat.Rgb32f,PixelInternalFormat.R32f,PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgba32f];
+        string[] imageNames=["RevealageBins","Transmission","Glow","Accumulation0","Accumulation1","Accumulation2","Depth"];
         try
         {
-            for(int i=0;i<7;i++) Images[i]=DynamicTexture2D.Create(width,height,formats[i]);
+            for(int i=0;i<7;i++) Images[i]=DynamicTexture2D.Create(width,height,formats[i],debugName:$"{name}.{imageNames[i]}");
             Target=GpuFramebuffer.CreateMRT(Images,debugName:name)!;
         }
         catch { foreach(var image in Images) image?.Dispose(); throw; }
