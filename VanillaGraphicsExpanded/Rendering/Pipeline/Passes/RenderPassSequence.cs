@@ -98,10 +98,7 @@ internal sealed class RenderPassSequence : IDisposable
         {
             if (!applied) return;
             using var errors = new GlDebug.ErrorScope("Graphics sequence routing restoration");
-            StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, target.FboId);
-            // Window surfaces may publish grouped selectors such as Back, which DrawBuffers rejects.
-            if (target.FboId == 0) GL.DrawBuffer((DrawBufferMode)original[0]);
-            else GL.DrawBuffers(original.Length, original);
+            target.RestoreDrawRouting(original);
         }
 
         /// <summary>Ends the routing borrow after native restoration or context abandonment.</summary>

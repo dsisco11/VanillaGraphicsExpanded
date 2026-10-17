@@ -161,10 +161,7 @@ internal sealed class RenderPass : IDisposable
     {
         targets.Validate();
         using var errors = new GlDebug.ErrorScope("Render pass routing restoration");
-        StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, description.Target.FboId);
-        // Window surfaces may expose grouped selectors such as Back, which DrawBuffers rejects.
-        if (description.Target.FboId == 0) GL.DrawBuffer((DrawBufferMode)previousRouting![0]);
-        else GL.DrawBuffers(previousRouting!.Length, previousRouting);
+        description.Target.RestoreDrawRouting(previousRouting!);
     }
     #endregion
 }

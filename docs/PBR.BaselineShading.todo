@@ -287,13 +287,18 @@ Tasks
       Canonical Release package rebuilt. These are API call reductions, not frame-time measurements.
       Evidence: ../artifacts/graphics-pass-transitions/validation.md.
 
-  ☐ Restore framebuffer routing through direct state access without rebinding each target.
+  ☑ Restore framebuffer routing through direct state access without rebinding each target.
     - Use NamedFramebufferDrawBuffers for nonzero framebuffers when the existing DSA capability
       permits it. Preserve the binding-based fallback and default-window routing semantics.
     - Retain deferred restoration ownership, framebuffer lifetime guards and independent cleanup
       after exceptions or context abandonment; restore inherited read/draw bindings correctly.
     - Verify supported and fallback paths with subagent-run focused GPU tests. Compare captured
       framebuffer binds and unchanged outputs against the current restoration path.
+    - Verified: 106 unique focused checks passed, including five rebuilt DSA cases after the
+      helper's file move. Two-target sequence binds fell 5→3 with bit-exact output and routing;
+      standalone binds remain 6→6. Window selectors, failure cleanup and abandonment are covered.
+      Canonical Release package rebuilt and helper IL verified. No timing speedup is claimed.
+      Evidence: ../artifacts/framebuffer-routing-dsa/validation.md.
 
   ☐ Suppress unchanged framebuffer draw-buffer routing through the shared state owner.
     - Track routing per framebuffer in StateCache so repeated pass mappings avoid DrawBuffers.

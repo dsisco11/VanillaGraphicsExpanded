@@ -18,6 +18,9 @@ it at boundary exit before the inherited framebuffer bindings are restored. Pass
 draw direction, preserving the independent read binding. Framebuffer lifetime borrows prevent
 retirement until routing restoration finishes, while completed-pass attachment changes and storage
 resize remain permitted. Each new pass refreshes changed attachments and publishes its full route.
+Routing restoration uses named framebuffer operations for nonzero targets when the shared DSA
+capability permits them. The fallback binds only the draw target; window surfaces retain their
+DrawBuffer selector semantics. Both paths preserve the independent read binding.
 Standalone `RenderPass.Begin` scopes retain immediate routing and binding restoration on disposal.
 Standalone owner scopes replay validated retained inputs; managed complete boundaries restore their
 resource snapshots after activation cleanup, then fixed/dynamic state. No second activation stack or
@@ -2177,6 +2180,8 @@ restores its target's draw routing and the incoming independent read/draw frameb
 GraphicsCommandContext instead shares a RenderPassSequence, retaining original target routes until
 outer cleanup and transitioning directly between draw targets. Both paths register cleanup with the
 boundary so exceptional exits cannot leave borrowed resources locked.
+Both paths use `GpuFramebuffer.RestoreDrawRouting`: supported image framebuffers restore through
+direct state access, while older contexts and the default window retain binding-based restoration.
 
 Target signatures retain exact formats, effective samples and actual attached depth/stencil aspects.
 A packed image attached only to depth does not imply a stencil attachment. Dimensions and resource

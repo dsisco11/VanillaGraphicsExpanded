@@ -29,7 +29,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         scene.AssertRestored();var actual=scene.ReadOutput();
         for(int layer=0;layer<expected.Length;layer++)Assert.Equal(expected[layer],actual[layer]);
         Assert.Contains(actual.SelectMany(layer=>layer),value=>value==.25f);
-        foreach(string prefix in new[]{"Framebuffer:","Program:","Routing:"})
+        foreach(string prefix in new[]{"Framebuffer:","Program:","Routing"})
             Assert.True(sequence.Count(call=>call.StartsWith(prefix))<baseline.Count(call=>call.StartsWith(prefix)),
                 $"{prefix} sequence={string.Join(';',sequence)} baseline={string.Join(';',baseline)}");
         Assert.True(sequence.Count<baseline.Count);
