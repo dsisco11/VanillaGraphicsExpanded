@@ -13,6 +13,31 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>Disabled culling still establishes authored winding because fragments observe gl_FrontFacing.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void FrontFacingIsObservableWithCullingDisabled(bool clockwise)
+    {
+        fixture.MakeCurrent(); using var draw = new FullscreenDraw(facing: true);
+        var cache = StateCache.Current; cache.UseProgram(0);
+        var baseline = Description();
+        var description = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout, baseline.Targets, baseline.Dynamics,
+            rasterizer: new() { Cull = false, FrontFace = clockwise ? FrontFaceDirection.Cw : FrontFaceDirection.Ccw });
+        GL.FrontFace(clockwise ? FrontFaceDirection.Ccw : FrontFaceDirection.Cw); GL.Enable(EnableCap.CullFace);
+        cache.InvalidateAll(); int inherited = GL.GetInteger(GetPName.FrontFace);
+        try
+        {
+            Assert.True(CompleteGraphicsBoundary.TryRun("FacingWithoutCull", [description], [], true, _ =>
+            {
+                cache.ApplyGraphicsState(description, new() { Viewport = new() { Width = 8, Height = 8 } });
+                Assert.False(GL.IsEnabled(EnableCap.CullFace)); draw.Render();
+            }));
+            Assert.Equal(inherited, GL.GetInteger(GetPName.FrontFace)); Assert.True(GL.IsEnabled(EnableCap.CullFace));
+            draw.AssertFacingPixels(front: !clockwise); Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { GL.Disable(EnableCap.CullFace); GL.FrontFace(FrontFaceDirection.Ccw); cache.InvalidateAll(); }
+    }
     /// <summary>A complete fullscreen description overrides hostile engine state and restores it after drawing or throwing.</summary>
     [Theory]
     [InlineData(false)] [InlineData(true)]
@@ -119,10 +144,11 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
         private readonly GpuEbo indices;
         #region Public API
         /// <summary>Loads deterministic binaries and creates an independent render target.</summary>
-        public FullscreenDraw()
+        public FullscreenDraw(bool facing = false)
         {
             int vs = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/complete-state.vsh", ShaderType.VertexShader);
-            int fs = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture("tests/complete-state.fsh", ShaderType.FragmentShader);
+            int fs = VanillaGraphicsExpanded.Tests.GPU.Helpers.BuiltShaderFixture.LoadFixture(
+                facing ? "tests/facing-state.fsh" : "tests/complete-state.fsh", ShaderType.FragmentShader);
             program = GL.CreateProgram(); GL.AttachShader(program, vs); GL.AttachShader(program, fs); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked); Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.DeleteShader(vs); GL.DeleteShader(fs);
@@ -150,6 +176,15 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
                 GL.ReadPixels(0, 0, 8, 8, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
                 for (int i = 0; i < pixels.Length; i++) Assert.Equal((byte)(i % 4 == target || i % 4 == 3 ? 255 : 0), pixels[i]);
             }
+        }
+        /// <summary>Checks shader-observed facing for every covered pixel independently of native winding metadata.</summary>
+        public void AssertFacingPixels(bool front)
+        {
+            using var pack = StateCache.Current.SetPixelPackScope(new(1));
+            GL.ReadBuffer(ReadBufferMode.ColorAttachment0); byte[] pixels = new byte[8 * 8 * 4];
+            GL.ReadPixels(0, 0, 8, 8, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
+            for (int pixel = 0; pixel < 64; pixel++)
+                Assert.Equal(front ? new byte[] { 255, 0, 0, 255 } : new byte[] { 0, 255, 0, 255 }, pixels.AsSpan(pixel * 4, 4).ToArray());
         }
         /// <summary>Releases fixture resources while the collection context remains active.</summary>
         public void Dispose()

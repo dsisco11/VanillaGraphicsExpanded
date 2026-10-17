@@ -164,7 +164,7 @@ Phase 3: Apply relevant groups and activate matching boundary coverage
 Phase 4: Qualify correctness and native-call reductions
   Depends on Phase 3. Outcome: integrated evidence demonstrates unchanged rendering and exact handback
   while eliminating the captured unnecessary setters/restoration.
-  ☐ Exercise the complete dependency/transition matrix in focused GPU fixtures.
+  ☑ Exercise the complete dependency/transition matrix in focused GPU fixtures.
     - Filled/wireframe/line/point and unknown geometry/tessellation outputs; culling disabled with
       front-face observations; applicable offsets and supported compatibility primitive controls.
     - Dormant-to-active depth/stencil with present/absent aspects; sampling payloads and restart/patch
@@ -173,7 +173,7 @@ Phase 4: Qualify correctness and native-call reductions
       equations, blend constants and combined RGB/alpha writes; global fallback aliases where supported.
     - Region/color/depth/stencil clears, clear-only and Preserve-only contexts; grouped cache knowledge,
       skipped draws, shader reload, recovery, mutation failures and exact handback on failure.
-  ☐ Compare representative sky/cloud/fullscreen and point-resolve workloads under matched inputs.
+  ☑ Compare representative sky/cloud/fullscreen and point-resolve workloads under matched inputs.
     - Use hostile inherited nondefault/dormant state. Compare all affected pixels and independently
       inspect complete inherited state, not only parameters relevant to the last draw.
     - Capture bounded native-call events/counters separating setup, draw application and restoration.
@@ -181,11 +181,30 @@ Phase 4: Qualify correctness and native-call reductions
       normalization, and absent disabled/unrouted blend payload writes; retain necessary transitions.
     - Use small focused fixtures and a controlled test-only conservative reference if needed. Avoid
       preserving redundant production implementations or copying entire legacy shader pipelines.
-  ☐ Reconcile any old tests asserting unconditional dormant defaults without deleting correctness,
+  ☑ Reconcile any old tests asserting unconditional dormant defaults without deleting correctness,
     ownership or restoration coverage. Remove temporary diagnostic/reference scaffolding after its
     required comparisons are recorded; retain useful regression tests for current contracts.
-  ☐ Completion: subagent-run focused regressions pass; evidence links inputs, output/state comparisons,
+  ☑ Completion: subagent-run focused regressions pass; evidence links inputs, output/state comparisons,
     call groups and measured reductions. No timing, full-driver-trace or live-appearance claim is made.
+    Evidence (2026-10-17): second source review and independent completion audit passed. Added nine
+      GPU matrix cases and three current-only production-workload cases; retained existing coverage.
+      Debug: 258 distinct accepted cases, combining 257 unchanged passes in phase4-final-debug.trx
+      with the corrected three workload passes in phase4-final-debug-workloads.trx. The isolated
+      point expectation was corrected to the shader's exact persistent-light encoding, without tolerance.
+      Release: 258/258 passed in phase4-final-release-observable.trx after an ordinary Release build;
+      COMPlus_JitNoInline=1 was scoped to the test process for Harmony native-wrapper observability.
+      Accepted matched comparisons passed 3/3 in each configuration: comparisons-debug-accepted.trx
+      and comparisons-release-accepted.trx. All affected pixels were bit-identical; independent raw
+      native state returned exactly. Fixed-function calls: sky 42→16, cloud fixture 119→73, point 34→10.
+      Selected scalar-wrapper application/restoration events: sky 17/16→8/7, cloud 52/44→34/32,
+      point 12/13→4/5; setup counts remained 1, 7 and 1 respectively. Events exclude draw markers
+      and are a bounded wrapper subset, distinct from the shared owner's fixed-function counter.
+      Cloud inputs include the fixture's independent full-march draw; no full-frame timing is inferred.
+      Temporary conservative-reference sources were removed after audited comparisons; current
+      pixel/state/call regressions remain. Diagnostic failures are retained separately from acceptance.
+      Receipts, exact inputs/output arrays/state fingerprints/events, commands, filters and source/DLL
+      identities: ../artifacts/pso-state-relevance/phase4/ (comparisons-debug/, comparisons-release/,
+      commands.ps1, comparison-source-identity.json and final-source-identity.json).
 
 Phase 5: Reconcile contracts and qualify the canonical package
   Depends on Phase 4. Outcome: documentation, tests and packaged code describe the same accepted behavior.

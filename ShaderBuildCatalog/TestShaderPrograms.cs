@@ -27,7 +27,7 @@ internal static class TestShaderPrograms
             "tests/cloud-traversal.csh", ShaderStageKind.Compute, cloudTraversal)], 1));
         foreach (string name in new[] { "aerial-lookup", "displacement-metric", "displacement-height", "sun-segment", "relief-on", "relief-off" })
             programs.Add(new("tests/" + name, [Fixture("complete-state", "vsh", ShaderStageKind.Vertex), Numerical(name)], 1));
-        foreach (string name in new[] { "particle-draw", "particle-integration", "sampler-handoff" })
+        foreach (string name in new[] { "particle-draw", "particle-integration", "sampler-handoff", "facing-state" })
             programs.Add(new("tests/" + name, [Fixture("complete-state", "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
         foreach (string mode in new[] { "display", "linear" })
             programs.Add(new("tests/sun-raster-" + mode, [Numerical("sun-raster", ShaderStageKind.Vertex), Numerical("sun-raster-" + mode)], 1));

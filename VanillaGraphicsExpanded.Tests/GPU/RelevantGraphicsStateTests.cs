@@ -17,6 +17,74 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>Wireframe, offsets and compatibility stipple become active only for their primitive kind.</summary>
+    [Fact]
+    public void PolygonModesActivateOffsetAndCompatibilityLinePayloads()
+    {
+        using var context = new WideLineContext(fixture);
+        var cache = StateCache.Current; cache.UseProgram(0);
+        var fill = Description(raster: new() { LineWidth = 2, LineStippleFactor = 3, LineStipplePattern = 0xaaaa,
+            OffsetLine = true, DepthBiasFactor = 2, DepthBiasUnits = 3 });
+        var wire = Description(raster: fill.Rasterizer with { PolygonMode = PolygonMode.Line, LineStipple = true });
+        var point = Description(raster: new() { PolygonMode = PolygonMode.Point, PointSize = 3,
+            OffsetPoint = true, DepthBiasFactor = 4, DepthBiasUnits = 5 });
+        GL.LineWidth(4); GL.LineStipple(7, 0x35aa); GL.Disable(EnableCap.LineStipple);
+        GL.PolygonOffset(6, 7); GL.Disable(EnableCap.PolygonOffsetLine); GL.Disable(EnableCap.PolygonOffsetPoint);
+        GL.PointSize(5); cache.InvalidateAll();
+        Assert.True(CompleteGraphicsBoundary.TryRun("PrimitiveMatrix", [fill, wire, point], [], true, _ =>
+        {
+            cache.ApplyGraphicsState(fill, Dynamics());
+            Assert.Equal(4, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(7, GL.GetInteger(GetPName.LineStippleRepeat));
+            Assert.Equal(6, GL.GetFloat(GetPName.PolygonOffsetFactor)); Assert.Equal(7, GL.GetFloat(GetPName.PolygonOffsetUnits));
+            cache.ApplyGraphicsState(wire, Dynamics());
+            Assert.True(GL.IsEnabled(EnableCap.PolygonOffsetLine)); Assert.True(GL.IsEnabled(EnableCap.LineStipple));
+            Assert.Equal(2, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(3, GL.GetInteger(GetPName.LineStippleRepeat));
+            Assert.Equal(0xaaaa, GL.GetInteger(GetPName.LineStipplePattern)); Assert.Equal(2, GL.GetFloat(GetPName.PolygonOffsetFactor));
+            Assert.Equal(3, GL.GetFloat(GetPName.PolygonOffsetUnits));
+            cache.ApplyGraphicsState(point, Dynamics()); Assert.Equal(3, GL.GetFloat(GetPName.PointSize));
+            Assert.True(GL.IsEnabled(EnableCap.PolygonOffsetPoint)); Assert.Equal(4, GL.GetFloat(GetPName.PolygonOffsetFactor));
+            Assert.Equal(5, GL.GetFloat(GetPName.PolygonOffsetUnits));
+            cache.ApplyGraphicsState(fill, Dynamics()); Assert.Equal(3, GL.GetFloat(GetPName.PointSize));
+            Assert.Equal(4, GL.GetFloat(GetPName.PolygonOffsetFactor)); Assert.Equal(5, GL.GetFloat(GetPName.PolygonOffsetUnits));
+        }));
+        Assert.Equal(4, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(5, GL.GetFloat(GetPName.PointSize));
+        Assert.Equal(7, GL.GetInteger(GetPName.LineStippleRepeat)); Assert.Equal(0x35aa, GL.GetInteger(GetPName.LineStipplePattern));
+        Assert.False(GL.IsEnabled(EnableCap.LineStipple)); Assert.False(GL.IsEnabled(EnableCap.PolygonOffsetLine));
+        Assert.False(GL.IsEnabled(EnableCap.PolygonOffsetPoint)); Assert.Equal(6, GL.GetFloat(GetPName.PolygonOffsetFactor));
+        Assert.Equal(7, GL.GetFloat(GetPName.PolygonOffsetUnits)); Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    /// <summary>Unknown executable output cannot inherit dormant line/point values solely from triangle input assembly.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void UnknownOutputPrimitiveAppliesConservativeNativeGroups(bool tessellation)
+    {
+        using var context = new WideLineContext(fixture);
+        var cache = StateCache.Current; cache.UseProgram(0);
+        var stages = new List<ShaderStageContract> { new("unknown.vsh", "unknown.vsh", ShaderStageKind.Vertex, new()),
+            new("unknown.fsh", "unknown.fsh", ShaderStageKind.Fragment, new()) };
+        if (tessellation)
+        {
+            stages.Add(new("unknown.tcs", "unknown.tcs", ShaderStageKind.TessellationControl, new()));
+            stages.Add(new("unknown.tes", "unknown.tes", ShaderStageKind.TessellationEvaluation, new()));
+        }
+        else stages.Add(new("unknown.gsh", "unknown.gsh", ShaderStageKind.Geometry, new()));
+        var contract = new GpuShaderContract("unknown-output", stages, 1);
+        var description = new GraphicsPipelineDesc(new("fixture", new(new ShaderSettings(contract))), new([]),
+            new([new(PixelInternalFormat.Rgba8)]), DynamicPipelineState.Viewport,
+            rasterizer: new() { LineWidth = 2, PointSize = 3 },
+            assembly: new() { Topology = tessellation ? PrimitiveType.Patches : PrimitiveType.Triangles });
+        GL.LineWidth(4); GL.PointSize(5); cache.InvalidateAll();
+        Assert.True(CompleteGraphicsBoundary.TryRun("UnknownOutputMatrix", [description], [], true, _ =>
+        {
+            cache.ApplyGraphicsState(description, Dynamics());
+            Assert.Equal(2, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(3, GL.GetFloat(GetPName.PointSize));
+        }));
+        Assert.Equal(4, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(5, GL.GetFloat(GetPName.PointSize));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>Filled triangles retain native width, lines establish intent, and the last triangle cannot narrow handback.</summary>
     [Theory]
     [InlineData(false)]
