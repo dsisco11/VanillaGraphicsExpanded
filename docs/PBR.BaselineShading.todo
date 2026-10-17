@@ -379,7 +379,9 @@ Tasks
       Canonical package and source identities match; no live appearance or GPU-time claim is made.
       Evidence: ../artifacts/single-sky-renderer/validation.md.
 
-  ☐ Design PSO state-relevance semantics for parameters that cannot affect the declared draw.
+  ☑ Design PSO state-relevance semantics for parameters that cannot affect the declared draw.
+    - Approved design: Rendering.PsoStateRelevance.Proposal.md. Runtime implementation is covered
+      by the following task.
     - Write a proposal describing how PSO definitions recognize irrelevant state, distinguishing
       irrelevant/dormant parameters from explicit default values and unknown live cache knowledge.
       Evaluate derived relevance from existing declarations versus any necessary explicit policy;
