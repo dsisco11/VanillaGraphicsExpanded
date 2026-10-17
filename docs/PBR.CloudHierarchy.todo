@@ -32,12 +32,12 @@ Implementation choices and acceptance inputs
 
 Phase 1: Establish hierarchy contracts and independent bounds oracle
   Outcome: storage geometry, source identity and conservative reduction have executable checks.
-  ☐ Reverify native inputs and current VGE consumers against the installed producer.
+  ✔ Reverify native inputs and current VGE consumers against the installed producer.
     - Trace CloudMapInput, CloudMapPublication, CloudPlacement and CloudColumn validity semantics.
     - Confirm 50-by-50-world-unit cells, one interval per texel, red extinction and BA tile units.
     - Record odd/non-power-of-two dimensions and animated GPU bounds; neither CPU short controls,
       thickness limits nor world placement establish equal neighboring heights or voxel alignment.
-  ☐ Define logical hierarchy geometry and certificate semantics without duplicating native leaves.
+  ✔ Define logical hierarchy geometry and certificate semantics without duplicating native leaves.
     - Logical leaves occupy the next-power-of-two grid; out-of-map leaves are empty, never clamped.
     - Owned mip zero is logical level one, reducing 2-by-2 native columns. Higher mips reduce
       2-by-2 summaries; node footprint derives from logical level, not the owned mip index alone.
@@ -45,14 +45,17 @@ Phase 1: Establish hierarchy contracts and independent bounds oracle
       reject invalid native texels exactly as density evaluation does and exclude zero extinction.
     - Retain every valid positive extinction, however small; never infer emptiness from sampled noise.
     - Define current-source matching for owner, world, allocation, executable, generation and placement.
-  ☐ Add an independent CPU bounds oracle and focused contract checks.
+  ✔ Add an independent CPU bounds oracle and focused contract checks.
     - Cover empty/sparse/dense inputs, nonfinite/negative controls, inverted intervals, separated
       heights, tiny positive extinction, odd widths, padding and mip-to-logical-level mapping.
     - Check every node encloses every occupied descendant using direct descendant enumeration.
     - Verify maximum 200-wide input implies logical 256 leaves and owned 128-through-1 storage:
       eight mips, 21,845 RG32F texels, approximately 0.17 MiB excluding allocation overhead.
-  ☐ Completion: source receipts and passing focused checks establish geometry, validity, units
+  ✔ Completion: source receipts and passing focused checks establish geometry, validity, units
     and certificate contracts without changing rendering behavior.
+    - Completed 2026-10-16 after second review and independent audit-stage-completion against
+      the proposal and inherited documents. Native receipts and 35/35 focused passing checks
+      are recorded below. Later implementation and live acceptance remain unchecked.
 
 Phase 2: Generate and publish owned coarse summaries
   Depends on Phase 1. Outcome: current certified summaries are available before tracing.
@@ -146,3 +149,54 @@ Final acceptance
     source certification, fallback and lifecycle behavior satisfy the approved design.
   ☐ Required build/shader/package checks, documentation, live acceptance and measured performance
     are complete. Reconcile parent checklist state only to the extent these receipts establish it.
+
+Phase 1 contracts and source receipts
+  Reverified installed inputs on 2026-10-16; assembly/shader hashes identify the inspected source
+  independently of the older version label in the volumetric checklist.
+  G:/Vintagestory/Mods/VSEssentials.dll SHA256:
+    A28565C5C9181F8CC84B98A2B7457AB824B8ECB7763714448DA1F7C245AECD6E.
+  G:/Vintagestory/assets/game/shaders/cloudmap.fsh SHA256:
+    BE42585ADE68C57C1A3FF7E23687AC33B64E69D36B9AF225A1716C105F4CE0A7.
+  CloudRendererMap constructor/CloudTick supply eight times desired view distance to InitCloudTiles;
+  InitCloudTiles divides by CloudTileSize and clamps to 20..200 without power-of-two rounding.
+  CloudRendererBase initializes size 50; cloudmap.fsh hardcodes 50. WriteTexture packs normalized
+  short controls; shader main computes float heights and time-dependent undulation, writing red
+  extinction and BA heights divided by 50. H is 0..405 for normalized controls, thickness is
+  25+1.05*H, and undulation translates both bounds. These are not vertical quantization guarantees.
+  WeatherPattern.RegenCloudTileCache samples per-cell noise, and WeatherDataReaderBase blends
+  regional thickness; neither establishes uniform 2-by-2 groups. Native map extents remain finite.
+
+  Task-to-document traceability
+    Native verification -> proposal Representation; PBR.Clouds.md Borrowed map contract;
+      PBR.VolumetricClouds.todo Phase 1 contracts/receipts and its source proposal's Column-data
+      interpretation and Publication and native lifecycle -> installed methods/shader above,
+      CloudNativeMapAdapter/CloudMapPublication and unchanged CloudColumn/CloudOccupied semantics.
+    Geometry/certificates -> proposal Representation and Ownership and publication ->
+      CloudHierarchyLayout, CloudHeightInterval and CloudHierarchySource. Intervals are relative to
+      the cloud layer in world units, not absolute altitude; current CloudPlacement supplies the
+      transform. Source matching includes reference owner, world, allocation, upload, shader,
+      generation, frame, storage and placement. A fresh native borrow and completed GPU-build
+      certificate are separate requirements; source equality alone certifies neither availability
+      nor completion. Resource construction/publication remains Phase 2.
+    Independent oracle/checks -> proposal Acceptance; parent cloud bounds/empty-space scope ->
+      CloudHierarchyBoundsOracle directly enumerates native descendants without production reduction
+      or layout helpers. Bounds tests compare every coarse summary with those exact extrema;
+      layout tests cover all admitted widths, and source tests exercise identity changes and
+      generation withdrawal without a new weather upload. No rendering caller uses these contracts
+      yet, so scene-HZB, PMJ, atmosphere, OIT, full-resolution reference and resolve stay unchanged.
+
+  Focused validation (2026-10-16)
+    Through the validation subagent, with NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages:
+      dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj --no-restore
+        -p:UseSharedCompilation=false -o artifacts/cloud-hierarchy-test-bin -v:minimal
+    Final source build: succeeded, 0 errors and 179 warnings; none reference the new hierarchy files.
+    Enabled production/test shader catalogs were verified by the normal build. Log:
+      artifacts/CloudHierarchy/final-build.log.
+      dotnet test artifacts/cloud-hierarchy-test-bin/VanillaGraphicsExpanded.Tests.dll
+        --filter 'FullyQualifiedName~CloudHierarchyBoundsTests|FullyQualifiedName~CloudHierarchyLayoutTests|FullyQualifiedName~CloudHierarchySourceTests|FullyQualifiedName~CloudMapPublicationTests'
+        --logger 'trx;LogFileName=phase1-focused.trx' --ResultsDirectory artifacts/CloudHierarchy
+    Result: 35 passed, 0 failed, 0 skipped; artifacts/CloudHierarchy/phase1-focused.trx and
+      artifacts/CloudHierarchy/phase1-focused.log. The earlier map-publication check passed 15/15;
+      the final suite includes those cases, so do not add those counts together.
+    These are source/CPU contract checks, not GPU hierarchy correctness, visual acceptance or
+    performance qualification. GPU reduction/traversal remains in subsequent unchecked phases.
