@@ -74,8 +74,17 @@ frames reuse storage; source lifetime changes, reload, reset and disposal retire
 requires completed image-write barriers, sampler visibility and the exact current native descriptor
 plus the reduction executable revision. Source observation precedes depth/lighting admission so
 an unavailable draw cannot retain an invalid source lifetime. Native textures remain borrowed.
-Unavailable or failed construction leaves the existing column traversal usable. View and light
-traversal currently continue to use that traversal; the summaries do not yet skip cloud regions.
+Unavailable, mismatched or failed construction selects the existing column traversal explicitly.
+Reduced view rays use the certified summaries to reject the root or skip groups whose complete
+horizontal ray segment misses their height interval. Owned mip indices are one below logical
+hierarchy levels; the finest summaries descend directly to native columns. Secondary-light rays
+and the deterministic full-resolution reference retain native-column DDA.
+
+Surviving view intervals keep the original DDA clocks, sample counts, PMJ indices and integration
+order. Group skips replay boundary additions without native column fetches, preserving accumulated
+float rounding and tied-axis crossings. Nodes already covering the current ray height descend
+without computing an exit clock. Work-limit fallback resumes native leaf work instead of discarding
+density. These reductions in leaf queries do not establish a GPU performance improvement.
 
 ## Density, lighting and scene composition
 
@@ -145,9 +154,9 @@ a missing or stale publication invalidates cloud history and skips submission.
 Material receiver correction removes opaque-pass particle depths for deferred lighting. Clouds
 retain primary visibility depth as an additional clip, alongside separate liquid depth, to
 preserve particle occlusion. The common shader helper combines material and visibility depth
-before tracing or reconstruction. All these depth reads explicitly select mip zero. No coarse
-mip traversal, tile rejection, min/max extension or cloud-density hierarchy is used here. Shared
-resource reuse alone does not establish a performance improvement.
+before tracing or reconstruction. These scene-depth reads explicitly select mip zero without
+coarse scene-depth traversal, tile rejection or a shared-HZB format change. Cloud-height summaries
+are a separate cloud-owned resource. Shared resource reuse alone does not establish a performance improvement.
 
 ## Reconstruction and controls
 

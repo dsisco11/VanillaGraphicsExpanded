@@ -14,5 +14,11 @@ internal interface ICloudTraceBindings : ICloudVolumeBindings
     /// <summary>Supplies cloud-owned scrambled PMJ offsets without depending on LumOn resource availability.</summary>
     [ShaderBinding("cloudPmjJitter",ShaderBindingKind.Sampler,7,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
     GpuTexture? PmjJitter { set; }
+    /// <summary>Supplies certified coarse height summaries only to reduced view tracing.</summary>
+    [ShaderBinding("cloudHeightBounds",ShaderBindingKind.Sampler,8,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp,Required=false)]
+    GpuTexture? HeightBounds { set; }
+    /// <summary>Supplies explicit availability and the root owned mip; zero availability preserves native-column DDA.</summary>
+    [ShaderBinding("CloudTraversalParameters",ShaderBindingKind.UniformBlock,GpuBindingRegistry.Ubo.Material,ShaderStageKind.Fragment)]
+    CpuUniformBuffer TraversalInputs { get; }
     #endregion
 }

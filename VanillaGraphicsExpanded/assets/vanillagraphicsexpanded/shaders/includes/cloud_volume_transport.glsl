@@ -1,6 +1,9 @@
 @import "./cloud_volume_parameters.glsl"
 @import "./cloud_volume_sampling.glsl"
 @import "./cloud_volume_density.glsl"
+#ifdef VGE_CLOUD_HIERARCHY
+@import "./cloud_volume_hierarchy.glsl"
+#endif
 @import "./atmosphere_aerial.glsl"
 @import "./pbr_scene_storage.glsl"
 @import "./pbr_color.glsl"
@@ -66,6 +69,9 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     vec4 k=vec4(0); vec3 reveal=vec3(1); float transmission=1.0;
     for(int cellIndex=0;cellIndex<402;cellIndex++)
     {
+#ifdef VGE_CLOUD_HIERARCHY
+        if(!CloudHierarchySeek(ray)) break;
+#endif
         vec4 data=CloudColumn(ray.cell); float near,far;
         if(CloudInterval(ray,data,near,far))
         {

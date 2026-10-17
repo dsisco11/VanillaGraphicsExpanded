@@ -86,7 +86,7 @@ Phase 2: Generate and publish owned coarse summaries
 
 Phase 3: Accelerate reduced-resolution view traversal
   Depends on Phase 2. Outcome: view rays skip conservatively without changing occupied integration.
-  ☐ Add hierarchical traversal to the reduced trace shader and explicit trace bindings.
+  ✔ Add hierarchical traversal to the reduced trace shader and explicit trace bindings.
     - Reject rays missing the root; compare each remaining horizontal segment with the node height
       interval, skip only proven misses, otherwise descend and read native children at logical leaves.
     - Preserve original occupied-column intersections, interval boundaries, integration sample counts,
@@ -94,14 +94,18 @@ Phase 3: Accelerate reduced-resolution view traversal
     - Handle parallel axes, boundary ties, negative directions, padded regions and inside-cloud origins
       conservatively with guaranteed forward progress. Work limits must not silently discard density.
     - Select the original column DDA for unavailable/mismatched hierarchy data before accelerated use.
-  ☐ Validate traversal independently of its own reduction and skipping helpers.
+  ✔ Validate traversal independently of its own reduction and skipping helpers.
     - Compare ordered occupied intervals against direct column enumeration and existing DDA for
       adversarial and deterministic randomized rays, including near-tangent and exact-boundary cases.
     - Compare accelerated and original GPU view results under identical PMJ frames/settings, with
       detail enabled/disabled and current opaque/liquid clipping. Retain deterministic reference
       quadrature as an independent reference; do not turn full-resolution resolve into a ray marcher.
-  ☐ Completion: interval and transport comparisons pass without altered sampling or weakened
+  ✔ Completion: interval and transport comparisons pass without altered sampling or weakened
     expectations, and missing summaries render through the existing DDA.
+    - Completed 2026-10-17 after second review and independent audit-stage-completion against the
+      proposal and inherited sources. Final build/shader evidence, 100 distinct passing checks and
+      matching candidate hashes are recorded below. Secondary-light acceleration and later live
+      correctness/performance gates remain unchecked.
 
 Phase 4: Accelerate secondary self-lighting traversal
   Depends on Phase 3. Outcome: solar/lunar secondary rays use the same conservative summaries.
@@ -252,3 +256,70 @@ Phase 2 contracts and verification
       changed source/shader/test files and the two compiled assemblies; documentation is separate.
     This establishes GPU reduction/publication correctness and selected regression contracts,
       not accelerated traversal, live appearance or end-to-end performance. No game launch or deployment.
+
+Phase 3 contracts and verification
+  Task-to-document traceability
+    Traversal/bindings -> proposal Traversal and Representation; PBR.Clouds.md Cloud height summaries;
+      inherited volumetric proposal Column-data interpretation and Publication and native lifecycle ->
+      cloud_volume_hierarchy.glsl, cloud_volume_trace.fsh and the view loop in cloud_volume_transport.glsl.
+      Root/node rejection retains the original ray entry/end. Logical levels equal owned mip+1;
+      finest summaries lead to actual native columns. Group skips reproduce original per-axis
+      repeated-addition clocks and tied-axis events without fetching skipped native columns.
+      Nodes already covering the current parameter descend without exit-clock replay. An exhausted
+      defensive region budget returns to leaf work, never silently discarding remaining density.
+    Admission/fallback -> proposal Ownership and publication; current native publication contract ->
+      ICloudTraceBindings/CloudTraceProgram retain optional sampler 8 and an explicit availability/root
+      block on Material slot 15, separate from temporal slot 14. CloudVolumeReconstruction revalidates
+      the source and queries completed summaries before submission; missing/mismatched data clears
+      the binding and selects DDA. CloudVolumeRenderer supplies the owned hierarchy. No additional
+      native hooks, map copies, CPU readbacks or independent weather updates are introduced.
+    Interval/sampling/transport preservation -> proposal Acceptance; parent cloud scope;
+      PBR.Atmosphere.Publication.md Ownership -> CloudHierarchyTraversalTests exercises the production
+      helper through a registered compute fixture, compares exact ordered GPU intervals against
+      original GPU DDA, checks native probe reduction and compares independently enumerated column
+      boxes. HierarchicalViewMatchesOriginalReducedTransport compares all seven traced channels
+      at identical PMJ frames with detail on/off, opaque/visibility/liquid clips and source-mismatch
+      fallback. Full-resolution midpoint reference, secondary lighting, density, scene HZB,
+      atmosphere, OIT weighting and history/resolve remain unchanged.
+
+  Independent geometry qualification
+    On the 200-wide fixture, origin (50,0,50) and direction
+      (.97014254,9.701425e-11,.24253564) expose existing native float-DDA corner slivers:
+      cell (108,28), t=5566.1924..5566.199; cell (184,47), t=9483.143..9483.168.
+    Direct double-precision geometry classifies those cells as tangencies. The accelerated and
+      original GPU interval arrays agree exactly, including these original rounding artifacts.
+      The renderer was not changed to force agreement with an exact-real geometric oracle.
+    CloudTraversalOracle now qualifies every returned cell and both endpoints against its direct
+      box projection using gamma_(width+4)*max(1,abs(t)), with unit roundoff 2^-24. This bounds
+      slab subtraction/division, delta division and at most width positive clock additions for
+      these fixtures. Unique ordered positive intervals are required; every independent interval
+      longer than twice that bound must be present in order. Geometric tangencies/near misses can
+      admit only individually bounded rounding-sized slivers. No accelerated-vs-original interval
+      tolerance or transport tolerance was introduced; both GPU comparisons remain exact.
+    The optional height sampler initially rejected DDA submissions when absent. Its required flag
+      is now false and explicit availability disables all hierarchy reads. The final four actual
+      transport cases verify absence/mismatch fallback as well as accelerated transport.
+
+  Focused validation (2026-10-16/17)
+    Validation subagent, with NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages:
+      dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj --no-restore
+        -p:UseSharedCompilation=false -m:1 -nr:false -o artifacts/cloud-hierarchy-test-bin -v:normal
+    Final source build passed, 0 errors; test recompilation reports 164 existing warnings. The full
+      initial build reported 179 baseline warnings. Production/test catalogs verify 458/537 variants.
+      artifacts/CloudHierarchy/phase3-verified-build.log. Final test compilation includes the last
+      assertion requiring probe reduction on rays that also integrate occupied clouds.
+      dotnet test artifacts/cloud-hierarchy-test-bin/VanillaGraphicsExpanded.Tests.dll
+        --filter 'FullyQualifiedName~CloudHierarchyTraversalTests|FullyQualifiedName~CloudVolumeReconstructionTests.HierarchicalViewMatchesOriginalReducedTransport'
+        --logger 'trx;LogFileName=phase3-verified-traversal.trx' --ResultsDirectory artifacts/CloudHierarchy
+    Passed: 7/7, 0 failed/skipped; three traversal widths and four detail/foreground transport cases.
+      The exact Phase 2 focused+regression filter union, rerun on this increment, passed 82/82:
+      artifacts/CloudHierarchy/phase3-regression.log and phase3-regression.trx.
+      dotnet test artifacts/cloud-hierarchy-test-bin/VanillaGraphicsExpanded.Tests.dll
+        --filter 'FullyQualifiedName~CloudVolumeReconstructionTests.FullViewResolveUsesReducedPayloadWithoutDensityEvaluation|FullyQualifiedName~CloudVolumeReconstructionTests.PmjTraceChangesAcrossCyclesAndReplaysExactly|FullyQualifiedName~CloudVolumeReconstructionTests.PmjPreservesHomogeneousTransmissionAtMatchingPixelPhases|FullyQualifiedName~CloudVolumeReconstructionTests.PmjLightDimensionIsIndependentOfViewExtinction|FullyQualifiedName~CloudVolumeReconstructionTests.OpaqueHierarchyAlwaysSamplesMipZero|FullyQualifiedName~CloudVolumeReconstructionTests.ParticleVisibilityClipsTracingAndAuthoredResolve|FullyQualifiedName~CloudVolumeReconstructionTests.BothPbrModesReconstructTheSamePhysicalResponse'
+        --logger 'trx;LogFileName=phase3-reduced-regression.trx' --ResultsDirectory artifacts/CloudHierarchy
+    Passed: 11/11, 0 failed/skipped. Final disjoint suites total 100 distinct passing checks.
+      Regression receipts remain applicable because subsequent edits affected only the new test
+      oracle/assertions; production code was unchanged. Final candidate identity:
+      artifacts/CloudHierarchy/phase3-candidate-hashes.json (12 source/shader/test files and two DLLs).
+    Headless correctness/probe counts are not GPU timing or live acceptance. No game launch or
+      deployment. Secondary-light acceleration and end-to-end performance remain unchecked work.

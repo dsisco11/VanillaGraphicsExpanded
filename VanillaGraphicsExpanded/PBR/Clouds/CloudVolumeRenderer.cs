@@ -103,7 +103,7 @@ internal sealed class CloudVolumeRenderer : IRenderer
                 var source = new CloudHierarchySource(input);
                 cloudHierarchy.TryBuild(input, () => runtime.TryGetMap(out var current) && source.Matches(current));
                 reconstruction.Draw(input, lighting, Settings, target, hierarchy.TextureId, primary.DepthTextureId, liquid.DepthTextureId, geometry,
-                    () => runtime.TryGetMap(out var current) && current == input);
+                    () => runtime.TryGetMap(out var current) && current == input, cloudHierarchy);
                 return;
             }
             cloudHierarchy.Reset();

@@ -49,7 +49,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     #region Submission
     /// <summary>Runs complete payload passes under one owned graphics boundary; commits history only after successful OIT submission.</summary>
     internal bool Draw(CloudMapInput input,AtmosphereLighting lighting,CloudVolumeSettings settings,GpuFramebuffer target,
-        int sceneDepth,int visibilityDepth,int liquidDepth,ArrayGraphicsGeometry geometry,Func<bool> current)
+        int sceneDepth,int visibilityDepth,int liquidDepth,ArrayGraphicsGeometry geometry,Func<bool> current,CloudHierarchy? hierarchy=null)
     {
         if(traceProgram is null||temporalProgram is null||resolveProgram is null) return false;
         EnsureSize(api.Render.FrameWidth,api.Render.FrameHeight);
@@ -77,6 +77,8 @@ internal sealed class CloudVolumeReconstruction : IDisposable
             var replacement=new GraphicsPipeline(lifetime,description,resolveProgram); resolvePipeline?.Dispose(); resolvePipeline=replacement;
         }
         if(!current()) { Invalidate(); return false; }
+        // A current map can still outlive an unavailable summary. Explicitly select DDA in that case.
+        traceProgram.SetHierarchy(hierarchy is not null && hierarchy.TryGetCurrent(input,out var bounds)?bounds:null);
         if(!GraphicsCommandContext.TryRun("Cloud.Volume.Temporal",[tracePass.Pipeline,temporalPass.Pipeline,resolvePipeline],true,commands=>
         {
             foreach(var item in new[]{tracePass,temporalPass,(Pass:pass,Pipeline:resolvePipeline)})

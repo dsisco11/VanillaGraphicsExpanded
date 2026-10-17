@@ -21,6 +21,34 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
 {
     #region Public API
     #region Reference comparisons
+    /// <summary>Actual reduced transport preserves every OIT/depth channel and PMJ frame with certified view skipping or DDA fallback.</summary>
+    [Theory]
+    [InlineData(false, false)]
+    [InlineData(false, true)]
+    [InlineData(true, false)]
+    [InlineData(true, true)]
+    public void HierarchicalViewMatchesOriginalReducedTransport(bool detail, bool foreground)
+    {
+        EnsureShaderTestAvailable();
+        using var hierarchy = new CloudHierarchy(() => CloudHierarchyComputeShader.Create(Programs.Api));
+        using var view = CreateScene(9, 7, nativeMapWidth: 21);
+        bool observedCloud = false;
+        foreach (uint frame in new uint[] { 0, 1, 3, 4, 511 })
+        {
+            view.Capture(frame, .125f, 10, 1, 0, detail ? "detail-lit" : "static");
+            view.AuthorHierarchyColumns(foreground);
+            view.UseHierarchy(null);
+            view.RenderTrace(frame); var original = view.ReadTraceRecord();
+            observedCloud |= original[1].Any(value => value < .99999f);
+            view.UseHierarchy(hierarchy);
+            view.RenderTrace(frame); var accelerated = view.ReadTraceRecord();
+            for (int layer = 0; layer < 7; layer++) Assert.Equal(original[layer], accelerated[layer]);
+            view.UseHierarchy(hierarchy, mismatch: true);
+            view.RenderTrace(frame); var fallback = view.ReadTraceRecord();
+            for (int layer = 0; layer < 7; layer++) Assert.Equal(original[layer], fallback[layer]);
+        }
+        Assert.True(observedCloud, "The comparison must exercise non-neutral cloud transport.");
+    }
     /// <summary>Resolve reconstructs supplied physical payloads independently of cloud map density and rejects foreground occlusion.</summary>
     [Fact]
     public void FullViewResolveUsesReducedPayloadWithoutDensityEvaluation()
@@ -426,8 +454,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             $"Pixel({x},{y}) channel{channel}: {actual[index]:G9} outside reference footprint [{low:G9},{high:G9}] +/- {tolerance:G9}");
     }
     /// <summary>Creates independent owned executables, persistent reduced storage and a tiny view without native engine state.</summary>
-    private CloudScene CreateScene(int width,int height,bool mipmappedOpaque=false)=>new(width,height,Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),
-        Programs.Create<CloudTemporalProgram>(),Programs.Create<CloudResolveProgram>(),mipmappedOpaque);
+    private CloudScene CreateScene(int width,int height,bool mipmappedOpaque=false,int nativeMapWidth=4)=>new(width,height,Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),
+        Programs.Create<CloudTemporalProgram>(),Programs.Create<CloudResolveProgram>(),mipmappedOpaque,nativeMapWidth);
 
     /// <summary>Owns synthetic native inputs and executes the same three pass structure as the runtime.</summary>
     private sealed class CloudScene : IDisposable
@@ -457,12 +485,12 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         #region Public API
         #region View preparation
         /// <summary>Allocates small deterministic targets and independently authored column/depth/atmospheric fixtures.</summary>
-        internal CloudScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve,bool mipmappedOpaque)
+        internal CloudScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve,bool mipmappedOpaque,int nativeMapWidth)
         {
             this.width=width;this.height=height;this.reference=reference;this.trace=trace;this.temporal=temporal;this.resolve=resolve;
             (lowWidth,lowHeight)=CloudVolumeSurface.Dimensions(width,height);
             camera=Own(new VgeFrameUniformBuffer()); storage=Own(new TestFrameLightingPublication());
-            map=Own(DynamicTexture2D.Create(4,4,PixelInternalFormat.Rgba32f));
+            map=Own(DynamicTexture2D.Create(nativeMapWidth,nativeMapWidth,PixelInternalFormat.Rgba32f));
             int levels=1;for(int extent=Math.Max(width,height);extent>1;extent>>=1)levels++;
             opaque=Own(mipmappedOpaque?DynamicTexture2D.CreateMipmapped(width,height,PixelInternalFormat.R32f,levels):
                 DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
@@ -519,7 +547,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             if(frame==0)currentProjection.CopyTo(previousProjection,0);
             camera.Capture(projection,view,inverse,inverseView,previousProjection,currentProjection,new(width,height),0,frame,Vector3.Zero,Vector3.Zero,0,new(.1f,1000));
             storage.Capture(scale,frame);
-            float[] columns=new float[64];for(int i=0;i<16;i++){columns[i*4]=extinction;columns[i*4+2]=scene=="thin-height"?-.01f:-.5f;columns[i*4+3]=scene=="thin-height"?.01f:.5f;}
+            float[] columns=new float[map.Width*map.Width*4];for(int i=0;i<map.Width*map.Width;i++){columns[i*4]=extinction;columns[i*4+2]=scene=="thin-height"?-.01f:-.5f;columns[i*4+3]=scene=="thin-height"?.01f:.5f;}
             map.UploadDataImmediate(columns);
             float[] depths=new float[width*height],liquids=new float[width*height];
             for(int y=0;y<height;y++)for(int x=0;x<width;x++)
@@ -538,6 +566,38 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         }
         #endregion
         #region Submission and history probes
+        /// <summary>Authors sparse stepped clouds and optional opaque/visibility/liquid foreground clips independently of the hierarchy.</summary>
+        internal void AuthorHierarchyColumns(bool foreground)
+        {
+            float[] columns = new float[map.Width * map.Width * 4];
+            for (int z = 0; z < map.Width; z++)
+            for (int x = 0; x < map.Width; x++)
+            {
+                if ((x + 2 * z) % 4 == 0) continue;
+                int index = (z * map.Width + x) * 4;
+                columns[index] = .125f;
+                columns[index + 2] = (x + z) % 3 == 0 ? 1 : -.5f;
+                columns[index + 3] = columns[index + 2] + 1;
+            }
+            map.UploadDataImmediate(columns);
+            if (!foreground) return;
+            SetVisibilityForeground();
+            opaque.UploadDataImmediate(Enumerable.Range(0, width * height).Select(i => Depth(i % 5 == 0 ? 20 : 1000)).ToArray());
+            liquid.UploadDataImmediate(Enumerable.Range(0, width * height).Select(i => Depth(i % 7 == 0 ? 60 : 1000)).ToArray());
+        }
+        /// <summary>Binds only exact-source summaries; a deliberately mismatched certificate exercises explicit DDA fallback.</summary>
+        internal void UseHierarchy(CloudHierarchy? hierarchy, bool mismatch = false)
+        {
+            if (hierarchy is null) { trace.SetHierarchy(null); return; }
+            var input = new CloudMapInput(this, 1, 1, 1, 1, 1, 1,
+                new(map.TextureId, 2, 3, 4, map.Width, 50, 5), default);
+            Assert.True(hierarchy.TryBuild(input, () => true), hierarchy.Failure);
+            bool available = hierarchy.TryGetCurrent(mismatch ? input with { Generation = 2 } : input, out var bounds);
+            Assert.Equal(!mismatch, available);
+            trace.SetHierarchy(available ? bounds : null);
+        }
+        /// <summary>Reads the complete traced OIT record including first/last cloud and foreground distances.</summary>
+        internal float[][] ReadTraceRecord() => traced.Images.Select(image => image.ReadPixels()).ToArray();
         /// <summary>Selects the allowed dense midpoint budget independently of reduced tracing.</summary>
         internal void SetReferenceSamples(int count) { referenceSamples=count; }
         /// <summary>Executes deterministic full-resolution midpoint transport without changing history.</summary>
@@ -640,7 +700,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         /// <summary>Supplies identical physical transport inputs to all tracing consumers.</summary>
         private void Configure(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudPlacement placement,AtmosphereLighting lighting)
         {
-            parameters.CaptureMap(4,placement,1,CloudVolumeSettings.Default with {Detail=detail,ViewSamples=ReferenceEquals(program,reference)?referenceSamples:4});
+            parameters.CaptureMap(map.Width,placement,1,CloudVolumeSettings.Default with {Detail=detail,ViewSamples=ReferenceEquals(program,reference)?referenceSamples:4});
             parameters.CaptureLighting(lighting,underwater?1:0,new(underwater ? .02f : 0,0,0,0),Vector3.Zero);
             program.Map=map.TextureId;program.SceneDepth=opaque.TextureId;program.VisibilityDepth=visibility.TextureId;program.LiquidDepth=liquid.TextureId;program.AerialRadiance=aerial;program.AerialAttenuation=loss;
         }

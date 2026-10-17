@@ -14,16 +14,22 @@ internal sealed partial class CloudTraceProgram : GpuProgram, ICloudTraceBinding
     internal readonly CloudTemporalParameters Temporal;
     private VgeFrameUniformBuffer? frame;
     private GpuShaderStorageBuffer? lighting;
+    private readonly PackedUniformBuffer traversal;
+    private readonly byte[] traversalBytes = new byte[16];
 
     #region Public API
+    #region Preparation
     /// <summary>Registers the dedicated resource contract and owns its parameter block.</summary>
     public CloudTraceProgram()
     {
         Parameters = OwnUniformBuffer(new CloudVolumeParameters());
         Temporal = OwnUniformBuffer(new CloudTemporalParameters());
+        traversal = OwnUniformBuffer(new PackedUniformBuffer(16));
         ProgramLayout.RegisterContract(Contract.Stages[0].Bindings);
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
+    #endregion
+    #region View and physical inputs
     /// <summary>Identifies the offline volume stages.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
     /// <summary>Accepts a complete alternate camera rather than implicitly reusing main-view transforms.</summary>
@@ -36,7 +42,21 @@ internal sealed partial class CloudTraceProgram : GpuProgram, ICloudTraceBinding
     CpuUniformBuffer ICloudVolumeBindings.Inputs => Parameters;
     /// <summary>Encodes against the frozen view publication.</summary>
     GpuShaderStorageBuffer CameraExposure.IPhotometricFrameBindings.FrameLighting => lighting ?? CameraExposure.CameraExposureRenderer.FrozenLighting;
+    #endregion
+    #region Scheduling and traversal
     /// <summary>Publishes owned reprojection parameters.</summary>
     CpuUniformBuffer ICloudTraceBindings.TemporalInputs => Temporal;
+    /// <summary>Publishes traversal availability independently of density and temporal controls.</summary>
+    CpuUniformBuffer ICloudTraceBindings.TraversalInputs => traversal;
+    /// <summary>Stages a certified hierarchy or explicitly disables acceleration for this submission.</summary>
+    internal void SetHierarchy(DynamicTexture2D? bounds)
+    {
+        RequireInputMutation();
+        bool available = bounds?.IsValid == true;
+        HeightBounds = available ? bounds : null;
+        UboPacking.WriteIVec4(traversalBytes, 0, available ? 1 : 0, available ? bounds!.MipLevels - 1 : 0, 0, 0);
+        traversal.SetBytes(traversalBytes);
+    }
+    #endregion
     #endregion
 }
