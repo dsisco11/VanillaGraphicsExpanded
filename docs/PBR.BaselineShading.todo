@@ -224,6 +224,8 @@ Tasks
     This is temporal PMJ sampling, not a spatial blue-noise mask. Focused validation receipts:
     artifacts/CloudPmj/validation.md. Live appearance and GPU/frame-time acceptance remain open.
   ☐ Evaluate what type of HZB accelleration structure would be suitable for volumetric cloud rendering.
+    - Approved design: docs/PBR.CloudHierarchy.Proposal.md. Implementation and acceptance:
+      docs/PBR.CloudHierarchy.todo; native leaves with owned coarse min/max height summaries.
 
   ☐ Implement virtual shadow maps.
 

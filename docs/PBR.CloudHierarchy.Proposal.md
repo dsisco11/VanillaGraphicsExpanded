@@ -3,6 +3,7 @@
 Status: approved design. This document describes the design; implementation planning is separate.
 
 Related architecture: [PBR.Clouds.md](PBR.Clouds.md).
+Implementation checklist: [PBR.CloudHierarchy.todo](PBR.CloudHierarchy.todo).
 
 ## Purpose
 

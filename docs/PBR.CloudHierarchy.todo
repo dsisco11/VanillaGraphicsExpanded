@@ -1,0 +1,148 @@
+Conservative min/max cloud hierarchy
+===================================
+
+Authority and scope
+  Source: docs/PBR.CloudHierarchy.Proposal.md (approved design).
+  Parent: docs/PBR.BaselineShading.todo, cloud hierarchy acceleration evaluation.
+  Existing cloud implementation: docs/PBR.Clouds.md and docs/PBR.VolumetricClouds.todo.
+  The proposal governs scope. Every task remains unchecked until its stated evidence exists.
+  Accelerate view and existing solar/lunar self-lighting rays without changing native weather,
+  cubic column bounds, procedural fluff, PMJ sampling, lighting or six-attachment OIT composition.
+  Keep shared scene-depth HZB foreground clipping and full-resolution texture-only resolve intact.
+  Do not add a 3D density volume, scene-HZB format change, CPU map readback, native-method hooks,
+  or cloud shadows cast onto the scene; those shadows remain deferred to virtual shadow maps.
+
+Execution conventions
+  Keep files domain-focused, resource ownership explicit and composition roots thin. Follow
+  repository comments and visibility regions, dedicated shader program/binding contracts and
+  existing GPU resource, submission, shader registration and cleanup APIs.
+  Run build/test tools through subagents. Use focused lightweight correctness checks routinely;
+  full-size reference captures and GPU timing belong to explicit qualification work below.
+  Never launch the game for visual acceptance; the user performs live acceptance.
+  Distinguish source inspection, CPU oracle, GPU correctness, package and live timing evidence.
+  Reconcile linked documents and perform a second review before marking an increment complete.
+
+Implementation choices and acceptance inputs
+  RG32F, native leaves and conservative min/max reduction are fixed by the approved proposal.
+  Select the GPU reduction submission mechanism and traversal implementation through existing
+  rendering APIs; these are implementation choices, not authorization for a new GPU abstraction.
+  Use the current native publication contract, not assumptions based on texture names or uploads.
+  Target hardware, resolutions, representative scenes and performance budgets are not specified.
+  Record those targets before performance acceptance; do not invent numbers or block math work.
+
+Phase 1: Establish hierarchy contracts and independent bounds oracle
+  Outcome: storage geometry, source identity and conservative reduction have executable checks.
+  ☐ Reverify native inputs and current VGE consumers against the installed producer.
+    - Trace CloudMapInput, CloudMapPublication, CloudPlacement and CloudColumn validity semantics.
+    - Confirm 50-by-50-world-unit cells, one interval per texel, red extinction and BA tile units.
+    - Record odd/non-power-of-two dimensions and animated GPU bounds; neither CPU short controls,
+      thickness limits nor world placement establish equal neighboring heights or voxel alignment.
+  ☐ Define logical hierarchy geometry and certificate semantics without duplicating native leaves.
+    - Logical leaves occupy the next-power-of-two grid; out-of-map leaves are empty, never clamped.
+    - Owned mip zero is logical level one, reducing 2-by-2 native columns. Higher mips reduce
+      2-by-2 summaries; node footprint derives from logical level, not the owned mip index alone.
+    - Convert valid native bounds to world units. Empty intervals use positive/negative infinity;
+      reject invalid native texels exactly as density evaluation does and exclude zero extinction.
+    - Retain every valid positive extinction, however small; never infer emptiness from sampled noise.
+    - Define current-source matching for owner, world, allocation, executable, generation and placement.
+  ☐ Add an independent CPU bounds oracle and focused contract checks.
+    - Cover empty/sparse/dense inputs, nonfinite/negative controls, inverted intervals, separated
+      heights, tiny positive extinction, odd widths, padding and mip-to-logical-level mapping.
+    - Check every node encloses every occupied descendant using direct descendant enumeration.
+    - Verify maximum 200-wide input implies logical 256 leaves and owned 128-through-1 storage:
+      eight mips, 21,845 RG32F texels, approximately 0.17 MiB excluding allocation overhead.
+  ☐ Completion: source receipts and passing focused checks establish geometry, validity, units
+    and certificate contracts without changing rendering behavior.
+
+Phase 2: Generate and publish owned coarse summaries
+  Depends on Phase 1. Outcome: current certified summaries are available before tracing.
+  ☐ Implement the hierarchy resource owner and dedicated reduction shader/program contracts.
+    - Allocate only coarse RG32F mips; borrow the native map read-only as logical leaves.
+    - First reduction reads 2-by-2 native texels with explicit source bounds checks. Later reductions
+      combine summary intervals; empty children never contaminate valid minima/maxima.
+    - Preserve infinities for empty nodes and retain conservative bounds without filtering averages.
+  ☐ Integrate GPU construction after successful native map generation and before VGE tracing,
+    through the existing publication/draw boundary; do not tick or reschedule native weather.
+    - Rebuild for every newly published generation, including in-place animation with unchanged
+      CPU weather uploads. Reuse allocations across ordinary frames when layout remains compatible.
+    - Order writes and sampling through existing GPU submission/visibility contracts, including
+      dependencies between reduction levels. Publish only after all required writes are visible.
+    - Withdraw stale/failed certificates; match the exact borrowed source immediately before use.
+    - Retire owned storage on source/lifetime invalidation, world teardown, reload or disposal;
+      native resources remain native-owned. Use existing DDA when summaries are unavailable.
+  ☐ Compare GPU reductions with the independent oracle, including empty-root and padded-edge cases.
+    - Exercise source replacement, reused texture names, failed generation/build, layout changes,
+      executable invalidation and unchanged-allocation animated generations.
+    - Test-only readback may verify results; production must not read map or hierarchy texels to CPU.
+  ☐ Completion: focused build/shader/GPU checks pass; publication and fallback lifecycle checks
+    show current summaries, no duplicate leaf allocation and no stale-resource sampling.
+
+Phase 3: Accelerate reduced-resolution view traversal
+  Depends on Phase 2. Outcome: view rays skip conservatively without changing occupied integration.
+  ☐ Add hierarchical traversal to the reduced trace shader and explicit trace bindings.
+    - Reject rays missing the root; compare each remaining horizontal segment with the node height
+      interval, skip only proven misses, otherwise descend and read native children at logical leaves.
+    - Preserve original occupied-column intersections, interval boundaries, integration sample counts,
+      sample order, PMJ indices and cell/view/light decorrelation. Do not index jitter by visited nodes.
+    - Handle parallel axes, boundary ties, negative directions, padded regions and inside-cloud origins
+      conservatively with guaranteed forward progress. Work limits must not silently discard density.
+    - Select the original column DDA for unavailable/mismatched hierarchy data before accelerated use.
+  ☐ Validate traversal independently of its own reduction and skipping helpers.
+    - Compare ordered occupied intervals against direct column enumeration and existing DDA for
+      adversarial and deterministic randomized rays, including near-tangent and exact-boundary cases.
+    - Compare accelerated and original GPU view results under identical PMJ frames/settings, with
+      detail enabled/disabled and current opaque/liquid clipping. Retain deterministic reference
+      quadrature as an independent reference; do not turn full-resolution resolve into a ray marcher.
+  ☐ Completion: interval and transport comparisons pass without altered sampling or weakened
+    expectations, and missing summaries render through the existing DDA.
+
+Phase 4: Accelerate secondary self-lighting traversal
+  Depends on Phase 3. Outcome: solar/lunar secondary rays use the same conservative summaries.
+  ☐ Reuse hierarchy traversal for existing bounded secondary marches in accelerated tracing.
+    - Preserve light-ray limits, occupied intervals, density evaluation, integration sample counts,
+      solar/lunar decorrelation and PMJ dimensions; support off-camera rays and finite map exits.
+    - Preserve the unaccelerated comparison path and existing fallback; add no cast-shadow consumer.
+  ☐ Compare optical depths, illumination and all OIT payload channels with the original path using
+    identical PMJ frames/settings, sun/moon directions, sparse/dense and separated-height maps.
+    - Exercise horizontal/vertical lights, boundary starts, inside-cloud origins and long empty spans.
+    - Independently check secondary occupied intervals; equivalent view output alone is insufficient.
+  ☐ Completion: focused CPU/GPU checks establish view and secondary-light equivalence while
+    foreground depth clipping, scene storage encoding and OIT composition retain existing contracts.
+
+Phase 5: Qualify pipeline integration and reconcile documentation
+  Depends on Phase 4. Outcome: the accelerated path is integrated with existing cloud lifetimes.
+  ☐ Verify Off/Simple remain unaffected and Volumetric works in standalone PBR and PBR + LumOn.
+    - Exercise mode changes, resize, reload, world replacement, resource/build failures and recovery;
+      confirm no additional native hooks, premature native-resource disposal or duplicated generation.
+    - Verify current-source matching through trace submission and reduced/history/resolve scheduling;
+      preserve shared scene-HZB, primary/liquid clipping, temporal reconstruction and OIT targets.
+  ☐ Run the canonical focused build/test/shader/package checks appropriate to changed components
+    through subagents. Record commands, immutable candidate identity and results; distinguish
+    pre-existing failures and unavailable runtime dependencies from verified behavior.
+  ☐ Update PBR.Clouds.md to describe delivered ownership, reduction, traversal and fallback behavior;
+    reconcile this checklist with the source proposal and parent without claiming live acceptance.
+  ☐ Completion: integration receipts and second review cover the approved contracts; required
+    correctness checks pass and remaining live qualification is explicitly tracked below.
+
+Phase 6: Demonstrate end-to-end performance and live correctness
+  Depends on Phase 5. Outcome: measured evidence establishes practical benefit and limitations.
+  ☐ Record target GPU/hardware, resolution, settings, build identity, scene matrix and budgets.
+  ☐ Measure original versus accelerated rendering on the same candidate and identical PMJ frames.
+    - Include hierarchy construction plus view/light tracing in total cloud cost; separately record
+      construction, trace and unchanged reconstruction costs without omitting setup overhead.
+    - Include empty, sparse, dense overlapping and separated-height maps; ground, inside-cloud and
+      above-cloud views; moving sun, weather and padded edges. Report regressions as well as wins.
+    - Record owned memory and resource reuse. Hierarchy size alone does not establish acceleration.
+  ☐ Obtain user-run live acceptance of shape, fluff, lighting, temporal stability, fog, foreground
+    clipping and OIT composition in both PBR modes; do not infer appearance from headless checks.
+  ☐ Reconcile any correctness or performance failures within approved scope and repeat affected
+    checks. If benefit is not demonstrated, leave performance acceptance open and report findings.
+  ☐ Completion: recorded total costs demonstrate benefit against agreed targets, live acceptance
+    is recorded and limitations are explicit; no unresolved required gate is marked complete.
+
+Final acceptance
+  ☐ Every proposal requirement maps to delivered behavior and evidence, with no unsupported scope.
+  ☐ Independent bounds/traversal checks and GPU transport comparisons pass; native leaves, padding,
+    source certification, fallback and lifecycle behavior satisfy the approved design.
+  ☐ Required build/shader/package checks, documentation, live acceptance and measured performance
+    are complete. Reconcile parent checklist state only to the extent these receipts establish it.
