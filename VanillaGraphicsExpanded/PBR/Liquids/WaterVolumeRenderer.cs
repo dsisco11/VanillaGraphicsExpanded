@@ -84,7 +84,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
                         TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Water.Transport"));
                     var optical = resources.Own(GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.OpticalLayer));
                     var illumination = resources.Own(GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.SourceLayer));
-                    target = resources.Own(GpuFramebuffer.Create([optical, illumination]));
+                    target = resources.Own(DynamicGpuFramebuffer.Create([optical, illumination]));
                     targetResources = resources;
                 }
                 catch { resources.Dispose(); throw; }

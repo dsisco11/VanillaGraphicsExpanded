@@ -17,6 +17,7 @@ internal sealed class CloudVolumeSurface : IDisposable
     internal readonly GpuFramebuffer Target;
     private readonly GpuFramebufferAttachment[] images=new GpuFramebufferAttachment[3];
     private readonly Dictionary<GpuProgram,GraphicsPipeline> pipelines=new(ReferenceEqualityComparer.Instance);
+    private readonly RenderPassDesc pass;
     internal static readonly RenderPassColor[] Outputs=[new(0),new(1),new(2)];
 
     #region Public API
@@ -31,11 +32,14 @@ internal sealed class CloudVolumeSurface : IDisposable
         {
             // Layer indices are relative to the restricted view; each FBO is configured once.
             for(int i=0;i<images.Length;i++) images[i]=GpuFramebufferAttachment.FromTexture(View,layer:i);
-            Target=GpuFramebuffer.Create(images,debugName:$"{name}.Framebuffer");
+            Target=StaticGpuFramebuffer.Create(images,debugName:$"{name}.Framebuffer");
+            pass=new(Target,Outputs);
         }
         catch
         {
             var cleanup=new List<Action>();
+            // A failed declaration must release immutable image guards before retiring the images.
+            if(Target is not null) cleanup.Add(Target.Dispose);
             foreach(var image in images) if(image is not null) cleanup.Add(image.Dispose);
             cleanup.Add(View.Dispose); RenderingCleanup.Run(cleanup.ToArray()); throw;
         }
@@ -43,7 +47,6 @@ internal sealed class CloudVolumeSurface : IDisposable
     /// <summary>Reuses a complete replacement-write pipeline until its executable or attachment contract changes.</summary>
     internal (RenderPassDesc Pass,GraphicsPipeline Pipeline) Prepare(GraphicsPipelineLifetime lifetime,GpuProgram program)
     {
-        var pass=new RenderPassDesc(Target,Outputs);
         using var metadata=new RenderPassTargets(pass);
         var description=new GraphicsPipelineDesc(program.GraphicsIdentity!,CloudVolumeRenderer.Layout,metadata.Signature,DynamicPipelineState.Viewport);
         // Rotation changes a block's role. Retain both executables instead of replacing its PSO every frame.

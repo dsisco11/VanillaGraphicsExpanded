@@ -489,13 +489,13 @@ public sealed class AtmosphereOwnedSkyTests(HeadlessGLFixture fixture) : LumOnSh
             program.LiquidDepth = depth.TextureId;
             Target.BindWithViewport();
             // Metadata belongs to other passes; preserve recognizable contents while drawing the sky.
-            GL.DrawBuffers(8, Enumerable.Range(0, 8).Select(i => DrawBuffersEnum.ColorAttachment0 + i).ToArray());
+            GL.DrawBuffers(8, Enumerable.Range(0, 8).Select(i => DrawBuffersEnum.ColorAttachment0 + i).ToArray()); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             for (int attachment = 2; attachment < 8; attachment++)
             {
                 if (attachment == 6) GL.ClearBuffer(ClearBuffer.Color, attachment, new uint[] { 6, 6, 6, 6 });
                 else GL.ClearBuffer(ClearBuffer.Color, attachment, Enumerable.Repeat((float)attachment, 4).ToArray());
             }
-            GL.DrawBuffers(2, new[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 });
+            GL.DrawBuffers(2, new[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 }); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             StateCache.Current.Apply(new GlPipelineDesc(defaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable).With(GlPipelineStateId.BlendEnable).With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask), nonDefaultMask: GlPipelineStateMask.From(GlPipelineStateId.DepthWriteMask), depthWriteMask: false));
             using (program.UseScope())
             using (vao.BindScope())

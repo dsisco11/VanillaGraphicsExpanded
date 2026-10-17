@@ -57,14 +57,14 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
         Assert.Equal((sentinel.TextureId,sentinel.TextureId),CloudArrayBindingCapture.ReadBindings());
         capture.FailAtDraw=-1;capture.Draws.Clear();
         Assert.True(scene.Draw(reconstruction,scene.Capture(5),null,()=>true));Assert.False(scene.HistoryEnabled);
-        // Both mutation and retirement require every failed-pass source borrow to have been released.
+        // Static payload attachments retain allocation guards until Reset; successful retirement proves failed-pass borrows ended.
         var retired=ReadPrivate<CloudVolumeStorage>(reconstruction,"storage");
-        Assert.True(retired.Array.Resize(2,2,9));reconstruction.Reset();Assert.False(retired.Array.IsValid);
+        Assert.Throws<InvalidOperationException>(()=>retired.Array.Resize(2,2,9));reconstruction.Reset();Assert.False(retired.Array.IsValid);
         scene.AssertBorrowedInputsAlive();scene.AttachPrograms(reconstruction);capture.Draws.Clear();
         Assert.True(scene.Draw(reconstruction,scene.Capture(6),null,()=>true));Assert.False(scene.HistoryEnabled);
         output.WriteLine("ARRAY_BINDING_CAPTURE="+System.Text.Json.JsonSerializer.Serialize(new{frames=records,
             failedSubmission=2,cursorHeld=true,historyInvalidated=true,inheritedBindingsRestored=true,
-            recoveryHistoryRejected=true,resizeAfterFailure=true,resetRetiredStorage=true,resetRecovery=true}));
+            recoveryHistoryRejected=true,resizeBlockedUntilReset=true,resetRetiredStorage=true,resetRecovery=true}));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     /// <summary>Certified, revoked and failed summaries preserve complete production reconstruction in either lighting selection.</summary>

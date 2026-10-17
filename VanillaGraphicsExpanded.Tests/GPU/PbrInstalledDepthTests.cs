@@ -47,7 +47,7 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
             attachments.Own(GpuFramebufferAttachment.FromTexture(gbuffer.PatchId)),
             attachments.Own(GpuFramebufferAttachment.FromTexture(gbuffer.Surface, layer: 2))];
         var depthAttachment = attachments.Own(GpuFramebufferAttachment.FromTexture(depth));
-        using var target = GpuFramebuffer.Create(colors, depthAttachment);
+        using var target = DynamicGpuFramebuffer.Create(colors, depthAttachment);
         var layout = GpuProgramLayout.TryBuild(program.ProgramId);
         StateCache.Current.UseProgram(program.ProgramId);
         StateCache.Current.BindVertexArray(vao.VertexArrayId);

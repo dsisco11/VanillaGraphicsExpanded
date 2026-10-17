@@ -326,7 +326,7 @@ public sealed class WaterUvRefractionTests(HeadlessGLFixture fixture) : LumOnSha
         color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
         using var reducedColor = half ? DynamicTexture2D.Create(Width / 2,Height / 2,PixelInternalFormat.Rgba32f) : null;
         using var reducedDepth = half ? DynamicTexture2D.Create(Width / 2,Height / 2,PixelInternalFormat.Rgba32f) : null;
-        using var reducedTarget = half ? GpuFramebuffer.CreateMRT([reducedColor!,reducedDepth!]) : null;
+        using var reducedTarget = half ? DynamicGpuFramebuffer.CreateMRT([reducedColor!,reducedDepth!]) : null;
         if (half)
         {
             var reduction = Programs.Create<WaterRefractionReductionShaderProgram>();

@@ -148,7 +148,7 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
         using var color = DynamicTexture2D.Create(size, size, PixelInternalFormat.Rgba32f);
         using var glow = DynamicTexture2D.Create(size, size, PixelInternalFormat.Rgba32f);
         using var depthImage = new DepthTexture(size, size, PixelInternalFormat.DepthComponent32f);
-        using var target = GpuFramebuffer.CreateMRT([color, glow], depthImage)!;
+        using var target = DynamicGpuFramebuffer.CreateMRT([color, glow], depthImage)!;
         using var geometry = new ArrayGraphicsGeometry(CelestialRenderer.FullscreenLayout, PrimitiveType.Triangles,
             new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         using var lifetime = new GraphicsPipelineLifetime();

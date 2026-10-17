@@ -27,7 +27,7 @@ internal sealed class RasterDepthHierarchyReference : IDisposable
                 targets=new GpuFramebuffer[levels];
                 for(int level=0;level<levels;level++) {
                     var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(Texture,mipLevel:level));
-                    targets[level]=resources.Own(GpuFramebuffer.Create([attachment],debugName:$"DepthHierarchy.Mip{level}"));
+                    targets[level]=resources.Own(DynamicGpuFramebuffer.Create([attachment],debugName:$"DepthHierarchy.Mip{level}"));
                     StorageBytes+=4L*Math.Max(1,width>>level)*Math.Max(1,height>>level);
                 }
             } catch {Dispose();throw;}

@@ -38,7 +38,7 @@ public sealed class ArrayTextureViewTests(HeadlessGLFixture fixture):RenderTestB
             textureTarget:TextureTarget.Texture3D,immutableStorage:true);
         using var view=GpuTextureView.CreateFromTexture(owner,TextureTarget.Texture3D,PixelInternalFormat.Rgba32f,0,1,0,1);
         using var attachment=GpuFramebufferAttachment.FromTexture(owner,layer:1);
-        using var framebuffer=GpuFramebuffer.Create([attachment])!;
+        using var framebuffer=DynamicGpuFramebuffer.Create([attachment])!;
         Assert.True(GraphicsCommandContext.TryRun("Tests.VolumeView.Feedback",[],true,commands=>
         {
             commands.BeginPass(new(framebuffer,[new(0)]));
@@ -56,7 +56,7 @@ public sealed class ArrayTextureViewTests(HeadlessGLFixture fixture):RenderTestB
         using var overlap=GpuTextureView.CreateFromTexture(owner,TextureTarget.Texture2DArray,PixelInternalFormat.Rgba32f,0,1,4,2);
         using var separate=GpuTextureView.CreateFromTexture(owner,TextureTarget.Texture2DArray,PixelInternalFormat.Rgba32f,0,1,6,3);
         using var attachment=GpuFramebufferAttachment.FromTexture(target,layer:1);
-        using var framebuffer=GpuFramebuffer.Create([attachment])!;
+        using var framebuffer=DynamicGpuFramebuffer.Create([attachment])!;
         Assert.True(GraphicsCommandContext.TryRun("Tests.ArrayView.Feedback",[],true,commands=>
         {
             commands.BeginPass(new(framebuffer,[new(0)]));

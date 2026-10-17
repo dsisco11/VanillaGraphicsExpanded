@@ -64,18 +64,18 @@ internal sealed class SceneColorParticleTargets : IDisposable
             {
                 var normal = Allocate(PixelInternalFormat.Rgba16f, "SsaoNormal");
                 var position = Allocate(PixelInternalFormat.Rgba16f, "SsaoPosition");
-                DrawTarget = GpuFramebuffer.Create([color, glow, normal, position], depth, "SceneColor.Particles.Draw");
+                DrawTarget = DynamicGpuFramebuffer.Create([color, glow, normal, position], depth, "SceneColor.Particles.Draw");
                 // Deferred lighting keeps the original position attachment until
                 // composition finishes. Only then are surviving particle values restored.
-                SsaoTarget = GpuFramebuffer.Create([
+                SsaoTarget = DynamicGpuFramebuffer.Create([
                     GpuFramebufferAttachmentDiscovery.Read(primary, FramebufferAttachment.ColorAttachment2),
                     GpuFramebufferAttachmentDiscovery.Read(primary, FramebufferAttachment.ColorAttachment3)],
                     debugName: "SceneColor.Particles.SsaoRestore");
             }
-            else DrawTarget = GpuFramebuffer.Create([color, glow], depth, "SceneColor.Particles.Draw");
-            beforeTarget = GpuFramebuffer.Create([], before, "SceneColor.Particles.Before");
-            afterTarget = GpuFramebuffer.Create([], after, "SceneColor.Particles.After");
-            ResolveTarget = GpuFramebuffer.Create([receiver, visible], debugName: "SceneColor.Particles.Resolve");
+            else DrawTarget = DynamicGpuFramebuffer.Create([color, glow], depth, "SceneColor.Particles.Draw");
+            beforeTarget = DynamicGpuFramebuffer.Create([], before, "SceneColor.Particles.Before");
+            afterTarget = DynamicGpuFramebuffer.Create([], after, "SceneColor.Particles.After");
+            ResolveTarget = DynamicGpuFramebuffer.Create([receiver, visible], debugName: "SceneColor.Particles.Resolve");
             beforeCopy = new(primary, beforeTarget, ClearBufferMask.DepthBufferBit);
             afterCopy = new(primary, afterTarget, ClearBufferMask.DepthBufferBit);
             primary.AttachmentsChanged += Invalidate;

@@ -25,8 +25,8 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
             data[i]=x;data[i+1]=y;data[i+2]=z;data[i+3]=100+x+10*y+100*z;
         }
         texture.UploadDataImmediate(data,0,0,0,5,4,3);
-        using var draw=GpuFramebuffer.CreateEmpty("Tests.Readback.Draw");
-        using var read=GpuFramebuffer.CreateEmpty("Tests.Readback.Read");
+        using var draw=DynamicGpuFramebuffer.CreateEmpty("Tests.Readback.Draw");
+        using var read=DynamicGpuFramebuffer.CreateEmpty("Tests.Readback.Read");
         using var drawScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer,draw.FboId);
         using var readScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer,read.FboId);
         using var pack=GpuPixelPackBuffer.Create(debugName:"Tests.Readback.ExistingPack");

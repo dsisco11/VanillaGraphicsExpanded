@@ -69,7 +69,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
     {
         EnsureContextValid();
         using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
-        using var target = GpuFramebuffer.CreateSingle(texture)!;
+        using var target = DynamicGpuFramebuffer.CreateSingle(texture)!;
         using var replacementStorage = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
         using var replacement = GpuFramebufferAttachment.FromTexture(replacementStorage);
         var expected = new InvalidOperationException("fixture body");
@@ -124,7 +124,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
     {
         EnsureContextValid();
         using var source = CreateRenderTarget(4, 4, PixelInternalFormat.Rgba8);
-        using var wrapped = GpuFramebuffer.Wrap(source.FboId, width: 4, height: 4);
+        using var wrapped = DynamicGpuFramebuffer.Wrap(source.FboId, width: 4, height: 4);
         RenderPassTestBoundary.Run(boundary => Assert.Throws<InvalidOperationException>(() => RenderPass.Begin(new(wrapped, [new(0)]), boundary)));
         wrapped.PublishRenderPassMetadata();
         RenderPassTestBoundary.Run(boundary => { using var pass = RenderPass.Begin(new(wrapped, [new(0)]), boundary); pass.Validate(); });
@@ -137,7 +137,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
             using var pass = RenderPass.Begin(new(wrapped, [new(0)]), boundary);
             Assert.Equal(6, pass.Area.Width); Assert.Equal(3, pass.Area.Height);
         });
-        using var defaultTarget = GpuFramebuffer.Wrap(0, width: 4, height: 4);
+        using var defaultTarget = DynamicGpuFramebuffer.Wrap(0, width: 4, height: 4);
         RenderPassTestBoundary.Run(boundary => Assert.Throws<NotSupportedException>(() => RenderPass.Begin(new(defaultTarget, [new(0)]), boundary)));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -172,7 +172,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         using var target = CreateMRTRenderTarget(4, 4, PixelInternalFormat.Rgba8, PixelInternalFormat.Rgba8);
         using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
-        target.Bind(); GL.DrawBuffers(3, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment0]);
+        target.Bind(); GL.DrawBuffers(3, [DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment0]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         incoming.Bind();
         RenderPass? retained = null;
         RenderPassTestBoundary.Run(boundary => retained = RenderPass.Begin(new(target, [new(0), new(1)]), boundary));
@@ -198,7 +198,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         using var storage = GpuRenderbuffer.Create(RenderbufferStorage.Depth24Stencil8, 4, 4);
         using var image = GpuFramebufferAttachment.FromRenderbuffer(storage);
-        using var target = GpuFramebuffer.CreateEmpty();
+        using var target = DynamicGpuFramebuffer.CreateEmpty();
         target.SetAttachment(FramebufferAttachment.DepthAttachment, image);
         RenderPassTestBoundary.Run(boundary =>
         {
@@ -217,7 +217,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         using var storage = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 4, 4, samples: requestedSamples);
         using var image = GpuFramebufferAttachment.FromRenderbuffer(storage);
-        using var target = GpuFramebuffer.CreateEmpty();
+        using var target = DynamicGpuFramebuffer.CreateEmpty();
         target.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
         int actual;
         using (storage.BindScope())
@@ -245,7 +245,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         using var image = GpuFramebufferAttachment.FromTexture(layered);
         using var flatImage = GpuFramebufferAttachment.FromTexture(flat);
         using var originalImage = GpuFramebufferAttachment.FromTexture(original);
-        using var target = GpuFramebuffer.CreateEmpty();
+        using var target = DynamicGpuFramebuffer.CreateEmpty();
         target.SetAttachment(FramebufferAttachment.ColorAttachment0, originalImage);
         target.SetAttachment(FramebufferAttachment.ColorAttachment1, flatImage);
         RenderPassTestBoundary.Run(boundary =>
@@ -255,7 +255,7 @@ public sealed class RenderPassLifetimeTests(HeadlessGLFixture fixture) : RenderT
         });
         // Equal format and dimensions retain pipeline compatibility but must invalidate cached native completeness.
         target.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
-        target.Bind(); GL.DrawBuffers(2, [DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment0]);
+        target.Bind(); GL.DrawBuffers(2, [DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.ColorAttachment0]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         using var incoming = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba8);
         incoming.Bind();
         RenderPassTestBoundary.Run(boundary =>

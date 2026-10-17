@@ -50,7 +50,7 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
     public void ConstructorFailureReleasesEarlierAllocationAndRestoresFramebuffer()
     {
         EnsureContextValid();
-        using var incoming = GpuFramebuffer.CreateEmpty();
+        using var incoming = DynamicGpuFramebuffer.CreateEmpty();
         incoming.Bind();
         partialTexture = null;
         partialTextureId = 0;
@@ -60,7 +60,7 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
         {
             harmony.Patch(create,
                 postfix: new HarmonyMethod(typeof(DirectLightingBufferOwnershipTests), nameof(CaptureRadianceAllocation)));
-            harmony.Patch(AccessTools.Method(typeof(GpuFramebuffer), nameof(GpuFramebuffer.Create)),
+            harmony.Patch(AccessTools.Method(typeof(GpuFramebuffer), nameof(DynamicGpuFramebuffer.Create)),
                 prefix: new HarmonyMethod(typeof(DirectLightingBufferOwnershipTests), nameof(FailFramebufferAllocation)));
             Assert.Throws<InvalidOperationException>(() => new DirectLightingTargets(8, 6));
             Assert.NotNull(partialTexture);

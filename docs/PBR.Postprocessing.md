@@ -1130,7 +1130,8 @@ until the existing disposal boundary, as with other resource rebuilds.
   TextureTarget.Texture2DArray. Reuse those GpuTexture owners; no new borrowed wrapper,
   handle lookup, texture manager or catch-all postprocess resource class is needed.
 - [GpuFramebufferAttachment.FromTexture](../VanillaGraphicsExpanded/Rendering/GpuFramebufferAttachment.cs)
-  accepts mip and layer and calls FramebufferTextureLayer. GpuFramebuffer.Create accepts these
+  accepts mip and layer and calls FramebufferTextureLayer. DynamicGpuFramebuffer.Create and
+  StaticGpuFramebuffer.Create accept these
   attachments. Build one borrowed attachment per layer, owned backing array once through
   GpuResourceCollection. Existing MRT helpers taking DynamicTexture2D[] are convenience overloads,
   not a reason to add another framebuffer system. Non-layered attachments allow normal vertex/

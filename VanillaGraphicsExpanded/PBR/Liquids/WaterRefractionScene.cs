@@ -112,9 +112,9 @@ internal sealed class WaterRefractionScene : IDisposable
                 SourceDepth = DynamicTexture2D.Create(width, height, PixelInternalFormat.R32f,
                     debugName: "WaterRefraction.Depth");
                 target = compositeColor is null
-                    ? GpuFramebuffer.Create([GpuFramebufferAttachment.FromTexture(SourceColor), GpuFramebufferAttachment.FromTexture(SourceDepth)],
+                    ? DynamicGpuFramebuffer.Create([GpuFramebufferAttachment.FromTexture(SourceColor), GpuFramebufferAttachment.FromTexture(SourceDepth)],
                         debugName: "WaterRefraction.Capture", firstColorAttachment: 1)
-                    : GpuFramebuffer.CreateMRT([compositeColor, SourceColor, SourceDepth], debugName: "WaterRefraction.Publication");
+                    : DynamicGpuFramebuffer.CreateMRT([compositeColor, SourceColor, SourceDepth], debugName: "WaterRefraction.Publication");
                 if (target is null) throw new InvalidOperationException("Water refraction framebuffer unavailable.");
                 if (!target.IsValid) throw new InvalidOperationException("Water refraction framebuffer invalid.");
             }
@@ -133,7 +133,7 @@ internal sealed class WaterRefractionScene : IDisposable
                     debugName: "WaterRefraction.ReducedRadiance");
                 reducedDepth = DynamicTexture2D.Create(reducedWidth, reducedHeight, PixelInternalFormat.Rgba32f,
                     debugName: "WaterRefraction.ReducedDepthAndUv");
-                reducedTarget = GpuFramebuffer.CreateMRT([reducedColor, reducedDepth],
+                reducedTarget = DynamicGpuFramebuffer.CreateMRT([reducedColor, reducedDepth],
                     debugName: "WaterRefraction.Reduction") ?? throw new InvalidOperationException("Water receiver reduction unavailable.");
                 if (!reducedTarget.IsValid) throw new InvalidOperationException("Water receiver reduction target invalid.");
             }

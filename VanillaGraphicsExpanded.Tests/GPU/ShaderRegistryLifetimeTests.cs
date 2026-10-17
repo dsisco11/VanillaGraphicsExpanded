@@ -310,7 +310,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         var registry = GpuShaderProgramLibraries.Require(assets.Api);
         var lifetime = ClientRenderingLifetime.Find(assets.Api)!;
         using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
-        using var target = GpuFramebuffer.CreateSingle(texture)!;
+        using var target = DynamicGpuFramebuffer.CreateSingle(texture)!;
         lifetime.Attach(() => { target.Dispose(); texture.Dispose(); });
         var cache = StateCache.Current;
         var coverage = new PipelineStateCoverage(DepthStateKnowledge.All, RasterizerStateKnowledge.All,

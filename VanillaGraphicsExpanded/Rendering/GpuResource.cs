@@ -82,14 +82,14 @@ public abstract class GpuResource : IDisposable
     #endregion
 
     #region Internal API
-    /// <summary>Rejects storage mutation or retirement while an immediate pass borrows this resource.</summary>
+    /// <summary>Rejects storage mutation or retirement while a pass or immutable framebuffer borrows its configuration.</summary>
     internal void RequireMutableStorage()
     {
         if (Volatile.Read(ref activePassReferences) != 0)
             throw new InvalidOperationException("End the render pass before changing or retiring its target storage.");
     }
 
-    /// <summary>Retains a live resource for immediate pass validation without transferring ownership.</summary>
+    /// <summary>Retains a live resource for pass validation or immutable attachment configuration without transferring ownership.</summary>
     internal void RetainPassReference()
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);

@@ -1,0 +1,201 @@
+using System.Reflection;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+
+namespace VanillaGraphicsExpanded.Tests.GPU;
+
+/// <summary>Qualifies immutable framebuffer configuration, construction proof and repeated-pass fast paths.</summary>
+[Collection("GPU")]
+[Trait("Category", "GPU")]
+public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
+{
+    #region Public API
+    #region Configuration and lifetime
+    /// <summary>Only the dynamic subclass exposes mutable factories; the shared base cannot be constructed.</summary>
+    [Fact]
+    public void SubclassFactoriesCannotSilentlyConstructTheWrongKind()
+    {
+        Assert.True(typeof(GpuFramebuffer).IsAbstract);
+        Assert.Equal(typeof(GpuFramebuffer), typeof(StaticGpuFramebuffer).BaseType);
+        Assert.Equal(typeof(GpuFramebuffer), typeof(DynamicGpuFramebuffer).BaseType);
+        Assert.DoesNotContain(typeof(StaticGpuFramebuffer).GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.FlattenHierarchy), method => method.Name is "CreateEmpty" or "Wrap" or "CreateMRT");
+        Assert.Equal(typeof(DynamicGpuFramebuffer), typeof(DynamicGpuFramebuffer).GetMethod("CreateEmpty")!.DeclaringType);
+    }
+    /// <summary>Attachment aliases cannot alter frozen allocations, while uploads into existing storage remain valid.</summary>
+    [Fact]
+    public void FrozenAttachmentsRejectAliasedReconfigurationButPermitContents()
+    {
+        EnsureContextValid();
+        using var texture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
+        using var attachment = GpuFramebufferAttachment.FromTexture(texture);
+        using var target = StaticGpuFramebuffer.Create([attachment]);
+        using var alias = DynamicGpuFramebuffer.Wrap(target.FboId, width: 2, height: 2);
+        Assert.Throws<InvalidOperationException>(() => target.Resize(3, 3));
+        Assert.Throws<InvalidOperationException>(() => texture.Resize(3, 3));
+        Assert.Throws<InvalidOperationException>(texture.Dispose);
+        Assert.Throws<InvalidOperationException>(attachment.Dispose);
+        Assert.Throws<InvalidOperationException>(() => alias.SetAttachment(FramebufferAttachment.ColorAttachment0, attachment));
+        Assert.Throws<InvalidOperationException>(() => alias.RemoveAttachment(FramebufferAttachment.ColorAttachment0));
+        Assert.Throws<InvalidOperationException>(() => alias.Resize(3, 3));
+        Assert.Throws<InvalidOperationException>(() => StateCache.Current.DeleteFramebuffer(target.FboId));
+        target.Bind();
+        Assert.Throws<InvalidOperationException>(() => StateCache.Current.SetDrawBuffer(DrawBufferMode.None));
+        texture.UploadDataImmediate(Enumerable.Repeat(.375f, 16).ToArray());
+        Assert.All(texture.ReadPixels(), value => Assert.Equal(.375f, value));
+        target.Dispose();
+        Assert.True(texture.Resize(3, 3));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    /// <summary>Static view attachments retain both the view and source allocation until configuration retirement.</summary>
+    [Fact]
+    public void StaticArrayViewFreezesSourceAndDetachReleasesConfiguration()
+    {
+        EnsureContextValid();
+        using var array = DynamicTexture3D.Create(2, 2, 3, PixelInternalFormat.Rgba32f, immutableStorage: true);
+        using var view = GpuTextureView.CreateFromTexture(array, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba32f, 0, 1, 0, 3);
+        using var image = GpuFramebufferAttachment.FromTexture(view, layer: 1);
+        using var target = StaticGpuFramebuffer.Create([image]);
+        Assert.Throws<InvalidOperationException>(() => array.Resize(3, 3, 3));
+        Assert.Throws<InvalidOperationException>(view.Dispose);
+        int id = (int)target.Detach(); try
+        {
+            Assert.True(array.Resize(3, 3, 3));
+            StateCache.Current.DeleteFramebuffer(id);
+        }
+        finally { if (GL.IsFramebuffer(id)) StateCache.Current.DeleteFramebuffer(id); }
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    /// <summary>Construction rejects untracked native images and releases guards retained before that rejection.</summary>
+    [Fact]
+    public void RejectedUnmanagedAttachmentsDoNotLeakFrozenReferences()
+    {
+        EnsureContextValid();
+        using var first = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
+        using var second = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
+        using var managed = GpuFramebufferAttachment.FromTexture(first);
+        using var external = GpuFramebufferAttachment.FromTextureId(second.TextureId);
+        Assert.Throws<ArgumentException>(() => StaticGpuFramebuffer.Create([managed, external]));
+        Assert.True(first.Resize(3, 3));
+        managed.Dispose();
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+    #region Retirement
+    /// <summary>Worker retirement withdraws the originating cache declaration before queued native deletion.</summary>
+    [Fact]
+    public void WorkerDisposalReleasesDeclarationAndBackingAllocation()
+    {
+        EnsureContextValid();
+        using var manager = new GpuResourceManager();
+        GpuResourceManagerSystem.Initialize(manager);
+        try
+        {
+            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            using var texture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
+            using var image = GpuFramebufferAttachment.FromTexture(texture);
+            using var target = StaticGpuFramebuffer.Create([image]);
+            int id = target.FboId;
+            Exception? failure = null;
+            var worker = new System.Threading.Thread(() =>
+            {
+                try { target.Dispose(); }
+                catch (Exception error) { failure = error; }
+            });
+            worker.Start();
+            worker.Join();
+            Assert.Null(failure);
+            StateCache.Current.RequireMutableFramebufferConfiguration(id);
+            Assert.True(texture.Resize(3, 3));
+            manager.OnRenderFrame(0, GpuResourceManager.Stage);
+            Assert.False(GL.IsFramebuffer(id));
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally
+        {
+            GpuResourceManagerSystem.Shutdown();
+            TextureStreamingSystem.Dispose();
+        }
+    }
+
+    /// <summary>A retired context cannot keep immutable authority over an identical name in a new registration.</summary>
+    [Fact]
+    public void ContextRetirementWithdrawsStaticNativeIdentity()
+    {
+        EnsureContextValid();
+        using var texture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
+        using var image = GpuFramebufferAttachment.FromTexture(texture);
+        using var target = StaticGpuFramebuffer.Create([image]);
+        int id = target.FboId;
+        object replacement = new();
+        try
+        {
+            // Keep the actual GL namespace alive while changing its managed generation.
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(fixture);
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(replacement, static _ => true);
+            StateCache.Current.RequireMutableFramebufferConfiguration(id);
+            target.Dispose();
+            Assert.True(GL.IsFramebuffer(id));
+            StateCache.Current.DeleteFramebuffer(id);
+            Assert.False(GL.IsFramebuffer(id));
+        }
+        finally
+        {
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(replacement);
+            VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
+            if (GL.IsFramebuffer(id)) StateCache.Current.DeleteFramebuffer(id);
+        }
+    }
+    #endregion
+    #region Immutable submission
+    /// <summary>Reusable static declarations bypass all live route comparisons, snapshots, native writes and completeness checks.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StaticPassesHaveNoLiveRoutingWork(bool standalone)
+    {
+        EnsureContextValid();
+        using var texture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
+        using var image = GpuFramebufferAttachment.FromTexture(texture);
+        using var target = StaticGpuFramebuffer.Create([image]);
+        using var incoming = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
+        incoming.Bind();
+        var pass = new RenderPassDesc(target, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1))]);
+        Assert.Throws<InvalidOperationException>(() => new RenderPassDesc(target, [new(-1)]));
+        StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
+        using (var work = new FramebufferRoutingWorkCapture()) using (var calls = new GraphicsTransitionCapture())
+        {
+            if (standalone)
+            {
+                RenderPassTestBoundary.Run(boundary =>
+                {
+                    for (int step = 0; step < 3; step++)
+                    {
+                        using var active = RenderPass.Begin(pass, boundary);
+                    }
+                });
+            }
+            else Assert.True(GraphicsCommandContext.TryRun("Tests.StaticFramebuffer", [], true, commands =>
+            {
+                for (int step = 0; step < 3; step++)
+                {
+                    commands.BeginPass(pass);
+                    commands.EndPass();
+                }
+            }));
+            Assert.Equal(0, work.DynamicApplications);
+            Assert.Equal(0, work.Captures);
+            Assert.Equal(0, work.StaticChecks);
+            Assert.Equal(0, work.CompletenessChecks);
+            Assert.DoesNotContain(calls.Calls, call => call.StartsWith("Routing"));
+            output.WriteLine("STATIC_FRAMEBUFFER_WORK=" + System.Text.Json.JsonSerializer.Serialize(new { standalone, work.DynamicApplications, work.Captures, work.StaticChecks, work.CompletenessChecks, calls = calls.Calls }));
+        }
+        Assert.Equal(incoming.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
+        Assert.Equal(.25f, texture.ReadPixels()[0]);
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+    #endregion
+    #endregion
+}

@@ -20,8 +20,8 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var replacementTexture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
         using var attachment = GpuFramebufferAttachment.FromTexture(texture);
         using var replacement = GpuFramebufferAttachment.FromTexture(replacementTexture);
-        using var first = GpuFramebuffer.Create([attachment])!;
-        using var second = GpuFramebuffer.Create([attachment])!;
+        using var first = DynamicGpuFramebuffer.Create([attachment])!;
+        using var second = DynamicGpuFramebuffer.Create([attachment])!;
         first.SetAttachment(FramebufferAttachment.ColorAttachment0, replacement);
         Assert.Same(attachment, second.GetAttachment(FramebufferAttachment.ColorAttachment0));
         first.Dispose();
@@ -43,7 +43,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var scope = StateCache.Current.BindFramebufferScope();
         using var texture = DynamicTexture2D.CreateMipmapped(8, 4, PixelInternalFormat.Rgba8, 3);
         using var attachment = GpuFramebufferAttachment.FromTexture(texture, mipLevel: 1);
-        using var framebuffer = GpuFramebuffer.CreateEmpty();
+        using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
         framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment3, attachment);
         Assert.Null(framebuffer.GetAttachment(FramebufferAttachment.ColorAttachment0));
         Assert.Same(attachment, framebuffer.GetAttachment(FramebufferAttachment.ColorAttachment3));
@@ -66,7 +66,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var scope = StateCache.Current.BindFramebufferScope();
         using var texture = DynamicTexture3D.Create(4, 4, 2, PixelInternalFormat.Rgba8);
         using var attachment = GpuFramebufferAttachment.FromTexture(texture, layer: selectedLayer);
-        using var framebuffer = GpuFramebuffer.Create([attachment])!;
+        using var framebuffer = DynamicGpuFramebuffer.Create([attachment])!;
         framebuffer.Bind();
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
             FramebufferParameterName.FramebufferAttachmentTextureLayer, out int layer);
@@ -84,7 +84,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var depth = new DepthTexture(4, 4, PixelInternalFormat.DepthComponent24);
         using var combined = GpuFramebufferAttachment.FromTexture(packed);
         using var depthOnly = GpuFramebufferAttachment.FromTexture(depth);
-        using var framebuffer = GpuFramebuffer.CreateEmpty();
+        using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
         framebuffer.SetAttachment(FramebufferAttachment.DepthStencilAttachment, combined);
         Assert.Same(combined, framebuffer.GetAttachment(FramebufferAttachment.DepthAttachment));
         Assert.Same(combined, framebuffer.GetAttachment(FramebufferAttachment.StencilAttachment));
@@ -118,8 +118,8 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         EnsureContextValid();
         using var texture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
         using var attachment = GpuFramebufferAttachment.FromTexture(texture);
-        using var first = GpuFramebuffer.Create([attachment])!;
-        using var second = GpuFramebuffer.Create([attachment])!;
+        using var first = DynamicGpuFramebuffer.Create([attachment])!;
+        using var second = DynamicGpuFramebuffer.Create([attachment])!;
         int firstChanges = 0, secondChanges = 0;
         first.AttachmentsChanged += () => firstChanges++;
         second.AttachmentsChanged += () => secondChanges++;
@@ -140,8 +140,8 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var texture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
         using var firstImage = GpuFramebufferAttachment.FromTexture(texture);
         using var secondImage = GpuFramebufferAttachment.FromTexture(texture);
-        using var first = GpuFramebuffer.Create([firstImage])!;
-        using var second = GpuFramebuffer.Create([secondImage])!;
+        using var first = DynamicGpuFramebuffer.Create([firstImage])!;
+        using var second = DynamicGpuFramebuffer.Create([secondImage])!;
         int changes = 0;
         second.AttachmentsChanged += () => changes++;
         Assert.True(first.Resize(5, 3));
@@ -158,7 +158,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var image = GpuFramebufferAttachment.FromRenderbuffer(buffer);
         Assert.NotEqual((nint)0, buffer.ResourceId);
         Assert.Equal(buffer.ResourceId, image.ResourceId);
-        using var framebuffer = GpuFramebuffer.Create([], image)!;
+        using var framebuffer = DynamicGpuFramebuffer.Create([], image)!;
         Assert.True(framebuffer.CheckStatus(out string? error), error);
     }
 
@@ -170,7 +170,7 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         using var buffer = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 2, 2);
         using var image = GpuFramebufferAttachment.FromRenderbuffer(buffer);
         buffer.AllocateStorage(RenderbufferStorage.DepthComponent24, 2, 2);
-        using var framebuffer = GpuFramebuffer.CreateEmpty();
+        using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
         framebuffer.SetAttachment(FramebufferAttachment.DepthAttachment, image);
         Assert.Throws<ArgumentException>(() => framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, image));
     }
@@ -181,8 +181,8 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
         EnsureContextValid();
         using var texture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
         using var image = GpuFramebufferAttachment.FromTexture(texture);
-        using var first = GpuFramebuffer.Create([image])!;
-        using var second = GpuFramebuffer.Create([image])!;
+        using var first = DynamicGpuFramebuffer.Create([image])!;
+        using var second = DynamicGpuFramebuffer.Create([image])!;
         first.AttachmentsChanged += () => throw new InvalidOperationException("Injected observer failure");
         int changes = 0;
         second.AttachmentsChanged += () => changes++;
@@ -225,8 +225,8 @@ public sealed class GpuFramebufferAttachmentTests(HeadlessGLFixture fixture) : R
     {
         EnsureContextValid();
         using var lifetime = new ManagerLifetime();
-        using var first = GpuFramebuffer.CreateEmpty();
-        using var second = GpuFramebuffer.CreateEmpty();
+        using var first = DynamicGpuFramebuffer.CreateEmpty();
+        using var second = DynamicGpuFramebuffer.CreateEmpty();
         var (weak, texture) = CreateSharedAttachment(first, second);
         first.RemoveAttachment(FramebufferAttachment.ColorAttachment0);
         GC.Collect();

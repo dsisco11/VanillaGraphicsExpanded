@@ -51,6 +51,8 @@ internal sealed partial class StateCache
     /// <summary>Records implicit read/draw unbinding without losing the surviving direction.</summary>
     internal void DeleteFramebuffer(int framebuffer)
     {
+        RequireMutableFramebufferConfiguration(framebuffer);
+        if (framebuffer != 0) InvalidateFramebufferDrawRouting(framebuffer);
         GL.DeleteFramebuffer(framebuffer);
         RecordBoundaryRetirement(EPipelineState.FramebufferBindings, framebuffer);
         if (framebuffer == 0) return;

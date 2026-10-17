@@ -18,7 +18,7 @@ internal sealed class EngineTerrainBuffers : IDisposable
     {
         Color = DynamicTexture2D.Create(width,height,PixelInternalFormat.Rgba16f);
         Depth = DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f);
-        Output = GpuFramebuffer.CreateSingle(Color)!;
+        Output = DynamicGpuFramebuffer.CreateSingle(Color)!;
         Primary = new() { FboId=Output.FboId, Width=width, Height=height,
             DepthTextureId=Depth.TextureId, ColorTextureIds=[Color.TextureId] };
     }

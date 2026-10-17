@@ -20,7 +20,7 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid();
         using var bindings = StateCache.Current.BindFramebufferScope();
-        using var surface = GpuFramebuffer.Wrap(0, width: 4, height: 4);
+        using var surface = DynamicGpuFramebuffer.Wrap(0, width: 4, height: 4);
         Assert.Throws<NotSupportedException>(() => GraphicsCommandContext.TryRun("UnknownSurface", [], true,
             commands => commands.BeginPass(new(surface, [new(-1, SurfaceBuffer: DrawBuffersEnum.BackLeft)]))));
         surface.PublishSurfaceMetadata(4, 4);
@@ -76,7 +76,7 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
     {
         EnsureContextValid();
         using var bindings = StateCache.Current.BindFramebufferScope();
-        using var surface = GpuFramebuffer.Wrap(0, width: 1, height: 1);
+        using var surface = DynamicGpuFramebuffer.Wrap(0, width: 1, height: 1);
         surface.PublishSurfaceMetadata(1, 1);
         var metadata = surface.Surface!;
         using var programs = new ComponentShaderPrograms();

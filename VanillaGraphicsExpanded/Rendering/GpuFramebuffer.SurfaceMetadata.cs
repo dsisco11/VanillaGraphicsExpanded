@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Publishes actual window-surface formats at registration or resize, independently of managed image attachments.</summary>
-public sealed partial class GpuFramebuffer
+public abstract partial class GpuFramebuffer
 {
     internal SurfaceMetadata? Surface { get; private set; }
 
@@ -22,6 +22,7 @@ public sealed partial class GpuFramebuffer
         if (ownsFramebuffer || fboId != 0 || width <= 0 || height <= 0)
             throw new InvalidOperationException("Surface metadata requires a borrowed default framebuffer and positive window dimensions.");
         using var binding = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, 0);
+        StateCache.Current.InvalidateFramebufferDrawRouting(0);
         using var errors = new GlDebug.ErrorScope("Window surface metadata");
         bool buffered = GL.GetInteger(GetPName.Doublebuffer) != 0;
         var attachment = buffered ? FramebufferAttachment.BackLeft : FramebufferAttachment.FrontLeft;

@@ -23,9 +23,9 @@ public sealed class StencilTexture : DynamicTexture2D
         if (!IsValid) throw new InvalidOperationException("Stencil texture is invalid.");
 
         byte[] pixels = new byte[checked(Width * Height)];
-        using var framebuffer = GpuFramebuffer.CreateEmpty("VGE_StencilTexture_Readback_FBO");
+        using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("VGE_StencilTexture_Readback_FBO");
         framebuffer.Attach(this);
-        GL.DrawBuffer(DrawBufferMode.None);
+        StateCache.Current.SetDrawBuffer(DrawBufferMode.None);
         GL.ReadBuffer(ReadBufferMode.None);
         // Borrow a tightly packed layout and restore every incoming pack field through the cache.
         using (StateCache.Current.SetPixelPackScope(new StateCache.PixelPackState(Alignment: 1)))

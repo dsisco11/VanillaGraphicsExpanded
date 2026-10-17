@@ -515,7 +515,7 @@ public class DynamicTexture2D : GpuTexture
         float[] data = new float[width * height * channelCount];
 
         // Create temporary FBO for readback
-        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
+        using var tempFbo = DynamicGpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
         tempFbo.Bind();
         AttachForReadback(tempFbo, 0);
 
@@ -556,7 +556,7 @@ public class DynamicTexture2D : GpuTexture
         int channelCount = GetChannelCount();
         float[] data = new float[regionWidth * regionHeight * channelCount];
 
-        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
+        using var tempFbo = DynamicGpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
         tempFbo.Bind();
         AttachForReadback(tempFbo, 0);
 
@@ -593,7 +593,7 @@ public class DynamicTexture2D : GpuTexture
         int channelCount = GetChannelCount();
         float[] data = new float[mipWidth * mipHeight * channelCount];
 
-        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
+        using var tempFbo = DynamicGpuFramebuffer.CreateEmpty("VGE_DynamicTexture2D_Readback_FBO");
         tempFbo.Bind();
         AttachForReadback(tempFbo, mipLevel);
 

@@ -25,9 +25,9 @@ public sealed class DepthStencilTexture : DynamicTexture2D
         if (!IsValid) throw new InvalidOperationException("Depth-stencil texture is invalid.");
 
         byte[] pixels = new byte[checked(Width * Height)];
-        using var framebuffer = GpuFramebuffer.CreateEmpty("VGE_DepthStencilTexture_StencilReadback_FBO");
+        using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("VGE_DepthStencilTexture_StencilReadback_FBO");
         framebuffer.Attach(this);
-        GL.DrawBuffer(DrawBufferMode.None);
+        StateCache.Current.SetDrawBuffer(DrawBufferMode.None);
         GL.ReadBuffer(ReadBufferMode.None);
         // Borrow a tightly packed layout and restore every incoming pack field through the cache.
         using (StateCache.Current.SetPixelPackScope(new StateCache.PixelPackState(Alignment: 1)))
@@ -42,7 +42,7 @@ public sealed class DepthStencilTexture : DynamicTexture2D
     protected override void AttachForReadback(GpuFramebuffer framebuffer, int mipLevel)
     {
         framebuffer.Attach(this, mipLevel);
-        GL.DrawBuffer(DrawBufferMode.None);
+        StateCache.Current.SetDrawBuffer(DrawBufferMode.None);
     }
 
     /// <inheritdoc />

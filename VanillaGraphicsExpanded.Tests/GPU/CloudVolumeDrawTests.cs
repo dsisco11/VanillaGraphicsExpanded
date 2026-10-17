@@ -262,7 +262,7 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using var a0=DynamicTexture2D.Create(1,1,PixelInternalFormat.Rgba32f);
         using var a1=DynamicTexture2D.Create(1,1,PixelInternalFormat.Rgba32f);
         using var a2=DynamicTexture2D.Create(1,1,PixelInternalFormat.Rgba32f);
-        using var target=GpuFramebuffer.CreateMRT([reveal,overall,glow,a0,a1,a2])!;
+        using var target=DynamicGpuFramebuffer.CreateMRT([reveal,overall,glow,a0,a1,a2])!;
         var pass=new RenderPassDesc(target,[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
             new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),new(2,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
             new(3,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(4,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),

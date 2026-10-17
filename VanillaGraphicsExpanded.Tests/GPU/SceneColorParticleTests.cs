@@ -26,7 +26,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba32f);
         using var depthStorage = new DepthTexture(2, 2, depthFormat);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
-        using var primary = GpuFramebuffer.Create([material, glow], depth);
+        using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
         primary.BindWithViewport();
         GL.Disable(EnableCap.ScissorTest);
         GL.DepthMask(true);
@@ -117,8 +117,8 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
         using var depthStorage = new DepthTexture(2, 2, depthFormat);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
-        using var engine = GpuFramebuffer.Create([material, glow], depth);
-        using var primary = GpuFramebuffer.Wrap(engine.FboId, width: 2, height: 2);
+        using var engine = DynamicGpuFramebuffer.Create([material, glow], depth);
+        using var primary = DynamicGpuFramebuffer.Wrap(engine.FboId, width: 2, height: 2);
         using var capture = new SceneColorParticleTargets(primary);
         int[] owned = [capture.ParticleColor, capture.BeforeDepth, capture.AfterDepth,
             capture.ResolveTarget.GetColorTextureId(0), capture.ResolveTarget.GetColorTextureId(1)];
@@ -190,7 +190,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
         using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
-        using var primary = GpuFramebuffer.Create([material, glow], depth);
+        using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
         using var other = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba16f);
         using var capture = new SceneColorParticleTargets(primary);
         try
@@ -250,7 +250,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);
         using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
-        using var primary = GpuFramebuffer.Create([material, glow], depth);
+        using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
         Assert.Throws<InvalidOperationException>(() => new SceneColorParticleTargets(primary));
         Assert.True(GL.IsTexture(material.TextureId));
         Assert.True(GL.IsTexture(glow.TextureId));

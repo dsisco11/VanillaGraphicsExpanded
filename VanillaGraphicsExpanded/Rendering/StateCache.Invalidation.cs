@@ -55,6 +55,9 @@ internal sealed partial class StateCache
             currentReadFramebuffer = null;
             currentDrawFramebuffer = null;
         }
+        // Legacy external framebuffer mutations invalidate bindings; their local routes are unknown too.
+        if ((states & (EPipelineState.FramebufferRouting | EPipelineState.FramebufferBindings)) != 0)
+            framebufferDrawRouting.Clear();
         if (states.HasFlag(EPipelineState.RenderbufferBinding)) currentRenderbuffer = null;
         if (states.HasFlag(EPipelineState.TransformFeedback))
         {

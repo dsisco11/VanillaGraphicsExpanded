@@ -243,7 +243,7 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         shader.ExternalTransmission = transmission;
         using var color = DynamicTexture2D.Create(size,size,PixelInternalFormat.Rgba32f);
         using var glow = DynamicTexture2D.Create(size,size,PixelInternalFormat.Rgba32f);
-        using var target = GpuFramebuffer.CreateMRT([color,glow])!;
+        using var target = DynamicGpuFramebuffer.CreateMRT([color,glow])!;
         using var geometry = new ArrayGraphicsGeometry(CelestialRenderer.FullscreenLayout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),3);
         using var lifetime = new GraphicsPipelineLifetime();
         var pass = new RenderPassDesc(target,[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),

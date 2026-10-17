@@ -40,10 +40,10 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
         using var capability=new DirectStateAccessCapabilityScope(directStateAccess);
         using var originalBindings=StateCache.Current.BindFramebufferScope();
-        using var window=GpuFramebuffer.Wrap(0,width:1,height:1);window.PublishSurfaceMetadata(1,1);
+        using var window=DynamicGpuFramebuffer.Wrap(0,width:1,height:1);window.PublishSurfaceMetadata(1,1);
         var metadata=window.Surface!;
         DrawBufferMode grouped=metadata.Buffer==DrawBuffersEnum.BackLeft?DrawBufferMode.Back:DrawBufferMode.Front;
-        StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,0);int previous=GL.GetInteger(GetPName.DrawBuffer0);GL.DrawBuffer(grouped);
+        StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,0);int previous=GL.GetInteger(GetPName.DrawBuffer0);GL.DrawBuffer(grouped); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer,0);int previousRead=GL.GetInteger(GetPName.ReadBuffer);
         using var incoming=CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);incoming.Bind();
         try
@@ -64,7 +64,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
             using var pack=StateCache.Current.SetPixelPackScope(new(1));byte[] pixel=new byte[4];GL.ReadPixels(0,0,1,1,PixelFormat.Rgba,PixelType.UnsignedByte,pixel);
             Assert.InRange(pixel[0],(byte)63,(byte)65);
         }
-        finally{StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,0);GL.DrawBuffer((DrawBufferMode)previous);StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)previousRead);StateCache.Current.InvalidateAll();}
+        finally{StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,0);GL.DrawBuffer((DrawBufferMode)previous); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer,0);GL.ReadBuffer((ReadBufferMode)previousRead);StateCache.Current.InvalidateAll();}
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion
@@ -96,7 +96,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         internal RoutingScene()
         {
             images=Enumerable.Range(0,4).Select(_=>Own(DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f))).ToArray();
-            targets=[Own(GpuFramebuffer.CreateMRT(images.Take(2).ToArray())!),Own(GpuFramebuffer.CreateMRT(images.Skip(2).ToArray())!)];
+            targets=[Own(DynamicGpuFramebuffer.CreateMRT(images.Take(2).ToArray())!),Own(DynamicGpuFramebuffer.CreateMRT(images.Skip(2).ToArray())!)];
             incoming=CreateTarget();read=CreateTarget();
         }
         /// <summary>Identifies the first cleanup owner for controlled failure injection.</summary>
@@ -105,7 +105,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         internal void Initialize()
         {
             foreach(var image in images)image.UploadDataImmediate(new float[16]);
-            for(int index=0;index<targets.Length;index++){targets[index].Bind();GL.DrawBuffers(Original[index].Length,Original[index]);}
+            for(int index=0;index<targets.Length;index++){targets[index].Bind();GL.DrawBuffers(Original[index].Length,Original[index]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);}
             StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer,incoming.FboId);StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer,read.FboId);
         }
         /// <summary>Runs two equivalent clears using either independent passes or one deferred-restoration sequence.</summary>
@@ -148,7 +148,7 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
         /// <summary>Authors a different output route and clear value for each target.</summary>
         private RenderPassDesc Description(int index)=>new(targets[index],[new(index,AttachmentLoad.Clear,Clear:ColorClearValue.Float(.25f*(index+1),.5f,.75f,1))]);
         /// <summary>Creates a separate incoming native framebuffer image.</summary>
-        private GpuFramebuffer CreateTarget(){var image=Own(DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f));return Own(GpuFramebuffer.CreateSingle(image)!);}
+        private GpuFramebuffer CreateTarget(){var image=Own(DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f));return Own(DynamicGpuFramebuffer.CreateSingle(image)!);}
         /// <summary>Retains fixture allocation ownership in dependency order.</summary>
         private T Own<T>(T value)where T:IDisposable{owned.Add(value);return value;}
         #endregion

@@ -452,7 +452,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
 
         // Clearing is a resource load operation; it does not require a shader executable.
         using var image = GpuFramebufferAttachment.FromTextureId(destNormalDepthTexId);
-        using var target = GpuFramebuffer.CreateEmpty("MaterialAtlas.Clear");
+        using var target = DynamicGpuFramebuffer.CreateEmpty("MaterialAtlas.Clear");
         target.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
         if (!GraphicsCommandContext.TryRun("MaterialAtlas.Clear", [], true, commands =>
         {
@@ -640,7 +640,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
         {
             // Minimal GL objects.
             geometry = new(new([]), PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), 3);
-            scratchFbo = GpuFramebuffer.CreateEmpty("vge_bake_scratch");
+            scratchFbo = DynamicGpuFramebuffer.CreateEmpty("vge_bake_scratch");
 
             // Compile all programs using VGE's shader pipeline (imports, diagnostics, debug labels).
             // Each pass shares the same fullscreen vertex stage, but has its own fragment stage.

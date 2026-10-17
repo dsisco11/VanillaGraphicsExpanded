@@ -40,7 +40,7 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
         using var normal = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
         using var position = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
-        using var engine = GpuFramebuffer.Create(ssao ? [material, glow, normal, position] : [material, glow], depth);
+        using var engine = DynamicGpuFramebuffer.Create(ssao ? [material, glow, normal, position] : [material, glow], depth);
         var primary = new FrameBufferRef
         {
             FboId = engine.FboId,

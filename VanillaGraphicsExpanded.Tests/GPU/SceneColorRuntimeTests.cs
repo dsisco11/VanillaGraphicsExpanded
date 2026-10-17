@@ -64,7 +64,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var revealage = drawing.CreateTexture(2,2,PixelInternalFormat.R16f,[1f,1f,1f,1f]);
         using var normalAttachment = GpuFramebufferAttachment.FromTexture(normals);
         using var positionAttachment = GpuFramebufferAttachment.FromTexture(positions);
-        using var engine = GpuFramebuffer.Create([material, glow, normalAttachment, positionAttachment], depth);
+        using var engine = DynamicGpuFramebuffer.Create([material, glow, normalAttachment, positionAttachment], depth);
         var primary = new FrameBufferRef { FboId = engine.FboId, Width = 2, Height = 2, DepthTextureId = depth.TextureId,
             ColorTextureIds = [material.TextureId, glow.TextureId, normals.TextureId, positions.TextureId] };
         using var postStorageTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);

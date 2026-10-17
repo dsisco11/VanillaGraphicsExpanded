@@ -57,7 +57,7 @@ public sealed class LiquidGraphicsSubmissionTests(HeadlessGLFixture fixture) : R
         Assert.True(LiquidMeshSource.UseSsbo(render));
         Assert.True(LiquidPoolSubmissionHook.Prefix(storage.Pool));
         using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent24);
-        using var depthTarget = GpuFramebuffer.CreateDepthOnly(depth)!;
+        using var depthTarget = DynamicGpuFramebuffer.CreateDepthOnly(depth)!;
         var borrowedDepth = submission.Borrow(new FrameBufferRef { FboId = depthTarget.FboId, Width = 1, Height = 1, DepthTextureId = depth.TextureId });
         Assert.True(submission.Run(shader, [manager], new(borrowedDepth, LiquidPipelineStates.DepthOutputs,
             new(DepthLoad: VanillaGraphicsExpanded.Rendering.Pipeline.Passes.AttachmentLoad.Clear, ClearDepth: 1)),

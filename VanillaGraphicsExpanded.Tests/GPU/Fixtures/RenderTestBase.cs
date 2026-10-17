@@ -85,7 +85,7 @@ public abstract class RenderTestBase : IDisposable
     {
         EnsureContextValid(beginUniformFrame: false);
         var texture = _targetResources.Own(DynamicTexture2D.Create(width, height, format));
-        var gBuffer = GpuFramebuffer.CreateSingle(texture);
+        var gBuffer = DynamicGpuFramebuffer.CreateSingle(texture);
         return gBuffer ?? throw new InvalidOperationException("Failed to create GBuffer");
     }
 
@@ -104,7 +104,7 @@ public abstract class RenderTestBase : IDisposable
         {
             textures[i] = _targetResources.Own(DynamicTexture2D.Create(width, height, formats[i]));
         }
-        var gBuffer = GpuFramebuffer.CreateMRT(textures);
+        var gBuffer = DynamicGpuFramebuffer.CreateMRT(textures);
         return gBuffer ?? throw new InvalidOperationException("Failed to create MRT GBuffer");
     }
 

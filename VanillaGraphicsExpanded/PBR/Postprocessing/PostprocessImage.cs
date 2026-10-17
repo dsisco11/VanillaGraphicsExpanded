@@ -11,7 +11,7 @@ internal sealed class PostprocessImage : IDisposable
     {
         Texture=clear?DynamicTexture2D.CreateWithData(width,height,PixelInternalFormat.Rgba16f,new float[width*height*4],debugName:name)
             :DynamicTexture2D.Create(width,height,PixelInternalFormat.Rgba16f,debugName:name);
-        try { Target=GpuFramebuffer.CreateSingle(Texture,debugName:name)!; }
+        try { Target=DynamicGpuFramebuffer.CreateSingle(Texture,debugName:name)!; }
         catch { Texture.Dispose(); throw; }
     }
     /// <summary>Supplies owned linear image storage.</summary>

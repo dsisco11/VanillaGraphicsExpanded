@@ -39,7 +39,7 @@ internal sealed class FirstPersonMarkerDraw : IDisposable
             GL.FramebufferTextureLayer(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment4, buffers.SurfaceTexture!.TextureId, 0, 0);
             GL.FramebufferTextureLayer(FramebufferTarget.DrawFramebuffer, FramebufferAttachment.ColorAttachment5, buffers.SurfaceTexture.TextureId, 0, 1);
             GL.DrawBuffers(6, [DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1, DrawBuffersEnum.None,
-                DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment4, DrawBuffersEnum.ColorAttachment5]);
+                DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment4, DrawBuffersEnum.ColorAttachment5]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             Assert.Equal(FramebufferErrorCode.FramebufferComplete, GL.CheckFramebufferStatus(FramebufferTarget.DrawFramebuffer));
             GL.Viewport(0, 0, terrain.Primary.Width, terrain.Primary.Height);
             GL.UseProgram(program); GL.BindVertexArray(vao); GL.DrawArrays(PrimitiveType.Triangles, 0, 3);

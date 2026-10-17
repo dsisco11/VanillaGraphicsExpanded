@@ -56,7 +56,7 @@ public sealed class WaterBoundaryCaptureTests(HeadlessGLFixture fixture, ITestOu
             TextureFilterMode.Nearest, TextureTarget.Texture2DArray);
         using var opticalAttachment = GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.OpticalLayer);
         using var sourceAttachment = GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.SourceLayer);
-        using var target = GpuFramebuffer.Create([opticalAttachment, sourceAttachment]);
+        using var target = DynamicGpuFramebuffer.Create([opticalAttachment, sourceAttachment]);
         using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var depth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f);

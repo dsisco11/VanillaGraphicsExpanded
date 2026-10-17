@@ -84,12 +84,12 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
         debugState0 = Texture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16, TextureFilterMode.Nearest, "WorldProbe_DebugState0");
 
         // NOTE: Radiance atlas has different dimensions than per-probe scalar atlases, so it must live in its own FBO.
-        radianceFbo = GpuFramebuffer.CreateMRT(
+        radianceFbo = DynamicGpuFramebuffer.CreateMRT(
             "WorldProbe_RadianceAtlasFbo",
             radianceAtlas) ?? throw new InvalidOperationException("Failed to create world-probe radiance atlas FBO");
 
         // Per-probe scalar outputs.
-        fbo = GpuFramebuffer.CreateMRT(
+        fbo = DynamicGpuFramebuffer.CreateMRT(
             "WorldProbe_ClipmapFbo",
             vis0,
             dist0,

@@ -42,7 +42,7 @@ public sealed class GpuFramebufferBlendStateIntegrationTests(HeadlessGLFixture f
         var shader = programs.Create<BlendProgram>();
         using var t0 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
         using var t1 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
-        using var framebuffer = GpuFramebuffer.CreateMRT([t0, t1])!;
+        using var framebuffer = DynamicGpuFramebuffer.CreateMRT([t0, t1])!;
         using var lifetime = new GraphicsPipelineLifetime();
         var first = maskOnly ? new ColorBlendDesc { WriteGreen = false, WriteBlue = false, WriteAlpha = false }
             : new ColorBlendDesc

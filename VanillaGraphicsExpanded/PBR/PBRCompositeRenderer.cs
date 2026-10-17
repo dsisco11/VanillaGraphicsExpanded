@@ -374,7 +374,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
             ReleaseCompositeTargets();
             compositeColorTex = DynamicTexture2D.Create(primary.Width, primary.Height,
                 PixelInternalFormat.R11fG11fB10f, debugName: "PBRComposite");
-            compositeFbo = GpuFramebuffer.CreateSingle(compositeColorTex, depthTexture: null, debugName: "PBRCompositeFBO");
+            compositeFbo = DynamicGpuFramebuffer.CreateSingle(compositeColorTex, depthTexture: null, debugName: "PBRCompositeFBO");
             if (!compositeColorTex.IsValid || compositeFbo is not { IsValid: true })
             {
                 ReleaseCompositeTargets();
@@ -393,7 +393,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
             || primaryResolveColorId != primary.ColorTextureIds[0])
         {
             ReleasePrimaryResolve();
-            primaryResolveFbo = GpuFramebuffer.CreateEmpty("PBR.PrimaryResolve");
+            primaryResolveFbo = DynamicGpuFramebuffer.CreateEmpty("PBR.PrimaryResolve");
             primaryResolveFbo.Attach(primary.ColorTextureIds[0]);
             primaryResolveSource = primary;
             primaryResolveSourceId = primary.FboId;

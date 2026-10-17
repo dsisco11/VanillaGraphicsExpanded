@@ -54,7 +54,7 @@ internal static class SurfaceCacheReadinessReadback
         int count = 0;
         foreach (var region in regions)
             count = checked(count + checked((int)((long)region.Width * region.Height << 2)));
-        using var framebuffer = GpuFramebuffer.CreateEmpty("Test_SurfaceCacheReadiness");
+        using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("Test_SurfaceCacheReadiness");
         using var draw = StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
         using var read = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
         using var staging = GpuPixelPackBuffer.Create(debugName: "Test_SurfaceCacheReadiness");

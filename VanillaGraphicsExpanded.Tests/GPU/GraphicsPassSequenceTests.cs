@@ -45,7 +45,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         EnsureContextValid();using var image=DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f);
         using var replacement=DynamicTexture2D.Create(3,3,PixelInternalFormat.Rgba32f);
         using var replacementImage=GpuFramebufferAttachment.FromTexture(replacement);
-        using var target=GpuFramebuffer.CreateSingle(image)!;
+        using var target=DynamicGpuFramebuffer.CreateSingle(image)!;
         using var incoming=CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);incoming.Bind();
         Assert.True(GraphicsCommandContext.TryRun("Tests.PassSequence.Retarget",[],true,commands=>
         {
@@ -105,10 +105,10 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         EnsureContextValid();using var layered=DynamicTexture3D.Create(2,2,2,PixelInternalFormat.Rgba32f);
         using var flat=DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f);
         using var layeredImage=GpuFramebufferAttachment.FromTexture(layered);using var flatImage=GpuFramebufferAttachment.FromTexture(flat);
-        using var broken=GpuFramebuffer.CreateEmpty();broken.SetAttachment(FramebufferAttachment.ColorAttachment0,layeredImage);
+        using var broken=DynamicGpuFramebuffer.CreateEmpty();broken.SetAttachment(FramebufferAttachment.ColorAttachment0,layeredImage);
         broken.SetAttachment(FramebufferAttachment.ColorAttachment1,flatImage);
         using var valid=CreateRenderTarget(2,2,PixelInternalFormat.Rgba32f);using var incoming=CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);
-        broken.Bind();GL.DrawBuffers(2,[DrawBuffersEnum.ColorAttachment1,DrawBuffersEnum.ColorAttachment0]);incoming.Bind();
+        broken.Bind();GL.DrawBuffers(2,[DrawBuffersEnum.ColorAttachment1,DrawBuffersEnum.ColorAttachment0]); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);incoming.Bind();
         Assert.True(GraphicsCommandContext.TryRun("Tests.PassSequence.FailedBegin",[],true,commands=>
         {
             Assert.Throws<InvalidOperationException>(()=>commands.BeginPass(new(broken,[new(0),new(1)])));
@@ -149,7 +149,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
             sentinel=Own(DynamicTexture2D.CreateWithData(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,1f]));nativeSampler=Own(GpuSampler.Create());
             first.Scene=source.TextureId;second.Scene=source.TextureId;native.Scene=sentinel.TextureId;
             outputs=Enumerable.Range(0,4).Select(_=>Own(DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f))).ToArray();
-            a=Own(GpuFramebuffer.CreateMRT(outputs.Take(2).ToArray())!);b=Own(GpuFramebuffer.CreateMRT(outputs.Skip(2).ToArray())!);
+            a=Own(DynamicGpuFramebuffer.CreateMRT(outputs.Take(2).ToArray())!);b=Own(DynamicGpuFramebuffer.CreateMRT(outputs.Skip(2).ToArray())!);
             incoming=CreateTarget();read=CreateTarget();
             var layout=new VertexLayoutDesc([new(0,3,VertexAttribPointerType.Float,VertexInterpretation.Floating,0,0,20),new(1,2,VertexAttribPointerType.Float,VertexInterpretation.Floating,0,12,20)]);
             var vertices=Own(GpuVbo.Create());vertices.UploadData(new float[]{-1,-1,0,0,0,3,-1,0,2,0,-1,3,0,0,2});
@@ -162,7 +162,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         internal void Initialize()
         {
             foreach(var image in outputs)image.UploadDataImmediate(new float[16]);
-            a.Bind();GL.DrawBuffers(OriginalA.Length,OriginalA);b.Bind();GL.DrawBuffers(OriginalB.Length,OriginalB);
+            a.Bind();GL.DrawBuffers(OriginalA.Length,OriginalA); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);b.Bind();GL.DrawBuffers(OriginalB.Length,OriginalB); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer,incoming.FboId);GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer,read.FboId);
             native.Use();GL.ActiveTexture(TextureUnit.Texture0);GL.BindTexture(TextureTarget.Texture2D,sentinel.TextureId);GL.BindSampler(0,nativeSampler.SamplerId);
             GL.ActiveTexture(TextureUnit.Texture5);StateCache.Current.InvalidateAll();
@@ -244,7 +244,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         /// <summary>Tracks owned resources without changing framebuffer attachment ownership.</summary>
         private T Own<T>(T value)where T:IDisposable{owned.Add(value);return value;}
         /// <summary>Creates a native fixture target whose texture is independently owned.</summary>
-        private GpuFramebuffer CreateTarget(){var image=Own(DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f));return Own(GpuFramebuffer.CreateSingle(image)!);}
+        private GpuFramebuffer CreateTarget(){var image=Own(DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f));return Own(DynamicGpuFramebuffer.CreateSingle(image)!);}
         /// <summary>Inspects framebuffer-local routes without changing the inherited read or draw bindings.</summary>
         private static void AssertRoutes(GpuFramebuffer target,DrawBuffersEnum[] expected)
         {

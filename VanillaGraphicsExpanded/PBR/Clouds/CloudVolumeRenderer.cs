@@ -91,7 +91,7 @@ internal sealed class CloudVolumeRenderer : IRenderer
             program.LightShafts = Postprocessing.LightShaftOcclusionRenderer.Texture;
             if (target is null || target.FboId != transparent.FboId || target.Width != transparent.Width || target.Height != transparent.Height)
             {
-                var replacement = GpuFramebuffer.Wrap(transparent.FboId, "Cloud.Volume.Transparent", transparent.Width, transparent.Height);
+                var replacement = DynamicGpuFramebuffer.Wrap(transparent.FboId, "Cloud.Volume.Transparent", transparent.Width, transparent.Height);
                 try { replacement.PublishRenderPassMetadata(); }
                 catch { replacement.Dispose(); throw; }
                 target?.Dispose(); target = replacement;

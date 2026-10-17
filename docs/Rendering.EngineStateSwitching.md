@@ -25,6 +25,10 @@ Selection uses exact engine/API types, including internal types resolved by full
 - Enable/disable of depth testing, culling, scissor testing and global/indexed blending. Other capability values pass through to OpenGL.
 - Depth comparison/write mask, global/indexed blend factors including separate RGB/alpha factors, global color mask, line width and point size.
 - Executable, program-pipeline, VAO, framebuffer, renderbuffer and transform-feedback binding.
+- DrawBuffer(DrawBufferMode) and DrawBuffers(int, DrawBuffersEnum[]) changes. Routing is cached per
+  framebuffer with disabled trailing outputs included; builtin writes and VGE passes share one
+  owner. Unknown third-party routing changes require FramebufferRouting, FramebufferBindings or
+  All invalidation. Native framebuffer deletion withdraws routing before name reuse.
 - Active texture unit, texture and sampler binding. Native texture-unit enums become zero-based cache units. Engine texture binding issues only the native bind, without querying or reselecting the active unit, and does not alter sampler ownership. When the unit is known, its cached target binding is updated; otherwise that target's snapshots are invalidated across units and the active unit remains unknown.
 - Generic buffer, indexed buffer base/range, and image-view binding.
 - Pixel-store changes, patch vertex count and the cached provoking-vertex convention.

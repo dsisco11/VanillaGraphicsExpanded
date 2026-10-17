@@ -42,7 +42,7 @@ public sealed class LiquidProductionPipelineTests(HeadlessGLFixture fixture) : R
             Assert.True(shader.EnsureReady(), string.Join("\n", assets.Logs));
             using var depth = new DepthTexture(1, 1, PixelInternalFormat.DepthComponent24);
             // These are the final installed engine OIT formats after its BeforeOIT attachment replacement.
-            using var target = route == "depth" ? GpuFramebuffer.CreateDepthOnly(depth)!
+            using var target = route == "depth" ? DynamicGpuFramebuffer.CreateDepthOnly(depth)!
                 : route == "surface" ? CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgb8,
                     PixelInternalFormat.R16f, PixelInternalFormat.Rgba8, PixelInternalFormat.Rgba16f,
                     PixelInternalFormat.Rgba16f, PixelInternalFormat.Rgba16f)

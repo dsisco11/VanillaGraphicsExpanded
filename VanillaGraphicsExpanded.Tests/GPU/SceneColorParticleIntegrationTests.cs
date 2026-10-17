@@ -60,7 +60,7 @@ public sealed class SceneColorParticleIntegrationTests(HeadlessGLFixture fixture
         using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba32f);
         using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32f);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
-        using var primary = GpuFramebuffer.Create([material, glow], depth);
+        using var primary = DynamicGpuFramebuffer.Create([material, glow], depth);
         using var other = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var capture = new SceneColorParticleTargets(primary);
         primary.BindWithViewport();

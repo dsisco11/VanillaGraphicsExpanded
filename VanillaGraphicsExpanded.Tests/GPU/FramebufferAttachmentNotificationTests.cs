@@ -18,7 +18,7 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         using var bindings = StateCache.Current.BindFramebufferScope();
         using var fixedState = LegacyFixedFunctionReference.Capture(StateCache.Current);
         using var depth = GpuRenderbuffer.Create(RenderbufferStorage.DepthComponent24, 2, 2);
-        using var framebuffer = GpuFramebuffer.CreateDepthOnly(depth)!;
+        using var framebuffer = DynamicGpuFramebuffer.CreateDepthOnly(depth)!;
         framebuffer.Bind();
         GL.Disable(EnableCap.ScissorTest);
         GL.DepthMask(true);
@@ -79,9 +79,9 @@ public sealed class FramebufferAttachmentNotificationTests(HeadlessGLFixture fix
         using var scope = StateCache.Current.BindFramebufferScope();
         using var first = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         using var replacement = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
-        using var source = GpuFramebuffer.CreateSingle(first)!;
+        using var source = DynamicGpuFramebuffer.CreateSingle(first)!;
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        using var wrapped = GpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
+        using var wrapped = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
         first.UploadDataImmediate(Enumerable.Repeat(3f, 16).ToArray());
         replacement.UploadDataImmediate(Enumerable.Repeat(9f, 16).ToArray());
         int notifications = 0;

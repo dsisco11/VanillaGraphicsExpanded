@@ -27,8 +27,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
         GL.ReadBuffer(ReadBufferMode.None);
         DrawBuffersEnum[] routing = [DrawBuffersEnum.ColorAttachment2, DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment0];
-        if (defaultFramebuffer) GL.DrawBuffer(DrawBufferMode.Back);
-        else GL.DrawBuffers(routing.Length, routing);
+        if (defaultFramebuffer) { GL.DrawBuffer(DrawBufferMode.Back); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting); }
+        else { GL.DrawBuffers(routing.Length, routing); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting); }
         GL.Viewport(1, 2, 7, 9);
         Assert.Throws<InvalidOperationException>((Action)(() =>
         {
@@ -82,7 +82,7 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         EnsureContextValid();
         using var scope = StateCache.Current.BindFramebufferScope();
         using var target = CreateRenderTarget(3, 5, PixelInternalFormat.Rgba32f);
-        using (var borrowed = GpuFramebuffer.Wrap(target.FboId, "Borrowed test target", width: 3, height: 5))
+        using (var borrowed = DynamicGpuFramebuffer.Wrap(target.FboId, "Borrowed test target", width: 3, height: 5))
         {
             Assert.Equal(3, borrowed.Width);
             Assert.Equal(5, borrowed.Height);
@@ -116,15 +116,15 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         foreach (var target in new[] { source, destination, callerDraw })
         {
             target.Bind();
-            GL.DrawBuffers(routing.Length, routing);
+            GL.DrawBuffers(routing.Length, routing); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             GL.ReadBuffer(ReadBufferMode.ColorAttachment1);
         }
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, callerDraw.FboId);
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, callerRead.FboId);
         GL.ReadBuffer(ReadBufferMode.None);
         GL.Viewport(1, 2, 3, 4);
-        using var wrappedSource = GpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
-        using var wrappedDestination = GpuFramebuffer.Wrap(destination.FboId, width: 2, height: 2);
+        using var wrappedSource = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
+        using var wrappedDestination = DynamicGpuFramebuffer.Wrap(destination.FboId, width: 2, height: 2);
         using var blitter = new GpuFramebufferBlitter(wrapped ? wrappedSource : source, wrapped ? wrappedDestination : destination);
         blitter.Blit();
         Assert.Equal(callerDraw.FboId, GL.GetInteger(GetPName.DrawFramebufferBinding));
@@ -156,8 +156,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         using var output = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         first.UploadDataImmediate(Enumerable.Repeat(3f, 16).ToArray());
         replacement.UploadDataImmediate(Enumerable.Repeat(9f, 16).ToArray());
-        using (var source = GpuFramebuffer.CreateSingle(first)!)
-        using (var destination = GpuFramebuffer.CreateSingle(output)!)
+        using (var source = DynamicGpuFramebuffer.CreateSingle(first)!)
+        using (var destination = DynamicGpuFramebuffer.CreateSingle(output)!)
         {
             using var blitter = new GpuFramebufferBlitter(source, destination);
             blitter.Blit();
@@ -206,8 +206,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         using var state = LegacyFixedFunctionReference.Capture(StateCache.Current);
         using var sourceDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var destinationDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
-        using var source = GpuFramebuffer.CreateDepthOnly(sourceDepth)!;
-        using var destination = GpuFramebuffer.CreateDepthOnly(destinationDepth)!;
+        using var source = DynamicGpuFramebuffer.CreateDepthOnly(sourceDepth)!;
+        using var destination = DynamicGpuFramebuffer.CreateDepthOnly(destinationDepth)!;
         GL.Disable(EnableCap.ScissorTest);
         GL.DepthMask(true);
         source.Bind();
@@ -232,8 +232,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         using var destinationDepth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
         using var sourceColor = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         using var destinationColor = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
-        using var source = GpuFramebuffer.CreateSingle(sourceColor)!;
-        using var destination = GpuFramebuffer.CreateSingle(destinationColor)!;
+        using var source = DynamicGpuFramebuffer.CreateSingle(sourceColor)!;
+        using var destination = DynamicGpuFramebuffer.CreateSingle(destinationColor)!;
         source.Attach(sourceDepth);
         destination.Attach(destinationDepth);
         sourceColor.UploadDataImmediate(Enumerable.Repeat(5f, 16).ToArray());
@@ -242,10 +242,10 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         source.Bind();
         GL.ClearDepth(0.625);
         source.Clear(ClearBufferMask.DepthBufferBit);
-        GL.DrawBuffer(DrawBufferMode.None);
+        GL.DrawBuffer(DrawBufferMode.None); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         GL.ReadBuffer(ReadBufferMode.None);
         destination.Bind();
-        GL.DrawBuffer(DrawBufferMode.None);
+        GL.DrawBuffer(DrawBufferMode.None); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         GL.ReadBuffer(ReadBufferMode.None);
         using var blitter = new GpuFramebufferBlitter(source, destination, ClearBufferMask.ColorBufferBit | ClearBufferMask.DepthBufferBit);
         blitter.Blit();
@@ -264,18 +264,18 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         using var scope = StateCache.Current.BindFramebufferScope();
         using var state = LegacyFixedFunctionReference.Capture(StateCache.Current);
         using var color = GpuRenderbuffer.Create(RenderbufferStorage.Rgba32f, 2, 2);
-        using var source = GpuFramebuffer.CreateEmpty("Tests.ColorRenderbuffer");
+        using var source = DynamicGpuFramebuffer.CreateEmpty("Tests.ColorRenderbuffer");
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         source.Bind();
         GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
             RenderbufferTarget.Renderbuffer, color.RenderbufferId);
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+        GL.DrawBuffer(DrawBufferMode.ColorAttachment0); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         GL.ReadBuffer(ReadBufferMode.None);
         GL.Disable(EnableCap.ScissorTest);
         GL.ColorMask(true, true, true, true);
         source.Clear(0.25f, 0.25f, 0.25f, 0.25f);
         // The externally owned framebuffer has no managed attachment metadata.
-        using var borrowed = GpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
+        using var borrowed = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
         using var blitter = new GpuFramebufferBlitter(borrowed, destination);
         blitter.Blit();
         Assert.Equal((int)ReadBufferMode.None, GL.GetInteger(GetPName.ReadBuffer));

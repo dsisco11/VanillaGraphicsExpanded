@@ -979,7 +979,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         int channelCount = GetChannelCount();
         float[] data = new float[checked(width * height * channelCount)];
 
-        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
+        using var tempFbo = DynamicGpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
         tempFbo.Bind();
         tempFbo.Attach(textureId, attachmentIndex: 0, mipLevel: 0);
 
@@ -1021,7 +1021,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         int channelCount = GetChannelCount();
         float[] data = new float[checked(regionWidth * regionHeight * channelCount)];
 
-        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
+        using var tempFbo = DynamicGpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
         tempFbo.Bind();
         tempFbo.Attach(textureId, attachmentIndex: 0, mipLevel: 0);
 
@@ -1065,7 +1065,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         int channelCount = GetChannelCount();
         float[] data = new float[checked(mipWidth * mipHeight * channelCount)];
 
-        using var tempFbo = GpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
+        using var tempFbo = DynamicGpuFramebuffer.CreateEmpty("VGE_GpuTexture_Readback_FBO");
         tempFbo.Bind();
         tempFbo.Attach(textureId, attachmentIndex: 0, mipLevel: mipLevel);
 

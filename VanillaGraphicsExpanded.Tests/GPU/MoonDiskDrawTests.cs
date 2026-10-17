@@ -79,7 +79,7 @@ public sealed class MoonDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFu
         shader.Frame = camera; shader.FrameLightingInputs = storage.Buffer; shader.DrawInputs.Capture(disk);
         using var color = DynamicTexture2D.Create(size, size, PixelInternalFormat.Rgba32f);
         using var glow = DynamicTexture2D.Create(size, size, PixelInternalFormat.Rgba32f);
-        using var target = GpuFramebuffer.CreateMRT([color, glow])!;
+        using var target = DynamicGpuFramebuffer.CreateMRT([color, glow])!;
         using var geometry = new ArrayGraphicsGeometry(CelestialRenderer.FullscreenLayout, PrimitiveType.Triangles,
             new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         using var lifetime = new GraphicsPipelineLifetime();

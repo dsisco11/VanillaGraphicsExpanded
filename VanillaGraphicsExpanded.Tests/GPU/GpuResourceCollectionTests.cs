@@ -21,7 +21,7 @@ public sealed class GpuResourceCollectionTests(HeadlessGLFixture fixture) : Rend
         var owned = resources.Own(DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f));
         GpuFramebuffer? framebuffer = null;
         var observation = resources.Own(new DisposalObservation(() => Assert.True(framebuffer!.IsDisposed)));
-        framebuffer = resources.Own(GpuFramebuffer.CreateMRT([owned, borrowed])!);
+        framebuffer = resources.Own(DynamicGpuFramebuffer.CreateMRT([owned, borrowed])!);
         int framebufferId = framebuffer.FboId;
         int textureId = owned.TextureId;
 

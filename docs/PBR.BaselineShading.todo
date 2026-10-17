@@ -300,7 +300,13 @@ Tasks
       Canonical Release package rebuilt and helper IL verified. No timing speedup is claimed.
       Evidence: ../artifacts/framebuffer-routing-dsa/validation.md.
 
-  ☐ Suppress unchanged framebuffer draw-buffer routing through the shared state owner.
+  ☑ Suppress unchanged framebuffer draw-buffer routing through the shared state owner.
+    - Use an abstract GpuFramebuffer with distinct StaticGpuFramebuffer and DynamicGpuFramebuffer
+      subclasses and construction APIs. Static targets freeze attachment bindings and draw routing;
+      certify reusable pass declarations once and bypass dynamic routing comparisons at submission.
+      Guard aliases/backing allocation mutation and preserve target/image ownership and retirement.
+      Use the static path for fixed cloud payload surfaces; mutable builders and engine/window
+      wrappers remain dynamic. Do not select these behaviors with an isStatic flag on the base class.
     - Track routing per framebuffer in StateCache so repeated pass mappings avoid DrawBuffers.
       Include disabled trailing outputs and default-window selectors in routing comparisons.
     - Integrate scratch attachment helpers, standalone passes, deferred restoration and external
@@ -308,6 +314,12 @@ Tasks
       a separate live routing cache in RenderPassSequence or individual renderers.
     - Verify unchanged/changed routes, retargeting, sparse outputs, restoration and failure handling
       with subagent-run focused GPU tests; capture reduced routing calls and unchanged pixels.
+    - Verified: 216 unique checks qualified across the expanded run and final rebuilt subset.
+      Repeated dynamic routing writes fell 4→2 with bit-identical pixels. Predeclared static passes
+      perform zero routing comparisons, captures, completeness checks or native routing writes.
+      Queued disposal, context retirement and engine call-site adapters are covered. Canonical
+      Release package rebuilt and packaged IL verified; no GPU/frame-time speedup is claimed.
+      Evidence: ../artifacts/framebuffer-routing-cache/validation.md.
 
   ☐ Preserve texture binding caching for lifecycle-aware borrowed rendering inputs.
     - Inspect raw integer sampler inputs, including cloud scene/visibility/liquid depth. Reuse or

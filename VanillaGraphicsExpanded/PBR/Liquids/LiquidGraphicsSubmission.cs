@@ -45,7 +45,7 @@ internal sealed class LiquidGraphicsSubmission : IDisposable
         if (dirty || borrowed is null || borrowed.FboId != source.FboId
             || borrowed.Width != source.Width || borrowed.Height != source.Height)
         {
-            var candidate = GpuFramebuffer.Wrap(source.FboId, "Liquid.EngineTarget", source.Width, source.Height);
+            var candidate = DynamicGpuFramebuffer.Wrap(source.FboId, "Liquid.EngineTarget", source.Width, source.Height);
             try { candidate.PublishRenderPassMetadata(); }
             catch { candidate.Dispose(); throw; }
             borrowed?.Dispose(); borrowed = candidate; dirty = false;

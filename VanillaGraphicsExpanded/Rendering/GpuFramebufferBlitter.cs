@@ -122,11 +122,11 @@ public sealed class GpuFramebufferBlitter : IDisposable
             return;
         }
         var image = GpuFramebufferAttachmentDiscovery.Read(source, FramebufferAttachment.ColorAttachment0);
-        scratch ??= GpuFramebuffer.CreateEmpty("Framebuffer.BlitScratch");
+        scratch ??= DynamicGpuFramebuffer.CreateEmpty("Framebuffer.BlitScratch");
         scratch.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
         scratch.Bind();
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
-        GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+        StateCache.Current.SetDrawBuffer(DrawBufferMode.ColorAttachment0);
     }
     #endregion
 }

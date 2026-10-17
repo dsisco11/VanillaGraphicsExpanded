@@ -172,7 +172,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using var a1=DynamicTexture2D.Create(size,size,PixelInternalFormat.Rgba32f);
         using var a2=DynamicTexture2D.Create(size,size,PixelInternalFormat.Rgba32f);
         using var depth=new DepthTexture(size,size,PixelInternalFormat.DepthComponent32f);
-        using var target=GpuFramebuffer.CreateMRT([reveal,overall,glow,a0,a1,a2],depth)!;
+        using var target=DynamicGpuFramebuffer.CreateMRT([reveal,overall,glow,a0,a1,a2],depth)!;
         var pass=new RenderPassDesc(target,[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
             new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
             new(2,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),

@@ -80,7 +80,7 @@ public sealed partial class GBufferManager : IDisposable
     public Texture3D? SurfaceTexture => surfaceTex;
 
     /// <summary>Persistent borrowed representation of the engine primary framebuffer with injected deferred attachments.</summary>
-    public GpuFramebuffer PrimaryFramebuffer { get; } = GpuFramebuffer.Wrap(0, "GBuffer.Primary");
+    public GpuFramebuffer PrimaryFramebuffer { get; } = DynamicGpuFramebuffer.Wrap(0, "GBuffer.Primary");
 
     /// <summary>OpenGL name of the shared normal, material and environment array.</summary>
     public int SurfaceTextureId => surfaceTex?.TextureId ?? 0;
@@ -188,7 +188,7 @@ public sealed partial class GBufferManager : IDisposable
             DrawBuffersEnum.ColorAttachment6,
             DrawBuffersEnum.ColorAttachment7   // VGE: Local environment
         ];
-        GL.DrawBuffers(8, drawBuffers);
+        StateCache.Current.SetDrawBuffers(8, drawBuffers);
 
         // Per-buffer blend control requires GL 4.0+ / ARB_draw_buffers_blend
         ApplyGBufferBlendState(forceDirty: true);
@@ -332,7 +332,7 @@ public sealed partial class GBufferManager : IDisposable
             DrawBuffersEnum.ColorAttachment6,
             DrawBuffersEnum.ColorAttachment7
         ];
-        GL.DrawBuffers(8, drawBuffers);
+        StateCache.Current.SetDrawBuffers(8, drawBuffers);
 
         if (!clearedSurface)
         {
@@ -548,7 +548,7 @@ public sealed partial class GBufferManager : IDisposable
             DrawBuffersEnum.ColorAttachment2,
             DrawBuffersEnum.ColorAttachment3
         };
-        GL.DrawBuffers(4, drawBuffers);
+        StateCache.Current.SetDrawBuffers(4, drawBuffers);
 
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
 

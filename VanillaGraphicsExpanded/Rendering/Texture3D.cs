@@ -81,7 +81,7 @@ public sealed class Texture3D : GpuTexture
         var pixels = PooledArray<float>.Rent(count);
         try
         {
-            using var framebuffer = GpuFramebuffer.CreateEmpty("VGE_Texture3D_Readback");
+            using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("VGE_Texture3D_Readback");
             // Preserve separate read/draw bindings, including when attachment or mapping fails.
             using var draw = StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
             using var read = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);

@@ -7,7 +7,7 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Owns a framebuffer handle and borrows independently managed attachment images.</summary>
-public sealed partial class GpuFramebuffer : GpuResource
+public abstract partial class GpuFramebuffer : GpuResource
 {
     private int fboId;
     private int wrappedWidth;
@@ -58,41 +58,10 @@ public sealed partial class GpuFramebuffer : GpuResource
     }
 
     /// <summary>Configures an image while preserving bindings and retaining a non-owning strong reference.</summary>
-    public void SetAttachment(FramebufferAttachment slot, GpuFramebufferAttachment attachment)
-    {
-        RequireMutableStorage();
-        ArgumentNullException.ThrowIfNull(attachment);
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        if (fboId == 0) throw new InvalidOperationException("The default framebuffer cannot accept attachments.");
-        attachment.ValidateSlot(slot);
-        using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
-        attachment.AttachTo(slot);
-        // Packed attachment calls update two independent GL aspect slots. Keep both
-        // references so replacing depth later does not lose the remaining stencil image.
-        if (slot == FramebufferAttachment.DepthStencilAttachment)
-        {
-            attachments[FramebufferAttachment.DepthAttachment] = attachment;
-            attachments[FramebufferAttachment.StencilAttachment] = attachment;
-        }
-        else attachments[slot] = attachment;
-        attachment.Observe(this);
-        PublishAttachmentsChanged();
-    }
+    public abstract void SetAttachment(FramebufferAttachment slot, GpuFramebufferAttachment attachment);
 
     /// <summary>Detaches images and releases references without disposing shared attachment instances.</summary>
-    public bool RemoveAttachment(FramebufferAttachment slot)
-    {
-        RequireMutableStorage();
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        bool removed = slot == FramebufferAttachment.DepthStencilAttachment
-            ? attachments.Remove(FramebufferAttachment.DepthAttachment) | attachments.Remove(FramebufferAttachment.StencilAttachment)
-            : attachments.Remove(slot);
-        if (!removed) return false;
-        using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
-        GL.FramebufferTexture(FramebufferTarget.Framebuffer, slot, 0, 0);
-        PublishAttachmentsChanged();
-        return true;
-    }
+    public abstract bool RemoveAttachment(FramebufferAttachment slot);
 
     /// <summary>Gets a live color texture name, or zero for absent and renderbuffer-backed slots.</summary>
     public int GetColorTextureId(int index) => IsDisposed ? 0 : GetAttachment(ColorSlot(index))?.TextureId ?? 0;
@@ -102,27 +71,8 @@ public sealed partial class GpuFramebuffer : GpuResource
     public int GetDepthRenderbufferId() => IsDisposed ? 0 : GetAttachment(FramebufferAttachment.DepthAttachment)?.RenderbufferId ?? 0;
 
     /// <summary>Resizes distinct whole backing resources and publishes one completed update for this framebuffer.</summary>
-    public bool Resize(int newWidth, int newHeight)
-    {
-        RequireMutableStorage();
-        if (!IsValid) return false;
-        bool changed = false;
-        var visited = new HashSet<GpuResource>(ReferenceEqualityComparer.Instance);
-        resizing = true;
-        try
-        {
-            // Multiple slots and image wrappers may share one allocation. Resize that
-            // allocation once, while deferring this framebuffer's completion publication.
-            foreach (var image in attachments.Values.Distinct())
-                if (image.Resource is { } storage && visited.Add(storage)) changed |= image.Resize(newWidth, newHeight);
-        }
-        finally
-        {
-            resizing = false;
-            if (changed) PublishAttachmentsChanged();
-        }
-        return changed;
-    }
+    public abstract bool Resize(int newWidth, int newHeight);
+
     #endregion
 
     #region Rendering
@@ -138,6 +88,7 @@ public sealed partial class GpuFramebuffer : GpuResource
         StateCache.Current.BindFramebuffer(bindingTarget, fboId);
         if (attachmentsDirty)
         {
+            StateCache.Current.RequireMutableFramebufferConfiguration(fboId);
             // Shared image changes can affect several FBOs; refresh each FBO lazily
             // at its next use while preserving its independently configured routing.
             foreach (var pair in attachments) pair.Value.AttachTo(pair.Key);
@@ -222,6 +173,11 @@ public sealed partial class GpuFramebuffer : GpuResource
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Framebuffer;
     /// <summary>Prevents deletion of externally managed framebuffer names.</summary>
     protected override bool OwnsResource => ownsFramebuffer;
+    /// <summary>Withdraws routing knowledge when an owned native identity is logically retired.</summary>
+    protected override void OnBeforeDelete(nint id)
+    {
+        if (ownsFramebuffer) StateCache.Current.InvalidateFramebufferDrawRouting((int)id);
+    }
     /// <summary>Releases attachment references without disposing any attachment.</summary>
     protected override void OnAfterDelete()
     {
@@ -233,6 +189,7 @@ public sealed partial class GpuFramebuffer : GpuResource
     /// <summary>Withdraws image references when ownership of the framebuffer name is transferred.</summary>
     protected override void OnDetached(nint id)
     {
+        StateCache.Current.InvalidateFramebufferDrawRouting((int)id);
         Surface = null;
         attachments.Clear();
         PublishAttachmentsChanged();
@@ -253,8 +210,16 @@ public sealed partial class GpuFramebuffer : GpuResource
         }
     }
 
-    /// <summary>Initializes a wrapper with an explicit framebuffer handle ownership policy.</summary>
-    private GpuFramebuffer(bool ownsFramebuffer) => this.ownsFramebuffer = ownsFramebuffer;
+    /// <summary>Allocates an owned framebuffer or borrows an explicit external handle.</summary>
+    private protected GpuFramebuffer(bool ownsFramebuffer, int id = 0, string? name = null, int width = 0, int height = 0)
+    {
+        this.ownsFramebuffer = ownsFramebuffer;
+        fboId = ownsFramebuffer ? GL.GenFramebuffer() : id;
+        if (ownsFramebuffer && fboId == 0) throw new InvalidOperationException("Framebuffer allocation failed.");
+        if (ownsFramebuffer) StateCache.Current.InvalidateFramebufferDrawRouting(fboId);
+        wrappedWidth = width; wrappedHeight = height;
+        SetDebugName(name);
+    }
     /// <summary>Finds the lowest color slot, then depth or stencil, for viewport compatibility.</summary>
     private GpuFramebufferAttachment? FirstAttachment
     {

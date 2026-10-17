@@ -75,6 +75,8 @@ public enum EPipelineState : ulong
     BlendConstant = 1UL << 31,
     /// <summary>Depth-range mapping.</summary>
     DepthRange = 1UL << 32,
+    /// <summary>Framebuffer-local draw-buffer routing, independently of framebuffer bindings.</summary>
+    FramebufferRouting = 1UL << 33,
     /// <summary>Complete-pipeline parameter and enable invalidation groups.</summary>
     CompleteGraphics = Stencil | Sampling | OutputInterpretation | PrimitiveRestart | RasterParameters | ScissorRectangle | BlendConstant | DepthRange,
     /// <summary>All tracked fixed-function drawing state.</summary>
@@ -83,5 +85,5 @@ public enum EPipelineState : ulong
     Bindings = Program | ProgramPipeline | VertexArray | FramebufferBindings | RenderbufferBinding
         | TransformFeedback | ActiveTextureUnit | TextureBindings | SamplerBindings | BufferBindings | ImageBindings,
     /// <summary>All mutable state tracked by the cache.</summary>
-    All = FixedFunction | Bindings | PixelUnpack | PixelPack | Viewport | ClearColor
+    All = FixedFunction | Bindings | PixelUnpack | PixelPack | Viewport | ClearColor | FramebufferRouting
 }

@@ -23,7 +23,7 @@ public sealed class DepthTexture : DynamicTexture2D
     protected override void AttachForReadback(GpuFramebuffer framebuffer, int mipLevel)
     {
         framebuffer.Attach(this, mipLevel);
-        GL.DrawBuffer(DrawBufferMode.None);
+        StateCache.Current.SetDrawBuffer(DrawBufferMode.None);
     }
 
     /// <inheritdoc />

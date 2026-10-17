@@ -29,7 +29,7 @@ internal sealed class DirectLightingTargets : IDisposable
             var layers = new GpuFramebufferAttachment[3];
             for (int layer = 0; layer < layers.Length; layer++)
                 layers[layer] = resources.Own(GpuFramebufferAttachment.FromTexture(Radiance, layer: layer));
-            Framebuffer = resources.Own(GpuFramebuffer.Create(layers, debugName: "DirectLightingFBO"));
+            Framebuffer = resources.Own(DynamicGpuFramebuffer.Create(layers, debugName: "DirectLightingFBO"));
             if (!Framebuffer.CheckStatus(out string? error)) throw new InvalidOperationException(error);
         }
         catch { resources.Dispose(); throw; }

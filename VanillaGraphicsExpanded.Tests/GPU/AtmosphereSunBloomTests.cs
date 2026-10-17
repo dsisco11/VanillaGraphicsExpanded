@@ -28,7 +28,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
         using var color=DynamicTexture2D.Create(64,64,PixelInternalFormat.Rgba32f);
         using var glow=DynamicTexture2D.Create(64,64,PixelInternalFormat.Rgba32f);
         using var depth=new DepthTexture(64,64,PixelInternalFormat.DepthComponent32f);
-        using var scene=GpuFramebuffer.CreateMRT([color,glow],depth)!;
+        using var scene=DynamicGpuFramebuffer.CreateMRT([color,glow],depth)!;
         using var extracted=TestFramework.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
         using var horizontal=TestFramework.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
         using var halo=TestFramework.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
@@ -92,7 +92,7 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
         using var color = DynamicTexture2D.Create(32, 32, PixelInternalFormat.Rgba32f);
         using var glow = DynamicTexture2D.Create(32, 32, PixelInternalFormat.Rgba32f);
         using var depth = new DepthTexture(32, 32, PixelInternalFormat.DepthComponent32f);
-        using var scene = GpuFramebuffer.CreateMRT([color, glow], depth)!;
+        using var scene = DynamicGpuFramebuffer.CreateMRT([color, glow], depth)!;
         using var lifetime = new GraphicsPipelineLifetime();
         var layout = new VertexLayoutDesc([]);
         using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 6);

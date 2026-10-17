@@ -104,7 +104,7 @@ public sealed class SurfaceCacheReadinessReadbackTests(HeadlessGLFixture fixture
     /// <summary>Reproduces the previous one-framebuffer, one-read-per-page observation for matched work.</summary>
     private static bool ReadPerPage(Texture3D texture, uint[] pages)
     {
-        using var framebuffer = GpuFramebuffer.CreateEmpty("Tests.Readiness.PerPage");
+        using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("Tests.Readiness.PerPage");
         framebuffer.Bind();
         try
         {

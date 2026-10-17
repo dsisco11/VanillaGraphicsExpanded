@@ -33,7 +33,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
         try
         {
             // PBR Direct MRT outputs
-            DirectLightingMrt = _resources.Own(GpuFramebuffer.Create(
+            DirectLightingMrt = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
                     _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.DirectDiffuse")),
@@ -44,7 +44,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                 debugName: "Test.PbrDirectMrt"));
 
             // Velocity (RGBA32F)
-            Velocity = _resources.Own(GpuFramebuffer.Create(
+            Velocity = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
                     _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba32f, debugName: "Test.Velocity")),
@@ -56,7 +56,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
             Hzb = new DepthHierarchyPass();
 
             // Probe anchors (2x2)
-            ProbeAnchor = _resources.Own(GpuFramebuffer.Create(
+            ProbeAnchor = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
                     _resources.Own(new GpuFramebufferAttachment(probeW, probeH, PixelInternalFormat.Rgba16f, debugName: "Test.ProbeAnchorPosition")),
@@ -66,7 +66,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                 debugName: "Test.ProbeAnchorMrt"));
 
             // Atlas MRTs (16x16): radiance RGBA16F + meta RG32F
-            AtlasTrace = _resources.Own(GpuFramebuffer.Create(
+            AtlasTrace = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
                     _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTraceRadiance")),
@@ -75,7 +75,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                 depth: null,
                 debugName: "Test.AtlasTraceMrt"));
 
-            AtlasTemporal = _resources.Own(GpuFramebuffer.Create(
+            AtlasTemporal = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
                     _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasTemporalRadiance")),
@@ -84,7 +84,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                 depth: null,
                 debugName: "Test.AtlasTemporalMrt"));
 
-            AtlasFiltered = _resources.Own(GpuFramebuffer.Create(
+            AtlasFiltered = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
                     _resources.Own(new GpuFramebufferAttachment(atlasW, atlasH, PixelInternalFormat.Rgba16f, debugName: "Test.AtlasFilteredRadiance")),
@@ -94,7 +94,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                 debugName: "Test.AtlasFilteredMrt"));
 
             // Gather output (half-res)
-            IndirectHalf = _resources.Own(GpuFramebuffer.Create(
+            IndirectHalf = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
                     _resources.Own(new GpuFramebufferAttachment(halfW, halfH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectHalf")),
@@ -103,7 +103,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                 debugName: "Test.IndirectHalfFbo"));
 
             // Upsample output (full-res)
-            IndirectFull = _resources.Own(GpuFramebuffer.Create(
+            IndirectFull = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
                     _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.IndirectFull")),
@@ -112,7 +112,7 @@ internal sealed class PbrLumOnPipelineTargets : IDisposable
                 debugName: "Test.IndirectFullFbo"));
 
             // Final composite output
-            Composite = _resources.Own(GpuFramebuffer.Create(
+            Composite = _resources.Own(DynamicGpuFramebuffer.Create(
                 new[]
                 {
                     _resources.Own(new GpuFramebufferAttachment(screenW, screenH, PixelInternalFormat.Rgba16f, debugName: "Test.Composite")),

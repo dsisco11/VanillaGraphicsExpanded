@@ -117,7 +117,7 @@ internal sealed class PostprocessPipeline : IRenderer
         if(finalTarget is null)
         {
             var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(scene!));
-            finalTarget=resources.Own(GpuFramebuffer.Create([attachment],debugName:"Postprocess.Final"));
+            finalTarget=resources.Own(DynamicGpuFramebuffer.Create([attachment],debugName:"Postprocess.Final"));
         }
         var exposure=CameraExposureRenderer.DisplayExposure();
         shader.SceneImage=retained.Luma; shader.BloomImage=bloomTexture; shader.ShaftImage=rayTexture;

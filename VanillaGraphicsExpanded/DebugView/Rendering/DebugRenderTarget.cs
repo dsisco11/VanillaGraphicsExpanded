@@ -41,7 +41,7 @@ internal sealed class DebugRenderTarget : IDisposable
         if (!targets.TryGetValue(id, out var target))
         {
             // Native names may be reused during a rebuild, so explicit publication invalidation takes precedence.
-            var replacement = GpuFramebuffer.Wrap(id, "Debug.Destination", api.Render.FrameWidth, api.Render.FrameHeight);
+            var replacement = DynamicGpuFramebuffer.Wrap(id, "Debug.Destination", api.Render.FrameWidth, api.Render.FrameHeight);
             try
             {
                 if (id == 0) replacement.PublishSurfaceMetadata(api.Render.FrameWidth, api.Render.FrameHeight);

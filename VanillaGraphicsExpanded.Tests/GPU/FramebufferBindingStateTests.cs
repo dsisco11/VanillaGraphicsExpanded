@@ -16,8 +16,8 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
     public void CombinedQueryPreservesDistinctReadBinding(bool invalidate)
     {
         EnsureContextValid();
-        using var draw = GpuFramebuffer.CreateEmpty("Tests.DrawAlias");
-        using var read = GpuFramebuffer.CreateEmpty("Tests.ReadAlias");
+        using var draw = DynamicGpuFramebuffer.CreateEmpty("Tests.DrawAlias");
+        using var read = DynamicGpuFramebuffer.CreateEmpty("Tests.ReadAlias");
         var cache = StateCache.Current;
         try
         {
@@ -42,13 +42,13 @@ public sealed class FramebufferBindingStateTests(HeadlessGLFixture fixture) : Re
     {
         EnsureContextValid();
         using var texture = Texture3D.Create(2, 2, 1, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray);
-        using var layer = GpuFramebuffer.CreateEmpty("Tests.ReadbackLayer");
+        using var layer = DynamicGpuFramebuffer.CreateEmpty("Tests.ReadbackLayer");
         layer.Attach(texture, 0);
         layer.BindAndClear(1, 2, 3, 1);
         using var sourceTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
         using var targetTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
-        using var source = GpuFramebuffer.CreateSingle(sourceTexture)!;
-        using var target = GpuFramebuffer.CreateSingle(targetTexture)!;
+        using var source = DynamicGpuFramebuffer.CreateSingle(sourceTexture)!;
+        using var target = DynamicGpuFramebuffer.CreateSingle(targetTexture)!;
         var cache = StateCache.Current;
         try
         {

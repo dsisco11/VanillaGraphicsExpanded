@@ -280,7 +280,7 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         // same receiver scene; projection/frame dimensions remain full resolution.
         using var reducedColor = backgroundScale == 2 ? DynamicTexture2D.Create((frameSize + 1) / 2, (frameSize + 1) / 2, PixelInternalFormat.Rgba32f) : null;
         using var reducedDepth = backgroundScale == 2 ? DynamicTexture2D.Create((frameSize + 1) / 2, (frameSize + 1) / 2, PixelInternalFormat.Rgba32f) : null;
-        using var reductionTarget = backgroundScale == 2 ? GpuFramebuffer.CreateMRT([reducedColor!, reducedDepth!]) : null;
+        using var reductionTarget = backgroundScale == 2 ? DynamicGpuFramebuffer.CreateMRT([reducedColor!, reducedDepth!]) : null;
         if (backgroundScale == 2)
         {
             var reduction = GpuShaderProgramLibraries.Declare(assets.Api, WaterRefractionReductionShaderProgram.Contract.Identity, () => new WaterRefractionReductionShaderProgram());

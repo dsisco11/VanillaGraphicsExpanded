@@ -26,7 +26,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         for (int mip = 0; mip < cube.MipLevels; mip++) for (int face = 0; face < 6; face++)
         {
             using var image = GpuFramebufferAttachment.FromTexture(cube, mip, cubeFace: TextureTarget.TextureCubeMapPositiveX + face);
-            using var target = GpuFramebuffer.Create([image]);
+            using var target = DynamicGpuFramebuffer.Create([image]);
             using var binding = StateCache.Current.BindFramebufferScope();
             StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, target.FboId);
             GL.ClearBuffer(ClearBuffer.Color, 0, new[] { (face + 1) / 8f, .5f, .25f, 1f });
@@ -50,7 +50,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         using var cube = DynamicTextureCube.Create(2, PixelInternalFormat.R32ui);
         using var image = GpuFramebufferAttachment.FromTexture(cube, cubeFace: TextureTarget.TextureCubeMapPositiveX);
-        using var target = GpuFramebuffer.Create([image]);
+        using var target = DynamicGpuFramebuffer.Create([image]);
         using var binding = StateCache.Current.BindFramebufferScope();
         StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, target.FboId);
         GL.ClearBuffer(ClearBuffer.Color, 0, new uint[] { 7, 0, 0, 0 });
@@ -87,7 +87,7 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         using var cube = new ReallocatableCube(4);
         using var image = GpuFramebufferAttachment.FromTexture(cube, mipLevel: 1, cubeFace: TextureTarget.TextureCubeMapNegativeZ);
-        using var target = GpuFramebuffer.Create([image]);
+        using var target = DynamicGpuFramebuffer.Create([image]);
         int original = cube.TextureId;
         cube.Replace(8, inPlace);
         target.ValidateAttachments();

@@ -18,7 +18,7 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
     public void SparseRoutesUseTypedAttachmentClears(bool textureStorage)
     {
         EnsureContextValid();
-        using var target = GpuFramebuffer.CreateEmpty();
+        using var target = DynamicGpuFramebuffer.CreateEmpty();
         using var floatStorage = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba32f);
         using GpuResource signedStorage = textureStorage ? DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba32i)
             : GpuRenderbuffer.Create(RenderbufferStorage.Rgba32i, 4, 4);
@@ -73,7 +73,7 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
     {
         EnsureContextValid();
         using var texture = new DepthStencilTexture(4, 4);
-        using var target = GpuFramebuffer.CreateDepthOnly(texture)!;
+        using var target = DynamicGpuFramebuffer.CreateDepthOnly(texture)!;
         using var bindings = StateCache.Current.BindFramebufferScope();
         target.Bind(); GL.Disable(EnableCap.ScissorTest); GL.DepthMask(true); GL.StencilMask(0xff);
         GL.ClearDepth(.25); GL.ClearStencil(0x36); GL.Clear(ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);
@@ -132,7 +132,7 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
     {
         EnsureContextValid();
         using var texture = new DepthStencilTexture(4, 4);
-        using var target = GpuFramebuffer.CreateDepthOnly(texture)!;
+        using var target = DynamicGpuFramebuffer.CreateDepthOnly(texture)!;
         using var bindings = StateCache.Current.BindFramebufferScope();
         target.Bind(); GL.Disable(EnableCap.ScissorTest); GL.DepthMask(true); GL.StencilMask(0xff);
         GL.ClearDepth(.625); GL.ClearStencil(0x47); GL.Clear(ClearBufferMask.DepthBufferBit | ClearBufferMask.StencilBufferBit);

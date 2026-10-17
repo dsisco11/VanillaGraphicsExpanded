@@ -71,7 +71,7 @@ public sealed class WaterShallowContinuityTests(HeadlessGLFixture fixture, ITest
         color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
         using var halfColor = half ? DynamicTexture2D.Create(size/2,size/2,PixelInternalFormat.Rgba32f) : null;
         using var halfDepth = half ? DynamicTexture2D.Create(size/2,size/2,PixelInternalFormat.Rgba32f) : null;
-        using var reduced = half ? GpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
+        using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         if (half)
         {
             var reduction = Programs.Create<WaterRefractionReductionShaderProgram>();

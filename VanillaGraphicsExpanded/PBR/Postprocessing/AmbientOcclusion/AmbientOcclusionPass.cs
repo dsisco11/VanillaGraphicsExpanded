@@ -75,7 +75,7 @@ internal sealed class AmbientOcclusionPass : IDisposable
         texture=resources.Own(DynamicTexture2D.Create(width,height,format,debugName:$"AmbientOcclusion.{name}"));
         targetStorageBytes+=(long)width*height*8;
         var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(texture));
-        return resources.Own(GpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.{name}"));
+        return resources.Own(DynamicGpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.{name}"));
     }
     #endregion
 }

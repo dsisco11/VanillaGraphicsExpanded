@@ -21,7 +21,7 @@ public sealed class DepthStencilTextureTests : RenderTestBase
     {
         EnsureContextValid();
         using var texture = new DepthTexture(4, 4, PixelInternalFormat.DepthComponent24);
-        using var framebuffer = GpuFramebuffer.CreateDepthOnly(texture)
+        using var framebuffer = DynamicGpuFramebuffer.CreateDepthOnly(texture)
             ?? throw new InvalidOperationException("Depth framebuffer creation failed.");
 
         framebuffer.Bind();
@@ -41,9 +41,9 @@ public sealed class DepthStencilTextureTests : RenderTestBase
     {
         EnsureContextValid();
         using var texture = new StencilTexture(3, 5);
-        using var framebuffer = GpuFramebuffer.CreateEmpty("StencilReadbackTest");
+        using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("StencilReadbackTest");
         framebuffer.Attach(texture);
-        GL.DrawBuffer(DrawBufferMode.None);
+        GL.DrawBuffer(DrawBufferMode.None); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
         GL.ReadBuffer(ReadBufferMode.None);
         Assert.True(framebuffer.CheckStatus(out string? error), error);
 
@@ -62,7 +62,7 @@ public sealed class DepthStencilTextureTests : RenderTestBase
     {
         EnsureContextValid();
         using var texture = new DepthStencilTexture(4, 4);
-        using var framebuffer = GpuFramebuffer.CreateDepthOnly(texture)
+        using var framebuffer = DynamicGpuFramebuffer.CreateDepthOnly(texture)
             ?? throw new InvalidOperationException("Depth-stencil framebuffer creation failed.");
 
         framebuffer.Bind();

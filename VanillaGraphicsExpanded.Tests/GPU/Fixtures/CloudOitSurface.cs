@@ -21,7 +21,7 @@ internal sealed class CloudOitSurface : IDisposable
         {
             for (int i = 0; i < Images.Length; i++)
                 Images[i] = DynamicTexture2D.Create(width, height, formats[i], debugName: $"{name}.{names[i]}");
-            Target = GpuFramebuffer.CreateMRT(Images, debugName: name)!;
+            Target = DynamicGpuFramebuffer.CreateMRT(Images, debugName: name)!;
         }
         catch { foreach (var image in Images) image?.Dispose(); throw; }
     }

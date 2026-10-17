@@ -33,7 +33,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         using var depth = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.R32f);
         using var halfColor = half ? DynamicTexture2D.Create(Size/2,Size/2,PixelInternalFormat.Rgba32f) : null;
         using var halfDepth = half ? DynamicTexture2D.Create(Size/2,Size/2,PixelInternalFormat.Rgba32f) : null;
-        using var reduced = half ? GpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
+        using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
@@ -137,7 +137,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
         using var halfColor = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
         using var halfDepth = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
-        using var reduced = half ? GpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
+        using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         if (half)
         {
             var reduction = Programs.Create<WaterRefractionReductionShaderProgram>();
@@ -305,7 +305,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         using var depth = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.R32f);
         using var halfColor = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
         using var halfDepth = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
-        using var reduced = half ? GpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
+        using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;
@@ -401,7 +401,7 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
         using var depth = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.R32f);
         using var halfColor = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
         using var halfDepth = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
-        using var reduced = half ? GpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
+        using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
         var inputs = (IWaterRefractionDiagnosticBindings)program;

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 
 namespace VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
@@ -11,6 +13,7 @@ internal sealed class RenderPassDesc
     internal PipelineValues<RenderPassColor> Colors { get; }
     internal RenderPassDepthStencil DepthStencil { get; }
     internal RenderArea? Area { get; }
+    internal PipelineValues<DrawBuffersEnum> Routing { get; }
 
     #region Public API
     /// <summary>Copies output routing; an omitted area resolves to the current full target on each begin.</summary>
@@ -40,6 +43,9 @@ internal sealed class RenderPassDesc
             || !Enum.IsDefined(DepthStencil.DepthStore) || !Enum.IsDefined(DepthStencil.StencilStore)
             || !float.IsFinite(DepthStencil.ClearDepth) || DepthStencil.ClearDepth < 0 || DepthStencil.ClearDepth > 1)
             throw new ArgumentException("Invalid depth/stencil intention.", nameof(depthStencil));
+        Routing = new(Colors.Select(color => color.SurfaceBuffer ?? (color.Attachment < 0
+            ? DrawBuffersEnum.None : DrawBuffersEnum.ColorAttachment0 + color.Attachment)).DefaultIfEmpty(DrawBuffersEnum.None));
+        Target.ValidatePassRouting(Routing);
     }
     #endregion
 }

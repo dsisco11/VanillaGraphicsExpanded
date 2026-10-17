@@ -49,7 +49,7 @@ internal sealed class RetainedPostprocessRenderer : IDisposable
     {
         image=collection.Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.Rgba16f,debugName:$"Postprocess.{name}"));
         var attachment=collection.Own(GpuFramebufferAttachment.FromTexture(image));
-        return collection.Own(GpuFramebuffer.Create([attachment],debugName:$"Postprocess.{name}"));
+        return collection.Own(DynamicGpuFramebuffer.Create([attachment],debugName:$"Postprocess.{name}"));
     }
     #endregion
 }

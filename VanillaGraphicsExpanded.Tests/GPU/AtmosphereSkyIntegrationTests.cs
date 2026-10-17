@@ -44,7 +44,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32f);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
         using var liquidDepth = DynamicTexture2D.CreateWithData(2, 2, PixelInternalFormat.R32f, [1f, 1f, 1f, 1f]);
-        using var engine = GpuFramebuffer.Create(ssao ? [material, glow, normal, position] : [material, glow], depth);
+        using var engine = DynamicGpuFramebuffer.Create(ssao ? [material, glow, normal, position] : [material, glow], depth);
         var primary = new FrameBufferRef { FboId = engine.FboId, Width = 2, Height = 2, DepthTextureId = depth.TextureId,
             ColorTextureIds = ssao ? [material.TextureId, glow.TextureId, normal.TextureId, position.TextureId] : [material.TextureId, glow.TextureId] };
         var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList();
@@ -113,7 +113,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                 // Seed every attached metadata buffer so omitted writes cannot pass as coincidental zeros.
                 DrawBuffersEnum[] routing = Enumerable.Range(0, 8)
                     .Select(i => i == 2 && !ssao ? DrawBuffersEnum.None : DrawBuffersEnum.ColorAttachment0 + i).ToArray();
-                GL.DrawBuffers(8, routing);
+                GL.DrawBuffers(8, routing); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
                 for (int attachment = 2; attachment < 8; attachment++)
                 {
                     if (attachment == 2 && !ssao) continue;

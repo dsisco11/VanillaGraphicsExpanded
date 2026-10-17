@@ -235,7 +235,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
     {
         using var color=DynamicTexture2D.Create(size,size,PixelInternalFormat.Rgba32f);
         using var glow=DynamicTexture2D.Create(size,size,PixelInternalFormat.Rgba32f);
-        using var target=GpuFramebuffer.CreateMRT([color,glow])!;
+        using var target=DynamicGpuFramebuffer.CreateMRT([color,glow])!;
         using var lifetime=new GraphicsPipelineLifetime();
         var pass=new RenderPassDesc(target,[new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]);
         using var metadata=new RenderPassTargets(pass);

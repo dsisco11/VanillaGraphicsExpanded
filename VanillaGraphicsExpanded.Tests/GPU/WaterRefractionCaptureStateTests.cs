@@ -46,11 +46,17 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
         programs.Initialize(api);
         // These renderer-level fixtures own their camera snapshot instead of running the world's publication callback.
         using var frameCamera=TestFrameCamera.CreateIdentity(1,1);
+        using var frameLighting = new TestFrameLightingPublication();
         VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api,"pbr_composite")!.FrameInputs=frameCamera;
         VanillaGraphicsExpanded.Rendering.Shaders.GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api,PBRCompositeShaderProgram.PreOverlayPassName)!.FrameInputs=frameCamera;
         using var lights=new VgeLightsUniformBuffer();
         var directProgram=GpuShaderProgramLibraries.Get<PBRDirectLightingShaderProgram>(api,"pbr_direct_lighting")!;
         directProgram.FrameInputs=frameCamera;directProgram.LightsInputs=lights;
+        // This isolated renderer fixture supplies physical storage explicitly rather
+        // than relying on the live world's frozen frame/calibration publication.
+        frameLighting.Attach(directProgram);
+        frameLighting.Attach(GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, "pbr_composite")!);
+        frameLighting.Attach(GpuShaderProgramLibraries.Get<PBRCompositeShaderProgram>(api, PBRCompositeShaderProgram.PreOverlayPassName)!);
         var config = new VanillaGraphicsExpanded.LumOn.VgeConfig();
         config.LumOn.Enabled = lumon; config.LumOn.EnablePbrComposite = false;
         config.LumOn.Intensity = 1; config.LumOn.IndirectTint = [1, 1, 1];
@@ -87,7 +93,7 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, terrain.Output.FboId);
             GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, callerTarget.FboId);
             GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, readTarget.FboId);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             GL.Viewport(1, 1, 1, 1);
             GL.DepthMask(true);
             GL.Enable(EnableCap.DepthTest);

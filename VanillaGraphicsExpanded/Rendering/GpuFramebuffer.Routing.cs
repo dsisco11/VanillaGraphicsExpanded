@@ -1,25 +1,21 @@
 using System;
+using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Restores framebuffer-local output routing through the available native API.</summary>
-public sealed partial class GpuFramebuffer
+/// <summary>Defines routing admission and pass ownership for concrete framebuffer configurations.</summary>
+public abstract partial class GpuFramebuffer
 {
     #region Internal API
-    /// <summary>Restores framebuffer-local output routing without rebinding image targets when direct state access is available.</summary>
-    internal void RestoreDrawRouting(DrawBuffersEnum[] routing)
-    {
-        ObjectDisposedException.ThrowIf(IsDisposed, this);
-        if (fboId != 0 && GpuSupport.Graphics.SupportsArbDirectStateAccess)
-        {
-            GL.NamedFramebufferDrawBuffers(fboId, routing.Length, routing);
-            return;
-        }
-        // Window selectors such as Back require DrawBuffer. Older contexts retain the bound path.
-        StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, fboId);
-        if (fboId == 0) GL.DrawBuffer((DrawBufferMode)routing[0]);
-        else GL.DrawBuffers(routing.Length, routing);
-    }
+    /// <summary>Validates immutable routing when a pass declaration is constructed, before submission.</summary>
+    internal abstract void ValidatePassRouting(IReadOnlyList<DrawBuffersEnum> routing);
+    /// <summary>Establishes the concrete routing policy and returns any standalone restoration owner.</summary>
+    internal abstract IDisposable? BeginPassRouting(RenderPassDesc description, RenderPassSequence? sequence);
+    /// <summary>Restores dynamic routing or admits the unchanged immutable configuration.</summary>
+    internal abstract void RestoreDrawRouting(DrawBuffersEnum[] routing);
+    /// <summary>Validates mutable target completeness or relies on a constructor-proven immutable configuration.</summary>
+    internal abstract void ValidatePassCompleteness(IReadOnlyList<DrawBuffersEnum> routing);
     #endregion
 }

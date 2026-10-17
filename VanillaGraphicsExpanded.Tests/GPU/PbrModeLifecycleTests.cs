@@ -66,8 +66,13 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         /// <summary>Restores authored albedo because display resolve overwrites the engine primary color.</summary>
         float Compose()
         {
-            terrain.UploadTerrain(gbuffer, [.25f], [.5f,.5f,1,1], [.5f,0,0,0], [.5f,.5f,.5f,1]);
-            gbuffer.SurfaceTexture!.UploadDataImmediate([.5f,.5f,.5f,1f], 0, 0, 2, 1, 1, 1);
+            // White dielectric albedo makes native diffuse plus specular equal incident
+            // irradiance regardless of the compensated microfacet split. GI retains its
+            // authored half-albedo control so the provider contribution remains .375.
+            float albedo = config.LumOn.Enabled ? .5f : 1f;
+            float environment = config.LumOn.Enabled ? .5f : .25f;
+            terrain.UploadTerrain(gbuffer, [.25f], [.5f,.5f,1,1], [.5f,0,0,0], [albedo,albedo,albedo,1]);
+            gbuffer.SurfaceTexture!.UploadDataImmediate([environment,environment,environment,1f], 0, 0, 2, 1, 1, 1);
             composite.OnRenderFrame(.016f, EnumRenderStage.Opaque);
             // Consume the actual completed native/GI composition, not an invented mode label.
             float[] physical = composite.SceneLinearColor!.ReadPixels();
@@ -87,7 +92,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         terrain.Color.UploadDataImmediate([.125f, .25f, .5f, 1f]);
         float[] primaryBefore = terrain.Color.ReadPixels();
         using (var otherColor = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f))
-        using (var other = GpuFramebuffer.CreateSingle(otherColor)!)
+        using (var other = DynamicGpuFramebuffer.CreateSingle(otherColor)!)
         using (StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, terrain.Output.FboId))
         using (StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, other.FboId))
         {
@@ -122,15 +127,15 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         Assert.Equal(0, providerReads);
         // Repeated production draws retain the borrowed resolve FBO until its source changes.
         var resolveField = HarmonyLib.AccessTools.Field(typeof(PBRCompositeRenderer), "primaryResolveFbo");
-        var firstResolve = Assert.IsType<GpuFramebuffer>(resolveField.GetValue(composite));
+        var firstResolve = Assert.IsType<DynamicGpuFramebuffer>(resolveField.GetValue(composite));
         Assert.InRange(Compose(), .249f, .251f);
         Assert.Same(firstResolve, resolveField.GetValue(composite));
         using (var replacement = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba16f))
         {
-            replacement.UploadDataImmediate(new float[] { .5f, .5f, .5f, 1f });
+            replacement.UploadDataImmediate(new float[] { 1f, 1f, 1f, 1f });
             terrain.Primary.ColorTextureIds[0] = replacement.TextureId;
             Assert.InRange(Compose(), .249f, .251f);
-            var replacedResolve = Assert.IsType<GpuFramebuffer>(resolveField.GetValue(composite));
+            var replacedResolve = Assert.IsType<DynamicGpuFramebuffer>(resolveField.GetValue(composite));
             Assert.NotSame(firstResolve, replacedResolve);
             Assert.False(firstResolve.IsValid);
             Assert.True(replacement.ReadPixels()[0] > 0f);
@@ -139,7 +144,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
             Assert.False(replacedResolve.IsValid);
             Assert.True(replacement.IsValid);
         }
-        var beforeResize = Assert.IsType<GpuFramebuffer>(resolveField.GetValue(composite));
+        var beforeResize = Assert.IsType<DynamicGpuFramebuffer>(resolveField.GetValue(composite));
         HarmonyLib.AccessTools.Method(typeof(PBRCompositeRenderer), "OnScreenResized").Invoke(composite, null);
         Assert.False(beforeResize.IsValid);
         Assert.Null(resolveField.GetValue(composite));

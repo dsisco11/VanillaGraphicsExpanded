@@ -35,7 +35,7 @@ internal sealed class MinimumChildMaskPass : IDisposable
                 for(int level=0;level<targets.Length;level++)
                 {
                     var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(Texture,mipLevel:level));
-                    targets[level]=resources.Own(GpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.MinimumChildren.Mip{level}"));
+                    targets[level]=resources.Own(DynamicGpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.MinimumChildren.Mip{level}"));
                     StorageBytes+=2L*Math.Max(1,mw>>level)*Math.Max(1,mh>>level);
                 }
             }

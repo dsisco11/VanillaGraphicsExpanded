@@ -19,7 +19,7 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
         EnsureContextValid();
         using var color = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
         using var depth = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent24);
-        using var source = GpuFramebuffer.CreateSingle(color, depth)!;
+        using var source = DynamicGpuFramebuffer.CreateSingle(color, depth)!;
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var blitter = new GpuFramebufferBlitter(source, destination);
         if (retireDepth) depth.Dispose();
@@ -37,10 +37,10 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
         using var scope = StateCache.Current.BindFramebufferScope();
         using var texture = DynamicTexture3D.Create(2, 2, 2, PixelInternalFormat.Rgba32f);
         using var image = GpuFramebufferAttachment.FromTexture(texture, layer: layer);
-        using var source = GpuFramebuffer.Create([image])!;
+        using var source = DynamicGpuFramebuffer.Create([image])!;
         source.Bind();
         GL.ClearBuffer(ClearBuffer.Color, 0, new[] { 0.25f, 0.5f, 0.75f, 1f });
-        using var external = GpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
+        using var external = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
         using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
         using var blitter = new GpuFramebufferBlitter(external, destination);
         blitter.Blit();
@@ -64,13 +64,13 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
                     GL.TexImage2D(TextureTarget.TextureCubeMapPositiveX + face, 0, PixelInternalFormat.Rgba32f,
                         2, 2, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
             }
-            using var source = GpuFramebuffer.CreateEmpty();
+            using var source = DynamicGpuFramebuffer.CreateEmpty();
             source.Bind();
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0,
                 TextureTarget.TextureCubeMapNegativeZ, texture, 0);
-            GL.DrawBuffer(DrawBufferMode.ColorAttachment0);
+            GL.DrawBuffer(DrawBufferMode.ColorAttachment0); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             GL.ClearBuffer(ClearBuffer.Color, 0, new[] { 0.125f, 0.25f, 0.5f, 1f });
-            using var external = GpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
+            using var external = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
             using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
             using var blitter = new GpuFramebufferBlitter(external, destination);
             blitter.Blit();

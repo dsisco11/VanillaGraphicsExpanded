@@ -246,7 +246,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment0, TextureTarget.Texture2D, Map.TextureId, 0);
             GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment1, TextureTarget.Texture2D, Color.TextureId, 0);
-            GL.DrawBuffers(2, new[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 });
+            GL.DrawBuffers(2, new[] { DrawBuffersEnum.ColorAttachment0, DrawBuffersEnum.ColorAttachment1 }); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting);
             GL.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
             int vertex = Compile(ShaderType.VertexShader, "#version 150\nvoid main(){gl_Position=vec4(0,0,0,1);}");
             int fragment = Compile(ShaderType.FragmentShader, "#version 150\nout vec4 color; void main(){color=vec4(1);}");

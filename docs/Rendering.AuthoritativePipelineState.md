@@ -13,15 +13,41 @@ GraphicsCommandContext captures one incoming program scope and rejects stale pre
 Consecutive draws transition directly between prepared owners and publish inputs on every draw.
 `EndPass` releases active image borrows and clears the pass selection; it leaves the current shader
 and draw framebuffer selected until another pass changes them or the outer boundary exits.
-`RenderPassSequence` captures each touched framebuffer's original output routing once and restores
+`GpuFramebuffer` is an abstract resource owner. `DynamicGpuFramebuffer` owns mutable attachment
+configuration and its creation/wrapping factories. `StaticGpuFramebuffer.Create` builds a complete
+managed attachment layout and draw route, then holds configuration borrows on its images and backing
+allocations until disposal or handle transfer. Image contents may change; attachment replacement,
+storage resize and conflicting managed routing writes are rejected, including through aliases.
+Raw native configuration mutation of static allocations is outside their ownership contract.
+Static declarations withdraw from their originating state owner on queued disposal or handle transfer.
+Context retirement withdraws native configuration authority without native calls or per-pass polling.
+
+Static pass routing is certified when a reusable `RenderPassDesc` is constructed. Its submission
+methods bind the target without dynamic route lookup, comparison, capture, restoration or repeated
+completeness checks. Cloud payload surfaces use static targets and retain their pass declarations.
+`RenderPassSequence` retains static target lifetime until boundary cleanup, without routing snapshots.
+Dynamic targets retain scratch retargeting and window/external publication support.
+
+`RenderPassSequence` captures each touched dynamic framebuffer's original output routing once and restores
 it at boundary exit before the inherited framebuffer bindings are restored. Passes bind only the
 draw direction, preserving the independent read binding. Framebuffer lifetime borrows prevent
 retirement until routing restoration finishes, while completed-pass attachment changes and storage
 resize remain permitted. Each new pass refreshes changed attachments and publishes its full route.
+`StateCache` owns the live route for each framebuffer, normalized to include disabled trailing
+outputs. Dynamic passes keep only independent restoration snapshots. Repeated mappings skip native routing
+calls, and known original routes need no driver queries. Creation, scratch helpers, readback,
+G-buffer setup and builtin DrawBuffer/DrawBuffers adapters use the same owner.
 Routing restoration uses named framebuffer operations for nonzero targets when the shared DSA
 capability permits them. The fallback binds only the draw target; window surfaces retain their
 DrawBuffer selector semantics. Both paths preserve the independent read binding.
-Standalone `RenderPass.Begin` scopes retain immediate routing and binding restoration on disposal.
+`EPipelineState.FramebufferRouting` forgets routing independently; framebuffer-binding invalidation
+also forgets routes for compatibility with external callers. Unknown external routing writes must
+invalidate one of these categories (or All) for dynamic targets. These invalidations do not make
+static configurations mutable. Deletion, handle transfer, new owned allocations and
+explicit wrapped/surface publication invalidate affected identities before reuse. Attachment-only
+retargeting preserves routing knowledge because it does not change the framebuffer's mapping.
+Standalone `RenderPass.Begin` scopes retain immediate binding restoration on disposal, with routing
+restoration for dynamic targets.
 Standalone owner scopes replay validated retained inputs; managed complete boundaries restore their
 resource snapshots after activation cleanup, then fixed/dynamic state. No second activation stack or
 current-owner dictionary is introduced.
@@ -561,7 +587,7 @@ Observation alone does not imply preservation.
 | Ordinary composite target preparation | `PrepareTargets` creates/resizes owned scratch and borrowed primary resolve FBO. Withdraw borrowers before resizing, refresh borrowed source identity. Allocation and shader failures can occur before the current legacy fixed scope; the new adapter must cover the whole operation. |
 | Ordinary composite draw and cleanup | Same CompositePipeline; BeginFrame may create publication/reduction targets; shader inputs and UseScope, then primary resolve and display UseScope. `SceneColorParticleCapture.RestoreSsao` binds its owned target, sets viewport and the same six pipeline intents, then draws. `PublishRefractionScene` either publishes directly or runs reduction with CompositePipeline, viewport, shader activation and RenderMesh; catches optional publication failure. Include all these helpers in the callback boundary. |
 | `Rendering/GpuFramebuffer.cs` Bind / BindWithViewport / Clear | Binding tracked by StateCache; Bind refreshes dirty attachments but does not apply blend policy. Explicit ApplyAttachmentBlendState (`GpuFramebuffer.Blending.cs`) changes indexed state and needs declared effects if invoked. Viewport currently raw: migrate to declared cache-backed dynamic application. Global ColorMask affects all draw outputs, not only index zero. Clear(r,g,b,a) mutates clear-color helper state: preserve through StateCache clear-operation storage, outside static PSO identity. Clear masks/scissor established by declared draw/clear state. |
-| `GpuFramebuffer.Creation.cs` routing/attachments | DrawBuffers/ReadBuffer are FBO-local; creation changes owned FBO routing, not incoming engine FBO routing. Preserve read/draw bindings with existing scope. Mutation of routing on a borrowed engine FBO is excluded from this boundary. No framebuffer blend-policy reapplication is inferred from rebinding. |
+| `DynamicGpuFramebuffer.Creation.cs` routing/attachments | DrawBuffers/ReadBuffer are FBO-local; creation changes owned FBO routing, not incoming engine FBO routing. Preserve read/draw bindings with existing scope. Mutation of routing on a borrowed engine FBO is excluded from this boundary. No framebuffer blend-policy reapplication is inferred from rebinding. |
 | Texture creation / retirement | Existing texture scopes preserve allocation bindings/active unit. Deletion uses existing targeted lifecycle invalidation and deferred retirement. Do not fold bindings into fixed-function structs. |
 | `Rendering/Shaders/GpuProgram.cs` preparation, UseScope, disposal | Retain readiness, failed-activation cleanup and prepared input publication. Current UseScope borrows validated VGE owner/revision/context metadata through the existing StateCache tracker; raw scopes restore bindings only. Immediate owner restoration replays retained inputs without preparing pending replacements. Restore borrowed binding scope after shader cleanup, then pipeline snapshot last. |
 | Installed `ClientPlatformWindows.RenderMesh(MeshRef)` | IL binds VAO and element buffer, draws, unbinds element buffer and VAO. No fixed-function or viewport mutation. Exact-signature mappings observe these calls. Engine rendering reestablishes its geometry before drawing; adapter additionally preserves incoming VAO and generic array-buffer binding for strict handoff, without rewriting VAO-owned EBO associations. No SSBO multi-draw overload is used by the fullscreen quad. |
@@ -2176,12 +2202,13 @@ No live-game visual acceptance or frame-time improvement is claimed.
 typed color clears, independent depth/stencil intentions and an optional pixel render area.
 `RenderPass.Begin` requires an existing complete `EngineBoundaryScope`; it cannot create a nested
 pass or a second restoration cache. The boundary owns drawing-state restoration. A standalone pass
-restores its target's draw routing and the incoming independent read/draw framebuffer bindings.
-GraphicsCommandContext instead shares a RenderPassSequence, retaining original target routes until
-outer cleanup and transitioning directly between draw targets. Both paths register cleanup with the
-boundary so exceptional exits cannot leave borrowed resources locked.
-Both paths use `GpuFramebuffer.RestoreDrawRouting`: supported image framebuffers restore through
-direct state access, while older contexts and the default window retain binding-based restoration.
+restores the incoming independent read/draw framebuffer bindings. Dynamic targets also restore their
+original draw routing; static targets retain their constructor-declared routing without capture or
+restoration. GraphicsCommandContext shares a RenderPassSequence, retaining original dynamic target
+routes until outer cleanup and transitioning directly between draw targets. Both paths register
+cleanup with the boundary so exceptional exits cannot leave borrowed resources locked.
+Dynamic routing restoration uses direct state access for supported image framebuffers, while older
+contexts and the default window retain binding-based restoration. Unchanged mappings emit no write.
 
 Target signatures retain exact formats, effective samples and actual attached depth/stencil aspects.
 A packed image attached only to depth does not imply a stencil attachment. Dimensions and resource
@@ -2192,8 +2219,9 @@ areas are checked against the refreshed dimensions. Pipeline validation checks e
 without a native query or reflection.
 
 Managed image metadata comes from existing attachment/resource owners. Texture and renderbuffer
-storage changes notify those owners, advancing framebuffer attachment revisions. Completeness is
-checked on the first use and after image/routing changes. Renderbuffer allocation publishes the actual
+storage changes notify those owners, advancing framebuffer attachment revisions. Dynamic target
+completeness is checked on the first use and after image/routing changes; static target completeness
+is established during construction and its attached allocations remain guarded. Renderbuffer allocation publishes the actual
 native sample count, including driver rounding. An active pass retains non-owning references
 to the framebuffer, images and managed backing resources; their resize/replacement/retirement APIs
 reject until the pass ends. Pass disposal never disposes those resources. External raw mutation is
