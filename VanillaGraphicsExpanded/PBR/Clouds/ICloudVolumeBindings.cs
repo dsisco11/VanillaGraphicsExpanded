@@ -17,9 +17,12 @@ internal interface ICloudVolumeBindings : CameraExposure.IPhotometricFrameBindin
     /// <summary>Borrows initialized native column data without binding its pre-lit color texture.</summary>
     [ShaderBinding("cloudMap", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int Map { set; }
-    /// <summary>Clips against this view's opaque scene depth.</summary>
+    /// <summary>Borrows mip zero of the same-frame shared material-depth hierarchy.</summary>
     [ShaderBinding("sceneDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int SceneDepth { set; }
+    /// <summary>Retains primary particle visibility independently of corrected material depth.</summary>
+    [ShaderBinding("visibilityDepth",ShaderBindingKind.Sampler,6,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
+    int VisibilityDepth { set; }
     /// <summary>Clips against this view's liquid surface using normalized view coordinates.</summary>
     [ShaderBinding("liquidDepth", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int LiquidDepth { set; }

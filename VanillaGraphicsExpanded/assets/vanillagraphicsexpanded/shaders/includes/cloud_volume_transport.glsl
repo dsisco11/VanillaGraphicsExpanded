@@ -4,8 +4,7 @@
 @import "./pbr_scene_storage.glsl"
 @import "./pbr_color.glsl"
 @import "./oit.glsl"
-uniform sampler2D sceneDepth;
-uniform sampler2D liquidDepth;
+@import "./cloud_depth.glsl"
 
 /** Reconstructs this view's camera-relative position with its own inverse projection/view. */
 vec3 CloudUnproject(vec2 ndc,float depth)
@@ -49,9 +48,9 @@ struct CloudPayload { vec3 bins; float reveal; vec4 glow; vec4 a0; vec4 a1; vec4
 CloudPayload CloudEmpty(vec2 uv)
 {
     return CloudPayload(vec3(1),1.0,vec4(0),vec4(0),vec4(0),vec4(0),
-        vec4(0,0,texture(sceneDepth,uv).r,texture(liquidDepth,uv).r));
+        vec4(0,0,CloudOpaqueDepth(uv),textureLod(liquidDepth,uv,0.0).r));
 }
-/** Evaluates identical transport for reference, reduced traces and rejected reconstruction pixels. */
+/** Evaluates identical transport for reference and reduced traces. */
 void CloudIntegrate(vec2 uv,inout CloudPayload result)
 {
     vec2 ndc=uv*2.0-1.0;

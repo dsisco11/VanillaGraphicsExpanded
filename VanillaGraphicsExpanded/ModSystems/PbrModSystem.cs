@@ -7,6 +7,7 @@ using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.ModSystems;
 
+/// <summary>Composes shared PBR renderers and their client resource lifetimes.</summary>
 public sealed class PbrModSystem : ModSystem, IRenderer
 {
     public double RenderOrder => -.6;
@@ -128,7 +129,8 @@ public sealed class PbrModSystem : ModSystem, IRenderer
         sceneLighting ??= new PBR.SceneColor.SceneLightingPublicationRenderer(capi);
         postprocessing ??= new PBR.Postprocessing.PostprocessPipeline(capi);
         lightShaftOcclusion ??= new PBR.Postprocessing.LightShaftOcclusionRenderer(capi);
-        depthHierarchy ??= new DepthHierarchyRenderer(capi);
+        depthHierarchy ??= new DepthHierarchyRenderer(capi,
+            () => PBR.Clouds.CloudNativeRuntime.Active?.Ownership.Owns(PBR.Clouds.CloudMode.Volumetric) == true);
         ambientOcclusion ??= new PBR.Postprocessing.AmbientOcclusionRenderer(capi, gBufferManager);
         waterRefractionCapture ??= new PBR.Liquids.WaterRefractionCapture(capi, directLightingRenderer, pbrCompositeRenderer);
 

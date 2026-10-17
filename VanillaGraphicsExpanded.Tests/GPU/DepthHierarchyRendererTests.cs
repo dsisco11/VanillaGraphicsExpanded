@@ -15,13 +15,15 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
-    /// <summary>AO-only publication reuses one chain, builds once per frame and retires on disable, reload and world teardown.</summary>
-    [Fact]
-    public void AoOnlyPublicationIsCurrentViewAndLifecycleBounded() {
+    /// <summary>AO-only and volumetric-cloud-only demand share one current-view chain and retire it at lifecycle boundaries.</summary>
+    [Theory]
+    [InlineData(false)][InlineData(true)]
+    public void SingleConsumerPublicationIsCurrentViewAndLifecycleBounded(bool cloudsOnly) {
         EnsureShaderTestAvailable();using var assets=new BinaryShaderApiFixture();using var platform=new EngineShaderPlatformScope();
         using var terrain=new EngineTerrainBuffers(7,3);terrain.Depth.UploadDataImmediate(Enumerable.Repeat(.4f,21).ToArray());
         var events=new RuntimeRenderEvents();var api=new Mock<ICoreClientAPI>{DefaultValue=DefaultValue.Mock};
-        int quality=1;api.SetupGet(a=>a.Settings.Int["ssaoQuality"]).Returns(()=>quality);
+        int quality=cloudsOnly?0:1,cloudMode=cloudsOnly?1:0;
+        api.SetupGet(a=>a.Settings.Int["ssaoQuality"]).Returns(()=>quality);
         api.SetupGet(a=>a.Settings.Int["godRays"]).Returns(0);api.SetupGet(a=>a.Settings.Bool["bloom"]).Returns(false);api.SetupGet(a=>a.Settings.Bool["fxaa"]).Returns(false);
         api.SetupGet(a=>a.Assets).Returns(assets.Api.Assets);api.SetupGet(a=>a.Logger).Returns(assets.Api.Logger);
         api.SetupGet(a=>a.Shader).Returns(assets.Api.Shader);api.SetupGet(a=>a.Event).Returns(events.Api);
@@ -30,13 +32,13 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
         api.SetupGet(a=>a.Render.FrameWidth).Returns(7);api.SetupGet(a=>a.Render.FrameHeight).Returns(3);
         api.SetupGet(a=>a.Render.ShaderUniforms).Returns(new DefaultShaderUniforms{ZNear=.1f,ZFar=100});
         api.SetupGet(a=>a.Render.FogColor).Returns(new Vec4f());
-        api.SetupGet(a=>a.World.Player).Returns(RuntimeEngineServices.CameraPlayer(()=>new VanillaGraphicsExpanded.LumOn.LumOnCameraState(0,0,0,0,0,0,0)));
+        api.SetupGet(a=>a.World).Returns(SceneColorRuntimeTests.CreateWorld());
         var framebuffers=Enumerable.Repeat<FrameBufferRef>(null!,Enum.GetValues<EnumFrameBuffer>().Max(v=>(int)v)+1).ToList();
         framebuffers[(int)EnumFrameBuffer.Primary]=terrain.Primary;api.SetupGet(a=>a.Render.FrameBuffers).Returns(framebuffers);
         var previous=PbrShaderLightingMode.GenerationLumOnEnabled;PbrShaderLightingMode.GenerationLumOnEnabled=false;
         ScreenManager.Platform.DoPostProcessingEffects=true;
         GpuShaderProgramLibraries.Create(api.Object);
-        using var frame=new VgeFrameRenderer(api.Object);using var owner=new DepthHierarchyRenderer(api.Object);
+        using var frame=new VgeFrameRenderer(api.Object);using var owner=new DepthHierarchyRenderer(api.Object,()=>cloudMode==1);
         var lifetime=ClientRenderingLifetime.Find(api.Object)!;lifetime.Attach(owner.Dispose);
         try {
             Assert.True(VgeShaderPrograms.RegisterAll(api.Object));Assert.Equal(8.7,owner.RenderOrder);
@@ -44,15 +46,30 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             events.Render(EnumRenderStage.Opaque);var first=DepthHierarchyRenderer.Texture!;Assert.NotNull(first);
             Assert.Same(VgeFrameRenderer.Current,DepthHierarchyRenderer.View);
             Assert.Equal(UboPacking.ReadUInt32(VgeFrameRenderer.Current.Bytes,396),DepthHierarchyRenderer.FrameIndex);
+            Assert.True(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,3,out var borrowed));
+            Assert.Same(first,borrowed);
+            using var alternateView=new VgeFrameUniformBuffer();
+            Assert.False(DepthHierarchyRenderer.TryGetCurrent(alternateView,7,3,out borrowed));Assert.Null(borrowed);
+            Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,8,3,out borrowed));Assert.Null(borrowed);
+            Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,4,out borrowed));Assert.Null(borrowed);
             for(int mip=0;mip<first.MipLevels;mip++)Assert.All(first.ReadPixels(mip),v=>Assert.Equal(.4f,v));
             terrain.Depth.UploadDataImmediate(Enumerable.Repeat(.7f,21).ToArray());events.Render(EnumRenderStage.Opaque);
             Assert.All(first.ReadPixels(0),v=>Assert.Equal(.4f,v));
+            // Mutating a reused view buffer cannot make the old depth generation current again.
+            VgeFrameRenderer.Current.Capture(identity,identity,identity,identity,identity,identity,new(7,3),0,
+                DepthHierarchyRenderer.FrameIndex!.Value+1,default,default,0);
+            Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,3,out borrowed));Assert.Null(borrowed);
             events.Render(EnumRenderStage.Before);Assert.Null(DepthHierarchyRenderer.Texture);
+            Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,3,out borrowed));Assert.Null(borrowed);
             events.Render(EnumRenderStage.Opaque);Assert.Same(first,DepthHierarchyRenderer.Texture);
             Assert.All(first.ReadPixels(0),v=>Assert.Equal(.7f,v));
-            quality=0;events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
+            quality=0;cloudMode=0;events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
             Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(first.IsValid);
-            quality=2;events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
+            // Simple clouds do not consume the hierarchy and must not keep it allocated.
+            cloudMode=2;events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
+            Assert.Null(DepthHierarchyRenderer.Texture);
+            quality=cloudsOnly?0:2;cloudMode=cloudsOnly?1:0;
+            events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
             var second=DepthHierarchyRenderer.Texture!;Assert.NotSame(first,second);
             ClientRenderingLifetime.BeginNativeReload(); events.ReloadShaders(); ClientRenderingLifetime.CompleteNativeReload();Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(second.IsValid);
             events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);

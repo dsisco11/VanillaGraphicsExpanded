@@ -72,6 +72,8 @@ internal sealed class CloudVolumeRenderer : IRenderer
         var primary = buffers[(int)EnumFrameBuffer.Primary]; var liquid = buffers[(int)EnumFrameBuffer.LiquidDepth];
         if (transparent is null || primary is null || liquid is null || primary.DepthTextureId == 0 || liquid.DepthTextureId == 0
             || render.CurrentRenderStage != EnumRenderStage.OIT || render.CurrentFrameBuffer?.FboId != transparent.FboId) { reconstruction.Invalidate(); return; }
+        if (!DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current, render.FrameWidth, render.FrameHeight, out var hierarchy)
+            || hierarchy is null) { reconstruction.Invalidate(); return; }
         var lighting = AtmosphereModSystem.Lighting;
         if (lighting is null || AtmosphereModSystem.AerialRadianceTexture is null || AtmosphereModSystem.AerialAttenuationTexture is null) { reconstruction.Invalidate(); return; }
         try
@@ -80,7 +82,7 @@ internal sealed class CloudVolumeRenderer : IRenderer
             // No directional reflection consumer exists here: never substitute main-view depth for it.
             SceneLightingPublicationRenderer.RequireNativeInputs("cloud_volume");
             program.Parameters.Capture(api, input, lighting, Settings);
-            program.Map = input.Storage.Map; program.SceneDepth = primary.DepthTextureId; program.LiquidDepth = liquid.DepthTextureId;
+            program.Map = input.Storage.Map; program.SceneDepth = hierarchy.TextureId; program.VisibilityDepth = primary.DepthTextureId; program.LiquidDepth = liquid.DepthTextureId;
             program.AerialRadiance = AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuation = AtmosphereModSystem.AerialAttenuationTexture;
             program.LightShafts = Postprocessing.LightShaftOcclusionRenderer.Texture;
@@ -93,7 +95,7 @@ internal sealed class CloudVolumeRenderer : IRenderer
             }
             if (!reference)
             {
-                reconstruction.Draw(input, lighting, Settings, target, primary.DepthTextureId, liquid.DepthTextureId, geometry,
+                reconstruction.Draw(input, lighting, Settings, target, hierarchy.TextureId, primary.DepthTextureId, liquid.DepthTextureId, geometry,
                     () => runtime.TryGetMap(out var current) && current == input);
                 return;
             }

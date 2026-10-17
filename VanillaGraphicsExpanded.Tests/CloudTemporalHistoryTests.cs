@@ -15,6 +15,23 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class CloudTemporalHistoryTests
 {
     #region Public API
+    /// <summary>Cloud clipping uses exact shared hierarchy mip zero in both trace/reference transport and reconstruction.</summary>
+    [Fact]
+    public void SharedDepthClippingUsesExplicitMipZero()
+    {
+        string root=Path.Combine(AppContext.BaseDirectory,"assets/shaders");
+        string depth=File.ReadAllText(Path.Combine(root,"includes/cloud_depth.glsl"));
+        Assert.Contains("textureLod(sceneDepth,uv,0.0)",depth);
+        Assert.Contains("textureLod(visibilityDepth,uv,0.0)",depth);
+        foreach(string path in new[]{"includes/cloud_volume_transport.glsl","cloud_volume_resolve.fsh"})
+        {
+            string source=File.ReadAllText(Path.Combine(root,path));
+            Assert.Contains("cloud_depth.glsl",source);
+            Assert.Contains("CloudOpaqueDepth(uv)",source);
+            Assert.Contains("textureLod(liquidDepth,uv,0.0)",source);
+            Assert.DoesNotContain("texture(sceneDepth",source);
+        }
+    }
     /// <summary>Full-view reconstruction consumes reduced payloads without importing a density or lighting march.</summary>
     [Fact]
     public void FullViewResolveCannotRetraceCloudTransport()

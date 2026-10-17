@@ -98,6 +98,23 @@ imagery remains an explicit unsupported integration dependency. Main-view depth/
 substituted for a reflection view. Cloud cast shadows on receivers or atmosphere await the
 virtual-shadow-map owner; no Beer shadow map or earlier producer callback is introduced here.
 
+## Shared depth inputs
+
+Volumetric tracing, its full-resolution reference and reconstruction borrow mip zero of the
+shared `DepthHierarchyRenderer` material-depth texture. The PBR composition root registers
+owned Volumetric clouds as an additional producer demand, so the hierarchy is available with
+LumOn and SSAO disabled. Simple and Off do not independently request it. The shared owner
+builds once in Opaque before the cloud OIT callback and retains allocation/lifecycle ownership.
+Cloud submission requires matching current frame, camera identity, extent and a valid resource;
+a missing or stale publication invalidates cloud history and skips submission.
+
+Material receiver correction removes opaque-pass particle depths for deferred lighting. Clouds
+retain primary visibility depth as an additional clip, alongside separate liquid depth, to
+preserve particle occlusion. The common shader helper combines material and visibility depth
+before tracing or reconstruction. All these depth reads explicitly select mip zero. No coarse
+mip traversal, tile rejection, min/max extension or cloud-density hierarchy is used here. Shared
+resource reuse alone does not establish a performance improvement.
+
 ## Reconstruction and controls
 
 Volumetric mode defaults to ceil-half width/height tracing with a rotating 2x2 pixel phase,

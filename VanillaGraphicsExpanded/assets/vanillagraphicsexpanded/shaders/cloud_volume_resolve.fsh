@@ -5,8 +5,7 @@
 @import "./includes/oit.glsl"
 @import "./includes/cloud_temporal_parameters.glsl"
 @import "./includes/cloud_history.glsl"
-uniform sampler2D sceneDepth;
-uniform sampler2D liquidDepth;
+@import "./includes/cloud_depth.glsl"
 
 /** Reconstructs camera-axis foreground distance so planar surfaces agree across neighboring rays. */
 float CloudResolveDepth(vec2 uv,float depth)
@@ -36,8 +35,8 @@ void main()
 {
     if(!VgeFrameLightingValid(vgeFrame.frameIndex,VgeLightingCalibrationGeneration())) discard;
     vec2 uv=gl_FragCoord.xy/vgeFrame.screenSize;
-    vec2 depth=vec2(CloudResolveDepth(uv,texture(sceneDepth,uv).r),
-        CloudResolveDepth(uv,texture(liquidDepth,uv).r));
+    vec2 depth=vec2(CloudResolveDepth(uv,CloudOpaqueDepth(uv)),
+        CloudResolveDepth(uv,textureLod(liquidDepth,uv,0.0).r));
     float limit=min(depth.x,depth.y);
     vec2 position=(gl_FragCoord.xy-cloudTrace.zw-vec2(.5))*.5;
     ivec2 base=ivec2(floor(position)),size=ivec2(cloudTrace.xy); vec2 f=fract(position);

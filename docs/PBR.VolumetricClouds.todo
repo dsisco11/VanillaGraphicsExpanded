@@ -957,3 +957,31 @@ Reduced-resolution resolve correction (2026-10-16)
   - The candidate was built in isolation; the running game was not modified or restarted. A fresh
     capture is required to measure performance. Reduced view/light marching is unchanged, and
     the in-game appearance/performance acceptance gates remain unchecked.
+Shared depth-hierarchy reuse (2026-10-16)
+  - The PBR composition root supplies owned Volumetric cloud demand to the existing shared
+    DepthHierarchyRenderer. Cloud-only demand produces the same single chain with AO/LumOn off;
+    Simple/Off do not independently retain it. Clouds neither allocate nor rebuild a hierarchy.
+  - CloudVolumeRenderer borrows only a valid matching frame/view/extent publication and forwards
+    the same hierarchy texture to reduced tracing, full-resolution reference and spatial resolve.
+    Missing or stale publication invalidates cloud history and skips submission.
+  - sceneDepth now denotes the shared corrected material hierarchy. cloud_depth.glsl explicitly
+    selects mip zero and combines it with independent primary visibility depth to preserve opaque-
+    pass particle clipping. Liquid depth remains independent. Existing six-target OIT submission,
+    physical storage, cloud density and lighting are unchanged.
+  - This is shared-resource reuse only. Coarse HZB traversal, tile culling, min/max extensions and
+    cloud-density acceleration are not implemented. Live appearance/performance gates remain open.
+  - Verification: production/test builds passed; 154 CPU/source/catalog/registry/selection and
+    78 unique GPU checks passed, zero skips. Initial cloud-hzb-focused.trx recorded 89/94 passed
+    with five fixture/assertion failures: camera-world fixture shape and assumptions of zero
+    foreground cloud while inside its volume. These were corrected in tests only. All five,
+    plus static/liquid mip checks and the new mip-zero source contract, passed the final 8/8 rerun:
+    artifacts/TestResults/cloud-hzb-final-focused.trx. Latest full CPU/contract receipt:
+    artifacts/TestResults/cloud-hzb-final-contracts.trx (154/154). Counts are reconciled, not summed
+    across overlapping receipts. Production code did not change between these runs.
+  - GPU coverage includes AO-only/cloud-only producer demand with LumOn off, one build per frame,
+    stable allocation reuse, Off/Simple withdrawal, resize/reload/world teardown, frame/view/extent
+    rejection, all cloud reference/reconstruction cases and distinct material/particle/liquid clips.
+    Adversarial coarse-mip edits leave cloud trace, reference and resolve outputs unchanged.
+  - Isolated candidate: artifacts/cloud-hzb-test-bin/VanillaGraphicsExpanded.dll, SHA256
+    EB2DE979E257EA425172D91E5B0960A9DA5B97A5983BD74811454C543FEB0B73.
+    The running game was not modified or launched. No performance or visual acceptance is claimed.

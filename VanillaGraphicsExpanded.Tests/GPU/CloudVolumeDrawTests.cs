@@ -135,6 +135,16 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
         Assert.InRange(Math.Abs(inside.Reveal-Math.Exp(-1)),0,.00002);
     }
 
+    /// <summary>Corrected material depth cannot remove a surviving opaque particle's nearer visibility, and either depth can clip transport.</summary>
+    [Theory]
+    [InlineData(1000f,25f)][InlineData(25f,1000f)]
+    public void SharedReceiverAndPrimaryVisibilityRemainDistinct(float receiverDistance,float visibilityDistance)
+    {
+        EnsureShaderTestAvailable();
+        var clipped=Draw(2,sceneDistance:receiverDistance,visibilityDistance:visibilityDistance);
+        Assert.InRange(Math.Abs(clipped.Reveal-Math.Exp(-1)),0,.0002);
+    }
+
     /// <summary>Lookup decoding, affine aerial transport and frozen storage enter once for each covered interval.</summary>
     [Theory]
     [InlineData(1f)]
@@ -211,7 +221,7 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
     private Result Draw(float extinction,float units=1,int width=2,bool secondColumn=false,bool sharedNeighbor=true,
         float altitude=0,float offsetZ=-50,float offsetX=0,int centerX=0,CloudVolumeSettings? settings=null,
         float solar=0,float lunar=0,float scale=1,float loss=0,float scatter=0,float sceneDistance=1000,float liquidDistance=1000,
-        float[]? view=null,bool underwater=false,float fogDensity=0,float lower=-.5f,float upper=.5f,int windTileX=0)
+        float[]? view=null,bool underwater=false,float fogDensity=0,float lower=-.5f,float upper=.5f,int windTileX=0,float? visibilityDistance=null)
     {
         float[] projection=[1,0,0,0,0,1,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0];
         float[] inverse=new float[16]; Mat4f.Invert(inverse,projection);
@@ -235,14 +245,16 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
         map.UploadDataImmediate(columns);
         Assert.Equal(columns,map.ReadPixels());
         using var opaque=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
+        using var visibility=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
         using var liquid=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
         opaque.UploadDataImmediate(new[]{Depth(sceneDistance)}); liquid.UploadDataImmediate(new[]{Depth(liquidDistance)});
+        visibility.UploadDataImmediate([Depth(visibilityDistance??sceneDistance)]);
         using var aerial=DynamicTexture3D.Create(1,2,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D);
         using var attenuation=DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D);
         using var shafts=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
         aerial.UploadDataImmediate([scatter/16,scatter/16,scatter/16,0,0,0,0,0],0,0,0,1,2,1,0);
         attenuation.UploadDataImmediate([loss,loss,loss,0],0,0,0,1,1,1,0); shafts.UploadDataImmediate(new float[]{0});
-        program.Map=map.TextureId; program.SceneDepth=opaque.TextureId; program.LiquidDepth=liquid.TextureId;
+        program.Map=map.TextureId; program.SceneDepth=opaque.TextureId; program.VisibilityDepth=visibility.TextureId; program.LiquidDepth=liquid.TextureId;
         program.AerialRadiance=aerial; program.AerialAttenuation=attenuation; program.LightShafts=shafts;
         using var reveal=DynamicTexture2D.Create(1,1,PixelInternalFormat.Rgb32f);
         using var overall=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);

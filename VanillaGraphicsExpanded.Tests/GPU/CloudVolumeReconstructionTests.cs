@@ -84,6 +84,48 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         output.WriteLine($"{scene}: max attenuation absolute={maxAttenuation:G7}; max payload error / max(1,environment*scale)={maxRadiance:G7}");
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
+    /// <summary>Opaque hierarchy coarse levels never alter precise cloud tracing, reference clipping or full-view reconstruction.</summary>
+    [Theory]
+    [InlineData("static")][InlineData("terrain")][InlineData("liquid")][InlineData("mixed")]
+    public void OpaqueHierarchyAlwaysSamplesMipZero(string scene)
+    {
+        EnsureShaderTestAvailable(); using var view=CreateScene(9,7,mipmappedOpaque:true);
+        view.Capture(0,2,10,1,0,scene);view.SetOpaqueCoarseDepth(0);view.Render(0,false);
+        var reconstructed=view.ReadDefault();var reference=view.ReadReference();var history=view.ReadHistory();
+        view.SetOpaqueCoarseDepth(1);view.Render(0,false);
+        var changed=view.ReadDefault();var changedReference=view.ReadReference();var changedHistory=view.ReadHistory();
+        for(int layer=0;layer<6;layer++)
+        {
+            Assert.Equal(reconstructed[layer],changed[layer]);
+            Assert.Equal(reference[layer],changedReference[layer]);
+            Assert.Equal(history[layer],changedHistory[layer]);
+        }
+        Assert.Contains(changed[1],value=>value<1);
+        if(scene is "terrain" or "mixed") Assert.True(changedReference[1].Max()>changedReference[1].Min());
+        Assert.Equal(ErrorCode.NoError,GL.GetError());
+    }
+    /// <summary>Foreground particles remain visible occluders even when corrected receiver depth contains only distant terrain.</summary>
+    [Fact]
+    public void ParticleVisibilityClipsTracingAndAuthoredResolve()
+    {
+        EnsureShaderTestAvailable();using var view=CreateScene(9,7);
+        view.Capture(0,2,10,1,0,"static");view.Render(0,false);
+        var unoccluded=view.ReadReference();view.SetVisibilityForeground();
+        var resolved=view.ResolveAuthoredHistory();
+        for(int y=0;y<7;y++)for(int x=0;x<9;x++)
+            Assert.InRange(Math.Abs(resolved[1][y*9+x]-((x+y)%3==0?1f:.4f)),0,.00001);
+        view.Render(0,false);
+        var reference=view.ReadReference();var reconstructed=view.ReadDefault();
+        for(int y=0;y<7;y++)for(int x=0;x<9;x++)
+        {
+            int index=y*9+x;
+            // This camera starts inside the cloud: nearer visibility removes the rear interval,
+            // while the front interval remains valid and must not be erased.
+            if((x+y)%3==0) Assert.True(reference[1][index]>unoccluded[1][index]);
+            else Assert.Equal(unoccluded[1][index],reference[1][index]);
+            AssertWithinSpatialReference(reconstructed[1],reference[1],index,1,9,7,.021f);
+        }
+    }
     /// <summary>New opaque silhouettes cannot inherit a cloud behind a previous depth, even inside one reduced pixel.</summary>
     [Fact]
     public void NewlyExposedAndOccludedPixelsUseCurrentDepth()
@@ -203,8 +245,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             $"Pixel({x},{y}) channel{channel}: {actual[index]:G9} outside reference footprint [{low:G9},{high:G9}] +/- {tolerance:G9}");
     }
     /// <summary>Creates independent owned executables, persistent reduced storage and a tiny view without native engine state.</summary>
-    private CloudScene CreateScene(int width,int height)=>new(width,height,Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),
-        Programs.Create<CloudTemporalProgram>(),Programs.Create<CloudResolveProgram>());
+    private CloudScene CreateScene(int width,int height,bool mipmappedOpaque=false)=>new(width,height,Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),
+        Programs.Create<CloudTemporalProgram>(),Programs.Create<CloudResolveProgram>(),mipmappedOpaque);
 
     /// <summary>Owns synthetic native inputs and executes the same three pass structure as the runtime.</summary>
     private sealed class CloudScene : IDisposable
@@ -217,7 +259,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         private readonly List<IDisposable> owned=[];
         private readonly VgeFrameUniformBuffer camera;
         private readonly TestFrameLightingPublication storage;
-        private readonly DynamicTexture2D map,opaque,liquid;
+        private readonly DynamicTexture2D map,opaque,visibility,liquid;
         private readonly DynamicTexture3D aerial,loss;
         private readonly CloudVolumeSurface traced,historyA,historyB,result,expected;
         private readonly GraphicsPipelineLifetime lifetime;
@@ -233,13 +275,16 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         #region Public API
         #region View preparation
         /// <summary>Allocates small deterministic targets and independently authored column/depth/atmospheric fixtures.</summary>
-        internal CloudScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve)
+        internal CloudScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve,bool mipmappedOpaque)
         {
             this.width=width;this.height=height;this.reference=reference;this.trace=trace;this.temporal=temporal;this.resolve=resolve;
             (lowWidth,lowHeight)=CloudVolumeSurface.Dimensions(width,height);
             camera=Own(new VgeFrameUniformBuffer()); storage=Own(new TestFrameLightingPublication());
             map=Own(DynamicTexture2D.Create(4,4,PixelInternalFormat.Rgba32f));
-            opaque=Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
+            int levels=1;for(int extent=Math.Max(width,height);extent>1;extent>>=1)levels++;
+            opaque=Own(mipmappedOpaque?DynamicTexture2D.CreateMipmapped(width,height,PixelInternalFormat.R32f,levels):
+                DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
+            visibility=Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
             liquid=Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
             aerial=Own(DynamicTexture3D.Create(1,2,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
             loss=Own(DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
@@ -252,6 +297,25 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             Mat4f.Invert(inverse,projection);
             reference.Frame=camera;trace.Frame=camera;temporal.Frame=camera;resolve.Frame=camera;
             reference.Lighting=storage.Buffer;trace.Lighting=storage.Buffer;resolve.Lighting=storage.Buffer;
+        }
+        /// <summary>Seeds adversarial coarse levels and enables mip selection so an accidental implicit LOD becomes observable.</summary>
+        internal void SetOpaqueCoarseDepth(float depth)
+        {
+            using var binding=StateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,opaque.TextureId);
+            GL.TexParameter(TextureTarget.Texture2D,TextureParameterName.TextureMinFilter,(int)TextureMinFilter.NearestMipmapNearest);
+            for(int level=1;level<opaque.MipLevels;level++)
+            {
+                int mipWidth=Math.Max(1,width>>level),mipHeight=Math.Max(1,height>>level);
+                GL.TexSubImage2D(TextureTarget.Texture2D,level,0,0,mipWidth,mipHeight,PixelFormat.Red,PixelType.Float,
+                    Enumerable.Repeat(depth,mipWidth*mipHeight).ToArray());
+            }
+        }
+        /// <summary>Authors surviving foreground particles independently of the corrected material-depth input.</summary>
+        internal void SetVisibilityForeground()
+        {
+            float[] depths=new float[width*height];
+            for(int y=0;y<height;y++)for(int x=0;x<width;x++)depths[y*width+x]=Depth((x+y)%3==0?20:1000);
+            visibility.UploadDataImmediate(depths);
         }
         /// <summary>Captures one explicit cloud/camera state, including per-pixel opaque and liquid discontinuities.</summary>
         internal void Capture(uint frame,float extinction,float environment,float scale,float offset,string scene)
@@ -281,13 +345,13 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
                 depths[y*width+x]=Depth(foreground?20:1000);
                 liquids[y*width+x]=Depth((scene is "liquid" or "mixed")&&y<height/2?60:1000);
             }
-            opaque.UploadDataImmediate(depths);liquid.UploadDataImmediate(liquids);
+            opaque.UploadDataImmediate(depths);visibility.UploadDataImmediate(depths);liquid.UploadDataImmediate(liquids);
             var lighting=new AtmosphereLighting(Vector3.UnitY,scene=="lit"?new(30):Vector3.Zero,new(environment),Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
                 { Moon=-Vector3.UnitY,Lunar=scene=="lit"?new(3):Vector3.Zero,CalibrationGeneration=1,
                     LookupStorageScale=LightingStorage.PersistentScale,ReconstructionMaximumNits=aerialScatter };
             var placement=new CloudPlacement(0,0,0,0,0,0,offset,0,new(offset,0,-50),0);
             Configure(reference,reference.Parameters,placement,lighting);Configure(trace,trace.Parameters,placement,lighting);
-            resolve.SceneDepth=opaque.TextureId;resolve.LiquidDepth=liquid.TextureId;
+            resolve.SceneDepth=opaque.TextureId;resolve.VisibilityDepth=visibility.TextureId;resolve.LiquidDepth=liquid.TextureId;
         }
         #endregion
         #region Submission and history probes
@@ -377,7 +441,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         {
             parameters.CaptureMap(4,placement,1,CloudVolumeSettings.Default with {Detail=detail});
             parameters.CaptureLighting(lighting,underwater?1:0,new(underwater ? .02f : 0,0,0,0),Vector3.Zero);
-            program.Map=map.TextureId;program.SceneDepth=opaque.TextureId;program.LiquidDepth=liquid.TextureId;program.AerialRadiance=aerial;program.AerialAttenuation=loss;
+            program.Map=map.TextureId;program.SceneDepth=opaque.TextureId;program.VisibilityDepth=visibility.TextureId;program.LiquidDepth=liquid.TextureId;program.AerialRadiance=aerial;program.AerialAttenuation=loss;
         }
         /// <summary>Binds an alternate physical-history set, including unfiltered depth metadata.</summary>
         private static void BindHistory(ICloudHistoryBindings program,CloudVolumeSurface surface)

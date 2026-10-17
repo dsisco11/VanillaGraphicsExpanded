@@ -8,12 +8,13 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 using Vintagestory.API.Client;
 using Vintagestory.Client;
 namespace VanillaGraphicsExpanded.Rendering;
-/// <summary>Publishes corrected opaque depth once before AO and indirect lighting, independently of either consumer.</summary>
+/// <summary>Publishes corrected opaque depth once before AO and indirect lighting, independently of any individual consumer.</summary>
 internal sealed class DepthHierarchyRenderer : IRenderer
 {
     private System.IDisposable? reloadRegistration;
     private static DepthHierarchyRenderer? active;
     private readonly ICoreClientAPI api;
+    private readonly Func<bool>? additionalDemand;
     private readonly Action unregisterResize;
     private readonly DepthHierarchyPass pass=new();
     private GpuResourceCollection resources=new();
@@ -22,6 +23,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     private bool published,disposed;
     private uint frameIndex;
     #region Public API
+    #region Publication
     /// <summary>Runs after corrected receiver capture and before the earliest hierarchy consumer.</summary>
     public double RenderOrder=>8.7;
     /// <summary>Depth hierarchy is independent of chunk rendering distance.</summary>
@@ -32,9 +34,23 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     internal static VgeFrameUniformBuffer? View=>active is {published:true} owner?owner.view:null;
     /// <summary>Identifies the exact frame captured into the current allocation generation.</summary>
     internal static uint? FrameIndex=>active is {published:true} owner?owner.frameIndex:null;
-    /// <summary>Registers publication and attachment/executable retirement boundaries.</summary>
-    internal DepthHierarchyRenderer(ICoreClientAPI api) {
-        this.api=api;active=this;
+    /// <summary>Borrows only a completed hierarchy matching the exact camera frame and view extent.</summary>
+    internal static bool TryGetCurrent(VgeFrameUniformBuffer expected,int width,int height,out DynamicTexture2D? texture)
+    {
+        texture=null;
+        var candidate=Texture;
+        // View buffers are reused between frames, so pointer identity alone cannot certify freshness.
+        if(candidate is null || !candidate.IsValid || !ReferenceEquals(View,expected)
+            || FrameIndex!=UboPacking.ReadUInt32(expected.Bytes,396)
+            || candidate.Width!=width || candidate.Height!=height) return false;
+        texture=candidate;
+        return true;
+    }
+    #endregion
+    #region Lifecycle and execution
+    /// <summary>Registers publication/lifetime boundaries and optional demand from another shared consumer.</summary>
+    internal DepthHierarchyRenderer(ICoreClientAPI api,Func<bool>? additionalDemand=null) {
+        this.api=api;this.additionalDemand=additionalDemand;active=this;
         unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,Retire);
         api.Event.RegisterRenderer(this,EnumRenderStage.Before,"vge_depth_reset");
         api.Event.RegisterRenderer(this,EnumRenderStage.Opaque,"vge_depth_hierarchy");
@@ -45,7 +61,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
         if(disposed)return;
         if(stage==EnumRenderStage.Before) {published=false;view=null;return;}
         if(stage!=EnumRenderStage.Opaque || published)return;
-        bool required=PbrShaderLightingMode.LumOnEnabled || EnginePostprocessInputs.Capture(ScreenManager.Platform,api).Ssao;
+        bool required=PbrShaderLightingMode.LumOnEnabled || EnginePostprocessInputs.Capture(ScreenManager.Platform,api).Ssao || additionalDemand?.Invoke()==true;
         if(!required) {Retire();return;}
         var primary=api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
@@ -63,6 +79,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
         api.Event.UnregisterRenderer(this,EnumRenderStage.Before);api.Event.UnregisterRenderer(this,EnumRenderStage.Opaque);
         reloadRegistration?.Dispose();api.Event.LeaveWorld-=Retire;unregisterResize();Retire();
     }
+    #endregion
     #endregion
     #region Private
     private VgeFrameUniformBuffer? view;

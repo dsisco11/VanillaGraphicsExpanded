@@ -44,14 +44,14 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     #region Submission
     /// <summary>Runs complete payload passes under one owned graphics boundary; commits history only after successful OIT submission.</summary>
     internal bool Draw(CloudMapInput input,AtmosphereLighting lighting,CloudVolumeSettings settings,GpuFramebuffer target,
-        int sceneDepth,int liquidDepth,ArrayGraphicsGeometry geometry,Func<bool> current)
+        int sceneDepth,int visibilityDepth,int liquidDepth,ArrayGraphicsGeometry geometry,Func<bool> current)
     {
         if(traceProgram is null||temporalProgram is null||resolveProgram is null) return false;
         EnsureSize(api.Render.FrameWidth,api.Render.FrameHeight);
         var previous=swap?second!:first!; var next=swap?first!:second!;
         var camera=VgeFrameRenderer.Current;
-        Capture(traceProgram,traceProgram.Parameters,input,lighting,settings,sceneDepth,liquidDepth);
-        resolveProgram.SceneDepth=sceneDepth; resolveProgram.LiquidDepth=liquidDepth;
+        Capture(traceProgram,traceProgram.Parameters,input,lighting,settings,sceneDepth,visibilityDepth,liquidDepth);
+        resolveProgram.SceneDepth=sceneDepth; resolveProgram.VisibilityDepth=visibilityDepth; resolveProgram.LiquidDepth=liquidDepth;
         // The immutable publication and native content certificates identify compatibility. New
         // map generation numbers alone do not: the native producer legitimately writes every frame.
         foreach(var temporal in new[]{traceProgram.Temporal,temporalProgram.Temporal,resolveProgram.Temporal})
@@ -124,9 +124,9 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     }
     /// <summary>Captures physical density and lighting inputs only for reduced tracing.</summary>
     private void Capture(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudMapInput input,AtmosphereLighting lighting,
-        CloudVolumeSettings settings,int sceneDepth,int liquidDepth)
+        CloudVolumeSettings settings,int sceneDepth,int visibilityDepth,int liquidDepth)
     {
-        parameters.Capture(api,input,lighting,settings); program.Map=input.Storage.Map; program.SceneDepth=sceneDepth; program.LiquidDepth=liquidDepth;
+        parameters.Capture(api,input,lighting,settings); program.Map=input.Storage.Map; program.SceneDepth=sceneDepth; program.VisibilityDepth=visibilityDepth; program.LiquidDepth=liquidDepth;
         program.AerialRadiance=AtmosphereModSystem.AerialRadianceTexture; program.AerialAttenuation=AtmosphereModSystem.AerialAttenuationTexture;
         program.LightShafts=Postprocessing.LightShaftOcclusionRenderer.Texture;
     }
