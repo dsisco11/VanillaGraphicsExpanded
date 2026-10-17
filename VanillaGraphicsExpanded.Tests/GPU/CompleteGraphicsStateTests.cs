@@ -97,12 +97,16 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         var dormant = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout, baseline.Targets,
             DynamicPipelineState.All, depthStencil: baseline.DepthStencil, rasterizer: baseline.Rasterizer,
             blending: baseline.Blending, sampling: baseline.Sampling, assembly: baseline.Assembly);
+        var enabled = Pipeline(true);
         var defaults = new GraphicsPipelineDesc(baseline.Shader, baseline.VertexLayout, baseline.Targets,
             DynamicPipelineState.Viewport, depthStencil: baseline.DepthStencil, rasterizer: baseline.Rasterizer,
             blending: baseline.Blending, sampling: baseline.Sampling, assembly: baseline.Assembly);
         var valid = new GraphicsDynamicState { Viewport = new() { Width = 8, Height = 8 },
             Scissor = (1, 2, 3, 4), StencilReference = (5, 6), BlendConstant = (.1f, .2f, .3f, .4f) };
         cache.ApplyGraphicsState(baseline, Dynamics());
+        cache.SetScissor(4, 3, 2, 1); cache.SetBlendConstant(.5f, .6f, .7f, .8f);
+        cache.SetStencilFunction(StencilFace.Front, StencilFunction.Always, 7, 0xff);
+        cache.SetStencilFunction(StencilFace.Back, StencilFunction.Always, 9, 0xff);
         long calls = cache.FixedFunctionCalls;
         foreach (var invalid in new[] { valid with { Scissor = null }, valid with { Scissor = (0, 0, -1, 1) },
             valid with { StencilReference = null }, valid with { StencilReference = (256, 0) },
@@ -115,14 +119,26 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         {
             cache.ApplyGraphicsState(dormant, valid);
             int[] rectangle = new int[4]; GL.GetInteger(GetPName.ScissorBox, rectangle);
-            Assert.Equal(new[] { 1, 2, 3, 4 }, rectangle);
-            // Omitting dynamic declarations keeps concrete defaults, independent of the preceding draw.
+            Assert.Equal(new[] { 4, 3, 2, 1 }, rectangle);
+            Assert.Equal(7, GL.GetInteger(GetPName.StencilRef));
+            Assert.Equal(9, GL.GetInteger(GetPName.StencilBackRef));
+            float[] constant = new float[4]; GL.GetFloat(GetPName.BlendColor, constant);
+            Assert.Equal(new[] { .5f, .6f, .7f, .8f }, constant);
+            cache.ApplyGraphicsState(enabled, valid);
+            GL.GetInteger(GetPName.ScissorBox, rectangle); Assert.Equal(new[] { 1, 2, 3, 4 }, rectangle);
+            Assert.Equal(5, GL.GetInteger(GetPName.StencilRef)); Assert.Equal(6, GL.GetInteger(GetPName.StencilBackRef));
+            GL.GetFloat(GetPName.BlendColor, constant); Assert.Equal(new[] { .1f, .2f, .3f, .4f }, constant);
+            // Omitted dormant slots do not reset native payloads. Current enabled selectors require declarations.
             cache.ApplyGraphicsState(defaults, new() { Viewport = valid.Viewport });
             GL.GetInteger(GetPName.ScissorBox, rectangle);
-            Assert.Equal(new[] { 0, 0, 0, 0 }, rectangle);
+            Assert.Equal(new[] { 1, 2, 3, 4 }, rectangle);
+            Assert.Equal(5, GL.GetInteger(GetPName.StencilRef)); Assert.Equal(6, GL.GetInteger(GetPName.StencilBackRef));
+            GL.GetFloat(GetPName.BlendColor, constant); Assert.Equal(new[] { .1f, .2f, .3f, .4f }, constant);
+            cache.ApplyGraphicsState(enabled, valid with { Scissor = (0, 0, 0, 0), StencilReference = (0, 0), BlendConstant = (0, 0, 0, 0) });
+            GL.GetInteger(GetPName.ScissorBox, rectangle); Assert.Equal(new[] { 0, 0, 0, 0 }, rectangle);
             Assert.Equal(0, GL.GetInteger(GetPName.StencilRef));
             Assert.Equal(0, GL.GetInteger(GetPName.StencilBackRef));
-            float[] constant = new float[4]; GL.GetFloat(GetPName.BlendColor, constant);
+            GL.GetFloat(GetPName.BlendColor, constant);
             Assert.Equal(new float[4], constant);
         }
         finally { cache.ApplyGraphicsState(baseline, Dynamics()); }
@@ -173,6 +189,8 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
         var description = Pipeline(false);
         cache.ApplyGraphicsState(description, Dynamics()); long calls = cache.FixedFunctionCalls;
+        cache.SetDepthFunc(description.DepthStencil.DepthComparison); cache.SetScissor(2, 4, 11, 13); cache.SetBlendConstant(.125f, .25f, .5f, .75f);
+        calls = cache.FixedFunctionCalls;
         cache.Invalidate(EPipelineState.Sampling);
         cache.SetDepthFunc(description.DepthStencil.DepthComparison); cache.SetScissor(2, 4, 11, 13); cache.SetBlendConstant(.125f, .25f, .5f, .75f);
         Assert.Equal(calls, cache.FixedFunctionCalls);
@@ -302,44 +320,55 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
     private static void AssertNative(GraphicsPipelineDesc desc)
     {
         Assert.Equal(desc.DepthStencil.DepthTest, GL.IsEnabled(EnableCap.DepthTest));
-        Assert.Equal(desc.DepthStencil.DepthWrite, GL.GetBoolean(GetPName.DepthWritemask));
-        Assert.Equal((int)desc.DepthStencil.DepthComparison, GL.GetInteger(GetPName.DepthFunc));
+        if (desc.DepthStencil.DepthTest)
+        {
+            Assert.Equal(desc.DepthStencil.DepthWrite, GL.GetBoolean(GetPName.DepthWritemask));
+            Assert.Equal((int)desc.DepthStencil.DepthComparison, GL.GetInteger(GetPName.DepthFunc));
+        }
         double[] range = new double[2]; GL.GetDouble(GetPName.DepthRange, range); Assert.Equal(new[] { 0d, 1d }, range);
         Assert.Equal(desc.DepthStencil.StencilTest, GL.IsEnabled(EnableCap.StencilTest));
-        Assert.Equal((int)desc.DepthStencil.Front.Comparison, GL.GetInteger(GetPName.StencilFunc));
-        Assert.Equal((int)desc.DepthStencil.Back.Comparison, GL.GetInteger(GetPName.StencilBackFunc));
-        Assert.Equal((int)desc.DepthStencil.Front.WriteMask, GL.GetInteger(GetPName.StencilWritemask));
-        Assert.Equal((int)desc.DepthStencil.Back.WriteMask, GL.GetInteger(GetPName.StencilBackWritemask));
-        Assert.Equal((int)desc.DepthStencil.Front.Pass, GL.GetInteger(GetPName.StencilPassDepthPass));
-        Assert.Equal((int)desc.DepthStencil.Back.DepthFail, GL.GetInteger(GetPName.StencilBackPassDepthFail));
-        Assert.Equal(3, GL.GetInteger(GetPName.StencilRef)); Assert.Equal(5, GL.GetInteger(GetPName.StencilBackRef));
+        if (desc.DepthStencil.StencilTest)
+        {
+            Assert.Equal((int)desc.DepthStencil.Front.Comparison, GL.GetInteger(GetPName.StencilFunc));
+            Assert.Equal((int)desc.DepthStencil.Back.Comparison, GL.GetInteger(GetPName.StencilBackFunc));
+            Assert.Equal((int)desc.DepthStencil.Front.WriteMask, GL.GetInteger(GetPName.StencilWritemask));
+            Assert.Equal((int)desc.DepthStencil.Back.WriteMask, GL.GetInteger(GetPName.StencilBackWritemask));
+            Assert.Equal((int)desc.DepthStencil.Front.Pass, GL.GetInteger(GetPName.StencilPassDepthPass));
+            Assert.Equal((int)desc.DepthStencil.Back.DepthFail, GL.GetInteger(GetPName.StencilBackPassDepthFail));
+            Assert.Equal(3, GL.GetInteger(GetPName.StencilRef)); Assert.Equal(5, GL.GetInteger(GetPName.StencilBackRef));
+        }
         Assert.Equal(desc.Rasterizer.Cull, GL.IsEnabled(EnableCap.CullFace)); Assert.False(GL.IsEnabled(EnableCap.RasterizerDiscard));
         Assert.Equal((int)desc.Rasterizer.FrontFace, GL.GetInteger(GetPName.FrontFace));
         Assert.Equal(desc.Rasterizer.DepthClamp, GL.IsEnabled(EnableCap.DepthClamp));
         Assert.Equal(desc.Rasterizer.OffsetFill, GL.IsEnabled(EnableCap.PolygonOffsetFill));
-        Assert.Equal(desc.Rasterizer.DepthBiasFactor, GL.GetFloat(GetPName.PolygonOffsetFactor));
-        Assert.Equal(desc.Rasterizer.ProgramPointSize, GL.IsEnabled(EnableCap.ProgramPointSize));
+        if (desc.Rasterizer.OffsetFill) Assert.Equal(desc.Rasterizer.DepthBiasFactor, GL.GetFloat(GetPName.PolygonOffsetFactor));
         int[] rect = new int[4]; GL.GetInteger(GetPName.Viewport, rect); Assert.Equal(new[] { 3, 5, 17, 19 }, rect);
-        GL.GetInteger(GetPName.ScissorBox, rect); Assert.Equal(new[] { 2, 4, 11, 13 }, rect);
-        float[] constant = new float[4]; GL.GetFloat(GetPName.BlendColor, constant); Assert.Equal(new[] { .125f, .25f, .5f, .75f }, constant);
+        if (desc.Rasterizer.Scissor) { GL.GetInteger(GetPName.ScissorBox, rect); Assert.Equal(new[] { 2, 4, 11, 13 }, rect); }
+        if (desc.Blending[0].Enabled)
+        {
+            float[] constant = new float[4]; GL.GetFloat(GetPName.BlendColor, constant); Assert.Equal(new[] { .125f, .25f, .5f, .75f }, constant);
+        }
         for (int i = 0; i < desc.Blending.Count; i++)
         {
             var blend = desc.Blending[i]; Assert.Equal(blend.Enabled, GL.IsEnabled(IndexedEnableCap.Blend, i));
-            GL.GetInteger((GetIndexedPName)GetPName.BlendEquationRgb, i, out int rgb); Assert.Equal((int)blend.RgbEquation, rgb);
-            GL.GetInteger((GetIndexedPName)GetPName.BlendEquationAlpha, i, out int alpha); Assert.Equal((int)blend.AlphaEquation, alpha);
+            if (blend.Enabled)
+            {
+                GL.GetInteger((GetIndexedPName)GetPName.BlendEquationRgb, i, out int rgb); Assert.Equal((int)blend.RgbEquation, rgb);
+                GL.GetInteger((GetIndexedPName)GetPName.BlendEquationAlpha, i, out int alpha); Assert.Equal((int)blend.AlphaEquation, alpha);
+            }
             bool[] mask = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, i, mask); Assert.Equal(new[] { blend.WriteRed, blend.WriteGreen, blend.WriteBlue, blend.WriteAlpha }, mask);
         }
         Assert.Equal(desc.Sampling.Multisample, GL.IsEnabled(EnableCap.Multisample));
         Assert.Equal(desc.Sampling.CoverageEnabled, GL.IsEnabled(EnableCap.SampleCoverage));
-        Assert.Equal(desc.Sampling.Coverage, GL.GetFloat(GetPName.SampleCoverageValue));
+        if (desc.Sampling.CoverageEnabled) Assert.Equal(desc.Sampling.Coverage, GL.GetFloat(GetPName.SampleCoverageValue));
         Assert.Equal(desc.Sampling.MaskEnabled, GL.IsEnabled(EnableCap.SampleMask));
-        GL.GetInteger((GetIndexedPName)All.SampleMaskValue, 0, out int word); Assert.Equal(desc.Sampling.GetMaskWord(0), unchecked((uint)word));
+        if (desc.Sampling.MaskEnabled) { GL.GetInteger((GetIndexedPName)All.SampleMaskValue, 0, out int word); Assert.Equal(desc.Sampling.GetMaskWord(0), unchecked((uint)word)); }
         Assert.Equal(desc.Sampling.AlphaToCoverage, GL.IsEnabled(EnableCap.SampleAlphaToCoverage));
         Assert.Equal(desc.Sampling.AlphaToOne, GL.IsEnabled(EnableCap.SampleAlphaToOne));
         Assert.Equal(desc.Sampling.SampleShading, GL.IsEnabled(EnableCap.SampleShading));
-        Assert.Equal(desc.Sampling.MinimumSampleShading, GL.GetFloat((GetPName)All.MinSampleShadingValue));
+        if (desc.Sampling.SampleShading) Assert.Equal(desc.Sampling.MinimumSampleShading, GL.GetFloat((GetPName)All.MinSampleShadingValue));
         Assert.Equal(desc.Assembly.Restart, GL.IsEnabled(EnableCap.PrimitiveRestart));
-        Assert.Equal(desc.Assembly.RestartIndex, unchecked((uint)GL.GetInteger(GetPName.PrimitiveRestartIndex)));
+        if (desc.Assembly.Restart) Assert.Equal(desc.Assembly.RestartIndex, unchecked((uint)GL.GetInteger(GetPName.PrimitiveRestartIndex)));
         Assert.Equal(desc.Output.FramebufferSrgb, GL.IsEnabled(EnableCap.FramebufferSrgb)); Assert.Equal(desc.Output.Dither, GL.IsEnabled(EnableCap.Dither));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

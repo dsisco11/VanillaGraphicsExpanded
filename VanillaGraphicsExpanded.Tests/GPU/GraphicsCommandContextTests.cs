@@ -17,6 +17,87 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Depth/stencil clear masks remain valid independently of disabled draw tests and restore disabled incoming masks.</summary>
+    [Fact]
+    public void PackedClearThenDisabledTestsPreservesClearedAspectsAndExactMasks()
+    {
+        EnsureContextValid();
+        using var programs = new ComponentShaderPrograms();
+        var shader = programs.Create<RasterDepthReductionShaderProgram>();
+        using var lifetime = new GraphicsPipelineLifetime();
+        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, Layout(3),
+            new([new(PixelInternalFormat.R32f)], PixelInternalFormat.Depth24Stencil8), DynamicPipelineState.Viewport), shader);
+        using var geometry = Geometry();
+        using var source = DynamicTexture2D.CreateWithData(8, 8, PixelInternalFormat.R32f, Enumerable.Repeat(.2f, 64).ToArray());
+        using var color = DynamicTexture2D.Create(4, 4, PixelInternalFormat.R32f);
+        using var depth = new DepthStencilTexture(4, 4);
+        using var colorImage = GpuFramebufferAttachment.FromTexture(color);
+        using var depthImage = GpuFramebufferAttachment.FromTexture(depth);
+        using var target = DynamicGpuFramebuffer.CreateEmpty();
+        target.SetAttachment(FramebufferAttachment.ColorAttachment0, colorImage);
+        target.SetAttachment(FramebufferAttachment.DepthStencilAttachment, depthImage);
+        shader.HzbDepth = source; shader.SrcMip = 0;
+        GL.Disable(EnableCap.DepthTest); GL.Disable(EnableCap.StencilTest);
+        GL.DepthMask(false); GL.StencilMaskSeparate(StencilFace.Front, 0x35); GL.StencilMaskSeparate(StencilFace.Back, 0x53);
+        StateCache.Current.InvalidateAll();
+        Assert.True(GraphicsCommandContext.TryRun("PackedClearAndDraw", [pipeline], true, commands =>
+        {
+            commands.BeginPass(new(target, [new(0)], new(DepthLoad: AttachmentLoad.Clear, ClearDepth: .75f,
+                StencilLoad: AttachmentLoad.Clear, ClearStencil: 0x59)));
+            commands.SetPipeline(pipeline); commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.Draw(geometry, new(0, 3));
+            Assert.False(GL.IsEnabled(EnableCap.DepthTest)); Assert.False(GL.IsEnabled(EnableCap.StencilTest));
+            Assert.True(GL.GetBoolean(GetPName.DepthWritemask));
+            Assert.Equal(uint.MaxValue, unchecked((uint)GL.GetInteger(GetPName.StencilWritemask)));
+            Assert.Equal(uint.MaxValue, unchecked((uint)GL.GetInteger(GetPName.StencilBackWritemask)));
+        }));
+        Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
+        Assert.Equal(0x35, GL.GetInteger(GetPName.StencilWritemask)); Assert.Equal(0x53, GL.GetInteger(GetPName.StencilBackWritemask));
+        Assert.All(color.ReadPixels(), value => Assert.InRange(value, .1999f, .2001f));
+        Assert.All(depth.ReadPixels(), value => Assert.InRange(value, .7499f, .7501f));
+        Assert.All(depth.ReadStencilPixels(), value => Assert.Equal((byte)0x59, value));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
+    /// <summary>A region clear establishes its own scissor before an unscissored prepared draw covers the entire target.</summary>
+    [Fact]
+    public void RegionClearThenDrawUsesIndependentStateAndRestoresDormantRectangle()
+    {
+        EnsureContextValid();
+        using var programs = new ComponentShaderPrograms();
+        var shader = programs.Create<RasterDepthReductionShaderProgram>();
+        using var lifetime = new GraphicsPipelineLifetime();
+        using var pipeline = Pipeline(lifetime, shader);
+        using var geometry = Geometry();
+        using var source = DynamicTexture2D.CreateWithData(8, 8, PixelInternalFormat.R32f, Enumerable.Repeat(.2f, 64).ToArray());
+        using var target = CreateRenderTarget(4, 4, PixelInternalFormat.R32f);
+        shader.HzbDepth = source; shader.SrcMip = 0;
+        GL.Disable(EnableCap.ScissorTest); GL.Scissor(2, 1, 1, 2); GL.DepthMask(false);
+        StateCache.Current.InvalidateAll();
+        Assert.True(GraphicsCommandContext.TryRun("RegionClearAndDraw", [pipeline], true, commands =>
+        {
+            long before = StateCache.Current.FixedFunctionCalls;
+            Assert.Throws<InvalidOperationException>(() => StateCache.Current.SetLineWidth(1));
+            Assert.Equal(before, StateCache.Current.FixedFunctionCalls);
+            commands.BeginPass(new(target, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(.9f, 0, 0, 1))],
+                area: new(1, 1, 2, 2)));
+            commands.EndPass();
+            commands.BeginPass(new(target, [new(0)]));
+            commands.SetPipeline(pipeline); commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.Draw(geometry, new(0, 3));
+            Assert.False(GL.IsEnabled(EnableCap.ScissorTest));
+            int[] rectangle = new int[4]; GL.GetInteger(GetPName.ScissorBox, rectangle);
+            Assert.Equal(new[] { 1, 1, 2, 2 }, rectangle);
+            Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
+        }));
+        Assert.False(GL.IsEnabled(EnableCap.ScissorTest));
+        int[] restored = new int[4]; GL.GetInteger(GetPName.ScissorBox, restored);
+        Assert.Equal(new[] { 2, 1, 1, 2 }, restored);
+        Assert.All(target[0].ReadPixels(), value => Assert.InRange(value, .1999f, .2001f));
+        Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>Submission ownership rejects nesting and restores authority after a declared external operation.</summary>
     [Fact]
     public void PassNestingAndExternalBoundariesAreExplicit()

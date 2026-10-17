@@ -36,8 +36,7 @@ internal sealed class GraphicsCommandContext
         ArgumentNullException.ThrowIfNull(pipelines);
         var declared = pipelines.ToArray();
         foreach (var candidate in declared) { ArgumentNullException.ThrowIfNull(candidate); candidate.Validate(); }
-        return CompleteGraphicsBoundary.TryRun(name, declared.Select(p => p.Description),
-            declared.Select(p => p.Shader).Distinct(), conditionalRenderingInactive, boundary =>
+        return CompleteGraphicsBoundary.TryRunPrepared(name, declared, conditionalRenderingInactive, boundary =>
             {
                 var context = new GraphicsCommandContext(boundary, declared);
                 // Boundary cleanup owns failures; do not mask an operation exception with local disposal.

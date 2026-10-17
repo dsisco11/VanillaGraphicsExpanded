@@ -19,23 +19,21 @@ owned work could mutate, even if that field becomes irrelevant to the last draw 
 - `GraphicsPipelineDesc` validates and retains dormant authored values. `PipelineCanonicalization`
   normalizes only equivalent stencil-mask and sample-mask representations.
 - Prepared `GraphicsPipeline.Relevance` derives immutable potential write groups, using existing
-  tessellation output metadata where available and conservative geometry-output fallback. Runtime
-  application and boundary authority do not yet consume these groups.
-- `StateCache.ApplyGraphicsState` establishes all supported parameters, including line width for
-  filled triangles, a zero scissor rectangle when scissoring is disabled, and neutral blend state
-  through every native output slot.
-- `PipelineStateCoverage.From(GraphicsPipelineDesc)` explicitly requests all drawing fields.
-  Complete admission is separate from sparse field authority, including stencil, sampling and output
-  groups. Prepared relevance can be converted to sparse coverage, but raster boundaries still use
-  full coverage while application remains unconditional.
+  tessellation output metadata where available and conservative geometry-output fallback. Prepared
+  application and boundary entry share these groups through the retained `GraphicsPipeline.Coverage`.
+- `StateCache.ApplyGraphicsState` establishes relevant parameter groups and leaves dormant values
+  untouched. Descriptor-only low-level application derives conservative emitted-primitive relevance.
+- Complete admission is separate from sparse field authority, including stencil, sampling and output
+  groups. Graphics boundaries union all prepared pipeline groups plus the clear-helper envelope;
+  descriptor-only boundary callers use conservative relevance without guessing shader output.
 - `GraphicsCommandContext` validates the actual pass and geometry before application. Pass load
   operations have their own state requirements and run before drawing; a context can clear without
   any PSO using bounded helper coverage. Setters validate exact write groups; boundary capture and
   restoration use covered knowledge independently of complete admission.
 
-These behaviors are consistent with the current
-[complete graphics contract](Rendering.AuthoritativePipelineState.md). This proposal changes what
-complete application means; it does not describe an optimization already implemented.
+These behaviors follow the current
+[complete graphics contract](Rendering.AuthoritativePipelineState.md). Complete application determines
+all observable draw effects while preserving native parameters that cannot affect the draw.
 
 ## Three separate concepts
 

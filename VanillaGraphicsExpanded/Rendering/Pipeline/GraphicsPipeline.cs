@@ -14,8 +14,10 @@ internal sealed class GraphicsPipeline : IDisposable
     internal GpuProgram Shader { get; }
     internal ulong ExecutableRevision { get; }
     internal GpuPreparedBindings Bindings { get; }
-    /// <summary>Prepared relevance metadata; native application and restoration still use conservative coverage.</summary>
+    /// <summary>Prepared relevance shared by native application and boundary authority.</summary>
     internal GraphicsStateRelevance Relevance { get; }
+    /// <summary>Retains the complete potential native write groups of this realization.</summary>
+    internal PipelineStateCoverage Coverage { get; }
 
     #region Public API
     /// <summary>Publishes only after shader readiness and all executable/description contracts have passed.</summary>
@@ -31,6 +33,7 @@ internal sealed class GraphicsPipeline : IDisposable
         PipelineDescriptionValidation.Validate(description, GpuSupport.Graphics);
         GraphicsInterfaceValidation.Validate(description, shader.GraphicsInterface);
         Relevance = GraphicsStateRelevance.Derive(description, GpuSupport.Graphics, shader.GraphicsInterface);
+        Coverage = PipelineStateCoverage.From(Relevance);
         Bindings = shader.ProgramLayout.BinaryInterface?.PreparedBindings
             ?? throw new InvalidOperationException("The executable has no prepared resource contract.");
         this.lifetime = lifetime;

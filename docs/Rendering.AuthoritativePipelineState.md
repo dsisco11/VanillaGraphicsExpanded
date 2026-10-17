@@ -155,7 +155,7 @@ below accounts for the eleven retired capture invocations, including the removed
 | [EngineStateSwitchingHook](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateSwitchingHook.cs), [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs), [EngineStateCalls](../VanillaGraphicsExpanded/Rendering/EngineStateCalls.cs) | Observed/routed only for exact mapped signatures in selected engine assemblies. Depth function/mask, selected capability enables, indexed/global blend factors/masks, viewport, line/point size, patch/provoking state, clear color, pixel store, program/VAO/FBO/renderbuffer/texture/sampler/buffer/image bindings and mapped deletion calls use cache adapters. Unsupported capability enums are forwarded, not proof of complete tracking. |
 | [FramebufferBindingHook](../VanillaGraphicsExpanded/HarmonyPatches/FramebufferBindingHook.cs) | Successful setter postfix observes combined read/draw FBO binding without another GL call. Does not establish blend/routing or arbitrary mod coverage. |
 | [GpuProgram](../VanillaGraphicsExpanded/Rendering/Shaders/GpuProgram.cs), IGpuProgram workflows, terrain material/scene-slot binding hooks | Shader owner and prepared resource publication remain authoritative; native program tracking alone does not restore engine ownership. Texture/UBO inputs may change on every draw with the same executable. |
-| [CompleteGraphicsBoundary](../VanillaGraphicsExpanded/Rendering/Integration/CompleteGraphicsBoundary.cs), [EngineBoundaryScope](../VanillaGraphicsExpanded/Rendering/EngineBoundaryScope.cs) | Explicit restoration of declared effects and prepared resource footprints. Resolve unknown incoming fields once at entry; restore shader owner, borrowed bindings and independent read/draw FBOs, then draw state. Complete descriptions supply full PSO restoration coverage; engine compatibility adapters retain their explicitly partial scopes. |
+| [CompleteGraphicsBoundary](../VanillaGraphicsExpanded/Rendering/Integration/CompleteGraphicsBoundary.cs), [EngineBoundaryScope](../VanillaGraphicsExpanded/Rendering/EngineBoundaryScope.cs) | Explicit restoration of declared effects and prepared resource footprints. Resolve unknown incoming fields once at entry; restore shader owner, borrowed bindings and independent read/draw FBOs, then draw state. Prepared pipelines supply the union of their potential native write groups plus helper coverage; engine compatibility adapters retain their explicitly partial scopes. |
 | GpuFramebuffer creation/routing and scratch helpers | Complete pipeline descriptions own VGE blend policy. Draw/read-buffer routing is FBO-local resource state. Standalone RenderPass scopes restore routing immediately; GraphicsCommandContext defers it through RenderPassSequence until the outer boundary exits. |
 | Engine compatibility scopes, explicit external invalidation, [StateCache.ScissorScope](../VanillaGraphicsExpanded/Rendering/StateCache.ScissorScope.cs) | Retained for bounded engine-owned operations; the legacy fixed-function capture is test-only. Scissor helper preserves enable, not a general dynamic rectangle contract. Complete VGE draws use the full boundary contract. |
 | Unmapped engine overloads, other mods and unobserved external stencil/equation/rasterizer/sampling/clip changes | Unknown to current cache unless independently restored. Query required unknown fields at entry, establish complete state, restore and invalidate affected knowledge at declared external boundaries. No untracked mutation inside complete submission. |
@@ -171,7 +171,8 @@ explicit invalidation; this does not claim coverage of every engine deletion ove
 
 These are complete-description construction defaults, not ambient GL defaults or changes to legacy
 partial-mask meaning. Capability checks belong to GpuSupport; StateCache does not own limits.
-Every supported field is established when unknown and restored if changed at an engine boundary.
+Every relevant field is established when unknown and every covered changed field is restored at an
+engine boundary. Dormant parameters retain their inherited native values and cache knowledge.
 
 | Category | Complete default and supported policy |
 | --- | --- |
@@ -475,19 +476,20 @@ Normalization removes only equivalent representations: stencil all-bits masks re
 eight-bit width, and trailing all-ones sample-mask words do not distinguish identities. Invalid dormant
 settings still reject. Color masks remain significant with blending disabled. Sample masks retain
 their authored payload while disabled; `SamplingDesc.GetMaskWord(index)` resolves all ones when masking
-is disabled and supplies an all-ones suffix when enabled. Current complete application still visits all
-supported mask words and native output slots, including dormant parameters.
+is disabled and supplies an all-ones suffix when enabled. Complete application visits all supported
+mask words when masking is enabled; it leaves disabled payloads and unrouted output slots untouched.
 
 ### Prepared state relevance metadata
 
 `GraphicsPipeline.Relevance` retains immutable `GraphicsStateRelevance` alongside its validated
 executable revision. It derives potential native write groups from complete authored state, target
 aspects/formats, sparse output slots and primitive selectors, separately from live cache knowledge.
-No application path or boundary currently consumes this metadata: `StateCache.ApplyGraphicsState`
-still applies conservative complete state and `PipelineStateCoverage.From(GraphicsPipelineDesc)`
-still returns explicit `FullGraphics` coverage. `From(GraphicsStateRelevance)` separately converts
-prepared groups to sparse coverage for coordinated application changes.
-This metadata does not claim setter reductions or replace partial `GlPipelineDesc` mutation intent.
+`GraphicsPipeline.Coverage` caches the corresponding native write groups. `GraphicsCommandContext`
+declares their union through `CompleteGraphicsBoundary.TryRunPrepared`, and prepared
+`StateCache.ApplyGraphicsState` consumes that same relevance and coverage. Descriptor-only low-level
+application and boundary calls derive conservative relevance without executable output metadata.
+`PipelineStateCoverage.From(GraphicsPipelineDesc)` remains an explicit full helper authority utility;
+it is not the production draw footprint. Legacy partial `GlPipelineDesc` intent remains unchanged.
 
 Ordinary vertex-stage output follows assembly topology. Tessellation-only output uses the existing
 prepared `GraphicsExecutableInterface.TessellationOutput`; geometry shaders retain conservative
@@ -511,7 +513,7 @@ Combined native writes and aliases retain their complete groups:
 | PolygonMode / PolygonOffset / ClipControl | Complete front/back modes, factor/units, or origin/depth tuple respectively. |
 | Scissor / BlendColor / SampleCoverage | Complete rectangle, RGBA constant, or coverage/inversion tuple. |
 
-These are group identifiers only. Skipping future irrelevant application must not mark a declared
+These are group identifiers only. Skipping irrelevant application does not mark a declared
 value known/applied; capture/restoration authority remains a separate concern owned by StateCache.
 
 ### Sparse boundary authority and clear helpers
@@ -536,10 +538,13 @@ remain operation inputs. Since pass intentions arrive after boundary entry, grap
 this bounded envelope and viewport even when no clear ultimately runs. Legacy clear-color helper
 authority remains explicitly included by the graphics boundary. A context with no PSO therefore has
 helper authority rather than full raster-state authority; unrelated setters reject before native work.
-Preserve/Discard-only loads do not apply clear state. Raster contexts union this envelope with explicit
-full coverage for all declared pipelines, preserving existing unconditional application until both
-application and its coverage switch to prepared relevance together. Resource footprints, originating
-context checks, shader admission and ordered independent cleanup retain their existing owners.
+Preserve/Discard-only loads do not apply clear state. Raster contexts union this envelope with every
+prepared pipeline's coverage before entry, independently of the final selected draw. Relevant groups
+still use normal cached setters; disabled or irrelevant payloads receive neither normalization nor
+compensating restoration. A later relevant draw establishes its own declared operands. Resource
+footprints, originating context checks, shader admission and ordered independent cleanup retain their
+existing owners. Explicit configurable-raster helper application retains its full partial-helper
+semantics; complete draws use the shared setters through the masked application path.
 
 [GpuSupport.Graphics](../VanillaGraphicsExpanded/Rendering/GpuSupport.Graphics.cs) extends the existing
 capability capture with vertex binding/stride/offset limits, sample-mask words, line/point ranges and
@@ -1421,8 +1426,8 @@ the live category and become known only after their complete native query group 
 compares saved category values and knowledge with the live cache, avoiding a second flattened state
 representation and preserving independent failure invalidation.
 
-Complete application establishes disabled parameters as well as enables, all supported sample-mask
-words and native output slots, depth range, restart policy and explicit output encoding. Shared
+Complete application establishes relevant enables and parameter groups, all supported sample-mask
+words when masking is enabled, routed output state, depth range, restart policy and explicit output encoding. Shared
 GpuSupport capabilities gate native operations; no cache-owned limits or context replacement model
 is introduced. Global blend equations update indexed aliases; independent native equations/factors
 are used only where supported. Ordinary unchanged application avoids native state calls and queries.
@@ -1430,8 +1435,9 @@ Optional transition diagnostics and checked restoration retain the native error 
 
 CompleteGraphicsBoundary borrows the existing EngineBoundaryExecution shader/resource lifetimes.
 It requires an explicit inactive conditional-rendering contract and verifies transform feedback is
-inactive before changing rendering state. Complete coverage captures missing values, including
-inactive parameters, and restores independent changed fields on success and exceptions. It rejects
+inactive before changing rendering state. Coverage captures missing values for all potential native
+writes, including dormant incoming parameters that a relevant draw or helper may change, and restores
+independent changed fields on success and exceptions. It rejects
 unknown shader ownership through the existing adapter. This is the adapter foundation for the
 first fullscreen consumer; it does not replace the production renderer or assert authority over
 arbitrary engine/mod calls. Unobserved operations still require ExecuteExternal or explicit targeted

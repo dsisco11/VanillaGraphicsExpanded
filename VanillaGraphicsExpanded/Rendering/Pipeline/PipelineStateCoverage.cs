@@ -100,7 +100,7 @@ internal sealed class PipelineStateCoverage
         return new(depth, rasterizer, globalBlend: global, indexedBlend: indexed);
     }
 
-    /// <summary>Preserves all drawing fields affected by a complete graphics application.</summary>
+    /// <summary>Requests explicit conservative helper authority; prepared draws use their relevance overload.</summary>
     internal static PipelineStateCoverage From(GraphicsPipelineDesc descriptor)
     {
         ArgumentNullException.ThrowIfNull(descriptor);

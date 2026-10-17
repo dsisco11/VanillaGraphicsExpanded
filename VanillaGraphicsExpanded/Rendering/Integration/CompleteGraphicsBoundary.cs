@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
@@ -16,6 +17,30 @@ internal static class CompleteGraphicsBoundary
     internal static bool TryRun(string name, IEnumerable<GraphicsPipelineDesc> pipelines,
         IEnumerable<GpuProgram> programs, bool conditionalRenderingInactive, Action<EngineBoundaryScope> operation)
     {
+        ArgumentNullException.ThrowIfNull(pipelines);
+        // Descriptor-only callers have no verified emitted primitive, so use conservative stage fallback.
+        return TryRunCore(name, pipelines.Select(p => PipelineStateCoverage.From(
+            GraphicsStateRelevance.Derive(p, GpuSupport.Graphics))), programs, conditionalRenderingInactive, operation);
+    }
+
+    /// <summary>Unions exact prepared coverage and executable resource footprints before managed submission.</summary>
+    internal static bool TryRunPrepared(string name, IEnumerable<GraphicsPipeline> pipelines,
+        bool conditionalRenderingInactive, Action<EngineBoundaryScope> operation)
+    {
+        StateCache.Current.RequireOutsideEngineBoundary();
+        ArgumentNullException.ThrowIfNull(pipelines);
+        var prepared = pipelines.ToArray();
+        foreach (var pipeline in prepared) { ArgumentNullException.ThrowIfNull(pipeline); pipeline.Validate(); }
+        return TryRunCore(name, prepared.Select(p => p.Coverage), prepared.Select(p => p.Shader).Distinct(),
+            conditionalRenderingInactive, operation);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Captures the union of possible writes plus independent clear helpers, retaining existing admission and cleanup.</summary>
+    private static bool TryRunCore(string name, IEnumerable<PipelineStateCoverage> pipelines,
+        IEnumerable<GpuProgram> programs, bool conditionalRenderingInactive, Action<EngineBoundaryScope> operation)
+    {
         var cache = StateCache.Current;
         cache.RequireOutsideEngineBoundary();
         ArgumentNullException.ThrowIfNull(pipelines);
@@ -27,7 +52,7 @@ internal static class CompleteGraphicsBoundary
             clearColor: true));
         foreach (var pipeline in pipelines)
         {
-            coverage = coverage.Union(PipelineStateCoverage.From(pipeline));
+            coverage = coverage.Union(pipeline);
         }
         var resources = new EngineBoundaryResources(textures: [(0, OpenTK.Graphics.OpenGL.TextureTarget.Texture2D)]);
         foreach (var program in programs)

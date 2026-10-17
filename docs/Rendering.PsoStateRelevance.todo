@@ -109,14 +109,14 @@ Phase 2: Separate sparse authority from complete admission
 Phase 3: Apply relevant groups and activate matching boundary coverage
   Depends on Phase 2. Outcome: production complete draws leave dormant state untouched and establish
   relevant declared values, with matching potential-write restoration coverage.
-  ☐ Switch complete application and boundary construction together to prepared relevance.
+  ☑ Switch complete application and boundary construction together to prepared relevance.
     - Share resolved groups across application, mutation validation and restoration coverage.
       Update any descriptor-only application paths conservatively without guessing executable output.
     - Union all declared pipelines, existing resource/binding footprints and the clear envelope at entry.
       Do not base restoration on only the final selected pipeline or last draw's relevance.
     - Skip dormant setters without modifying their cached native values or marking declarations applied.
       Retain unchanged-value suppression for relevant fields through the same existing setters.
-  ☐ Implement primitive and raster dependencies.
+  ☑ Implement primitive and raster dependencies.
     - Lines include polygon-mode Line. Gate line width/smoothing and compatibility stipple; stipple
       parameters require enable. Fixed point size requires points and program point size disabled.
     - Establish point-size enable and conservative sprite-origin/smoothing for point draws; gate
@@ -125,7 +125,7 @@ Phase 3: Apply relevant groups and activate matching boundary coverage
       with culling disabled, preserving shader facing and two-sided stencil observations.
     - Gate scissor rectangle by enable while still disabling inherited scissoring for unclipped draws.
       Keep unknown emitted primitive groups conservative and all other approved conservative fields.
-  ☐ Implement depth/stencil, output, sampling and assembly dependencies.
+  ☑ Implement depth/stencil, output, sampling and assembly dependencies.
     - Depth aspect controls depth-test enable relevance; comparison/write mask require enabled test.
       Stencil aspect controls test-enable relevance; face functions/references/ops/masks require test.
       Preserve both stencil faces and conservative depth range/clip conventions.
@@ -137,19 +137,29 @@ Phase 3: Apply relevant groups and activate matching boundary coverage
     - Gate coverage payload, mask words and minimum shading by their enables; keep sampling enables
       conservative. Gate restart index by programmable restart without fixed-index override and
       patch vertex count by patch topology; keep restart enables conservative across adapters.
-  ☐ Preserve clear/draw sequencing and exact native handback.
+  ☑ Preserve clear/draw sequencing and exact native handback.
     - Depth/stencil clears establish write masks independently of test enables; region clears
       establish scissor independently of the following draw. Relevant draw state follows clear state.
     - Restore changed inherited parameters even if incoming features were disabled or the last draw
       leaves parameters dormant. Untouched groups emit no compensating restoration setters.
     - On setter failure invalidate the affected group, attempt restoration, continue independent
       cleanup and propagate fatal handoff failure through existing paths. Keep external invalidation.
-  ☐ Verify focused GPU transitions for triangle width 2/inherited 4 → line width 2 → triangle → restore 4,
+  ☑ Verify focused GPU transitions for triangle width 2/inherited 4 → line width 2 → triangle → restore 4,
     disabled/active scissor and blend state, sparse output reuse, point-size modes and grouped writes.
     Replace unconditional-default tests with observable pixels, authored intent and exact handback;
     retain existing failure and validation strength.
-  ☐ Completion: focused subagent-run CPU/GPU checks pass with relevance active; no native application
+  ☑ Completion: focused subagent-run CPU/GPU checks pass with relevance active; no native application
     exceeds declared authority, and no relevant feature inherits stale state.
+    - Verified after second review and independent audit-stage-completion: Debug 246/246 passed;
+      the same Release assembly passed 246/246 with COMPlus_JitNoInline=1 for reliable late-installed
+      Harmony native-call observers. Normal Release passed 242/246; its four observer-count failures
+      occurred after pixel/state checks passed. That diagnostic receipt is retained, not acceptance.
+      No assertions or pixel tolerances were weakened. Includes 201 focused contracts/transitions
+      and 45 production sky/cloud cases. Wide-line 4/2 checks use a supported compatibility context.
+      Receipts: ../artifacts/pso-state-relevance/phase3/phase3-final-debug.trx and
+      ../artifacts/pso-state-relevance/phase3/phase3-final-release-observable.trx. Commands, filters,
+      initial diagnostic results and logs are retained in ../artifacts/pso-state-relevance/phase3/.
+      Later qualification and packaging remain unchecked; no live appearance or timing claim.
 
 Phase 4: Qualify correctness and native-call reductions
   Depends on Phase 3. Outcome: integrated evidence demonstrates unchanged rendering and exact handback
