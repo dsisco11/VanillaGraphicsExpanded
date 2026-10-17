@@ -226,6 +226,9 @@ Tasks
   ☐ Evaluate what type of HZB accelleration structure would be suitable for volumetric cloud rendering.
     - Approved design: docs/PBR.CloudHierarchy.Proposal.md. Implementation and acceptance:
       docs/PBR.CloudHierarchy.todo; native leaves with owned coarse min/max height summaries.
+    - Reduced view and solar/lunar self-lighting traversal now reuse certified summaries with DDA
+      fallback. Automated integration qualification is recorded there; total GPU benefit and user-run
+      live acceptance remain open, so this parent item is not complete.
 
   ☐ Implement virtual shadow maps.
 

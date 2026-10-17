@@ -5,6 +5,8 @@ produce geometry and column controls. The native `cloudRenderMode` preference re
 0 is Off, 1 is Volumetric, and 2 is Simple. Rendering works independently of LumOn and uses the
 same [completed atmospheric publication](PBR.Atmosphere.Publication.md) in both PBR selections.
 Implementation and acceptance evidence is tracked in [the cloud checklist](PBR.VolumetricClouds.todo).
+Conservative empty-region skipping is specified by the [height hierarchy proposal](PBR.CloudHierarchy.Proposal.md)
+and qualified in its [implementation checklist](PBR.CloudHierarchy.todo).
 
 ## Scheduling and ownership
 
@@ -77,8 +79,7 @@ an unavailable draw cannot retain an invalid source lifetime. Native textures re
 Unavailable, mismatched or failed construction selects the existing column traversal explicitly.
 Reduced view and secondary solar/lunar rays use the same certified summaries to reject the root or
 skip groups whose complete horizontal ray segment misses their height interval. Owned mip indices
-are one below logical
-hierarchy levels; the finest summaries descend directly to native columns. Secondary rays operate
+are one below logical hierarchy levels; the finest summaries descend directly to native columns. Secondary rays operate
 in the finite native map domain independently of camera visibility and scene-depth clipping.
 The deterministic full-resolution reference retains native-column DDA for view and light rays.
 
@@ -92,6 +93,15 @@ density. These reductions in leaf queries do not establish a GPU performance imp
 helpers are available. Its 1e7-world-unit limit, finite optical-depth saturation and per-column
 quadrature are shared by accelerated and DDA paths. Solar/lunar phase decorrelation remains at
 the directional-light caller. This does not publish cloud shadows onto scene receivers.
+
+Source observation precedes foreground-depth and lighting admission. An ordinary content generation
+withdraws the old certificate while retaining compatible storage; owner, world, allocation or executable
+replacement retires it even if another missing input prevents drawing. Reduced submission revalidates
+the native borrow after pass preparation, then selects certified summaries or DDA immediately before
+the trace/history/resolve boundary. A revoked borrow submits none of those passes and invalidates
+history. Optional reduction failure leaves ordinary DDA rendering available until reset; it does not
+release visible ownership or admit native duplicate drawing. Resize/reload reset both owned domains;
+mode release and world teardown dispose them. Simple and Off allocate no cloud-height hierarchy.
 
 ## Density, lighting and scene composition
 

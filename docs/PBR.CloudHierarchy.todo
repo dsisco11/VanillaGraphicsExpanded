@@ -122,17 +122,17 @@ Phase 4: Accelerate secondary self-lighting traversal
 
 Phase 5: Qualify pipeline integration and reconcile documentation
   Depends on Phase 4. Outcome: the accelerated path is integrated with existing cloud lifetimes.
-  ☐ Verify Off/Simple remain unaffected and Volumetric works in standalone PBR and PBR + LumOn.
+  ☑ Verify Off/Simple remain unaffected and Volumetric works in standalone PBR and PBR + LumOn.
     - Exercise mode changes, resize, reload, world replacement, resource/build failures and recovery;
       confirm no additional native hooks, premature native-resource disposal or duplicated generation.
     - Verify current-source matching through trace submission and reduced/history/resolve scheduling;
       preserve shared scene-HZB, primary/liquid clipping, temporal reconstruction and OIT targets.
-  ☐ Run the canonical focused build/test/shader/package checks appropriate to changed components
+  ☑ Run the canonical focused build/test/shader/package checks appropriate to changed components
     through subagents. Record commands, immutable candidate identity and results; distinguish
     pre-existing failures and unavailable runtime dependencies from verified behavior.
-  ☐ Update PBR.Clouds.md to describe delivered ownership, reduction, traversal and fallback behavior;
+  ☑ Update PBR.Clouds.md to describe delivered ownership, reduction, traversal and fallback behavior;
     reconcile this checklist with the source proposal and parent without claiming live acceptance.
-  ☐ Completion: integration receipts and second review cover the approved contracts; required
+  ☑ Completion: integration receipts and second review cover the approved contracts; required
     correctness checks pass and remaining live qualification is explicitly tracked below.
 
 Phase 6: Demonstrate end-to-end performance and live correctness
@@ -370,3 +370,92 @@ Phase 4 contracts and verification
       completion audit passed on 2026-10-17, verified candidate hashes and found no unresolved issues.
     Headless equivalence and reduced leaf probes do not establish GPU timing or live appearance.
       No game launch or deployment; integration qualification and measured performance remain open.
+
+Phase 5 contracts and verification
+  Task-to-document traceability
+    Modes and lifetimes -> proposal Ownership and publication / Acceptance; PBR.Clouds.md Scheduling
+      and ownership / Shared depth inputs; inherited volumetric proposal Publication and native
+      lifecycle, volumetric checklist source/readiness receipts and Rendering.Enablement.md ->
+      CloudLifecycleTests covers every mode pair in both PBR selections; CloudNativeAdapterTests
+      covers generation readiness, reload, previous-world rejection and native registration gates.
+      CloudHierarchyTests covers source/executable replacement, failure/recovery, allocation reuse
+      and borrowed texture survival. DepthHierarchyRendererTests covers current frame/view/extent,
+      disable, resize, reload and world withdrawal; persistent demand follows actual volume ownership.
+    Submission and reconstruction -> proposal Traversal / Acceptance; inherited volumetric proposal
+      Scene integration / Quality and temporal behavior; atmosphere publication Ownership / Publication
+      contract -> CloudPipelineIntegrationTests invokes production CloudVolumeReconstruction.Draw
+      with real trace/history/resolve binaries in both PBR selections. Identical original/accelerated
+      schedulers compare seven trace and six resolved OIT channels across animated map generations,
+      certificate mismatch and failed optional reduction. Revoked input prevents every pass, leaves
+      OIT unchanged and invalidates history without swapping/committing it. Reset, resized targets
+      and replacement world/allocation recover without deleting borrowed native/scene inputs.
+      Existing GPU reconstruction, transport, Simple, native adapter and source tests retain clipping,
+      physical storage, temporal, registration and no-duplicate-generation contracts.
+    Documentation and packaging -> proposal Representation / Ownership / Acceptance; parent cloud
+      and hierarchy scope -> PBR.Clouds.md describes delivered coarse-only ownership, directed shared
+      traversal, submission revalidation, fallback and cleanup. Parent records delivered acceleration
+      without completing performance/live gates. Canonical shader/build/package receipts and exact
+      candidate identity are recorded below after validation. No game launch, deployment, scene cast
+      shadow consumer, CPU map readback, weather tick or new native hook is introduced.
+
+  Build and package qualification (2026-10-17)
+    Validation subagent, NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages:
+      dotnet build VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj --no-restore
+        -p:UseSharedCompilation=false -m:1 -nr:false -o artifacts/cloud-hierarchy-test-bin -v:normal
+    Shader-enabled build passed with 0 errors, 179 existing warnings and 458/537 production/test
+      variants. Final additive scheduler-test compilation and test receipts follow below.
+    Canonical Cake Package ran against an isolated source mirror at artifacts/h5pkg so existing
+      Releases outputs remained untouched. ValidateJson, Release Build, CompileSpirVShaders and
+      Package passed; the successful retry took 3m14s. A preceding restore stalled on unavailable
+      NuGet vulnerability lookup (NU1900); the retry disabled only NuGetAudit, preserving dependencies.
+      All 1,761 mirrored source inputs match current source SHA256 identities, and all 458 packaged
+      SPIR-V entries match their digest manifest byte lengths/hashes. The 914-entry archive includes
+      the owned hierarchy reduction, traversal, lighting and cloud stages. No deployment occurred.
+      Archive SHA256: 7D0CF380F2B4012FF044E67BDC468A7551986A1129C1107C7EB1243C3173314B.
+      Raw package input identities and archive checks: artifacts/CloudHierarchy/
+      phase5-package-input-hashes.json and phase5-package-verification.json.
+
+  Contract-baseline reconciliation
+    The initial shared integration run passed 77 cases and exposed two stale inventory expectations.
+      GeneratedShaderCatalogTests now includes the one added hierarchy program/stage/assignment/binary:
+      176 programs, 225 stages, 487 assignments, 502 catalog binaries and 458 distributable binaries.
+      The separate GeneratedBindingsMatchApprovedSubmissionLayouts failure predates this work: its
+      177-row retained migration snapshot contains no cloud stages, while current contracts have
+      230 rows across cloud, celestial, postprocessing and shared-depth additions/changes. Diagnostic
+      canonical rows and differences are retained in phase5-binding-actual.json, phase5-binding-diff.json
+      and phase5-binding-removed.json. No unrelated baseline fingerprints were silently accepted.
+    CloudShaderBindingsTests independently protects exact hierarchy/trace slots and required-resource
+      policy, including optional height summaries, distinct depth/visibility/liquid/PMJ inputs and
+      required traversal scheduling. Reference, temporal, resolve and Simple receive no hierarchy;
+      resolve receives no cloud map. This focused cloud contract and binary/interface validation
+      qualify current integration independently of the pre-existing wider migration snapshot failure.
+
+  Final candidate and automated integration receipts (2026-10-17)
+    Exact commands, filters and isolated package invocation: artifacts/CloudHierarchy/phase5-commands.json.
+      Final test build uses the same command above with -o artifacts/cloud-hierarchy-phase5-final-bin;
+      phase5-final-build-retry.log records 0 errors and 164 existing recompilation warnings.
+      No production code or shader changed during this qualification. The baseline and final production
+      DLL SHA256 agree: 0402D1E09DFAF23EF45EADCECB1EA5CE971537278A8BB0091B37E4209813E865.
+    All-cloud baseline: 248/248 passed, no failures/skips, 15m35s; phase5-cloud-baseline.log/.trx.
+      Final scheduler/bindings/catalog: 5/5 passed, no failures/skips, 23s;
+      phase5-final-focused-retry.log/.trx. Initial fixture setup failed before rendering because Castle
+      cannot proxy the installed player interface; the final fixture uses the established concrete
+      player/data relationship, and actual production capture and all three passes execute unchanged.
+      Final shared depth/enablement/shader/interface/package-contract suite: 78/78 passed, no failures
+      or skips, 9s; phase5-final-integration-contracts.log/.trx. Only the independently classified
+      pre-existing whole-project binding snapshot test is excluded, as documented above.
+    Distinct fresh passing coverage is 325: 248 unchanged cloud cases plus three new cloud checks
+      and 78 shared integration cases, minus four existing shared cases already in the cloud filter.
+      The corrected catalog cases also overlap focused/shared suites; phase5-result-summary.json
+      records exact TRX deduplication.
+      The baseline remains applicable to final production because its DLL is byte-identical; the final
+      rebuild adds only isolated test fixtures and the corrected catalog inventory expectations.
+    Immutable candidate identity: artifacts/CloudHierarchy/phase5-candidate-hashes.json, 91 entries
+      covering cloud runtime, shaders, tests, catalog, assembly pairs and build receipts; all rechecked
+      without drift. Planning/architecture docs are reviewed directly rather than included in this
+      executable manifest. Initial failed attempts remain recorded separately from successful receipts.
+    Second review found no remaining cloud integration or documentation discrepancy. Independent
+      completion audit passed on 2026-10-17 with no unresolved cloud findings, verified all 91 candidate
+      hashes and package identity, and confirmed the wider snapshot failure is pre-existing. Phase 6 and final
+      acceptance remain unchecked: headless results and the 0.17-MiB payload do not establish total
+      GPU benefit, live appearance, in-game lifecycle acceptance or reflected-cloud integration.
