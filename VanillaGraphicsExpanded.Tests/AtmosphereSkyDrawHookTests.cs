@@ -17,12 +17,12 @@ public sealed class AtmosphereSkyDrawHookTests
     {
         Assert.True(AtmosphereSkyDrawHook.Prefix());
         var api = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
-        using (var sky = new AtmosphereSkyRenderer(api.Object, null!))
+        using (var sky = new SkyRenderer(api.Object, null!))
         {
-            Assert.True(AtmosphereSkyRenderer.IsEnabled);
+            Assert.True(SkyRenderer.IsEnabled);
             Assert.False(AtmosphereSkyDrawHook.Prefix());
         }
-        Assert.False(AtmosphereSkyRenderer.IsEnabled);
+        Assert.False(SkyRenderer.IsEnabled);
         Assert.True(AtmosphereSkyDrawHook.Prefix());
     }
 

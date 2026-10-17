@@ -38,7 +38,7 @@ internal sealed class AtmosphereSkyInputs : CpuUniformBuffer
             new(uniforms.NightVisionStrength, uniforms.PsychedelicStrength,
                 uniforms.WindWaveCounter * 5, sceneLinear ? 1 : 0),
             new(1 / lighting.LookupStorageScale, lighting.HasNightSources ? 3 : 2,
-                Celestial.CelestialRenderer.IsEnabled ? 1 : 0,
+                Celestial.CelestialDrawPass.IsEnabled ? 1 : 0,
                 0),
             new(lighting.Moon, 0)
         };

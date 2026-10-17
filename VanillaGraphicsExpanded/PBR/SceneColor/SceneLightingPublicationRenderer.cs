@@ -139,8 +139,8 @@ internal sealed class SceneLightingPublicationRenderer : IRenderer
         return FrameLightingBounds.FromPublications(atmosphere, VgeLightsRenderer.Current,
             frame.LightingCalibration, PbrShaderLightingMode.LumOnEnabled, indirect.Intensity,
             new Vector3(tint[0], tint[1], tint[2]), emission,
-            LightingStorage.UpperBound((double)compatibilityMaximum + Atmosphere.Celestial.CelestialRenderer.MaximumNits
-                + Atmosphere.Celestial.MoonRenderer.MaximumNits
+            LightingStorage.UpperBound((double)compatibilityMaximum + Atmosphere.Celestial.CelestialDrawPass.MaximumNits
+                + Atmosphere.Celestial.MoonDrawPass.MaximumNits
                 + Clouds.CloudNativeRuntime.SimpleMaximum(atmosphere, compatibilityMaximum)
                 + Clouds.CloudNativeRuntime.VolumeMaximum(atmosphere, compatibilityMaximum)));
     }

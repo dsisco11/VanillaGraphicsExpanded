@@ -25,20 +25,18 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
     public void SolarOwnershipRetainsPassOrderAndLifetime()
     {
         EnsureContextValid();
-        Assert.False(SunRenderer.IsEnabled);
+        Assert.False(SunDrawPass.IsEnabled);
         var api = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
-        using (var renderer = new SunRenderer(api.Object, null!))
+        using (var renderer = new SunDrawPass(api.Object, null!))
         {
-            Assert.True(SunRenderer.IsEnabled); Assert.Equal(.197, renderer.RenderOrder);
-            api.Verify(value => value.Event.RegisterRenderer(renderer, EnumRenderStage.Before, "vge_sun_prepare"), Times.Once);
-            api.Verify(value => value.Event.RegisterRenderer(renderer, EnumRenderStage.Opaque, "vge_sun"), Times.Once);
-            renderer.OnRenderFrame(0, EnumRenderStage.Before);
+            Assert.True(SunDrawPass.IsEnabled);
+            renderer.PrepareFrame();
             ScreenResourceManager.HandleScreenResize();
-            typeof(SunRenderer).GetMethod("Reload", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(renderer, null);
+            typeof(SunDrawPass).GetMethod("Reload", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(renderer, null);
             Mock.Get(api.Object.Event).Raise(value => value.LeaveWorld += null);
-            Assert.True(SunRenderer.IsEnabled);
+            Assert.True(SunDrawPass.IsEnabled);
         }
-        Assert.False(SunRenderer.IsEnabled);
+        Assert.False(SunDrawPass.IsEnabled);
     }
 
     /// <summary>The resolved solar disk preserves admitted incident RGB power at multiple storage scales and the horizon.</summary>
@@ -149,7 +147,7 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
         using var glow = DynamicTexture2D.Create(size, size, PixelInternalFormat.Rgba32f);
         using var depthImage = new DepthTexture(size, size, PixelInternalFormat.DepthComponent32f);
         using var target = DynamicGpuFramebuffer.CreateMRT([color, glow], depthImage)!;
-        using var geometry = new ArrayGraphicsGeometry(CelestialRenderer.FullscreenLayout, PrimitiveType.Triangles,
+        using var geometry = new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout, PrimitiveType.Triangles,
             new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         using var lifetime = new GraphicsPipelineLifetime();
         var pass = new RenderPassDesc(target, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0,0,0,0)),
@@ -157,7 +155,7 @@ public sealed class SunDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFun
             new(DepthLoad: AttachmentLoad.Clear, ClearDepth: .35f));
         using var metadata = new RenderPassTargets(pass);
         var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendingFactorSrc.One, DestinationRgb = BlendingFactorDest.One };
-        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, CelestialRenderer.FullscreenLayout,
+        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, CelestialDrawPass.FullscreenLayout,
             metadata.Signature, DynamicPipelineState.Viewport, blending: [blend, blend]), shader);
         bool depth = GL.IsEnabled(EnableCap.DepthTest); GL.GetBoolean(GetPName.DepthWritemask, out bool writes);
         Assert.True(GraphicsCommandContext.TryRun("Tests.SunDisk", [pipeline], true, commands =>

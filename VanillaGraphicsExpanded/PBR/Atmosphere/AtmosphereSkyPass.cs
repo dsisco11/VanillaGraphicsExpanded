@@ -11,10 +11,10 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.PBR.Atmosphere;
 
 /// <summary>Owns procedural fullscreen geometry and drawing while consuming atmospheric publication.</summary>
-internal sealed class AtmosphereSkyRenderer : IRenderer
+internal sealed class AtmosphereSkyPass : IDisposable
 {
     private System.IDisposable? reloadRegistration;
-    private static AtmosphereSkyRenderer? active;
+    private static AtmosphereSkyPass? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
     private readonly GraphicsPipelineLifetime lifetime = new();
@@ -24,14 +24,10 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
     private GraphicsPipeline? pipeline;
     private bool failed;
     private bool disposed;
-    /// <summary>Draws at the original opaque sky position after the night sky.</summary>
-    public double RenderOrder => .2;
-    /// <summary>The sky is camera relative and does not use terrain range culling.</summary>
-    public int RenderRange => 1;
 
     #region Public API
     /// <summary>Attaches draw ownership and retires owned geometry through existing screen/world events.</summary>
-    internal AtmosphereSkyRenderer(ICoreClientAPI api, GBufferManager gbuffer)
+    internal AtmosphereSkyPass(ICoreClientAPI api, GBufferManager gbuffer)
     {
         this.api = api;
         this.gbuffer = gbuffer;
@@ -39,19 +35,20 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
         api.Event.LeaveWorld += Reset;
         reloadRegistration = VanillaGraphicsExpanded.Rendering.Integration.EngineShaderReload.Register(api, Reload);
         active = this;
-        api.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "vge_sky");
     }
 
     /// <summary>Reports replacement lifecycle ownership independently of per-frame resource readiness.</summary>
     internal static bool IsEnabled => active is not null;
 
-    /// <summary>Draws when its own resources are ready; environmental publication is independent.</summary>
-    public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
+    /// <summary>Prepares an independently recoverable draw for the owning sky renderer.</summary>
+    internal SkyDraw? PrepareDraw()
     {
-        if (stage == EnumRenderStage.Opaque && ReferenceEquals(active, this)
-            && AtmosphereModSystem.Lighting is not null && PrepareFrame())
+        if (disposed || !ReferenceEquals(active, this) || AtmosphereModSystem.Lighting is null || !PrepareFrame()) return null;
+        try { return CreateDraw(); }
+        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
-            Draw();
+            ReportFailure(error);
+            return null;
         }
     }
 
@@ -61,7 +58,6 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
         if (disposed) return;
         disposed = true;
         if (ReferenceEquals(active, this)) active = null;
-        api.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
         unregisterResize();
         api.Event.LeaveWorld -= Reset;
         reloadRegistration?.Dispose();
@@ -70,7 +66,7 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
     /// <summary>Prepares owned drawing resources without changing sky-system ownership.</summary>
     internal bool PrepareFrame()
     {
-        if (failed || api.Render.FrameWidth <= 0 || api.Render.FrameHeight <= 0
+        if (disposed || failed || api.Render.FrameWidth <= 0 || api.Render.FrameHeight <= 0
             || api.Render.WireframeDebugRender.Vertex) return false;
         try
         {
@@ -93,57 +89,51 @@ internal sealed class AtmosphereSkyRenderer : IRenderer
     #endregion
 
     #region Private
-    /// <summary>Submits the owned fullscreen triangle without invoking or reactivating the engine sky callback.</summary>
-    private void Draw()
+    /// <summary>Disables failed drawing through the normal reload/reset lifecycle.</summary>
+    private void ReportFailure(Exception error)
+    {
+        failed = true;
+        api.Logger.Error("[VGE] Owned sky unavailable until reload; vanilla sky remains suppressed. {0}", error);
+    }
+
+    /// <summary>Prepares the owned fullscreen draw without invoking or reactivating the engine sky callback.</summary>
+    private SkyDraw? CreateDraw()
     {
         var render = api.Render;
         if (failed || geometry is null || AtmosphereModSystem.Lighting is not { } lighting
-            || AtmosphereModSystem.SkyTextureId == 0 || render.CurrentRenderStage != EnumRenderStage.Opaque) return;
+            || AtmosphereModSystem.SkyTextureId == 0 || render.CurrentRenderStage != EnumRenderStage.Opaque) return null;
         var primary = render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         var liquid = render.FrameBuffers[(int)EnumFrameBuffer.LiquidDepth];
         if (primary is null || liquid?.DepthTextureId is not > 0
-            || render.CurrentFrameBuffer?.FboId != primary.FboId) return;
-        try
+            || render.CurrentFrameBuffer?.FboId != primary.FboId) return null;
+        var shader = GpuShaderProgramLibraries.Get<AtmosphereSkyShaderProgram>(api, "pbr_sky");
+        if (shader?.EnsureReady() != true) return null;
+        var target = gbuffer.PrimaryFramebuffer;
+        if (target.FboId != primary.FboId || !target.HasRenderPassMetadata) return null;
+        // Use the same convention as all other contributors to primary.
+        shader.Capture(api, lighting, sceneLinear: true);
+        // Sky owns color and glow only; framebuffer clearing establishes background validity.
+        var pass = new RenderPassDesc(target, [new(0), new(1)]);
+        using var metadata = new RenderPassTargets(pass);
+        var blend = new ColorBlendDesc { Enabled = true,
+            SourceRgb = Celestial.CelestialDrawPass.IsEnabled ? BlendingFactorSrc.One : BlendingFactorSrc.SrcAlpha, DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha,
+            SourceAlpha = BlendingFactorSrc.SrcAlpha, DestinationAlpha = BlendingFactorDest.OneMinusSrcAlpha };
+        var description = new GraphicsPipelineDesc(shader.GraphicsIdentity!, Layout,
+            metadata.Signature, DynamicPipelineState.Viewport,
+            blending: [blend, blend]);
+        if (pipeline is null || pipeline.Description != description || pipeline.ExecutableRevision != shader.ExecutableRevision)
         {
-            var shader = GpuShaderProgramLibraries.Get<AtmosphereSkyShaderProgram>(api, "pbr_sky");
-            if (shader?.EnsureReady() != true) return;
-            var target = gbuffer.PrimaryFramebuffer;
-            if (target.FboId != primary.FboId || !target.HasRenderPassMetadata) return;
-            // Use the same convention as all other contributors to primary.
-            shader.Capture(api, lighting, sceneLinear: true);
-            // Sky owns color and glow only; framebuffer clearing establishes background validity.
-            var pass = new RenderPassDesc(target, [new(0), new(1)]);
-            using var metadata = new RenderPassTargets(pass);
-            var blend = new ColorBlendDesc { Enabled = true,
-                SourceRgb = Celestial.CelestialRenderer.IsEnabled ? BlendingFactorSrc.One : BlendingFactorSrc.SrcAlpha, DestinationRgb = BlendingFactorDest.OneMinusSrcAlpha,
-                SourceAlpha = BlendingFactorSrc.SrcAlpha, DestinationAlpha = BlendingFactorDest.OneMinusSrcAlpha };
-            var description = new GraphicsPipelineDesc(shader.GraphicsIdentity!, Layout,
-                metadata.Signature, DynamicPipelineState.Viewport,
-                blending: [blend, blend]);
-            if (pipeline is null || pipeline.Description != description || pipeline.ExecutableRevision != shader.ExecutableRevision)
-            {
-                var candidate = new GraphicsPipeline(lifetime, description, shader);
-                pipeline?.Dispose(); pipeline = candidate;
-            }
-            if (!GraphicsCommandContext.TryRun("Atmosphere.Sky", [pipeline], true, commands =>
-            {
-                commands.BeginPass(pass);
-                commands.SetPipeline(pipeline);
-                commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-                commands.Draw(geometry, new(0, 3));
-                commands.EndPass();
-            }))
-            {
-                failed = true;
-                api.Logger.Error("[VGE] Owned sky graphics boundary was rejected; drawing is disabled until reload/reset.");
-            }
+            var candidate = new GraphicsPipeline(lifetime, description, shader);
+            pipeline?.Dispose(); pipeline = candidate;
         }
-        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
+        return new SkyDraw("Atmosphere.Sky", [pipeline], commands =>
         {
-            failed = true;
-            api.Logger.Error("[VGE] Owned sky unavailable until reload; vanilla sky remains suppressed. {0}", error.ToString());
-            return;
-        }
+            commands.BeginPass(pass);
+            commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.Draw(geometry, new(0, 3));
+            commands.EndPass();
+        }, ReportFailure);
     }
 
     /// <summary>Retires the pipeline and procedural geometry at publication and world boundaries.</summary>

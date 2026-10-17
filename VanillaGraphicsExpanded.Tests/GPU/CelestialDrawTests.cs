@@ -92,22 +92,22 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
     public void OwnedRendererRetainsLifetimeThroughFailureAndReset()
     {
         EnsureContextValid();
-        Assert.False(CelestialRenderer.IsEnabled);
+        Assert.False(CelestialDrawPass.IsEnabled);
         var api=new Mock<ICoreClientAPI>{DefaultValue=DefaultValue.Mock};
-        using(var renderer=new CelestialRenderer(api.Object,null!))
+        using(var renderer=new CelestialDrawPass(api.Object,null!))
         {
-            Assert.True(CelestialRenderer.IsEnabled);
-            renderer.OnRenderFrame(0,EnumRenderStage.Before);
-            Assert.True(CelestialRenderer.IsEnabled);
+            Assert.True(CelestialDrawPass.IsEnabled);
+            renderer.PrepareFrame();
+            Assert.True(CelestialDrawPass.IsEnabled);
             ScreenResourceManager.HandleScreenResize();
-            Assert.True(CelestialRenderer.IsEnabled);
-            typeof(CelestialRenderer).GetMethod("Reload",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(renderer,null);
-            Assert.True(CelestialRenderer.IsEnabled);
+            Assert.True(CelestialDrawPass.IsEnabled);
+            typeof(CelestialDrawPass).GetMethod("Reload",BindingFlags.Instance|BindingFlags.NonPublic)!.Invoke(renderer,null);
+            Assert.True(CelestialDrawPass.IsEnabled);
             Mock.Get(api.Object.Event).Raise(value=>value.LeaveWorld+=null);
-            Assert.True(CelestialRenderer.IsEnabled);
-            Assert.Equal(0,CelestialRenderer.MaximumNits);
+            Assert.True(CelestialDrawPass.IsEnabled);
+            Assert.Equal(0,CelestialDrawPass.MaximumNits);
         }
-        Assert.False(CelestialRenderer.IsEnabled);
+        Assert.False(CelestialDrawPass.IsEnabled);
     }
     /// <summary>Atmosphere owns transmission storage and uploads dimensionless values without its radiance scale.</summary>
     [Fact]
@@ -184,8 +184,8 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         }
         using var transmission=DynamicTexture2D.CreateWithData(2,1,PixelInternalFormat.Rgba32f,[.5f,.25f,.75f,1,.5f,.25f,.75f,1]);
         shader.GalaxyMap=cube;shader.ExternalTransmission=transmission;
-        using var geometry=new ArrayGraphicsGeometry(CelestialRenderer.FullscreenLayout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),3);
-        float[] actual=Draw(shader,geometry,CelestialRenderer.FullscreenLayout,32,1);
+        using var geometry=new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),3);
+        float[] actual=Draw(shader,geometry,CelestialDrawPass.FullscreenLayout,32,1);
         float red=(rotated?1f:6f)*.125f*.5f;
         for(int i=0;i<actual.Length;i+=4)
         {
@@ -247,7 +247,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
         Assert.True(GraphicsCommandContext.TryRun("Tests.CelestialDraw",[pipeline],true,commands=>
         {
             commands.BeginPass(pass);commands.SetPipeline(pipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-            commands.Draw(geometry,new(0,layout==CelestialRenderer.FullscreenLayout?3:6,InstanceCount:count));commands.EndPass();
+            commands.Draw(geometry,new(0,layout==CelestialDrawPass.FullscreenLayout?3:6,InstanceCount:count));commands.EndPass();
         }));
         Assert.Equal(priorFramebuffer,GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(priorDepth,GL.IsEnabled(EnableCap.DepthTest));Assert.Equal(priorBlend,GL.IsEnabled(EnableCap.Blend));

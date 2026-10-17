@@ -77,7 +77,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         frameLighting.Attach(skyProgram);
         using var gbuffer = new GBufferManager(api.Object);
         Assert.True(gbuffer.EnsureBuffers(2, 2));
-        using var sky = new AtmosphereSkyRenderer(api.Object, gbuffer);
+        using var sky = new SkyRenderer(api.Object, gbuffer);
         var lifetime = ClientRenderingLifetime.Find(api.Object)!;
         lifetime.Attach(sky.Dispose);
         // Exercise actual synchronous withdrawal around the native engine event.
@@ -86,7 +86,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
             ClientRenderingLifetime.BeginNativeReload();
             Assert.True(lifetime.Reloading);
             Assert.Null(lifetime.ReloadFailure);
-            Assert.False((bool)typeof(AtmosphereSkyRenderer).GetField("failed", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sky)!);
+            Assert.False((bool)typeof(AtmosphereSkyPass).GetField("failed", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(typeof(SkyRenderer).GetField("atmosphere", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(sky))!);
             try { events.Raise(value => value.ReloadShader += null!); }
             finally { ClientRenderingLifetime.CompleteNativeReload(); }
         }
@@ -98,7 +98,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
             Assert.False(AtmosphereSkyDrawHook.Prefix());
         atmosphere.Publish(new(Vector3.UnitY, Vector3.One, Vector3.One, Vector3.Zero, Vector3.Zero,
             ImmutableArray.Create(.5f, .25f, .125f, 1f)) { Width = 1, Height = 1 });
-            Assert.Equal(.2, sky.RenderOrder);
+            Assert.Equal(.19, sky.RenderOrder);
             events.Verify(value => value.RegisterRenderer(sky, EnumRenderStage.Opaque, "vge_sky"), Times.Once);
             for (int cycle = 0; cycle < 4; cycle++)
             {
@@ -188,7 +188,7 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
             Assert.False(AtmosphereSkyDrawHook.Prefix());
             sky.Dispose();
             events.Verify(value => value.UnregisterRenderer(sky, EnumRenderStage.Opaque), Times.Once);
-            Assert.False(AtmosphereSkyRenderer.IsEnabled);
+            Assert.False(SkyRenderer.IsEnabled);
             Mock.Get(render).Verify(value => value.DeleteMesh(It.IsAny<MeshRef>()), Times.Never);
             Mock.Get(render).Verify(value => value.UploadMesh(It.IsAny<MeshData>()), Times.Never);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

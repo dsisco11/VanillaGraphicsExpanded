@@ -13,9 +13,9 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.PBR.Atmosphere.Celestial;
 
 /// <summary>Owns solar disk scheduling and drawing before local atmospheric coverage and scene geometry.</summary>
-internal sealed class SunRenderer : IRenderer
+internal sealed class SunDrawPass : IDisposable
 {
-    private static SunRenderer? active;
+    private static SunDrawPass? active;
     private readonly ICoreClientAPI api;
     private readonly GBufferManager gbuffer;
     private readonly GraphicsPipelineLifetime lifetime = new();
@@ -29,51 +29,56 @@ internal sealed class SunRenderer : IRenderer
     private bool admitted, failed, disposed;
 
     #region Public API
-    /// <summary>Draws after the moon and before atmospheric fog/underwater coverage at order 0.2.</summary>
-    public double RenderOrder => .197;
-    /// <summary>The directional emitter is independent of terrain render distance.</summary>
-    public int RenderRange => 1;
     /// <summary>Reports renderer ownership independently of atmospheric readiness.</summary>
     internal static bool IsEnabled => active is { disposed: false };
-    /// <summary>Registers preparation and drawing with the existing screen, world and shader lifecycles.</summary>
-    internal SunRenderer(ICoreClientAPI api, GBufferManager gbuffer)
+    /// <summary>Attaches GPU resource ownership to screen, world and shader lifecycles.</summary>
+    internal SunDrawPass(ICoreClientAPI api, GBufferManager gbuffer)
     {
         this.api = api; this.gbuffer = gbuffer;
         unregisterResize = ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder, Reset);
         reload = Rendering.Integration.EngineShaderReload.Register(api, Reload);
         api.Event.LeaveWorld += Reset;
-        api.Event.RegisterRenderer(this, EnumRenderStage.Before, "vge_sun_prepare");
-        api.Event.RegisterRenderer(this, EnumRenderStage.Opaque, "vge_sun");
         active = this;
     }
-    /// <summary>Admits one completed atmosphere publication and draws only that publication in its matching frame.</summary>
-    public void OnRenderFrame(float deltaTime, EnumRenderStage stage)
+    /// <summary>Admits coherent source and view inputs before scene storage is frozen.</summary>
+    internal void PrepareFrame()
     {
         if (disposed || !ReferenceEquals(active, this)) return;
-        try
-        {
-            if (stage == EnumRenderStage.Before) Prepare();
-            else if (stage == EnumRenderStage.Opaque && admitted) Draw();
-        }
+        try { Prepare(); }
         catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
-            failed = true; admitted = false;
-            api.Logger.Error("[VGE] Owned sun drawing failed until reload/reset; native celestial drawing remains disabled. {0}", error);
+            ReportFailure(error);
         }
     }
-    /// <summary>Withdraws registrations before retiring the owned pipeline and procedural geometry.</summary>
+    /// <summary>Prepares an independently recoverable draw for the owning sky renderer.</summary>
+    internal SkyDraw? PrepareDraw()
+    {
+        if (disposed || !ReferenceEquals(active, this) || !admitted) return null;
+        try { return CreateDraw(); }
+        catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
+        {
+            ReportFailure(error);
+            return null;
+        }
+    }
+    /// <summary>Withdraws lifecycle handlers before retiring the owned pipeline and procedural geometry.</summary>
     public void Dispose()
     {
         if (disposed) return; disposed = true;
         if (ReferenceEquals(active, this)) active = null;
-        api.Event.UnregisterRenderer(this, EnumRenderStage.Before);
-        api.Event.UnregisterRenderer(this, EnumRenderStage.Opaque);
         api.Event.LeaveWorld -= Reset; unregisterResize(); reload.Dispose();
         Rendering.Integration.RenderingCleanup.Run(Reset, lifetime.Dispose);
     }
     #endregion
 
     #region Private
+    /// <summary>Disables a failed pass until its existing reset or reload recovery.</summary>
+    private void ReportFailure(Exception error)
+    {
+        failed = true; admitted = false;
+        api.Logger.Error("[VGE] Owned sun drawing failed until reload/reset; native celestial drawing remains disabled. {0}", error);
+    }
+
     /// <summary>Admits finite solar radiance without touching native shader, query or mesh ownership.</summary>
     private void Prepare()
     {
@@ -89,19 +94,19 @@ internal sealed class SunRenderer : IRenderer
         if (radiance == Vector3.Zero) return;
         var program = GpuShaderProgramLibraries.Get<SunProgram>(api, "celestial_sun");
         if (program?.EnsureReady() != true) throw new InvalidOperationException("Owned solar executable is unavailable.");
-        geometry ??= new(CelestialRenderer.FullscreenLayout, PrimitiveType.Triangles,
+        geometry ??= new(CelestialDrawPass.FullscreenLayout, PrimitiveType.Triangles,
             new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         publication = lighting; frameIndex = VgeFrameRenderer.Current.FrameIndex; admitted = true;
     }
     /// <summary>Adds the guarded HDR disk and solar metadata while preserving primary depth and caller state.</summary>
-    private void Draw()
+    private SkyDraw? CreateDraw()
     {
         if (frameIndex != VgeFrameRenderer.Current.FrameIndex || !ReferenceEquals(publication, AtmosphereModSystem.Lighting))
             throw new InvalidOperationException("Solar publication changed after frame admission.");
         var primary = api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         var target = gbuffer.PrimaryFramebuffer;
         if (primary is null || target.FboId != primary.FboId || api.Render.CurrentFrameBuffer?.FboId != primary.FboId
-            || !target.HasRenderPassMetadata) return;
+            || !target.HasRenderPassMetadata) return null;
         var program = GpuShaderProgramLibraries.Get<SunProgram>(api, "celestial_sun")!;
         // Glare settings are captured later in Before, but are complete before any Opaque draw.
         var glare = Postprocessing.PostprocessPipeline.GlareStrengths;
@@ -112,18 +117,18 @@ internal sealed class SunRenderer : IRenderer
         using var metadata = new RenderPassTargets(pass);
         var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendingFactorSrc.One, DestinationRgb = BlendingFactorDest.One,
             SourceAlpha = BlendingFactorSrc.Zero, DestinationAlpha = BlendingFactorDest.One };
-        var description = new GraphicsPipelineDesc(program.GraphicsIdentity!, CelestialRenderer.FullscreenLayout,
+        var description = new GraphicsPipelineDesc(program.GraphicsIdentity!, CelestialDrawPass.FullscreenLayout,
             metadata.Signature, DynamicPipelineState.Viewport, blending: [blend, blend]);
         if (pipeline is null || pipeline.Description != description || pipeline.ExecutableRevision != program.ExecutableRevision)
         {
             var candidate = new GraphicsPipeline(lifetime, description, program); pipeline?.Dispose(); pipeline = candidate;
         }
-        if (!GraphicsCommandContext.TryRun("Celestial.Sun", [pipeline], true, commands =>
+        return new SkyDraw("Celestial.Sun", [pipeline], commands =>
         {
             commands.BeginPass(pass); commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
             commands.Draw(geometry!, new(0, 3)); commands.EndPass();
-        })) throw new InvalidOperationException("Solar graphics boundary was rejected.");
+        }, ReportFailure);
     }
     /// <summary>Withdraws frame admission and retires resources without restoring native callbacks.</summary>
     private void Reset()

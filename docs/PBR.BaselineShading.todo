@@ -355,21 +355,29 @@ Tasks
       and liquid-pool handoff qualification; no live appearance or GPU/frame-time gain is claimed.
       Evidence: ../artifacts/static-framebuffer-migration/validation.md.
 
-  ☐ Share a graphics boundary across contiguous VGE-owned sky contributors.
-    - Coordinate celestial background/stars, moon, sun and atmosphere submissions through the
-      existing GraphicsCommandContext/RenderPassSequence ownership path. Preserve contributor order,
-      blending, target routing and preparation/admission behavior; restore inherited engine state
-      once when the owned sequence ends instead of between adjacent contributors.
-    - Establish which callbacks can safely share authority. Preserve engine and third-party renderer
-      interleaving; do not extend a boundary across unknown external work or reorder contributors
-      merely to batch them. Keep success, skipped draws, failures and teardown independently safe.
+  ☑ Render all VGE sky passes through one owned renderer and graphics boundary.
+    - Register one SkyRenderer at Before and Opaque order 0.19. Admit celestial sources before scene
+      storage freezes; prepare and submit galaxy/stars, moon, sun and atmosphere in fixed order
+      inside the single Opaque callback. Keep independent resource and failure owners for each pass.
+    - Use GraphicsCommandContext/RenderPassSequence with the union of prepared pipeline and resource
+      footprints. Preserve individual PSO blend rules and target routing; restore inherited engine
+      state once when the sky callback returns. External callbacks run before or after that callback.
+    - Keep EngineRenderStageScopeHook diagnostic-only. No dispatcher batching, ambient collection,
+      contributor interface or cross-callback pending work is required.
     - Use the laggy-clouds capture as baseline: moon restoration at events 1123–1133 is immediately
       reversed by sun setup at 1136–1146. Evidence is retained in
       ../artifacts/LaggyCloudState/confirmed-state-events.json.
-    - Verify through subagent-run focused GPU tests and matched call captures: unchanged sky/glow
-      output, render ordering, shader/resource ownership and engine handoff, including failures.
-      Demonstrate removal of intermediate routing/state restoration while retaining necessary
-      shader, resource and blending transitions. Separate call savings from GPU/frame-time claims.
+    - Verify through subagent-run focused GPU tests and matched calls: unchanged sky/glow output,
+      fixed internal order, single renderer registration, shader/resource ownership, skipped and
+      failed passes, teardown, and restored engine state. Retain necessary shader, resource and
+      blending transitions. Reconcile architecture documents and rebuild the canonical package;
+      distinguish call savings from measured GPU/frame-time or live appearance improvements.
+    - Verified: Debug 189/189 and current-source Release 40/40 passed (190 unique checks across
+      both runs). All five production sky programs preserve byte-identical color/glow output;
+      Release fixture fixed-state setters fall from 168 to 44 and framebuffer binds from 8 to 2.
+      Single-owner scheduling, failure isolation, disposal and native state handback are covered.
+      Canonical package and source identities match; no live appearance or GPU-time claim is made.
+      Evidence: ../artifacts/single-sky-renderer/validation.md.
 
   ☐ Design PSO state-relevance semantics for parameters that cannot affect the declared draw.
     - Write a proposal describing how PSO definitions recognize irrelevant state, distinguishing

@@ -17,7 +17,7 @@ internal sealed class SceneColorPipeline : IRenderer
     private readonly PBRCompositeRenderer composite;
     private readonly DirectLightingRenderer direct;
     private readonly DirectLightingBufferManager lightingTargets;
-    private readonly Atmosphere.AtmosphereSkyRenderer sky;
+    private readonly Atmosphere.SkyRenderer sky;
     private readonly SceneColorParticleCapture particles;
     private readonly SceneColorFrameTargets targets = new();
     private readonly Action unregisterResize;
@@ -44,7 +44,7 @@ internal sealed class SceneColorPipeline : IRenderer
     /// <summary>Registers preparation after atmospheric publication and particle reset, before scene drawing.</summary>
     internal SceneColorPipeline(ICoreClientAPI api, PBRCompositeRenderer composite,
         DirectLightingRenderer direct, DirectLightingBufferManager lightingTargets,
-        Atmosphere.AtmosphereSkyRenderer sky, SceneColorParticleCapture particles)
+        Atmosphere.SkyRenderer sky, SceneColorParticleCapture particles)
     {
         this.api = api;
         this.composite = composite;

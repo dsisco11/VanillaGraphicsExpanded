@@ -312,15 +312,17 @@ for coverage, receipts and visual-acceptance limits. The historical receipts bel
 earlier draw-hook implementation rather than the current ownership boundary.
 
 `AtmosphereSkyDrawHook` suppresses the complete engine frame callback throughout the registered
-VGE sky renderer lifetime, independently of drawing-resource readiness. `AtmosphereSkyRenderer` is registered at Opaque order 0.2,
-uses a VGE-owned empty VAO and one procedural fullscreen triangle on the existing primary
+VGE sky renderer lifetime, independently of drawing-resource readiness. `SkyRenderer` is registered at Opaque order 0.19;
+its final `AtmosphereSkyPass` uses a VGE-owned empty VAO and one procedural fullscreen triangle on the existing primary
 framebuffer. There are no vertex/index streams or calls to the engine dome generator. The vertex
 shader generates clip positions from `gl_VertexID`; the fragment shader unprojects two finite
 clip depths through the inverse camera-relative view-projection matrix to reconstruct each
 world-space viewing ray. Translation is removed from a copied view matrix without changing
 the engine stack. The ray samples the existing atmospheric LUT; scattering is not reintegrated
 per screen pixel. The forward transform is retained for compatibility fog depth.
-The normal complete graphics boundary restores draw state; no engine shader suspension is needed.
+One complete graphics boundary covers galaxy/stars, moon, sun and atmosphere, restoring engine
+state when the single sky callback returns. Preparation remains outside that boundary; no engine
+shader suspension is needed. External callbacks cannot interleave these internal passes.
 
 At Before order -0.5, completed atmospheric lighting supplies a VGE-owned replacement for the
 ordered sunglow modifier before the engine ambient blend at order 0. Other modifiers retain their

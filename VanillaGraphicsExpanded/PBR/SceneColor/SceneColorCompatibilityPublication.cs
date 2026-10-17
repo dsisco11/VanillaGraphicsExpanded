@@ -62,8 +62,8 @@ internal readonly record struct SceneColorCompatibilityPublication(uint FrameInd
             SceneColorPointLightBounds.FromEngine(u.PointLightsCount, u.PointLightColors3));
         // The owned source supplies its own physical envelope. Do not continue
         // reserving the retired native cubemap's compatibility brightness.
-        if (Atmosphere.Celestial.CelestialRenderer.IsEnabled) publication = publication with { Stars = 0 };
-        return Atmosphere.Celestial.MoonRenderer.IsEnabled ? publication with { Moon = 0 } : publication;
+        if (Atmosphere.Celestial.CelestialDrawPass.IsEnabled) publication = publication with { Stars = 0 };
+        return Atmosphere.Celestial.MoonDrawPass.IsEnabled ? publication with { Moon = 0 } : publication;
     }
 
     /// <summary>Assembles inspected native expressions and the supported normalized texture/color owner contracts.</summary>

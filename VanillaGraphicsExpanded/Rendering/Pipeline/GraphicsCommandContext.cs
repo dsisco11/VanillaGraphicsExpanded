@@ -115,6 +115,13 @@ internal sealed class GraphicsCommandContext
         pipeline = null;
         dynamics = new();
     }
+
+    /// <summary>Releases remaining image authority when a contributor fails before ending its pass.</summary>
+    internal void EndPassIfActive()
+    {
+        RequireMutable();
+        if (pass is not null) EndPass();
+    }
     #endregion
     #endregion
 

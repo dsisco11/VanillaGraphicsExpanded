@@ -13,6 +13,19 @@ GraphicsCommandContext captures one incoming program scope and rejects stale pre
 Consecutive draws transition directly between prepared owners and publish inputs on every draw.
 `EndPass` releases active image borrows and clears the pass selection; it leaves the current shader
 and draw framebuffer selected until another pass changes them or the outer boundary exits.
+
+`SkyRenderer` owns one Before registration for celestial admission and one Opaque registration at
+order 0.19. Its draw callback prepares galaxy/stars, moon, sun and atmosphere in fixed order, then
+`SkyDraw.Run` enters one `GraphicsCommandContext` with their complete prepared pipeline/resource
+footprint. The four draw-pass owners retain independent resize, world, reload and failure lifetimes;
+they do not register engine renderer callbacks. Preparation finishes outside graphics authority.
+Each pass retains its authored PSO, including the additive-to-atmospheric blend transition.
+`RenderPassSequence` retains shader and framebuffer routing until the shared boundary ends.
+Recoverable draw failures release active image authority and disable only the affected pass;
+restoration failures propagate after independent cleanup. Engine state is restored before the
+single callback returns. External renderers run before or after this callback and cannot interleave
+its internal passes. `EngineRenderStageScopeHook` supplies Debug-only diagnostic groups.
+
 `GpuFramebuffer` is an abstract resource owner. `DynamicGpuFramebuffer` owns mutable attachment
 configuration and its creation/wrapping factories. `StaticGpuFramebuffer.Create` builds a complete
 managed attachment layout and draw route, then holds configuration borrows on its images and backing

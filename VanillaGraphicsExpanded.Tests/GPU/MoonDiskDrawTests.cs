@@ -23,20 +23,18 @@ public sealed class MoonDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFu
     public void MoonOwnershipRetainsCorrectPassOrderAndLifetime()
     {
         EnsureContextValid();
-        Assert.False(MoonRenderer.IsEnabled);
+        Assert.False(MoonDrawPass.IsEnabled);
         var api = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
-        using (var renderer = new MoonRenderer(api.Object, null!))
+        using (var renderer = new MoonDrawPass(api.Object, null!))
         {
-            Assert.True(MoonRenderer.IsEnabled); Assert.Equal(.195, renderer.RenderOrder);
-            api.Verify(value => value.Event.RegisterRenderer(renderer, EnumRenderStage.Before, "vge_moon_prepare"), Times.Once);
-            api.Verify(value => value.Event.RegisterRenderer(renderer, EnumRenderStage.Opaque, "vge_moon"), Times.Once);
-            renderer.OnRenderFrame(0, EnumRenderStage.Before);
+            Assert.True(MoonDrawPass.IsEnabled);
+            renderer.PrepareFrame();
             ScreenResourceManager.HandleScreenResize();
-            typeof(MoonRenderer).GetMethod("Reload", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(renderer, null);
+            typeof(MoonDrawPass).GetMethod("Reload", BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(renderer, null);
             Mock.Get(api.Object.Event).Raise(value => value.LeaveWorld += null);
-            Assert.True(MoonRenderer.IsEnabled); Assert.Equal(0, MoonRenderer.MaximumNits);
+            Assert.True(MoonDrawPass.IsEnabled); Assert.Equal(0, MoonDrawPass.MaximumNits);
         }
-        Assert.False(MoonRenderer.IsEnabled);
+        Assert.False(MoonDrawPass.IsEnabled);
     }
     /// <summary>Phase, RGB calibration and frame storage preserve total power through actual rasterization.</summary>
     [Theory]
@@ -80,14 +78,14 @@ public sealed class MoonDiskDrawTests(HeadlessGLFixture fixture) : LumOnShaderFu
         using var color = DynamicTexture2D.Create(size, size, PixelInternalFormat.Rgba32f);
         using var glow = DynamicTexture2D.Create(size, size, PixelInternalFormat.Rgba32f);
         using var target = DynamicGpuFramebuffer.CreateMRT([color, glow])!;
-        using var geometry = new ArrayGraphicsGeometry(CelestialRenderer.FullscreenLayout, PrimitiveType.Triangles,
+        using var geometry = new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout, PrimitiveType.Triangles,
             new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         using var lifetime = new GraphicsPipelineLifetime();
         var pass = new RenderPassDesc(target, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0,0,0,0)),
             new(1, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0,0,0,0))]);
         using var metadata = new RenderPassTargets(pass);
         var blend = new ColorBlendDesc { Enabled = true, SourceRgb = BlendingFactorSrc.One, DestinationRgb = BlendingFactorDest.One };
-        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, CelestialRenderer.FullscreenLayout,
+        using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, CelestialDrawPass.FullscreenLayout,
             metadata.Signature, DynamicPipelineState.Viewport, blending: [blend, blend]), shader);
         int framebuffer = GL.GetInteger(GetPName.DrawFramebufferBinding);
         bool depth = GL.IsEnabled(EnableCap.DepthTest), blending = GL.IsEnabled(EnableCap.Blend);

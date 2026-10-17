@@ -16,6 +16,6 @@ internal static class AtmosphereSkyDrawHook
         ?? throw new MissingMethodException("Installed sky renderer is unavailable.");
 
     /// <summary>Resource readiness never reactivates vanilla sky while the replacement is enabled.</summary>
-    internal static bool Prefix() => !AtmosphereSkyRenderer.IsEnabled;
+    internal static bool Prefix() => !SkyRenderer.IsEnabled;
     #endregion
 }

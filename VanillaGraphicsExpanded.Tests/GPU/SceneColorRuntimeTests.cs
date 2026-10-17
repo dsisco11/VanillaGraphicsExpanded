@@ -15,6 +15,8 @@ using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
 using VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 using Vintagestory.API.Client;
@@ -108,7 +110,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var lights = new VgeLightsRenderer(api.Object);
         using var gbuffer = new GBufferManager(api.Object);
         Assert.True(gbuffer.EnsureBuffers(2, 2));
-        using var sky = new AtmosphereSkyRenderer(api.Object, gbuffer);
+        using var sky = new SkyRenderer(api.Object, gbuffer);
 
         using var directTargets = new DirectLightingBufferManager(api.Object);
         using var direct = new DirectLightingRenderer(api.Object, gbuffer, directTargets);
@@ -183,9 +185,24 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
             lightingPublication.OnRenderFrame(0, EnumRenderStage.Opaque);
             SceneLightingPublicationRenderer.RequireNativeInputs("particlescube");
             engine.BindWithViewport();
-            GL.ClearBuffer(ClearBuffer.Color, 0, new float[4]);
-            GL.DepthMask(true);
-            GL.ClearBuffer(ClearBuffer.Depth, 0, new[] { 1f });
+            // Author a complete sky background regardless of inherited scissor or write masks.
+            // The clear pass preserves that hostile state for subsequent rendering/handoff checks.
+            bool inheritedScissorEnabled = GL.IsEnabled(EnableCap.ScissorTest);
+            int[] inheritedScissor = new int[4];
+            GL.GetInteger(GetPName.ScissorBox, inheritedScissor);
+            var clearSky = new RenderPassDesc(engine,
+                [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))],
+                new(DepthLoad: AttachmentLoad.Clear, ClearDepth: 1));
+            Assert.True(GraphicsCommandContext.TryRun("Tests.SceneColor.ClearSky", [], true, commands =>
+            {
+                commands.BeginPass(clearSky);
+                commands.EndPass();
+            }));
+            Assert.All(ReadPrimaryDepth(engine.FboId), value => Assert.Equal(1f, value));
+            Assert.Equal(inheritedScissorEnabled, GL.IsEnabled(EnableCap.ScissorTest));
+            int[] restoredScissor = new int[4];
+            GL.GetInteger(GetPName.ScissorBox, restoredScissor);
+            Assert.Equal(inheritedScissor, restoredScissor);
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
             Assert.True(engine[0].ReadPixels()[0] * sceneInverseScale > 1f, "Owned sky must retain physical HDR radiance in primary.");
 
@@ -512,6 +529,17 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         typeof(ClientWorldPlayerData).GetField("entityplayer", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(data, new EntityPlayer());
         typeof(ClientPlayer).GetField("worlddata", BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)!.SetValue(player, data);
         return player;
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Observes the fixture's complete depth initialization without disturbing its draw framebuffer.</summary>
+    private static float[] ReadPrimaryDepth(int framebuffer)
+    {
+        using var read = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer);
+        float[] pixels = new float[4];
+        GL.ReadPixels(0, 0, 2, 2, PixelFormat.DepthComponent, PixelType.Float, pixels);
+        return pixels;
     }
     #endregion
 }

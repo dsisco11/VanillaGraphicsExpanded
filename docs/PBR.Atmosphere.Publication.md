@@ -2,7 +2,7 @@
 
 ## Ownership
 
-Runtime uses an independently registered fullscreen sky renderer and pre-blend atmospheric
+Runtime uses one registered sky renderer and pre-blend atmospheric
 compatibility publication. The compatibility adapter retains valid native lookup handles
 for the retained native cloud-map producer and restored native paths.
 [Owned cloud rendering](PBR.Clouds.md) consumes completed physical lighting and aerial transport
@@ -11,6 +11,14 @@ independently, preserving the existing OIT contract and frozen scene-storage sca
 The atmospheric subsystem owns environmental lighting independently of the
 sky draw. The sky renderer consumes published state; it does not update engine lighting globals,
 advance frame counters, calculate ambient lighting, or reproduce `calcSunColor`.
+
+`SkyRenderer` registers at Before and Opaque order 0.19. Its preparation callback admits celestial
+sources before scene storage freezes. Its single draw callback prepares and submits galaxy/stars,
+moon, sun and atmosphere in that order through one graphics boundary. Independent draw-pass owners
+retain their resource and failure lifetimes without registering renderer callbacks. Preparation
+finishes before entering graphics authority; shader, target and blend transitions remain explicit.
+External renderer callbacks run before or after the complete sky callback. Engine state is restored
+before it returns.
 
 ## Atmospheric transport
 
@@ -118,26 +126,26 @@ remaining consumers to physical atmospheric inputs. `SunsetMod` is not a physica
 
 ## Draw ownership
 
-The [owned stars and galaxy](PBR.StarsAndGalaxy.todo) follows this lifetime
+The owned stars and galaxy follow this lifetime
 and atomic-publication policy to a load-generated HDR source and instanced stars.
 Its source set and derived lighting must publish together when the cached illumination
-is activated. VGE independently registers CelestialRenderer at Opaque order 0.19.
+is activated. `SkyRenderer` submits `CelestialDrawPass` first within its Opaque callback at order 0.19.
 NativeNightSkyDrawRegistration unregisters the native night-render callback and both
 sun/moon draw callbacks through the public event manager. The native client-system registry and asset lifecycle
 remain intact. No Harmony night-draw patch or client-system replacement is used.
 `sky.fsh`, `nightsky.fsh` and `celestialobject.fsh` are excluded from VGE's native
-shader patch selection. VGE's registered renderers own their scene-color output.
+shader patch selection. VGE's sky passes own their scene-color output.
 Native liquid rendering retains its scene-color patch for the conditional ownership
 fallback in `LiquidRenderer` and `LiquidRenderHooks`.
 
-The moon has an independent `MoonRenderer` at Opaque order 0.195, after stars/galaxy
-and before atmospheric local fog/underwater coverage at 0.2. `Celestial.Moon` is a
+`MoonDrawPass` follows stars/galaxy within the sky callback, before atmospheric local
+fog/underwater coverage. `Celestial.Moon` is a
 tracked additive HDR pass with no depth writes or glow contribution. Its GLSL 330
 program reconstructs a procedural phased Lambert disk without engine shader code,
 moon textures or native mesh data. Clouds and terrain occlude it in later passes.
 
-The sun has an independent `SunRenderer` at Opaque order 0.197, also before local
-atmospheric coverage at 0.2. Its `celestial_sun` GLSL 330 program reconstructs an
+`SunDrawPass` follows the moon within the same callback, before local
+atmospheric coverage. Its `celestial_sun` GLSL 330 program reconstructs an
 antialiased uniform angular disk from the shared camera and completed atmosphere.
 `AtmosphereSolarDisk` supplies the existing angular radius and radiance normalized
 to admitted solar illuminance and horizon visibility; extinction is not applied twice.
@@ -183,8 +191,8 @@ External transmission follows the existing atmospheric generation cadence, inclu
 directional updates; no independent compute dispatch, fence or synchronous readback is
 introduced. The existing asynchronous output readback includes its additional 8 KiB.
 
-The celestial pass runs at Opaque order 0.19, before atmosphere at 0.2 and later disks,
-clouds and receivers. Its RGB is additive physical lighting with no independent halo.
+The celestial pass precedes the disks and atmosphere inside the Opaque sky callback at 0.19,
+before later clouds and receivers. Its RGB is additive physical lighting with no independent halo.
 The atmosphere contributes its full radiance while retaining local horizon/flat fog and
 underwater occlusion of the background. That legacy local fog is distinct from planetary
 external extinction. Daylight alpha and the legacy cloud proxy do not additionally fade

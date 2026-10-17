@@ -145,7 +145,7 @@ public sealed class AtmosphereModSystem : ModSystem, IRenderer
                 api.Logger.Error("[VGE] Atmosphere update failed; retaining the last published lighting. {0}", error);
             updateFailureReported = true;
         }
-        if (AtmosphereSkyRenderer.IsEnabled)
+        if (SkyRenderer.IsEnabled)
         {
             // Environmental and frame publication continue even when drawing resources are unavailable.
             // The neutral startup snapshot is a valid publication until physical transport completes.
