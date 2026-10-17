@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
 namespace VanillaGraphicsExpanded.PBR.SceneColor;
 
@@ -24,9 +25,11 @@ internal sealed class SceneColorParticleTargets : IDisposable
     /// <summary>Gets particle radiance, borrowed glow and optional isolated SSAO outputs.</summary>
     internal GpuFramebuffer DrawTarget { get; private set; } = null!;
     /// <summary>Gets the resolve destination for material receiver depth and visible premultiplied particles.</summary>
-    internal GpuFramebuffer ResolveTarget { get; private set; } = null!;
+    internal StaticGpuFramebuffer ResolveTarget { get; private set; } = null!;
     /// <summary>Gets the borrowed engine SSAO output destination when those attachments exist.</summary>
     internal GpuFramebuffer? SsaoTarget { get; private set; }
+    /// <summary>Retains the engine-backed SSAO restoration intentions for this primary publication.</summary>
+    internal RenderPassDesc? SsaoPass { get; private set; }
     /// <summary>Reports whether the original particle SSAO outputs have isolated storage.</summary>
     internal bool HasSsao => SsaoTarget is not null;
     /// <summary>Gets straight-alpha-blended radiance, with accumulated coverage in alpha.</summary>
@@ -71,11 +74,12 @@ internal sealed class SceneColorParticleTargets : IDisposable
                     GpuFramebufferAttachmentDiscovery.Read(primary, FramebufferAttachment.ColorAttachment2),
                     GpuFramebufferAttachmentDiscovery.Read(primary, FramebufferAttachment.ColorAttachment3)],
                     debugName: "SceneColor.Particles.SsaoRestore");
+                SsaoPass = new(SsaoTarget, [new(0), new(1)]);
             }
             else DrawTarget = DynamicGpuFramebuffer.Create([color, glow], depth, "SceneColor.Particles.Draw");
-            beforeTarget = DynamicGpuFramebuffer.Create([], before, "SceneColor.Particles.Before");
-            afterTarget = DynamicGpuFramebuffer.Create([], after, "SceneColor.Particles.After");
-            ResolveTarget = DynamicGpuFramebuffer.Create([receiver, visible], debugName: "SceneColor.Particles.Resolve");
+            beforeTarget = StaticGpuFramebuffer.Create([], before, "SceneColor.Particles.Before");
+            afterTarget = StaticGpuFramebuffer.Create([], after, "SceneColor.Particles.After");
+            ResolveTarget = StaticGpuFramebuffer.Create([receiver, visible], debugName: "SceneColor.Particles.Resolve");
             beforeCopy = new(primary, beforeTarget, ClearBufferMask.DepthBufferBit);
             afterCopy = new(primary, afterTarget, ClearBufferMask.DepthBufferBit);
             primary.AttachmentsChanged += Invalidate;
@@ -158,7 +162,9 @@ internal sealed class SceneColorParticleTargets : IDisposable
             var depth = new DepthTexture(primary.Width, primary.Height, format,
                 debugName: "SceneColor.Particles." + name);
             ownedImages.Add(depth);
-            return GpuFramebufferAttachment.FromTexture(depth);
+            var depthImage = GpuFramebufferAttachment.FromTexture(depth);
+            ownedImages.Add(depthImage);
+            return depthImage;
         }
         var image = new GpuFramebufferAttachment(primary.Width, primary.Height, format,
             debugName: "SceneColor.Particles." + name);

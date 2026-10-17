@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
@@ -30,6 +31,8 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
     #endregion
 
     #region Internal API
+    /// <summary>Retains the full-target preserving pass for this immutable output route.</summary>
+    internal RenderPassDesc PreservePass { get; }
     #region Declaration admission
     /// <summary>Certifies the immutable route once when a reusable pass declaration is constructed.</summary>
     internal override void ValidatePassRouting(IReadOnlyList<DrawBuffersEnum> route)
@@ -85,13 +88,17 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
             foreach (var pair in AttachmentImages)
             {
                 var image = pair.Value;
-                if (image.Resource is not { } storage || storage is GpuTextureView { Source: null })
+                if (image.Resource is not { } storage || storage is BorrowedTexture
+                    || storage is GpuTextureView { Source: null or BorrowedTexture })
                     throw new ArgumentException("Static framebuffers require managed attachment storage with tracked allocation ownership.");
                 Freeze(image); Freeze(storage);
                 if (storage is GpuTextureView { Source: { } source }) Freeze(source);
             }
             configurationOwner.RegisterStaticFramebuffer(this);
             Integration.RenderContextRegistry.Retiring += OnContextRetiring;
+            // Fixed output routing permits one declaration for every preserving use of this allocation.
+            PreservePass = new(this, routing.Select(output => new RenderPassColor(output == DrawBuffersEnum.None
+                ? -1 : (int)output - (int)DrawBuffersEnum.ColorAttachment0)));
         }
         catch { Dispose(); throw; }
     }

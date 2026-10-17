@@ -195,9 +195,9 @@ public sealed class PostprocessingPhotometricTests(HeadlessGLFixture fixture) : 
     /// <summary>Uses the owning prepared postprocess draw and restored engine command boundary.</summary>
     private static void Submit(PostprocessDraw draw, GpuProgram shader, GpuFramebuffer target)
     {
-        var pipeline = draw.Prepare(shader, target);
+        var pipeline = draw.Prepare(shader,target.PostprocessPass());
         Assert.True(GraphicsCommandContext.TryRun("Tests.PhotometricPost", [pipeline], true,
-            commands => draw.Submit(commands, pipeline, target)));
+            commands => draw.Submit(commands, pipeline,target.PostprocessPass())));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

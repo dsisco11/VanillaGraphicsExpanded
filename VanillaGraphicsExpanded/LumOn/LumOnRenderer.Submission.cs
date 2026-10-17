@@ -20,15 +20,7 @@ public partial class LumOnRenderer
     /// <summary>Prepares one retained executable realization and restores the incoming engine state around its draw.</summary>
     private bool SubmitFullscreen(GpuProgram shader, GpuFramebuffer target, bool clear)
     {
-        // Target metadata resolves mip dimensions and exact MRT formats without native draw-time reflection.
-        var slots = target.AttachmentImages
-            .Where(pair => pair.Key >= FramebufferAttachment.ColorAttachment0 && pair.Key <= FramebufferAttachment.ColorAttachment15)
-            .Select(pair => (int)pair.Key - (int)FramebufferAttachment.ColorAttachment0).ToHashSet();
-        var outputs = Enumerable.Range(0, slots.Count == 0 ? 0 : slots.Max() + 1)
-            .Select(slot => slots.Contains(slot) ? new RenderPassColor(slot,
-                clear ? AttachmentLoad.Clear : AttachmentLoad.Preserve, Clear: clear ? ColorClearValue.Float(0, 0, 0, 0) : null)
-                : new RenderPassColor(-1)).ToArray();
-        var description = new RenderPassDesc(target, outputs);
+        var description = bufferManager.GetPass(target, clear);
         using var metadata = new RenderPassTargets(description);
         graphicsPipelines.TryGetValue(shader.PassName, out var pipeline);
         if (pipeline is null || !ReferenceEquals(pipeline.Shader, shader)

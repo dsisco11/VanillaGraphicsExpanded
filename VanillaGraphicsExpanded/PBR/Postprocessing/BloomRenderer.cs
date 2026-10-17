@@ -55,7 +55,7 @@ internal sealed class BloomRenderer : IDisposable
         if (shader?.EnsureReady() != true) throw new InvalidOperationException("Owned bloom shader unavailable.");
         shader.LocalBase = localSettings.Enabled ? localBase : null;
         shader.CaptureLocal(localSettings, logMiddleGray);
-        return pipeline = draw.Prepare(shader, levels[0].Target);
+        return pipeline = draw.Prepare(shader, levels[0].Target.PreservePass);
     }
 
     /// <summary>Extracts once, filters independent scales, then accumulates their normalized tinted energy.</summary>
@@ -70,7 +70,7 @@ internal sealed class BloomRenderer : IDisposable
             shader.ExposureBuffer = exposure.Buffer;
             shader.Capture(new(0, 0, i == 0 ? 0 : 1, exposure.Buffer is not null ? 1 : 0),
                 new(settings.BloomThreshold, settings.BloomKnee, settings.BloomStrength, exposure.ManualLogGain));
-            draw.Submit(commands, pipeline!, levels[i].Target);
+            draw.Submit(commands, pipeline!, levels[i].Target.PreservePass);
         }
         float totalEnergy = 0;
         for (int i = 0; i < levels.Count; i++)
@@ -80,10 +80,10 @@ internal sealed class BloomRenderer : IDisposable
             shader!.SecondaryImage = scene;
             shader.SourceImage = levels[i].Texture;
             shader.CaptureGaussian(Scales[i].Radius, vertical: false);
-            draw.Submit(commands, pipeline!, scratch[i].Target);
+            draw.Submit(commands, pipeline!, scratch[i].Target.PreservePass);
             shader.SourceImage = scratch[i].Texture;
             shader.CaptureGaussian(Scales[i].Radius, vertical: true);
-            draw.Submit(commands, pipeline!, levels[i].Target);
+            draw.Submit(commands, pipeline!, levels[i].Target.PreservePass);
         }
         // Reuse horizontal scratch after all filters finish. Every scale enters the sum exactly once.
         for (int i = levels.Count - 1; i >= 0; i--)
@@ -93,7 +93,7 @@ internal sealed class BloomRenderer : IDisposable
             shader.SecondaryImage = hasCoarser ? scratch[i + 1].Texture : scene;
             shader.Capture(new(0, 0, 4, hasCoarser ? 1 : 0),
                 new(Scales[i].Tint * (Scales[i].Energy / totalEnergy), 0));
-            draw.Submit(commands, pipeline!, scratch[i].Target);
+            draw.Submit(commands, pipeline!, scratch[i].Target.PreservePass);
         }
     }
 

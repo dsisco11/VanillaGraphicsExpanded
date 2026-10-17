@@ -196,8 +196,8 @@ internal sealed partial class LumOnWorldProbeClipmapGpuUploader : IDisposable
         using var gpuScope = GlGpuProfiler.Instance.Scope("LumOn.WorldProbe.UploadResolve");
         var radianceTarget = resources.GetRadianceFbo();
         var metadataTarget = resources.GetFbo();
-        var tileState = PreparePipeline(ref tilePipeline, tileProg, TileLayout, radianceTarget, TileOutputs);
-        var probeState = PreparePipeline(ref probePipeline, probeProg, ProbeLayout, metadataTarget, ProbeOutputs);
+        var tileState = PreparePipeline(ref tilePipeline, tileProg, TileLayout, radianceTarget);
+        var probeState = PreparePipeline(ref probePipeline, probeProg, ProbeLayout, metadataTarget);
         bool submitted = GraphicsCommandContext.TryRun("LumOn.WorldProbe.UploadResolve", [tileState, probeState], true, commands =>
         {
             // Publish radiance first; metadata becomes visible only after both sequential passes succeed.
@@ -205,11 +205,11 @@ internal sealed partial class LumOnWorldProbeClipmapGpuUploader : IDisposable
             {
                 tileProg.AtlasSize = new Vec2f(resources.RadianceAtlasWidth, resources.RadianceAtlasHeight);
                 tileVbo.UploadData((ReadOnlySpan<TileResolveVertex>)CollectionsMarshal.AsSpan(tileVertices));
-                Submit(commands, tileState, tileGeometry, radianceTarget, TileOutputs, tileVertices.Count);
+                Submit(commands, tileState, tileGeometry, radianceTarget, tileVertices.Count);
             }
             probeProg.AtlasSize = new Vec2f(resources.AtlasWidth, resources.AtlasHeight);
             probeVbo.UploadData((ReadOnlySpan<ProbeResolveVertex>)CollectionsMarshal.AsSpan(probeVertices));
-            Submit(commands, probeState, probeGeometry, metadataTarget, ProbeOutputs, probeVertices.Count);
+            Submit(commands, probeState, probeGeometry, metadataTarget, probeVertices.Count);
         });
         if (!submitted) return 0;
         return usedProbes;

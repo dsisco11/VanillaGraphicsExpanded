@@ -10,7 +10,7 @@ internal sealed class AmbientOcclusionPass : IDisposable
     private readonly MinimumChildMaskPass minimumChildren=new();
     private long targetStorageBytes;
     private DynamicTexture2D? raw,filtered,output;
-    private GpuFramebuffer? rawTarget,filteredTarget,outputTarget;
+    private StaticGpuFramebuffer? rawTarget,filteredTarget,outputTarget;
     private AmbientOcclusionQuality quality;
     private PostSsaoShaderProgram? horizon;
     private AmbientOcclusionFilterShaderProgram? filter;
@@ -37,8 +37,8 @@ internal sealed class AmbientOcclusionPass : IDisposable
         this.horizon=horizon;this.filter=filter;
         if(!horizon.EnsureReady() || !filter.EnsureReady())
             throw new InvalidOperationException("Ambient occlusion shaders are unavailable.");
-        horizonPipeline=draw.Prepare(horizon,rawTarget!);
-        filterPipeline=draw.Prepare(filter,filteredTarget!);
+        horizonPipeline=draw.Prepare(horizon,rawTarget!.PreservePass);
+        filterPipeline=draw.Prepare(filter,filteredTarget!.PreservePass);
         var maskPipeline=minimumChildren.Prepare(draw,width,height,masks);
         return [maskPipeline,horizonPipeline,filterPipeline];
     }
@@ -54,13 +54,13 @@ internal sealed class AmbientOcclusionPass : IDisposable
         horizon.DepthHierarchy=hierarchy;
         horizon.MinimumChildren=minimumChildren.Texture;
         horizon.Capture(camera,frame,sampling,distance);
-        draw.Submit(commands,horizonPipeline!,rawTarget!);
+        draw.Submit(commands,horizonPipeline!,rawTarget!.PreservePass);
         filter!.DepthImage=depth;filter.SurfaceImage=surface;filter.SourceImage=raw;
         filter.Capture(camera,frame,sampling,distance);
-        draw.Submit(commands,filterPipeline!,filteredTarget!);
+        draw.Submit(commands,filterPipeline!,filteredTarget!.PreservePass);
         filter.SourceImage=filtered;frame.W=1;
         filter.Capture(camera,frame,sampling,distance);
-        draw.Submit(commands,filterPipeline!,outputTarget!);
+        draw.Submit(commands,filterPipeline!,outputTarget!.PreservePass);
     }
     /// <summary>Withdraws all resources together; no prior-frame image survives retirement.</summary>
     public void Dispose() {
@@ -71,11 +71,11 @@ internal sealed class AmbientOcclusionPass : IDisposable
     #endregion
     #region Private
     /// <summary>Owns sized storage and registers framebuffer borrowers in the same retirement collection.</summary>
-    private GpuFramebuffer Create(int width,int height,PixelInternalFormat format,string name,out DynamicTexture2D texture) {
+    private StaticGpuFramebuffer Create(int width,int height,PixelInternalFormat format,string name,out DynamicTexture2D texture) {
         texture=resources.Own(DynamicTexture2D.Create(width,height,format,debugName:$"AmbientOcclusion.{name}"));
         targetStorageBytes+=(long)width*height*8;
         var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(texture));
-        return resources.Own(DynamicGpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.{name}"));
+        return resources.Own(StaticGpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.{name}"));
     }
     #endregion
 }

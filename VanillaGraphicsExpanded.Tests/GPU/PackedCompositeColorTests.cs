@@ -95,9 +95,9 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         display.FrameInputs=frameCamera;display.SceneImage=target[0];display.BloomImage=zero;display.ShaftImage=zero;display.ExposureBuffer=neutralExposure;
         display.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
         using var draw=new PostprocessDraw();
-        var displayPipeline=draw.Prepare(display,output);
+        var displayPipeline=draw.Prepare(display,output.PostprocessPass());
         Assert.True(GraphicsCommandContext.TryRun("Tests.PackedCompositeDisplay",[displayPipeline],true,
-            commands=>draw.Submit(commands,displayPipeline,output)));
+            commands=>draw.Submit(commands,displayPipeline,output.PostprocessPass())));
         float[] resolved=output[0].ReadPixels();
         Vector3 encoded=FilmicGradingReference.Lookup(new(packed[0],packed[1],packed[2]),new(1,1,1,0));
         for(int channel=0;channel<3;channel++)

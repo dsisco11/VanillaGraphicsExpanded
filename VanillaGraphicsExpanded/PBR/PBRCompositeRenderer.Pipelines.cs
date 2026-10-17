@@ -14,10 +14,7 @@ namespace VanillaGraphicsExpanded.PBR;
 public sealed partial class PBRCompositeRenderer
 {
     private static readonly RenderPassColor[] SingleOutput = [new(0)];
-    private static readonly RenderPassColor[] PairOutputs = [new(0), new(1)];
     private static readonly RenderPassColor[] CompositeOutputs = [new(0), new(-1, DiscardOutput: true), new(-1, DiscardOutput: true)];
-    private static readonly RenderPassColor[] ReceiverOutputs = [new(0), new(1), new(2)];
-    private static readonly RenderPassColor[] CaptureOutputs = [new(-1), new(1), new(2)];
     private static readonly RenderTargetSignature CompositeTargets = new([new(PixelInternalFormat.R11fG11fB10f), new(null, true), new(null, true)]);
     private static readonly RenderTargetSignature ReceiverTargets = new([new(PixelInternalFormat.R11fG11fB10f), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.R32f)]);
     private static readonly RenderTargetSignature CaptureTargets = new([new(null), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.R32f)]);
@@ -72,9 +69,9 @@ public sealed partial class PBRCompositeRenderer
 
     /// <summary>Uses complete default raster state and an explicit target-sized viewport for one fullscreen draw.</summary>
     private void SubmitFullscreen(GraphicsCommandContext commands, GraphicsPipeline pipeline,
-        GpuFramebuffer target, RenderPassColor[] outputs)
+        RenderPassDesc pass)
     {
-        commands.BeginPass(new(target, outputs));
+        commands.BeginPass(pass);
         commands.SetPipeline(pipeline);
         commands.SetDynamicState(new() { Viewport = commands.PassViewport });
         commands.Draw(geometry!, new(0, 6));

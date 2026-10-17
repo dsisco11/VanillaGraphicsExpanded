@@ -60,12 +60,14 @@ public sealed class SceneColorParticlePublicationTests(HeadlessGLFixture fixture
         renderMock.SetupGet(value => value.CurrentRenderStage).Returns(EnumRenderStage.Opaque);
         renderMock.SetupGet(value => value.CurrentFrameBuffer).Returns(primary);
         var world = SceneColorRuntimeTests.CreateWorld();
+        var settings = new Mock<ISettings> { DefaultValue = DefaultValue.Mock };
         var api = RuntimeRenderEvents.Adapt<ICoreClientAPI>((method, args) => method.Name switch
         {
             "get_Render" => render,
             "get_World" => world,
             "get_Event" => events.Api,
             "get_Shader" => programs.Api,
+            "get_Settings" => settings.Object,
             _ => method.Invoke(assets.Api, args)
         });
         programs.Initialize(api);

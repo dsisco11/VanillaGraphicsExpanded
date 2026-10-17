@@ -121,8 +121,8 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
     /// <summary>Submits each owned bloom stage through a prepared pipeline after any preceding image readback.</summary>
     private static void SubmitBloom(PostprocessDraw draw,BloomShaderProgram shader,GpuFramebuffer target)
     {
-        var pipeline=draw.Prepare(shader,target);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.SolarBloom",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+        var pipeline=draw.Prepare(shader,target.PostprocessPass());
+        Assert.True(GraphicsCommandContext.TryRun("Tests.SolarBloom",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
     }
     #endregion
 }

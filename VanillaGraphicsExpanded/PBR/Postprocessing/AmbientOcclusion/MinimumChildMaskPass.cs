@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 internal sealed class MinimumChildMaskPass : IDisposable
 {
     private GpuResourceCollection resources = new();
-    private GpuFramebuffer[] targets = [];
+    private StaticGpuFramebuffer[] targets = [];
     private MinimumChildMaskShaderProgram? shader;
     private GraphicsPipeline? pipeline;
     #region Public API
@@ -31,11 +31,11 @@ internal sealed class MinimumChildMaskPass : IDisposable
             try
             {
                 Texture=resources.Own(DynamicTexture2D.CreateMipmapped(mw,mh,PixelInternalFormat.R16ui,Math.Max(1,levels),"AmbientOcclusion.MinimumChildren"));
-                targets=new GpuFramebuffer[Math.Max(1,levels)];
+                targets=new StaticGpuFramebuffer[Math.Max(1,levels)];
                 for(int level=0;level<targets.Length;level++)
                 {
                     var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(Texture,mipLevel:level));
-                    targets[level]=resources.Own(DynamicGpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.MinimumChildren.Mip{level}"));
+                    targets[level]=resources.Own(StaticGpuFramebuffer.Create([attachment],debugName:$"AmbientOcclusion.MinimumChildren.Mip{level}"));
                     StorageBytes+=2L*Math.Max(1,mw>>level)*Math.Max(1,mh>>level);
                 }
             }
@@ -43,7 +43,7 @@ internal sealed class MinimumChildMaskPass : IDisposable
         }
         this.shader=shader;
         if(!shader.EnsureReady()) throw new InvalidOperationException("AO minimum-child shader is unavailable.");
-        pipeline=draw.Prepare(shader,targets[0]);
+        pipeline=draw.Prepare(shader,targets[0].PreservePass);
         return pipeline;
     }
     /// <summary>Builds all used levels before horizon sampling, preserving conservative odd-axis child membership.</summary>
@@ -55,7 +55,7 @@ internal sealed class MinimumChildMaskPass : IDisposable
         for(int level=1;level<=levels;level++)
         {
             program.Capture(level);
-            draw.Submit(commands,pipeline!,targets[level-1]);
+            draw.Submit(commands,pipeline!,targets[level-1].PreservePass);
         }
         // Completed integer color writes feed the subsequent horizon sampler in the same boundary.
         GL.MemoryBarrier(MemoryBarrierFlags.FramebufferBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);

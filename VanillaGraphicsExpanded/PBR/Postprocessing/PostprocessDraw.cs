@@ -16,18 +16,18 @@ internal sealed class PostprocessDraw : IDisposable
     private readonly ArrayGraphicsGeometry geometry = new(Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
     #region Public API
     /// <summary>Prepares each executable/target contract before entering the shared graphics boundary.</summary>
-    internal GraphicsPipeline Prepare(GpuProgram shader,GpuFramebuffer target)
+    internal GraphicsPipeline Prepare(GpuProgram shader,RenderPassDesc pass)
     {
-        using var metadata=new RenderPassTargets(new RenderPassDesc(target,[new(0)]));
+        using var metadata=new RenderPassTargets(pass);
         var description=new GraphicsPipelineDesc(shader.GraphicsIdentity!,Layout,metadata.Signature,DynamicPipelineState.Viewport);
         if(pipelines.TryGetValue(shader,out var old)&&old.Description==description&&old.ExecutableRevision==shader.ExecutableRevision) return old;
         var replacement=new GraphicsPipeline(lifetime,description,shader);
         old?.Dispose(); pipelines[shader]=replacement; return replacement;
     }
     /// <summary>Draws a complete target using only declared PSO and pass state.</summary>
-    internal void Submit(GraphicsCommandContext commands,GraphicsPipeline pipeline,GpuFramebuffer target)
+    internal void Submit(GraphicsCommandContext commands,GraphicsPipeline pipeline,RenderPassDesc pass)
     {
-        commands.BeginPass(new RenderPassDesc(target,[new(0)]));
+        commands.BeginPass(pass);
         commands.SetPipeline(pipeline);
         commands.SetDynamicState(new(){Viewport=commands.PassViewport});
         commands.Draw(geometry,new(0,3)); commands.EndPass();

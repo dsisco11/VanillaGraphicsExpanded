@@ -103,9 +103,9 @@ public sealed class BloomLocalExposureShaderTests(HeadlessGLFixture fixture) : L
     private static void Draw(BloomShaderProgram program, GpuFramebuffer target)
     {
         using var draw = new PostprocessDraw();
-        var pipeline = draw.Prepare(program, target);
+        var pipeline = draw.Prepare(program,target.PostprocessPass());
         Assert.True(GraphicsCommandContext.TryRun("Tests.BloomLocal.Extraction", [pipeline], true,
-            commands => draw.Submit(commands, pipeline, target)));
+            commands => draw.Submit(commands, pipeline,target.PostprocessPass())));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

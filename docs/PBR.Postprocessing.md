@@ -15,6 +15,14 @@ standard blending for the following overlay stage.
 
 ## Responsibilities and order
 
+Owned bloom, light-shaft and luminance FBOs use `StaticGpuFramebuffer`. Each physical target retains
+its preserving pass declaration; ping-pong changes the selected texture/FBO pair without changing
+attachments or recertifying routing. AO raw, filtered and reconstructed outputs and its per-mip
+minimum-child targets use the same fixed-target contract. Size changes retire FBO borrowers before
+replacing their images. `PostprocessDraw` accepts the retained declaration for preparation and draw
+submission, independently of executable/PSO reload. Final presentation remains dynamic because its
+image belongs to the engine; its declaration is retained only for that engine publication lifetime.
+
 Persistent effect eligibility and native graphics controls come from the shared
 [`PipelineEnablement` conditions](Rendering.Enablement.md). Native settings are captured once and
 updated through watchers; applied VGE settings publish as one immutable snapshot. AO, shaft

@@ -37,6 +37,11 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
         StateCache.Current.InvalidateAll();
         EstablishScissor(false);
         using var capture = new SceneColorParticleTargets(primary);
+        Assert.IsType<DynamicGpuFramebuffer>(capture.DrawTarget);
+        Assert.IsType<StaticGpuFramebuffer>(capture.ResolveTarget);
+        foreach (string name in new[] { "beforeTarget", "afterTarget" })
+            Assert.IsType<StaticGpuFramebuffer>(typeof(SceneColorParticleTargets)
+                .GetField(name, System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(capture));
         Assert.Equal(depth.TextureId, capture.VisibilityDepth);
         Assert.False(capture.Captured);
         capture.BeginCapture();

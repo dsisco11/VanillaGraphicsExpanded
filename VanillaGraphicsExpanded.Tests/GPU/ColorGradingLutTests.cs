@@ -305,8 +305,8 @@ public sealed class ColorGradingLutTests(HeadlessGLFixture fixture, ITestOutputH
         program.FrameInputs = frame; program.SceneImage = source; program.BloomImage = zero; program.ShaftImage = zero;
         program.GradingLookup = lookup; program.ExposureBuffer = exposure;
         program.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(ev, 0, 0, 0));
-        var pipeline = draw.Prepare(program, target);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.GradingFinal", [pipeline], true, commands => draw.Submit(commands, pipeline, target)));
+        var pipeline = draw.Prepare(program,target.PostprocessPass());
+        Assert.True(GraphicsCommandContext.TryRun("Tests.GradingFinal", [pipeline], true, commands => draw.Submit(commands, pipeline,target.PostprocessPass())));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         Assert.Equal(input, source.ReadPixels());
         return target[0].ReadPixels();

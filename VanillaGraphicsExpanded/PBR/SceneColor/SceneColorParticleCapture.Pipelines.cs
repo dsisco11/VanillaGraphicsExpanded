@@ -10,16 +10,15 @@ namespace VanillaGraphicsExpanded.PBR.SceneColor;
 /// <summary>Owns the two-output receiver and SSAO graphics realizations without owning their shaders.</summary>
 internal sealed partial class SceneColorParticleCapture
 {
-    private static readonly RenderPassColor[] Outputs = [new(0), new(1)];
     private readonly GraphicsPipelineLifetime pipelineLifetime = new();
     private GraphicsPipeline? resolvePipeline, ssaoPipeline;
 
     #region Private
     /// <summary>Validates borrowed target metadata and atomically replaces an obsolete executable realization.</summary>
-    private GraphicsPipeline PreparePipeline(ref GraphicsPipeline? slot, GpuProgram shader, GpuFramebuffer target)
+    private GraphicsPipeline PreparePipeline(ref GraphicsPipeline? slot, GpuProgram shader, RenderPassDesc pass)
     {
         StateCache.Current.RequireOutsideEngineBoundary();
-        using var metadata = new RenderPassTargets(new(target, Outputs));
+        using var metadata = new RenderPassTargets(pass);
         if (slot is not null && ReferenceEquals(slot.Shader, shader)
             && slot.ExecutableRevision == shader.ExecutableRevision && slot.Description.Targets == metadata.Signature) return slot;
         var replacement = new GraphicsPipeline(pipelineLifetime,
@@ -29,9 +28,9 @@ internal sealed partial class SceneColorParticleCapture
     }
 
     /// <summary>Preserves the borrowed outputs outside the fullscreen resolve and restores shader ownership after submission.</summary>
-    private void Submit(GraphicsCommandContext commands, GraphicsPipeline pipeline, GpuFramebuffer target)
+    private void Submit(GraphicsCommandContext commands, GraphicsPipeline pipeline, RenderPassDesc pass)
     {
-        commands.BeginPass(new(target, Outputs));
+        commands.BeginPass(pass);
         commands.SetPipeline(pipeline);
         commands.SetDynamicState(new() { Viewport = commands.PassViewport });
         commands.Draw(geometry, new(0, 6));

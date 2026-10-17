@@ -286,8 +286,8 @@ public sealed class LocalExposureRuntimeTests(HeadlessGLFixture fixture, ITestOu
         program.LocalBase = localBase;
         program.Capture(false, new(controls ?? new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(6, automatic ? 1 : 0, 0, MathF.Log2(.18f)));
         program.CaptureLocal(settings);
-        var pipeline = draw.Prepare(program, target);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.LocalExposure.Final", [pipeline], true, c => draw.Submit(c, pipeline, target)));
+        var pipeline = draw.Prepare(program,target.PostprocessPass());
+        Assert.True(GraphicsCommandContext.TryRun("Tests.LocalExposure.Final", [pipeline], true, c => draw.Submit(c, pipeline,target.PostprocessPass())));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         return target[0].ReadPixels();
     }

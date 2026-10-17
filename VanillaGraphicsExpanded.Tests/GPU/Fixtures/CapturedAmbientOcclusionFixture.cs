@@ -82,14 +82,14 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
         horizon.DepthImage = depth; horizon.SurfaceImage = surface; horizon.DepthHierarchy = hierarchy;
         horizon.MinimumChildren=comparisonMasks.Texture;
         horizon.Capture(camera, new(0, 0, 2, 0), new(1.25f, .25f, 6, 6), new(64, 96, 0, 0));
-        var referencePipeline = draw.Prepare(reference, referenceTarget);
-        var currentPipeline = draw.Prepare(horizon, currentTarget);
+        var referencePipeline = draw.Prepare(reference,referenceTarget.PostprocessPass());
+        var currentPipeline = draw.Prepare(horizon,currentTarget.PostprocessPass());
         // Native uploads, verification, hierarchy masks, preparation and descriptor mutation precede horizon-only timing.
         return (
             () => Assert.True(GraphicsCommandContext.TryRun("Tests.CapturedAoReference", [referencePipeline], true,
-                commands => draw.Submit(commands, referencePipeline, referenceTarget))),
+                commands => draw.Submit(commands, referencePipeline,referenceTarget.PostprocessPass()))),
             () => Assert.True(GraphicsCommandContext.TryRun("Tests.CapturedAoCurrent", [currentPipeline], true,
-                commands => draw.Submit(commands, currentPipeline, currentTarget))));
+                commands => draw.Submit(commands, currentPipeline,currentTarget.PostprocessPass()))));
     }
 
     /// <summary>Retires all restored GPU inputs and parsed metadata together.</summary>

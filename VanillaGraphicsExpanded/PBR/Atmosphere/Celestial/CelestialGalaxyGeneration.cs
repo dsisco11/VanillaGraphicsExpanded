@@ -62,11 +62,11 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
             var indices = owned.Own(DynamicTexture2D.Create(4096, indexHeight, PixelInternalFormat.Rgba32f)); indices.UploadData(indexData);
             var scratch = owned.Own(DynamicTexture2D.Create(CelestialResidual.TileSize, CelestialResidual.TileSize, PixelInternalFormat.Rgba32f));
             var image = owned.Own(GpuFramebufferAttachment.FromTexture(scratch));
-            var target = owned.Own(DynamicGpuFramebuffer.Create([image], debugName: "Celestial.GenerationScratch"));
+            var target = owned.Own(StaticGpuFramebuffer.Create([image], debugName: "Celestial.GenerationScratch"));
             var layout = new VertexLayoutDesc([]);
             var geometry = scratchGeometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles,
                 new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
-            var pass = new RenderPassDesc(target, [new(0)]);
+            var pass = target.PreservePass;
             using var metadata = new RenderPassTargets(pass);
             var pipeline = scratchPipeline = new GraphicsPipeline(lifetime, new(program.GraphicsIdentity!, layout, metadata.Signature, DynamicPipelineState.Viewport), program);
             program.Catalog = catalog; program.Indices = indices; program.ParentMap = cube;
@@ -75,7 +75,7 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
             {
                 int size = Math.Max(1, source.Quality.FaceSize >> level);
                 using var destinationImage = GpuFramebufferAttachment.FromTexture(cube, level, cubeFace: TextureTarget.TextureCubeMapPositiveX + face);
-                using var destination = DynamicGpuFramebuffer.Create([destinationImage]);
+                using var destination = StaticGpuFramebuffer.Create([destinationImage], debugName: $"Celestial.Destination.Face{face}.Mip{level}");
                 for (int y = 0; y < size; y += 128) for (int x = 0; x < size; x += 128)
                 {
                     int tile = face * baseTiles * baseTiles + y / 128 * baseTiles + x / 128;

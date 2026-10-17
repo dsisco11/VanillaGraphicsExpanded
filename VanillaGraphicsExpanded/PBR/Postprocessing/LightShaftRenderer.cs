@@ -37,7 +37,7 @@ internal sealed class LightShaftRenderer : IDisposable
         samples=Math.Clamp(Math.Min(sampleLimit,quality>=3?64:quality>=2?32:16),1,64);
         shader=GpuShaderProgramLibraries.Get<LightShaftShaderProgram>(api,"pbr_lightshafts");
         if(shader?.EnsureReady()!=true) throw new InvalidOperationException("Owned solar-shaft shader unavailable.");
-        return pipeline=draw.Prepare(shader,first.Target);
+        return pipeline=draw.Prepare(shader,first.Target.PreservePass);
     }
     /// <summary>Extracts unexposed HDR glare, filters both independent signals, and publishes separate outputs.</summary>
     internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,ICoreClientAPI api,VgeFrameUniformBuffer frame,
@@ -65,7 +65,7 @@ internal sealed class LightShaftRenderer : IDisposable
         shader.ExposureBuffer=exposure.Buffer;
         shader.Capture(new(0,0,occlusionOnly?4:0,exposure.Buffer is null?0:1),
             new(settings.BloomThreshold,settings.LightShaftLimit,settings.LightShaftStrength,exposure.ManualLogGain),sun,solar);
-        draw.Submit(commands,pipeline!,first!.Target);
+        draw.Submit(commands,pipeline!,first!.Target.PreservePass);
         // Ping-pong keeps every sampling source distinct from the active draw attachment.
         PostprocessImage source=first,destination=second!;
         for(int pass=0;pass<passes;pass++)
@@ -73,12 +73,12 @@ internal sealed class LightShaftRenderer : IDisposable
             float step=.04f*MathF.Pow(3,pass+3-passes);
             shader.SourceImage=source.Texture;
             shader.Capture(new(0,0,1,samples),new(step,0,0,0),sun,solar);
-            draw.Submit(commands,pipeline!,destination.Target);
+            draw.Submit(commands,pipeline!,destination.Target.PreservePass);
             (source,destination)=(destination,source);
         }
         shader.SourceImage=source.Texture;
         shader.Capture(new(0,0,occlusionOnly?3:2,0),Vector4.Zero,sun,solar);
-        draw.Submit(commands,pipeline!,occlusionOnly?occlusion!.Target:bloom!.Target);
+        draw.Submit(commands,pipeline!,occlusionOnly?occlusion!.Target.PreservePass:bloom!.Target.PreservePass);
     }
     /// <summary>Retires all shaft-only storage and publication together.</summary>
     public void Dispose()

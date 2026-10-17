@@ -23,6 +23,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
     public void LateProviderAndModeChangesDoNotConsumeStaleLighting()
     {
         EnsureContextValid();
+        using var declarations = new StaticPassDeclarationCapture();
         using var platform = new EngineShaderPlatformScope();
         using var assets = new BinaryShaderApiFixture();
         using var programs = new RuntimeLightingPrograms();
@@ -191,6 +192,7 @@ public sealed class PbrModeLifecycleTests : RenderTestBase
         gbuffer.SurfaceTexture!.UploadDataImmediate(Enumerable.Repeat(1f, 16).ToArray(), 0, 0, 2, 2, 2, 1);
         gbuffer.ClearGBuffer(EnumFrameBuffer.Primary);
         Assert.All(LayeredTestTexture.Read(gbuffer.SurfaceTexture!, 2), value => Assert.Equal(0f, value));
+        declarations.AssertReusable();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

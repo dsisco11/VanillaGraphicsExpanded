@@ -19,6 +19,7 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
         using var bindings = StateCache.Current.BindFramebufferScope();
         using var source = new WaterRefractionScene();
         var target = source.BeginCapture(2, 2)!;
+        Assert.IsType<StaticGpuFramebuffer>(target);
         Assert.Null(target.GetAttachment(FramebufferAttachment.ColorAttachment0));
         Assert.Same(source.Color, target[1]);
         Assert.Same(source.Depth, target[2]);
@@ -59,6 +60,7 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
         using var source = new WaterRefractionScene();
         using var composite = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
         using var resized = DynamicTexture2D.Create(3, 1, PixelInternalFormat.Rgba16f);
+        using var expanded = DynamicTexture2D.Create(4, 2, PixelInternalFormat.Rgba16f);
         var config = new VanillaGraphicsExpanded.LumOn.VgeConfig();
         config.LumOn.Enabled = lumon;
         Assert.Null(source.BeginFrame(config.WaterRefractionEnabled, composite));
@@ -86,11 +88,12 @@ public sealed class WaterRefractionLifecycleTests(HeadlessGLFixture fixture) : R
             Assert.Same(target, source.BeginFrame(true, composite));
             Assert.False(source.Published);
             var beforeResize = source.Color;
-            Assert.True(composite.Resize(4, 2));
-            source.BeginFrame(true, composite);
+            // Borrowed immutable configuration forbids changing storage in place.
+            // A complete replacement withdraws its old borrowers before publication.
+            Assert.Throws<InvalidOperationException>(() => composite.Resize(4, 2));
+            source.BeginFrame(true, expanded);
             Assert.False(beforeResize!.IsValid);
             Assert.Equal(4, source.Color!.Width);
-            Assert.True(composite.Resize(2, 2));
             source.BeginFrame(true, composite);
             var oldColor = source.Color;
             var oldDepth = source.Depth;

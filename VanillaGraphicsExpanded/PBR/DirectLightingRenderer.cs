@@ -25,10 +25,6 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
     private const int RenderRangeValue = 1;
     private static readonly RenderTargetSignature LightingTargets = new([
         new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba16f), new(PixelInternalFormat.Rgba16f)]);
-    private static readonly RenderPassColor[] LightingOutputs = [
-        new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)),
-        new(1, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)),
-        new(2, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))];
 
     private readonly ICoreClientAPI capi;
     private readonly IDisposable? reloadPreload;
@@ -149,13 +145,13 @@ public sealed partial class DirectLightingRenderer : IRenderer, IDisposable
         }
 
         // Target routing, clear masks and complete drawing state belong to submission owners.
-        var target = isolated?.Framebuffer ?? bufferManager.DirectLightingFbo!;
+        var pass = isolated?.Pass ?? bufferManager.LightingPass!;
         AssignInputs(shader, primaryFb);
 
         using var cpuScope = Profiler.BeginScope("PBR.DirectLighting", "Render");
         using (GlGpuProfiler.Instance.Scope("PBR.DirectLighting"))
         {
-            commands.BeginPass(new(target!, LightingOutputs));
+            commands.BeginPass(pass);
             commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
             commands.Draw(geometry, new(0, 6));

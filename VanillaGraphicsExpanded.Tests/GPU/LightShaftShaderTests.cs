@@ -120,7 +120,7 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
             if (!entry.Active || entry.Contract.Kind != VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.Sampler) continue;
             samplers += entry.ActiveElements.Count(value => value);
             int unit = entry.Contract.Binding.Slot;
-            Assert.InRange(unit, 0, 12);
+            Assert.InRange(unit, 0, GpuSupport.MaxCombinedTextureImageUnits - 1);
             Assert.True(units.Add(unit));
         }
         int driverLimit = GpuSupport.MaxTextureImageUnits;
@@ -128,9 +128,11 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         output.WriteLine($"Device array layers={GpuSupport.MaxArrayTextureLayers}; color attachments={GpuSupport.MaxColorAttachments}; draw buffers={GpuSupport.MaxDrawBuffers}.");
         Assert.True(GpuSupport.MaxArrayTextureLayers >= 7);
         Assert.True(GpuSupport.MaxColorAttachments >= 8);
-        Assert.Equal(13, samplers);
+        // Material energy occupies its shared high sampler slot independently of
+        // the contiguous scene-composite inputs; per-stage limits count samplers.
+        Assert.Equal(14, samplers);
         Assert.InRange(samplers, 0, driverLimit);
-        Assert.Equal(Enumerable.Range(0, 13), units.Order());
+        Assert.Equal(Enumerable.Range(0, 13).Append(GpuBindingRegistry.Sampler.MicrofacetEnergy), units.Order());
     }
     /// <summary>Measures a bounded four-pass shaft extraction/filter/publication workload without bloom or live-frame claims.</summary>
     [Fact]
@@ -170,9 +172,9 @@ public sealed class LightShaftShaderTests(HeadlessGLFixture fixture, ITestOutput
         }
         shader.FrameInputs = camera;
         draw??=new PostprocessDraw();
-        var pipeline=draw.Prepare(shader,target);
+        var pipeline=draw.Prepare(shader,target.PostprocessPass());
         Assert.True(GraphicsCommandContext.TryRun("Tests.Postprocess",[pipeline],true,
-            commands=>draw.Submit(commands,pipeline,target)));
+            commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

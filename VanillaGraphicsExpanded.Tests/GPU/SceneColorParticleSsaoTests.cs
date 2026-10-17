@@ -16,6 +16,9 @@ public sealed class SceneColorParticleSsaoTests(HeadlessGLFixture fixture) : Lum
     {
         EnsureShaderTestAvailable();
         using var scene = new ParticleSsaoCaptureFixture();
+        Assert.IsType<DynamicGpuFramebuffer>(scene.Targets.DrawTarget);
+        Assert.IsType<DynamicGpuFramebuffer>(scene.Targets.SsaoTarget);
+        Assert.IsType<StaticGpuFramebuffer>(scene.Targets.ResolveTarget);
         float[] originalNormals = scene.Normal.ReadPixels();
         float[] originalPositions = scene.Position.ReadPixels();
         scene.CaptureUploadedSamples();

@@ -54,8 +54,8 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
             float distance = MathF.Exp(MathF.Log(2500001f) * slice) - 1;
             Vector3 direction = new(MathF.Cos(elevation) * MathF.Cos(azimuth), MathF.Sin(elevation), MathF.Cos(elevation) * MathF.Sin(azimuth));
             program.Capture(direction*distance,visibility);
-            var pipeline=draw.Prepare(program,target);
-            Assert.True(GraphicsCommandContext.TryRun("Tests.Aerial",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+            var pipeline=draw.Prepare(program,target.PostprocessPass());
+            Assert.True(GraphicsCommandContext.TryRun("Tests.Aerial",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
             float[] actual = target[0].ReadPixels();
             float lobe = .05f * AtmosphereMieTransport.Factor(direction.Y) * visibility;
             for (int c = 0; c < 3; c++) actual[c] -= lobe;
@@ -64,8 +64,8 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
             Assert.InRange(MathF.Abs(actual[2] - (1 + (azimuth == 0 ? .375f : .125f) * visibility)), 0, .001f);
         }
         program.Capture(Vector3.Zero,1);
-        var identityPipeline=draw.Prepare(program,target);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.AerialIdentity",[identityPipeline],true,commands=>draw.Submit(commands,identityPipeline,target)));
+        var identityPipeline=draw.Prepare(program,target.PostprocessPass());
+        Assert.True(GraphicsCommandContext.TryRun("Tests.AerialIdentity",[identityPipeline],true,commands=>draw.Submit(commands,identityPipeline,target.PostprocessPass())));
         Assert.Equal(new[] { 1f, 1f, 1f, 1f }, target[0].ReadPixels());
     }
     /// <summary>Spatial shaft occlusion removes atmospheric in-scattering without changing surface transmission or enclosure identity.</summary>
@@ -86,8 +86,8 @@ public sealed class AtmosphereAerialLookupTests(HeadlessGLFixture fixture) : Lum
         foreach(float availability in new[]{1f,0f})
         {
             program.Capture(new(100,0,0),availability);
-            var pipeline=draw.Prepare(program,target);
-            Assert.True(GraphicsCommandContext.TryRun("Tests.AerialOcclusion",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+            var pipeline=draw.Prepare(program,target.PostprocessPass());
+            Assert.True(GraphicsCommandContext.TryRun("Tests.AerialOcclusion",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
             float[] actual=target[0].ReadPixels();
             float[] expected=availability>0?new[]{2.6f,1.6f,1.1f,1f,.6f,.6f,.6f,1f}:Enumerable.Repeat(1f,8).ToArray();
             for(int i=0;i<8;i++)Assert.InRange(actual[i],expected[i]-.002f,expected[i]+.002f);

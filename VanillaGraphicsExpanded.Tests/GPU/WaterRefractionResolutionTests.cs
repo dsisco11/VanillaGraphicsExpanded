@@ -17,8 +17,9 @@ public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : 
     public void ResolutionChangesAndFailedReductionNeverPublishStaleData()
     {
         EnsureShaderTestAvailable();
-        using var scene = new WaterRefractionScene();
         using var composite = DynamicTexture2D.Create(5, 3, PixelInternalFormat.Rgba16f);
+        using var replacement = DynamicTexture2D.Create(7, 5, PixelInternalFormat.Rgba16f);
+        using var scene = new WaterRefractionScene();
         var reduction = GpuShaderProgramLibraries.Declare(Programs.Api, WaterRefractionReductionShaderProgram.Contract.Identity, () => new WaterRefractionReductionShaderProgram());
         Assert.True(reduction.EnsureReady());
         int reductions = 0;
@@ -56,7 +57,10 @@ public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : 
         // RegisterAll redeclares existing owners on shader reload. Reprepare that
         // actual library owner while retaining the immutable background allocation.
         scene.BeginFrame(true, composite, 2);
+        var library = GpuShaderProgramLibraries.Require(Programs.Api);
+        library.BeginReload();
         Assert.Same(reduction, GpuShaderProgramLibraries.Declare(Programs.Api, WaterRefractionReductionShaderProgram.Contract.Identity, () => new WaterRefractionReductionShaderProgram()));
+        library.CompleteReload();
         Assert.True(reduction.RequiresPreparation);
         Assert.False(scene.Published);
         Assert.True(reduction.EnsureReady());
@@ -64,17 +68,17 @@ public sealed class WaterRefractionResolutionTests(HeadlessGLFixture fixture) : 
         Assert.True(scene.Published);
         Assert.Same(halfColor, scene.Color); Assert.Same(halfDepth, scene.Depth);
         Assert.Equal(8, scene.Color!.ReadPixels()[0]);
-        Assert.True(composite.Resize(7, 5));
-        scene.BeginFrame(true, composite, 2);
+        Assert.Throws<InvalidOperationException>(() => composite.Resize(7, 5));
+        scene.BeginFrame(true, replacement, 2);
         Assert.False(halfColor.IsValid);
         Assert.False(halfDepth!.IsValid);
         Assert.Equal(4, scene.Color!.Width);
         Assert.Equal(3, scene.Color.Height);
-        scene.BeginFrame(true, composite, 1);
+        scene.BeginFrame(true, replacement, 1);
         Assert.Equal(7, scene.Color!.Width);
         scene.Invalidate();
         Assert.False(scene.Published);
-        scene.BeginFrame(false, composite, 2);
+        scene.BeginFrame(false, replacement, 2);
         Assert.Null(scene.Color); Assert.Null(scene.Depth);
         Assert.True(composite.IsValid);
 

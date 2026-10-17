@@ -32,15 +32,15 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         using var draw=new PostprocessDraw();
         shader.SourceImage=source;shader.ExposureBuffer=exposure;
         shader.Capture(new(0,0,1,automatic?1:0),new(0,0,0,automatic?-8:ev));
-        var pipeline=draw.Prepare(shader,target);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureLuma",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+        var pipeline=draw.Prepare(shader,target.PostprocessPass());
+        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureLuma",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
         float[] actual=target[0].ReadPixels();
         Assert.Equal(new[]{.18f,.18f,.18f},actual[..3]);
         float radiance=.18f*MathF.Pow(2,ev),linear=radiance/(1+radiance);
         float srgb=linear<=.0031308f?12.92f*linear:1.055f*MathF.Pow(linear,1f/2.4f)-.055f;
         Assert.InRange(actual[3],srgb-.00001f,srgb+.00001f);
         shader.Capture(Vector4.Zero,Vector4.Zero);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureLumaBypass",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureLumaBypass",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
         Assert.Equal(new[]{.18f,.18f,.18f,.3f},target[0].ReadPixels());
     }
     /// <summary>Native defaults select the neutral scene-linear grade and one cached filmic display transfer.</summary>
@@ -62,13 +62,13 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         using var neutralExposure = ExposureTestStorage.Create(0);
         shader.FrameInputs = camera;
         shader.SceneImage=source;shader.BloomImage=zero;shader.ShaftImage=zero;shader.ExposureBuffer=neutralExposure;
-        var pipeline=draw.Prepare(shader,target);
+        var pipeline=draw.Prepare(shader,target.PostprocessPass());
         shader.Capture(false,new(new(1,1,1,0),Vector4.Zero,Vector4.Zero),Vector4.Zero);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureNeutral",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureNeutral",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
         float[] neutral=target[0].ReadPixels();
         shader.GradingLookup=grading.Prepare(Programs.Api,native.Grading);
         shader.Capture(false,native,Vector4.Zero);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureNative",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureNative",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
         float[] actual=target[0].ReadPixels();
         for(int i=0;i<3;i++)Assert.InRange(actual[i],neutral[i]-.00001f,neutral[i]+.00001f);
         float originalGamma=ClientSettings.GammaLevel;
@@ -81,7 +81,7 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
                 Assert.Equal(gamma/3,adjusted.Grading.X);
                 shader.GradingLookup=grading.Prepare(Programs.Api,adjusted.Grading);
                 shader.Capture(false,adjusted,Vector4.Zero);
-                Assert.True(GraphicsCommandContext.TryRun("Tests.NativeGammaSlider",[pipeline],true,commands=>draw.Submit(commands,pipeline,target)));
+                Assert.True(GraphicsCommandContext.TryRun("Tests.NativeGammaSlider",[pipeline],true,commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
                 float[] graded=target[0].ReadPixels();
                 Assert.True(gamma<3?graded.Take(3).Sum()<neutral.Take(3).Sum():graded.Take(3).Sum()>neutral.Take(3).Sum());
                 Vector3 reference=FilmicGradingReference.Lookup(new(.18f,.018f,.0018f),adjusted.Grading);
@@ -121,13 +121,13 @@ public sealed class CameraExposureDisplayTests(HeadlessGLFixture fixture):LumOnS
         using var camera = TestFrameCamera.CreateIdentity(1, 1);
         final.FrameInputs = camera;
         final.SceneImage=source;final.BloomImage=zero;final.ShaftImage=zero;final.ExposureBuffer=targets.Exposure;
-        var finalPipeline=draw.Prepare(final,display);
+        var finalPipeline=draw.Prepare(final,display.PostprocessPass());
         var api=new Mock<ICoreClientAPI>{DefaultValue=DefaultValue.Mock};
         api.SetupGet(value=>value.Render.ShaderUniforms).Returns(new DefaultShaderUniforms {DropShadowIntensity=0});
         var native=FinalDisplayParameters.Capture(api.Object);
         using var grading=new ColorGradingLut(); final.GradingLookup=grading.Prepare(Programs.Api,native.Grading);
         final.Capture(false,native,new(0,1,0,0));
-        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureFinal",[finalPipeline],true,commands=>draw.Submit(commands,finalPipeline,display)));
+        Assert.True(GraphicsCommandContext.TryRun("Tests.ExposureFinal",[finalPipeline],true,commands=>draw.Submit(commands,finalPipeline,display.PostprocessPass())));
         float expectedEv=Math.Clamp(MathF.Log2(settings.MiddleGray/luminance),settings.MinLogGain,settings.MaxLogGain);
         Assert.InRange(ev,expectedEv-.0003f,expectedEv+.0003f);
         Assert.True(count>0);

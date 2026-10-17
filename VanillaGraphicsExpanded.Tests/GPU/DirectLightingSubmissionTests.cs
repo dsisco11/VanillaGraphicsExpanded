@@ -20,12 +20,13 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
     {
         EnsureContextValid();
         using var scene = new DirectLightingComparisonFixture(width, height);
+        using var declarations = new StaticPassDeclarationCapture();
         output.WriteLine($"{GL.GetString(StringName.Vendor)} / {GL.GetString(StringName.Renderer)} / {GL.GetString(StringName.Version)}; {width}x{height}");
         var timer = System.Diagnostics.Stopwatch.StartNew();
         var prepared = scene.Candidate.PrepareBoundaryPipeline()!; timer.Stop();
         output.WriteLine($"Prepared realization {timer.Elapsed.TotalMilliseconds:F3} ms; single nonstructural production variant; no specialization overrides; DropShadowIntensity controls cascades.");
         output.WriteLine($"Active borrowed integer sampler entries: {prepared.Bindings.Entries.Count(entry => entry.Active && entry.Contract.Kind == VanillaGraphicsExpanded.Rendering.Contracts.ShaderBindingKind.Sampler)}; each active sampler performs GL.IsTexture validation per submission, excluded from boundary-query counters.");
-        output.WriteLine($"Pass-local routing reads: {GpuSupport.Graphics.MaxDrawBuffers} GL.GetInteger calls per pass, excluded from boundary-query counters.");
+        Assert.IsType<StaticGpuFramebuffer>(scene.Actual.Framebuffer);
         for (int kind = 0; kind < 7; kind++)
         {
             scene.Inputs(kind); scene.DrawReference(); Hostile();
@@ -84,6 +85,7 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         AssertHostile(width, height, failureDraw, failureRead);
         scene.FailDraw = false;
         Assert.True(scene.Candidate.RenderLighting(scene.Actual)); Compare(scene, false);
+        declarations.AssertReusable();
     }
     #endregion
 

@@ -7,6 +7,7 @@ using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.PBR.SceneColor;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using Vintagestory.API.Client;
 using Vintagestory.Client.NoObf;
 namespace VanillaGraphicsExpanded.PBR.Postprocessing;
@@ -30,6 +31,7 @@ internal sealed class PostprocessPipeline : IRenderer
     private BorrowedTexture? scene,glow,depth;
     private PostprocessDraw? draw;
     private GpuFramebuffer? finalTarget;
+    private RenderPassDesc? finalPass;
     private EnginePostprocessInputs frameEffects;
     private PostprocessImage? neutral;
     private PostprocessParameters settings;
@@ -118,6 +120,7 @@ internal sealed class PostprocessPipeline : IRenderer
         {
             var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(scene!));
             finalTarget=resources.Own(DynamicGpuFramebuffer.Create([attachment],debugName:"Postprocess.Final"));
+            finalPass=new(finalTarget,[new(0)]);
         }
         var exposure=CameraExposureRenderer.DisplayExposure();
         shader.SceneImage=retained.Luma; shader.BloomImage=bloomTexture; shader.ShaftImage=rayTexture;
@@ -126,9 +129,9 @@ internal sealed class PostprocessPipeline : IRenderer
         shader.CaptureLocal(localSettings);
         shader.GradingLookup=grading.Prepare(api,display.Grading);
         shader.Capture(frameEffects.Fxaa,display,new(exposure.ManualLogGain,exposure.Buffer is null?0:1,0,CameraExposureRenderer.DisplayLogMiddleGray));
-        var pipeline=draw!.Prepare(shader,finalTarget);
+        var pipeline=draw!.Prepare(shader,finalPass!);
         if(!GraphicsCommandContext.TryRun("Postprocess.Final",[pipeline],true,
-            commands=>draw.Submit(commands,pipeline,finalTarget)))
+            commands=>draw.Submit(commands,pipeline,finalPass!)))
             throw new InvalidOperationException("VGE final composition graphics boundary was rejected.");
         published=captured=false;
     }
@@ -181,7 +184,7 @@ internal sealed class PostprocessPipeline : IRenderer
     {
         published=captured=false; bloomTexture=rayTexture=null;
         Diagnostics.ExposureSnapshotLog.Cancel();
-        draw?.Dispose(); draw=null; bloom.Dispose(); rays.Dispose(); retained.Dispose(); local.Dispose(); resources.Dispose(); resources=new(); finalTarget=null; scene=glow=depth=null; neutral?.Dispose(); neutral=null;
+        draw?.Dispose(); draw=null; bloom.Dispose(); rays.Dispose(); retained.Dispose(); local.Dispose(); resources.Dispose(); resources=new(); finalTarget=null; finalPass=null; scene=glow=depth=null; neutral?.Dispose(); neutral=null;
     }
     /// <summary>Withdraws all executable-dependent publication during shader reload.</summary>
     private bool Reload() { Retire(); grading.Invalidate(); return true; }

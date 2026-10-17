@@ -18,6 +18,14 @@ LumOn is a **Screen-Space Radiance Cache** system implementing Screen Probe Gath
 
 ### 1.1 Design Goals
 
+All eleven screen-target FBOs and both world-probe atlas FBOs have fixed attachment layouts and use
+`StaticGpuFramebuffer`. A physical screen target retains separate preserving and zero-clear pass
+declarations. Current/history rotation swaps complete texture/FBO pairs, preserving those declarations
+and their allocation ownership. Dimension or configuration changes recreate the complete target set;
+FBOs retire before attachment metadata and image storage. World-probe uploads retain fixed preserving
+declarations while updating only the admitted atlas regions. See
+[pipeline target lifetime](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime).
+
 | Goal                           | Approach                                             |
 | ------------------------------ | ---------------------------------------------------- |
 | Lower cost than per-pixel SSGI | Probe grid reduces ray count by `probeSpacing²`      |

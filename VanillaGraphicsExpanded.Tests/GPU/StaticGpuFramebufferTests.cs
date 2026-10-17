@@ -89,6 +89,9 @@ public sealed class StaticGpuFramebufferTests(HeadlessGLFixture fixture, ITestOu
     public void WorkerDisposalReleasesDeclarationAndBackingAllocation()
     {
         EnsureContextValid();
+        // Other owning-image fixtures may retain their shared disposal service.
+        // This case installs its own manager to exercise its actual queue drain.
+        fixture.CleanupGpuResources();
         using var manager = new GpuResourceManager();
         GpuResourceManagerSystem.Initialize(manager);
         try

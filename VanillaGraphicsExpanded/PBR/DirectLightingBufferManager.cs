@@ -53,6 +53,8 @@ public sealed class DirectLightingBufferManager : IDisposable
     /// Attachment0 = DirectDiffuse, Attachment1 = DirectSpecular, Attachment2 = Emissive.
     /// </summary>
     public GpuFramebuffer? DirectLightingFbo => targets?.Framebuffer;
+    /// <summary>Supplies the allocation's retained clear-load declaration for ordinary lighting.</summary>
+    internal Rendering.Pipeline.Passes.RenderPassDesc? LightingPass => targets?.Pass;
 
     #endregion
 

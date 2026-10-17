@@ -4,6 +4,7 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Materials;
 using VanillaGraphicsExpanded.PBR.Materials.WorldProbes;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using Vintagestory.Client.NoObf;
 using Vintagestory.API.Client;
@@ -20,6 +21,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
     private readonly Action unregisterResize;
     private static WaterVolumeRenderer? active;
     private GpuFramebuffer? target;
+    private RenderPassDesc? volumePass;
     private Texture3D? transport;
     private GpuResourceCollection? targetResources;
     private WaterVolumeFrame? completed;
@@ -84,7 +86,9 @@ internal sealed class WaterVolumeRenderer : IRenderer
                         TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "Water.Transport"));
                     var optical = resources.Own(GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.OpticalLayer));
                     var illumination = resources.Own(GpuFramebufferAttachment.FromTexture(transport, layer: WaterVolumeFrame.SourceLayer));
-                    target = resources.Own(DynamicGpuFramebuffer.Create([optical, illumination]));
+                    var fixedTarget = resources.Own(StaticGpuFramebuffer.Create([optical, illumination], debugName: "Water.Transport.Framebuffer"));
+                    target = fixedTarget;
+                    volumePass = new(fixedTarget, LiquidPipelineStates.VolumeOutputs);
                     targetResources = resources;
                 }
                 catch { resources.Dispose(); throw; }
@@ -106,7 +110,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
             program.LightShaftOcclusion = Postprocessing.LightShaftOcclusionRenderer.Texture;
             program.AerialRadianceTexture = ModSystems.AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuationTexture = ModSystems.AtmosphereModSystem.AerialAttenuationTexture;
-            if (!submission.Run(program, pools[..atlases.Length], new(target, LiquidPipelineStates.VolumeOutputs),
+            if (!submission.Run(program, pools[..atlases.Length], volumePass!,
                 new(), LiquidPipelineStates.VolumeBlending, () =>
             {
                 for (int i = 0; i < atlases.Length; i++)
@@ -182,6 +186,7 @@ internal sealed class WaterVolumeRenderer : IRenderer
         targetResources?.Dispose();
         targetResources = null;
         target = null;
+        volumePass = null;
         transport = null;
     }
     #endregion

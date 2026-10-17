@@ -37,6 +37,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
     public void ContactTransmissionAndMotionRemainCurrentFrame(int quality)
     {
         EnsureShaderTestAvailable();
+        using var declarations = new StaticPassDeclarationCapture();
         using var owner = new AmbientOcclusionPass();
         using var draw = new PostprocessDraw();
         float[] opaque = Render(owner, draw, 65, 37, quality, 4);
@@ -52,6 +53,7 @@ public sealed class AmbientOcclusionPassTests(HeadlessGLFixture fixture, ITestOu
         for (int y = 0; y < 37; y++) Assert.InRange(opaque[(y * 65 + 30) * 4], .995f, 1.001f);
         float[] movedAway = Render(owner, draw, 65, 37, quality, 0);
         foreach (float visibility in movedAway.Where((_, index) => index % 4 == 0)) Assert.InRange(visibility, .995f, 1.001f);
+        declarations.AssertReusable(minimumTargets: 7);
     }
 
     /// <summary>Perpendicular ray-plane intersections form a concave corner; cutout gaps remain unoccluded.</summary>

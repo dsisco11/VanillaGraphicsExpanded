@@ -46,7 +46,9 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
     /// <summary>Frame-scoped clean world source captured before local hand projection begins.</summary>
     internal Liquids.WaterRefractionScene? PreOverlayScene { get; set; }
 
-    private GpuFramebuffer? compositeFbo;
+    private StaticGpuFramebuffer? compositeFbo;
+    private GpuFramebufferAttachment? compositeImage;
+    private RenderPassDesc? compositePass, primaryResolvePass;
     private GpuFramebuffer? primaryResolveFbo;
     private FrameBufferRef? primaryResolveSource;
     private int primaryResolveSourceId;
@@ -207,7 +209,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
 
         // Render into a scratch buffer to avoid sampling from the same texture we're writing to
         // (Primary ColorAttachment0 is also used as gBufferAlbedo / primaryScene input).
-        GpuFramebuffer? refractionTarget = null;
+        StaticGpuFramebuffer? refractionTarget = null;
         try
         {
             refractionTarget = capture is null
@@ -256,8 +258,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         {
             SubmitFullscreen(commands, capture is not null ? capturePipeline!
                 : refractionTarget is not null ? receiverPipeline! : compositePipeline!,
-                refractionTarget ?? compositeFbo!,
-                capture is not null ? CaptureOutputs : refractionTarget is not null ? ReceiverOutputs : CompositeOutputs);
+                refractionTarget?.PreservePass ?? compositePass!);
         }
 
         if (capture is not null)
@@ -279,7 +280,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         display.ParticleLayerEnabled = particleLayer is null ? 0 : 1;
         using (GlGpuProfiler.Instance.Scope("PBR.DisplayResolve"))
         {
-            SubmitFullscreen(commands, displayPipeline!, primaryResolveFbo!, SingleOutput);
+            SubmitFullscreen(commands, displayPipeline!, primaryResolvePass!);
         }
         // Deferred receivers are no longer needed this frame. Publish the original
         // particle normal/position values before engine SSAO consumes its attachments.
@@ -329,7 +330,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
                         reduction.SourceColor = color;
                         reduction.SourceDepth = depth;
                         using (GlGpuProfiler.Instance.Scope("PBR.WaterReceiverReduction"))
-                            SubmitFullscreen(commands, reductionPipeline!, target, PairOutputs);
+                            SubmitFullscreen(commands, reductionPipeline!, RefractionScene.ReductionPass!);
                     });
             }
         }
@@ -366,26 +367,32 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         return shader.EnsureReady() ? shader : null;
     }
 
+    /// <summary>Replaces the fixed composition allocation only after withdrawing its shared refraction borrowers.</summary>
+    private bool ReplaceCompositeTargets(int width, int height)
+    {
+        ReleaseCompositeTargets();
+        try
+        {
+            compositeColorTex = DynamicTexture2D.Create(width, height,
+                PixelInternalFormat.R11fG11fB10f, debugName: "PBRComposite");
+            compositeImage = GpuFramebufferAttachment.FromTexture(compositeColorTex);
+            compositeFbo = StaticGpuFramebuffer.Create([compositeImage], debugName: "PBRCompositeFBO");
+            // The shader exposes two additional discarded outputs, distinct from the common preserving pass.
+            compositePass = new(compositeFbo, CompositeOutputs);
+            if (compositeColorTex.IsValid && compositeFbo.IsValid) return true;
+            ReleaseCompositeTargets();
+            return false;
+        }
+        catch { ReleaseCompositeTargets(); throw; }
+    }
+
     /// <summary>Prepares separate composition and borrowed primary destinations without drawing or publishing.</summary>
     private bool PrepareTargets(FrameBufferRef primary)
     {
-        if (compositeFbo is not { IsValid: true } || compositeColorTex is not { IsValid: true })
+        if (compositeFbo is not { IsValid: true } || compositeColorTex is not { IsValid: true }
+            || compositeFbo.Width != primary.Width || compositeFbo.Height != primary.Height)
         {
-            ReleaseCompositeTargets();
-            compositeColorTex = DynamicTexture2D.Create(primary.Width, primary.Height,
-                PixelInternalFormat.R11fG11fB10f, debugName: "PBRComposite");
-            compositeFbo = DynamicGpuFramebuffer.CreateSingle(compositeColorTex, depthTexture: null, debugName: "PBRCompositeFBO");
-            if (!compositeColorTex.IsValid || compositeFbo is not { IsValid: true })
-            {
-                ReleaseCompositeTargets();
-                return false;
-            }
-        }
-        if (compositeFbo.Width != primary.Width || compositeFbo.Height != primary.Height)
-        {
-            // Withdraw borrowers before resizing the owned attachment they reference.
-            RefractionScene.Dispose();
-            compositeFbo.Resize(primary.Width, primary.Height);
+            if (!ReplaceCompositeTargets(primary.Width, primary.Height)) return false;
         }
         if (primaryResolveFbo is not { IsValid: true }
             || !ReferenceEquals(primaryResolveSource, primary)
@@ -395,6 +402,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
             ReleasePrimaryResolve();
             primaryResolveFbo = DynamicGpuFramebuffer.CreateEmpty("PBR.PrimaryResolve");
             primaryResolveFbo.Attach(primary.ColorTextureIds[0]);
+            primaryResolvePass = new(primaryResolveFbo, SingleOutput);
             primaryResolveSource = primary;
             primaryResolveSourceId = primary.FboId;
             primaryResolveColorId = primary.ColorTextureIds[0];
@@ -404,7 +412,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
 
     #endregion
     #region Lifetime
-    /// <summary>Retires snapshots before resizing their borrowed composite attachment.</summary>
+    /// <summary>Retires snapshots and replaces the complete fixed composite allocation at the new extent.</summary>
     private void OnScreenResized()
     {
         ReleasePrimaryResolve();
@@ -413,7 +421,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         var primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
         if (primaryFb is not null && compositeFbo is { IsValid: true })
         {
-            compositeFbo.Resize(primaryFb.Width, primaryFb.Height);
+            ReplaceCompositeTargets(primaryFb.Width, primaryFb.Height);
         }
     }
 
@@ -431,6 +439,9 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         compositeFbo?.Dispose();
         ReleasePrimaryResolve();
         compositeFbo = null;
+        compositePass = null;
+        compositeImage?.Dispose();
+        compositeImage = null;
         compositeColorTex?.Dispose();
         compositeColorTex = null;
     }
@@ -440,6 +451,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
     {
         primaryResolveFbo?.Dispose();
         primaryResolveFbo = null;
+        primaryResolvePass = null;
         primaryResolveSource = null;
         primaryResolveSourceId = 0;
         primaryResolveColorId = 0;

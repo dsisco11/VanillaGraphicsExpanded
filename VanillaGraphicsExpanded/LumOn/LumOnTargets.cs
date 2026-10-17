@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 
@@ -8,6 +11,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 internal sealed class LumOnTargets : IDisposable
 {
     private readonly GpuResourceCollection resources = new();
+    private readonly Dictionary<GpuFramebuffer, RenderPassDesc> clearPasses = new();
 
     #region Typed targets
     /// <summary>Owns position and normal layers for each screen probe.</summary>
@@ -75,10 +79,7 @@ internal sealed class LumOnTargets : IDisposable
                 TextureFilterMode.Nearest,
                 debugName: "LumOn.ProbePisEnergy")!);
 
-            ProbeTraceMaskFbo = resources.Own(DynamicGpuFramebuffer.CreateMRT(
-                [ProbeTraceMaskTex, ProbePisEnergyTex],
-                depthTexture: null,
-                debugName: "LumOn.ProbeTraceMaskFBO")!);
+            ProbeTraceMaskFbo = CreateTextureTarget([ProbeTraceMaskTex, ProbePisEnergyTex], "LumOn.ProbeTraceMaskFBO");
 
             // ═══════════════════════════════════════════════════════════════
             // Create Screen-Probe Atlas (2D atlas)
@@ -91,20 +92,20 @@ internal sealed class LumOnTargets : IDisposable
             int atlasHeight = probeCountY * 8;
             ScreenProbeAtlasTraceTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasTrace")!);
             ScreenProbeAtlasMetaTraceTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaTrace")!);
-            ScreenProbeAtlasTraceFbo = resources.Own(DynamicGpuFramebuffer.CreateMRT([ScreenProbeAtlasTraceTex, ScreenProbeAtlasMetaTraceTex], depthTexture: null, debugName: "ScreenProbeAtlasTraceFBO")!);
+            ScreenProbeAtlasTraceFbo = CreateTextureTarget([ScreenProbeAtlasTraceTex, ScreenProbeAtlasMetaTraceTex], "ScreenProbeAtlasTraceFBO");
 
             ScreenProbeAtlasCurrentTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasCurrent")!);
             ScreenProbeAtlasMetaCurrentTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaCurrent")!);
-            ScreenProbeAtlasCurrentFbo = resources.Own(DynamicGpuFramebuffer.CreateMRT([ScreenProbeAtlasCurrentTex, ScreenProbeAtlasMetaCurrentTex], depthTexture: null, debugName: "ScreenProbeAtlasCurrentFBO")!);
+            ScreenProbeAtlasCurrentFbo = CreateTextureTarget([ScreenProbeAtlasCurrentTex, ScreenProbeAtlasMetaCurrentTex], "ScreenProbeAtlasCurrentFBO");
 
             ScreenProbeAtlasHistoryTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasHistory")!);
             ScreenProbeAtlasMetaHistoryTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaHistory")!);
-            ScreenProbeAtlasHistoryFbo = resources.Own(DynamicGpuFramebuffer.CreateMRT([ScreenProbeAtlasHistoryTex, ScreenProbeAtlasMetaHistoryTex], depthTexture: null, debugName: "ScreenProbeAtlasHistoryFBO")!);
+            ScreenProbeAtlasHistoryFbo = CreateTextureTarget([ScreenProbeAtlasHistoryTex, ScreenProbeAtlasMetaHistoryTex], "ScreenProbeAtlasHistoryFBO");
 
             // Filtered atlas output (Pass 3.5): derived from temporal output each frame
             ScreenProbeAtlasFilteredTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasFiltered")!);
             ScreenProbeAtlasMetaFilteredTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaFiltered")!);
-            ScreenProbeAtlasFilteredFbo = resources.Own(DynamicGpuFramebuffer.CreateMRT([ScreenProbeAtlasFilteredTex, ScreenProbeAtlasMetaFilteredTex], depthTexture: null, debugName: "ScreenProbeAtlasFilteredFBO")!);
+            ScreenProbeAtlasFilteredFbo = CreateTextureTarget([ScreenProbeAtlasFilteredTex, ScreenProbeAtlasMetaFilteredTex], "ScreenProbeAtlasFilteredFBO");
 
             // Probe-atlas → SH9 projection output (Option B)
             // 7 RGBA16F attachments to pack 27 floats (9 RGB coeffs)
@@ -117,17 +118,17 @@ internal sealed class LumOnTargets : IDisposable
             // ═══════════════════════════════════════════════════════════════
 
             IndirectHalfTex = resources.Own(DynamicTexture2D.Create(halfResWidth, halfResHeight, PixelInternalFormat.Rgba16f, debugName: "IndirectHalf")!);
-            IndirectHalfFbo = resources.Own(DynamicGpuFramebuffer.CreateSingle(IndirectHalfTex, debugName: "IndirectHalfFBO")!);
+            IndirectHalfFbo = CreateTextureTarget([IndirectHalfTex], "IndirectHalfFBO");
 
             IndirectFullTex = resources.Own(DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, debugName: "IndirectFull")!);
-            IndirectFullFbo = resources.Own(DynamicGpuFramebuffer.CreateSingle(IndirectFullTex, debugName: "IndirectFullFBO")!);
+            IndirectFullFbo = CreateTextureTarget([IndirectFullTex], "IndirectFullFBO");
 
             // ═══════════════════════════════════════════════════════════════
             // Create LumOn-owned surface capture buffers.
             // ═══════════════════════════════════════════════════════════════
 
             SurfaceAlbedoTex = resources.Own(DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "LumOn.SurfaceAlbedo")!);
-            SurfaceAlbedoFbo = resources.Own(DynamicGpuFramebuffer.CreateSingle(SurfaceAlbedoTex, debugName: "LumOn.SurfaceAlbedoFBO")!);
+            SurfaceAlbedoFbo = CreateTextureTarget([SurfaceAlbedoTex], "LumOn.SurfaceAlbedoFBO");
 
             // ═══════════════════════════════════════════════════════════════
             // Velocity Buffer
@@ -136,7 +137,7 @@ internal sealed class LumOnTargets : IDisposable
             // ═══════════════════════════════════════════════════════════════
 
             VelocityTex = resources.Own(DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba32f, TextureFilterMode.Nearest, debugName: "Velocity")!);
-            VelocityFbo = resources.Own(DynamicGpuFramebuffer.CreateSingle(VelocityTex, debugName: "VelocityFBO")!);
+            VelocityFbo = CreateTextureTarget([VelocityTex], "VelocityFBO");
 
             // ═══════════════════════════════════════════════════════════════
 
@@ -145,19 +146,45 @@ internal sealed class LumOnTargets : IDisposable
     }
     #endregion
 
+    #region Internal API
+    /// <summary>Selects a declaration tied to the physical allocation, independently of its current temporal role.</summary>
+    internal RenderPassDesc GetPass(GpuFramebuffer target, bool clear)
+        => clear ? clearPasses[target] : ((StaticGpuFramebuffer)target).PreservePass;
+    #endregion
+
     #region Private
+    /// <summary>Registers borrowed image metadata before creating the fixed texture target.</summary>
+    private StaticGpuFramebuffer CreateTextureTarget(DynamicTexture2D[] textures, string name)
+    {
+        var images = textures.Select(texture => resources.Own(GpuFramebufferAttachment.FromTexture(texture))).ToArray();
+        return CreateTarget(images, name);
+    }
+
+    /// <summary>Owns an immutable target and certifies its separate zero-clear contract during allocation.</summary>
+    private StaticGpuFramebuffer CreateTarget(GpuFramebufferAttachment[] images, string name)
+    {
+        var target = resources.Own(StaticGpuFramebuffer.Create(images, debugName: name));
+        clearPasses.Add(target, new(target, Enumerable.Range(0, images.Length)
+            .Select(slot => new RenderPassColor(slot, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)))));
+        return target;
+    }
+
     /// <summary>Routes one existing fragment output to each owned array layer.</summary>
     private GpuFramebuffer CreateLayeredFramebuffer(Texture3D texture, string name)
     {
         var attachments = new GpuFramebufferAttachment[texture.Depth];
         for (int layer = 0; layer < attachments.Length; layer++)
             attachments[layer] = resources.Own(GpuFramebufferAttachment.FromTexture(texture, layer: layer));
-        return resources.Own(DynamicGpuFramebuffer.Create(attachments, debugName: name));
+        return CreateTarget(attachments, name);
     }
     #endregion
 
     #region Lifetime
     /// <summary>Releases every allocation, regardless of its current temporal role.</summary>
-    public void Dispose() => resources.Dispose();
+    public void Dispose()
+    {
+        resources.Dispose();
+        clearPasses.Clear();
+    }
     #endregion
 }

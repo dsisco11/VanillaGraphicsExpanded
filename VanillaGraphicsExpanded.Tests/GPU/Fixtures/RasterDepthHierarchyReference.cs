@@ -34,21 +34,21 @@ internal sealed class RasterDepthHierarchyReference : IDisposable
         }
         this.copy=copy;this.reduce=reduce;
         if(!copy.EnsureReady() || !reduce.EnsureReady()) throw new InvalidOperationException("Depth hierarchy shaders unavailable.");
-        copyPipeline=draw.Prepare(copy,targets[0]);
-        reducePipeline=draw.Prepare(reduce,targets[0]);
+        copyPipeline=draw.Prepare(copy,targets[0].PostprocessPass());
+        reducePipeline=draw.Prepare(reduce,targets[0].PostprocessPass());
         return [copyPipeline,reducePipeline];
     }
     /// <summary>Generates all mips, excluding the attached destination from the sampled texture's accessible levels.</summary>
     internal void Render(GraphicsCommandContext commands,PostprocessDraw draw,GpuTexture depth) {
         var texture=Texture??throw new InvalidOperationException("Depth hierarchy is not prepared.");
         copy!.PrimaryDepth=depth;
-        draw.Submit(commands,copyPipeline!,targets[0]);
+        draw.Submit(commands,copyPipeline!,targets[0].PostprocessPass());
         try {
             reduce!.HzbDepth=texture;reduce.SrcMip=0;
             for(int level=1;level<texture.MipLevels;level++) {
                 // Texel-fetch LOD zero is relative to BASE_LEVEL. Only the completed source mip is accessible.
                 texture.SetMipRange(level-1,level-1);
-                draw.Submit(commands,reducePipeline!,targets[level]);
+                draw.Submit(commands,reducePipeline!,targets[level].PostprocessPass());
             }
         } finally {texture.SetMipRange(0,texture.MipLevels-1);}
     }

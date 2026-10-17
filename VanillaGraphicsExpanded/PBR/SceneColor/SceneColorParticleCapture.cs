@@ -87,7 +87,7 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
             if (ssaoRestore?.EnsureReady() != true) return false;
         }
         targets ??= new SceneColorParticleTargets(gbuffer.PrimaryFramebuffer, hasSsao);
-        PreparePipeline(ref resolvePipeline, resolve, targets.ResolveTarget);
+        PreparePipeline(ref resolvePipeline, resolve, targets.ResolveTarget.PreservePass);
         prepared = true;
         return true;
     }
@@ -111,9 +111,9 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
         resolve.BeforeDepth = targets.BeforeDepth;
         resolve.AfterDepth = targets.AfterDepth;
         resolve.ParticleColor = targets.ParticleColor;
-        var pipeline = PreparePipeline(ref resolvePipeline, resolve, targets.ResolveTarget);
+        var pipeline = PreparePipeline(ref resolvePipeline, resolve, targets.ResolveTarget.PreservePass);
         published = GraphicsCommandContext.TryRun("SceneColor.Particles.Resolve", [pipeline], true,
-            commands => Submit(commands, pipeline, targets.ResolveTarget));
+            commands => Submit(commands, pipeline, targets.ResolveTarget.PreservePass));
     }
 
     /// <summary>Selects corrected material depth only after current-frame receiver separation has completed.</summary>
@@ -136,7 +136,7 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
         if (active is not { published: true, targets: { IsCurrent: true, HasSsao: true }, ssaoRestore: { } shader } capture
             || !ReferenceEquals(capture.api, api)) return null;
         if (!shader.EnsureReady()) throw new InvalidOperationException("SSAO restoration shader unavailable.");
-        return capture.PreparePipeline(ref capture.ssaoPipeline, shader, capture.targets.SsaoTarget!);
+        return capture.PreparePipeline(ref capture.ssaoPipeline, shader, capture.targets.SsaoPass!);
     }
 
     /// <summary>Returns original particle metadata to engine SSAO only after deferred material composition finishes.</summary>
@@ -151,12 +151,12 @@ internal sealed partial class SceneColorParticleCapture : IRenderer
         shader.ParticlePosition = capture.targets.DrawTarget[3];
         if (commands is not null)
             capture.Submit(commands, capture.ssaoPipeline
-                ?? throw new InvalidOperationException("SSAO pipeline was not prepared before boundary entry."), capture.targets.SsaoTarget!);
+                ?? throw new InvalidOperationException("SSAO pipeline was not prepared before boundary entry."), capture.targets.SsaoPass!);
         else
         {
             var pipeline = PrepareSsaoPipeline(api)!;
             if (!GraphicsCommandContext.TryRun("SceneColor.Particles.SsaoRestore", [pipeline], true,
-                context => capture.Submit(context, pipeline, capture.targets.SsaoTarget!)))
+                context => capture.Submit(context, pipeline, capture.targets.SsaoPass!)))
                 throw new InvalidOperationException("SSAO restoration boundary unavailable.");
         }
     }

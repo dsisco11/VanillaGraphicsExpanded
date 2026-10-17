@@ -52,7 +52,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             for (int i = 0; i < reference.Length; i++) Assert.InRange(Math.Abs(actualBase[i * 2] - reference[i]), 0, .00003);
             final.SceneImage = source; final.LocalBase = baseImage;
             final.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(ev, 1, 0, MathF.Log2(.18f))); final.CaptureLocal(policy);
-            var pipeline = draw.Prepare(final, target);
+            var pipeline = draw.Prepare(final,target.PostprocessPass());
             Submit(draw, pipeline, target);
             float[] actual = target[0].ReadPixels(); double worst = 0, minStops = 0, maxStops = 0;
             double[] corrections = new double[pixels.Length];
@@ -110,7 +110,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
             program.LocalBase = spatial;
             program.Capture(false, new(new(1, 1, 1, 0), Vector4.Zero, Vector4.Zero), new(6, 1, 0, MathF.Log2(.18f))); program.CaptureLocal(policy);
         }
-        var globalPipeline = draw.Prepare(baseline, target); var localPipeline = draw.Prepare(final, target);
+        var globalPipeline = draw.Prepare(baseline,target.PostprocessPass()); var localPipeline = draw.Prepare(final,target.PostprocessPass());
         Action global = () => Submit(draw, globalPipeline, target);
         Action local = () => { owner.Render(Programs.Api, source, policy); Submit(draw, localPipeline, target); };
         Action finalOnly = () => Submit(draw, localPipeline, target);
@@ -152,7 +152,7 @@ public sealed class LocalExposureQualificationTests(HeadlessGLFixture fixture, I
 
     /// <summary>Submits the prepared production display executable through its restoring boundary.</summary>
     private static void Submit(PostprocessDraw draw, GraphicsPipeline pipeline, GpuFramebuffer target) =>
-        Assert.True(GraphicsCommandContext.TryRun("Tests.LocalQualification.Final", [pipeline], true, commands => draw.Submit(commands, pipeline, target)));
+        Assert.True(GraphicsCommandContext.TryRun("Tests.LocalQualification.Final", [pipeline], true, commands => draw.Submit(commands, pipeline,target.PostprocessPass())));
 
     /// <summary>Uses independent timestamp objects around completed GPU work, excluding blocking result waits from host submission.</summary>
     private static (double Gpu, double Cpu) Measure(Action submit)

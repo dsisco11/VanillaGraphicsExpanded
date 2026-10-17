@@ -22,17 +22,15 @@ internal sealed partial class LumOnWorldProbeClipmapGpuUploader
     private static readonly VertexLayoutDesc TileLayout = new([
         new(0, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 24),
         new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 8, 24)]);
-    private static readonly RenderPassColor[] TileOutputs = [new(0)];
-    private static readonly RenderPassColor[] ProbeOutputs = [new(0), new(1), new(2)];
     private readonly GraphicsPipelineLifetime pipelineLifetime = new();
     private GraphicsPipeline? tilePipeline, probePipeline;
 
     #region Private
     /// <summary>Revalidates executable and exact target interfaces before beginning either publication pass.</summary>
     private GraphicsPipeline PreparePipeline(ref GraphicsPipeline? slot, GpuProgram shader,
-        VertexLayoutDesc layout, GpuFramebuffer target, RenderPassColor[] outputs)
+        VertexLayoutDesc layout, StaticGpuFramebuffer target)
     {
-        using var metadata = new RenderPassTargets(new(target, outputs));
+        using var metadata = new RenderPassTargets(target.PreservePass);
         if (slot is not null && ReferenceEquals(slot.Shader, shader)
             && slot.ExecutableRevision == shader.ExecutableRevision && slot.Description.Targets == metadata.Signature) return slot;
         var replacement = new GraphicsPipeline(pipelineLifetime,
@@ -44,9 +42,9 @@ internal sealed partial class LumOnWorldProbeClipmapGpuUploader
 
     /// <summary>Writes admitted points without clearing other resident probes or changing their storage ownership.</summary>
     private static void Submit(GraphicsCommandContext commands, GraphicsPipeline pipeline,
-        ArrayGraphicsGeometry geometry, GpuFramebuffer target, RenderPassColor[] outputs, int count)
+        ArrayGraphicsGeometry geometry, StaticGpuFramebuffer target, int count)
     {
-        commands.BeginPass(new(target, outputs));
+        commands.BeginPass(target.PreservePass);
         commands.SetPipeline(pipeline);
         commands.SetDynamicState(new() { Viewport = commands.PassViewport });
         commands.Draw(geometry, new(0, count));

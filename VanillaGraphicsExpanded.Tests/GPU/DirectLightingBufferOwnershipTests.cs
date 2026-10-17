@@ -25,7 +25,7 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
         using var buffers = new DirectLightingBufferManager(assets.Api);
         Assert.True(buffers.EnsureBuffers(8, 6));
         var original = buffers.Radiance!;
-        var framebuffer = buffers.DirectLightingFbo!;
+        var framebuffer = Assert.IsType<StaticGpuFramebuffer>(buffers.DirectLightingFbo);
         Assert.True(buffers.EnsureBuffers(8, 6));
         Assert.Same(original, buffers.Radiance);
         Assert.True(buffers.EnsureBuffers(13, 9));
@@ -60,7 +60,7 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
         {
             harmony.Patch(create,
                 postfix: new HarmonyMethod(typeof(DirectLightingBufferOwnershipTests), nameof(CaptureRadianceAllocation)));
-            harmony.Patch(AccessTools.Method(typeof(GpuFramebuffer), nameof(DynamicGpuFramebuffer.Create)),
+            harmony.Patch(AccessTools.Method(typeof(StaticGpuFramebuffer), nameof(StaticGpuFramebuffer.Create)),
                 prefix: new HarmonyMethod(typeof(DirectLightingBufferOwnershipTests), nameof(FailFramebufferAllocation)));
             Assert.Throws<InvalidOperationException>(() => new DirectLightingTargets(8, 6));
             Assert.NotNull(partialTexture);

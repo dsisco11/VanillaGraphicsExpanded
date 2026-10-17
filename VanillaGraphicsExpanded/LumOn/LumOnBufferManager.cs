@@ -333,6 +333,7 @@ public sealed class LumOnBufferManager : IDisposable
         currentBufferIndex = 1 - currentBufferIndex;
     }
 
+
     /// <summary>
     /// Clears the radiance history buffer to black.
     /// Call this on first frame, after teleportation, or when history is invalidated.
@@ -354,9 +355,7 @@ public sealed class LumOnBufferManager : IDisposable
             foreach (var target in history)
             {
                 if (target is null) continue;
-                var outputs = Enumerable.Range(0, target.ColorAttachmentCount)
-                    .Select(i => new RenderPassColor(i, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)));
-                commands.BeginPass(new(target, outputs));
+                commands.BeginPass(GetPass(target, clear: true));
                 commands.EndPass();
             }
         })) throw new InvalidOperationException("History clear boundary unavailable.");
@@ -389,6 +388,12 @@ public sealed class LumOnBufferManager : IDisposable
         surfaceAlbedoBlitter.Blit();
     }
 
+    #endregion
+
+    #region Internal API
+    /// <summary>Returns the physical target's retained preserving or zero-clear declaration.</summary>
+    internal RenderPassDesc GetPass(GpuFramebuffer target, bool clear)
+        => (targets ?? throw new InvalidOperationException("LumOn targets are unavailable.")).GetPass(target, clear);
     #endregion
 
     #region Private Methods

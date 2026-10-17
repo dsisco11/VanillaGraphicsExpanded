@@ -24,9 +24,28 @@ Context retirement withdraws native configuration authority without native calls
 
 Static pass routing is certified when a reusable `RenderPassDesc` is constructed. Its submission
 methods bind the target without dynamic route lookup, comparison, capture, restoration or repeated
-completeness checks. Cloud payload surfaces use static targets and retain their pass declarations.
+completeness checks. Each static target retains a full-target `PreservePass` matching its constructor
+route, including sparse output holes. Owners retain additional declarations for different clear,
+discard or area intentions; shader reload does not replace a declaration for unchanged target storage.
 `RenderPassSequence` retains static target lifetime until boundary cleanup, without routing snapshots.
 Dynamic targets retain scratch retargeting and window/external publication support.
+
+Fixed VGE-owned targets use this contract throughout the offscreen pipeline:
+
+| Owner | Static configuration and retained intentions |
+|---|---|
+| Clouds | Three disjoint payload surfaces, with retained reconstruction declarations. |
+| LumOn | All eleven screen targets, including current/history atlas sets, retain preserving and zero-clear declarations per physical allocation. Temporal rotation swaps complete texture/FBO sets. Both world-probe atlas destinations retain preserving declarations. |
+| Direct lighting | Three fixed radiance-array layers retain their zero-clear lighting declaration for ordinary and isolated captures. |
+| Postprocessing and AO | Bloom/shaft images, retained luminance, AO raw/filter/output and per-mip minimum-child targets use preserving declarations. `PostprocessDraw` consumes the declaration supplied by the owner. |
+| Water | Transport retains its additive pass's zero clears. Refraction capture preserves the output-zero hole; publication and reduction retain their full fixed routes. |
+| Particles | Owned before/after depth snapshots and receiver/radiance resolve are static. Engine-backed particle draw and SSAO restore remain dynamic. |
+| Composition and celestial generation | Composition retains its discarded shader outputs; resize replaces the texture/FBO together after releasing refraction borrowers. Celestial generation uses a fixed scratch target and separate fixed face/mip destinations. |
+
+Allocation replacement retires FBOs before attachment metadata and backing storage. Engine primary,
+OIT, window and final presentation destinations remain dynamic, as do retargetable material/blitter/
+readback helpers. A `BorrowedTexture` metadata wrapper cannot provide static allocation authority;
+static construction rejects it, including as a texture view's source.
 
 `RenderPassSequence` captures each touched dynamic framebuffer's original output routing once and restores
 it at boundary exit before the inherited framebuffer bindings are restored. Passes bind only the

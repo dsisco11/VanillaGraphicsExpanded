@@ -215,6 +215,7 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     public void BloomOwnerPreservesConstantGainAndLifetime(int levels,int width,int height)
     {
         EnsureShaderTestAvailable();
+        using var declarations = new StaticPassDeclarationCapture();
         using var assets=new BinaryShaderApiFixture();
         using var platform=new EngineShaderPlatformScope();
         Assert.True(VgeShaderPrograms.RegisterAll(assets.Api));
@@ -236,6 +237,8 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
         }
         owner.Prepare(assets.Api,submission,width,height,levels);
         Assert.Same(first,owner.Texture);
+        Assert.True(GraphicsCommandContext.TryRun("Tests.BloomOwner.Reused",[pipeline],true,commands=>owner.Render(commands,submission,source,(null,-20),settings)));
+        declarations.AssertReusable();
         owner.Prepare(assets.Api,submission,width+2,height+2,levels);
         Assert.NotSame(first,owner.Texture);Assert.Equal(0,first.TextureId);
         var resized=owner.Texture;
@@ -326,9 +329,9 @@ public sealed class OwnedPostprocessShaderTests(HeadlessGLFixture fixture, ITest
     private void Draw(GpuProgram program,GpuFramebuffer target)
     {
         draw??=new PostprocessDraw();
-        var pipeline=draw.Prepare(program,target);
+        var pipeline=draw.Prepare(program,target.PostprocessPass());
         Assert.True(GraphicsCommandContext.TryRun("Tests.Postprocess",[pipeline],true,
-            commands=>draw.Submit(commands,pipeline,target)));
+            commands=>draw.Submit(commands,pipeline,target.PostprocessPass())));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

@@ -73,8 +73,8 @@ public sealed class CameraExposureEV100PipelineTests(HeadlessGLFixture fixture) 
         final.Capture(false, new(controls, Vector4.Zero, Vector4.Zero), new(settings.ManualLogGain + .5f, automatic ? 1 : 0, 0, (float)pivot));
         final.CaptureLocal(localPolicy);
         using var display = TestFramework.CreateTestGBuffer(1, 1, PixelInternalFormat.Rgba32f);
-        using var draw = new PostprocessDraw(); var pipeline = draw.Prepare(final, display);
-        Assert.True(GraphicsCommandContext.TryRun("Tests.EV100.Final", [pipeline], true, commands => draw.Submit(commands, pipeline, display)));
+        using var draw = new PostprocessDraw(); var pipeline = draw.Prepare(final,display.PostprocessPass());
+        Assert.True(GraphicsCommandContext.TryRun("Tests.EV100.Final", [pipeline], true, commands => draw.Submit(commands, pipeline,display.PostprocessPass())));
         double correction = local ? Math.Clamp(.5 * (pivot - gain - Math.Log2(nits)), -4, 4) : 0;
         float exposed = (float)(nits * Math.Pow(2, gain + correction));
         float expected = FilmicGradingReference.Quantize(FilmicGradingReference.Lookup(new(exposed), controls).X);

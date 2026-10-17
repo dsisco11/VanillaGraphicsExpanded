@@ -1,6 +1,7 @@
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 
 namespace VanillaGraphicsExpanded.PBR;
 
@@ -16,6 +17,8 @@ internal sealed class DirectLightingTargets : IDisposable
     public Texture3D Radiance { get; }
     /// <summary>Routes independent fragment outputs to their corresponding array layers.</summary>
     public GpuFramebuffer Framebuffer { get; }
+    /// <summary>Retains the zero-cleared lighting pass independently of executable reloads.</summary>
+    internal RenderPassDesc Pass { get; }
     /// <summary>Reports whether the allocation and its framebuffer remain live.</summary>
     public bool IsValid => Framebuffer.IsValid && Radiance.IsValid;
 
@@ -29,7 +32,11 @@ internal sealed class DirectLightingTargets : IDisposable
             var layers = new GpuFramebufferAttachment[3];
             for (int layer = 0; layer < layers.Length; layer++)
                 layers[layer] = resources.Own(GpuFramebufferAttachment.FromTexture(Radiance, layer: layer));
-            Framebuffer = resources.Own(DynamicGpuFramebuffer.Create(layers, debugName: "DirectLightingFBO"));
+            Framebuffer = resources.Own(StaticGpuFramebuffer.Create(layers, debugName: "DirectLightingFBO"));
+            Pass = new(Framebuffer, [
+                new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)),
+                new(1, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0)),
+                new(2, AttachmentLoad.Clear, Clear: ColorClearValue.Float(0, 0, 0, 0))]);
             if (!Framebuffer.CheckStatus(out string? error)) throw new InvalidOperationException(error);
         }
         catch { resources.Dispose(); throw; }

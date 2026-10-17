@@ -16,6 +16,9 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     private readonly VanillaGraphicsExpanded.ModSystems.AtmosphereModSystem atmosphere = new();
     private readonly BinaryShaderApiFixture assets = new();
     private readonly RuntimeLightingPrograms programs = new();
+    private readonly TestFrameLightingPublication frameLighting = new();
+    private readonly VgeFrameUniformBuffer frameCamera;
+    private readonly VgeLightsUniformBuffer frameLights = new();
     private readonly EngineTerrainBuffers terrain;
     private readonly DepthTexture shadow, shadowFar;
     private readonly DirectLightingBufferManager buffers;
@@ -65,6 +68,10 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
         buffers = new(api); reference = new(api, gbuffer, buffers); Candidate = new(api, gbuffer, buffers);
         Expected = new(width, height); Actual = new(width, height);
         shader = reference.PrepareBoundaryProgram()!;
+        frameCamera = TestFrameCamera.CreateFromInverseView(identity, identity, width, height, Uniforms.ZNear, Uniforms.ZFar);
+        shader.FrameInputs = frameCamera;
+        shader.LightsInputs = frameLights;
+        frameLighting.Attach(shader);
     }
 
     #endregion
@@ -85,12 +92,15 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
         Uniforms.PointLightsCount = kind is 3 or 6 ? 1 : 0;
         Uniforms.PointLights3 = [0, 0, 2]; Uniforms.PointLightColors3 = [intensity * 2, intensity, intensity * .5f];
         Uniforms.DropShadowIntensity = kind is 3 or 6 ? 1 : 0;
+        frameLights.Capture(Uniforms.PointLightsCount, Uniforms.PointLights3, Uniforms.PointLightColors3);
         Uniforms.ShadowRangeNear = kind == 6 ? 0 : 100;
         shadow.UploadDataImmediate([kind == 3 ? .25f : 1f]);
         shadowFar.UploadDataImmediate([kind == 6 ? .25f : 1f]);
-        terrain.UploadTerrain(gbuffer, Enumerable.Repeat(kind == 0 ? 1f : .5f, Width * Height).ToArray(),
+        // With the fixture's identity projection, depth zero places the receiver at
+        // z=-1. Depth .5 placed it in the camera plane, giving no valid facing view.
+        terrain.UploadTerrain(gbuffer, Enumerable.Repeat(kind == 0 ? 1f : 0f, Width * Height).ToArray(),
             Pixels([.5f, .5f, 1f, kind == 4 ? -1f : 0f]),
-            Pixels([kind == 2 ? 0 : kind == 5 ? 1 : .5f, kind == 2 ? 1f : 0f, kind == 2 ? intensity : 0f, 1]),
+            Pixels([kind == 2 ? 0 : kind == 5 ? 1 : .5f, kind == 2 ? 1f : 0f, kind == 2 ? intensity : 0f, 0]),
             Pixels([intensity * .7f, intensity * .3f, intensity * .2f, 1]));
         Upload(gbuffer.PositionTextureId, Pixels([0, 0, -2, 1]));
         gbuffer.SurfaceTexture!.UploadDataImmediate(Pixels([1, 1, 1, 1]), 0, 0, 2, Width, Height, 1);
@@ -100,7 +110,14 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     internal void DrawReference(bool establishNeutral = true)
     {
         if (establishNeutral) Neutral();
-        Assert.True(reference.RenderLighting(Expected));
+        try { Assert.True(reference.RenderLighting(Expected)); }
+        finally
+        {
+            // The reference uses temporary view/light slices; restore the persistent
+            // fixture publication before the production renderer consumes this shader.
+            shader.FrameInputs = frameCamera;
+            shader.LightsInputs = frameLights;
+        }
     }
 
     /// <summary>Establishes a complete baseline independently of the old renderer's partial descriptor.</summary>
@@ -119,7 +136,9 @@ internal sealed class DirectLightingComparisonFixture : IDisposable
     public void Dispose()
     {
         Neutral(); Candidate.Dispose(); reference.Dispose(); Actual.Dispose(); Expected.Dispose();
-        buffers.Dispose(); gbuffer.Dispose(); shadowFar.Dispose(); shadow.Dispose(); terrain.Dispose(); programs.Dispose(); assets.Dispose(); atmosphere.Dispose(); platform.Dispose();
+        buffers.Dispose(); gbuffer.Dispose(); shadowFar.Dispose(); shadow.Dispose(); terrain.Dispose(); programs.Dispose();
+        frameCamera.Dispose(); frameLights.Dispose(); frameLighting.Dispose();
+        assets.Dispose(); atmosphere.Dispose(); platform.Dispose();
     }
     /// <summary>Exposes the production manager target after a normal frame draw.</summary>
     internal GpuFramebuffer Normal => buffers.DirectLightingFbo!;

@@ -176,9 +176,9 @@ public sealed class FinalDisplayShaderTests(HeadlessGLFixture fixture, ITestOutp
     private static void Draw(FinalDisplayShaderProgram shader,GpuFramebuffer target)
     {
         using var draw = new PostprocessDraw();
-        var pipeline = draw.Prepare(shader, target);
+        var pipeline = draw.Prepare(shader,target.PostprocessPass());
         Assert.True(VanillaGraphicsExpanded.Rendering.Pipeline.GraphicsCommandContext.TryRun("Tests.FinalDisplay", [pipeline], true,
-            commands => draw.Submit(commands, pipeline, target)));
+            commands => draw.Submit(commands, pipeline,target.PostprocessPass())));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

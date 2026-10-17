@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.PBR.Postprocessing;
 internal sealed class RetainedPostprocessRenderer : IDisposable
 {
     private GpuResourceCollection resources=new();
-    private GpuFramebuffer? lumaTarget;
+    private StaticGpuFramebuffer? lumaTarget;
     private DynamicTexture2D? lumaImage;
     private PostLumaShaderProgram? luma;
     private GraphicsPipeline? lumaPipeline;
@@ -24,7 +24,7 @@ internal sealed class RetainedPostprocessRenderer : IDisposable
         luma=GpuShaderProgramLibraries.Get<PostLumaShaderProgram>(api,"pbr_post_luma");
         if(luma?.EnsureReady()!=true) throw new InvalidOperationException("Owned luminance shader unavailable.");
         lumaTarget??=CreateTarget(resources,primary.Width,primary.Height,"Luma",out lumaImage);
-        yield return lumaPipeline=draw.Prepare(luma,lumaTarget);
+        yield return lumaPipeline=draw.Prepare(luma,lumaTarget.PreservePass);
 
     }
     /// <summary>Preserves scene RGB while preparing an exposure-aware luminance metric.</summary>
@@ -34,7 +34,7 @@ internal sealed class RetainedPostprocessRenderer : IDisposable
         luma!.SourceImage=scene;
         luma.ExposureBuffer=exposure.Buffer;
         luma.Capture(new(0,0,engine.Fxaa?1:0,exposure.Buffer is not null?1:0),new(0,0,0,exposure.ManualLogGain));
-        draw.Submit(commands,lumaPipeline!,lumaTarget!);
+        draw.Submit(commands,lumaPipeline!,lumaTarget!.PreservePass);
     }
     /// <summary>Retires owned targets and clears publication before a new resource lifetime.</summary>
     public void Dispose()
@@ -45,11 +45,11 @@ internal sealed class RetainedPostprocessRenderer : IDisposable
     #endregion
     #region Private
     /// <summary>Allocates sized storage and registers its image and framebuffer with the lifetime owner.</summary>
-    private static GpuFramebuffer CreateTarget(GpuResourceCollection collection,int width,int height,string name,out DynamicTexture2D image)
+    private static StaticGpuFramebuffer CreateTarget(GpuResourceCollection collection,int width,int height,string name,out DynamicTexture2D image)
     {
         image=collection.Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.Rgba16f,debugName:$"Postprocess.{name}"));
         var attachment=collection.Own(GpuFramebufferAttachment.FromTexture(image));
-        return collection.Own(DynamicGpuFramebuffer.Create([attachment],debugName:$"Postprocess.{name}"));
+        return collection.Own(StaticGpuFramebuffer.Create([attachment],debugName:$"Postprocess.{name}"));
     }
     #endregion
 }

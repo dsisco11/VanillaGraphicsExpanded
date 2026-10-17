@@ -117,14 +117,14 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
         horizon.MinimumChildren=comparisonMasks.Texture;
         horizon.Capture(Camera, new(0, 0, quality.Divisor, 0),
             new(1.25f, .25f, quality.Directions, quality.Steps), new(64, 96, 0, 0));
-        var referencePipeline = draw.Prepare(reference, referenceTarget);
-        var currentPipeline = draw.Prepare(horizon, currentTarget);
+        var referencePipeline = draw.Prepare(reference,referenceTarget.PostprocessPass());
+        var currentPipeline = draw.Prepare(horizon,currentTarget.PostprocessPass());
         // Preparation, hierarchy/mask generation and descriptor mutation are excluded from horizon-only timing.
         return (
             () => Assert.True(GraphicsCommandContext.TryRun("Tests.AoReference", [referencePipeline], true,
-                commands => draw.Submit(commands, referencePipeline, referenceTarget))),
+                commands => draw.Submit(commands, referencePipeline,referenceTarget.PostprocessPass()))),
             () => Assert.True(GraphicsCommandContext.TryRun("Tests.AoCurrent", [currentPipeline], true,
-                commands => draw.Submit(commands, currentPipeline, currentTarget))));
+                commands => draw.Submit(commands, currentPipeline,currentTarget.PostprocessPass()))));
     }
 
     /// <summary>Measures matched, prepared GPU work and CPU submission, excluding target creation, readback and query waits.</summary>

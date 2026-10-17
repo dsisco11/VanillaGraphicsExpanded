@@ -37,8 +37,8 @@ internal sealed class FrozenAmbientOcclusionPass : IDisposable
         this.horizon=horizon;this.filter=filter;
         if(!horizon.EnsureReady() || !filter.EnsureReady())
             throw new InvalidOperationException("Ambient occlusion shaders are unavailable.");
-        horizonPipeline=draw.Prepare(horizon,rawTarget!);
-        filterPipeline=draw.Prepare(filter,filteredTarget!);
+        horizonPipeline=draw.Prepare(horizon,rawTarget!.PostprocessPass());
+        filterPipeline=draw.Prepare(filter,filteredTarget!.PostprocessPass());
         return [horizonPipeline,filterPipeline];
     }
     /// <summary>Samples the shared hierarchy, integrates horizons and reconstructs visibility without feedback or history.</summary>
@@ -49,13 +49,13 @@ internal sealed class FrozenAmbientOcclusionPass : IDisposable
         var sampling=new System.Numerics.Vector4(1.25f,0.25f,quality.Directions,quality.Steps);
         var distance=new System.Numerics.Vector4(64,96,0,0);
         horizon!.Capture(depth,surface,hierarchy,camera,nativeQuality);
-        draw.Submit(commands,horizonPipeline!,rawTarget!);
+        draw.Submit(commands,horizonPipeline!,rawTarget!.PostprocessPass());
         filter!.DepthImage=depth;filter.SurfaceImage=surface;filter.SourceImage=raw;
         filter.Capture(camera,frame,sampling,distance);
-        draw.Submit(commands,filterPipeline!,filteredTarget!);
+        draw.Submit(commands,filterPipeline!,filteredTarget!.PostprocessPass());
         filter.SourceImage=filtered;frame.W=1;
         filter.Capture(camera,frame,sampling,distance);
-        draw.Submit(commands,filterPipeline!,outputTarget!);
+        draw.Submit(commands,filterPipeline!,outputTarget!.PostprocessPass());
     }
     /// <summary>Withdraws all resources together; no prior-frame image survives retirement.</summary>
     public void Dispose() {

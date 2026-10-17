@@ -321,7 +321,7 @@ Tasks
       Release package rebuilt and packaged IL verified; no GPU/frame-time speedup is claimed.
       Evidence: ../artifacts/framebuffer-routing-cache/validation.md.
 
-  ☐ Migrate eligible fixed offscreen targets to StaticGpuFramebuffer and retain reusable pass declarations.
+  ☑ Migrate eligible fixed offscreen targets to StaticGpuFramebuffer and retain reusable pass declarations.
     - Prioritize all eleven LumOn screen targets, both world-probe atlas targets, direct-lighting
       targets, owned bloom/light-shaft/luminance targets, AO outputs and minimum-child mip targets.
       Include water-volume transport, water-refraction capture/publication/reduction, and the owned
@@ -345,6 +345,15 @@ Tasks
       queries and native routing writes; establish that eligible predeclared static passes bypass
       this work. Reconcile current architecture documentation and rebuild the canonical package;
       distinguish API call reductions from measured GPU/frame-time improvements.
+    - Verified: 287 unique checks qualified across the broad run and final rebuilt subset, with
+      zero skips. Fifteen migrated targets submitted repeatedly show zero routing applications,
+      snapshots, declaration comparisons, completeness queries or native routing writes. Direct
+      reference comparisons, clear outputs, resize/rotation/reload and failure handoff are covered.
+      Architecture documentation reconciled; canonical Release package rebuilt. Packaged IL confirms
+      retained declarations in seven hot submission paths and static creation in eleven allocation
+      paths. Full water-volume callback admission remains a source audit plus GPU output-contract
+      and liquid-pool handoff qualification; no live appearance or GPU/frame-time gain is claimed.
+      Evidence: ../artifacts/static-framebuffer-migration/validation.md.
 
   ☐ Preserve texture binding caching for lifecycle-aware borrowed rendering inputs.
     - Inspect raw integer sampler inputs, including cloud scene/visibility/liquid depth. Reuse or
