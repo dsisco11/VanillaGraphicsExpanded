@@ -209,7 +209,7 @@ Tasks
     - Approved proposal: docs/PBR.VolumetricClouds.Proposal.md (2026-10-16).
     - Implementation checklist: docs/PBR.VolumetricClouds.todo; runtime delivery and qualification are
       recorded there. User visual/performance acceptance and the recorded reflection dependency remain open.
-    - Realtime work tasklist: docs/PBR.CloudRealtime.todo (planning only); reconcile
+    - Realtime work tasklist: docs/PBR.CloudRealtime.todo; reconcile
       sampling, self-lighting, termination, reconstruction, atmosphere and acceleration costs there.
     - Define bounded 3D cloud density, altitude/weather controls, wind and volume lighting. Evaluate
       ray marching, light transmittance and a controlled multiple-scattering approximation.
@@ -221,15 +221,19 @@ Tasks
     - Define replacement of vanilla clouds and clean disable/reload behavior. Validate thin/thick
       clouds, moving sun, weather, disocclusion, water reflections and fog; measure GPU and memory cost.
 
-  ☐ Validate PMJ-jittered volumetric cloud sampling in game. Reduced tracing now uses a cloud-owned
-    scrambled sequence from the shared LumOn sampling generator; reference transport remains midpoint.
-    This is temporal PMJ sampling, not a spatial blue-noise mask. Focused validation receipts:
-    artifacts/CloudPmj/validation.md. Live appearance and GPU/frame-time acceptance remain open.
+  ☐ Validate changed volumetric cloud sampling in game. Primary rays use a whole-ray uniform lattice
+    with eight spatial blue-noise masks; reference primary transport remains midpoint. Secondary
+    sampling retains the cloud-owned PMJ sequence. Prior PMJ receipts qualify the legacy primary
+    sampler only: artifacts/CloudPmj/validation.md. New numerical qualification is tracked in
+    docs/PBR.CloudRealtime.todo; live appearance and GPU/frame-time acceptance remain open.
   ☐ Evaluate what type of HZB accelleration structure would be suitable for volumetric cloud rendering.
-    - Approved design: docs/PBR.CloudHierarchy.Proposal.md. Implementation and acceptance:
-      docs/PBR.CloudHierarchy.todo; native leaves with owned coarse min/max height summaries.
-    - Reduced view and solar/lunar self-lighting traversal now reuse certified summaries with DDA
-      fallback. Automated integration qualification is recorded there; total GPU benefit and user-run
+    - Archived design and implementation receipts: commit f66895c6,
+      docs/PBR.CloudHierarchy.Proposal.md and docs/PBR.CloudHierarchy.todo. Current architecture:
+      docs/PBR.Clouds.md; remaining sampling/performance work: docs/PBR.CloudRealtime.todo.
+      Native leaves retain owned coarse min/max height summaries.
+    - Solar/lunar self-lighting traversal reuses certified summaries with DDA fallback. Primary
+      sampling is independent of summary availability. Archived automated integration qualification
+      applies to its recorded candidate; total GPU benefit and user-run
       live acceptance remain open, so this parent item is not complete.
 
   ✔ Compact volumetric cloud intermediates and reconstruct native OIT accumulation bins at resolve. @done(26-10-17)

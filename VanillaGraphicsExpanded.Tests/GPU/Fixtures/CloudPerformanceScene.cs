@@ -135,6 +135,7 @@ internal sealed class CloudPerformanceScene : IDisposable
         AccessTools.Field(typeof(CloudVolumeReconstruction), "temporalProgram").SetValue(reconstruction, temporal);
         AccessTools.Field(typeof(CloudVolumeReconstruction), "resolveProgram").SetValue(reconstruction, resolve);
         AccessTools.Field(typeof(CloudVolumeReconstruction), "pmjJitter").SetValue(reconstruction, CloudPmjJitterTexture.Create());
+        AccessTools.Field(typeof(CloudVolumeReconstruction), "primaryNoise").SetValue(reconstruction, CloudBlueNoiseTexture.Create());
     }
     /// <summary>Creates an independent production scheduler using the same controlled borrowed inputs.</summary>
     internal CloudVolumeReconstruction CreateReconstruction()

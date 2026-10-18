@@ -40,7 +40,9 @@ internal sealed class CloudReconstructionScene : IDisposable
     private readonly float[] previousProjection=new float[16],currentProjection=new float[16];
     private float surfaceDepth;
     private bool detail,underwater;
-    private int referenceSamples=4;
+    private int? referenceSamples;
+    private readonly float primaryBudgetDistance;
+    private readonly int primarySampleMax;
     private AtmosphereLighting? capturedLighting;
     private CloudPlacement capturedPlacement;
     #region Public API
@@ -49,6 +51,21 @@ internal sealed class CloudReconstructionScene : IDisposable
     internal CloudReconstructionScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve,bool mipmappedOpaque,int nativeMapWidth,bool independentStorage=false)
     {
         this.width=width;this.height=height;this.reference=reference;this.trace=trace;this.temporal=temporal;this.resolve=resolve;
+        primaryBudgetDistance=CloudVolumeSettings.Default.ViewBudgetDistance;
+        primarySampleMax=CloudVolumeSettings.Default.ViewRaySampleMax;
+        string? requested=Environment.GetEnvironmentVariable("VGE_CLOUD_TEST_VIEW_DISTANCE");
+        if(requested is not null)
+        {
+            if(!float.TryParse(requested,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out primaryBudgetDistance)
+                ||!float.IsFinite(primaryBudgetDistance)||primaryBudgetDistance is <50 or >10000)
+                throw new ArgumentException("Invalid explicit test-only primary distance override.");
+        }
+        requested=Environment.GetEnvironmentVariable("VGE_CLOUD_TEST_VIEW_MAX");
+        if(requested is not null)
+        {
+            if(!int.TryParse(requested,out primarySampleMax)||primarySampleMax is <4 or >384)
+                throw new ArgumentException("Invalid explicit test-only primary maximum override.");
+        }
         (lowWidth,lowHeight)=CloudVolumeStorage.Dimensions(width,height);
         camera=Own(new VgeFrameUniformBuffer()); storage=Own(new TestFrameLightingPublication());
         map=Own(DynamicTexture2D.Create(nativeMapWidth,nativeMapWidth,PixelInternalFormat.Rgba32f));
@@ -78,6 +95,7 @@ internal sealed class CloudReconstructionScene : IDisposable
         reference.Frame=camera;trace.Frame=camera;temporal.Frame=camera;resolve.Frame=camera;
         reference.Lighting=storage.Buffer;trace.Lighting=storage.Buffer;resolve.Lighting=storage.Buffer;
         trace.PmjJitter=Own(CloudPmjJitterTexture.Create());
+        trace.PrimaryNoise=Own(CloudBlueNoiseTexture.Create());
     }
     /// <summary>Seeds adversarial coarse levels and enables mip selection so an accidental implicit LOD becomes observable.</summary>
     internal void SetOpaqueCoarseDepth(float depth)
@@ -117,7 +135,7 @@ internal sealed class CloudReconstructionScene : IDisposable
         if(frame==0)currentProjection.CopyTo(previousProjection,0);
         camera.Capture(projection,view,inverse,inverseView,previousProjection,currentProjection,new(width,height),0,frame,Vector3.Zero,Vector3.Zero,0,new(.1f,1000));
         storage.Capture(scale,frame);
-        float[] columns=new float[map.Width*map.Width*4];for(int i=0;i<map.Width*map.Width;i++){columns[i*4]=scene=="cloud-edge"&&i%map.Width<map.Width/2?0:extinction;columns[i*4+2]=scene=="thin-height"?-.01f:-.5f;columns[i*4+3]=scene=="thin-height"?.01f:.5f;}
+        float[] columns=new float[map.Width*map.Width*4];for(int i=0;i<map.Width*map.Width;i++){columns[i*4]=scene=="cloud-edge"&&i%map.Width<map.Width/2?0:extinction;columns[i*4+2]=scene=="homogeneous"?-10:scene=="thin-height"?-.01f:-.5f;columns[i*4+3]=scene=="homogeneous"?10:scene=="thin-height"?.01f:.5f;}
         map.UploadDataImmediate(columns);
         float[] depths=new float[width*height],liquids=new float[width*height];
         for(int y=0;y<height;y++)for(int x=0;x<width;x++)
@@ -184,9 +202,9 @@ internal sealed class CloudReconstructionScene : IDisposable
     /// <summary>Executes deterministic full-resolution midpoint transport without changing history.</summary>
     internal void RenderReference() { Draw(reference,expected.Target,true); }
     /// <summary>Executes one reduced sample phase without running temporal or spatial reconstruction.</summary>
-    internal void RenderTrace(uint frame)
+    internal void RenderTrace(uint frame,bool fixedPhase=false)
     {
-        trace.Temporal.Capture(previousProjection,Vector3.Zero,lowWidth,lowHeight,frame,unchecked(frame-1),false);
+        trace.Temporal.Capture(previousProjection,Vector3.Zero,lowWidth,lowHeight,fixedPhase?0:frame,unchecked(frame-1),false);
         Draw(trace,traced.Target,false);
     }
     /// <summary>Authors separate sampling dimensions to isolate view and secondary transport behavior.</summary>
@@ -308,7 +326,19 @@ internal sealed class CloudReconstructionScene : IDisposable
     /// <summary>Supplies identical physical transport inputs to all tracing consumers.</summary>
     private void Configure(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudPlacement placement,AtmosphereLighting lighting)
     {
-        parameters.CaptureMap(map.Width,placement,1,CloudVolumeSettings.Default with {Detail=detail,ViewSamples=ReferenceEquals(program,reference)?referenceSamples:4});
+        int count=ReferenceEquals(program,reference)?referenceSamples??primarySampleMax:primarySampleMax;
+        parameters.CaptureMap(map.Width,placement,1,CloudVolumeSettings.Default with
+        {
+            Detail=detail,ViewRaySampleMax=Math.Min(count,384),
+            ViewBudgetDistance=ReferenceEquals(program,reference)&&referenceSamples>=384?50:primaryBudgetDistance
+        });
+        if(ReferenceEquals(program,reference)&&count>384)
+        {
+            // Only the test-registry reference overlay admits this ceiling. Production config,
+            // validation and binaries remain capped at 384; opt-in numerical oracles use 768.
+            typeof(CpuUniformBuffer).GetMethod("WriteFloat",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!
+                .Invoke(parameters,[48,(float)count]);
+        }
         parameters.CaptureLighting(lighting,underwater?1:0,new(underwater ? .02f : 0,0,0,0),Vector3.Zero);
         program.Map=map.TextureId;program.SceneDepth=opaque.TextureId;program.VisibilityDepth=visibility.TextureId;program.LiquidDepth=liquid.TextureId;program.AerialRadiance=aerial;program.AerialAttenuation=loss;
     }

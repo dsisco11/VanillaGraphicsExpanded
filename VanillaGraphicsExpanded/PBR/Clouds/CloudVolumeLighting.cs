@@ -19,7 +19,7 @@ internal static class CloudVolumeLighting
         double solar = Math.Max(lighting.Solar.X, Math.Max(lighting.Solar.Y, lighting.Solar.Z));
         double lunar = Math.Max(lighting.Lunar.X, Math.Max(lighting.Lunar.Y, lighting.Lunar.Z));
         double environment = Math.Max(lighting.Environment.X, Math.Max(lighting.Environment.Y, lighting.Environment.Z));
-        // At most 402*16 intervals participate in a view. Reserve arithmetic headroom
+        // Primary integration has at most 384 samples. Reserve conservative arithmetic headroom
         // for transmission products and accumulation as well as the source evaluation.
         return LightingStorage.UpperBound(((solar + lunar) * phase + environment
             + lighting.ReconstructionMaximumNits + localFogMaximum) * (1 + 16384.0 / (1 << 23)));

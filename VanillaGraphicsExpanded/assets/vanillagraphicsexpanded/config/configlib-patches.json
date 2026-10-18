@@ -204,18 +204,28 @@
     },
     "integer": {
       "CLOUD_VIEW_SAMPLES": {
-        "code": "Clouds.ViewSamples",
+        "code": "Clouds.ViewRaySampleMax",
         "clientSide": true,
-        "name": "Clouds/ViewSamples",
+        "name": "Clouds/ViewRaySampleMax",
         "ingui": "vanillagraphicsexpanded:config-cloud-view-samples",
         "comment": "vanillagraphicsexpanded:config-cloud-view-samples-tooltip",
-        "default": 4,
+        "default": 384,
         "weight": 25.2,
         "range": {
-          "min": 1,
-          "max": 16,
+          "min": 4,
+          "max": 384,
           "step": 1
         }
+      },
+      "CLOUD_VIEW_MINIMUM": {
+        "code": "Clouds.ViewRaySampleMin",
+        "clientSide": true,
+        "name": "Clouds/ViewRaySampleMin",
+        "ingui": "vanillagraphicsexpanded:config-cloud-view-minimum",
+        "comment": "vanillagraphicsexpanded:config-cloud-view-minimum-tooltip",
+        "default": 2,
+        "weight": 25.21,
+        "range": { "min": 1, "max": 16, "step": 1 }
       },
       "CLOUD_LIGHT_SAMPLES": {
         "code": "Clouds.LightSamples",
@@ -514,6 +524,16 @@
       }
     },
     "float": {
+      "CLOUD_VIEW_DISTANCE": {
+        "code": "Clouds.ViewBudgetDistance",
+        "clientSide": true,
+        "name": "Clouds/ViewBudgetDistance",
+        "ingui": "vanillagraphicsexpanded:config-cloud-view-distance",
+        "comment": "vanillagraphicsexpanded:config-cloud-view-distance-tooltip",
+        "default": 50,
+        "weight": 25.22,
+        "range": { "min": 50, "max": 10000, "step": 50 }
+      },
       "CLOUD_DETAIL_AMPLITUDE": {
         "code": "Clouds.DetailAmplitude",
         "clientSide": true,

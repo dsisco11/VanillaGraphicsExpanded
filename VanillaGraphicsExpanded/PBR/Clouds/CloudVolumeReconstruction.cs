@@ -26,6 +26,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     private int width,height;
     private int cursor;
     private CloudPmjJitterTexture? pmjJitter;
+    private CloudBlueNoiseTexture? primaryNoise;
 
     #region Public API
     #region Preparation and admission
@@ -41,6 +42,9 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         pmjJitter ??= CloudPmjJitterTexture.Create();
         pmjJitter.EnsureCreated();
         traceProgram.PmjJitter=pmjJitter;
+        primaryNoise ??= CloudBlueNoiseTexture.Create();
+        primaryNoise.EnsureCreated();
+        traceProgram.PrimaryNoise=primaryNoise;
         return true;
     }
     /// <summary>Rejects content history immediately while retaining correctly sized owned allocations.</summary>
@@ -60,6 +64,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
             var camera=VgeFrameRenderer.Current;
             Capture(traceProgram,traceProgram.Parameters,input,lighting,settings,sceneDepth,visibilityDepth,liquidDepth);
             traceProgram.PmjJitter=pmjJitter;
+            traceProgram.PrimaryNoise=primaryNoise;
             resolveProgram.SceneDepth=sceneDepth; resolveProgram.VisibilityDepth=visibilityDepth; resolveProgram.LiquidDepth=liquidDepth;
             // The immutable publication and native content certificates identify compatibility. New
             // map generation numbers alone do not: the native producer legitimately writes every frame.
@@ -101,7 +106,8 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     {
         Invalidate(); traceProgram=null; temporalProgram=null; resolveProgram=null;
         RenderingCleanup.Run(()=>{resolvePipeline?.Dispose();resolvePipeline=null;},ReleaseTargets,
-            ()=>{pmjJitter?.Dispose();pmjJitter=null;});
+            ()=>{pmjJitter?.Dispose();pmjJitter=null;},
+            ()=>{primaryNoise?.Dispose();primaryNoise=null;});
     }
     /// <summary>Releases only VGE resources; current native column and scene textures remain borrowed.</summary>
     public void Dispose() { RenderingCleanup.Run(Reset,lifetime.Dispose); }

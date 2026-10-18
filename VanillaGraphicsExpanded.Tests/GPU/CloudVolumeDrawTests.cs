@@ -18,9 +18,48 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks actual reference shader transport against independently computed optical and OIT results.</summary>
 [Collection("GPU")]
 [Trait("Category","GPU")]
-public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
+public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Measures whole-ray bucket quadrature on fixed native-sized domains without triggering saturation termination.</summary>
+    [Theory]
+    [InlineData(1000,.2f)][InlineData(5000,.05f)]
+    public void NativeWideConstantFieldMatchesIndependentOit(float distance,float extinction)
+    {
+        EnsureShaderTestAvailable();
+        const float farPlane=20000;
+        int samples=CloudVolumeSettings.Default.ViewRaySampleMax;
+        float budgetDistance=CloudVolumeSettings.Default.ViewBudgetDistance;
+        var actual=Draw(extinction,width:200,secondColumn:true,sceneDistance:distance,liquidDistance:distance,
+            viewSampleMax:samples,viewBudgetDistance:budgetDistance,farPlane:farPlane);
+        // Recover the admitted span from independently authored camera bytes rather than
+        // estimating distance from measured transmittance or borrowing shader ray helpers.
+        float[] inverse=new float[16];Mat4f.Invert(inverse,Projection(farPlane));
+        double ndc=2*(double)Depth(distance,farPlane)-1;
+        double span=Math.Abs((inverse[10]*ndc+inverse[14])/(inverse[11]*ndc+inverse[15]));
+        span=Math.Min(span,5050); // explicit inside origin, finite native exit along -Z
+        double sigma=extinction/50.0,transmission=Math.Exp(-sigma*span);
+        double worst=0,worstAlpha=0,worstRgb=0;
+        const int subdivisions=65536;
+        for(int bucket=0;bucket<3;bucket++)
+        {
+            double tau=0,ds=span/subdivisions;
+            for(int i=0;i<subdivisions;i++)
+            {
+                double t=(i+.5)*ds,adjusted=t>500?t-250:t*t*t*(1-t/1000)/250000;
+                double bin=Math.Log(1+adjusted/30);
+                tau+=sigma*ds*(bucket==2&&bin>2?1:Math.Exp(-Math.Pow((bin-bucket)/.832,2)));
+            }
+            double expected=Math.Exp(-tau),alpha=(1-transmission)*(1-expected);
+            worst=Math.Max(worst,Math.Abs(actual.Buckets[bucket]-expected));
+            worstAlpha=Math.Max(worstAlpha,Math.Abs(actual.BucketAlpha[bucket]-alpha));
+            worstRgb=Math.Max(worstRgb,Math.Abs(actual.Source.X*actual.BucketAlpha[bucket]/10-alpha));
+        }
+        output.WriteLine($"Wide native200: requestedSpan={distance}; admittedSpan={span:G12}; opacity={extinction}; tau={sigma*span:G9}; max={samples}; distanceBudget={budgetDistance}; overallError={Math.Abs(actual.Reveal-transmission):G9}; bucketError={worst:G9}; alphaError={worstAlpha:G9}; normalizedRgbError={worstRgb:G9}");
+        Assert.InRange(Math.Abs(actual.Reveal-transmission),0,2e-5);
+        Assert.InRange(worst,0,.01);Assert.InRange(worstAlpha,0,.01);Assert.InRange(worstRgb,0,.02);
+    }
+
     /// <summary>Native r remains extinction rather than alpha for all positive values and metre conversions.</summary>
     [Theory]
     [InlineData(.1f,1f)]
@@ -37,8 +76,20 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
         // Native k*(1-R) is emitted, not the ordinary surface depth-weighted output.
         float alpha=1-result.Reveal;
         Assert.InRange(Math.Abs(result.BucketAlpha.X-alpha*(1-result.Buckets.X)),0,.00001);
-        Assert.InRange(Math.Abs(result.Buckets.X-(1-alpha)),0,.00002); // entry distance is zero
-        Assert.InRange(Math.Abs(result.Buckets.Y-(1-alpha*Math.Exp(-Math.Pow(1/.832,2)))),0,.00002);
+        // This authored complete span is 100 units, with two occupied 25-unit steps.
+        // Integrate depth-bin products independently; the former one-column midpoint rule is retired.
+        for(int bucket=0;bucket<3;bucket++)
+        {
+            double expected=1,stepAlpha=1-Math.Exp(-extinction/2);
+            foreach(double near in new double[]{0,25})
+            {
+                double adjusted=near*near*near*(1-near/1000)/250000;
+                double bin=Math.Log(1+adjusted/30);
+                double weight=bucket==2&&bin>2?1:Math.Exp(-Math.Pow((bin-bucket)/.832,2));
+                expected*=1-stepAlpha*weight;
+            }
+            Assert.InRange(Math.Abs(result.Buckets[bucket]-expected),0,.00002);
+        }
     }
 
     /// <summary>Empty, invalid and out-of-height columns contribute neither light nor coverage.</summary>
@@ -162,7 +213,8 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
     {
         EnsureShaderTestAvailable();
         var result=Draw(2,underwater:true,fogDensity:.02f,loss:.99f,scatter:100);
-        Assert.InRange(Math.Abs(result.Source.X-10*Math.Exp(-.5)),0,.0002);
+        double expected=10*(Math.Exp(-.25)+Math.Exp(-1)*Math.Exp(-.75))/(1+Math.Exp(-1));
+        Assert.InRange(Math.Abs(result.Source.X-expected),0,.0002);
         Assert.InRange(Math.Abs(result.Reveal-Math.Exp(-2)),0,.00002);
     }
 
@@ -208,7 +260,8 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
     {
         EnsureShaderTestAvailable();
         float[] view=above?[1,0,0,0,0,0,1,0,0,-1,0,0,0,0,0,1]:[1,0,0,0,0,0,-1,0,0,1,0,0,0,0,0,1];
-        var result=Draw(2,altitude:above?-100:100,offsetZ:0,view:view,secondColumn:true);
+        var result=Draw(2,altitude:above?-100:100,offsetZ:0,view:view,secondColumn:true,sceneDistance:200,
+            settings:CloudVolumeSettings.Default with {Detail=false},viewSampleMax:8,viewBudgetDistance:50);
         Assert.InRange(Math.Abs(result.Reveal-Math.Exp(-2)),0,.00003);
     }
     #endregion
@@ -217,19 +270,22 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
     /// <summary>Separates straight encoded radiance from native premultiplied bin weights and dimensionless coverage.</summary>
     private sealed record Result(Vector3 Source,float Reveal,Vector3 Buckets,Vector3 BucketAlpha,float GlowAlpha);
 
-    /// <summary>Executes a one-pixel full-resolution reference with independent native column fixtures and owned GPU state.</summary>
+    /// <summary>Executes an explicitly authored 96/2000 primary preset for scalar arithmetic, independently of tuned production defaults.</summary>
     private Result Draw(float extinction,float units=1,int width=2,bool secondColumn=false,bool sharedNeighbor=true,
         float altitude=0,float offsetZ=-50,float offsetX=0,int centerX=0,CloudVolumeSettings? settings=null,
         float solar=0,float lunar=0,float scale=1,float loss=0,float scatter=0,float sceneDistance=1000,float liquidDistance=1000,
-        float[]? view=null,bool underwater=false,float fogDensity=0,float lower=-.5f,float upper=.5f,int windTileX=0,float? visibilityDistance=null)
+        float[]? view=null,bool underwater=false,float fogDensity=0,float lower=-.5f,float upper=.5f,int windTileX=0,float? visibilityDistance=null,
+        int viewSampleMax=96,float viewBudgetDistance=2000,float farPlane=1000)
     {
-        float[] projection=[1,0,0,0,0,1,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0];
+        float[] projection=Projection(farPlane);
         float[] inverse=new float[16]; Mat4f.Invert(inverse,projection);
-        using var camera=TestFrameCamera.Create(inverse,view??Mat4f.Create(),1,1,.1f,1000);
+        using var camera=TestFrameCamera.Create(inverse,view??Mat4f.Create(),1,1,.1f,farPlane);
         using var storage=new TestFrameLightingPublication(); storage.Capture(scale);
         var program=Programs.Create<CloudVolumeProgram>(); program.Frame=camera; program.Lighting=storage.Buffer;
         var placement=new CloudPlacement(centerX,0,0,0,windTileX,0,0,0,new(offsetX,altitude,offsetZ),0);
-        program.Parameters.CaptureMap(width,placement,units,settings??(CloudVolumeSettings.Default with { Detail=false }));
+        var quality=(settings??(CloudVolumeSettings.Default with {Detail=false})) with
+        {ViewRaySampleMax=viewSampleMax,ViewRaySampleMin=2,ViewBudgetDistance=viewBudgetDistance};
+        program.Parameters.CaptureMap(width,placement,units,quality);
         Assert.Equal((settings?.Detail??false)?1:0,MemoryMarshal.Cast<byte,float>(program.Parameters.Bytes)[11]);
         var lighting=new AtmosphereLighting(Vector3.UnitY,new(solar),new(10),Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
         { Lunar=new(lunar),Moon=-Vector3.UnitY,CalibrationGeneration=1,LookupStorageScale=LightingStorage.PersistentScale,ReconstructionMaximumNits=scatter };
@@ -247,8 +303,8 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using var opaque=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
         using var visibility=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
         using var liquid=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
-        opaque.UploadDataImmediate(new[]{Depth(sceneDistance)}); liquid.UploadDataImmediate(new[]{Depth(liquidDistance)});
-        visibility.UploadDataImmediate([Depth(visibilityDistance??sceneDistance)]);
+        opaque.UploadDataImmediate(new[]{Depth(sceneDistance,farPlane)}); liquid.UploadDataImmediate(new[]{Depth(liquidDistance,farPlane)});
+        visibility.UploadDataImmediate([Depth(visibilityDistance??sceneDistance,farPlane)]);
         using var aerial=DynamicTexture3D.Create(1,2,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D);
         using var attenuation=DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D);
         using var shafts=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
@@ -286,7 +342,19 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
     }
 
     /// <summary>Encodes an independently authored perspective depth for a surface at the requested camera distance.</summary>
-    private static float Depth(float distance) => (1.00020002f-.200020002f/distance)*.5f+.5f;
+    private static float Depth(float distance,float farPlane=1000)
+    {
+        float a=farPlane==1000?1.00020002f:(float)((farPlane+.1)/(farPlane-.1));
+        float b=farPlane==1000?.200020002f:(float)(.2*farPlane/(farPlane-.1));
+        return (a-b/distance)*.5f+.5f;
+    }
+    /// <summary>Authors perspective constants independently, retaining the established scalar-fixture projection exactly.</summary>
+    private static float[] Projection(float farPlane)
+    {
+        float a=farPlane==1000?1.00020002f:(float)((farPlane+.1)/(farPlane-.1));
+        float b=farPlane==1000?.200020002f:(float)(.2*farPlane/(farPlane-.1));
+        return [1,0,0,0,0,1,0,0,0,0,-a,-1,0,0,-b,0];
+    }
     #endregion
 }
 

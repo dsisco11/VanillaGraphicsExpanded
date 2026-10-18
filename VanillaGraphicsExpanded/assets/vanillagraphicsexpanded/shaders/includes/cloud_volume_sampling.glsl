@@ -3,7 +3,16 @@
 #ifdef VGE_CLOUD_PMJ
 @import "./squirrel3.glsl"
 uniform sampler2D cloudPmjJitter;
-/** Supplies distinct view/light dimensions; each full-resolution pixel advances once per four-phase cycle. */
+uniform sampler2D cloudPrimaryNoise;
+/** Uses the traced full-view position and an eight-frame spatial-mask index independently of reconstruction phase. */
+float CloudPrimaryJitter(vec2 uv)
+{
+    ivec2 size=textureSize(cloudPrimaryNoise,0);
+    ivec2 pixel=ivec2(floor(uv*vgeFrame.screenSize));
+    int side=size.y/8,frame=int(vgeFrame.frameIndex%8u);
+    return texelFetch(cloudPrimaryNoise,ivec2(pixel.x%size.x,pixel.y%side+frame*side),0).r;
+}
+/** Retains the secondary-light sequence independently of the primary spatial mask. */
 vec2 CloudRayJitter(vec2 uv)
 {
     uvec2 pixel=uvec2(floor(uv*vgeFrame.screenSize));
@@ -20,6 +29,8 @@ float CloudSegmentJitter(float value,ivec2 cell,int sampleIndex,uint salt)
     return clamp(fract(value+shift),1.0/65536.0,65535.0/65536.0);
 }
 #else
+/** Keeps deterministic full-view validation independent of spatial sampling resources. */
+float CloudPrimaryJitter(vec2 uv) { return .5; }
 /** Keeps reference transport deterministic and independent of the PMJ texture. */
 vec2 CloudRayJitter(vec2 uv) { return vec2(.5); }
 /** Uses midpoint quadrature for all reference and constant-density integration segments. */

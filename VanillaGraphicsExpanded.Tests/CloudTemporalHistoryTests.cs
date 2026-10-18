@@ -65,6 +65,7 @@ public sealed class CloudTemporalHistoryTests
     [Theory]
     [InlineData("owner")][InlineData("world")][InlineData("allocation")][InlineData("upload")][InlineData("shader")]
     [InlineData("gap")][InlineData("lighting")][InlineData("quality")][InlineData("medium")]
+    [InlineData("primary-max")][InlineData("primary-min")][InlineData("primary-distance")]
     [InlineData("resize")][InlineData("cut")][InlineData("missing")][InlineData("calibration")]
     public void RejectsIncompatibleHistory(string change)
     {
@@ -77,7 +78,10 @@ public sealed class CloudTemporalHistoryTests
         if(change=="world") b=b with { World=2 }; if(change=="allocation") b=b with { Allocation=2 };
         if(change=="upload") b=b with { Upload=0 }; if(change=="shader") b=b with { Shader=2 };
         if(change=="gap") b=b with { Frame=13 }; if(change=="lighting") light=light with { Solar=new(20) };
-        var quality=change=="quality"?CloudVolumeSettings.Default with { ViewSamples=8 }:CloudVolumeSettings.Default;
+        var quality=change=="quality"?CloudVolumeSettings.Default with { DetailAmplitude=.2f }:CloudVolumeSettings.Default;
+        if(change=="primary-max") quality=quality with { ViewRaySampleMax=192 };
+        if(change=="primary-min") quality=quality with { ViewRaySampleMin=3 };
+        if(change=="primary-distance") quality=quality with { ViewBudgetDistance=1500 };
         if(change=="medium") parameters.CaptureLighting(light,1,new(.1f,0,0,0),Vector3.Zero);
         if(change=="missing") h.Invalidate();
         using var current=Camera(b.Frame,change=="resize"?10:9,change=="cut");
@@ -109,9 +113,9 @@ public sealed class CloudTemporalHistoryTests
         Assert.Equal((5,4),CloudVolumeStorage.Dimensions(9,7)); Assert.Equal((1,1),CloudVolumeStorage.Dimensions(1,1));
         Assert.Throws<ArgumentOutOfRangeException>(()=>CloudVolumeStorage.Dimensions(0,7));
         Assert.Throws<ArgumentOutOfRangeException>(()=>CloudVolumeStorage.Dimensions(16384,16384));
-        var config=JsonConvert.DeserializeObject<VgeConfig>("{\"Clouds\":{\"ViewSamples\":999,\"LightSamples\":0,\"DetailAmplitude\":100}}")!;
+        var config=JsonConvert.DeserializeObject<VgeConfig>("{\"Clouds\":{\"ViewRaySampleMax\":999,\"LightSamples\":0,\"DetailAmplitude\":100}}")!;
         config.Sanitize(); Assert.False(config.Clouds.FullResolutionReference);
-        var quality=config.Clouds.Capture(); Assert.Equal(16,quality.ViewSamples); Assert.Equal(1,quality.LightSamples); Assert.Equal(.95f,quality.DetailAmplitude);
+        var quality=config.Clouds.Capture(); Assert.Equal(384,quality.ViewRaySampleMax); Assert.Equal(1,quality.LightSamples); Assert.Equal(.95f,quality.DetailAmplitude);
         config.Clouds.FullResolutionReference=true;
         Assert.True(JsonConvert.DeserializeObject<VgeConfig>(JsonConvert.SerializeObject(config))!.Clouds.FullResolutionReference);
         config.Clouds.EdgeWidth=float.NaN; config.Clouds.NoiseScale=float.PositiveInfinity;

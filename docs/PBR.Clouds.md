@@ -5,8 +5,8 @@ produce geometry and column controls. The native `cloudRenderMode` preference re
 0 is Off, 1 is Volumetric, and 2 is Simple. Rendering works independently of LumOn and uses the
 same [completed atmospheric publication](PBR.Atmosphere.Publication.md) in both PBR selections.
 Implementation and acceptance evidence is tracked in [the cloud checklist](PBR.VolumetricClouds.todo).
-Conservative empty-region skipping is specified by the [height hierarchy proposal](PBR.CloudHierarchy.Proposal.md)
-and qualified in its [implementation checklist](PBR.CloudHierarchy.todo).
+Current sampling and remaining qualification work are tracked in the
+[realtime cloud checklist](PBR.CloudRealtime.todo). Height-summary ownership is described below.
 
 ## Scheduling and ownership
 
@@ -77,13 +77,14 @@ requires completed image-write barriers, sampler visibility and the exact curren
 plus the reduction executable revision. Source observation precedes depth/lighting admission so
 an unavailable draw cannot retain an invalid source lifetime. Native textures remain borrowed.
 Unavailable, mismatched or failed construction selects the existing column traversal explicitly.
-Reduced view and secondary solar/lunar rays use the same certified summaries to reject the root or
+Secondary solar/lunar rays use certified summaries to reject the root or
 skip groups whose complete horizontal ray segment misses their height interval. Owned mip indices
 are one below logical hierarchy levels; the finest summaries descend directly to native columns. Secondary rays operate
 in the finite native map domain independently of camera visibility and scene-depth clipping.
-The deterministic full-resolution reference retains native-column DDA for view and light rays.
+Primary rays use a uniform distance lattice independently of summary availability. The deterministic
+full-resolution reference uses that same primary lattice and native-column DDA for light rays.
 
-Surviving view and light intervals keep the original DDA clocks, sample counts, PMJ indices and integration
+Surviving light intervals keep the original DDA clocks, sample counts, PMJ indices and integration
 order. Group skips replay boundary additions without native column fetches, preserving accumulated
 float rounding and tied-axis crossings. Nodes already covering the current ray height descend
 without computing an exit clock. Work-limit fallback resumes native leaf work instead of discarding
@@ -109,19 +110,27 @@ Volumetric density uses native horizontal footprints and vertical bounds. Period
 3D noise modulates density inside that envelope; exposed faces soften inward while occupied
 shared faces remain connected. Broad faces and stepped cubic masses remain. Noise follows native
 placement, integer recentering and committed/residual wind without a second advection.
-Disabling detail also disables edge erosion, restoring constant-column optical depth.
+Disabling detail also disables edge erosion, restoring piecewise constant native density. Finite
+primary sampling need not integrate a discontinuous column field exactly.
 
-Reduced tracing jitters sample positions within each occupied integration segment using a
-cloud-owned 128-sample, Owen-scrambled PMJ sequence. It reuses the shared Sobol-based generator
-used by LumOn, with independent cloud seed and GPU lifetime; LumOn need not be enabled.
-View and secondary-light marches use separate sequence dimensions, with cell, view-sample and
-solar/lunar decorrelation. Full-resolution pixel identity selects a sequence offset, and the
-temporal index advances once per four-phase cycle so each scheduled pixel visits the complete
-sequence. Segment lengths, native column bounds and sample counts are unchanged.
-This sequence is not a spatial blue-noise mask. No density noise is added by sampling jitter.
-The full-resolution reference retains deterministic midpoint quadrature and has no PMJ sampler;
-constant-density mode also retains midpoint sampling. The sequence texture persists across
-ordinary frames and is retired with reconstruction resources on resize, reload or disposal.
+Primary tracing clips the ray to the finite horizontal map and admitted foreground/liquid
+distance. For its complete length L, including empty gaps, it selects
+`N=min(max,max(min,floor(max*min(1,L/distance))))` and `ds=L/N`. Positions are
+`tStart+(i+jitter)*ds`; native support checks reject empty points without reallocating their budget.
+Every surviving point evaluates shared density and lighting at that position. Extinction uses the
+step length in metres, and native OIT bin weights apply at each primary step. Uniform density
+over the complete span retains analytic attenuation; a finite lattice can miss narrow features.
+Contributing distance metadata covers contributing steps clipped to the admitted ray span,
+with up to one-step geometric uncertainty.
+
+Reduced tracing shares one spatial blue-noise offset along each primary ray. A cloud-owned
+32-by-256 R32F texture stores eight tileable 32-by-32 void-and-cluster rank masks. Full-view pixel
+coordinates select the spatial position and the frame index selects a mask modulo eight, advancing
+independently of reconstruction phases. The history-free reference uses midpoint primary samples.
+Secondary light integration retains its separate 128-sample Owen-scrambled PMJ sequence, per-column
+subdivision and solar/lunar decorrelation. Both sampling textures persist across ordinary frames
+and retire with reconstruction resources on resize, reload or disposal. Sampling jitter does not
+change the density definition or add density noise.
 
 View and bounded secondary solar/lunar marches share this density definition. HG single
 scattering uses g=.6 and one isotropic approximate multiple-scattering octave with contribution
@@ -190,7 +199,7 @@ framebuffer images, and active target passes borrow both their view and the shar
 
 The three blocks rotate between current trace, previous history and next history after successful
 OIT submission and history commit. A skipped or failed draw invalidates content history without
-advancing block roles. The block cursor is independent of the PMJ frame index. Framebuffer
+advancing block roles. The block cursor is independent of the sampling frame index. Framebuffer
 attachments stay fixed as roles rotate; each block caches its trace and temporal PSOs separately.
 Internal passes use replacement writes and never sample live native OIT accumulation. Resolve
 reconstructs each admitted reduced tap's native accumulations as
@@ -227,17 +236,26 @@ The persisted `Clouds` config and ConfigLib expose:
 | Control | Default | Bounds/meaning |
 | --- | --- | --- |
 | `FullResolutionReference` | false | Full view, midpoint transport, no history or upsampling |
-| `ViewSamples` | 4 | 1..16 subdivisions per occupied column |
+| `ViewRaySampleMax` | 384 | 4..384 primary points across the complete clipped ray |
+| `ViewRaySampleMin` | 2 | 1..min(16,max) points for short positive spans |
+| `ViewBudgetDistance` | 50 | 50..10000 world units; distance at which the maximum applies |
 | `LightSamples` | 1 | 1..4 subdivisions per occupied column |
-| `Detail` | true | Noise and exposed-edge erosion; false gives native-transmittance reference |
+| `Detail` | true | Noise and exposed-edge erosion; false samples piecewise constant native density |
 | `DetailAmplitude` | .15 | 0..0.95 bounded interior modulation |
 | `EdgeWidth` | 2 | .01..10 world units of inward softness |
 | `NoiseScale` | .08 | .001..1 noise cells per world unit |
 
-Nonfinite controls restore defaults. The same immutable quality selection supplies admission
+Cloud settings use a clean break: absent current fields receive defaults; obsolete fields are not
+reinterpreted. `LightSamples` retains its current per-column meaning. Nonfinite controls restore
+defaults. The immutable selection supplies admission
 and submission. Reference mode is history-free, not a claim of converged light transport.
 Changing quality or reference selection invalidates incompatible history. Simple ignores these
 volumetric controls.
+
+The 384/2/50 selection is a numerical-quality candidate: rays of at least 50 world units receive
+384 scheduled primary positions. It passes the recorded transport/reconstruction fixtures; its
+realtime cost and suitability as the final shipped quality selection remain unqualified in the
+realtime checklist. Bounded work alone does not establish a speedup, particularly on short rays.
 
 Reduced targets and pipelines persist across stable frames. Resize/reload retire their owned
 resources; wrappers never delete engine attachments. Allocation is bounded before creation to
@@ -261,8 +279,8 @@ native registration restoration, teardown, physical transport, OIT payloads, dep
 storage encoding and temporal reconstruction. Shader catalog and output-asset checks qualify
 packaged owned binaries.
 
-Deterministic reconstruction fixtures retain per-frame reference comparisons. Detailed PMJ
-sampling is evaluated separately: a complete sequence at matching trace pixels measures
+Deterministic reconstruction fixtures retain per-frame reference comparisons. Detailed primary
+sampling is evaluated separately: complete eight-frame periods at matching trace pixels measure
 transmission convergence against higher-budget midpoint references, whose numerical stability
 is checked independently. Full-view bucket and accumulation payloads are compared as a temporal
 mean against the same-budget midpoint reference with the existing spatial error budgets.
@@ -270,7 +288,8 @@ Changing the reference subdivision count also changes the finite-budget OIT buck
 it cannot establish a converged bucket reference merely by increasing density samples.
 Finite values, attenuation bounds and clipping remain per-frame requirements. The actual
 bounded temporal filter is checked for noise reduction separately from offline sequence
-averaging; its fixed history weight and rejection/clamping do not imply vanishing noise or
+averaging; repeated eight-frame periods are not independent new samples. Its fixed history weight
+and rejection/clamping do not imply vanishing noise or
 an unbiased transport estimator.
 
 `CloudHierarchyPerformanceTests` is an opt-in comparison of same-candidate DDA and certified

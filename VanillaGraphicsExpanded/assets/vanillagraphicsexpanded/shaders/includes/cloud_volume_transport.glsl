@@ -1,6 +1,7 @@
 @import "./cloud_volume_parameters.glsl"
 @import "./cloud_volume_sampling.glsl"
 @import "./cloud_volume_density.glsl"
+@import "./cloud_volume_primary.glsl"
 #ifdef VGE_CLOUD_HIERARCHY
 @import "./cloud_volume_hierarchy.glsl"
 #endif
@@ -71,45 +72,39 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     float limit=min(length(CloudUnproject(ndc,result.depth.z)),length(CloudUnproject(ndc,result.depth.w)));
     vec3 origin=-volumeOffsetWidth.xyz;
     origin.xz+=volumeOffsetWidth.w*25.0;
-    CloudRay ray;
-    if(!CloudStart(origin,direction,limit,ray)) return;
+    vec2 span;
+    if(!CloudPrimarySpan(origin,direction,limit,span)) return;
+    int count=CloudPrimaryCount(span.y-span.x);
+    float ds=(span.y-span.x)/float(count);
+    float primaryJitter=CloudPrimaryJitter(uv);
     vec2 jitter=volumeDetail.w>.5?CloudRayJitter(uv):vec2(.5);
     vec4 k=vec4(0); vec3 reveal=vec3(1); float transmission=1.0;
-    for(int cellIndex=0;cellIndex<402;cellIndex++)
+    for(int i=0;i<VGE_CLOUD_PRIMARY_LIMIT;i++)
     {
-#ifdef VGE_CLOUD_HIERARCHY
-        if(!CloudHierarchySeek(ray)) break;
-#endif
-        vec4 data=CloudColumn(ray.cell); float near,far;
-        if(CloudInterval(ray,data,near,far))
-        {
-            int count=volumeDetail.w>.5?int(volumeSamples.x):1;
-            float ds=(far-near)/float(count);
-            // Shift the stratified samples inside this occupied interval without changing its quadrature weights.
-            float phase=volumeDetail.w>.5?CloudSegmentJitter(jitter.x,ray.cell,0,0x56494557u):.5;
-            for(int i=0;i<16;i++)
-            {
-                if(i>=count) break;
-                float t=near+(float(i)+phase)*ds;
-                vec3 local=ray.o+direction*t;
-                float sigma=CloudDensity(local,ray.cell,data);
-                float alpha=clamp(1.0-exp(-sigma*(ds*volumeAnchorUnits.z)),0.0,1.0);
-                if(alpha<=0.0) continue;
-                if(result.depth.y==0.0) result.depth.x=near;
-                result.depth.y=far;
-                vec3 source=volumeEnvironment.rgb
-                    +CloudDirectional(local,direction,volumeSun.xyz,volumeSolar.rgb,CloudSegmentJitter(jitter.y,ray.cell,i,0x53554E00u))
-                    +CloudDirectional(local,direction,volumeMoon.xyz,volumeLunar.rgb,CloudSegmentJitter(jitter.y,ray.cell,i,0x4D4F4F4Eu));
-                source=CloudTransport(source,direction*t);
-                // Encode only RGB, before view coverage and native bucket weighting.
-                k.rgb+=transmission*alpha*CloudEncode(source);
-                transmission*=1.0-alpha;
-                float bin=log(CloudAdjustedDepth(near+float(i)*ds)/30.0+1.0);
-                vec3 b=vec3(vgeOitBellCurve(bin),vgeOitBellCurve(bin-1.0),bin>2.0?1.0:vgeOitBellCurve(bin-2.0));
-                reveal*=clamp(vec3(1)-alpha*b,0.0,1.0);
-            }
-        }
-        if(transmission<1e-6||!CloudAdvance(ray)) break;
+        if(i>=count) break;
+        float t=CloudPrimaryPosition(span,count,i,primaryJitter);
+        vec3 local=origin+direction*t;
+        ivec2 cell=ivec2(floor(local.xz/50.0));
+        vec4 data=CloudColumn(cell);
+        // Cheap support rejection never redistributes samples or restarts a cell-local budget.
+        if(data.r<=0.0 || local.y<data.b*50.0 || local.y>data.a*50.0) continue;
+        float sigma=CloudDensity(local,cell,data);
+        float alpha=clamp(1.0-exp(-sigma*(ds*volumeAnchorUnits.z)),0.0,1.0);
+        if(alpha<=0.0) continue;
+        float near=span.x+float(i)*ds,far=min(span.y,near+ds);
+        if(result.depth.y==0.0) result.depth.x=near;
+        result.depth.y=far;
+        vec3 source=volumeEnvironment.rgb
+            +CloudDirectional(local,direction,volumeSun.xyz,volumeSolar.rgb,CloudSegmentJitter(jitter.y,cell,i,0x53554E00u))
+            +CloudDirectional(local,direction,volumeMoon.xyz,volumeLunar.rgb,CloudSegmentJitter(jitter.y,cell,i,0x4D4F4F4Eu));
+        source=CloudTransport(source,direction*t);
+        // Encode only RGB, before view coverage and native bucket weighting.
+        k.rgb+=transmission*alpha*CloudEncode(source);
+        transmission*=1.0-alpha;
+        float bin=log(CloudAdjustedDepth(near)/30.0+1.0);
+        vec3 b=vec3(vgeOitBellCurve(bin),vgeOitBellCurve(bin-1.0),bin>2.0?1.0:vgeOitBellCurve(bin-2.0));
+        reveal*=clamp(vec3(1)-alpha*b,0.0,1.0);
+        if(transmission<1e-6) break;
     }
     result.bins=clamp(reveal,0.0,1.0); result.reveal=clamp(transmission,0.0,1.0);
     result.radiance=k.rgb;

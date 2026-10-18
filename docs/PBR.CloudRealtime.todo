@@ -4,9 +4,12 @@ Realtime volumetric cloud work
 Authority and scope
   Source: user-requested cloud performance analysis and follow-up tasklist request (2026-10-18).
   Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
-  Inherited contracts: docs/PBR.VolumetricClouds.Proposal.md, docs/PBR.CloudHierarchy.Proposal.md,
+  Inherited contracts: docs/PBR.VolumetricClouds.Proposal.md, archived hierarchy proposal,
     docs/PBR.Atmosphere.Publication.md and the existing native six-attachment OIT contract.
-  Related checklists: docs/PBR.VolumetricClouds.todo and docs/PBR.CloudHierarchy.todo.
+  Related checklists: docs/PBR.VolumetricClouds.todo and archived hierarchy checklist.
+  Hierarchy archive: commit f66895c6, docs/PBR.CloudHierarchy.Proposal.md and
+    docs/PBR.CloudHierarchy.todo (read with git show <commit>:<path>). These removed documents
+    supply inherited geometry/ownership contracts, not current architecture or open task authority.
   Paths prefixed docs/, artifacts/ or VanillaGraphicsExpanded/ are repository-root references;
     sibling Markdown links resolve from the containing document's directory.
   Phase 1 establishes the measured baseline and quality policy without changing production rendering.
@@ -65,18 +68,18 @@ Phase 1: Freeze baseline and specify bounded quality policy
       coverage of the complete clipped span. Do not truncate the ray when its budget is exhausted.
     - Define independent high-budget/reference modes and quantitative radiance, attenuation, all
       OIT-channel, depth and temporal acceptance limits before tuning against candidate outputs.
-    - Plan migration of persisted ViewSamples/LightSamples: their old per-column meanings cannot
-      silently become whole-ray counts of four/one. Validate legacy, missing and invalid settings.
+    - Use a clean break for replaced settings: obsolete per-column fields cannot silently become
+      whole-ray counts of four/one. Missing current fields use defaults; validate invalid settings.
     - Use a .005 threshold and quarter-dimension trace as starting candidates, not established
       safe defaults. Select actual budgets/distances from VGE scene scale and measured quality.
   ☑ Reconcile the inherited proposal/checklist clauses being revised and map every finding below
     to its implementation/verification task. Preserve unaffected ownership and physical contracts.
-  ☑ Completion: a reproducible baseline, bounded policy, migration rules and numerical acceptance
+  ☑ Completion: a reproducible baseline, bounded policy, settings rules and numerical acceptance
     criteria exist; neither prior timings nor new policy choices are reported as delivered behavior.
 
 Phase 2: Bound primary integration independently of native grid crossings
   Depends on Phase 1. Outcome: view-density/shading samples obey a complete-ray budget.
-  ☐ Replace per-occupied-column subdivision allocation in cloud_volume_transport.glsl with the
+  ☑ Replace per-occupied-column subdivision allocation in cloud_volume_transport.glsl with the
     bounded distance-scaled primary policy; distinguish geometry traversal from shading samples.
     - Clip the supported ray before budgeting; support camera-inside, thin/short intervals, grazing
       rays, near foreground clips and finite-map exits. Never extend native border columns.
@@ -91,11 +94,11 @@ Phase 2: Bound primary integration independently of native grid crossings
     - Keep the sample lattice independent of hierarchy visits. Retain exact optical depth for uniform
       density fixtures; arbitrary discontinuous columns use an independent analytic reference for error
       measurement, not a requirement for exact full-support integration at every production budget.
-  ☐ Verify sample-count bounds and independent interval/transport results on empty/sparse/dense maps,
+  ☑ Verify sample-count bounds and independent interval/transport results on empty/sparse/dense maps,
     odd dimensions, separated heights, tiny positive extinction, boundary ties and detail on/off.
     - Compare against the frozen baseline and a stable higher-budget oracle; document intentional
       quadrature changes without forcing bitwise old-output equality or relaxing established limits.
-  ☐ Completion: occupied-cell count no longer multiplies primary shading samples without bound;
+  ☑ Completion: occupied-cell count no longer multiplies primary shading samples without bound;
     finite-domain, constant-density and quality criteria pass in both PBR selections.
 
 Phase 3: Bound secondary solar/lunar integration
@@ -109,8 +112,9 @@ Phase 3: Bound secondary solar/lunar integration
       Preserve off-camera self-lighting; main-view scene-depth clips must not clip secondary rays.
     - Skip zero contributing sources before secondary setup. Assess any negligible-light cutoff
       against admitted physical radiance bounds rather than a hardcoded daylight assumption.
-    - Expose bounded settings through existing configuration/binding contracts, with migration and
-      history invalidation. Keep optional shadow-map replacement outside this implementation.
+    - Expose bounded settings through existing configuration/binding contracts and history
+      invalidation. Replace LightSamples with the new fields using a clean break and defaults;
+      do not convert saved per-column counts. Keep optional shadow-map replacement outside scope.
   ☐ Verify optical-depth integration and illumination against independent/high-budget references,
     including low-angle sun/moon, inside-cloud origins, distant occluders and shadow-distance limits.
     - Quantify bias from finite shadow distance and coarse samples separately from hierarchy errors.
@@ -215,7 +219,7 @@ Phase 8: Qualify the complete renderer and reconcile acceptance
   ☐ Freeze the candidate; run canonical build/shader, focused numerical/GPU, lifecycle and package
     checks through subagents. Verify production asset digests and exact output copies.
     - Cover Off/Simple/Volumetric, both PBR selections, pause, resize, reload, world replacement,
-      source invalidation, settings migration, reference selection and failed-resource recovery.
+      source invalidation, current settings/defaults, reference selection and failed-resource recovery.
     - Keep density/bounds oracles independent; a new integrator must not validate only against itself.
   ☐ Measure baseline versus final renderer with matched scenes/settings and separate quality labels.
     - Report each increment's effects where attributable; distinguish fewer pixels/samples and
@@ -251,8 +255,8 @@ Final acceptance
     cloud integration dependency remain outstanding. No headless result establishes live frame time.
 
 Bounded quality policy (implementation contract)
-  This section specifies future behavior; production continues to use per-column quality controls
-    until the corresponding implementation tasks are verified. Candidate defaults below are fixed
+  This section specifies the complete target behavior. Primary controls are implemented separately
+    from later secondary, termination and reconstruction changes. Candidate defaults below are fixed
     starting inputs for comparisons, not a claim of validated appearance or a shipped default.
 
   Work accounting and units
@@ -275,8 +279,12 @@ Bounded quality policy (implementation contract)
       tStart+(i+jitter)*ds for i=0..Nview-1, with one blue-noise jitter in [0,1) shared along this ray.
       The history-free deterministic reference uses jitter=.5 on the same uniform distance lattice.
     - Initial candidate: ViewRaySampleMax=96, ViewRaySampleMin=2, ViewBudgetDistance=2000 world units.
+      Measured primary tuning selects 384/2/50 for final qualification: the initial candidate fails
+      bin/thin-feature/underwater criteria; 192 samples still miss the .01 bucket limit on a native
+      200-wide, approximately 5000-unit constant-density ray; 256 still misses the unchanged thin-height
+      reconstruction limit. Lower settings remain selectable quality tradeoffs.
       Supported maxima are 4..384; minimum is 1..min(16,max); distance is 50..10000 world units.
-      Nonfinite distance restores 2000; sanitize integral controls before conversion/upload.
+      Nonfinite distance restores 50; sanitize integral controls before conversion/upload.
     - At each position evaluate cheap native validity/support first, then the existing detailed
       density if potentially occupied. Positive contributing density evaluates incident lighting
       at that same position and starts at most one shadow ray per nonzero solar/lunar source.
@@ -306,8 +314,9 @@ Bounded quality policy (implementation contract)
       An existing certified vertical bound may similarly prove remaining samples empty.
     - The same density definition is evaluated independently at every scheduled primary/shadow
       position. No replacement vertical profile, density volume or invented border extension is added.
-    - At default budgets, a primary ray has at most 192 secondary rays and 1920 secondary full-detail
-      evaluations with both sources active, plus at most 96 primary evaluations; these are policy
+    - At selected default budgets after bounded secondary integration, a primary ray has at most
+      768 secondary rays and 7680 secondary full-detail evaluations with both sources active, plus
+      at most 384 primary evaluations; these are policy
       upper bounds, not baseline observations. Report actual early exits and skipped zero sources.
     - Qualification compares 1500,3000 and complete supported-domain shadow distances with other
       settings fixed. If finite-distance bias exceeds quality limits, increase the distance within
@@ -325,7 +334,7 @@ Bounded quality policy (implementation contract)
     - Shadow midpoints have no temporal jitter. The deterministic full-view reference uses primary
       midpoint steps and the same quadratic shadow midpoints. Release the cloud PMJ resource/bindings
       when no retained legacy comparison consumer uses them; leave unrelated consumers untouched.
-    - Reject history on any change to schema, sample budgets/distances, lattice/jitter policy, termination,
+    - Reject history on any change to sample budgets/distances, lattice/jitter policy, termination,
       trace/reconstruction layout or atmosphere application policy, as well as existing lifecycle,
       camera, medium, calibration and completed lighting incompatibilities.
 
@@ -344,25 +353,21 @@ Bounded quality policy (implementation contract)
       no optical-depth saturation shortcut. Keep tau finite and handle zero octave occlusion without
       zero*infinity. Additional shortcuts are optional future work requiring separate evidence.
 
-  Quality selections and persisted migration
-    - Introduce CloudQualityVersion=2 and separately named ViewRaySampleMax, ViewRaySampleMin,
+  Quality selections and clean-break settings
+    - Introduce separately named ViewRaySampleMax, ViewRaySampleMin,
       ViewBudgetDistance, LightRaySampleMax, ShadowDistance, StopTransmittance and TraceScale fields
       through the existing configuration owner. Keep detail fields and FullResolutionReference.
     - TraceScale is an enum with Half and Quarter; initial compatibility selection is Half. Quarter
       becomes the normal selection only after its own numerical and user appearance gates pass.
       FullResolutionReference overrides trace scale, disables temporal history and uses midpoint
       primary sampling and quadratic shadow midpoints; it is not the independent high-budget oracle.
-    - Missing/version-1 quality maps legacy sanitized ViewSamples v to clamp(24*v,4,384), and legacy
-      LightSamples l to clamp(10*l,2,64). Missing legacy fields use v=4,l=1. Minimum/distance/termination
-      receive the candidate defaults above. This preserves relative quality ordering, not old images.
-    - Version-2 fields take precedence only in version-2 data; absent new fields receive defaults,
-      not legacy reinterpretation. Mixed legacy fields are ignored after migration. Preserve unrelated
-      settings. Save version 2 through normal config persistence, not a per-frame write.
-    - Required migration cases: no Clouds section ->96/10/Half; {} ->96/10/Half; legacy 4/1 ->96/10;
-      legacy 1/4 ->24/40; legacy 0/99 clamps to1/4 ->24/40; explicit version2 120/20/Quarter ->120/20/
-      Quarter; version2 missing budgets plus legacy16/4 ->96/10; invalid enum ->Half; nonfinite distance
-      ->defaults. An unknown future version retains the file and uses safe in-memory defaults with a
-      diagnostic, without rewriting unsupported data. Validate these rules during implementation.
+    - User direction requires a clean break: no migration, compatibility converter, schema-version
+      metadata or future-version preservation subsystem. Missing current fields use current defaults;
+      obsolete fields are ignored, never converted into new counts. Preserve unrelated settings through
+      the existing owner and save normally, not per frame. Retire replaced source-level fields too.
+    - Validate absent Clouds, empty Clouds, obsolete ViewSamples, explicit new budgets, invalid bounds,
+      nonfinite distances and partial current-setting updates. Primary defaults are 384/2/50; later
+      light/termination/layout fields receive their own stated defaults when implemented.
 
   Independent reference and numerical acceptance
     - Retain the frozen legacy baseline for regression comparisons. Independently enumerate column
@@ -456,9 +461,9 @@ Phase 1 source reinspection and task traceability
     -> same-candidate DDA/hierarchy pairs, fresh generation reduction, both PBR selections, exact
     selected history/OIT checks, stable allocations, separate stages/CPU/total and raw observations.
     Historical phase6-512-result-summary.json establishes comparison methodology, not current speed.
-  Quality/migration task -> Bounded quality policy above; CloudRenderingSettings.cs and
-    CloudTemporalHistoryTests.cs -> explicit future names/limits, legacy truth table, fixed-distance
-    sample allocation, independent oracles and frozen error limits. Future production migration and
+  Quality/settings task -> Bounded quality policy above; CloudRenderingSettings.cs and
+    CloudTemporalHistoryTests.cs -> explicit names/limits, clean-break defaults, fixed-distance
+    sample allocation, independent oracles and frozen error limits. Future production controls and
     transport behavior remain subject to the later implementation tasks and their tests.
   Reconciliation task -> both cloud proposals and their checklists, PBR.BaselineShading.todo cloud
     requirements, PBR.Atmosphere.Publication.md and Rendering.Enablement.md -> future sampling/layout
@@ -508,8 +513,8 @@ Phase 1 baseline and policy evidence (2026-10-18)
     is 174,760 bytes. These nominal texel counts do not establish resident allocation or live cost.
   Superseded policy receipt: policy-math.json checked an earlier optical-depth-stratum design.
     Its arithmetic remains recorded, but it does not qualify the fixed-distance policy specified
-    above. Do not cite its conservation result as evidence for the revised sampling or migration rules.
-    Runtime migration, bounded transport and changed-quality acceptance remain later implementation work.
+    above. Do not cite its conservation result as evidence for the revised sampling or settings rules.
+    Bounded transport and changed-quality acceptance remain later implementation work.
   Observed work: CloudWorkMeasurementTests runs only with its explicit diagnostic environment flag
     and separate instrumented shader marker. prepare-diagnostics.ps1 copies production inputs into
     an artifacts-only tree and replaces raw trace color with logical event counters. Timed shaders
@@ -537,10 +542,10 @@ Phase 1 baseline and policy evidence (2026-10-18)
     contaminate the earlier recorded timing pairs, and no diagnostic runtime/speed inference is made.
   Final diagnostic source rebuild passed with 0 errors and 169 existing warnings, reproducing the
     measured diagnostic test DLL exactly (diagnostic-source-recheck.json). Its source/asset identities
-    remain distinct from the frozen timed candidate. Actual bounded-policy transport, runtime settings
-    migration, changed-renderer GPU qualification and user appearance acceptance remain unimplemented.
+    remain distinct from the frozen timed candidate. Actual bounded-policy transport, current settings,
+    changed-renderer GPU qualification and user appearance acceptance remain unimplemented.
   Baseline completion review: second review covered inherited contracts, original policy arithmetic,
-    migration truth-table scope, unchanged quality assertions, counter discrepancies and contention.
+    settings scope, unchanged quality assertions, counter discrepancies and contention.
     Independent audit reconstructed the linked requirements, recomputed all 336 stage medians and
     every raw counter sum/maximum, and rehashed all 2750 final identities without missing/drifted files.
     Those checks qualify the unchanged measured baseline. The revised policy review below supplies
@@ -567,6 +572,42 @@ Revised policy review (2026-10-18)
     version precedence remains truth-table review, not runtime deserialization testing.
   A second consistency pass reconciled each candidate conflict against all task outcomes, policy
     definitions and acceptance sections. No reportable planning discrepancy remains. Later phases
-    remain unchecked; finite-budget thin-feature quality, blue-noise assets, actual migration,
+    remain unchecked; finite-budget thin-feature quality, blue-noise assets, clean-break settings,
     runtime correctness, measured speed and changed-renderer appearance still require implementation
     and their stated qualification. Phase 1 covers the retained baseline and this revised specification.
+
+Phase 2 implementation and verification (2026-10-18)
+  Primary task -> this document Primary budget / numerical acceptance; volumetric proposal
+    Density, physical lighting and OIT; archived hierarchy proposal finite-domain/ownership clauses ->
+    cloud_volume_primary.glsl clips the complete horizontal/foreground span and budgets one uniform
+    lattice. cloud_volume_transport.glsl evaluates actual shared density/source at each admitted point;
+    no occupied-support prepass, redistribution or independent production bin march is added.
+  Sampling/lifetime task -> Sampling and temporal identity; volumetric proposal publication/lifetimes ->
+    CloudBlueNoiseTexture, ICloudTraceBindings and CloudVolumeReconstruction own eight spatial masks.
+    Secondary PMJ, per-column light integration, 1e-6 termination and half-resolution tracing remain
+    unchanged pending their own tasks. Primary counts do not depend on hierarchy availability.
+  Settings/history -> Quality selections and clean-break settings (primary fields only) ->
+    CloudRenderingSettings supplies current defaults and bounds through the existing owner; new
+    immutable controls invalidate history. Replaced ViewSamples and compatibility metadata/converters
+    are absent. LightSamples keeps its current meaning until the secondary task replaces it.
+  Final automated evidence -> artifacts/CloudRealtime/phase2: clean-break-build.log records zero
+    errors and production/test shader validation (458/538 variants). clean-break-contracts.trx passes
+    135/135; clean-break-gpu.trx passes 95/95, no failures/skips, at actual 384/2/50 defaults without
+    calibration overrides. These supersede preliminary compatibility checks removed by user direction.
+    final-input-hashes.json identifies the frozen executable/source inputs. Earlier failed attempts,
+    including the 96/2000 candidate's bin/thin-height/underwater failures, remain recorded.
+  Quality selection -> the fixed-bin/adaptive density oracle and 384/768 reference doubling, 128-frame
+    eight-mask means, unchanged reconstruction limits, native200 long-ray transport and matched
+    512-frame frozen-baseline filter checks pass. Lower calibrated counts fail at least one unchanged
+    gate. The selected 384/50 candidate reaches its cap on short rays; numerical acceptance does not
+    establish realtime suitability or speedup. Final cost/default selection and user appearance remain
+    later acceptance gates, not satisfied by this increment.
+  Sampling-test reconciliation -> obsolete PMJ progressive convergence is replaced by sixteen repeats
+    of eight masks. The actual filter is compared directly against the frozen 512-frame baseline;
+    filtering may increase error relative to the new, less noisy raw input while still improving on
+    the frozen filtered result. Output tolerances are unchanged. The exact uniform fixture now covers
+    its complete budgeted span; discontinuous native support retains finite-budget error checks.
+  Completion -> second review and independent linked-document completion audit pass on the clean-break
+    candidate. final-input-recheck.json verifies all 644 inputs unchanged; final-result-summary.json
+    records the 230 focused passing checks and numerical receipts. Later phases and parent acceptance
+    remain open, including the realtime cost/default-selection and user appearance gates above.
