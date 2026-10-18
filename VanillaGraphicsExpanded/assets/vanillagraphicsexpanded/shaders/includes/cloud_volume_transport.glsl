@@ -95,7 +95,9 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
         float bin=log(CloudAdjustedDepth(near)/30.0+1.0);
         vec3 b=vec3(vgeOitBellCurve(bin),vgeOitBellCurve(bin-1.0),bin>2.0?1.0:vgeOitBellCurve(bin-2.0));
         reveal*=clamp(vec3(1)-alpha*b,0.0,1.0);
-        if(transmission<1e-6) break;
+        // Terminate only after this sample has contributed every optical product and support bound.
+        // A zero threshold admits the entire finite schedule, even after exact saturation.
+        if(transmission<volumePrimary.w) break;
     }
     result.bins=clamp(reveal,0.0,1.0); result.reveal=clamp(transmission,0.0,1.0);
     result.radiance=k.rgb;

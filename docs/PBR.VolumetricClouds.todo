@@ -151,7 +151,7 @@ Phase 4: Deliver full-resolution volumetric reference transport
     - Reconcile native volumetric compatibility paths while preserving restored native drawing and
       the still-running native map/color pass and its legacy resource requirements.
   ✔ Verify transport with analytic and small headless fixtures.
-    - Complete uniform-density no-detail spans match native transmittance; include p=2 over 50 units => exp(-2),
+    - Complete uniform-density no-detail spans with early termination inactive match native transmittance; include p=2 over 50 units => exp(-2),
       path subdivision, different world-unit conversions, p>1 and empty/invalid columns.
     - Check connected-column edges, outside-volume zero density, stable advection and bounded noise.
     - Verify view/light density agreement, single-plus-one-octave behavior, no duplicate attenuation,

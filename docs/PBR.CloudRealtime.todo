@@ -177,7 +177,7 @@ Phase 3.1: Remove cloud approximation-quality acceptance tests
 
 Phase 4: Use practical transmittance termination and qualify OIT error
   Depends on Phase 3.1. Outcome: sample-granular termination follows its configured predicate.
-  ☐ Replace the fixed 1e-6 view predicate with a bounded/configured criterion evaluated at sample
+  ☑ Replace the fixed 1e-6 view predicate with a bounded/configured criterion evaluated at sample
     granularity, recording the .005 candidate's output differences without quality pass/fail limits.
     - Stop the primary march after a sample when overall transmittance falls below the configured
       threshold. Compare all bucket transmissions, reconstructed products, glow and support metadata
@@ -187,9 +187,9 @@ Phase 4: Use practical transmittance termination and qualify OIT error
     - Evaluate the bounded shadow sample schedule without optical-depth early termination initially.
       Any later light-ray saturation shortcut needs separate measured benefit and quality justification,
       including zero octave occlusion/contribution endpoints. Keep finite optical-depth arithmetic.
-  ☐ Verify thick/thin, bright-source, translucent overlap, particle/liquid, inside-cloud and HDR cases
+  ☑ Verify thick/thin, bright-source, translucent overlap, particle/liquid, inside-cloud and HDR cases
     against termination-disabled references, including the first saturated sample inside a column.
-  ☐ Completion: predicate placement, finite arithmetic, clipping and OIT/metadata bookkeeping pass
+  ☑ Completion: predicate placement, finite arithmetic, clipping and OIT/metadata bookkeeping pass
     correctness checks; differences from termination-disabled transport are recorded as diagnostics.
 
 Phase 5: Trace fewer screen positions and reconstruct missing information
@@ -417,16 +417,18 @@ Bounded quality policy (implementation contract)
       obsolete fields are ignored, never converted into new counts. Preserve unrelated settings through
       the existing owner and save normally, not per frame. Retire replaced source-level fields too.
     - Validate absent Clouds, empty Clouds, obsolete ViewSamples, explicit new budgets, invalid bounds,
-      nonfinite distances and partial current-setting updates. Primary defaults are 384/2/50; later
-      light/termination/layout fields receive their own stated defaults when implemented.
+      nonfinite distances/thresholds and partial current-setting updates. Primary defaults are
+      384/2/50; light controls are 10/1500 and StopTransmittance is .005. Layout controls receive
+      their stated defaults when implemented.
 
   Correctness verification and optional approximation diagnostics
     - Keep independent scalar/native-box oracles for the specified sample lattice, shared density,
       finite domain, units and OIT/encoding formulas. Assert equivalent implementations on the same
       scheduled positions, with tolerances appropriate to floating-point arithmetic.
     - Keep exact uniform-density Beer-Lambert checks only when density is uniform over the complete
-      sampled span. Keep settings/budget bounds, deterministic replay, source combinations, octave
-      endpoints, finite outputs, depth clipping, resource lifetimes and history-rejection correctness.
+      sampled span and early termination is disabled or does not trigger. Keep settings/budget bounds,
+      deterministic replay, source combinations, octave endpoints, finite outputs, depth clipping,
+      resource lifetimes and history-rejection correctness.
     - Native support is discontinuous. Production versus exact/high-budget integration, reference
       doubling, approximation changes, image envelopes, temporal means and filter RMS/noise comparisons
       are optional measurements without approximation-quality acceptance assertions. They do not block
@@ -451,7 +453,8 @@ Bounded quality policy (implementation contract)
       after the declared lower-resolution gates. Preserved per-column sample counts, PMJ identity and
       exact arbitrary-column attenuation govern legacy/reference comparisons. The future direct march
       replaces those constraints with fixed distance steps, primary blue noise and shadow midpoints.
-    - Complete-span uniform-density attenuation remains exact within numeric tolerance. Discontinuous/detailed
+    - With termination inactive, complete-span uniform-density attenuation remains exact within numeric
+      tolerance. Discontinuous/detailed
       quadrature differences are diagnostic; acceleration equivalence is measured with the new lattice held
       fixed. No requirement to use a tree remains if measured cost favors cheap rejection or direct marching.
     - PBR.Clouds.md remains current-state architecture until runtime changes are verified. Preserve
@@ -707,3 +710,46 @@ Phase 3.1 cleanup and verification (2026-10-18)
     threshold was restored or widened.
   Completion -> second source/assertion/helper review and independent linked-document completion
     audit pass on the final candidate. All Phase 3.1 tasks are complete; later tasks remain unchecked.
+
+Phase 4 implementation and verification (2026-10-18)
+  Termination/settings -> Termination policy and clean-break controls; volumetric proposal Density,
+    Scene integration and Quality; current cloud architecture -> StopTransmittance defaults to .005,
+    supported 0..0.005, with zero disabling the exit. The existing config/UI and immutable history
+    selection carry it; UBO byte204 reuses the final spare component without changing 208-byte layout.
+    Both trace and direct transport share the strict post-step predicate after radiance, all native
+    bin products and support bounds update. No residual traversal or secondary saturation exit exists.
+  Correctness -> specified finite-budget algorithm and inherited native units/OIT/ownership ->
+    independent four-step arithmetic checks exact-zero/first-step saturation, strict equality at
+    1/256, the following stopping step, zero-disabled full support, raw physical factors/depth and
+    all six direct native attachments. Explicit scalar opaque/visibility/liquid planes exercise
+    clipped inside origins independently of scene pattern dimensions. Settings tests cover default,
+    round-trip, bounds/nonfinite rejection, packing and partial edits; threshold-only changes reject
+    history. Existing secondary density/source/zero-octave cases remain unchanged.
+  Diagnostics -> Phase 4 comparison matrix and correctness-only policy -> thirteen .005/0 scene
+    pairs cover thin/thick, bright solar/lunar, HDR storage, inside origin, opaque/particle/liquid,
+    seeded translucent overlap before/within/behind, aerial and underwater response. Per-channel
+    signed extrema and absolute differences cover raw factors/support/depth, reconstructed six-output
+    products and direct six-output reference. No comparison asserts acceptable approximation error
+    or improved quality/performance. Final threshold, GPU/frame-time benefit and user appearance
+    acceptance remain later qualification work; primary/secondary counts and distances are unchanged.
+  Final evidence -> artifacts/CloudRealtime/phase4/commands.json and result-summary.json ->
+    canonical Release build/package and fresh Release test build pass with zero errors; production
+    and test shader validation covers 458/538 variants. final-cloud-cpu.trx passes 160/160,
+    final-catalog-contracts.trx 31/31 and final-cloud-gpu.trx 175/175: 366 unique focused checks,
+    zero failures/skips. Only two opt-in measurement classes are excluded; no approximation
+    exclusions apply. package-identity.json matches tested/published/packaged/zipped runtime DLLs
+    and all 458 packaged shaders. final-input-recheck.json verifies 2654 source and 959 binary/package
+    inputs unchanged, with zero mismatches. No performance timing or live acceptance is claimed.
+  Recorded tradeoff -> final-diagnostics.json and final-diagnostics-summary.json retain all thirteen
+    paired captures and each raw/reconstructed/direct channel metric, with explicit units. Across
+    these synthetic cases the maximum raw overall-transmission difference is .004999976, while a
+    bucket-transmission difference reaches .3083371 and last-support distance differs by 143.49406
+    world units. The thin fixture is unchanged. These observations are not perceptual-error bounds
+    or acceptance criteria; small overall transmission does not establish matching OIT buckets.
+  Superseded fixture failures -> initial-termination.trx retains four cases where a one-pixel
+    half-extent scene pattern authored no terrain/liquid clip. Explicit scalar depth planes fix the
+    authoring; corrected-clips.trx passes 6/6, included in final GPU totals rather than added again.
+    Runtime termination and mathematical tolerances were not changed to resolve those failures.
+  Completion -> second source/test/document review and independent linked-document completion
+    audit pass on the final candidate. Phase 4 is complete; Phase 5 and later implementation,
+    measured-performance, final-selection and user appearance gates remain unchecked.

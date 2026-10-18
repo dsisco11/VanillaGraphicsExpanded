@@ -19,6 +19,8 @@ public sealed class CloudRenderingSettings
     [JsonProperty] public int LightRaySampleMax { get; set; } = 10;
     /// <summary>Bounds the shadow span from each contributing primary position in world units.</summary>
     [JsonProperty] public float ShadowDistance { get; set; } = 1500;
+    /// <summary>Stops after an integrated primary step below this transmission; zero evaluates the complete budget.</summary>
+    [JsonProperty] public float StopTransmittance { get; set; } = .005f;
     /// <summary>Disables noise and exposed-edge erosion together for native-transmission comparison.</summary>
     [JsonProperty] public bool Detail { get; set; } = true;
     /// <summary>Controls restrained interior density variation without excavating native occupied interiors.</summary>
@@ -35,6 +37,7 @@ public sealed class CloudRenderingSettings
         ViewRaySampleMax=Math.Clamp(ViewRaySampleMax,4,384);
         ViewRaySampleMin=Math.Clamp(ViewRaySampleMin,1,Math.Min(16,ViewRaySampleMax));
         ViewBudgetDistance=float.IsFinite(ViewBudgetDistance)?Math.Clamp(ViewBudgetDistance,50,10000):50;
+        StopTransmittance=float.IsFinite(StopTransmittance)?Math.Clamp(StopTransmittance,0,.005f):.005f;
         LightRaySampleMax=Math.Clamp(LightRaySampleMax,2,64);
         ShadowDistance=float.IsFinite(ShadowDistance)?Math.Clamp(ShadowDistance,50,10000):1500;
         DetailAmplitude=float.IsFinite(DetailAmplitude)?Math.Clamp(DetailAmplitude,0,.95f):.15f;
@@ -45,7 +48,7 @@ public sealed class CloudRenderingSettings
     internal CloudVolumeSettings Capture()
     {
         Sanitize();
-        return CloudVolumeSettings.Default with { LightRaySampleMax=LightRaySampleMax,ShadowDistance=ShadowDistance,Detail=Detail,
+        return CloudVolumeSettings.Default with { LightRaySampleMax=LightRaySampleMax,ShadowDistance=ShadowDistance,StopTransmittance=StopTransmittance,Detail=Detail,
             DetailAmplitude=DetailAmplitude,EdgeWidth=EdgeWidth,NoiseScale=NoiseScale,
             ViewRaySampleMax=ViewRaySampleMax,ViewRaySampleMin=ViewRaySampleMin,ViewBudgetDistance=ViewBudgetDistance };
     }

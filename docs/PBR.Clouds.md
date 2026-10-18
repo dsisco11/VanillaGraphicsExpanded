@@ -113,7 +113,14 @@ distance. For its complete length L, including empty gaps, it selects
 `tStart+(i+jitter)*ds`; native support checks reject empty points without reallocating their budget.
 Every surviving point evaluates shared density and lighting at that position. Extinction uses the
 step length in metres, and native OIT bin weights apply at each primary step. Uniform density
-over the complete span retains analytic attenuation; a finite lattice can miss narrow features.
+over the complete span retains analytic attenuation when early termination is disabled or never
+triggers; a terminated ray represents its integrated prefix. A finite lattice can miss narrow features.
+Primary integration stops after a completed contributing step when overall transmission is strictly
+below `StopTransmittance` (default .005, supported 0..0.005). Zero disables this exit, including when
+transmission is exactly zero. Radiance, bucket products and support bounds include the stopping
+step; no residual-support traversal extends metadata behind it. Shadow marching uses its complete
+bounded schedule without an optical-depth threshold. Changing this control invalidates history.
+
 Contributing distance metadata covers contributing steps clipped to the admitted ray span,
 with up to one-step geometric uncertainty.
 
@@ -234,6 +241,7 @@ The persisted `Clouds` config and ConfigLib expose:
 | `ViewBudgetDistance` | 50 | 50..10000 world units; distance at which the maximum applies |
 | `LightRaySampleMax` | 10 | 2..64 scheduled points per contributing directional light |
 | `ShadowDistance` | 1500 | 50..10000 world units; independent of view distance/clipping |
+| `StopTransmittance` | .005 | 0..0.005; strict post-step view exit, zero disables |
 | `Detail` | true | Noise and exposed-edge erosion; false samples piecewise constant native density |
 | `DetailAmplitude` | .15 | 0..0.95 bounded interior modulation |
 | `EdgeWidth` | 2 | .01..10 world units of inward softness |

@@ -18,6 +18,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal sealed class CloudReconstructionScene : IDisposable
 {
     private readonly int width,height,lowWidth,lowHeight;
+    private readonly CloudVolumeSettings settings;
     private readonly CloudVolumeProgram reference;
     private readonly CloudTraceProgram trace;
     private readonly CloudTemporalProgram temporal;
@@ -45,9 +46,11 @@ internal sealed class CloudReconstructionScene : IDisposable
     #region Public API
     #region View preparation
     /// <summary>Allocates small deterministic targets and independently authored column/depth/atmospheric fixtures.</summary>
-    internal CloudReconstructionScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve,bool mipmappedOpaque,int nativeMapWidth,bool independentStorage=false)
+    internal CloudReconstructionScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve,bool mipmappedOpaque,int nativeMapWidth,bool independentStorage=false,CloudVolumeSettings? settings=null)
     {
         this.width=width;this.height=height;this.reference=reference;this.trace=trace;this.temporal=temporal;this.resolve=resolve;
+        this.settings=settings??CloudVolumeSettings.Default;
+        this.settings.Validate();
         (lowWidth,lowHeight)=CloudVolumeStorage.Dimensions(width,height);
         camera=Own(new VgeFrameUniformBuffer()); storage=Own(new TestFrameLightingPublication());
         map=Own(DynamicTexture2D.Create(nativeMapWidth,nativeMapWidth,PixelInternalFormat.Rgba32f));
@@ -97,6 +100,14 @@ internal sealed class CloudReconstructionScene : IDisposable
         for(int y=0;y<height;y++)for(int x=0;x<width;x++)depths[y*width+x]=Depth((x+y)%3==0?20:1000);
         visibility.UploadDataImmediate(depths);
     }
+    /// <summary>Authors uniform independent clip planes without the patterned scene's half-extent classification.</summary>
+    internal void SetUniformDepthClips(float opaqueDistance,float visibilityDistance,float liquidDistance)
+    {
+        // Explicit scalar planes also cover a one-pixel view, where a half-extent stencil is empty.
+        opaque.UploadDataImmediate(Enumerable.Repeat(Depth(opaqueDistance),width*height).ToArray());
+        visibility.UploadDataImmediate(Enumerable.Repeat(Depth(visibilityDistance),width*height).ToArray());
+        liquid.UploadDataImmediate(Enumerable.Repeat(Depth(liquidDistance),width*height).ToArray());
+    }
     /// <summary>Captures one explicit cloud/camera state, including per-pixel opaque and liquid discontinuities.</summary>
     internal void Capture(uint frame,float extinction,float environment,float scale,float offset,string scene)
     {
@@ -137,14 +148,15 @@ internal sealed class CloudReconstructionScene : IDisposable
     #endregion
     #region Submission and history probes
     /// <summary>Authors independent directional sources while preserving the captured medium, environment and quality selection.</summary>
-    internal void SetDirectionalLights(Vector3 sun, Vector3 moon, int sources)
+    internal AtmosphereLighting SetDirectionalLights(Vector3 sun, Vector3 moon, int sources, float? solarIlluminance = null, float? lunarIlluminance = null)
     {
         var original = capturedLighting ?? throw new InvalidOperationException("Capture lighting before changing directions.");
         var lighting = original with { Sun = sun, Moon = moon,
-            Solar = (sources & 1) != 0 ? original.Solar : Vector3.Zero,
-            Lunar = (sources & 2) != 0 ? original.Lunar : Vector3.Zero };
+            Solar = (sources & 1) != 0 ? solarIlluminance.HasValue ? new Vector3(solarIlluminance.Value) : original.Solar : Vector3.Zero,
+            Lunar = (sources & 2) != 0 ? lunarIlluminance.HasValue ? new Vector3(lunarIlluminance.Value) : original.Lunar : Vector3.Zero };
         Configure(reference, reference.Parameters, capturedPlacement, lighting);
         Configure(trace, trace.Parameters, capturedPlacement, lighting);
+        return lighting;
     }
     /// <summary>Authors sparse stepped clouds and optional opaque/visibility/liquid foreground clips independently of the hierarchy.</summary>
     internal void AuthorHierarchyColumns(bool foreground)
@@ -297,7 +309,7 @@ internal sealed class CloudReconstructionScene : IDisposable
     /// <summary>Supplies identical physical transport inputs to all tracing consumers.</summary>
     private void Configure(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudPlacement placement,AtmosphereLighting lighting)
     {
-        parameters.CaptureMap(map.Width,placement,1,CloudVolumeSettings.Default with
+        parameters.CaptureMap(map.Width,placement,1,settings with
         {
             Detail=detail
         });

@@ -165,8 +165,9 @@ sigmaT(x) = sigmaBase * detail(x)        // inside the native volume; zero outsi
 Tsegment = exp(-sigmaT(x) * dsMetres)
 ```
 
-For a complete span of uniform density with detail disabled (`detail = 1`), this reproduces native segment transmittance for the same
-ray and column intersection, independent of lighting. For example, `p = 2` across 50 world units
+For a complete span of uniform density with detail disabled (`detail = 1`) and early termination
+inactive, this reproduces native segment transmittance for the same ray and column intersection,
+independent of lighting. For example, `p = 2` across 50 world units
 gives `T = exp(-2)`, approximately 0.135. This is an optical-depth equivalence, not a promise of
 identical output color or OIT reconstruction. The installed map and volume shaders hardcode 50;
 do not silently substitute a changed CPU tile size without reconciling the producer's units.
