@@ -208,22 +208,42 @@ Phase 4: Qualify correctness and native-call reductions
 
 Phase 5: Reconcile contracts and qualify the canonical package
   Depends on Phase 4. Outcome: documentation, tests and packaged code describe the same accepted behavior.
-  ☐ Update Rendering.AuthoritativePipelineState.md for complete observable draw control, authored
+  ☑ Update Rendering.AuthoritativePipelineState.md for complete observable draw control, authored
     identity, prepared relevance, sparse mutation/restoration coverage and clear-only envelopes.
     Update other affected current-state documents; retain the proposal as design authority rather
     than rewriting architecture documentation as a historical log.
-  ☐ Run subagent-owned required builds, shader checks and focused Debug/Release regressions through
+  ☑ Run subagent-owned required builds, shader checks and focused Debug/Release regressions through
     canonical repository tooling; rebuild the canonical package and verify it contains the tested code.
     Record exact commands/results, configuration, source/package identity and material limitations.
-  ☐ Perform a second source/plan/proposal review and resolve every uncovered dependency or unsupported
+  ☑ Perform a second source/plan/proposal review and resolve every uncovered dependency or unsupported
     scope change. Confirm conservative fallbacks, no renderer bypasses, exact external handoff,
     independent cleanup and no unnecessary scaffolding; leave unrelated parent tasks untouched.
-  ☐ Completion: every proposal requirement has source and appropriate validation evidence, docs and
+  ☑ Completion: every proposal requirement has source and appropriate validation evidence, docs and
     package agree, and the parent implementation task links that evidence before being marked complete.
+    Evidence (2026-10-17): second source/plan/proposal review and independent completion audit passed.
+      Current contracts in Rendering.AuthoritativePipelineState.md, GpuProgram.md and
+      Rendering.EngineStateSwitching.md agree with the implementation; stale controlling links resolve
+      to existing lifecycle/boundary contracts. The approved proposal retains its design authority.
+      Canonical command: ./build.ps1 --configuration=Release --spirv=true. JSON validation, ordinary
+      Release publish, clean production shader generation and packaging succeeded. Shader-enabled
+      focused Debug and Release builds succeeded; phase5-debug.trx and phase5-release-observable.trx
+      each passed 258/258 with zero failures/skips. Release observers used COMPlus_JitNoInline=1 only
+      in the test process; compilation/package settings remained ordinary Release. Existing compiler
+      warnings and NU1900 vulnerability-feed unavailability did not prevent restore/build/package.
+      Releases/vanillagraphicsexpanded_999.99.9.zip contains 820 files. Its DLL matches publish,
+      production output and the actual Release test-loaded DLL byte-for-byte. All 458 Release shader
+      binaries and their catalog match producer hashes/lengths with no missing or obsolete binaries.
+      Source HEAD b3cd50334f83a86084dd9d93441f1211899327ed plus working documentation hashes/diff,
+      complete package/DLL/input identities, shader receipts, commands, filters and logs are retained
+      under ../artifacts/pso-state-relevance/phase5/ (package-identity.json, shader-receipt-identities.json,
+      test-results.json and commands.ps1). All nine retained regression-source hashes match the prior
+      qualification receipt; its exact pixel/native-state and bounded call-reduction evidence remains
+      applicable. No runtime/test/shader source changed, no temporary reference remains, and no live
+      appearance, full-driver-trace, GPU-time or frame-rate improvement is claimed.
 
 Final acceptance
-  ☐ Complete PSOs preserve all authored values while applying only relevant native write groups.
-  ☐ Dormant values/cache knowledge remain intact; later relevant draws establish intent before drawing.
-  ☐ Clear operations and indexed/global aliases have sufficient independent restoration authority.
-  ☐ Pixels and exact inherited state pass transition/failure checks; matched calls show reduced work.
-  ☐ Canonical package, current documentation and subagent-run validation receipts agree.
+  ☑ Complete PSOs preserve all authored values while applying only relevant native write groups.
+  ☑ Dormant values/cache knowledge remain intact; later relevant draws establish intent before drawing.
+  ☑ Clear operations and indexed/global aliases have sufficient independent restoration authority.
+  ☑ Pixels and exact inherited state pass transition/failure checks; matched calls show reduced work.
+  ☑ Canonical package, current documentation and subagent-run validation receipts agree.

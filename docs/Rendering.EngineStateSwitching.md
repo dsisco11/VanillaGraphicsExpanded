@@ -85,7 +85,7 @@ adapters retain ordinary native deletion plus targeted cache retirement; there i
 suppression switch. Root-owned shutdown releases borrowers and programs before draining the GPU manager.
 This context validation applies to resource/program/boundary lifetime, not a new broad cache authority.
 See [pipeline lifetime](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime)
-and [shader qualification](Rendering.ShaderOwnership.todo). Earlier dated switching receipts below
+and [shader lifecycle](GpuProgram.md#reload-and-retirement). Earlier dated switching receipts below
 remain scoped historical evidence. Live native rendering/reload acceptance remains user-run.
 
 ## Limits

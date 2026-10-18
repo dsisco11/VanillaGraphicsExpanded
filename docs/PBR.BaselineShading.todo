@@ -398,7 +398,7 @@ Tasks
       contract. Resolve the design before implementing relevance-aware state application below;
       this task produces the design, not runtime changes or a separate implementation checklist.
 
-  ☐ Suppress application and restoration of draw-irrelevant graphics state.
+  ☑ Suppress application and restoration of draw-irrelevant graphics state.
     - Execution checklist: Rendering.PsoStateRelevance.todo, derived from the approved proposal.
     - Implement the resolved PSO state-relevance design above in the shared pipeline application
       and boundary coverage paths. Preserve dormant inherited parameters instead of normalizing
@@ -415,6 +415,12 @@ Tasks
       Compare pixels and exact inherited state, demonstrate reduced setters/restoration, reconcile
       current architecture documentation and rebuild the canonical package. Do not infer GPU-time
       or frame-rate improvement from call counts alone.
+    - Acceptance: Rendering.PsoStateRelevance.todo, including independent completion audit and
+      ../artifacts/pso-state-relevance/phase5/ receipts. Debug/Release each passed 258/258; canonical
+      Releases/vanillagraphicsexpanded_999.99.9.zip matches the tested DLL and all 458 Release shader
+      binaries/catalog entries. Source/package identities and exact commands are in package-identity.json
+      and commands.ps1. Release call observers used process-only COMPlus_JitNoInline=1 with an ordinary
+      Release build. Prior matched pixel/state/call comparisons remain valid; no live/timing claim.
 
   ☐ Preserve texture binding caching for lifecycle-aware borrowed rendering inputs.
     - Inspect raw integer sampler inputs, including cloud scene/visibility/liquid depth. Reuse or

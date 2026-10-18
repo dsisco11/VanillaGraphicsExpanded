@@ -47,6 +47,13 @@ captures the incoming owner for restoration at boundary exit; `EndPass` ends ima
 reactivating that owner or releasing samplers between owned passes.
 See [pipeline boundaries](Rendering.AuthoritativePipelineState.md#shader-ownership-and-boundary-lifetime).
 
+Prepared pipelines retain immutable relevance and native write coverage with their executable revision.
+`GraphicsCommandContext` unions these groups and the clear-helper envelope before entering the boundary.
+Draw application controls every observable effect while leaving dormant native parameters untouched;
+it still validates all authored values and declared dynamics. Reload replaces the prepared metadata
+with the executable realization. See [draw dependencies](Rendering.AuthoritativePipelineState.md#draw-dependencies)
+and [sparse boundary authority](Rendering.AuthoritativePipelineState.md#sparse-boundary-authority-and-clear-helpers).
+
 ## Shared workflows and compatibility
 
 `IGpuProgram` default `Prepare`, `Activate`, `BeginUse`, `ReplayInputs` and `Retire` workflows

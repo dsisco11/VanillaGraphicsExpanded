@@ -100,7 +100,7 @@ capabilities, and unknown external mutations still require explicit invalidation
 The root closes admission, releases feature borrowers/owners and registry executables, then shared
 resources and GPU manager. World leave changes callback admission without changing native context
 identity. See [shader lifecycle](GpuProgram.md#reload-and-retirement), [engine switching](Rendering.EngineStateSwitching.md#shader-ownership-and-native-handoff)
-and [current qualification](Rendering.ShaderOwnership.todo). Dated cache-lifetime-removal and consumer
+and [boundary authority](#sparse-boundary-authority-and-clear-helpers). Dated cache-lifetime-removal and consumer
 receipts below apply to their original implementations; shader ownership supersedes their assertions
 that boundaries do not validate context identity. Live acceptance remains user-run.
 
@@ -118,8 +118,8 @@ Source review: 2026-10-05. This contract was originally reconciled with the now-
 Rendering.AuthoritativePipelineState.Proposal.md and Rendering.AuthoritativePipelineState.todo,
 which are not present in this checkout. They are historical planning references, not current
 prerequisites. This document records complete submission requirements; retained partial descriptors
-do not implement them. Current shader ownership is controlled by
-[the ownership proposal](Rendering.ShaderOwnership.Proposal.md) and the lifetime section above.
+do not implement them. Current shader ownership follows
+[the shader lifecycle](GpuProgram.md#reload-and-retirement) and the lifetime section above.
 The state-cache lifetime policy above governs this design. Historical receipts below remain evidence
 only for the implementations and scopes they actually exercised.
 
@@ -355,17 +355,16 @@ runtime tests in each configuration, with zero failures/skips. Separate generato
 177/177 each. Native fixtures used NVIDIA RTX 4090 / driver 591.86: OpenGL 4.3 core and OpenGL 4.6
 compatibility. Both expose clip control; capability-absent rejection is synthetic evidence only.
 
-The original six ConfigurableRasterizerDescriptionTests covered explicit defaults, every added field's active
-identity, copied pattern ownership/equality, inactive canonicalization, enum/range/mask/profile
-rejection and the then-authored clip-output declarations. Eight ConfigurableRasterizerGpuTests cases cover
+ConfigurableRasterizerDescriptionTests cover explicit defaults, authored inactive-value retention,
+structural identity, copied pattern ownership/equality and enum/range/mask/profile rejection.
+ConfigurableRasterizerGpuTests cover
 native state agreement, individual clip bits, A-to-B-to-A transitions, redundant-call suppression,
 selective invalidation, hostile disabled parameters and boundary restoration on success/exceptions.
 Real 32-by-32 fixture draws verify clipping, alpha rejection, line/polygon stipple, upper-left Y
 orientation and projected depth matching the selected clip convention. Pack and unpack callbacks
 also fail after temporary transfer setup, proving native buffer/layout restoration on that path.
 Engine LSB-first bitmap upload and an actual DynamicTexture2D upload exercise cache coherence.
-The original generator tests checked authored clip masks; those tests were removed with the
-superseded metadata. Existing boundary/cache/description/texture regressions are included in the runtime selection.
+Boundary/cache/description/texture regressions exercise the same shared state owners.
 
 Second source review corrected core polygon-smoothing availability, explicit neutral snapshots for
 unavailable fields, checked pixel-buffer binding failure, and pixel-store observation in existing
@@ -428,7 +427,7 @@ it is not reused as immutable configuration storage.
 sequences and compares elements structurally; every element used by descriptions is itself immutable.
 Record value equality composes these fields, while complete descriptor equality and hashing exclude
 labels and capability objects. No native object name, framebuffer dimensions, executable revision or
-context registration is stored in this reusable key. Future prepared realizations supply executable
+context registration is stored in this reusable key. Prepared realizations supply executable
 revision and renderer-lifetime checks separately.
 
 [ShaderPipelineIdentity](../VanillaGraphicsExpanded/Rendering/Pipeline/Descriptions/ShaderPipelineIdentity.cs)
@@ -479,6 +478,12 @@ their authored payload while disabled; `SamplingDesc.GetMaskWord(index)` resolve
 is disabled and supplies an all-ones suffix when enabled. Complete application visits all supported
 mask words when masking is enabled; it leaves disabled payloads and unrouted output slots untouched.
 
+Two descriptions that differ only in a dormant line width or disabled blend factors remain distinct
+keys. Relevance does not participate as independently authored intent and does not erase those values.
+Every declared dynamic slot must receive a valid value even while dormant. Undeclared slots retain
+their concrete defaults; enabled scissor, stencil and constant-factor blending still require their
+corresponding dynamic declarations. No skipped value becomes ambient draw intent.
+
 ### Prepared state relevance metadata
 
 `GraphicsPipeline.Relevance` retains immutable `GraphicsStateRelevance` alongside its validated
@@ -516,6 +521,28 @@ Combined native writes and aliases retain their complete groups:
 These are group identifiers only. Skipping irrelevant application does not mark a declared
 value known/applied; capture/restoration authority remains a separate concern owned by StateCache.
 
+### Draw dependencies
+
+A complete PSO determines every observable effect of its draw. Native parameters that cannot affect
+that draw retain their actual values and cache knowledge. The shared derivation and category appliers
+use these dependencies:
+
+| Native state | Application condition |
+|---|---|
+| Line width/smoothing and compatibility line stipple | Lines can be emitted, including polygons in Line mode. Stipple parameters additionally require stippling enabled. |
+| Fixed point size | Points can be emitted, including polygons in Point mode, and program point size is disabled. Point draws establish program-point-size enable and conservative sprite-origin/smoothing policy. |
+| Polygon controls | Polygon emission establishes polygon mode, cull enable and front-face orientation. Cull mode requires culling enabled; front face remains observable with culling disabled. Smoothing/stipple and offset enables follow the selected polygon mode; bias factor/units require its offset enabled. |
+| Scissor rectangle | Scissoring is enabled. Raster draws still establish scissor enable, including disabling inherited clipping. |
+| Depth/stencil | A matching target aspect makes test enable relevant. Enabled tests establish their dependent comparison, write masks and stencil face tuples/references. Depth range and clipping remain conservative without attachments. |
+| Color masks and blending | Each routed output establishes its color mask. Blendable routed outputs establish blend enable; enabled blending establishes equations. Factor tuples require a factor-using channel. Integer targets bypass blending; holes and trailing slots remain untouched. |
+| Blend constant | An enabled routed equation consumes a constant factor. MIN/MAX do not consume factors. A combined RGB/alpha setter always writes and covers the full authored tuple. |
+| Sampling payloads | Coverage/inversion, mask words and minimum shading require their respective enables. Feature enables remain conservative even for single-sample targets. |
+| Assembly payloads | Restart index requires programmable restart without fixed-index override. Patch count requires patch topology. Restart enables remain conservative across geometry adapters. |
+
+Viewport, depth range, supported clip conventions, custom clip-distance disabling, provoking vertex,
+discard, framebuffer sRGB, dither and logic-op disable retain conservative control. Unsupported profile
+state receives no invalid native calls. Explicit partial helpers retain their own mutation semantics.
+
 ### Sparse boundary authority and clear helpers
 
 `PipelineStateCoverage.CompleteGraphics` admits complete operations but grants no implicit fields.
@@ -546,6 +573,18 @@ footprints, originating context checks, shader admission and ordered independent
 existing owners. Explicit configurable-raster helper application retains its full partial-helper
 semantics; complete draws use the shared setters through the masked application path.
 
+For example, a filled-triangle declaration with width 2 leaves inherited width 4 untouched. A line
+draw with width 2 establishes 2; another filled draw preserves 2. Boundary exit restores 4 because
+the union includes the line draw's potential writes. A region clear independently establishes its
+scissor and attachment write masks before an unscissored draw; both incoming enable bits and dormant
+parameters return exactly. Setter failures invalidate the affected native group, independent cleanup
+continues, and fatal handback failures propagate through the existing boundary owner.
+
+Current regression fixtures include `GraphicsStateRelevanceTests`, `RelevantGraphicsStateTests`,
+`RelevantGraphicsMatrixTests`, `SparseStateCoverageTests` and `PsoStateRelevanceWorkloadTests`, alongside
+the existing prepared-pipeline, clear, reload and failure suites. Headless pixels, exact native state
+and bounded emitted-call observations are distinct evidence; none establish live appearance or GPU time.
+
 [GpuSupport.Graphics](../VanillaGraphicsExpanded/Rendering/GpuSupport.Graphics.cs) extends the existing
 capability capture with vertex binding/stride/offset limits, sample-mask words, line/point ranges and
 optional graphics features alongside its existing resource limits. GpuSupport owns one immutable
@@ -573,15 +612,11 @@ cached, and warm reads do not consume pending native errors. This optional query
 
 Legacy `GlPipelineDesc` is explicitly documented as a partial compatibility override. Its stable mask
 numbering and consumers remain unchanged; there is no implicit conversion or shared base/interface
-allowing it to masquerade as GraphicsPipelineDesc. Full state application, pass setup and production
-consumer migration remain pending. These changes do not establish rendering or performance improvements.
-
-Validation on 2026-10-05: shader-enabled Debug and Release test builds succeeded; the focused selection
-passed **39/39 in each configuration, zero skips**. It covers copied/read-only storage, structural
-identity and operators, field-sensitive state, inactive canonicalization and re-enable behavior,
+allowing it to masquerade as GraphicsPipelineDesc. Complete owned draws use GraphicsCommandContext,
+prepared GraphicsPipeline relevance and explicit render passes. Description tests cover copied/read-only
+storage, structural identity, dormant authored intent, equivalent representation normalization,
 shader specialization/layout identity, sparse exact targets, explicit dynamics, invalid/capability
-rejection, stable legacy masks, and native GpuSupport limit capture. Second source review found no
-remaining discrepancies; completion audit is recorded in the implementation plan.
+rejection and stable legacy masks.
 
 Shared capability ownership validation on 2026-10-06 passed **41/41 in both Debug and Release,
 zero skips**, with shader compilation enabled. Additional integration checks verify that snapshots
@@ -1438,8 +1473,8 @@ It requires an explicit inactive conditional-rendering contract and verifies tra
 inactive before changing rendering state. Coverage captures missing values for all potential native
 writes, including dormant incoming parameters that a relevant draw or helper may change, and restores
 independent changed fields on success and exceptions. It rejects
-unknown shader ownership through the existing adapter. This is the adapter foundation for the
-first fullscreen consumer; it does not replace the production renderer or assert authority over
+unknown shader ownership through the existing adapter. Owned graphics consumers use this shared
+adapter; it does not assert authority over
 arbitrary engine/mod calls. Unobserved operations still require ExecuteExternal or explicit targeted
 invalidation before subsequent managed use. Existing retirement and VAO-owned EBO rules remain intact.
 
@@ -2663,7 +2698,7 @@ and the consolidated verification below.
 | Naming and namespaces; Architectural responsibilities | Responsibility-named types live in Pipeline/Descriptions, Pipeline/State and Pipeline/Passes; geometry, interface validation and lifetime each have focused owners. Existing GpuProgram, GpuFramebuffer and buffer hierarchies remain resource owners. GraphicsCommandContext composes them without owning allocation algorithms or another binding system. |
 | Scope and exclusions | Engine-owned particle, G-buffer, terrain/tessellation and shared-shadow paths retain explicit partial adapters. Compute uses its existing pipeline and resource owners. One live rendering context is assumed; no context generations, render graph, alternate backend, interning or asynchronous preparation are introduced. Consumer and mutation coverage records unobserved external paths. |
 | Categorized cache storage | Pipeline/State category values and independent category knowledge masks are copied by PipelineStateSnapshot. StateBooleanValueTests, StateValueLayoutTests, CategorizedStateCacheTests, GlStateCacheInvalidationTests and PipelineStateCoverageTests cover packed-value independence, known false versus unknown, detached snapshots and selective/partial authority. Managed sizes are reported separately below. |
-| Complete descriptions and partial overrides | GraphicsPipelineDesc resolves defaults and validates in all configurations; GlPipelineDesc remains explicitly partial compatibility intent. PipelineCanonicalization preserves structural identity; StateCache.ApplyGraphicsState establishes supported complete values. GraphicsPipelineDescriptionTests, CompleteGraphicsStateTests and GraphicsCommandContextTests verify independence from ambient state and rejection of undeclared changes. |
+| Complete descriptions and partial overrides | GraphicsPipelineDesc resolves defaults and validates in all configurations; GlPipelineDesc remains explicitly partial compatibility intent. PipelineCanonicalization normalizes equivalent representations while preserving authored identity; StateCache.ApplyGraphicsState establishes relevant native groups and preserves dormant values. GraphicsPipelineDescriptionTests, CompleteGraphicsStateTests and GraphicsCommandContextTests verify observable draw control and rejection of undeclared changes. |
 | Static and dynamic state coverage | Description category records, GraphicsDynamicState, StateCache category transitions and complete restoration own supported raster/depth/stencil/blend/sampling/output/assembly state. ConfigurableRasterizerDescriptionTests and ConfigurableRasterizerGpuTests cover the approved compatibility-state additions. Custom shader clipping is unsupported; user clip enables are explicitly disabled for VGE draws and restored for engine handoff. |
 | Target signatures and render passes | RenderTargetSignature, RenderPassDesc, RenderPassTargets, RenderPassOperations and GpuFramebuffer attachment/surface publication retain exact formats, sparse/discard routes, typed clears, render areas and borrowed lifetime. RenderPassClearTests/RenderPassLifetimeTests, SurfaceRenderPassTests and native liquid-target tests cover incompatible targets, clear independence, retirement, replacement and resize. |
 | Prepared pipelines, identity, and lifetime | ShaderPipelineIdentity, GraphicsPipelineLifetime, GraphicsPipeline and GraphicsInterfaceValidation use immutable descriptions plus owner/executable revision. Existing prepared bindings and generated std140 inputs remain authoritative. GraphicsPipelineDescriptionTests, ShaderPipelineIdentityTests and PreparedGraphicsPipelineTests cover equality, mutation resistance, reload/disposal and validation without repeated reflection. |
