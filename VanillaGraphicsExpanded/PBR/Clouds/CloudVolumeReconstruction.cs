@@ -19,6 +19,8 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     private readonly CloudTemporalHistory history=new();
     private readonly GraphicsPipelineLifetime lifetime=new();
     private CloudVolumeStorage? storage;
+    private CloudVolumeStorage? traceStorage;
+    private CloudResolutionLayout resolution;
     private CloudTraceProgram? traceProgram;
     private CloudTemporalProgram? temporalProgram;
     private CloudResolveProgram? resolveProgram;
@@ -54,12 +56,15 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         if(traceProgram is null||temporalProgram is null||resolveProgram is null) { Invalidate(); return false; }
         try
         {
-            EnsureSize(api.Render.FrameWidth,api.Render.FrameHeight);
-            var trace=storage!.Blocks[cursor];
-            var previous=storage.Blocks[(cursor+1)%3]; var next=storage.Blocks[(cursor+2)%3];
+            EnsureSize(api.Render.FrameWidth,api.Render.FrameHeight,settings.TraceScale);
+            bool quarter=settings.TraceScale==CloudTraceScale.Quarter;
+            var trace=quarter?traceStorage!.Blocks[0]:storage!.Blocks[cursor];
+            var previous=storage!.Blocks[quarter?cursor:(cursor+1)%3];
+            var next=storage.Blocks[quarter?1-cursor:(cursor+2)%3];
             var camera=VgeFrameRenderer.Current;
             Capture(traceProgram,traceProgram.Parameters,input,lighting,settings,sceneDepth,visibilityDepth,liquidDepth);
             traceProgram.PrimaryNoise=primaryNoise;
+            temporalProgram.SceneDepth=sceneDepth; temporalProgram.VisibilityDepth=visibilityDepth; temporalProgram.LiquidDepth=liquidDepth;
             resolveProgram.SceneDepth=sceneDepth; resolveProgram.VisibilityDepth=visibilityDepth; resolveProgram.LiquidDepth=liquidDepth;
             // The immutable publication and native content certificates identify compatibility. New
             // map generation numbers alone do not: the native producer legitimately writes every frame.
@@ -89,8 +94,8 @@ internal sealed class CloudVolumeReconstruction : IDisposable
                 }
             })) { Invalidate(); throw new InvalidOperationException("Cloud reconstruction graphics boundary was rejected."); }
             history.Commit(input,camera,settings,lighting,traceProgram.Parameters);
-            // Reuse the discarded previous block as the next trace; primary noise remains frame-driven.
-            cursor=(cursor+1)%3; return true;
+            // Rotate only after commit: Half reuses the discarded block for trace; Quarter alternates histories.
+            cursor=quarter?1-cursor:(cursor+1)%3; return true;
         }
         catch { Invalidate(); throw; }
     }
@@ -110,21 +115,33 @@ internal sealed class CloudVolumeReconstruction : IDisposable
 
     #region Private
     /// <summary>Replaces all history sets atomically on size changes; ordinary frames reuse persistent storage.</summary>
-    private void EnsureSize(int viewWidth,int viewHeight)
+    private void EnsureSize(int viewWidth,int viewHeight,CloudTraceScale scale)
     {
-        var size=CloudVolumeStorage.Dimensions(viewWidth,viewHeight);
-        if(storage is not null && width==size.Width && height==size.Height) return;
-        var replacement=new CloudVolumeStorage(size.Width,size.Height,"Cloud.Volume.Payload");
-        // Keep the old owner published until its retirement succeeds; never strand a replacement.
-        try { ReleaseTargets(); }
-        catch { replacement.Dispose(); throw; }
-        storage=replacement; width=size.Width; height=size.Height; cursor=0; Invalidate();
+        var size=CloudResolutionLayout.Create(viewWidth,viewHeight,scale);
+        if(storage is not null && resolution==size) return;
+        CloudVolumeStorage? replacement=null,newTrace=null;
+        try
+        {
+            replacement=new CloudVolumeStorage(size.Width,size.Height,"Cloud.Volume.History",scale==CloudTraceScale.Quarter?2:3);
+            if(scale==CloudTraceScale.Quarter)
+                newTrace=new CloudVolumeStorage(size.TraceWidth,size.TraceHeight,"Cloud.Volume.Trace",1);
+            // All new allocations exist before retiring any old view or its cached pipeline.
+            ReleaseTargets();
+        }
+        catch
+        {
+            RenderingCleanup.Run(()=>replacement?.Dispose(),()=>newTrace?.Dispose());
+            throw;
+        }
+        storage=replacement;traceStorage=newTrace;resolution=size;
+        width=size.Width;height=size.Height;cursor=0;Invalidate();
     }
     /// <summary>Retires every block before its shared allocation and forgets allocation dimensions and roles.</summary>
     private void ReleaseTargets()
     {
-        RenderingCleanup.Run(()=>{storage?.Dispose();storage=null;});
-        width=height=cursor=0;
+        var oldHistory=storage;var oldTrace=traceStorage;
+        storage=traceStorage=null;resolution=default;width=height=cursor=0;
+        RenderingCleanup.Run(()=>oldHistory?.Dispose(),()=>oldTrace?.Dispose());
     }
     /// <summary>Captures physical density and lighting inputs only for reduced tracing.</summary>
     private void Capture(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudMapInput input,AtmosphereLighting lighting,

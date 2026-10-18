@@ -10,6 +10,8 @@ using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.PBR.Clouds;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
@@ -24,9 +26,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
-    /// <summary>Each rotated production pass binds the intended disjoint block and restores inherited array bindings afterward.</summary>
+    /// <summary>Each rotated production pass publishes the intended disjoint bindings and restores inherited bindings afterward.</summary>
     [Fact]
-    public void RotatingArrayBlocksReachActualGpuSamplerBindings()
+    public void RotatingArrayBlocksPublishDisjointBindings()
     {
         EnsureShaderTestAvailable();using var scene=new ScheduledScene(Programs);using var reconstruction=scene.CreateReconstruction();
         using var sentinel=DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f);
@@ -65,7 +67,49 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
         output.WriteLine("ARRAY_BINDING_CAPTURE="+System.Text.Json.JsonSerializer.Serialize(new{frames=records,
             failedSubmission=2,cursorHeld=true,historyInvalidated=true,inheritedBindingsRestored=true,
             recoveryHistoryRejected=true,resizeBlockedUntilReset=true,resetRetiredStorage=true,resetRecovery=true}));
-        Assert.Equal(ErrorCode.NoError,GL.GetError());
+        GlDebug.ThrowIfErrors("Cloud pipeline test");
+    }
+    /// <summary>Quarter storage keeps fixed trace and alternating history roles, and retires both owners on layout changes.</summary>
+    [Theory][InlineData(false)][InlineData(true)]
+    public void QuarterLayoutsReuseAndRetireOwnedStorage(bool lumOn)
+    {
+        EnsureShaderTestAvailable();bool? oldMode=PbrShaderLightingMode.GenerationLumOnEnabled;
+        try
+        {
+            PbrShaderLightingMode.GenerationLumOnEnabled=lumOn;
+            using var scene=new ScheduledScene(Programs);using var reconstruction=scene.CreateReconstruction();
+            var quality=CloudVolumeSettings.Default with {TraceScale=CloudTraceScale.Quarter};
+            CloudVolumeStorage? histories=null,traced=null;
+            for(uint frame=0;frame<4;frame++)
+            {
+                scene.Clear();Assert.True(scene.Draw(reconstruction,scene.Capture(frame),null,()=>true,quality));
+                var current=ReadPrivate<CloudVolumeStorage>(reconstruction,"storage");
+                var currentTrace=ReadPrivate<CloudVolumeStorage>(reconstruction,"traceStorage");
+                if(histories is not null){Assert.Same(histories,current);Assert.Same(traced,currentTrace);}
+                histories=current;traced=currentTrace;
+                Assert.Equal(2,histories.Blocks.Length);Assert.Single(traced.Blocks);
+                Assert.Equal(5,histories.Array.Width);Assert.Equal(4,histories.Array.Height);
+                Assert.Equal(3,traced.Array.Width);Assert.Equal(2,traced.Array.Height);
+                Assert.Equal((int)((frame+1)%2),ReadPrivate<int>(reconstruction,"cursor"));
+                Assert.Equal(frame>0,scene.HistoryEnabled);
+            }
+            int held=ReadPrivate<int>(reconstruction,"cursor");
+            Assert.False(scene.Draw(reconstruction,scene.Capture(4),null,()=>false,quality));
+            Assert.Equal(held,ReadPrivate<int>(reconstruction,"cursor"));
+            Assert.True(scene.Draw(reconstruction,scene.Capture(5),null,()=>true,quality));Assert.False(scene.HistoryEnabled);
+            Assert.True(scene.Draw(reconstruction,scene.Capture(6),null,()=>true));
+            Assert.False(histories!.Array.IsValid);Assert.False(traced!.Array.IsValid);Assert.False(scene.HistoryEnabled);
+            var half=ReadPrivate<CloudVolumeStorage>(reconstruction,"storage");
+            Assert.True(scene.Draw(reconstruction,scene.Capture(7),null,()=>true,quality));Assert.False(half.Array.IsValid);
+            histories=ReadPrivate<CloudVolumeStorage>(reconstruction,"storage");traced=ReadPrivate<CloudVolumeStorage>(reconstruction,"traceStorage");
+            scene.Resize(11,9);Assert.True(scene.Draw(reconstruction,scene.Capture(8),null,()=>true,quality));
+            Assert.False(histories.Array.IsValid);Assert.False(traced.Array.IsValid);Assert.False(scene.HistoryEnabled);
+            histories=ReadPrivate<CloudVolumeStorage>(reconstruction,"storage");traced=ReadPrivate<CloudVolumeStorage>(reconstruction,"traceStorage");
+            reconstruction.Reset();Assert.False(histories.Array.IsValid);Assert.False(traced.Array.IsValid);
+            scene.AssertBorrowedInputsAlive();scene.AttachPrograms(reconstruction);
+            Assert.True(scene.Draw(reconstruction,scene.Capture(9),null,()=>true,quality));Assert.False(scene.HistoryEnabled);
+        }
+        finally {PbrShaderLightingMode.GenerationLumOnEnabled=oldMode;}
     }
     /// <summary>Certified, revoked and failed summaries preserve complete production reconstruction in either lighting selection.</summary>
     [Theory]
@@ -140,7 +184,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
             Assert.True(scene.HierarchyEnabled);
             Assert.Equal(6, LastTrace(accelerated).Target.Width);
             Assert.False(scene.HistoryEnabled);
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
+            GlDebug.ThrowIfErrors("Cloud pipeline test");
         }
         finally { PbrShaderLightingMode.GenerationLumOnEnabled = previous; }
     }
@@ -262,17 +306,20 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
             var reconstruction = new CloudVolumeReconstruction(api.Object); AttachPrograms(reconstruction); return reconstruction;
         }
         /// <summary>Executes production source admission and all three passes against the existing OIT blend contract.</summary>
-        internal bool Draw(CloudVolumeReconstruction reconstruction, CloudMapInput input, CloudHierarchy? hierarchy, Func<bool> current) =>
-            reconstruction.Draw(input, lighting, CloudVolumeSettings.Default, output.Target, depth.TextureId, visibility.TextureId, liquid.TextureId, geometry, current, hierarchy);
+        internal bool Draw(CloudVolumeReconstruction reconstruction, CloudMapInput input, CloudHierarchy? hierarchy, Func<bool> current, CloudVolumeSettings? settings=null) =>
+            reconstruction.Draw(input, lighting, settings??CloudVolumeSettings.Default, output.Target, depth.TextureId, visibility.TextureId, liquid.TextureId, geometry, current, hierarchy);
         /// <summary>Clears only fixture attachments to the native neutral OIT record before a comparison draw.</summary>
         internal void Clear()
         {
-            int previous = GL.GetInteger(GetPName.DrawFramebufferBinding);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, output.Target.FboId);
-            GL.ClearBuffer(ClearBuffer.Color, 0, new float[] { 1, 1, 1, 1 });
-            GL.ClearBuffer(ClearBuffer.Color, 1, new float[] { 1, 0, 0, 0 });
-            for (int layer = 2; layer < 6; layer++) GL.ClearBuffer(ClearBuffer.Color, layer, new float[4]);
-            GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, previous); StateCache.Current.InvalidateAll();
+            var pass=new RenderPassDesc(output.Target,[
+                new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
+                new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,0,0,0)),
+                new(2,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+                new(3,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+                new(4,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+                new(5,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]);
+            Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.Clear",[],true,commands=>
+            {commands.BeginPass(pass);commands.EndPass();}));
         }
         /// <summary>Reads all native OIT attachments independently of private trace and history storage.</summary>
         internal float[][] ReadOutput() => output.Images.Take(6).Select(image => image.ReadPixels()).ToArray();

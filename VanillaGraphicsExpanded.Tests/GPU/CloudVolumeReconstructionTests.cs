@@ -37,7 +37,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             expected=independent.ReadTraceRecord();actual=shared.ReadTraceRecord();
             for(int layer=0;layer<3;layer++)Assert.Equal(expected[layer],actual[layer]);
         }
-        Assert.Equal(ErrorCode.NoError,GL.GetError());
+        GlDebug.ThrowIfErrors("Cloud reconstruction test");
     }
     /// <summary>Solar/lunar directions preserve self-shadowed illumination and every payload channel under combined view/light skipping.</summary>
     [Theory]
@@ -142,10 +142,11 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
     public void PrimaryNoiseChangesAcrossFramesAndReplaysExactly()
     {
         EnsureShaderTestAvailable();using var view=CreateScene(8,8);
-        view.Capture(0,2,10,1,0,"detail");view.Render(0,false);var first=view.ReadTrace();var reference=view.ReadReference();
-        view.Capture(4,2,10,1,0,"detail");view.Render(4,false);var next=view.ReadTrace();
+        view.Capture(0,2,10,1,0,"detail");view.Render(0,false,includeReference:true);var first=view.ReadTrace();var reference=view.ReadReference();
+        view.Capture(4,2,10,1,0,"detail");view.Render(4,false,includeReference:true);var next=view.ReadTrace();
         Assert.Contains(Enumerable.Range(0,first[1].Length),i=>Math.Abs(first[1][i]-next[1][i])>1e-6f);
-        for(int layer=0;layer<6;layer++)Assert.Equal(reference[layer],view.ReadReference()[layer]);
+        var nextReference=view.ReadReference();
+        for(int layer=0;layer<6;layer++)Assert.Equal(reference[layer],nextReference[layer]);
         view.Capture(0,2,10,1,0,"detail");view.Render(0,false);var replay=view.ReadTrace();
         for(int layer=0;layer<6;layer++)Assert.Equal(first[layer],replay[layer]);
         uint wrap=8;
@@ -194,7 +195,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
                 }
             }
         }
-        Assert.Equal(ErrorCode.NoError,GL.GetError());
+        GlDebug.ThrowIfErrors("Cloud reconstruction test");
     }
     /// <summary>Opaque hierarchy coarse levels never alter precise cloud tracing, reference clipping or full-view reconstruction.</summary>
     [Theory]
@@ -202,9 +203,9 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
     public void OpaqueHierarchyAlwaysSamplesMipZero(string scene)
     {
         EnsureShaderTestAvailable(); using var view=CreateScene(9,7,mipmappedOpaque:true);
-        view.Capture(0,2,10,1,0,scene);view.SetOpaqueCoarseDepth(0);view.Render(0,false);
+        view.Capture(0,2,10,1,0,scene);view.SetOpaqueCoarseDepth(0);view.Render(0,false,includeReference:true);
         var reconstructed=view.ReadDefault();var reference=view.ReadReference();var history=view.ReadHistory();
-        view.SetOpaqueCoarseDepth(1);view.Render(0,false);
+        view.SetOpaqueCoarseDepth(1);view.Render(0,false,includeReference:true);
         var changed=view.ReadDefault();var changedReference=view.ReadReference();var changedHistory=view.ReadHistory();
         for(int layer=0;layer<6;layer++)
         {
@@ -214,19 +215,19 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         }
         Assert.Contains(changed[1],value=>value<1);
         if(scene is "terrain" or "mixed") Assert.True(changedReference[1].Max()>changedReference[1].Min());
-        Assert.Equal(ErrorCode.NoError,GL.GetError());
+        GlDebug.ThrowIfErrors("Cloud reconstruction test");
     }
     /// <summary>Foreground particles remain visible occluders even when corrected receiver depth contains only distant terrain.</summary>
     [Fact]
     public void ParticleVisibilityClipsTracingAndAuthoredResolve()
     {
         EnsureShaderTestAvailable();using var view=CreateScene(9,7);
-        view.Capture(0,2,10,1,0,"static");view.Render(0,false);
+        view.Capture(0,2,10,1,0,"static");view.Render(0,false,includeReference:true);
         var unoccluded=view.ReadReference();view.SetVisibilityForeground();
         var resolved=view.ResolveAuthoredHistory();
         for(int y=0;y<7;y++)for(int x=0;x<9;x++)
             Assert.InRange(Math.Abs(resolved[1][y*9+x]-((x+y)%3==0?1f:.4f)),0,.00001);
-        view.Render(0,false);
+        view.Render(0,false,includeReference:true);
         var reference=view.ReadReference();
         for(int y=0;y<7;y++)for(int x=0;x<9;x++)
         {
@@ -329,11 +330,8 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         {
             var size=CloudVolumeStorage.Dimensions(extent.Item1,extent.Item2);
             var storage=new CloudVolumeStorage(size.Width,size.Height,"Tests.Cloud.Resize");
-            int owner=storage.Array.TextureId;
             Assert.Equal(9,storage.Array.Depth);
             Assert.Equal(3,storage.Blocks.Length);
-            var views=storage.Blocks.Select(block=>block.View.TextureId).ToArray();
-            var framebuffers=storage.Blocks.Select(block=>block.Target.FboId).ToArray();
             for(int block=0;block<3;block++)
             {
                 var surface=storage.Blocks[block];
@@ -350,12 +348,14 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             }
             // Distinct writes through the three disjoint views must not overwrite another block.
             for(int block=0;block<3;block++)
-            for(int layer=0;layer<3;layer++)
-                Assert.All(CloudPayloadReadback.Read(storage.Blocks[block])[layer],value=>Assert.Equal(10*block+layer,value));
-            storage.Dispose();Assert.False(GL.IsTexture(owner));
-            Assert.All(framebuffers,id=>Assert.False(GL.IsFramebuffer(id)));Assert.All(views,id=>Assert.False(GL.IsTexture(id)));
+            {
+                var payload=CloudPayloadReadback.Read(storage.Blocks[block]);
+                for(int layer=0;layer<3;layer++)Assert.All(payload[layer],value=>Assert.Equal(10*block+layer,value));
+            }
+            storage.Dispose();Assert.False(storage.Array.IsValid);
+            Assert.All(storage.Blocks,block=>{Assert.True(block.Target.IsDisposed);Assert.False(block.View.IsValid);});
         }
-        Assert.Equal(ErrorCode.NoError,GL.GetError());
+        GlDebug.ThrowIfErrors("Cloud reconstruction test");
     }
     /// <summary>Repeated compatible static samples follow the specified bounded temporal-weight recurrence.</summary>
     [Fact]
@@ -392,8 +392,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
 
     #region Private
     /// <summary>Creates independent owned executables, persistent reduced storage and a tiny view without native engine state.</summary>
-    private CloudReconstructionScene CreateScene(int width,int height,bool mipmappedOpaque=false,int nativeMapWidth=4,bool independentStorage=false)=>new(width,height,Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),
-        Programs.Create<CloudTemporalProgram>(),Programs.Create<CloudResolveProgram>(),mipmappedOpaque,nativeMapWidth,independentStorage);
+    private CloudReconstructionScene CreateScene(int width,int height,bool mipmappedOpaque=false,int nativeMapWidth=4,bool independentStorage=false)=>new(width,height,Programs,mipmappedOpaque,nativeMapWidth,independentStorage);
 
     #endregion
 }

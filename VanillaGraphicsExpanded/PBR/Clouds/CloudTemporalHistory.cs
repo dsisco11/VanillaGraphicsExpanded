@@ -48,7 +48,7 @@ internal sealed class CloudTemporalHistory
         if(!float.IsFinite(translation.X)||!float.IsFinite(translation.Y)||!float.IsFinite(translation.Z)||translation.LengthSquared()>2500)
             compatible=false;
         output.Capture(valid?previousProjection:camera.CurrentViewProjection,compatible?translation:Vector3.Zero,
-            width,height,input.Frame,frame,compatible);
+            width,height,input.Frame,frame,compatible,quality.TraceScale);
         return compatible;
     }
     /// <summary>Commits only after trace, reconstruction and full-resolution submission all succeed.</summary>

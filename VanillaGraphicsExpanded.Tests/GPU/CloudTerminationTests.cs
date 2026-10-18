@@ -76,7 +76,7 @@ public sealed class CloudTerminationTests(HeadlessGLFixture fixture,ITestOutputH
                 var staged=view.SetDirectionalLights(Vector3.UnitY,-Vector3.UnitY,3,solarIlluminance:300000,lunarIlluminance:3000);
                 Assert.True(staged.Solar.X>0&&staged.Lunar.X>0);
             }
-            view.Render(0,false);
+            view.Render(0,false,includeReference:true);
         }
         // These fixtures include independently seeded translucent OIT before/within/behind cloud support.
         // Only valid arithmetic is asserted; differences never imply acceptable quality or a speedup.
@@ -95,7 +95,7 @@ public sealed class CloudTerminationTests(HeadlessGLFixture fixture,ITestOutputH
         EnsureShaderTestAvailable();
         var settings=CloudVolumeSettings.Default with {ViewRaySampleMax=4,ViewRaySampleMin=4,StopTransmittance=threshold};
         using var view=CreateScene(1,1,settings);
-        view.Capture(0,extinction,10,.125f,0,"homogeneous");view.Render(0,false);
+        view.Capture(0,extinction,10,.125f,0,"homogeneous");view.Render(0,false,includeReference:true);
         const float step=37.5f;
         float transmission=1,radiance=0,alpha=1-MathF.Exp(-(extinction/50)*step);
         float[] bins=[1,1,1];int integrated=0;
@@ -133,8 +133,7 @@ public sealed class CloudTerminationTests(HeadlessGLFixture fixture,ITestOutputH
 
     /// <summary>Creates tiny targets and the actual shader owners with an immutable termination selection.</summary>
     private CloudReconstructionScene CreateScene(int width,int height,CloudVolumeSettings settings)=>new(width,height,
-        Programs.Create<CloudVolumeProgram>(),Programs.Create<CloudTraceProgram>(),Programs.Create<CloudTemporalProgram>(),
-        Programs.Create<CloudResolveProgram>(),false,4,settings:settings);
+        Programs,false,4,settings:settings);
 
     /// <summary>Compares one prescribed arithmetic result within binary32 accumulation precision.</summary>
     private static void Close(float expected,float actual)=>Assert.InRange(MathF.Abs(expected-actual),0,MathF.Max(1,MathF.Abs(expected))*2e-5f);

@@ -50,7 +50,7 @@ public sealed class CloudTemporalHistoryTests
     [InlineData("owner")][InlineData("world")][InlineData("allocation")][InlineData("upload")][InlineData("shader")]
     [InlineData("gap")][InlineData("lighting")][InlineData("quality")][InlineData("medium")]
     [InlineData("primary-max")][InlineData("primary-min")][InlineData("primary-distance")]
-    [InlineData("light-max")][InlineData("shadow-distance")][InlineData("termination")]
+    [InlineData("light-max")][InlineData("shadow-distance")][InlineData("termination")][InlineData("trace-scale")]
     [InlineData("resize")][InlineData("cut")][InlineData("missing")][InlineData("calibration")]
     public void RejectsIncompatibleHistory(string change)
     {
@@ -70,6 +70,7 @@ public sealed class CloudTemporalHistoryTests
         if(change=="light-max") quality=quality with { LightRaySampleMax=12 };
         if(change=="shadow-distance") quality=quality with { ShadowDistance=3000 };
         if(change=="termination") quality=quality with { StopTransmittance=0 };
+        if(change=="trace-scale") quality=quality with {TraceScale=CloudTraceScale.Quarter};
         if(change=="medium") parameters.CaptureLighting(light,1,new(.1f,0,0,0),Vector3.Zero);
         if(change=="missing") h.Invalidate();
         using var current=Camera(b.Frame,change=="resize"?10:9,change=="cut");

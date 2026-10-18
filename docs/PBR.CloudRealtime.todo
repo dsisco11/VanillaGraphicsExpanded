@@ -194,7 +194,7 @@ Phase 4: Use practical transmittance termination and qualify OIT error
 
 Phase 5: Trace fewer screen positions and reconstruct missing information
   Depends on Phase 4. Outcome: a quality selection traces quarter view dimensions.
-  ☐ Add quarter-width/quarter-height tracing with half-dimension temporal reconstruction and
+  ☑ Add quarter-width/quarter-height tracing with half-dimension temporal reconstruction and
     full-resolution depth-aware texture-only resolve; retain half-dimension and explicit full-view
     reference selections for quality comparison through existing settings/resource owners.
     - Generalize CloudVolumeStorage, CloudVolumeReconstruction, CloudTemporalHistory, parameters,
@@ -208,11 +208,14 @@ Phase 5: Trace fewer screen positions and reconstruct missing information
       products and once-only encoding. Handle odd/small extents and foreground/liquid discontinuities.
     - Reuse allocations and fixed attachments in stable frames; invalidate/recreate only for actual
       quality/layout/lifetime changes. Update nominal storage limits without claiming resident bytes.
-  ☐ Verify camera/cloud motion, recentering, thin silhouettes, newly exposed cloud, camera cuts,
-    changing weather/light, resize and mode switches against half/full-view references.
-  ☐ Qualify quarter-dimension quality before selecting the shipped default; record any scene where
-    half-dimension tracing remains necessary instead of silently abandoning inside-cloud acceptance.
-  ☐ Completion: trace-position count is approximately one-sixteenth of full view in the new mode,
+  ☑ Verify the new phase mapping, unsampled history/current arithmetic, independent foreground clips,
+    allocation reuse, resize and scale switches through existing GPU abstractions. Reuse existing
+    motion/history and OIT coverage; do not add a large scene matrix that only logs differences.
+    Half/full-view appearance comparisons belong to final user qualification, not mandatory tests.
+  ☑ Retain Half as the shipped default and expose Quarter for diagnostic comparison. Any later
+    default change requires user appearance review, including inside-cloud views and scenes where
+    Half remains necessary; keep that qualification open in the final acceptance work.
+  ☑ Completion: trace-position count is approximately one-sixteenth of full view in the new mode,
     reconstruction correctness passes and no fallback hides unbudgeted transport work. Approximation
     comparisons do not enforce automated quality; shipped selection still requires user appearance review.
 
@@ -765,3 +768,55 @@ Phase 4 implementation and verification (2026-10-18)
   Completion -> second source/test/document review and independent linked-document completion
     audit pass on the final candidate. Phase 4 is complete; Phase 5 and later implementation,
     measured-performance, final-selection and user appearance gates remain unchecked.
+
+Phase 5 implementation and verification (2026-10-18)
+  Layout/controls -> Quality selections and clean-break settings; volumetric proposal Quality;
+    PBR.Clouds.md Reconstruction and controls -> Half remains default, Quarter is explicit, and
+    full-view history-free reference overrides either scale. Actual ceil-quarter trace and ceil-half
+    reconstruction extents are independent. Four phases select positions in the half grid, including
+    clamped odd edges. The eight-frame primary noise index remains independent.
+  Reconstruction -> inherited density/geometry, atmosphere publication and native OIT contracts ->
+    one fixed quarter trace block and two alternating half histories use actual program bindings.
+    Current destination material/visibility/liquid clips admit bounded current neighborhoods and
+    compatible history. All optical factors share weights; projected support and current destination
+    depth accompany them. Missing support yields neutral OIT, never a hidden transport march.
+    Resolve forms each tap's native products before interpolation and encodes RGB once at submission.
+  Lifetime/storage -> archived hierarchy ownership and parent lifecycle requirements -> stable
+    allocations/attachments persist; only successful OIT commit advances history roles. Layout
+    changes/reset retire both owned arrays while borrowed native/depth inputs survive. Combined
+    nominal bytes are 48*tracePixels+96*historyPixels for Quarter, 144*historyPixels for Half,
+    bounded to 1 GiB before creation; this is not measured resident memory.
+  Correctness -> current correctness-only policy and Phase 5 verification -> four focused GPU tests
+    cover actual odd-edge phase/depth identities, independently authored shared weights and history
+    blending, all three foreground clips, and once-only encoding. Existing history and OIT tests
+    retain their distinct contracts. Production scheduler checks cover reuse, commit/rejection,
+    scale/resize/reset retirement and recovery in both lighting selections.
+  Test scope correction -> user direction -> removed the nineteen-scene diagnostic matrix and
+    consolidated repeated shader setups. The scene loads programs only for passes exercised, and
+    direct reference transport is explicitly requested only where its result is asserted. Payload
+    staging/upload, mip/target clearing and binding observation use existing GPU/state abstractions.
+    Half/full appearance comparisons remain final qualification work; no quality gates were added.
+    Sparse current neighborhoods can conservatively reject old detail. The interrupted full GPU
+    attempt has no completion receipt and is not counted as passing; earlier candidate receipts do
+    not establish correctness of this revised fixture. No appearance or performance benefit is inferred.
+  Revised validation -> artifacts/CloudRealtime/phase5/cleanup-commands.json and
+    cleanup-result-summary.json -> incremental Release test builds pass with zero errors; 30 unique
+    focused cases pass across cleanup-focused.trx and cleanup-final-probes.trx. The four Quarter
+    tests sum to 1.04 seconds, the seven existing temporal cases to .95 seconds. These are summed
+    headless test durations, not renderer GPU timings or game-performance evidence. The shared
+    fixture, scheduler, odd-depth/mip, secondary coherence, exact payload and retirement paths pass.
+    The PSO cloud observer passes with its documented process-only COMPlus_JitNoInline=1; its
+    initial missing-observer-event failure remains recorded, without weakening the assertion.
+    Canonical Release/package and 458 production/538 test shader validation remain applicable to
+    unchanged runtime/shaders; 172 CPU and 31 catalog checks retain their unchanged-contract scope.
+    The revised test fixture is qualified by focused current receipts, not the interrupted full run.
+  Identity -> cleanup-final-identity.json -> runtime DLL matches the published/packaged/zipped
+    DB4766959F800BF899A0E3EF0D226DEE60E9D48A49C8C7E56CD047E42DCF8EC1 candidate and
+    runtime/build/shader inputs are unchanged. Eight intentional test/helper edits predate the final
+    build; test DLL A3131506E6717E27B6A61A3E78FF28380899A08377EC5C8B547745E37545FAE9
+    predates the final probes. Current source hashes and timestamp ordering are retained; there is
+    no earlier post-cleanup hash baseline, and no claim of a completed full GPU run.
+  Completion -> second source/test/document review and independent linked-document completion
+    audit pass on the revised candidate. Phase 5 implementation is complete with focused correctness
+    receipts; Half remains default. Phase 6 and later implementation, measured performance, final
+    selection and user appearance qualification remain unchecked.

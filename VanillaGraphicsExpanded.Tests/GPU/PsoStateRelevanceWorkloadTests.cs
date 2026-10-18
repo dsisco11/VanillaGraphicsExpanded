@@ -57,10 +57,9 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         if (workload == "cloud")
         {
             using var programs = new ComponentShaderPrograms();
-            using var scene = new CloudReconstructionScene(8, 8, programs.Create<CloudVolumeProgram>(), programs.Create<CloudTraceProgram>(),
-                programs.Create<CloudTemporalProgram>(), programs.Create<CloudResolveProgram>(), false, 4);
+            using var scene = new CloudReconstructionScene(8, 8, programs, false, 4);
             scene.Capture(0, .125f, 10, 1, 0, "detail-lit");
-            return Measure(() => scene.Render(0, false), () => [.. scene.ReadDefault(), .. scene.ReadReference(), .. scene.ReadTraceRecord(), .. scene.ReadHistory()]);
+            return Measure(() => scene.Render(0, false, includeReference:true), () => [.. scene.ReadDefault(), .. scene.ReadReference(), .. scene.ReadTraceRecord(), .. scene.ReadHistory()]);
         }
         return PointResolve();
     }

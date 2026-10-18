@@ -12,6 +12,8 @@
   "config-cloud-view-distance-tooltip": "World distance at which cloud rays reach their maximum sample count (50–10000).",
   "config-cloud-light-ray-max": "Cloud shadow sample maximum",
   "config-cloud-light-ray-max-tooltip": "Maximum density evaluations per solar or lunar shadow ray (2–64).",
+  "config-cloud-trace-scale": "Cloud trace scale",
+  "config-cloud-trace-scale-tooltip": "Trace at half (2) or quarter (4) view dimensions, reconstructing at half dimensions. Full-resolution reference overrides this selection.",
   "config-cloud-stop-transmittance": "Cloud stop transmittance",
   "config-cloud-stop-transmittance-tooltip": "Stop after a cloud step leaves less than this fraction of light transmitted (0–0.005). Zero disables early termination.",
   "config-cloud-shadow-distance": "Cloud shadow distance",

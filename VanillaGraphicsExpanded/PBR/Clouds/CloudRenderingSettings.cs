@@ -13,6 +13,8 @@ public sealed class CloudRenderingSettings
     [JsonProperty] public int ViewRaySampleMin { get; set; } = 2;
     /// <summary>Defines the world distance over which the primary count reaches its maximum.</summary>
     [JsonProperty] public float ViewBudgetDistance { get; set; } = 50;
+    /// <summary>Selects half or quarter view dimensions for tracing, with half-dimension reconstruction.</summary>
+    [JsonProperty] public CloudTraceScale TraceScale { get; set; } = CloudTraceScale.Half;
     /// <summary>Bypasses reduced tracing and history for direct full-resolution comparison.</summary>
     [JsonProperty] public bool FullResolutionReference { get; set; }
     /// <summary>Bounds complete-ray secondary samples independently of native grid crossings.</summary>
@@ -34,6 +36,7 @@ public sealed class CloudRenderingSettings
     /// <summary>Bounds persisted input before it controls shader work; nonfinite values restore authored defaults.</summary>
     public void Sanitize()
     {
+        if(TraceScale is not (CloudTraceScale.Half or CloudTraceScale.Quarter)) TraceScale=CloudTraceScale.Half;
         ViewRaySampleMax=Math.Clamp(ViewRaySampleMax,4,384);
         ViewRaySampleMin=Math.Clamp(ViewRaySampleMin,1,Math.Min(16,ViewRaySampleMax));
         ViewBudgetDistance=float.IsFinite(ViewBudgetDistance)?Math.Clamp(ViewBudgetDistance,50,10000):50;
@@ -48,7 +51,7 @@ public sealed class CloudRenderingSettings
     internal CloudVolumeSettings Capture()
     {
         Sanitize();
-        return CloudVolumeSettings.Default with { LightRaySampleMax=LightRaySampleMax,ShadowDistance=ShadowDistance,StopTransmittance=StopTransmittance,Detail=Detail,
+        return CloudVolumeSettings.Default with { LightRaySampleMax=LightRaySampleMax,ShadowDistance=ShadowDistance,StopTransmittance=StopTransmittance,TraceScale=TraceScale,Detail=Detail,
             DetailAmplitude=DetailAmplitude,EdgeWidth=EdgeWidth,NoiseScale=NoiseScale,
             ViewRaySampleMax=ViewRaySampleMax,ViewRaySampleMin=ViewRaySampleMin,ViewBudgetDistance=ViewBudgetDistance };
     }

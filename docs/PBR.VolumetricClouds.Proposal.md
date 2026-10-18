@@ -315,7 +315,10 @@ must use their own camera/depth contract and must not reuse main-view history bl
 ## Quality and temporal behavior
 
 The approved default for Volumetric mode is half-resolution tracing (half the view width and
-height), with temporal reconstruction and depth-aware upsampling to full resolution. Preserve
+height), with temporal reconstruction and depth-aware upsampling to full resolution. An optional
+quarter-dimension trace selection reconstructs the half-dimension grid over a four-frame 2x2 cycle,
+then uses the same full-view texture-only resolve. Retain Half as the default pending user appearance
+review; comparison results impose no automated approximation-quality threshold. Preserve
 silhouettes, disocclusion and in-cloud movement, and reconstruct the cloud contributions needed by
 the existing OIT contract rather than flattening them into a single depthless color overlay.
 

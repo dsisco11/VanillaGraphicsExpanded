@@ -36,7 +36,9 @@ public sealed class CloudShaderBindingsTests
         foreach(string name in new[] { "cloud_volume_trace.fsh", "cloud_volume.fsh", "cloud_volume_temporal.fsh", "cloud_volume_resolve.fsh", "cloud_simple.fsh" })
             Assert.False(stages.Single(stage=>stage.Identity==name).Bindings.Samplers.ContainsKey("cloudPmjJitter"));
         var temporal=stages.Single(stage=>stage.Identity=="cloud_volume_temporal.fsh").Bindings;
-        Assert.Equal(2,temporal.Samplers.Count);
+        Assert.Equal(5,temporal.Samplers.Count);
+        foreach(var (name,slot) in new[]{("sceneDepth",1),("visibilityDepth",6),("liquidDepth",2)})
+            Assert.Equal((slot,true),(temporal.Samplers[name].Slot,temporal.Samplers[name].Required));
         Assert.Equal((0,true),(temporal.Samplers["currentPayload"].Slot,temporal.Samplers["currentPayload"].Required));
         Assert.Equal((7,true),(temporal.Samplers["historyPayload"].Slot,temporal.Samplers["historyPayload"].Required));
         var resolve=stages.Single(stage=>stage.Identity=="cloud_volume_resolve.fsh").Bindings;

@@ -17,5 +17,14 @@ internal interface ICloudTemporalBindings : ICloudHistoryBindings
     /// <summary>Borrows the current trace block through a view disjoint from the history destination.</summary>
     [ShaderBinding("currentPayload",ShaderBindingKind.Sampler,0,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2DArray,Sampler=ShaderSamplerPolicy.NearestClamp)]
     GpuTextureView? CurrentPayload { set; }
+    /// <summary>Checks unsampled reconstruction locations against current material depth.</summary>
+    [ShaderBinding("sceneDepth",ShaderBindingKind.Sampler,1,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
+    int SceneDepth { set; }
+    /// <summary>Retains opaque particle visibility independently of corrected material depth.</summary>
+    [ShaderBinding("visibilityDepth",ShaderBindingKind.Sampler,6,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
+    int VisibilityDepth { set; }
+    /// <summary>Rejects current/history support behind a newly exposed liquid clip.</summary>
+    [ShaderBinding("liquidDepth",ShaderBindingKind.Sampler,2,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
+    int LiquidDepth { set; }
     #endregion
 }

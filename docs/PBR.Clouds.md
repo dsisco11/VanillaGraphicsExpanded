@@ -188,7 +188,7 @@ are a separate cloud-owned resource. Shared resource reuse alone does not establ
 
 Volumetric mode defaults to ceil-half width/height tracing with a rotating 2x2 pixel phase,
 bounded temporal accumulation and depth-aware full-view reconstruction. `CloudVolumeReconstruction`
-owns one immutable nine-layer RGBA32F `Texture2DArray`, with three disjoint three-layer views.
+owns one immutable nine-layer RGBA32F `Texture2DArray` for the Half selection, with three disjoint three-layer views.
 Each view has a persistent framebuffer with its three local layers attached to the payload outputs.
 Layer zero stores integrated physical RGB radiance with overall transmission in alpha; layer one
 stores three bucket transmissions with a zero spare channel. Layer two stores first/last
@@ -197,9 +197,23 @@ and interpolation weights. Temporal sampling binds the current trace and previou
 resolve binds the newly filtered history view. Typed view bindings reject overlap with active
 framebuffer images, and active target passes borrow both their view and the shared storage owner.
 
-The three blocks rotate between current trace, previous history and next history after successful
+The optional Quarter selection traces ceil-quarter view width/height into one three-layer array,
+then reconstructs ceil-half view width/height into two alternating three-layer history blocks in a
+separate six-layer array. Each frame observes one position in every 2x2 half-grid block; four frames
+complete the cycle. The representative full-view coordinates of half-grid history stay fixed.
+Odd edges clamp scheduled positions to the actual reconstruction extent; tiny views remain valid.
+At each half-grid destination, current depth rejects incompatible trace taps. A bounded 3x3 trace
+neighborhood supplies shared optical weights and a current envelope. Sampled positions blend
+accepted history with weight .75; unsampled positions reuse accepted history with weight 1, clamped
+to that envelope. Without compatible history, compatible current taps supply the reconstruction.
+No compatible current support produces neutral OIT and cannot resurrect stale history. Support
+intervals are projected between neighboring rays and clipped to destination foreground; metadata
+records the destination's current depth. This conservative neighborhood rejection can discard valid
+old cloud detail when sparse current observations do not cover it.
+
+The three Half blocks rotate between current trace, previous history and next history after successful
 OIT submission and history commit. A skipped or failed draw invalidates content history without
-advancing block roles. The block cursor is independent of the sampling frame index. Framebuffer
+advancing block roles. Quarter keeps its trace block fixed and alternates only its two history blocks. The block cursor is independent of the sampling frame index. Framebuffer
 attachments stay fixed as roles rotate; each block caches its trace and temporal PSOs separately.
 Internal passes use replacement writes and never sample live native OIT accumulation. Resolve
 reconstructs each admitted reduced tap's native accumulations as
@@ -220,7 +234,7 @@ differences distinguish camera/cloud movement from grid recentering. History req
 frames and compatible owner/world/allocation/shader, extent/projection, calibration, medium,
 settings and completed lighting. Monotonic routine uploads may retain history, with current
 support/depth and optical-change checks on the GPU. Cuts, missing input, replacements, mode
-release, reload and reset invalidate history. Accepted history has weight .75, clamped to a
+release, reload and reset invalidate history. Changing trace scale replaces incompatible allocations. Half accepted history has weight .75, clamped to a
 compatible current neighborhood; attenuation jumps above .05 reject it. Spatial reconstruction
 uses four phase-aware reduced samples and current opaque/liquid depth. Foreground distances
 reject incompatible samples; both optical payload images share normalized weights, including clear
@@ -235,7 +249,8 @@ The persisted `Clouds` config and ConfigLib expose:
 
 | Control | Default | Bounds/meaning |
 | --- | --- | --- |
-| `FullResolutionReference` | false | Full view, midpoint transport, no history or upsampling |
+| `FullResolutionReference` | false | Full view, midpoint transport, no history or upsampling; overrides trace scale |
+| `TraceScale` | Half (2) | Half or Quarter (4) view dimensions; reconstruction stays half dimensions |
 | `ViewRaySampleMax` | 384 | 4..384 primary points across the complete clipped ray |
 | `ViewRaySampleMin` | 2 | 1..min(16,max) points for short positive spans |
 | `ViewBudgetDistance` | 50 | 50..10000 world units; distance at which the maximum applies |
@@ -267,7 +282,8 @@ establish a speedup, particularly on short rays.
 Reduced targets and pipelines persist across stable frames. Resize/reload retire their owned
 resources; wrappers never delete engine attachments. Allocation is bounded before creation to
 view dimensions <=16,384 and nominal trace/history image storage <=1 GiB. The three sets require
-144 bytes per reduced pixel, excluding native producer data and other resources. This is a
+144 bytes per half-grid pixel for Half. Quarter requires 48 bytes per quarter-grid pixel plus
+96 bytes per half-grid pixel, excluding native producer data and other resources. This is a
 calculated texel allocation, not measured resident memory. Full-view resolve is bounded
 texture reconstruction; density and light marching are confined to reduced tracing or the explicit
 reference mode. Performance requires GPU measurement and is not established by allocation bounds.

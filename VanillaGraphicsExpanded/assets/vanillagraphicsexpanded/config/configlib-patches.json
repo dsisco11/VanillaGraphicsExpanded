@@ -251,6 +251,16 @@
         "weight": 25.31,
         "range": { "min": 50, "max": 10000, "step": 50 }
       },
+      "CLOUD_TRACE_SCALE": {
+        "code": "Clouds.TraceScale",
+        "clientSide": true,
+        "name": "Clouds/TraceScale",
+        "ingui": "vanillagraphicsexpanded:config-cloud-trace-scale",
+        "comment": "vanillagraphicsexpanded:config-cloud-trace-scale-tooltip",
+        "default": 2,
+        "weight": 25.01,
+        "values": [2, 4]
+      },
       "CLOUD_STOP_TRANSMITTANCE": {
         "code": "Clouds.StopTransmittance",
         "clientSide": true,

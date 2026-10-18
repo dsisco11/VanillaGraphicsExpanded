@@ -7,28 +7,7 @@
 @import "./includes/cloud_history.glsl"
 @import "./includes/cloud_depth.glsl"
 
-/** Reconstructs camera-axis foreground distance so planar surfaces agree across neighboring rays. */
-float CloudResolveDepth(vec2 uv,float depth)
-{
-    vec4 p=vgeFrame.invProjectionMatrix*vec4(uv*2.0-1.0,depth*2.0-1.0,1);
-    return abs(p.z/p.w);
-}
-
-/** Rejects foreground discontinuities, while allowing clouds wholly in front of both clips. */
-float CloudResolveWeight(vec4 meta,vec2 sampleUv,vec2 currentDepth,float limit)
-{
-    if(any(isnan(meta))||any(isinf(meta))) return 0.0;
-    vec4 direction=vgeFrame.invProjectionMatrix*vec4(sampleUv*2.0-1.0,1,1);
-    float cloudFar=meta.y*abs(direction.z)/length(direction.xyz);
-    // A partially occluded reduced ray cannot be split into front/back radiance during reconstruction.
-    // Reject it conservatively rather than leaking integrated background cloud over new geometry.
-    if(meta.y>0.0&&cloudFar>limit+max(.01,limit*.0001)) return 0.0;
-    vec2 sampleDistance=vec2(CloudResolveDepth(sampleUv,meta.z),CloudResolveDepth(sampleUv,meta.w));
-    if(meta.y>0.0&&cloudFar<min(limit,min(sampleDistance.x,sampleDistance.y))-2.0) return 1.0;
-    vec2 difference=abs(sampleDistance-currentDepth)/max(vec2(2),currentDepth*.01);
-    float error=max(difference.x,difference.y);
-    return error<=1.0?1.0/(1.0+error):0.0;
-}
+@import "./includes/cloud_reconstruction_support.glsl"
 
 /** Reconstructs each tap's native products before interpolation to retain spatial color/coverage covariance. */
 void CloudResolveAccumulate(inout vec4 value[4],ivec2 pixel,float weight)
@@ -48,10 +27,11 @@ void main()
 {
     if(!VgeFrameLightingValid(vgeFrame.frameIndex,VgeLightingCalibrationGeneration())) discard;
     vec2 uv=gl_FragCoord.xy/vgeFrame.screenSize;
-    vec2 depth=vec2(CloudResolveDepth(uv,CloudOpaqueDepth(uv)),
-        CloudResolveDepth(uv,textureLod(liquidDepth,uv,0.0).r));
+    vec2 depth=vec2(CloudReconstructionDepth(uv,CloudOpaqueDepth(uv)),
+        CloudReconstructionDepth(uv,textureLod(liquidDepth,uv,0.0).r));
     float limit=min(depth.x,depth.y);
-    vec2 position=(gl_FragCoord.xy-cloudTrace.zw-vec2(.5))*.5;
+    vec2 phase=cloudLayout.z>1.5?vec2(0):cloudTrace.zw;
+    vec2 position=(gl_FragCoord.xy-phase-vec2(.5))*.5;
     ivec2 base=ivec2(floor(position)),size=ivec2(cloudTrace.xy); vec2 f=fract(position);
     vec4 value[4]; for(int i=0;i<4;i++) value[i]=vec4(0);
     float total=0.0;
@@ -59,7 +39,7 @@ void main()
     {
         ivec2 pixel=clamp(base+ivec2(x,y),ivec2(0),size-1);
         vec4 meta=CloudHistoryFetch(2,pixel);
-        float weight=CloudResolveWeight(meta,CloudTraceUv(pixel,cloudTrace.zw),depth,limit)
+        float weight=CloudReconstructionWeight(meta,CloudReconstructionUv(pixel,cloudTrace.zw),depth,limit)
             *(x==0?1.0-f.x:f.x)*(y==0?1.0-f.y:f.y);
         if(weight<=0.0) continue;
         total+=weight;
@@ -74,8 +54,8 @@ void main()
         for(int y=-1;y<=1;y++) for(int x=-1;x<=1;x++)
         {
             ivec2 pixel=clamp(center+ivec2(x,y),ivec2(0),size-1);
-            vec2 sampleUv=CloudTraceUv(pixel,cloudTrace.zw);
-            float weight=CloudResolveWeight(CloudHistoryFetch(2,pixel),sampleUv,depth,limit);
+            vec2 sampleUv=CloudReconstructionUv(pixel,cloudTrace.zw);
+            float weight=CloudReconstructionWeight(CloudHistoryFetch(2,pixel),sampleUv,depth,limit);
             if(weight<=0.0) continue;
             vec2 delta=(sampleUv-uv)*vgeFrame.screenSize;
             float score=dot(delta,delta)/weight;
