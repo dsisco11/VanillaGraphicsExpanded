@@ -226,18 +226,27 @@ Phase 6: Amortize atmospheric and repeated density/phase evaluation
       bucket needs a representative distance. Do not flatten the volume to a depthless overlay.
     - Compare to existing per-sample transport for deep clouds, foreground/translucent overlap,
       horizon, underwater and changing fog; choose bounded extra distance evaluations if needed.
+    - Test the specified representative-distance formula, OIT bookkeeping and once-only encoding
+      independently. Differences from per-sample transport are diagnostics for measured-cost and
+      user appearance review, not automated approximation-error or fidelity acceptance gates.
   ☐ Hoist fixed directional phase evaluation to once per primary ray/light and reuse it for every
     occupied sample. Check generated shader behavior so compiler hoisting is not claimed as new savings.
-  ☐ Reduce repeated cloud_volume_density.glsl work while preserving the density definition.
+  ☐ Reduce repeated cloud_volume_density.glsl work; equivalent optimizations preserve the density field.
     - Reuse neighboring column descriptors within a sampled interval; retain height-dependent
       occupancy tests and native validity rules. Avoid neighbor lookups when they cannot affect erosion.
     - Skip noise when amplitude is zero and skip detailed work when cheap support proves zero density.
       Retain shared-face continuity, cubic bounds and world/wind anchoring for view and light rays.
     - Measure before changing procedural noise to a reusable noise texture; such a texture supplies
-      detail only, not a complete density volume. Qualify any replacement's statistics/appearance
-      separately and retain the current noise if no measured benefit justifies the change.
-  ☐ Completion: atmospheric composition/OIT correctness and exact density/phase equivalence checks
-    pass; approximation differences are diagnostic and attributed savings come from measurements.
+      detail only, not a complete density volume. A texture reproducing the current field requires
+      same-field equivalence checks. An intentional noise-field replacement is a separate approximation
+      choice: record statistical/output differences diagnostically and obtain user appearance review,
+      without automated spectral-quality or fidelity thresholds. Both choices retain native support,
+      connected faces, anchoring and the shared view/light density definition. Retain current noise
+      if no measured benefit justifies replacement.
+  ☐ Completion: specified atmospheric composition/OIT arithmetic passes correctness checks;
+    density-preserving optimizations and phase hoisting pass same-algorithm equivalence checks.
+    Intentional atmosphere/noise approximation changes have diagnostic comparisons and the stated
+    review evidence rather than old-output equivalence gates. Attributed savings come from measurements.
 
 Phase 7: Make acceleration optional and efficient for the new integration schedule
   Depends on Phase 6. Outcome: empty-space rejection helps without repeated dense-path overhead.
@@ -265,8 +274,11 @@ Phase 7: Make acceleration optional and efficient for the new integration schedu
       selection inputs, transitions, resource demand and any remaining workload regressions.
     - If the tree is retired, remove its unused production resources/program registration and update
       current architecture/catalog contracts; retain only useful independent validation or benchmarks.
-  ☐ Completion: acceleration preserves the new transport results within declared numerical limits,
-    total costs support the selected policy and dense/inside-cloud regressions are resolved or open.
+  ☐ Completion: acceleration preserves the same scheduled evaluations and transport results, with
+    tolerances limited to floating-point evaluation differences in equivalent implementations.
+    These are correctness checks, not acceptable approximation-error limits; sample placement,
+    conservative support and clipping contracts remain unchanged. Total costs support the selected
+    policy and dense/inside-cloud regressions are resolved or open.
 
 Phase 8: Qualify the complete renderer and reconcile acceptance
   Depends on Phase 7. Outcome: the combined policy has reproducible quality and performance evidence.
