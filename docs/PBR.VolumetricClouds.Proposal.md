@@ -6,6 +6,15 @@ does not by itself authorize runtime implementation.
 
 Implementation checklist: [PBR.VolumetricClouds.todo](PBR.VolumetricClouds.todo).
 
+The [realtime work checklist](PBR.CloudRealtime.todo) defines the follow-up bounded quality policy.
+Its policy specifies uniform primary distance steps with blue-noise ray offsets and deterministic
+midpoints of quadratic shadow intervals. It supersedes per-column sampling and PMJ requirements
+for that future integrator and qualifies quarter-dimension tracing before changing the default here.
+Exact arbitrary-column attenuation below remains a legacy/reference property; fixed-step production
+integration uses the stated numerical quality criteria, including for detail-disabled discontinuities.
+The current renderer retains its existing behavior until those implementation tasks are verified.
+Native ownership, density support, physical inputs, OIT and deferred cast-shadow scope still apply.
+
 The settled design uses separate VGE-owned Simple and Volumetric shaders, native mesh/column
 geometry, roughly cubic volumetric clouds with restrained shader noise, and existing OIT composition.
 Volumetric mode uses half-resolution tracing with temporal reconstruction and depth-aware upsampling,

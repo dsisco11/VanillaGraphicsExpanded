@@ -5,6 +5,13 @@ Status: approved design. This document describes the design; implementation plan
 Related architecture: [PBR.Clouds.md](PBR.Clouds.md).
 Implementation checklist: [PBR.CloudHierarchy.todo](PBR.CloudHierarchy.todo).
 
+The [realtime work checklist](PBR.CloudRealtime.todo) defines a follow-up integrator and acceleration
+policy. The unchanged occupied sample counts and PMJ indices specified below govern the original
+hierarchy equivalence contract. Future acceleration instead holds the uniform primary lattice,
+blue-noise ray offset and deterministic quadratic-interval shadow midpoints fixed;
+it may retain cheap rejection or column traversal when measured total cost does not justify a tree.
+Any retained summaries keep the conservative bounds, source certification and ownership rules here.
+
 ## Purpose
 
 Accelerate volumetric view and secondary-light rays by skipping groups of native cloud columns

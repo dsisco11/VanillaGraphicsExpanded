@@ -7,7 +7,10 @@ Authority and scope
   Inherited contracts: docs/PBR.VolumetricClouds.Proposal.md, docs/PBR.CloudHierarchy.Proposal.md,
     docs/PBR.Atmosphere.Publication.md and the existing native six-attachment OIT contract.
   Related checklists: docs/PBR.VolumetricClouds.todo and docs/PBR.CloudHierarchy.todo.
-  This is planning only. Every task below is unchecked; no runtime implementation is implied.
+  Paths prefixed docs/, artifacts/ or VanillaGraphicsExpanded/ are repository-root references;
+    sibling Markdown links resolve from the containing document's directory.
+  Phase 1 establishes the measured baseline and quality policy without changing production rendering.
+  Runtime implementation belongs to the subsequent increments; completion requires their own evidence.
   Use bounded ray budgets, reduced tracing, practical termination and amortized transport
     while retaining VGE's native 2D column envelope and procedural density detail.
   This follow-up intentionally revisits the inherited fixed half-resolution default and preservation
@@ -47,28 +50,28 @@ Technical direction
 
 Phase 1: Freeze baseline and specify bounded quality policy
   Outcome: the implementation has explicit work limits, comparison modes and numerical criteria.
-  ☐ Reverify current VGE source and the technical direction, recording source identities and settings.
+  ☑ Reverify current VGE source and the technical direction, recording source identities and settings.
     - Trace CloudVolumeSettings/CloudRenderingSettings, CloudVolumeParameters, CloudIntegrate,
       CloudLightDepth, CloudHierarchySeek, reconstruction, history and atmospheric/OIT composition.
     - Treat artifacts/CloudHierarchy/phase6-512-result-summary.json as historical controlled evidence;
       establish a fresh candidate rather than assigning its timings to changed current sources.
-  ☐ Freeze a current baseline and record hardware, resolution, settings, shader selection and hashes.
+  ☑ Freeze a current baseline and record hardware, resolution, settings, shader selection and hashes.
     - Measure view/secondary work, hierarchy construction, trace, temporal, resolve, CPU submission
       and total owned cost. Diagnostic counters must be opt-in and excluded from final timed binaries.
     - Reuse the benchmark scheduler; retain DDA/hierarchy matched comparisons and raw observations.
-  ☐ Define explicit whole-ray view/light budgets, distance scaling, short-ray minimums, finite caps,
+  ☑ Define explicit whole-ray view/light budgets, distance scaling, short-ray minimums, finite caps,
     independent shadow distance, termination error limits and reduced-resolution quality selections.
-    - Record world/metre conversion, how thin intervals survive, PMJ progression, and sampling policy
-      when many occupied intervals exceed a ray's budget. Do not silently truncate the far cloud.
+    - Record world/metre conversion, thin-feature sampling limits, primary jitter progression and
+      coverage of the complete clipped span. Do not truncate the ray when its budget is exhausted.
     - Define independent high-budget/reference modes and quantitative radiance, attenuation, all
       OIT-channel, depth and temporal acceptance limits before tuning against candidate outputs.
     - Plan migration of persisted ViewSamples/LightSamples: their old per-column meanings cannot
       silently become whole-ray counts of four/one. Validate legacy, missing and invalid settings.
     - Use a .005 threshold and quarter-dimension trace as starting candidates, not established
       safe defaults. Select actual budgets/distances from VGE scene scale and measured quality.
-  ☐ Reconcile the inherited proposal/checklist clauses being revised and map every finding below
+  ☑ Reconcile the inherited proposal/checklist clauses being revised and map every finding below
     to its implementation/verification task. Preserve unaffected ownership and physical contracts.
-  ☐ Completion: a reproducible baseline, bounded policy, migration rules and numerical acceptance
+  ☑ Completion: a reproducible baseline, bounded policy, migration rules and numerical acceptance
     criteria exist; neither prior timings nor new policy choices are reported as delivered behavior.
 
 Phase 2: Bound primary integration independently of native grid crossings
@@ -77,12 +80,17 @@ Phase 2: Bound primary integration independently of native grid crossings
     bounded distance-scaled primary policy; distinguish geometry traversal from shading samples.
     - Clip the supported ray before budgeting; support camera-inside, thin/short intervals, grazing
       rays, near foreground clips and finite-map exits. Never extend native border columns.
-    - Preserve actual segment lengths and extinction units. Keep exact constant-column optical
-      depth as an independently verifiable property of the detail-disabled path.
-    - Specify coverage-aware interval integration so narrow occupied columns are not silently
-      lost between global samples. Traversal visits do not reset or multiply the shading budget.
-    - Define deterministic sample identities and PMJ stratification under the new schedule, independent
-      of hierarchy node visits. Keep midpoint validation separate from stochastic convergence.
+    - Use uniform distance steps across the complete clipped span, including empty gaps, with one
+      spatial blue-noise offset per primary ray. Preserve segment lengths and extinction units.
+      Wire the noise asset through dedicated cloud program/binding and resource-lifetime contracts;
+      remove obsolete cloud PMJ bindings when the last legacy consumer is retired.
+      Secondary PMJ use may remain temporarily until Phase 3 replaces that integration path.
+    - Evaluate the actual shared density at each scheduled position. Use cheap native support checks
+      to reject empty samples, without redistributing them to occupied intervals or adding samples.
+      Narrow features can fall between samples; measure that finite-budget limitation explicitly.
+    - Keep the sample lattice independent of hierarchy visits. Retain exact optical depth for uniform
+      density fixtures; arbitrary discontinuous columns use an independent analytic reference for error
+      measurement, not a requirement for exact full-support integration at every production budget.
   ☐ Verify sample-count bounds and independent interval/transport results on empty/sparse/dense maps,
     odd dimensions, separated heights, tiny positive extinction, boundary ties and detail on/off.
     - Compare against the frozen baseline and a stable higher-budget oracle; document intentional
@@ -93,10 +101,11 @@ Phase 2: Bound primary integration independently of native grid crossings
 Phase 3: Bound secondary solar/lunar integration
   Depends on Phase 2. Outcome: every contributing light has an independent whole-ray work budget.
   ☐ Replace per-column secondary sample allocation in cloud_volume_light.glsl with bounded counts
-    and a separate physical tracing distance, clipped to the actual supported cloud domain.
-    - Use quadratic near-to-far sample distribution with correct segment weights; preserve
-      narrow occupied support and the same density definition as primary integration.
-    - Budget all occupied spans together, not one complete shadow budget per visited column.
+    and a separate physical tracing distance, with early exit at the actual supported cloud domain.
+    - Use quadratic distance interval boundaries and their arithmetic midpoints as shadow positions,
+      with density weighted by each interval's physical length. Do not square the midpoint index,
+      jitter shadows or move their samples according to occupancy/optical depth.
+    - Budget the complete bounded shadow span, not one complete budget per visited column.
       Preserve off-camera self-lighting; main-view scene-depth clips must not clip secondary rays.
     - Skip zero contributing sources before secondary setup. Assess any negligible-light cutoff
       against admitted physical radiance bounds rather than a hardcoded daylight assumption.
@@ -109,20 +118,22 @@ Phase 3: Bound secondary solar/lunar integration
   ☐ Completion: shadow sample counts/distance are bounded independently of occupied column count;
     self-shadow shape and the additional octave satisfy recorded quality limits.
 
-Phase 4: Terminate negligible work with an OIT-aware error bound
+Phase 4: Use practical transmittance termination and qualify OIT error
   Depends on Phase 3. Outcome: nearly saturated transport stops without corrupting transparency bins.
   ☐ Replace the fixed 1e-6 view predicate with a bounded/configured criterion evaluated at sample
     granularity, testing the .005 candidate against VGE output error limits.
-    - Bound remaining radiance using physical illumination/admission; include overall transmission,
-      all three bucket transmissions, reconstructed accumulation products and support metadata.
-    - If bucket convergence requires more samples, separate cheap attenuation/bin work from expensive
-      lighting work where the error bound permits; do not discard required far-bin contribution.
-    - Derive light optical-depth saturation for both direct and approximate-octave terms, including
-      zero occlusion and zero contribution endpoints. Keep finite arithmetic throughout.
+    - Stop the primary march after a sample when overall transmittance falls below the configured
+      threshold. Compare all bucket transmissions, reconstructed products, glow and support metadata
+      against threshold-disabled references; do not require a separate residual-support traversal.
+    - If the threshold fails required OIT quality limits, lower it and requalify. Do not add a second
+      attenuation march or an unrequested residual-bound subsystem to force the candidate to pass.
+    - Evaluate the bounded shadow sample schedule without optical-depth early termination initially.
+      Any later light-ray saturation shortcut needs separate measured benefit and quality justification,
+      including zero octave occlusion/contribution endpoints. Keep finite optical-depth arithmetic.
   ☐ Verify thick/thin, bright-source, translucent overlap, particle/liquid, inside-cloud and HDR cases
     against termination-disabled references, including the first saturated sample inside a column.
-  ☐ Completion: expensive work stops at the declared output-error bound; all six OIT outputs and
-    temporal support remain valid. A threshold value alone is insufficient acceptance.
+  ☐ Completion: threshold termination passes declared output-quality checks for all six OIT outputs
+    and temporal support. A candidate threshold alone is insufficient acceptance.
 
 Phase 5: Trace fewer screen positions and reconstruct missing information
   Depends on Phase 4. Outcome: a quality selection traces quarter view dimensions.
@@ -132,6 +143,8 @@ Phase 5: Trace fewer screen positions and reconstruct missing information
     - Generalize CloudVolumeStorage, CloudVolumeReconstruction, CloudTemporalHistory, parameters,
       trace UVs, phase scheduling, reprojection and resolve coordinates; remove hardcoded factor-two
       assumptions where they no longer apply. Separate trace and reconstruction dimensions.
+    - Quarter-dimension tracing supplies one of each 2x2 half-dimension reconstruction positions
+      per frame, completing a four-frame cycle. Do not infer a sixteen-frame cycle from full-view scale.
     - Reconstruct unsampled locations from compatible history/current support; do not merely blur
       a quarter-size image or launch hidden full-resolution density/light marches at disocclusions.
     - Preserve radiance/transmission and bucket covariance rules, shared payload weights, native OIT
@@ -180,12 +193,16 @@ Phase 7: Make acceleration optional and efficient for the new integration schedu
       advance across missed regions without replaying every skipped native grid boundary twice.
     - Preserve conservative geometry, boundary ties, parallel axes, padding, thin positive density
       and forward progress. Define numerical tolerances independently of old repeated-addition clocks.
+      Revisit the recorded baseline one-event secondary-counter discrepancies when validating
+      numerical progress; isolate instrumentation effects from actual missed or duplicated support.
     - Preserve the new sample schedule across acceleration choices; skipped empty nodes must not
-      change quadrature, PMJ identities or secondary work budgets. Retain safe bounded DDA fallback.
+      change quadrature, primary jitter or secondary midpoint positions. Retain bounded direct-march
+      fallback on the same lattice when summaries are unavailable; do not restore per-column budgets.
     - Keep certificates and generation rebuild rules for any retained summaries; never sample stale
       data. Stop allocating/building summaries when the selected policy has no active consumer.
   ☐ Select the production acceleration policy from matched measurements. Retain cheap rejection or
-    DDA where a tree does not pay for itself; do not require hierarchy use merely because it exists.
+    direct marching where a tree does not pay for itself; do not require hierarchy use merely because
+    it exists. Any DDA retained here locates support for the same scheduled points, not integration cells.
     - Avoid an unmeasured per-frame heuristic, CPU texture readback or settings polling. Record
       selection inputs, transitions, resource demand and any remaining workload regressions.
     - If the tree is retired, remove its unused production resources/program registration and update
@@ -222,7 +239,7 @@ Phase 8: Qualify the complete renderer and reconcile acceptance
     relative benefit and user acceptance exist; unresolved performance or appearance gates stay open.
 
 Final acceptance
-  ☐ Whole-ray primary/shadow budgets, finite secondary distance and practical output-aware
+  ☐ Whole-ray primary/shadow budgets, finite secondary distance and qualified threshold
     termination replace the identified unbounded-by-quality per-column work multiplication.
   ☐ Lower-resolution tracing, amortized atmosphere, repeated density/phase work and acceleration
     each have delivered behavior or an evidence-backed disposition against the stated objective.
@@ -232,3 +249,324 @@ Final acceptance
     lifecycle, existing OIT integration and both PBR modes satisfy inherited unaffected contracts.
   ☐ The parent remains unchecked while required live/performance gates or its separate reflected-
     cloud integration dependency remain outstanding. No headless result establishes live frame time.
+
+Bounded quality policy (implementation contract)
+  This section specifies future behavior; production continues to use per-column quality controls
+    until the corresponding implementation tasks are verified. Candidate defaults below are fixed
+    starting inputs for comparisons, not a claim of validated appearance or a shipped default.
+
+  Work accounting and units
+    - Runtime retains one metre per world unit and 50-world-unit native columns. Extinction is
+      map.r/(50*metresPerWorldUnit); path lengths enter transport in metres exactly once.
+    - Geometry queries and OIT bookkeeping are separate from full density/source-lighting evaluations.
+      Count both categories; a bounded shading budget does not imply constant acceleration overhead.
+    - Report actual primary rays, secondary rays, primary/secondary density evaluations, native leaf
+      fetches, hierarchy queries and skipped nodes separately where measured. An upper bound or CPU
+      oracle estimate must not be presented as an observed GPU counter.
+
+  Primary budget
+    - Intersect the finite horizontal map domain and current main-view opaque/primary/liquid clips
+      to obtain [tStart,tEnd]. A zero-length span performs no march. Let L=tEnd-tStart, including
+      empty gaps. Use that same span across acceleration choices. Certified height bounds may reject
+      an empty ray or skip proven-empty lattice positions; they do not redefine the sample count,
+      spacing or origin. Do not add a support prepass to calculate occupied length or optical mass.
+    - Set Nview=min(ViewRaySampleMax,max(ViewRaySampleMin,
+      floor(ViewRaySampleMax*min(1,L/ViewBudgetDistance)))). Set ds=L/Nview. Sample positions are
+      tStart+(i+jitter)*ds for i=0..Nview-1, with one blue-noise jitter in [0,1) shared along this ray.
+      The history-free deterministic reference uses jitter=.5 on the same uniform distance lattice.
+    - Initial candidate: ViewRaySampleMax=96, ViewRaySampleMin=2, ViewBudgetDistance=2000 world units.
+      Supported maxima are 4..384; minimum is 1..min(16,max); distance is 50..10000 world units.
+      Nonfinite distance restores 2000; sanitize integral controls before conversion/upload.
+    - At each position evaluate cheap native validity/support first, then the existing detailed
+      density if potentially occupied. Positive contributing density evaluates incident lighting
+      at that same position and starts at most one shadow ray per nonzero solar/lunar source.
+      Do not reuse a detail factor or source from another interval, or redistribute unused samples.
+    - Use sigma(sample)*dsMetres for optical depth and the existing analytic constant-segment
+      scattering integral. Apply native depth-bin weights at each integration step; preserve all
+      six OIT outputs without flattening the whole cloud to a representative transparency depth.
+    - Native columns define a discontinuous density field. Thin features may fall between finite
+      samples; quantify pointwise, temporal and silhouette errors against independent references.
+      Retain exact uniform-density optical-depth fixtures. Exact integration of arbitrary columns
+      belongs to the analytic oracle, not an additional production column-integration pass.
+
+  Secondary budget and distance
+    - Initial candidate LightRaySampleMax=10, supported 2..64, and ShadowDistance=1500 world units,
+      supported 50..10000. Nonfinite distance restores 1500. Clip to the finite map; never use main-
+      view depth or visibility to reject off-camera shadow density.
+    - Anchor the schedule at the shading point. For D=ShadowDistance and N=LightRaySampleMax,
+      use interval boundaries b_i=D*(i/N)^2, i=0..N, positions s_i=(b_i+b_(i+1))/2 and lengths
+      d_i=b_(i+1)-b_i. Accumulate tau+=sigma(origin+direction*s_i)*d_i*metresPerWorldUnit.
+      The sample is the arithmetic midpoint of quadratic boundaries, not D*((i+.5)/N)^2.
+    - Use deterministic midpoint positions for solar and lunar shadows; no PMJ, blue-noise jitter,
+      optical-depth weighting or per-column budget reset enters the shadow schedule. Reject proven
+      zero density before detailed evaluation, but leave all remaining scheduled positions unchanged.
+    - Positions outside the finite supported domain contribute zero. Stop when the ray has exited
+      that domain with no possible reentry; do not rescale D or redistribute positions after such
+      an exit. Respect the complete quadratic schedule for rays that remain inside supported bounds.
+      An existing certified vertical bound may similarly prove remaining samples empty.
+    - The same density definition is evaluated independently at every scheduled primary/shadow
+      position. No replacement vertical profile, density volume or invented border extension is added.
+    - At default budgets, a primary ray has at most 192 secondary rays and 1920 secondary full-detail
+      evaluations with both sources active, plus at most 96 primary evaluations; these are policy
+      upper bounds, not baseline observations. Report actual early exits and skipped zero sources.
+    - Qualification compares 1500,3000 and complete supported-domain shadow distances with other
+      settings fixed. If finite-distance bias exceeds quality limits, increase the distance within
+      its cap and requalify; changing sample count is not proof that distance bias is resolved.
+
+  Sampling and temporal identity
+    - Use spatial blue-noise primary-ray offsets with an eight-frame temporal index advancing every
+      rendered frame, independent of reconstruction phase. Use the traced full-view coordinate;
+      a hash or PMJ point sequence alone is not a spatial blue-noise mask. Use existing resource
+      ownership/binding APIs for any required noise asset; do not import an external engine runtime.
+    - Separate jitter evolution from spatial reconstruction scheduling. Quarter-dimension trace to
+      half-dimension reconstruction has a 2x2/four-frame phase cycle in reconstruction coordinates.
+      Full-view upsampling does not turn that into sixteen phases. The retained Half compatibility
+      mode may keep its existing phase policy until its own reconstruction adaptation is verified.
+    - Shadow midpoints have no temporal jitter. The deterministic full-view reference uses primary
+      midpoint steps and the same quadratic shadow midpoints. Release the cloud PMJ resource/bindings
+      when no retained legacy comparison consumer uses them; leave unrelated consumers untouched.
+    - Reject history on any change to schema, sample budgets/distances, lattice/jitter policy, termination,
+      trace/reconstruction layout or atmosphere application policy, as well as existing lifecycle,
+      camera, medium, calibration and completed lighting incompatibilities.
+
+  Termination policy
+    - Candidate view transmittance threshold=.005; supported range [0,.005], with zero disabling this
+      optimization. It controls the primary exit directly; its value alone does not qualify OIT quality.
+    - Break the primary march after the current integration step if overall transmittance is below
+      the threshold. Do not add a remaining-support prepass, a second attenuation/bin march or a
+      residual-error subsystem. Retain ordinary completed-lighting admission and finite storage bounds.
+    - Qualification, not a new per-sample proof system, determines whether .005 is adequate for all
+      revealage/bin/accumulator/glow outputs and support metadata. Compare threshold-on/off results
+      using the declared transport/OIT quality limits below and report termination-only error
+      separately. Do not impose an additional .001 transmission gate that precludes the .005 candidate
+      by construction. If required quality fails, lower the threshold (including zero) and requalify.
+    - Shadow rays initially evaluate the bounded quadratic schedule until finite-domain exit, with
+      no optical-depth saturation shortcut. Keep tau finite and handle zero octave occlusion without
+      zero*infinity. Additional shortcuts are optional future work requiring separate evidence.
+
+  Quality selections and persisted migration
+    - Introduce CloudQualityVersion=2 and separately named ViewRaySampleMax, ViewRaySampleMin,
+      ViewBudgetDistance, LightRaySampleMax, ShadowDistance, StopTransmittance and TraceScale fields
+      through the existing configuration owner. Keep detail fields and FullResolutionReference.
+    - TraceScale is an enum with Half and Quarter; initial compatibility selection is Half. Quarter
+      becomes the normal selection only after its own numerical and user appearance gates pass.
+      FullResolutionReference overrides trace scale, disables temporal history and uses midpoint
+      primary sampling and quadratic shadow midpoints; it is not the independent high-budget oracle.
+    - Missing/version-1 quality maps legacy sanitized ViewSamples v to clamp(24*v,4,384), and legacy
+      LightSamples l to clamp(10*l,2,64). Missing legacy fields use v=4,l=1. Minimum/distance/termination
+      receive the candidate defaults above. This preserves relative quality ordering, not old images.
+    - Version-2 fields take precedence only in version-2 data; absent new fields receive defaults,
+      not legacy reinterpretation. Mixed legacy fields are ignored after migration. Preserve unrelated
+      settings. Save version 2 through normal config persistence, not a per-frame write.
+    - Required migration cases: no Clouds section ->96/10/Half; {} ->96/10/Half; legacy 4/1 ->96/10;
+      legacy 1/4 ->24/40; legacy 0/99 clamps to1/4 ->24/40; explicit version2 120/20/Quarter ->120/20/
+      Quarter; version2 missing budgets plus legacy16/4 ->96/10; invalid enum ->Half; nonfinite distance
+      ->defaults. An unknown future version retains the file and uses safe in-memory defaults with a
+      diagnostic, without rewriting unsupported data. Validate these rules during implementation.
+
+  Independent reference and numerical acceptance
+    - Retain the frozen legacy baseline for regression comparisons. Independently enumerate column
+      box intersections in double precision (CloudTraversalOracle), integrate detail-disabled optical
+      depths analytically, and evaluate the detailed field with deterministic adaptive quadrature.
+      Do not derive the oracle's intervals, sample placement or budgets from production traversal.
+    - For detailed transport use reference levels 384/64 then 768/128 view/light samples and
+      complete supported-domain shadows, with termination disabled. In addition, integrate detailed
+      optical depths independently with adaptive subdivision at native boundaries. Require reference
+      doubling stability <=.002 absolute transmission and <=.005 normalized radiance/payload before
+      using it as an oracle. Further refinement or an unresolved reference case remains an evidence gap.
+      Higher reference levels belong to opt-in oracle fixtures and do not widen production quality caps.
+    - Hold density/lighting definitions, physical units, atmosphere inputs and source encoding fixed
+      when isolating quadrature. Hold a converged native bucket-integration schedule fixed when raising
+      lighting/detail counts; changing bucket discretization cannot prove convergence of a fixed target.
+      This separation belongs to the oracle fixtures; production integrates bins on its scheduled
+      primary steps and does not acquire an independent fine bucket march to match the reference.
+    - Compare linear physical RGB normalized by max(1,completed admitted source-radiance bound), not
+      exposure or per-image maxima; normalize OIT RGB by the same bound, and alpha/attenuation remain
+      absolute. Compare every RGB component, bucket, revealage, glow and accumulator alpha separately.
+    - Point-aligned primary transport limits: .01 absolute overall/bucket transmission, .02 normalized
+      physical RGB and each accumulation RGB, .01 accumulation alpha/glow opacity. Uniform-density
+      optical depth tolerance is 2e-5 absolute transmission when the entire span has that density.
+      Discontinuous column fields, including Detail=false, use the finite-budget limits rather than
+      exact optical-depth equivalence. Samples outside supported bounds must evaluate zero density.
+    - Reduced reconstruction retains existing .021 attenuation and .045 normalized payload limits
+      outside the one-full-view-pixel reference envelope, for all six OIT targets. Report raw pointwise
+      maxima too; do not expand that envelope to hide quarter-resolution loss. Compare depth receipts
+      against independent contributing support: no behind-foreground support. Bound sampled first/
+      last-distance uncertainty by one primary step plus max(.05 world units,1e-4*distance), rather
+      than requiring sub-step geometric accuracy from a fixed-step integrator. Metadata must remain
+      clipped to the admitted foreground span and describe the integration steps that contributed.
+      Unaffected clipping, encoding, OIT arithmetic and reconstruction fixtures keep their tolerances
+      and fixture-specific scales. Assertions specific to the replaced per-column/PMJ algorithm remain
+      qualified by the frozen baseline/reference; new production assertions target the declared lattice
+      and quality bounds. Do not widen tolerances to hide failures or call a changed contract equivalent.
+    - For stochastic detailed integration evaluate 128 rendered frames at aligned positions, covering
+      sixteen complete eight-frame noise periods; its temporal mean must satisfy the point-aligned
+      limits. Do not call repeated periods 128 independent samples or promise unbounded convergence.
+      Individual frames must remain finite, bounded and clipped. Separately test the actual history
+      filter over 128 reconstruction phase cycles: after
+      warmup its RMS must not exceed the frozen baseline at matched support, and abrupt lighting/
+      weather/camera changes must reject stale history on the next eligible frame. Offline averaging
+      alone does not establish filtered noise, disocclusion or live appearance acceptance.
+    - Half and Quarter must meet the same stated reconstruction limits. A failing candidate keeps
+      its tasks open; do not raise tolerances after observing output to manufacture acceptance.
+
+  Requirement reconciliation
+    - Primary per-column multiplication -> Phase 2; secondary multiplication/distance -> Phase 3;
+      strict/late termination -> Phase 4; screen-position count -> Phase 5; repeated atmosphere ->
+      Phase 6; repeated tree descent/clock replay -> Phase 7; repeated density/phase work -> Phase 6.
+    - Proposal half-dimension default is the legacy/current contract; Phase 5 may replace it only
+      after the declared lower-resolution gates. Preserved per-column sample counts, PMJ identity and
+      exact arbitrary-column attenuation govern legacy/reference comparisons. The future direct march
+      replaces those constraints with fixed distance steps, primary blue noise and shadow midpoints.
+    - Uniform-density attenuation remains exact within numeric tolerance. Discontinuous/detailed
+      quadrature uses these quality bounds; acceleration equivalence is measured with the new lattice held
+      fixed. No requirement to use a tree remains if measured cost favors cheap rejection or direct marching.
+    - PBR.Clouds.md remains current-state architecture until runtime changes are verified. Preserve
+      atmospheric publication, native producer/lifetimes, finite density bounds, six-target OIT,
+      separate scene/material/particle/liquid depth and the unresolved reflection dependency.
+
+Phase 1 source reinspection and task traceability
+  Source reinspection -> CloudVolumeSettings.cs / CloudRenderingSettings.cs / CloudVolumeParameters.cs
+    under VanillaGraphicsExpanded/PBR/Clouds -> current defaults are 4 view and 1 light subdivision
+    per occupied column, detail on, amplitude .15, edge width 2, noise scale .08, octave .5/.5.
+    Parameters validate width 1..200 and use the committed native placement; runtime units are one
+    metre per world unit. Source identities belong to the frozen baseline receipt, not this prose.
+  Source reinspection -> shaders/includes/cloud_volume_transport.glsl / cloud_volume_light.glsl /
+    cloud_volume_density.glsl / cloud_volume_hierarchy.glsl -> current view/light loops allow 402
+    column iterations; view/detail quality is allocated per occupied column, secondary distance is
+    1e7 before finite map clipping, view exit is 1e-6 after the column. Hierarchy seeks restart at
+    root and replay boundary additions. Every detailed evaluation queries neighbors and value noise.
+    The same density definition is used by view/light; native r is extinction, not alpha.
+  Source reinspection -> CloudVolumeReconstruction.cs / CloudVolumeStorage.cs /
+    CloudTemporalHistory.cs and cloud_volume_trace/temporal/resolve shaders -> current trace and
+    temporal passes are ceil-half view dimensions; resolve is full view and texture-only. Nine
+    RGBA32F array layers rotate in three disjoint blocks. History uses current lifecycle, settings,
+    frame, placement, projection, medium and completed-lighting identity; phase is a 2x2 cycle.
+  Source reinspection -> cloud_volume_transport.glsl / atmosphere_aerial.glsl /
+    CloudVolumeLighting.cs / PBR.Atmosphere.Publication.md -> current contributing samples apply
+    aerial or local underwater transport before integration, using completed physical illumination
+    and once-only scene encoding. Cloud source bounds join frame admission; exposure changes do
+    not alter attenuation/history. A representative-distance approximation is future work.
+  OIT requirements -> PBR.VolumetricClouds.Proposal.md, Scene integration; PBR.Clouds.md, Density,
+    lighting and scene composition; PBR/Liquids/LiquidPipelineStates.cs and shaders/includes/oit.glsl
+    -> retain Reveal/Reveal/Glow/Add/Add/Add outputs. Cloud bins use distributed adjusted depth;
+    overall transmission alone does not prove all bin/accumulation channels have converged.
+  Baseline task -> CloudHierarchyPerformanceTests / CloudPerformanceScene / CloudPerformanceTimer;
+    PBR.CloudHierarchy.Proposal.md, Acceptance and Ownership; inherited checklist measurement receipts
+    -> same-candidate DDA/hierarchy pairs, fresh generation reduction, both PBR selections, exact
+    selected history/OIT checks, stable allocations, separate stages/CPU/total and raw observations.
+    Historical phase6-512-result-summary.json establishes comparison methodology, not current speed.
+  Quality/migration task -> Bounded quality policy above; CloudRenderingSettings.cs and
+    CloudTemporalHistoryTests.cs -> explicit future names/limits, legacy truth table, fixed-distance
+    sample allocation, independent oracles and frozen error limits. Future production migration and
+    transport behavior remain subject to the later implementation tasks and their tests.
+  Reconciliation task -> both cloud proposals and their checklists, PBR.BaselineShading.todo cloud
+    requirements, PBR.Atmosphere.Publication.md and Rendering.Enablement.md -> future sampling/layout
+    policy replaces only the identified quality constraints; preserve native/atmosphere ownership,
+    finite geometry, change-driven demand, current scene depth clips and existing OIT. Parent cloud
+    completion, reflection integration and changed-renderer appearance remain separate open gates.
+
+Phase 1 baseline and policy evidence (2026-10-18)
+  Fresh baseline: artifacts/cloud-realtime-phase1-bin/VanillaGraphicsExpanded.dll, SHA256
+    B487F3604AE1EF9234861ACE7B7D78EA017C68BC24AF4844852F116D48F86955.
+  Reproducibility receipts: artifacts/CloudRealtime/phase1/commands.json, frozen-hashes.json,
+    frozen-recheck.json, final-identities.json, hardware-before.csv, hardware-after.csv,
+    run-time-windows.json and runtime-context.json.
+    The manifest covers 91 runtime/source/shader/binary inputs; no frozen input drift was found.
+    Both shader selections use the same fresh candidate. This is not the older hierarchy candidate.
+  Fresh shader-enabled isolated build passed with 0 errors and 184 existing warnings. The frozen
+    candidate's cloud CPU/source/contract filter passed 125/125, no failures/skips (contracts.trx).
+    Commands, environment, full warnings and results are retained with the receipts.
+  Controlled GPU baseline: RTX 4090, OpenGL 4.3.0 NVIDIA 610.88; 512x512 view / 256x256 trace,
+    75-degree vertical FOV, native 200-wide maps plus odd81 edge stress, default 4/1 column quality,
+    detail on, amplitude .15, edge width 2, noise scale .08 and octave .5/.5. Native bounds animate;
+    solar/lunar publications change every eight frames. Both PBR selections were measured separately.
+    Four warmups precede 24 alternating-order paired samples per scene. Measurements passed 2/2
+    theory cases, 28 scenarios and 672 pairs with no failures/skips in 6m21s (measurements.trx).
+    Selected committed history and all six OIT output comparisons agree exactly; allocation reuse
+    and nonempty cloud coverage checks pass. Raw arrays are in measurements/; result-summary.json
+    records per-stage and independently timed total GPU medians and paired savings distributions.
+  Result: all 22 nonempty scenarios regress with the hierarchy (15.53..340.19% by total median);
+    six empty scenarios improve by approximately 78%. Standalone PBR total GPU medians:
+      Dense ground: DDA 63.600 ms, hierarchy 74.060 ms.
+      Dense inside: DDA 100.645 ms, hierarchy 182.980 ms.
+      Dense above: DDA 37.197 ms, hierarchy 43.066 ms.
+    Summaries include fresh construction, trace, temporal, resolve and the independent outer total;
+    the hierarchy does not establish a general speedup. Scene-dependent results are not averaged
+    into a single claimed frame-time improvement. Separated heights and edge cases remain synthetic.
+  CPU-only diagnostic compilation overlapped early timing scenarios. No other GPU test overlapped;
+    all timed raw receipts report no game process. CPU submission during that window is not an isolated
+    CPU baseline. An additional dense/inside control after compilation passed 2/2, 48 paired samples:
+      Standalone submission medians: DDA .949 ms, hierarchy .984 ms.
+      PBR+LumOn selection submission medians: DDA .857 ms, hierarchy 1.132 ms.
+    GPU control totals remain approximately 100..101 ms DDA versus 183 ms hierarchy. Exact inputs,
+    commands, raw samples and isolated-submission-summary.json are retained with the receipts.
+  Scope: these are actual production cloud-owner submissions on controlled synthetic inputs, not
+    captured weather or concurrent whole-scene PBR/LumOn work. Native producer/shared scene-depth,
+    synthetic uploads/clears, first-use work, readbacks and query waits are excluded consistently.
+    Reconstruction payload is 18,874,368 bytes per owner at this extent; width200 hierarchy payload
+    is 174,760 bytes. These nominal texel counts do not establish resident allocation or live cost.
+  Superseded policy receipt: policy-math.json checked an earlier optical-depth-stratum design.
+    Its arithmetic remains recorded, but it does not qualify the fixed-distance policy specified
+    above. Do not cite its conservation result as evidence for the revised sampling or migration rules.
+    Runtime migration, bounded transport and changed-quality acceptance remain later implementation work.
+  Observed work: CloudWorkMeasurementTests runs only with its explicit diagnostic environment flag
+    and separate instrumented shader marker. prepare-diagnostics.ps1 copies production inputs into
+    an artifacts-only tree and replaces raw trace color with logical event counters. Timed shaders
+    and production sources are untouched; counters have no instruction-count or timing interpretation.
+    The fixture replays source publications through frames 4 and 27 to match held light snapshots
+    from frames 0 and 24. Final diagnostic run passed 2/2 in 4m18s, covering 28 scenes, two frames,
+    both paths and 7,340,032 pixel records (work.trx, work/, work-summary.json).
+    Independent verify-work.ps1 validation passes all records: finite nonnegative integers below
+    2^24, primary evaluations=4*occupied intervals, secondary launches<=2*primary evaluations,
+    secondary evaluations<=402*launches, and all-zero empty scenes (work-invariant-validation.json).
+    Maximum per-pixel events: 628 primary density evaluations, 1256 secondary-ray launches,
+    29,997 secondary density evaluations and 157 occupied primary intervals. Dense/inside frame27
+    in the PBR+LumOn selection records 4,365,800 primary evaluations, 8,725,518 secondary launches
+    and 147,055,310 secondary evaluations over 65,536 trace pixels on the diagnostic DDA path.
+  Diagnostic discrepancy: an initial counter-equality assertion failed; work-first-attempt.log/.trx
+    are retained. Final descriptive captures find 24 secondary-count pixel discrepancies across
+    56 matched frame comparisons, each one event; primary/launch/interval counters match. For example,
+    dense/ground frame4 pixel(224,144) records 2472 DDA versus 2471 hierarchy secondary evaluations.
+    The cause remains unconfirmed; altered compiler optimization, boundary rounding and traversal
+    behavior have not been isolated. The added counter fixture now validates each path independently
+    and records divergences. No timed production payload/history assertion or quality test was relaxed.
+  Contention scope: timing ended at 09:18:14 UTC and the isolated CPU control at 09:19:20 UTC.
+    A game process independently appeared at 09:22:57 UTC during untimed diagnostic capture; it was
+    not launched by this work. Final hardware snapshots may include its activity. This does not
+    contaminate the earlier recorded timing pairs, and no diagnostic runtime/speed inference is made.
+  Final diagnostic source rebuild passed with 0 errors and 169 existing warnings, reproducing the
+    measured diagnostic test DLL exactly (diagnostic-source-recheck.json). Its source/asset identities
+    remain distinct from the frozen timed candidate. Actual bounded-policy transport, runtime settings
+    migration, changed-renderer GPU qualification and user appearance acceptance remain unimplemented.
+  Baseline completion review: second review covered inherited contracts, original policy arithmetic,
+    migration truth-table scope, unchanged quality assertions, counter discrepancies and contention.
+    Independent audit reconstructed the linked requirements, recomputed all 336 stage medians and
+    every raw counter sum/maximum, and rehashed all 2750 final identities without missing/drifted files.
+    Those checks qualify the unchanged measured baseline. The revised policy review below supplies
+    the separate source-alignment and consistency review; old policy arithmetic does not establish it.
+    Later implementation and final acceptance remain unchecked; no improved rendering performance
+    or new appearance is claimed.
+
+Revised policy review (2026-10-18)
+  The complete tasklist was reread against both cloud proposals and the retained native density,
+    physical-lighting and OIT contracts. Source comparison verified uniform primary distance steps,
+    one spatial-noise ray offset, deterministic arithmetic midpoints of quadratic shadow intervals,
+    direct threshold termination and the four-frame reconstruction-coordinate phase cycle.
+  The policy now excludes optical-mass sample placement, full-support accumulation prepasses,
+    reused detail multipliers and separate residual-support/attenuation marches. Exact arbitrary-
+    column optical depth remains an independent reference, not a hidden production integration pass.
+    Native finite bounds and existing OIT outputs remain explicit adaptations with quality checks.
+  Revised arithmetic receipts are artifacts/CloudRealtime/policy-revision/check-policy-math.ps1 and
+    policy-math-results.json, separate from the frozen baseline evidence. Checks passed for eleven
+    primary examples, ninety supported-control combinations, uniform spacing/weights, ten quadratic
+    shadow intervals, five finite-exit examples, six legacy mappings and three nonfinite fallbacks.
+    The ten shadow weights sum to 1500 world units; arithmetic midpoint positions are 7.5..1357.5.
+    Default worst-case bounds are 192 secondary rays and 1920 secondary density evaluations per
+    primary ray, and quarter-to-half reconstruction has four phases. These are specification checks;
+    version precedence remains truth-table review, not runtime deserialization testing.
+  A second consistency pass reconciled each candidate conflict against all task outcomes, policy
+    definitions and acceptance sections. No reportable planning discrepancy remains. Later phases
+    remain unchecked; finite-budget thin-feature quality, blue-noise assets, actual migration,
+    runtime correctness, measured speed and changed-renderer appearance still require implementation
+    and their stated qualification. Phase 1 covers the retained baseline and this revised specification.
