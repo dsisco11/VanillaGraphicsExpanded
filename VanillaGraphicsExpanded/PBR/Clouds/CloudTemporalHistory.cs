@@ -1,6 +1,5 @@
 using System;
 using System.Numerics;
-using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds;
@@ -15,27 +14,27 @@ internal sealed class CloudTemporalHistory
     private Vector2 screen;
     private CloudPlacement placement;
     private CloudVolumeSettings settings;
-    private AtmosphereLighting? lighting;
-    private readonly byte[] medium=new byte[128];
+    private bool underwater;
     private readonly float[] projection=new float[16],previousProjection=new float[16];
     private bool valid;
 
     #region Public API
     /// <summary>Withdraws history on missing input, bypass, reload, resize, mode changes or teardown.</summary>
-    internal void Invalidate() { valid=false; lighting=null; owner.SetTarget(null!); }
+    internal void Invalidate() { valid=false; owner.SetTarget(null!); }
     /// <summary>Reprojects only consecutive compatible main-view frames, irrespective of reusable texture names.</summary>
-    internal bool Capture(CloudMapInput input,VgeFrameUniformBuffer camera,CloudVolumeSettings quality,AtmosphereLighting light,
+    internal bool Capture(CloudMapInput input,VgeFrameUniformBuffer camera,CloudVolumeSettings quality,
         CloudVolumeParameters parameters,int width,int height,CloudTemporalParameters output)
     {
         bool compatible=valid && !camera.CameraCut && camera.FrameIndex==input.Frame && unchecked(frame+1)==input.Frame
             && owner.TryGetTarget(out var previousOwner) && ReferenceEquals(previousOwner,input.Owner) && input.Storage.Width==mapWidth
             && input.World==world && input.Allocation==allocation && input.Upload>=upload && input.Shader==shader
             && camera.CalibrationGeneration==calibration && System.Runtime.InteropServices.MemoryMarshal.Read<Vector2>(camera.Bytes.Slice(384,8))==screen
-            && quality==settings && ReferenceEquals(light,lighting) && parameters.Bytes.Slice(64,128).SequenceEqual(medium)
+            && quality==settings && parameters.UsesUnderwaterTransport==underwater
             && camera.Projection.SequenceEqual(projection);
-        // New raw uploads may contain gradual native weather blends. Per-pixel transport/depth
-        // rejection and current-neighborhood clamping bound those changes without resetting
-        // convergence at the native worker cadence. A rolled-back content certificate is invalid.
+        // Raw uploads, completed lighting publications and fog inputs evolve during normal
+        // weather and day/night progression. Current-neighborhood clamping bounds that response
+        // without resetting convergence at publication cadence. Only the discrete aerial/local
+        // underwater transport switch changes medium identity; rolled-back uploads remain invalid.
         // Placement already contains the native view origin and residual wind. Removing the
         // integer center shift and adding committed wind reconstructs the previous material
         // point without mixing another camera origin or applying residual wind a second time.
@@ -53,11 +52,11 @@ internal sealed class CloudTemporalHistory
         return compatible;
     }
     /// <summary>Commits only after trace, reconstruction and full-resolution submission all succeed.</summary>
-    internal void Commit(CloudMapInput input,VgeFrameUniformBuffer camera,CloudVolumeSettings quality,AtmosphereLighting light,
+    internal void Commit(CloudMapInput input,VgeFrameUniformBuffer camera,CloudVolumeSettings quality,
         CloudVolumeParameters parameters)
     {
         owner.SetTarget(input.Owner); mapWidth=input.Storage.Width; world=input.World; allocation=input.Allocation; upload=input.Upload; shader=input.Shader; frame=input.Frame;
-        placement=input.Placement; settings=quality; lighting=light; parameters.Bytes.Slice(64,128).CopyTo(medium);
+        placement=input.Placement; settings=quality; underwater=parameters.UsesUnderwaterTransport;
         camera.Projection.CopyTo(projection); CaptureCloudProjection(camera,previousProjection);
         calibration=camera.CalibrationGeneration;
         screen=System.Runtime.InteropServices.MemoryMarshal.Read<Vector2>(camera.Bytes.Slice(384,8)); valid=true;

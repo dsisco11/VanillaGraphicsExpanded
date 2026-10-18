@@ -48,12 +48,12 @@ vec3 CloudEncode(vec3 source)
 #endif
 }
 /** Retains integrated radiance and attenuation independently of the final native OIT products. */
-struct CloudPayload { vec3 bins; float reveal; vec3 radiance; vec4 depth; };
+struct CloudPayload { vec3 bins; float reveal; vec3 radiance; vec4 depth; float spacing; };
 /** Initializes neutral cloud transport, including both view-specific depth clips. */
 CloudPayload CloudEmpty(vec2 uv)
 {
     return CloudPayload(vec3(1),1.0,vec3(0),
-        vec4(0,0,CloudOpaqueDepth(uv),textureLod(liquidDepth,uv,0.0).r));
+        vec4(0,0,CloudOpaqueDepth(uv),textureLod(liquidDepth,uv,0.0).r),0.0);
 }
 /** Evaluates identical transport for reference and reduced traces. */
 void CloudIntegrate(vec2 uv,inout CloudPayload result)
@@ -96,6 +96,9 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
         float sigma=CloudDensity(local,cell,data,densityCache);
         float alpha=clamp(1.0-exp(-sigma*(ds*volumeAnchorUnits.z)),0.0,1.0);
         if(alpha<=0.0) continue;
+        // First/last contributing intervals are stochastic support estimates. Retain their
+        // original lattice spacing so history can admit endpoint quantization uncertainty.
+        result.spacing=ds;
         float near=span.x+float(i)*ds,far=min(span.y,near+ds);
         if(result.depth.y==0.0) result.depth.x=near;
         result.depth.y=far;
@@ -128,7 +131,7 @@ void CloudWrite(CloudPayload p)
 {
 #ifdef VGE_CLOUD_PHYSICAL
     outCloudRadianceTransmission=vec4(p.radiance,p.reveal);
-    outCloudBucketTransmission=vec4(p.bins,0);
+    outCloudBucketTransmission=vec4(p.bins,p.spacing);
 #else
     // Direct transport encodes the completed representative response once, without reconstruction.
     vec4 k=vec4(p.radiance,clamp(1.0-p.reveal,0.0,1.0));

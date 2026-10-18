@@ -343,18 +343,20 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
     }
     /// <summary>Accepted history uses identical bounded weights for every OIT channel; incompatible records reject atomically.</summary>
     [Theory]
-    [InlineData("valid",.415f)][InlineData("invalid",.4f)][InlineData("depth",.4f)][InlineData("nan",.4f)][InlineData("motion",.4f)][InlineData("weather",.4f)][InlineData("buckets",.4f)]
+    [InlineData("valid",.415f)][InlineData("invalid",.4f)][InlineData("depth",.4f)][InlineData("nan",.4f)][InlineData("motion",.4f)][InlineData("weather",.415f)][InlineData("buckets",.415f)]
     public void TemporalWeightsAndRejectionAreNumericallyObservable(string scenario,float expected)
     {
         EnsureShaderTestAvailable(); using var view=CreateScene(6,6);
         view.Capture(0,2,10,1,0,"static"); var images=view.ProbeHistory(scenario);
-        Assert.InRange(Math.Abs(images[1][4]-expected),0,.00001);
-        Assert.InRange(Math.Abs(images[0][4*3]-expected),0,.00001);
-        Assert.InRange(Math.Abs(images[2][4*4+3]-(1-expected)),0,.00001);
+        float transmission=scenario=="weather"?.7f:expected;
+        Assert.InRange(Math.Abs(images[1][4]-transmission),0,.00001);
+        Assert.InRange(Math.Abs(images[0][4*3]-(scenario=="buckets"?.7f:expected)),0,.00001);
+        Assert.InRange(Math.Abs(images[2][4*4+3]-(1-transmission)),0,.00001);
         for(int i=3;i<6;i++)
         {
-            Assert.InRange(Math.Abs(images[i][4*4]-expected*10*(1-expected)),0,.0001);
-            Assert.InRange(Math.Abs(images[i][4*4+3]-(1-expected)*(1-expected)),0,.00001);
+            float bucket=scenario=="buckets"&&i==3?.7f:expected;
+            Assert.InRange(Math.Abs(images[i][4*4]-expected*10*(1-bucket)),0,.0001);
+            Assert.InRange(Math.Abs(images[i][4*4+3]-(1-transmission)*(1-bucket)),0,.00001);
         }
     }
     #endregion

@@ -8,6 +8,57 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CloudQuarterReconstructionTests(HeadlessGLFixture fixture):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Sampling-sized support and optical variation accumulate while true support and foreground changes still reject.</summary>
+    [Fact]
+    public void SamplingUncertaintyAccumulatesWithoutBlendingCurrentSpacingMetadata()
+    {
+        EnsureShaderTestAvailable();
+        foreach(var scale in new[]{CloudTraceScale.Half,CloudTraceScale.Quarter})
+        {
+            using var view=CreateScene(12,12,scale);
+            view.Capture(0,0,10,1,0,"static");
+            var layout=CloudResolutionLayout.Create(12,12,scale);
+            int sourceCenter=scale==CloudTraceScale.Half?14:4;
+            var current=Payload(layout.TraceWidth*layout.TraceHeight,i=>i==sourceCenter?.4f:i%2==0?.2f:.8f);
+            var previous=Payload(layout.Width*layout.Height,_=>.6f);
+            // The captured support discrepancy must fit a ray's finite primary quadrature spacing,
+            // while the previous optical value differs enough to exercise neighborhood clamping.
+            for(int pixel=0;pixel<current[0].Length/4;pixel++)
+            {
+                current[1][pixel*4+3]=10.34542f;
+                current[2][pixel*4]=455.19836f;current[2][pixel*4+1]=517.27087f;
+            }
+            for(int pixel=0;pixel<previous[0].Length/4;pixel++)
+            {
+                previous[1][pixel*4+3]=10.35651f;
+                previous[2][pixel*4]=455.68661f;previous[2][pixel*4+1]=507.46918f;
+            }
+            const int destination=14,index=destination*4;
+            var baseline=view.ReconstructAuthoredTrace(0,false,current,previous);
+            foreach(string scenario in new[]{"sampling","support","opaque","liquid"})
+            {
+                var history=previous.Select(layer=>(float[])layer.Clone()).ToArray();
+                for(int pixel=0;pixel<history[0].Length/4;pixel++)
+                {
+                    if(scenario=="support"){history[2][pixel*4]+=1000;history[2][pixel*4+1]+=1000;}
+                    if(scenario=="opaque")history[2][pixel*4+2]=.9f;
+                    if(scenario=="liquid")history[2][pixel*4+3]=.9f;
+                }
+                var actual=view.ReconstructAuthoredTrace(0,true,current,history);
+                float expected=scenario=="sampling"?.55f:.4f;
+                Assert.InRange(MathF.Abs(actual[0][index+3]-expected),0,1e-5f);
+                for(int channel=0;channel<3;channel++)
+                {
+                    Assert.InRange(MathF.Abs(actual[0][index+channel]-expected*10),0,1e-4f);
+                    Assert.InRange(MathF.Abs(actual[1][index+channel]-expected),0,1e-5f);
+                }
+                Assert.Equal(baseline[1][index+3],actual[1][index+3]);
+                Assert.True(actual[1][index+3]>0);
+                if(scale==CloudTraceScale.Half)Assert.Equal(10.34542f,actual[1][index+3]);
+                for(int channel=0;channel<4;channel++)Assert.Equal(baseline[2][index+channel],actual[2][index+channel]);
+            }
+        }
+    }
     /// <summary>Actual trace depth identities expose every scheduled full-view pixel through all four phases and odd edges.</summary>
     [Fact]
     public void TraceUsesFourHalfGridPhasesAtOddEdges()

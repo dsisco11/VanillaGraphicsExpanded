@@ -66,10 +66,10 @@ internal sealed class CloudVolumeReconstruction : IDisposable
             traceProgram.PrimaryNoise=primaryNoise;
             temporalProgram.SceneDepth=sceneDepth; temporalProgram.VisibilityDepth=visibilityDepth; temporalProgram.LiquidDepth=liquidDepth;
             resolveProgram.SceneDepth=sceneDepth; resolveProgram.VisibilityDepth=visibilityDepth; resolveProgram.LiquidDepth=liquidDepth;
-            // The immutable publication and native content certificates identify compatibility. New
-            // map generation numbers alone do not: the native producer legitimately writes every frame.
+            // Lifecycle and transport-mode certificates identify compatibility. Normal atmospheric
+            // publications and native map generations evolve without discarding accumulation.
             foreach(var temporal in new[]{traceProgram.Temporal,temporalProgram.Temporal,resolveProgram.Temporal})
-                history.Capture(input,camera,settings,lighting,traceProgram.Parameters,width,height,temporal);
+                history.Capture(input,camera,settings,traceProgram.Parameters,width,height,temporal);
             temporalProgram.HistoryPayload=previous.View; resolveProgram.HistoryPayload=next.View;
             temporalProgram.CurrentPayload=trace.View;
             var tracePass=trace.Prepare(lifetime,traceProgram); var temporalPass=next.Prepare(lifetime,temporalProgram);
@@ -93,7 +93,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
                     commands.SetDynamicState(new(){Viewport=commands.PassViewport}); commands.Draw(geometry,new(0,3)); commands.EndPass();
                 }
             })) { Invalidate(); throw new InvalidOperationException("Cloud reconstruction graphics boundary was rejected."); }
-            history.Commit(input,camera,settings,lighting,traceProgram.Parameters);
+            history.Commit(input,camera,settings,traceProgram.Parameters);
             // Rotate only after commit: Half reuses the discarded block for trace; Quarter alternates histories.
             cursor=quarter?1-cursor:(cursor+1)%3; return true;
         }

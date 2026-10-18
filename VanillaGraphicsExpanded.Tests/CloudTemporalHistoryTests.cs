@@ -15,6 +15,7 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class CloudTemporalHistoryTests
 {
     #region Public API
+    #region Shader contracts
     /// <summary>Cloud clipping uses exact shared hierarchy mip zero in both trace/reference transport and reconstruction.</summary>
     [Fact]
     public void SharedDepthClippingUsesExplicitMipZero()
@@ -45,10 +46,38 @@ public sealed class CloudTemporalHistoryTests
         Assert.DoesNotContain("cloud_volume_visibility.glsl",source);
         Assert.DoesNotContain("cloud_volume_density.glsl",source);
     }
+    #endregion
+    #region History admission
+    /// <summary>Routine atmosphere publication and continuous local-medium evolution preserve consecutive cloud history.</summary>
+    [Fact]
+    public void ContinuousAtmosphereUpdatesPreserveHistory()
+    {
+        var history=new CloudTemporalHistory();var input=Input(10);var lighting=Lighting();
+        using var parameters=new CloudVolumeParameters();using var temporal=new CloudTemporalParameters();
+        parameters.CaptureMap(20,input.Placement,1,CloudVolumeSettings.Default);
+        parameters.CaptureLighting(lighting,0,Vector4.Zero,Vector3.Zero);
+        using var prior=Camera(10);history.Commit(input,prior,CloudVolumeSettings.Default,parameters);
+        // Fresh bundles and smoothly changing fog, altitude, colors and directions occur during
+        // normal play. They must reach the GPU's bounded temporal filter without a CPU reset.
+        foreach(float underwater in new[]{0f,.6f,.7f})
+        {
+            input=input with {Frame=input.Frame+1,Generation=input.Generation+1,Upload=input.Upload+1};
+            lighting=lighting with {Solar=lighting.Solar+new Vector3(2),Lunar=new(.01f),
+                Environment=lighting.Environment+new Vector3(.1f),Sun=Vector3.Normalize(new(.1f,1,.2f)),
+                Moon=Vector3.Normalize(new(-.2f,-1,.1f)),Altitude=lighting.Altitude+.01f,
+                HorizonElevation=lighting.HorizonElevation+.001f,Horizon=lighting.Horizon+new Vector3(.02f)};
+            parameters.CaptureLighting(lighting,underwater,new(.1f,.2f,.3f,.001f*input.Frame),new(.4f,.3f,.2f));
+            using var camera=Camera(input.Frame);
+            Assert.False(parameters.UsesUnderwaterTransport);
+            Assert.True(history.Capture(input,camera,CloudVolumeSettings.Default,parameters,5,4,temporal));
+            Assert.Equal(1,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[24]);
+            history.Commit(input,camera,CloudVolumeSettings.Default,parameters);
+        }
+    }
     /// <summary>Reusable handles cannot carry history across independent content, lifecycle or view changes.</summary>
     [Theory]
     [InlineData("owner")][InlineData("world")][InlineData("allocation")][InlineData("upload")][InlineData("shader")]
-    [InlineData("gap")][InlineData("lighting")][InlineData("quality")][InlineData("medium")]
+    [InlineData("gap")][InlineData("quality")][InlineData("medium")]
     [InlineData("primary-max")][InlineData("primary-min")][InlineData("primary-distance")]
     [InlineData("light-max")][InlineData("shadow-distance")][InlineData("termination")][InlineData("trace-scale")]
     [InlineData("resize")][InlineData("cut")][InlineData("missing")][InlineData("calibration")]
@@ -58,11 +87,11 @@ public sealed class CloudTemporalHistoryTests
         using var parameters=new CloudVolumeParameters(); parameters.CaptureMap(20,a.Placement,1,CloudVolumeSettings.Default);
         parameters.CaptureLighting(light,0,Vector4.Zero,Vector3.Zero);
         using var prior=Camera(10); using var temporal=new CloudTemporalParameters();
-        h.Commit(a,prior,CloudVolumeSettings.Default,light,parameters);
+        h.Commit(a,prior,CloudVolumeSettings.Default,parameters);
         if(change=="owner") b=b with { Owner=new object() };
         if(change=="world") b=b with { World=2 }; if(change=="allocation") b=b with { Allocation=2 };
         if(change=="upload") b=b with { Upload=0 }; if(change=="shader") b=b with { Shader=2 };
-        if(change=="gap") b=b with { Frame=13 }; if(change=="lighting") light=light with { Solar=new(20) };
+        if(change=="gap") b=b with { Frame=13 };
         var quality=change=="quality"?CloudVolumeSettings.Default with { DetailAmplitude=.2f }:CloudVolumeSettings.Default;
         if(change=="primary-max") quality=quality with { ViewRaySampleMax=192 };
         if(change=="primary-min") quality=quality with { ViewRaySampleMin=3 };
@@ -75,7 +104,7 @@ public sealed class CloudTemporalHistoryTests
         if(change=="missing") h.Invalidate();
         using var current=Camera(b.Frame,change=="resize"?10:9,change=="cut");
         if(change=="calibration") current.SetLightingCalibration(LightingCalibration.Default with { BlockReferenceLux=123 });
-        Assert.False(h.Capture(b,current,quality,light,parameters,5,4,temporal));
+        Assert.False(h.Capture(b,current,quality,parameters,5,4,temporal));
         Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[24]);
     }
     /// <summary>Grid recentering is not motion; committed and residual wind form a continuous single material translation.</summary>
@@ -85,13 +114,13 @@ public sealed class CloudTemporalHistoryTests
         var h=new CloudTemporalHistory(); var light=Lighting(); var a=Input(10);
         using var p=new CloudVolumeParameters(); p.CaptureMap(20,a.Placement,1,CloudVolumeSettings.Default); p.CaptureLighting(light,0,Vector4.Zero,Vector3.Zero);
         using var old=Camera(10); using var current=Camera(11); using var t=new CloudTemporalParameters();
-        h.Commit(a,old,CloudVolumeSettings.Default,light,p);
+        h.Commit(a,old,CloudVolumeSettings.Default,p);
         var b=a with { Frame=11,Generation=999,Upload=2,Placement=a.Placement with { CenterX=1,Offset=new(50,1,0) } };
-        Assert.True(h.Capture(b,current,CloudVolumeSettings.Default,light,p,5,4,t));
+        Assert.True(h.Capture(b,current,CloudVolumeSettings.Default,p,5,4,t));
         var values=MemoryMarshal.Cast<byte,float>(t.Bytes);
         Assert.Equal(0,values[16]); Assert.Equal(-1,values[17]); Assert.Equal(0,values[18]);
         b=b with { Placement=b.Placement with { WindTileX=1,WindX=-49,Offset=new(-1,1,0) } };
-        Assert.True(h.Capture(b,current,CloudVolumeSettings.Default,light,p,5,4,t));
+        Assert.True(h.Capture(b,current,CloudVolumeSettings.Default,p,5,4,t));
         Assert.Equal(1,MemoryMarshal.Cast<byte,float>(t.Bytes)[16]);
         Assert.Equal(1,MemoryMarshal.Cast<byte,float>(t.Bytes)[26]); // prior phase y=(10>>1)&1
     }
@@ -114,9 +143,9 @@ public sealed class CloudTemporalHistoryTests
             var history=new CloudTemporalHistory();var light=Lighting();var input=Input(10);
             using var parameters=new CloudVolumeParameters();using var temporal=new CloudTemporalParameters();
             parameters.CaptureMap(20,input.Placement,1,CloudVolumeSettings.Default);parameters.CaptureLighting(light,0,Vector4.Zero,Vector3.Zero);
-            history.Commit(input,prior,CloudVolumeSettings.Default,light,parameters);
+            history.Commit(input,prior,CloudVolumeSettings.Default,parameters);
             var next=input with {Frame=11,Generation=12};
-            Assert.True(history.Capture(next,current,CloudVolumeSettings.Default,light,parameters,1720,689,temporal));
+            Assert.True(history.Capture(next,current,CloudVolumeSettings.Default,parameters,1720,689,temporal));
             float[] actual=MemoryMarshal.Cast<byte,float>(temporal.Bytes[..64]).ToArray();
             // Build the expected matrix independently from rotation-only view algebra, rather
             // than copying the production matrix's replacement-column implementation.
@@ -134,13 +163,15 @@ public sealed class CloudTemporalHistoryTests
             }
             // Native material movement remains explicit after the camera convention is fixed.
             next=next with {Placement=next.Placement with {CenterX=1,Offset=new(50,1,0)}};
-            Assert.True(history.Capture(next,current,CloudVolumeSettings.Default,light,parameters,1720,689,temporal));
+            Assert.True(history.Capture(next,current,CloudVolumeSettings.Default,parameters,1720,689,temporal));
             Assert.Equal(new Vector3(0,-1,0),MemoryMarshal.Read<Vector3>(temporal.Bytes.Slice(64,12)));
             history.Invalidate();
-            Assert.False(history.Capture(next,current,CloudVolumeSettings.Default,light,parameters,1720,689,temporal));
+            Assert.False(history.Capture(next,current,CloudVolumeSettings.Default,parameters,1720,689,temporal));
             Assert.Equal(expected,MemoryMarshal.Cast<byte,float>(temporal.Bytes[..64]).ToArray());
         }
     }
+    #endregion
+    #region Settings
     /// <summary>Ceil-half dimensions cover odd views and reject excessive storage before GPU allocation.</summary>
     [Fact]
     public void BoundsHistoryStorageAndPersistsApprovedDefault()
@@ -156,6 +187,7 @@ public sealed class CloudTemporalHistoryTests
         config.Clouds.EdgeWidth=float.NaN; config.Clouds.NoiseScale=float.PositiveInfinity;
         config.Clouds.Capture().Validate(); Assert.Equal(2,config.Clouds.EdgeWidth); Assert.Equal(.08f,config.Clouds.NoiseScale);
     }
+    #endregion
     #endregion
     #region Private
     /// <summary>Creates a coherent numerical content certificate without allocating native resources.</summary>

@@ -448,7 +448,8 @@ Bounded quality policy (implementation contract)
       physical units, current publication admission, medium/history certificates and RGB encoding.
     - Own this operation in primary trace/direct transport before physical history. Resolve and
       temporal reconstruction never reevaluate the medium. Reload/reset invalidates prior physical
-      history; changing medium parameters or completed lighting retains existing rejection rules.
+      history. Routine lighting/fog updates retain neighborhood-bounded history; changing between
+      aerial and underwater transport invalidates the previous medium mode.
     - The compact payload already shares one radiance across native buckets; use one opacity mean
       without adding bucket-specific radiance storage. Each primary step still updates its actual
       native bucket transmission and support depth. This does not assign all cloud opacity to d.
@@ -494,10 +495,17 @@ Bounded quality policy (implementation contract)
       when no retained legacy comparison consumer uses them; leave unrelated consumers untouched.
     - Reject history on any change to sample budgets/distances, lattice/jitter policy, termination,
       trace/reconstruction layout or atmosphere application policy, as well as existing lifecycle,
-      camera, medium, calibration and completed lighting incompatibilities.
+      camera, aerial/underwater transport-mode and calibration incompatibilities. Routine changes
+      to completed lighting, sun/moon directions, atmospheric response and fog retain accumulation.
     - Reproject camera-relative cloud points with projection times the rotation-only previous view.
       Native eye translation must not enter that matrix: the placement delta supplies translation.
       Leave the shared scene-camera transform convention unchanged.
+    - Preserve primary spacing in the fourth bucket-payload channel as support metadata, not an
+      optical factor. Include the sum of current/previous spacings in support midpoint tolerance
+      and twice that sum in thickness tolerance. Retain foreground depth and displacement rejection.
+      Quarter converts contributing spacings to destination-ray units and retains their maximum.
+      Store the current spacing without temporal averaging. Bound optical history by the compatible
+      current neighborhood instead of rejecting stochastic attenuation changes with a fixed delta.
 
   Termination policy
     - Candidate view transmittance threshold=.005; supported range [0,.005], with zero disabling this
@@ -1188,3 +1196,58 @@ Captured-view reprojection and primary empty-range correction (2026-10-18)
     runtime DLLs match, and all 458 tested production shader binaries match the directory and ZIP
     with zero mismatches. Source hashes remain unchanged across validation. No game launch, timing
     comparison or installed-asset modification was performed; the running game was left running.
+
+Sampling-aware temporal history correction (2026-10-18)
+  Runtime -> cloud_volume_transport.glsl and cloud_volume_temporal.fsh -> the physical bucket
+    payload's fourth channel carries primary spacing in world units for contributing traces.
+    Empty traces retain zero. Support midpoint tolerance includes the sum of both observations'
+    spacings; thickness tolerance includes twice that sum. Half preserves current spacing without
+    temporal blending. Quarter retains the maximum contributing spacing after destination-ray
+    conversion. Foreground clips, displacement limits, finite checks and current-neighborhood
+    clamping remain; fixed .05 optical-difference rejection is removed from both trace selections.
+  Focused checks -> artifacts/CloudTemporalDiagnosis/history-fix -> 53 CPU and 24 unique GPU
+    cases pass across focused-cpu.trx, focused-gpu.trx and spacing-regression.trx. The new single
+    regression covers both selections with the captured support endpoints and representative
+    spacings, optical variation above the retired delta, large support displacement and separate
+    opaque/liquid incompatibilities. Optical factors blend together; current spacing and depth
+    metadata remain unchanged. Existing temporal recurrence, foreground, physical history,
+    reconstruction and root/direct checks pass. An initial redundant lower-bound assertion did
+    not account for Quarter ray-conversion rounding; exact current-only metadata equality already
+    passed. Only that assertion changed before the targeted regression rerun; runtime assets stayed
+    fixed. These are finite-algorithm correctness checks, not approximation-quality gates.
+  Acceptance -> live flicker and frame-time qualification remain open; no game launch, replay or
+    new performance comparison is part of this correction.
+  Package -> tested-identity.json and package-identity.json in the same receipt directory ->
+    canonical Release build/package succeeds after retrying a sandbox-blocked NuGet connection.
+    Tested/published/directory/ZIP runtime DLLs match; all 458 tested production shader binaries
+    match the packaged directory and ZIP with zero mismatches. Final source identities are stable.
+
+Continuous atmospheric-input history admission (2026-10-18)
+  Runtime -> CloudTemporalHistory, CloudVolumeParameters and CloudVolumeReconstruction -> ordinary
+    completed-light publications and changing sun/moon, environment, altitude, horizon and fog
+    inputs retain temporal accumulation. Lighting object identity and exact packed medium bytes
+    no longer identify incompatible history. Current-neighborhood clamping bounds the response.
+    The discrete aerial/underwater transport branch remains a medium certificate; its threshold
+    matches the existing shader branch. Lifecycle/source, frame continuity, camera/projection,
+    calibration, settings and material-motion safeguards remain. Earlier receipts describing
+    completed-light/medium-value invalidation retain their historical candidate scope only.
+  Focused checks -> artifacts/CloudTemporalDiagnosis/admission-fix/focused-cpu.trx and
+    focused-gpu.trx -> 53 CPU and 13 GPU cases pass. One consecutive-frame regression replaces
+    lighting-value rejection with fresh-publication and continuous atmospheric/fog acceptance,
+    including underwater input 0, .6 and .7 within the aerial branch. Actual underwater transport
+    changes still reject, alongside existing lifecycle/settings/camera/calibration guards.
+    GPU checks retain bounded weather/bucket accumulation, recurrence, sampling-aware support,
+    foreground rejection and neutral empty support. The incremental build reuses all production
+    and fixture shader binaries without compiler invocations; no shader source changes are needed.
+  Latest capture -> artifacts/CloudTemporalDiagnosis/retest-spacing/temporal-validation.json ->
+    the preceding sampling-aware shader is active, with history enabled at weight .75. All 32
+    nonempty points in a deterministic 64-point grid show actual history contribution; the other
+    32 are empty. No clamp-collapse example appears in that grid. Parent metadata copies match
+    exactly, and finite-algorithm output predictions match with floor-tie candidates. Both row
+    conventions agree because only the horizontal reconstruction phase changes; orientation is
+    not independently distinguished, while direct contribution comparisons are invariant. This
+    single pre-correction frame cannot establish CPU reset frequency or live flicker acceptance.
+  Package -> artifacts/CloudTemporalDiagnosis/admission-fix/package-identity.json -> canonical
+    Release build/package succeeds. Tested/published/directory/ZIP runtime DLLs match, and all 458
+    tested production shader binaries match the packaged directory and ZIP with zero mismatches.
+    Runtime/test source identities are stable. Live appearance and frame-time acceptance remain open.

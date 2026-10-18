@@ -13,6 +13,9 @@ internal sealed class CloudVolumeParameters : CpuUniformBuffer
     /// <summary>Allocates thirteen explicitly matched std140 vectors.</summary>
     internal CloudVolumeParameters() : base(208) { }
 
+    /// <summary>Identifies the discrete local underwater transport branch used instead of aerial transport.</summary>
+    internal bool UsesUnderwaterTransport => System.Runtime.InteropServices.MemoryMarshal.Read<float>(Bytes.Slice(152,4))>.7f;
+
     /// <summary>Captures the main view medium without modifying native cloud or atmosphere state.</summary>
     internal void Capture(ICoreClientAPI api, CloudMapInput input, AtmosphereLighting lighting, CloudVolumeSettings settings)
     {

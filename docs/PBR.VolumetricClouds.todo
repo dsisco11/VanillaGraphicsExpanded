@@ -6,7 +6,10 @@ Authority and scope
   Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
   Atmospheric contract: docs/PBR.Atmosphere.Publication.md.
   Realtime work follow-up: docs/PBR.CloudRealtime.todo, covering
-    whole-ray budgets, secondary distance, termination, resolution, atmosphere and traversal.
+    whole-ray budgets, secondary distance, termination, resolution, atmosphere, traversal and
+    sampling-aware history rejection. Its current history policy supersedes the fixed support
+    and optical-difference thresholds and lighting/medium-value identity resets recorded for the
+    earlier candidates below. Ordinary day/night and weather updates retain bounded accumulation.
   This checklist records delivered rendering increments below; final acceptance remains outstanding.
   The proposal governs scope; keep every task unchecked until its stated evidence exists.
   Preserve Off / Simple / Volumetric settings and both standalone PBR and PBR + LumOn operation.

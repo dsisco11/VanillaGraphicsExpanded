@@ -21,21 +21,26 @@ vec3 CloudTemporalPoint(vec2 uv,float depth)
     vec4 p=vgeFrame.invProjectionMatrix*vec4(uv*2.0-1.0,depth*2.0-1.0,1);
     return (vgeFrame.invViewMatrix*vec4(p.xyz/p.w,0)).xyz;
 }
-/** Requires compatible cloud support and both foreground clips before accepting any channel. */
-bool CloudHistoryCompatible(vec4 a,vec4 b,float expected)
+/** Allows quantized support endpoints while retaining independent foreground and displacement rejection. */
+bool CloudHistoryCompatible(vec4 a,vec4 b,float expected,float currentSpacing,float previousSpacing)
 {
     if(b.y<=0.0) return false;
-    if(any(isnan(b))||any(isinf(b))) return false;
+    if(any(isnan(a))||any(isinf(a))||any(isnan(b))||any(isinf(b))) return false;
+    vec2 spacing=vec2(currentSpacing,previousSpacing);
+    if(any(isnan(spacing))||any(isinf(spacing))||any(lessThan(spacing,vec2(0)))) return false;
     if(max(abs(a.z-b.z),abs(a.w-b.w))>2e-5) return false;
-    if(abs((b.x+b.y)*.5-expected)>max(2.0,expected*.02)) return false;
-    return abs((b.y-b.x)-(a.y-a.x))<=max(2.0,(a.y-a.x)*.05);
+    // Each first/last contributing endpoint has one sample interval of uncertainty. Account
+    // for both observations rather than interpreting a jittered boundary as scene motion.
+    float uncertainty=currentSpacing+previousSpacing;
+    if(abs((b.x+b.y)*.5-expected)>max(max(2.0,expected*.02),uncertainty)) return false;
+    return abs((b.y-b.x)-(a.y-a.x))<=max(max(2.0,(a.y-a.x)*.05),2.0*uncertainty);
 }
 /** Filters physical radiance and attenuation factors together; depth remains the current trace receipt. */
 void CloudTemporalHalf()
 {
     ivec2 pixel=ivec2(gl_FragCoord.xy), size=ivec2(cloudTrace.xy);
     vec4 data[3]; for(int i=0;i<3;i++) data[i]=CloudCurrentFetch(i,pixel);
-    vec4 meta=data[2]; bool accepted=false; ivec2 previous=ivec2(0);
+    vec4 meta=data[2]; float spacing=data[1].w; bool accepted=false; ivec2 previous=ivec2(0);
     if(cloudHistory.x>.5 && meta.y>0.0 && data[0].a<1.0)
     {
         vec2 uv=CloudTraceUv(pixel,cloudTrace.zw);
@@ -50,16 +55,9 @@ void CloudTemporalHalf()
                 // Previous phase is retained explicitly: reject a projection farther than one reduced pixel.
                 vec2 sampleUv=CloudTraceUv(previous,cloudHistory.yz);
                 if(length((sampleUv-oldUv)*vgeFrame.screenSize)<=2.83)
-                    accepted=CloudHistoryCompatible(meta,CloudHistoryFetch(2,previous),length(point));
+                    accepted=CloudHistoryCompatible(meta,CloudHistoryFetch(2,previous),length(point),spacing,CloudHistoryFetch(1,previous).w);
             }
         }
-    }
-    if(accepted)
-    {
-        // A fresh upload is not necessarily a discontinuity. Reject rapid optical changes
-        // explicitly, then bound gradual weather and self-shadow changes by current samples.
-        if(abs(data[0].a-CloudHistoryFetch(0,previous).a)>.05) accepted=false;
-        if(any(greaterThan(abs(data[1].xyz-CloudHistoryFetch(1,previous).xyz),vec3(.05)))) accepted=false;
     }
     if(accepted)
     {
@@ -75,13 +73,17 @@ void CloudTemporalHalf()
         {
             ivec2 n=clamp(pixel+ivec2(x,y),ivec2(0),size-1);
             vec4 m=CloudCurrentFetch(2,n);
-            if(!CloudHistoryCompatible(meta,m,(meta.x+meta.y)*.5)) continue;
-            for(int i=0;i<2;i++) { vec4 c=CloudCurrentFetch(i,n); low[i]=min(low[i],c); high[i]=max(high[i],c); }
+            vec4 buckets=CloudCurrentFetch(1,n);
+            if(!CloudHistoryCompatible(meta,m,(meta.x+meta.y)*.5,spacing,buckets.w)) continue;
+            vec4 radiance=CloudCurrentFetch(0,n);
+            low[0]=min(low[0],radiance);high[0]=max(high[0],radiance);
+            low[1]=min(low[1],buckets);high[1]=max(high[1],buckets);
         }
         if(finite) for(int i=0;i<2;i++) data[i]=mix(data[i],clamp(old[i],low[i],high[i]),cloudHistory.w);
     }
     outCloudRadianceTransmission=vec4(max(data[0].rgb,vec3(0)),clamp(data[0].a,0.0,1.0));
-    outCloudBucketTransmission=vec4(clamp(data[1].xyz,0.0,1.0),0);
+    // Spacing describes this frame's support receipt, never an average of prior lattices.
+    outCloudBucketTransmission=vec4(clamp(data[1].xyz,0.0,1.0),spacing);
     outCloudDepth=meta;
 }
 
@@ -108,7 +110,7 @@ void CloudTemporalQuarter()
     bool sampled=all(equal(CloudTraceLocation(center),pixel));
     vec4 data[2],low[2],high[2];
     for(int i=0;i<2;i++){data[i]=vec4(0);low[i]=vec4(1e30);high[i]=vec4(-1e30);}
-    float total=0.0,first=1e30,last=0.0;
+    float total=0.0,first=1e30,last=0.0,spacing=0.0;
     for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)
     {
         ivec2 q=center+ivec2(x,y);
@@ -129,6 +131,8 @@ void CloudTemporalQuarter()
         {
             float ratio=CloudQuarterRayCosine(sourceUv)/destinationCosine;
             first=min(first,meta.x*ratio);last=max(last,meta.y*ratio);
+            // Unsampled positions retain the widest contributing interval in destination-ray units.
+            spacing=max(spacing,optical1.w*ratio);
         }
     }
     vec4 meta=vec4(0,0,normalizedDepth);
@@ -155,15 +159,16 @@ void CloudTemporalQuarter()
                 previous=clamp(ivec2(floor((oldUv*vgeFrame.screenSize-vec2(.5))*.5+vec2(.5))),ivec2(0),size-1);
                 vec2 sampleUv=CloudReconstructionUv(previous,vec2(0));
                 accepted=length((sampleUv-oldUv)*vgeFrame.screenSize)<=2.83
-                    &&CloudHistoryCompatible(meta,CloudHistoryFetch(2,previous),length(point));
+                    &&CloudHistoryCompatible(meta,CloudHistoryFetch(2,previous),length(point),spacing,CloudHistoryFetch(1,previous).w);
             }
         }
     }
     if(accepted)
     {
         vec4 old0=CloudHistoryFetch(0,previous),old1=CloudHistoryFetch(1,previous);
-        accepted=CloudQuarterFinite(old0)&&CloudQuarterFinite(old1)&&abs(data[0].a-old0.a)<=.05
-            &&!any(greaterThan(abs(data[1].xyz-old1.xyz),vec3(.05)));
+        // Optical variation is the signal being accumulated. Current-neighborhood clamping
+        // bounds changed lighting/weather without discarding ordinary sampling variance.
+        accepted=CloudQuarterFinite(old0)&&CloudQuarterFinite(old1);
         if(accepted)
         {
             // Real samples keep the established temporal weight. Unsampled positions reuse
@@ -174,7 +179,7 @@ void CloudTemporalQuarter()
         }
     }
     outCloudRadianceTransmission=vec4(max(data[0].rgb,vec3(0)),clamp(data[0].a,0.0,1.0));
-    outCloudBucketTransmission=vec4(clamp(data[1].xyz,0.0,1.0),0);
+    outCloudBucketTransmission=vec4(clamp(data[1].xyz,0.0,1.0),spacing);
     outCloudDepth=meta;
 }
 /** Keeps the existing half path while selecting quarter-to-half reconstruction through the shared parameter contract. */

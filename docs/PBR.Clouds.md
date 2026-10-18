@@ -166,8 +166,9 @@ is applied once to `radiance / sum(w_i)` at the representative distance, then mu
 `sum(w_i)`. This scales incoming air/fog light by cloud coverage. A ray without contributing
 opacity keeps neutral output. Encoding occurs once at direct submission or later full-view resolve.
 The reduced physical payload already contains this medium response; temporal and resolve passes
-do not apply it again. Shader reload retires incompatible history; changes to completed lighting
-or medium parameters also reject history through the existing certificate.
+do not apply it again. Shader reload retires incompatible history. Routine lighting and fog changes
+retain history, bounded by the current neighborhood; switching between aerial and underwater
+transport invalidates the previous medium mode.
 
 The compact payload shares one radiance across all native buckets, so this mean is shared rather
 than adding bucket-specific colors or representative distances. Each contributing step still
@@ -227,7 +228,8 @@ bounded temporal accumulation and depth-aware full-view reconstruction. `CloudVo
 owns one immutable nine-layer RGBA32F `Texture2DArray` for the Half selection, with three disjoint three-layer views.
 Each view has a persistent framebuffer with its three local layers attached to the payload outputs.
 Layer zero stores integrated physical RGB radiance with overall transmission in alpha; layer one
-stores three bucket transmissions with a zero spare channel. Layer two stores first/last
+stores three bucket transmissions with primary sample spacing in its fourth channel (zero for
+an empty trace). Spacing is support metadata in world units, not an optical factor. Layer two stores first/last
 contributing distance and current opaque/liquid depth. The two optical layers share acceptance
 and interpolation weights. Temporal sampling binds the current trace and previous history views;
 resolve binds the newly filtered history view. Typed view bindings reject overlap with active
@@ -270,11 +272,18 @@ differences distinguish camera/cloud movement from grid recentering. Cloud repro
 rotation-only view with the previous projection, matching camera-relative ray reconstruction.
 The native eye translation is excluded; placement deltas supply material/camera translation once.
 Shared scene-camera matrices retain their native convention. History requires consecutive
-frames and compatible owner/world/allocation/shader, extent/projection, calibration, medium,
-settings and completed lighting. Monotonic routine uploads may retain history, with current
-support/depth and optical-change checks on the GPU. Cuts, missing input, replacements, mode
+frames and compatible owner/world/allocation/shader, extent/projection, calibration, transport mode
+and settings. Routine completed-lighting publications, sun/moon motion, fog changes and monotonic
+raw uploads retain history, with current
+support/depth and finite-payload checks on the GPU. Cuts, missing input, replacements, mode
 release, reload and reset invalidate history. Changing trace scale replaces incompatible allocations. Half accepted history has weight .75, clamped to a
-compatible current neighborhood; attenuation jumps above .05 reject it. Spatial reconstruction
+compatible current neighborhood. Support midpoint tolerance includes the sum of current and previous
+sample spacings; thickness tolerance includes twice that sum, covering both quantized endpoints.
+Opaque/liquid depth rejection and the existing displacement limits remain independent of that
+sampling uncertainty. Optical differences are accumulated within the current neighborhood envelope
+without a separate attenuation-difference rejection threshold. Spacing remains the current support
+receipt rather than a temporal average; Quarter converts contributing intervals into destination-ray
+units and retains their maximum. Spatial reconstruction
 uses four phase-aware reduced samples and current opaque/liquid depth. Foreground distances
 reject incompatible samples; both optical payload images share normalized weights, including clear
 samples at cloud edges. Clouds fully in front of both depth clips can be reconstructed across
