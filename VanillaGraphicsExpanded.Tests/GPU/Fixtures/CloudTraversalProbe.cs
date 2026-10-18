@@ -36,7 +36,7 @@ internal sealed class CloudTraversalProbe : IDisposable
         for (int i = 0; i < positions.Length; i++) records[i].X = positions[i];
         output.UploadData(records);
         program.SetVolume(volume);
-        program.SetRay(origin, direction, mode == 6 ? positions.Length : limit, mode);
+        program.SetRay(origin, direction, mode is 6 or 11 ? positions.Length : limit, mode);
         program.SetTraversal(root);
         program.Map = map;
         program.HeightBounds = bounds;

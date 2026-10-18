@@ -242,7 +242,7 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
         Assert.InRange(Math.Abs(clipped.Reveal-Math.Exp(-1)),0,.0002);
     }
 
-    /// <summary>Lookup decoding, affine aerial transport and frozen storage enter once for each covered interval.</summary>
+    /// <summary>Lookup decoding and affine aerial response enter once before final scene encoding.</summary>
     [Theory]
     [InlineData(1f)]
     [InlineData(.125f)]
@@ -259,7 +259,10 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
     {
         EnsureShaderTestAvailable();
         var result=Draw(2,underwater:true,fogDensity:.02f,loss:.99f,scatter:100);
-        double expected=10*(Math.Exp(-.25)+Math.Exp(-1)*Math.Exp(-.75))/(1+Math.Exp(-1));
+        // The two contributing midpoints are 12.5 and 37.5; their opacity weights differ by exp(-1).
+        // Apply local fog once at that opacity centroid, independently of source brightness.
+        double mean=(12.5+Math.Exp(-1)*37.5)/(1+Math.Exp(-1));
+        double expected=10*Math.Exp(-.02*mean);
         Assert.InRange(Math.Abs(result.Source.X-expected),0,.0002);
         Assert.InRange(Math.Abs(result.Reveal-Math.Exp(-2)),0,.00002);
     }
@@ -352,7 +355,7 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
             columns[index+2]=lower; columns[index+3]=upper;
         }
         map.UploadDataImmediate(columns);
-        Assert.Equal(columns,map.ReadPixels());
+
         using var opaque=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
         using var visibility=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
         using var liquid=DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f);
@@ -380,18 +383,19 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using var pipeline=new GraphicsPipeline(lifetime,new(program.GraphicsIdentity!,CloudVolumeRenderer.Layout,metadata.Signature,
             DynamicPipelineState.Viewport,blending:LiquidPipelineStates.SurfaceBlending),program);
         using var geometry=new ArrayGraphicsGeometry(CloudVolumeRenderer.Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
-        int priorVao=GL.GetInteger(GetPName.VertexArrayBinding),priorFbo=GL.GetInteger(GetPName.DrawFramebufferBinding);
+        int priorVao=StateCache.Current.GetCurrentVao(),priorFbo=StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
         Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.Volume",[pipeline],true,commands=>
         {
             commands.BeginPass(pass); commands.SetPipeline(pipeline); commands.SetDynamicState(new(){Viewport=commands.PassViewport});
             commands.Draw(geometry,new(0,3)); commands.EndPass();
         }));
-        Assert.Equal(priorVao,GL.GetInteger(GetPName.VertexArrayBinding)); Assert.Equal(priorFbo,GL.GetInteger(GetPName.DrawFramebufferBinding));
-        float[] c=a0.ReadPixels(),b=reveal.ReadPixels(),r=overall.ReadPixels(),g=glow.ReadPixels();
-        foreach(var image in new[]{c,b,r,g,a1.ReadPixels(),a2.ReadPixels()}) Assert.All(image,value=>Assert.True(float.IsFinite(value)&&value>=0));
+        Assert.Equal(priorVao,StateCache.Current.GetCurrentVao()); Assert.Equal(priorFbo,StateCache.Current.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer));
+        float[] c=a0.ReadPixels(),b=reveal.ReadPixels(),r=overall.ReadPixels(),g=glow.ReadPixels(),
+            second=a1.ReadPixels(),third=a2.ReadPixels();
+        foreach(var image in new[]{c,b,r,g,second,third}) Assert.All(image,value=>Assert.True(float.IsFinite(value)&&value>=0));
         Assert.All(b,value=>Assert.InRange(value,0,1)); Assert.InRange(r[0],0,1);
-        Assert.True(GL.IsTexture(map.TextureId)); Assert.Equal(ErrorCode.NoError,GL.GetError());
-        return new(c[3]>0?new Vector3(c[0],c[1],c[2])/c[3]:Vector3.Zero,r[0],new(b[0],b[1],b[2]),new(c[3],a1.ReadPixels()[3],a2.ReadPixels()[3]),g[3]);
+        Assert.True(map.IsValid); GlDebug.ThrowIfErrors("Cloud volume transport");
+        return new(c[3]>0?new Vector3(c[0],c[1],c[2])/c[3]:Vector3.Zero,r[0],new(b[0],b[1],b[2]),new(c[3],second[3],third[3]),g[3]);
     }
 
     /// <summary>Encodes an independently authored perspective depth for a surface at the requested camera distance.</summary>

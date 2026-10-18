@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Owns production shader instances for isolated pass tests, using the built binary assets.</summary>
 internal sealed class ComponentShaderPrograms : IDisposable
 {
-    private readonly BinaryShaderApiFixture assets = new();
+    private readonly BinaryShaderApiFixture assets;
     private readonly EngineShaderPlatformScope platform = new();
     private readonly List<GpuProgram> programs = [];
     private readonly List<GpuComputeProgram> computePrograms = [];
@@ -17,6 +17,12 @@ internal sealed class ComponentShaderPrograms : IDisposable
     internal Vintagestory.API.Client.ICoreClientAPI Api => assets.Api;
 
     #region Program lifetime
+    /// <summary>Uses current built assets or an explicitly frozen asset root for matched diagnostics.</summary>
+    internal ComponentShaderPrograms(string? assetRoot = null)
+    {
+        assets = new BinaryShaderApiFixture(assetRoot);
+    }
+
     /// <summary>Configures a real shader before loading its declared variant; retains ownership through test teardown.</summary>
     public T Create<T>(Action<T>? configure = null, IReadOnlyDictionary<string, string?>? settings = null, string? identity = null) where T : GpuProgram, new()
     {

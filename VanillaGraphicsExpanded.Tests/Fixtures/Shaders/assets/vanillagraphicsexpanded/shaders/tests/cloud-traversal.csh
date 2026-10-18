@@ -14,6 +14,13 @@ float MeasuredShadowDensity(vec3 point,ivec2 cell,vec4 data)
     if(measuredSamples<402) intervals[measuredSamples]=vec4(length(point-measuredOrigin),density,point.y,0);
     measuredSamples++; return density;
 }
+/** Preserves production descriptor reuse while recording the same full-density calls as the uncached fixture. */
+float MeasuredShadowDensity(vec3 point,ivec2 cell,vec4 data,inout CloudDensityCache cache)
+{
+    float density=CloudDensity(point,cell,data,cache);
+    if(measuredSamples<402) intervals[measuredSamples]=vec4(length(point-measuredOrigin),density,point.y,0);
+    measuredSamples++; return density;
+}
 #define CloudDensity MeasuredShadowDensity
 @import "../includes/cloud_volume_light.glsl"
 #undef CloudDensity
@@ -21,14 +28,49 @@ float MeasuredShadowDensity(vec3 point,ivec2 cell,vec4 data)
 layout(local_size_x=1) in;
 layout(std140) uniform CloudRayTestInputs { vec4 testOriginLimit; vec4 testDirectionMode; };
 
+/** Retains the original density arithmetic as an algorithm-equivalence oracle, independent of cache and face pruning. */
+float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
+{
+    if(data.r<=0.0||local.y<data.b*50.0||local.y>data.a*50.0) return 0.0;
+    float detail=1.0;
+    if(volumeDetail.w>.5)
+    {
+        vec2 f=local.xz-vec2(cell)*50.0;
+        float edge=min(local.y-data.b*50.0,data.a*50.0-local.y);
+        if(!CloudOccupied(cell+ivec2(-1,0),local.y)) edge=min(edge,f.x);
+        if(!CloudOccupied(cell+ivec2(1,0),local.y)) edge=min(edge,50.0-f.x);
+        if(!CloudOccupied(cell+ivec2(0,-1),local.y)) edge=min(edge,f.y);
+        if(!CloudOccupied(cell+ivec2(0,1),local.y)) edge=min(edge,50.0-f.y);
+        vec3 material=local+vec3(volumeAnchorUnits.x,0,volumeAnchorUnits.y);
+        detail=(1.0+volumeDetail.x*(2.0*CloudNoise(material)-1.0))*smoothstep(0.0,volumeDetail.y,edge);
+    }
+    return (data.r/50.0)/volumeAnchorUnits.z*detail;
+}
+
 /** Exposes actual production traversal intervals while counting native leaf probes independently of helper internals. */
 void main()
 {
     counts=vec4(0); measuredOrigin=testOriginLimit.xyz;
+    if(testDirectionMode.w==11.0)
+    {
+        CloudDensityCache cache=CloudDensityCacheStart();
+        for(int i=0;i<402;i++)
+        {
+            if(i>=int(testOriginLimit.w)) break;
+            vec3 point=testOriginLimit.xyz+testDirectionMode.xyz*intervals[i].x;
+            ivec2 cell=ivec2(floor(point.xz/50.0));
+            vec4 direct=CloudColumn(cell),cached=CloudDensityColumn(cell,cache);
+            intervals[i].y=ReferenceCloudDensity(point,cell,direct);
+            intervals[i].z=CloudDensity(point,cell,direct);
+            intervals[i].w=CloudDensity(point,cell,cached,cache);
+            counts.x+=1.0;
+        }
+        return;
+    }
     if(testDirectionMode.w==10.0)
     {
-        vec3 source=CloudDirectional(testOriginLimit.xyz,vec3(0,0,-1),volumeSun.xyz,volumeSolar.xyz)
-            +CloudDirectional(testOriginLimit.xyz,vec3(0,0,-1),volumeMoon.xyz,volumeLunar.xyz);
+        vec3 source=CloudDirectional(testOriginLimit.xyz,volumeSun.xyz,volumeSolar.xyz,CloudDirectionalPhase(vec3(0,0,-1),volumeSun.xyz))
+            +CloudDirectional(testOriginLimit.xyz,volumeMoon.xyz,volumeLunar.xyz,CloudDirectionalPhase(vec3(0,0,-1),volumeMoon.xyz));
         intervals[400]=vec4(source,0);counts.x=float(measuredSamples);return;
     }
     if(testDirectionMode.w>=7.0)

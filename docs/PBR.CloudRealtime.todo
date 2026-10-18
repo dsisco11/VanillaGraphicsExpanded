@@ -269,7 +269,7 @@ Phase 5.1: Prune earlier cloud tests and eliminate redundant GPU work
 
 Phase 6: Amortize atmospheric and repeated density/phase evaluation
   Depends on Phase 5.1. Outcome: shading avoids repeated work with explicitly qualified approximations.
-  ☐ Move aerial/local-fog application out of every density-shading sample toward representative-
+  ☑ Move aerial/local-fog application out of every density-shading sample toward representative-
     distance composition; derive the representative distance and apply the existing transport once.
     - Preserve physical cloud history, underwater/local-medium selection, coverage, lighting range
       admission and scene encoding. Decide the owning pass and invalidate history when required.
@@ -280,9 +280,9 @@ Phase 6: Amortize atmospheric and repeated density/phase evaluation
     - Test the specified representative-distance formula, OIT bookkeeping and once-only encoding
       independently. Differences from per-sample transport are diagnostics for measured-cost and
       user appearance review, not automated approximation-error or fidelity acceptance gates.
-  ☐ Hoist fixed directional phase evaluation to once per primary ray/light and reuse it for every
+  ☑ Hoist fixed directional phase evaluation to once per primary ray/light and reuse it for every
     occupied sample. Check generated shader behavior so compiler hoisting is not claimed as new savings.
-  ☐ Reduce repeated cloud_volume_density.glsl work; equivalent optimizations preserve the density field.
+  ☑ Reduce repeated cloud_volume_density.glsl work; equivalent optimizations preserve the density field.
     - Reuse neighboring column descriptors within a sampled interval; retain height-dependent
       occupancy tests and native validity rules. Avoid neighbor lookups when they cannot affect erosion.
     - Skip noise when amplitude is zero and skip detailed work when cheap support proves zero density.
@@ -294,7 +294,7 @@ Phase 6: Amortize atmospheric and repeated density/phase evaluation
       without automated spectral-quality or fidelity thresholds. Both choices retain native support,
       connected faces, anchoring and the shared view/light density definition. Retain current noise
       if no measured benefit justifies replacement.
-  ☐ Completion: specified atmospheric composition/OIT arithmetic passes correctness checks;
+  ☑ Completion: specified atmospheric composition/OIT arithmetic passes correctness checks;
     density-preserving optimizations and phase hoisting pass same-algorithm equivalence checks.
     Intentional atmosphere/noise approximation changes have diagnostic comparisons and the stated
     review evidence rather than old-output equivalence gates. Attributed savings come from measurements.
@@ -438,6 +438,27 @@ Bounded quality policy (implementation contract)
       other settings fixed. Report distance bias separately from sampling bias; neither is an
       automated quality gate or a requirement to increase sample count/distance.
 
+  Atmospheric composition
+    - Integrate physical incident cloud radiance L=sum(w_i*S_i), opacity measure W=sum(w_i) and
+      distance moment M=sum(w_i*t_i), with w_i=transmission-before-step*alpha_i. Only admitted,
+      contributing finite-budget samples enter these sums; include the terminating sample.
+    - For W>0 use d=M/W and R=W*CloudTransport(L/W,direction*d). Air/local-fog in-scattering
+      is thereby multiplied by cloud opacity, never added unweighted. W=0 leaves neutral output.
+      Apply completed aerial decode or the existing underwater/local-medium branch once; retain
+      physical units, current publication admission, medium/history certificates and RGB encoding.
+    - Own this operation in primary trace/direct transport before physical history. Resolve and
+      temporal reconstruction never reevaluate the medium. Reload/reset invalidates prior physical
+      history; changing medium parameters or completed lighting retains existing rejection rules.
+    - The compact payload already shares one radiance across native buckets; use one opacity mean
+      without adding bucket-specific radiance storage. Each primary step still updates its actual
+      native bucket transmission and support depth. This does not assign all cloud opacity to d.
+      Distance-varying medium and source-distance correlations can differ from per-sample transport;
+      record those differences diagnostically and retain user-run appearance qualification.
+    - Hoist fixed directional phase for each nonzero light before the primary loop, retaining
+      independent per-point shadow integration and its zero-source rejection. Cache native column
+      descriptors only across consecutive samples in that column; retest neighbors at every height.
+      Noise and native geometry remain unchanged. Do not infer individual timing savings from
+      source operation counts or from combined renderer measurements.
   Sampling and temporal identity
     - Use spatial blue-noise primary-ray offsets with an eight-frame temporal index advancing every
       rendered frame, independent of reconstruction phase. Use the traced full-view coordinate;
@@ -925,3 +946,91 @@ Phase 5.1 test cleanup and verification (2026-10-18)
     published package; no tested-package identity or repackaging claim is made for this test cleanup.
   Completion -> second source/assertion review and independent linked-document completion audit
     pass. All Phase 5.1 tasks are complete; later implementation and final qualification remain open.
+
+Phase 6 implementation and verification (2026-10-18)
+  Composition task -> Atmospheric composition above; volumetric proposal Density/Scene integration;
+    atmospheric publication units, immutable lighting and lookup decode; parent native OIT ->
+    cloud_volume_transport.glsl accumulates physical source and opacity-weighted distance, applies
+    existing affine air/local-medium response once in trace/direct transport, and restores opacity.
+    Bucket transmissions, contributing support, foreground clips and the complete sample schedule
+    retain per-step arithmetic. The one shared mean matches existing compact shared-radiance storage;
+    it does not flatten bucket opacity or require a new history target. Encoding remains once-only.
+  History/admission -> PBR.Clouds.md Reconstruction; volumetric proposal lifecycle and current
+    CloudTemporalHistory -> no settings/schema or publication change. Shader reload retires physical
+    histories; existing medium bytes and completed-light identity reject incompatible content.
+    Frozen source/medium bounds remain conservative because normalized nonnegative source is a
+    weighted average and affine in-scattering is scaled by cloud opacity, with no duplicate weather.
+  Density/phase tasks -> same-field and anchored-density contracts; archived hierarchy native
+    validity/finite support -> cloud_volume_density.glsl retains current column and lazy neighbor
+    descriptors only within one cell, tests height on every query, prunes erosion-neutral faces,
+    bypasses noise at zero amplitude and exits zero edge support before noise. Procedural field,
+    units, native bounds, connected faces and material anchoring are unchanged. Solar/lunar phase
+    is computed once for each nonzero source before the primary loop; shadow quadrature remains
+    per-point. No noise texture or intentional density-field replacement is introduced.
+  Correctness review -> CloudDensityReuseTests uses one program and four GPU dispatch/readbacks
+    covering 79 queries against an independent original unpruned formula; cached/uncached results
+    retain exact zero and tiny positive extinction. CloudVolumeDrawTests independently derives the
+    two-step opacity centroid for underwater fog; authored aerial/storage, OIT, termination, primary,
+    secondary, history and clipping checks supply distinct contracts. No approximation-error gates
+    or scene smoke matrix is added. Explicit measurement uses existing programs, texture/framebuffer,
+    command, state and timer owners; frozen built assets provide the comparison implementation.
+  Generated-code review -> artifacts/CloudRealtime/phase6/generated-phase-baseline.json and
+    generated-phase-final-comparison.json -> corrected optimized default trace SPIR-V contains
+    two directional phase pow operations outside all loops, versus inside the primary loop
+    in the frozen baseline. Four aerial 3D texture reads and one shaft read also move outside that
+    loop. This establishes emitted shader structure, not driver assembly or isolated GPU savings.
+  Approximation review -> one opacity mean intentionally replaces per-point medium evaluation.
+    The shared compact radiance contract needs no bucket-specific mean, while each bucket's opacity
+    and sample-depth weighting remain unchanged. Deep/disjoint clouds and varying medium/source
+    correlations may differ. The same-field procedural noise is retained; no noise replacement is
+    justified or introduced. Diagnostic differences and combined trace timings qualify this change;
+    final user appearance and whole-renderer qualification remain in Phase 8 and the parent checklist.
+  Superseded density attempt -> initial focused-gpu/remaining-gpu and density diagnostic receipts
+    retain a horizontal-erosion regression in both fresh and persistent cache paths. Moving cache
+    mutation out of Boolean expressions, fetching each neighbor descriptor explicitly, then applying
+    the original occupancy predicate restores the field checks and existing primary exposed-face
+    case. Neither reference arithmetic nor tolerance changed. The earlier GLSL appears valid by
+    source review; a compiler/driver cause remains unproven. Targeted fixed-candidate receipts,
+    not the failed candidate or source reasoning alone, establish the corrected behavior.
+  Matched measurement -> artifacts/CloudRealtime/phase6/matched-shading-summary.json and raw TRX/log ->
+    frozen baseline and corrected candidate run through identical production shader/resource owners,
+    at 32x32 full / 16x16 trace, native width 81, primary/light defaults and termination disabled.
+    RTX 4090, NVIDIA 610.88; no game process observed before measurement preparation. Three warm passes precede seven alternating
+    pairs per scene; all 256 trace pixels contribute. Device timing includes the submitted trace
+    pass, not a full renderer/frame. CPU submission and every raw observation are retained.
+    Median GPU milliseconds, baseline -> corrected candidate:
+      homogeneous 3.218 -> 2.734; detail-lit 6.405 -> 4.226; terrain 2.670 -> 2.631;
+      translucent overlap 2.670 -> 2.485; underwater 2.317 -> 2.630;
+      distance-varying aerial 2.412 -> 2.285; cloud edge 2.593 -> 2.533;
+      changing local fog 2.633 -> 2.285.
+    The detailed case median falls 34.0%; underwater regresses 13.5% in this small run. Distributions
+    overlap and some CPU submission means also increase. These are combined-change observations;
+    individual phase/cache/air savings, other resolutions, whole-renderer benefit and stable target
+    performance are not established. The underwater observation remains open for final qualification;
+    no repeated matrix, automated timing threshold or unconditional speedup claim is introduced.
+  Output diagnostic review -> matched-shading-summary.json -> the combined RGB/transmission layer's
+    maximum absolute difference is .777824 for underwater, .612542 for the varying aerial lookup,
+    and .544074 before the local-fog change (.777824 after). These physical-payload differences are
+    observations, not fidelity or perceptual bounds. Bucket/depth layers match in these scenes;
+    the detail scene has a 1.1921e-7 bucket difference and zero depth difference. Seeded translucent
+    six-output differences are retained separately. One centroid preserves the distributed OIT
+    bookkeeping but changes nonlinear distance response; user appearance acceptance stays open.
+  Final validation -> artifacts/CloudRealtime/phase6/commands.json and validation-summary.json ->
+    70 focused GPU correctness cases and 55 CPU/catalog cases pass, plus one explicitly enabled
+    matched-measurement case. density-fixed-probes.trx supplies two corrected density/primary cases;
+    final-gpu.trx supplies the other 68, with no duplicated/excluded approximation passes. Existing
+    native units, OIT/storage, history/medium rejection, independent clips, procedural density,
+    bounded source integration and both PBR selections retain focused correctness coverage.
+  Package/freeze -> canonical-corrected.log and package-identity.json -> final canonical Release
+    publish, 458 production shader variants and package pass. The isolated test build validates
+    538 fixture variants. All 458 actually tested production shader binaries match the packaged
+    directory and ZIP, as does the tested runtime DLL; zero mismatches. Final source/test/DLL hashes
+    remain unchanged against the corrected candidate. generated-phase-packaged-comparison.json
+    independently checks phase placement in final packaged binaries; earlier superseded evidence
+    is not used to identify the final package. Build input-mutation and initial density failures
+    remain recorded. No whole-game performance, target resident memory or appearance acceptance
+    follows from these focused receipts. Later phases and parent acceptance remain unchecked.
+  Completion -> second source/test/document review and independent linked-document completion
+    audit pass on the corrected, packaged candidate. Phase 6 implementation is complete. Phase 7/8,
+    final selection, the underwater timing observation, whole-renderer cost and user appearance
+    acceptance remain open; no later task or parent acceptance is marked complete.

@@ -69,28 +69,35 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     int count=CloudPrimaryCount(span.y-span.x);
     float ds=(span.y-span.x)/float(count);
     float primaryJitter=CloudPrimaryJitter(uv);
-    vec4 k=vec4(0); vec3 reveal=vec3(1); float transmission=1.0;
+    vec3 radiance=vec3(0),reveal=vec3(1); float transmission=1.0;
+    float opacityWeight=0.0,distanceMoment=0.0;
+    float solarPhase=max(volumeSolar.r,max(volumeSolar.g,volumeSolar.b))>0.0?CloudDirectionalPhase(direction,volumeSun.xyz):0.0;
+    float lunarPhase=max(volumeLunar.r,max(volumeLunar.g,volumeLunar.b))>0.0?CloudDirectionalPhase(direction,volumeMoon.xyz):0.0;
+    CloudDensityCache densityCache=CloudDensityCacheStart();
     for(int i=0;i<VGE_CLOUD_PRIMARY_LIMIT;i++)
     {
         if(i>=count) break;
         float t=CloudPrimaryPosition(span,count,i,primaryJitter);
         vec3 local=origin+direction*t;
         ivec2 cell=ivec2(floor(local.xz/50.0));
-        vec4 data=CloudColumn(cell);
+        vec4 data=CloudDensityColumn(cell,densityCache);
         // Cheap support rejection never redistributes samples or restarts a cell-local budget.
         if(data.r<=0.0 || local.y<data.b*50.0 || local.y>data.a*50.0) continue;
-        float sigma=CloudDensity(local,cell,data);
+        float sigma=CloudDensity(local,cell,data,densityCache);
         float alpha=clamp(1.0-exp(-sigma*(ds*volumeAnchorUnits.z)),0.0,1.0);
         if(alpha<=0.0) continue;
         float near=span.x+float(i)*ds,far=min(span.y,near+ds);
         if(result.depth.y==0.0) result.depth.x=near;
         result.depth.y=far;
         vec3 source=volumeEnvironment.rgb
-            +CloudDirectional(local,direction,volumeSun.xyz,volumeSolar.rgb)
-            +CloudDirectional(local,direction,volumeMoon.xyz,volumeLunar.rgb);
-        source=CloudTransport(source,direction*t);
-        // Encode only RGB, before view coverage and native bucket weighting.
-        k.rgb+=transmission*alpha*CloudEncode(source);
+            +CloudDirectional(local,volumeSun.xyz,volumeSolar.rgb,solarPhase)
+            +CloudDirectional(local,volumeMoon.xyz,volumeLunar.rgb,lunarPhase);
+        // Keep the opacity measure separate from source brightness: dark clouds still transport air.
+        // Only contributing scheduled points enter the mean; empty gaps retain their original budgets.
+        float weight=transmission*alpha;
+        radiance+=weight*source;
+        opacityWeight+=weight;
+        distanceMoment+=weight*t;
         transmission*=1.0-alpha;
         float bin=log(CloudAdjustedDepth(near)/30.0+1.0);
         vec3 b=vec3(vgeOitBellCurve(bin),vgeOitBellCurve(bin-1.0),bin>2.0?1.0:vgeOitBellCurve(bin-2.0));
@@ -100,7 +107,11 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
         if(transmission<volumePrimary.w) break;
     }
     result.bins=clamp(reveal,0.0,1.0); result.reveal=clamp(transmission,0.0,1.0);
-    result.radiance=k.rgb;
+    // The compact payload shares one radiance across native bins. Keep every interval's bucket
+    // attenuation above, and approximate only the affine air/local-medium response at its opacity
+    // centroid. Normalizing before transport makes in-scattering proportional to cloud coverage.
+    if(opacityWeight>0.0)
+        result.radiance=CloudEncode(CloudTransport(radiance/opacityWeight,direction*(distanceMoment/opacityWeight)))*opacityWeight;
 }
 /** Stores physical factors for reconstruction, or submits native products for the direct reference. */
 void CloudWrite(CloudPayload p)
@@ -109,7 +120,7 @@ void CloudWrite(CloudPayload p)
     outCloudRadianceTransmission=vec4(p.radiance,p.reveal);
     outCloudBucketTransmission=vec4(p.bins,0);
 #else
-    // The reference retains its original encoding-before-weighting contract without reconstruction.
+    // Direct transport encodes the completed representative response once, without reconstruction.
     vec4 k=vec4(p.radiance,clamp(1.0-p.reveal,0.0,1.0));
     outOitRevealBins=p.bins; outRevealage=p.reveal; outOitGlow=vec4(0,0,0,k.a);
     outOitAccumulation0=k*(1.0-p.bins.x);

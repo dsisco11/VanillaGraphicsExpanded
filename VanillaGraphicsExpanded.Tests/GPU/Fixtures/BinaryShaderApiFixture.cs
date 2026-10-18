@@ -21,7 +21,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
 
     #region API construction
     /// <summary>Routes asset reads to the test output and allows isolated in-memory edits for reload scenarios.</summary>
-    public BinaryShaderApiFixture()
+    public BinaryShaderApiFixture(string? assetRoot = null)
     {
         var assets = Proxy<IAssetManager>((method, args) =>
         {
@@ -30,7 +30,7 @@ internal sealed class BinaryShaderApiFixture : IDisposable
             Reads.Add(location.Path);
             if (MissingAssets.Contains(location.Path)) return null;
             BeforeRead?.Invoke(location.Path);
-            string path = Path.Combine(AppContext.BaseDirectory, "assets", location.Path);
+            string path = Path.Combine(assetRoot ?? Path.Combine(AppContext.BaseDirectory, "assets"), location.Path);
             if (!Overrides.TryGetValue(location.Path, out var data))
             {
                 if (!File.Exists(path)) return null;

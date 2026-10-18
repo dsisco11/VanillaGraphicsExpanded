@@ -43,6 +43,7 @@ internal sealed class CloudReconstructionScene : IDisposable
     private readonly float[] previousProjection=new float[16],currentProjection=new float[16];
     private float surfaceDepth;
     private bool detail,underwater;
+    private float? localFogDensity;
     private AtmosphereLighting? capturedLighting,configuredLighting;
     private CloudPlacement capturedPlacement;
     #region Public API
@@ -63,9 +64,9 @@ internal sealed class CloudReconstructionScene : IDisposable
             DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
         visibility=Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
         liquid=Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
-        aerial=Own(DynamicTexture3D.Create(1,2,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
-        loss=Own(DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
-        aerial.UploadDataImmediate(new float[8],0,0,0,1,2,1,0);loss.UploadDataImmediate(new float[4],0,0,0,1,1,1,0);
+        aerial=Own(DynamicTexture3D.Create(1,2,2,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
+        loss=Own(DynamicTexture3D.Create(1,1,2,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
+        aerial.UploadDataImmediate(new float[16],0,0,0,1,2,2,0);loss.UploadDataImmediate(new float[8],0,0,0,1,1,2,0);
         if(independentStorage)
         {
             // Only storage sharing differs; both fixtures execute the current shader algorithm.
@@ -125,11 +126,11 @@ internal sealed class CloudReconstructionScene : IDisposable
     /// <summary>Captures one explicit cloud/camera state, including per-pixel opaque and liquid discontinuities.</summary>
     internal void Capture(uint frame,float extinction,float environment,float scale,float offset,string scene)
     {
-        shift=offset; detail=scene is "detail" or "detail-lit"; underwater=scene=="underwater";
+        shift=offset; detail=scene is "detail" or "detail-lit"; underwater=scene=="underwater";localFogDensity=null;
         float aerialLoss=underwater ? .99f : scene=="aerial" ? .25f : 0;
         float aerialScatter=underwater?100:scene=="aerial"?2:0;
-        aerial.UploadDataImmediate([aerialScatter/16,aerialScatter/16,aerialScatter/16,0,0,0,0,0],0,0,0,1,2,1,0);
-        loss.UploadDataImmediate([aerialLoss,aerialLoss,aerialLoss,0],0,0,0,1,1,1,0);
+        aerial.UploadDataImmediate([aerialScatter/16,aerialScatter/16,aerialScatter/16,0,0,0,0,0,aerialScatter/16,aerialScatter/16,aerialScatter/16,0,0,0,0,0],0,0,0,1,2,2,0);
+        loss.UploadDataImmediate([aerialLoss,aerialLoss,aerialLoss,0,aerialLoss,aerialLoss,aerialLoss,0],0,0,0,1,1,2,0);
         surfaceDepth=scene=="particle-before"?20:scene=="particle-within"?60:scene=="particle-behind"?160:0;
         var view=Mat4f.Create();
         if(scene=="rotation")
@@ -161,6 +162,27 @@ internal sealed class CloudReconstructionScene : IDisposable
     }
     #endregion
     #region Submission and history probes
+    /// <summary>Authors a distance-varying atmospheric lookup for explicit transport diagnostics.</summary>
+    internal void SetAerialDistanceRamp(float scatter,float attenuation)
+    {
+        var lighting=(configuredLighting??throw new InvalidOperationException("Capture lighting before changing aerial transport."))
+            with {ReconstructionMaximumNits=scatter};
+        capturedLighting=configuredLighting=lighting;
+        aerial.SetTexFilter(TextureMinFilter.Linear,TextureMagFilter.Linear);
+        loss.SetTexFilter(TextureMinFilter.Linear,TextureMagFilter.Linear);
+        aerial.UploadDataImmediate([0,0,0,0,0,0,0,0,scatter/16,scatter/16,scatter/16,0,0,0,0,0],0,0,0,1,2,2,0);
+        loss.UploadDataImmediate([0,0,0,0,attenuation,attenuation,attenuation,0],0,0,0,1,1,2,0);
+        if(reference is not null)Configure(reference,reference.Parameters,capturedPlacement,lighting);
+        if(trace is not null)Configure(trace,trace.Parameters,capturedPlacement,lighting);
+    }
+    /// <summary>Changes only the active local-medium density while preserving the captured lighting and placement.</summary>
+    internal void SetLocalFogDensity(float density)
+    {
+        localFogDensity=density;
+        var lighting=configuredLighting??throw new InvalidOperationException("Capture lighting before changing fog.");
+        if(reference is not null)Configure(reference,reference.Parameters,capturedPlacement,lighting);
+        if(trace is not null)Configure(trace,trace.Parameters,capturedPlacement,lighting);
+    }
     /// <summary>Authors independent directional sources while preserving the captured medium, environment and quality selection.</summary>
     internal AtmosphereLighting SetDirectionalLights(Vector3 sun, Vector3 moon, int sources, float? solarIlluminance = null, float? lunarIlluminance = null)
     {
@@ -402,7 +424,7 @@ internal sealed class CloudReconstructionScene : IDisposable
         {
             Detail=detail
         });
-        parameters.CaptureLighting(lighting,underwater?1:0,new(underwater ? .02f : 0,0,0,0),Vector3.Zero);
+        parameters.CaptureLighting(lighting,underwater?1:0,new(localFogDensity??(underwater ? .02f : 0),0,0,0),Vector3.Zero);
         program.Map=map.TextureId;program.SceneDepth=opaque.TextureId;program.VisibilityDepth=visibility.TextureId;program.LiquidDepth=liquid.TextureId;program.AerialRadiance=aerial;program.AerialAttenuation=loss;
     }
     /// <summary>Binds an alternate physical-history set, including unfiltered depth metadata.</summary>

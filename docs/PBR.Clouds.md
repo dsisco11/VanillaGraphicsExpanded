@@ -104,6 +104,10 @@ Volumetric density uses native horizontal footprints and vertical bounds. Period
 3D noise modulates density inside that envelope; exposed faces soften inward while occupied
 shared faces remain connected. Broad faces and stepped cubic masses remain. Noise follows native
 placement, integer recentering and committed/residual wind without a second advection.
+Consecutive samples in a native column retain its descriptor and lazily loaded neighbor descriptors.
+Neighbor occupancy is retested at each sample height. Faces farther than the current nearest face
+or erosion width need no neighbor lookup. Zero detail amplitude skips procedural noise; zero edge
+support returns before noise. The procedural noise field and material anchoring are unchanged.
 Disabling detail also disables edge erosion, restoring piecewise constant native density. Finite
 primary sampling need not integrate a discontinuous column field exactly.
 
@@ -141,8 +145,27 @@ Native brightness/daylight/base-color attributes are not physical incident illum
 Simple retains native shape/coverage controls and applies perception's factor 20 locally without
 temporarily changing engine uniforms.
 
-Both shaders apply existing aerial or underwater/local-fog transport once, then use the frozen
-frame's scene-storage encoding. Physical source bounds join admission before Opaque; exposure
+Simple applies its existing surface response. Volumetric tracing first accumulates unencoded cloud
+radiance and the opacity measure `w_i = T_i * alpha_i` at each contributing primary point. Its
+representative distance is `sum(w_i * t_i) / sum(w_i)`. Empty points and zero-weight intervals do not
+move that distance. After the march, the existing affine aerial or underwater/local-fog response
+is applied once to `radiance / sum(w_i)` at the representative distance, then multiplied by
+`sum(w_i)`. This scales incoming air/fog light by cloud coverage. A ray without contributing
+opacity keeps neutral output. Encoding occurs once at direct submission or later full-view resolve.
+The reduced physical payload already contains this medium response; temporal and resolve passes
+do not apply it again. Shader reload retires incompatible history; changes to completed lighting
+or medium parameters also reject history through the existing certificate.
+
+The compact payload shares one radiance across all native buckets, so this mean is shared rather
+than adding bucket-specific colors or representative distances. Each contributing step still
+updates all three native bucket transmissions at its own depth, and support/clipping metadata is
+unchanged. Distance-varying atmospheric response is approximated at the mean; source-distance
+correlations and deep or disjoint support can differ from per-sample transport. Diagnostics and
+user appearance review qualify that tradeoff without automated approximation-quality thresholds.
+Solar and lunar phase terms are fixed for the view ray and evaluated before its primary loop;
+self-shadow optical depth remains independently sampled at each contributing point.
+
+Both modes use the frozen frame's scene-storage encoding. Physical source bounds join admission before Opaque; exposure
 does not affect attenuation, depth, coverage or physical history. The native pre-lit map color,
 sunset coloration and duplicate weather attenuation do not enter owned shading.
 

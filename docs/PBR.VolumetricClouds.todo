@@ -344,10 +344,11 @@ Phase 1 contracts and source receipts (2026-10-16)
       Retain the existing observer-based illumination approximation; do not create a per-sample
       atmospheric solver or claim altitude-resolved incident lighting from this snapshot.
     - Source boundaries: includes/atmosphere_aerial.glsl VgeApplyAerial; includes/pbr_forward_surface.glsl
-      underwater branch; pbr_composite.fsh main; AtmosphereLighting/AtmosphereNightLighting. For each
-      cloud interval use its camera distance to apply aerial transport to its straight source before
-      cloud front-to-back weighting. Aerial scatter is weighted by that interval's cloud coverage;
-      do not add the entire camera-path scatter unweighted for every marching step. Simple applies
+      underwater branch; pbr_composite.fsh main; AtmosphereLighting/AtmosphereNightLighting. Volumetric
+      composition uses the opacity-weighted sample-distance mean specified in PBR.CloudRealtime.todo
+      / atmospheric composition. Apply the affine medium response once to normalized integrated
+      radiance, then restore accumulated opacity weight. Per-step OIT bucket transmissions and support
+      depths remain distributed; incoming aerial scatter is scaled by cloud coverage. Simple applies
       the same affine transport once at its fragment distance. Do not fog the resolved OIT again.
       Preserve the existing underwater/local-medium branch instead of adding native distance haze
       over aerial transport. Local flat/horizon background fog remains the owned sky's responsibility;

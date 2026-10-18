@@ -33,6 +33,7 @@ float CloudLightDepth(vec3 local,vec3 direction)
     if(!CloudShadowSpan(local,direction,span)) return 0.0;
     float tau=0.0,distance=volumePrimary.z;
     int count=int(volumeSamples.y);
+    CloudDensityCache densityCache=CloudDensityCacheStart();
     for(int i=0;i<VGE_CLOUD_LIGHT_LIMIT;i++)
     {
         if(i>=count) break;
@@ -44,19 +45,24 @@ float CloudLightDepth(vec3 local,vec3 direction)
         if(position<span.x) continue;
         vec3 point=local+direction*position;
         ivec2 cell=ivec2(floor(point.xz/50.0));
-        vec4 data=CloudColumn(cell);
+        vec4 data=CloudDensityColumn(cell,densityCache);
         if(data.r<=0.0 || point.y<data.b*50.0 || point.y>data.a*50.0) continue;
-        tau=min(1e30,tau+CloudDensity(point,cell,data)*((far-near)*volumeAnchorUnits.z));
+        tau=min(1e30,tau+CloudDensity(point,cell,data,densityCache)*((far-near)*volumeAnchorUnits.z));
     }
     // Finite accumulation keeps the unoccluded octave endpoint well-defined at arbitrarily large tau.
     return tau;
 }
-/** Bounded anisotropic single scattering plus exactly one isotropic approximate octave. */
-vec3 CloudDirectional(vec3 local,vec3 view,vec3 light,vec3 illuminance)
+/** Evaluates the fixed anisotropic phase once for one primary ray and directional light. */
+float CloudDirectionalPhase(vec3 view,vec3 light)
+{
+    float mu=clamp(dot(view,light),-1.0,1.0);
+    return .64/(12.5663706144*pow(1.36-1.2*mu,1.5));
+}
+/** Combines sample-local shadow depth with a ray's fixed phase and one isotropic approximate octave. */
+vec3 CloudDirectional(vec3 local,vec3 light,vec3 illuminance,float phase)
 {
     if(max(illuminance.r,max(illuminance.g,illuminance.b))<=0.0) return vec3(0);
-    float tau=CloudLightDepth(local,light), mu=clamp(dot(view,light),-1.0,1.0);
-    float phase=.64/(12.5663706144*pow(1.36-1.2*mu,1.5));
+    float tau=CloudLightDepth(local,light);
     return illuminance*(phase*exp(-tau)+volumeSamples.z/12.5663706144*exp(-volumeSamples.w*tau));
 }
 #endif

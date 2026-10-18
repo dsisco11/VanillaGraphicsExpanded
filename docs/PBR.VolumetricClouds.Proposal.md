@@ -308,6 +308,12 @@ Apply the existing VGE atmospheric aerial-transport and local-fog composition co
 cloud contributions. Exclude native pre-lit colors and pre-applied fog, and verify the existing
 consumer paths during implementation planning to avoid duplicate atmospheric attenuation or
 weather-based dimming. This is integration verification, not an unresolved rendering-model choice.
+Volumetric composition uses an opacity-weighted mean sample distance for the existing affine medium
+response. Physical integrated radiance is normalized by accumulated opacity before that response,
+then weighted by the same opacity afterward. Native depth-dependent bucket attenuation remains
+per step. The shared radiance of the compact payload uses one mean across all buckets; this is an
+atmospheric approximation with diagnostic comparisons and user appearance review, without an
+automated approximation-quality threshold. Simple retains its fragment-distance response.
 Inside-cloud views must
 integrate from the camera rather than treating clouds as a distant sky overlay. Reflection views
 must use their own camera/depth contract and must not reuse main-view history blindly.
