@@ -142,15 +142,15 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
     public void PrimaryNoiseChangesAcrossFramesAndReplaysExactly()
     {
         EnsureShaderTestAvailable();using var view=CreateScene(8,8);
-        view.Capture(0,2,10,1,0,"detail");view.Render(0,false,includeReference:true);var first=view.ReadTrace();var reference=view.ReadReference();
-        view.Capture(4,2,10,1,0,"detail");view.Render(4,false,includeReference:true);var next=view.ReadTrace();
+        view.Capture(0,2,10,1,0,"detail");view.RenderTrace(0);view.RenderReference();var first=view.ReadTrace();var reference=view.ReadReference();
+        view.Capture(4,2,10,1,0,"detail");view.RenderTrace(4);view.RenderReference();var next=view.ReadTrace();
         Assert.Contains(Enumerable.Range(0,first[1].Length),i=>Math.Abs(first[1][i]-next[1][i])>1e-6f);
         var nextReference=view.ReadReference();
         for(int layer=0;layer<6;layer++)Assert.Equal(reference[layer],nextReference[layer]);
-        view.Capture(0,2,10,1,0,"detail");view.Render(0,false);var replay=view.ReadTrace();
+        view.Capture(0,2,10,1,0,"detail");view.RenderTrace(0);var replay=view.ReadTrace();
         for(int layer=0;layer<6;layer++)Assert.Equal(first[layer],replay[layer]);
         uint wrap=8;
-        view.Capture(wrap,2,10,1,0,"detail");view.Render(wrap,false);var cycled=view.ReadTrace();
+        view.Capture(wrap,2,10,1,0,"detail");view.RenderTrace(wrap);var cycled=view.ReadTrace();
         for(int layer=0;layer<6;layer++)Assert.Equal(first[layer],cycled[layer]);
         Assert.All(next.SelectMany(layer=>layer),value=>Assert.True(float.IsFinite(value)&&value>=0));
     }
@@ -161,41 +161,9 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         EnsureShaderTestAvailable();using var view=CreateScene(8,8);
         // The complete finite span must actually be homogeneous: the shorter static height
         // fixture is discontinuous near grazing rays and can legitimately change sample occupancy.
-        view.Capture(0,2,10,1,0,"homogeneous");view.Render(0,false);var first=view.ReadTrace();
-        view.Capture(4,2,10,1,0,"homogeneous");view.Render(4,false);var next=view.ReadTrace();
+        view.Capture(0,2,10,1,0,"homogeneous");view.RenderTrace(0);var first=view.ReadTrace();
+        view.Capture(4,2,10,1,0,"homogeneous");view.RenderTrace(4);var next=view.ReadTrace();
         for(int layer=0;layer<6;layer++)Assert.Equal(first[layer],next[layer]);
-    }
-    /// <summary>Varied scene and history transitions preserve finite payloads and bounded attenuation.</summary>
-    [Theory]
-    [InlineData("static")][InlineData("thin")][InlineData("thin-height")][InlineData("lit")][InlineData("terrain")][InlineData("liquid")]
-    [InlineData("camera")][InlineData("rotation")][InlineData("motion")][InlineData("weather")][InlineData("lighting")][InlineData("mixed")][InlineData("odd")]
-    [InlineData("particle-before")][InlineData("particle-within")][InlineData("particle-behind")]
-    [InlineData("aerial")][InlineData("underwater")]
-    public void SceneTransitionsKeepPayloadFiniteAndAttenuationBounded(string scene)
-    {
-        EnsureShaderTestAvailable();
-        using var view=CreateScene(scene=="odd"?9:8,scene=="odd"?7:8);
-        for(uint frame=0;frame<8;frame++)
-        {
-            float shift=scene=="motion"?(frame%4)*.2f:scene=="camera"?-(frame%4)*.2f:0;
-            bool discontinuity=scene=="lighting"&&frame==4;
-            float extinction=scene=="thin"?.015f:scene=="weather"&&frame>=4?.1f:2;
-            float environment=scene=="lighting"&&frame>=4?40:10;
-            float scale=frame>=4?.125f:1; // physical history must not retain the old frozen scene encoding
-            view.Capture(frame,extinction,environment,scale,shift,scene);
-            view.Render(frame,frame>0&&!discontinuity);
-            var actual=view.ReadDefault();
-            for(int layer=0;layer<6;layer++)
-            {
-                for(int i=0;i<actual[layer].Length;i++)
-                {
-                    float value=actual[layer][i];
-                    Assert.True(float.IsFinite(value)&&value>=0);
-                    if(layer is 0 or 1) Assert.InRange(value,0,1);
-                }
-            }
-        }
-        GlDebug.ThrowIfErrors("Cloud reconstruction test");
     }
     /// <summary>Opaque hierarchy coarse levels never alter precise cloud tracing, reference clipping or full-view reconstruction.</summary>
     [Theory]
@@ -290,11 +258,12 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
             scaled.Capture(frame,2,10,frame==0?1:.125f,0,"static");scaled.Render(frame,frame>0);
             var expected=unscaled.ReadHistory();var actual=scaled.ReadHistory();
             for(int layer=0;layer<6;layer++)Assert.Equal(expected[layer],actual[layer]);
+            if(frame==1)Assert.True(actual[3].Max()>1);
         }
-        Assert.True(scaled.ReadHistory()[3].Max()>1);
         scaled.Capture(2,0,10,.125f,0,"static");scaled.Render(2,false);
-        Assert.All(scaled.ReadDefault()[1],value=>Assert.Equal(1,value));
-        Assert.All(scaled.ReadDefault()[3],value=>Assert.Equal(0,value));
+        var empty=scaled.ReadDefault();
+        Assert.All(empty[1],value=>Assert.Equal(1,value));
+        Assert.All(empty[3],value=>Assert.Equal(0,value));
     }
     #endregion
     #region History and storage
@@ -316,8 +285,9 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         unscaled.SetVisibilityForeground();var authored=unscaled.ResolveAuthoredHistory();
         for(int y=0;y<7;y++)for(int x=0;x<9;x++)Assert.InRange(Math.Abs(authored[1][y*9+x]-((x+y)%3==0?1f:.4f)),0,.00001);
         unscaled.Capture(1,0,10,.125f,0,"static");unscaled.Render(1,false);
-        Assert.All(unscaled.ReadDefault()[1],value=>Assert.Equal(1,value));
-        Assert.All(unscaled.ReadDefault()[3],value=>Assert.Equal(0,value));
+        var empty=unscaled.ReadDefault();
+        Assert.All(empty[1],value=>Assert.Equal(1,value));
+        Assert.All(empty[3],value=>Assert.Equal(0,value));
     }
 
     /// <summary>Size changes can replace complete owned sets, and stable frames retain the same pipeline and backing images.</summary>

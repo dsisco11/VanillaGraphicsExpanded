@@ -46,7 +46,25 @@ public sealed class CloudSecondaryDensityTests(HeadlessGLFixture fixture):LumOnS
         native.UploadDataImmediate(MemoryMarshal.Cast<Vector4,float>(Enumerable.Repeat(new Vector4(.2f,0,-100,100),width*width).ToArray().AsSpan()).ToArray());
         using var volume=new CloudVolumeParameters();Vector3 origin=new(2025,0,2025);
         Vector3 sun=Vector3.Normalize(new(1,.005f,.1f)),moon=Vector3.Normalize(new(-1,-.005f,-.1f));
-        foreach(float contribution in new[]{0f,.5f,1f})foreach(float occlusion in new[]{0f,.5f,1f})foreach(int mask in new[]{0,1,2,3})
+        var positions=new float[count];var weights=new double[count];
+        for(int i=0;i<count;i++)
+        {
+            double a=distance*i*i/(double)(count*count),b=distance*(i+1)*(i+1)/(double)(count*count);
+            positions[i]=(float)((a+b)/2);weights[i]=b-a;
+        }
+        volume.CaptureMap(width,default,1,CloudVolumeSettings.Default);
+        // Source masks and octave coefficients cannot change the shared directional density field.
+        // Query each direction once, then reuse its independent quadrature for all source responses.
+        Vector4[] solarField=program.Run(volume,native,origin,sun,0,6,positions);
+        Vector4[] lunarField=program.Run(volume,native,origin,moon,0,6,positions);
+        double solarTau=Enumerable.Range(0,count).Sum(i=>solarField[i].Z*weights[i]);
+        double lunarTau=Enumerable.Range(0,count).Sum(i=>lunarField[i].Z*weights[i]);
+        foreach(var (contribution,occlusion,mask) in new (float,float,int)[]
+        {
+            (.5f,.5f,0), // No source must perform no density queries.
+            (0,.5f,1), (0,.5f,2), (0,.5f,3), // Solar, lunar and additive single scattering.
+            (1,0,3), (1,1,3), (.5f,.5f,3) // Unoccluded, fully occluded and interior octave coefficients.
+        })
         {
             var settings=CloudVolumeSettings.Default with {OctaveContribution=contribution,OctaveOcclusion=occlusion};
             volume.CaptureMap(width,default,1,settings);
@@ -55,12 +73,8 @@ public sealed class CloudSecondaryDensityTests(HeadlessGLFixture fixture):LumOnS
             {Moon=moon,Lunar=lunar,CalibrationGeneration=1,LookupStorageScale=LightingStorage.PersistentScale};
             volume.CaptureLighting(lighting,0,Vector4.Zero,Vector3.Zero);
             Vector3 expected=Vector3.Zero;
-            foreach(var (direction,illuminance) in new[]{(sun,solar),(moon,lunar)})
+            foreach(var (direction,illuminance,tau) in new[]{(sun,solar,solarTau),(moon,lunar,lunarTau)})
             {
-                float[] positions=new float[count];double[] weights=new double[count];
-                for(int i=0;i<count;i++){double a=distance*i*i/(double)(count*count),b=distance*(i+1)*(i+1)/(double)(count*count);positions[i]=(float)((a+b)/2);weights[i]=b-a;}
-                Vector4[] field=program.Run(volume,native,origin,direction,0,6,positions);
-                double tau=Enumerable.Range(0,count).Sum(i=>field[i].Z*weights[i]);
                 double mu=Vector3.Dot(-Vector3.UnitZ,direction),phase=.64/(4*Math.PI*Math.Pow(1.36-1.2*mu,1.5));
                 expected+=illuminance*(float)(phase*Math.Exp(-tau)+contribution/(4*Math.PI)*Math.Exp(-occlusion*tau));
             }
@@ -95,32 +109,36 @@ public sealed class CloudSecondaryDensityTests(HeadlessGLFixture fixture):LumOnS
         for(int z=0;z<width;z++)for(int x=0;x<width;x++)
             columns[z*width+x]=x<2||x>=40&&x<44?new(.2f,0,-1,1):Vector4.Zero;
         native.UploadDataImmediate(MemoryMarshal.Cast<Vector4,float>(columns.AsSpan()).ToArray());
-        foreach(int count in new[]{2,10,64})foreach(float distance in new[]{50f,1500f,3000f,10000f})
+        // Each probe selects one distinct procedural/support behavior instead of crossing every budget.
+        foreach(var (count,distance,origin,direction) in new (int,float,Vector3,Vector3)[]
+        {
+            (10,1500,new(25,0,25),Vector3.UnitY), // Vertical support boundary.
+            (10,1500,new(25,0,25),Vector3.Normalize(new(1,.005f,.1f))), // Noise in separated occupied regions.
+            (64,3000,new(2174,0,25),Vector3.Normalize(new(-1,-.005f,.1f))), // Reverse exposed edge, maximum count.
+            (10,50,new(25,49.5f,25),Vector3.UnitX), // Thin vertical edge erosion.
+            (10,10000,new(-25,0,25),Vector3.UnitX), // Entry from outside the finite map.
+            (2,50,new(25,0,25),Vector3.UnitX) // Minimum budget/distance in procedural interior.
+        })
         {
             volume.CaptureMap(width,default,1,CloudVolumeSettings.Default with {LightRaySampleMax=count,ShadowDistance=distance});
-            foreach(var (origin,direction) in new (Vector3,Vector3)[]{(new(25,0,25),Vector3.UnitY),
-                (new(25,0,25),Vector3.Normalize(new(1,.005f,.1f))),
-                (new(2174,0,25),Vector3.Normalize(new(-1,-.005f,.1f))),
-                (new(25,49.5f,25),Vector3.UnitX),(new(-25,0,25),Vector3.UnitX)})
+            var positions=new float[count];var weights=new double[count];
+            for(int i=0;i<count;i++)
             {
-                var positions=new float[count];var weights=new double[count];
-                for(int i=0;i<count;i++)
-                {
-                    double near=distance*i*i/(double)(count*count),far=distance*(i+1)*(i+1)/(double)(count*count);
-                    positions[i]=(float)((near+far)/2);weights[i]=far-near;
-                }
-                Vector4[] densities=program.Run(volume,native,origin,direction,0,6,positions);
-                double expected=Enumerable.Range(0,count).Sum(i=>densities[i].Z*weights[i]);
-                Vector4[] result=program.Run(volume,native,origin,direction,0,7);
-                float actual=result[402].Z;int measured=(int)result[402].X;
-                Assert.InRange(measured,0,count);Assert.True(float.IsFinite(actual)&&actual>=0);
-                Assert.True(Math.Abs(actual-expected)<=Math.Max(1,expected)*3e-5,$"N={count}, D={distance}, origin={origin}, direction={direction}, actual={actual}, scheduled={expected}");
-                for(int i=0;i<measured;i++)
-                {
-                    int index=Array.FindIndex(positions,p=>Math.Abs(p-result[i].X)<Math.Max(.002,p*2e-6));
-                    Assert.True(index>=0,"Actual full-detail queries must belong to the independent fixed lattice.");
-                    Assert.InRange(Math.Abs(result[i].Y-densities[index].Z),0,2e-6);
-                }
+                double near=distance*i*i/(double)(count*count),far=distance*(i+1)*(i+1)/(double)(count*count);
+                positions[i]=(float)((near+far)/2);weights[i]=far-near;
+            }
+            Vector4[] densities=program.Run(volume,native,origin,direction,0,6,positions);
+            double expected=Enumerable.Range(0,count).Sum(i=>densities[i].Z*weights[i]);
+            Assert.True(expected>0,"Each retained procedural case must exercise occupied density.");
+            Vector4[] result=program.Run(volume,native,origin,direction,0,7);
+            float actual=result[402].Z;int measured=(int)result[402].X;
+            Assert.InRange(measured,1,count);Assert.True(float.IsFinite(actual)&&actual>0);
+            Assert.True(Math.Abs(actual-expected)<=Math.Max(1,expected)*3e-5,$"N={count}, D={distance}, origin={origin}, direction={direction}, actual={actual}, scheduled={expected}");
+            for(int i=0;i<measured;i++)
+            {
+                int index=Array.FindIndex(positions,p=>Math.Abs(p-result[i].X)<Math.Max(.002,p*2e-6));
+                Assert.True(index>=0,"Actual full-detail queries must belong to the independent fixed lattice.");
+                Assert.InRange(Math.Abs(result[i].Y-densities[index].Z),0,2e-6);
             }
         }
     }

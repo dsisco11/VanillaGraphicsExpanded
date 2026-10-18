@@ -11,70 +11,62 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks the production primary lattice against independent geometric and scalar density calculations.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
+public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
-    /// <summary>Empty gaps, native crossings and invalid leaves cannot allocate additional shading samples.</summary>
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void CompleteRayLatticeMatchesIndependentGeometry(bool detail, bool stochastic)
+    /// <summary>Each authored ray isolates a finite-lattice boundary without multiplying unrelated settings.</summary>
+    [Fact]
+    public void CompleteRayLatticeMatchesIndependentGeometry()
     {
         EnsureShaderTestAvailable();
         using var program = new CloudTraversalProbe(Programs.Api);
-        int exactUniform = 0;
-        foreach (int width in new[] { 1, 21, 81, 200 })
+        // Compile the shared program once; each named ray still has isolated input ownership.
+        foreach (string scenario in new[]
         {
-            using var native = DynamicTexture2D.Create(width, width, PixelInternalFormat.Rgba32f);
+            "minimum-short-span", "scaled-interior-count", "maximum-count", "fixed-four-count",
+            "empty-columns", "separated-heights", "invalid-and-tiny-columns", "outside-entry",
+            "negative-entry", "zero-span", "parallel-inside", "parallel-outside", "positive-corner",
+            "negative-corner", "near-parallel-boundary", "blue-noise-offset", "detail-exposed-face",
+            "detail-connected-face"
+        })
+        {
+            output.WriteLine($"Primary lattice: {scenario}");
+            var test = CreateCase(scenario);
+            using var native = DynamicTexture2D.Create(test.Width, test.Width, PixelInternalFormat.Rgba32f);
             using var volume = new CloudVolumeParameters();
-            foreach (var quality in new[] { CloudVolumeSettings.Default,
-                CloudVolumeSettings.Default with { ViewRaySampleMax = 96, ViewRaySampleMin = 2, ViewBudgetDistance = 2000 },
-                CloudVolumeSettings.Default with { ViewRaySampleMax = 384, ViewRaySampleMin = 1, ViewBudgetDistance = 50 },
-                CloudVolumeSettings.Default with { ViewRaySampleMax = 4, ViewRaySampleMin = 4, ViewBudgetDistance = 10000 },
-                CloudVolumeSettings.Default with { ViewRaySampleMax = 384, ViewRaySampleMin = 16, ViewBudgetDistance = 10000 } })
+            volume.CaptureMap(test.Width, default, 1, test.Settings);
+            Vector4[] columns = Columns(test.Width, test.Pattern);
+            native.UploadDataImmediate(MemoryMarshal.Cast<Vector4, float>(columns.AsSpan()).ToArray());
+
+            // Compare the production helper with independently clipped geometry and scalar density.
+            Vector4[] actual = Dispatch(program, volume, native, test.Origin, test.Direction, test.Limit, test.Stochastic);
+            var span = Span(test.Width, test.Origin, test.Direction, test.Limit);
+            int count = span is null ? 0 : Math.Min(test.Settings.ViewRaySampleMax, Math.Max(test.Settings.ViewRaySampleMin,
+                (int)Math.Floor(test.Settings.ViewRaySampleMax * Math.Min(1,
+                    (span.Value.End - span.Value.Start) / test.Settings.ViewBudgetDistance))));
+            Assert.Equal(count, actual.Length);
+            if (span is null) continue;
+            double ds = (span.Value.End - span.Value.Start) / count;
+            for (int i = 0; i < count; i++)
             {
-                var settings = quality with { Detail = detail, DetailAmplitude = 0 };
-                volume.CaptureMap(width, default, 1, settings);
-                foreach (int pattern in new[] { 0, 1, 2, 3 })
-                {
-                    Vector4[] columns = Columns(width, pattern);
-                    native.UploadDataImmediate(MemoryMarshal.Cast<Vector4, float>(columns.AsSpan()).ToArray());
-                    foreach (var (origin, direction, limit) in Rays(width))
-                    {
-                        Vector4[] actual = Dispatch(program, volume, native, origin, direction, limit, stochastic);
-                        var span = Span(width, origin, direction, limit);
-                        int count = span is null ? 0 : Math.Min(settings.ViewRaySampleMax, Math.Max(settings.ViewRaySampleMin,
-                            (int)Math.Floor(settings.ViewRaySampleMax * Math.Min(1, (span.Value.End - span.Value.Start) / settings.ViewBudgetDistance))));
-                        Assert.Equal(count, actual.Length);
-                        if (span is null) continue;
-                        double ds = (span.Value.End - span.Value.Start) / count;
-                        for (int i = 0; i < count; i++)
-                        {
-                            double t = span.Value.Start + (i + (stochastic ? .173 : .5)) * ds;
-                            Assert.InRange(Math.Abs(actual[i].X - t), 0, Math.Max(.001, Math.Abs(t) * 2e-6));
-                            Assert.InRange(Math.Abs(actual[i].Y - ds), 0, Math.Max(.001, ds * 2e-6));
-                            Vector3 point = origin + direction * actual[i].X;
-                            double density = Density(columns, width, point, detail);
-                            Assert.InRange(Math.Abs(actual[i].Z - density), 0, 2e-6);
-                        }
-                        if(!detail)
-                        {
-                            double sampledTau=actual.Sum(value=>(double)value.Z*value.Y);
-                            var intersections=CloudTraversalOracle.Intersections(columns,width,origin,direction,limit);
-                            double analyticTau=intersections.Sum(value=>(value.Far-value.Near)*columns[value.Z*width+value.X].X/50.0);
-                            double residual=Math.Abs(Math.Exp(-sampledTau)-Math.Exp(-analyticTau));
-                            if(pattern==1&&Math.Abs(intersections.Sum(value=>value.Far-value.Near)-(span.Value.End-span.Value.Start))<1e-5)
-                            {
-                                Assert.InRange(residual,0,2e-5);exactUniform++;
-                            }
-                        }
-                    }
-                }
+                double t = span.Value.Start + (i + (test.Stochastic ? .173 : .5)) * ds;
+                Assert.InRange(Math.Abs(actual[i].X - t), 0, Math.Max(.001, Math.Abs(t) * 2e-6));
+                Assert.InRange(Math.Abs(actual[i].Y - ds), 0, Math.Max(.001, ds * 2e-6));
+                Vector3 point = test.Origin + test.Direction * actual[i].X;
+                double density = Density(columns, test.Width, point, test.Settings.Detail);
+                Assert.InRange(Math.Abs(actual[i].Z - density), 0, 2e-6);
+                if (density > 0) Assert.True(actual[i].Z > 0, "Positive native extinction must not be classified as empty.");
+            }
+
+            // These horizontal rays are uniformly occupied throughout their complete clipped span.
+            // Beer-Lambert is therefore exact; discontinuous/detail fixtures have no quality assertion.
+            if (test.Pattern == 1 && !test.Settings.Detail && test.Direction.Y == 0)
+            {
+                double sampledTau = actual.Sum(value => (double)value.Z * value.Y);
+                double analyticTau = (span.Value.End - span.Value.Start) * columns[0].X / 50.0;
+                Assert.InRange(Math.Abs(Math.Exp(-sampledTau) - Math.Exp(-analyticTau)), 0, 2e-5);
             }
         }
-        if (!detail) Assert.True(exactUniform > 0, "Uniform complete-span fixtures must exercise analytic attenuation.");
     }
     #endregion
 
@@ -149,21 +141,44 @@ public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture) : LumOnSh
         return columns;
     }
 
-    /// <summary>Includes camera-inside, very short foreground, zero span, parallel, negative and boundary-tied rays.</summary>
-    private static IEnumerable<(Vector3 Origin, Vector3 Direction, float Limit)> Rays(int width)
+    /// <summary>Stores one distinct GPU contract and its independent scalar inputs.</summary>
+    private sealed record RayCase(int Width, int Pattern, Vector3 Origin, Vector3 Direction, float Limit,
+        CloudVolumeSettings Settings, bool Stochastic = false);
+
+    /// <summary>Authors representative geometry and budget boundaries instead of a Cartesian scene matrix.</summary>
+    private static RayCase CreateCase(string scenario)
     {
-        float extent = width * 50;
-        yield return (new(25, 0, 25), Vector3.UnitX, 100000);
-        yield return (new(-25, 0, 25), Vector3.UnitX, 100000);
-        yield return (new(extent + 25, 0, 25), -Vector3.UnitX, 100000);
-        yield return (new(25, 0, 25), Vector3.UnitZ, .01f);
-        yield return (new(25, 0, 25), Vector3.UnitZ, 25);
-        yield return (new(25, 0, 25), Vector3.UnitZ, 0);
-        yield return (new(25, 0, 25), Vector3.UnitY, 1000);
-        yield return (new(-1, 0, 25), Vector3.UnitY, 1000);
-        yield return (new(0, 0, 0), Vector3.Normalize(new(1, 0, 1)), 100000);
-        yield return (new(extent, 0, extent), Vector3.Normalize(new(-1, 0, -1)), 100000);
-        yield return (new(50, 0, 50), new(1e-10f, 0, 1), 100000);
+        var settings = CloudVolumeSettings.Default with { Detail = false, DetailAmplitude = 0 };
+        var inside = new Vector3(25, 0, 25);
+        // Interior scaling deliberately uses a fractional result, distinguishing floor from rounding.
+        return scenario switch
+        {
+            "minimum-short-span" => new(1, 1, inside, Vector3.UnitZ, .01f,
+                settings with { ViewRaySampleMax = 384, ViewRaySampleMin = 16, ViewBudgetDistance = 10000 }),
+            "scaled-interior-count" => new(21, 1, inside, Vector3.UnitX, 123,
+                settings with { ViewRaySampleMax = 96, ViewRaySampleMin = 2, ViewBudgetDistance = 2000 }),
+            "maximum-count" => new(200, 1, inside, Vector3.UnitX, 100000,
+                settings with { ViewRaySampleMax = 384, ViewRaySampleMin = 1, ViewBudgetDistance = 50 }),
+            "fixed-four-count" => new(21, 1, inside, Vector3.UnitZ, 25,
+                settings with { ViewRaySampleMax = 4, ViewRaySampleMin = 4, ViewBudgetDistance = 10000 }),
+            "empty-columns" => new(21, 0, inside, Vector3.UnitX, 100000, settings),
+            "separated-heights" => new(21, 2, inside, Vector3.UnitX, 100000, settings),
+            "invalid-and-tiny-columns" => new(21, 3, inside, Vector3.UnitX, 100000, settings),
+            "outside-entry" => new(21, 1, new(-25, 0, 25), Vector3.UnitX, 100000, settings),
+            "negative-entry" => new(21, 1, new(1075, 0, 25), -Vector3.UnitX, 100000, settings),
+            "zero-span" => new(1, 1, inside, Vector3.UnitZ, 0, settings),
+            "parallel-inside" => new(1, 1, inside, Vector3.UnitY, 1000, settings),
+            "parallel-outside" => new(1, 1, new(-1, 0, 25), Vector3.UnitY, 1000, settings),
+            "positive-corner" => new(21, 1, Vector3.Zero, Vector3.Normalize(new(1, 0, 1)), 100000, settings),
+            "negative-corner" => new(21, 1, new(1050, 0, 1050), Vector3.Normalize(new(-1, 0, -1)), 100000, settings),
+            "near-parallel-boundary" => new(21, 2, new(50, 0, 50), new(1e-10f, 0, 1), 100000, settings),
+            "blue-noise-offset" => new(21, 2, inside, Vector3.UnitX, 100000, settings, true),
+            "detail-exposed-face" => new(1, 1, new(.25f, 0, 25), Vector3.UnitY, 1,
+                settings with { Detail = true }),
+            "detail-connected-face" => new(21, 1, new(49.9f, 0, 25), Vector3.UnitX, .2f,
+                settings with { Detail = true }),
+            _ => throw new ArgumentOutOfRangeException(nameof(scenario), scenario, "Unknown primary ray contract.")
+        };
     }
     #endregion
     #endregion

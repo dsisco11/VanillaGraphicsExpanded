@@ -33,41 +33,51 @@ public sealed class CloudSecondaryBudgetTests(HeadlessGLFixture fixture, ITestOu
         }
     }
 
-    /// <summary>Verifies whole-ray quadratic weights without borrowing production traversal or sample positions.</summary>
-    [Theory][InlineData(false)][InlineData(true)]
-    public void AnchoredQuadraticScheduleMatchesIndependentScalarField(bool detail)
+    /// <summary>Checks distinct quadratic-budget and native-support boundaries against independent scalar density.</summary>
+    [Fact]
+    public void AnchoredQuadraticScheduleMatchesIndependentScalarField()
     {
         EnsureShaderTestAvailable();
         using var program = new CloudTraversalProbe(Programs.Api);
-        foreach(int width in new[]{1,21,81,200})
+        // Compile the program once; each independent case owns its native map and parameter state.
+        foreach (var (width, pattern, distance, count, detail, ray) in new (int, int, float, int, bool, int)[]
         {
-            using var native=DynamicTexture2D.Create(width,width,PixelInternalFormat.Rgba32f);
-            using var volume=new CloudVolumeParameters();
-            foreach(int pattern in new[]{0,1,2,3})
-            {
-                Vector4[] columns=Columns(width,pattern);
-                native.UploadDataImmediate(MemoryMarshal.Cast<Vector4,float>(columns.AsSpan()).ToArray());
-                foreach(float distance in new[]{1500f,3000f,10000f})
-                foreach(int count in new[]{2,10,64})
-                {
-                    volume.CaptureMap(width,default,1,CloudVolumeSettings.Default with
-                    { Detail=detail,DetailAmplitude=0,LightRaySampleMax=count,ShadowDistance=distance });
-                    foreach(var (origin,direction) in Rays(width))
-                    {
-                        double expected=0;
-                        for(int i=0;i<count;i++)
-                        {
-                            double a=distance*i*i/(double)(count*count),b=distance*(i+1)*(i+1)/(double)(count*count);
-                            expected+=Density(columns,width,origin+direction*(float)((a+b)*.5),detail)*(b-a);
-                        }
-                        float actual=Trace(program,volume,native,origin,direction);
-                        Assert.True(float.IsFinite(actual)&&actual>=0);
-                        Assert.InRange(lastRecords.Length,0,count);
-                        Assert.True(Math.Abs(actual-expected)<=Math.Max(1,expected)*2e-5,$"width={width}; pattern={pattern}; distance={distance}; count={count}; origin={origin}; direction={direction}; actual={actual}; expected={expected}; gpuDensityCalls={lastRecords.Length}");
+            (21, 0, 1500, 10, false, 0), // Empty support rejects density calls.
+            (1, 1, 1500, 10, false, 0), // Native exit must not rescale intervals.
+            (200, 1, 10000, 64, false, 1), // Maximum distance/count and grazing light.
+            (21, 1, 50, 2, false, 0), // Minimum distance/count retain full interval weights.
+            (81, 2, 3000, 10, false, 0), // Distant occluder stays on the origin-anchored lattice.
+            (21, 1, 1500, 10, false, 3), // Off-map entry does not shift later samples.
+            (21, 1, 1500, 10, false, 2), // Negative grazing direction crosses native boundaries.
+            (21, 1, 1500, 10, false, 4), // Vertical ray is parallel to the horizontal grid.
+            (21, 1, 1500, 10, false, 6), // Origin above native height support.
+            (21, 3, 1500, 64, false, 0), // Invalid tuples reject; tiny positive density remains valid.
+            (1, 1, 50, 64, true, 0), // Fine intervals hit the exposed-face erosion region.
+            (21, 1, 1500, 10, true, 5) // Negative vertical ray with detail enabled.
+        })
+        {
+            using var native = DynamicTexture2D.Create(width, width, PixelInternalFormat.Rgba32f);
+            using var volume = new CloudVolumeParameters();
+            Vector4[] columns = Columns(width, pattern);
+            native.UploadDataImmediate(MemoryMarshal.Cast<Vector4, float>(columns.AsSpan()).ToArray());
+            volume.CaptureMap(width, default, 1, CloudVolumeSettings.Default with
+            { Detail = detail, DetailAmplitude = 0, LightRaySampleMax = count, ShadowDistance = distance });
+            var (origin, direction) = Rays(width).ElementAt(ray);
 
-                    }
-                }
+            // The scalar oracle uses the declared complete distance, never the clipped domain length.
+            double expected = 0;
+            for (int i = 0; i < count; i++)
+            {
+                double a = distance * i * i / (double)(count * count);
+                double b = distance * (i + 1) * (i + 1) / (double)(count * count);
+                expected += Density(columns, width, origin + direction * (float)((a + b) * .5), detail) * (b - a);
             }
+            float actual = Trace(program, volume, native, origin, direction);
+            Assert.True(float.IsFinite(actual) && actual >= 0);
+            Assert.InRange(lastRecords.Length, 0, count);
+            if (pattern == 3) Assert.True(actual > 0, "Tiny positive extinction must not be treated as empty.");
+            Assert.True(Math.Abs(actual - expected) <= Math.Max(1, expected) * 2e-5,
+                $"width={width}; pattern={pattern}; distance={distance}; count={count}; detail={detail}; ray={ray}; actual={actual}; expected={expected}; gpuDensityCalls={lastRecords.Length}");
         }
     }
     #endregion

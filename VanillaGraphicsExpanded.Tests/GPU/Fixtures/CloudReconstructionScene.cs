@@ -243,9 +243,14 @@ internal sealed class CloudReconstructionScene : IDisposable
         SubmitQueuedPasses();last=next;lastShift=shift;currentProjection.CopyTo(previousProjection,0);
         if(includeReference)
         {
-            expected??=Own(new CloudOitSurface(width,height,"Tests.Cloud.Reference"));
-            Draw(Reference,expected.Target,true);
+            RenderReference();
         }
+    }
+    /// <summary>Executes history-free full-view transport without tracing or reconstructing reduced targets.</summary>
+    internal void RenderReference()
+    {
+        expected??=Own(new CloudOitSurface(width,height,"Tests.Cloud.Reference"));
+        Draw(Reference,expected.Target,true);
     }
     /// <summary>Authors distinguishable current/history payloads to prove interpolation and whole-record rejection on the GPU.</summary>
     internal float[][] ProbeHistory(string scenario)

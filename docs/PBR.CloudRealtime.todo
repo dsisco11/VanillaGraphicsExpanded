@@ -219,8 +219,56 @@ Phase 5: Trace fewer screen positions and reconstruct missing information
     reconstruction correctness passes and no fallback hides unbudgeted transport work. Approximation
     comparisons do not enforce automated quality; shipped selection still requires user appearance review.
 
+Phase 5.1: Prune earlier cloud tests and eliminate redundant GPU work
+  Depends on Phase 5. Outcome: each retained test protects a distinct correctness contract at a measured cost.
+  ☑ Review the earlier test groups by asserted behavior and actual GPU work, not reported case count.
+    - Cover CloudTerminationTests, CloudVolumeReconstructionTests, CloudPrimaryBudgetTests,
+      CloudSecondaryBudgetTests, CloudSecondaryDensityTests and their shared fixtures.
+    - Identify the concrete regression each retained case detects; consolidate overlapping coverage.
+      Keep exact schedule/weight arithmetic, strict termination boundaries, independent foreground
+      clips, source rejection, OIT/encoding, history and resource-lifetime contracts.
+  ☑ Remove TerminationDifferencesAreDiagnosticAcrossSceneContracts from normal correctness execution.
+    - Its thirteen paired scene comparisons primarily report differences and finite outputs. Retain
+      focused first-saturated-step, threshold equality, disabled-exit and clipping bookkeeping tests.
+      Preserve existing diagnostic receipts; further scene comparisons belong to explicit opt-in
+      diagnostics or user qualification, without approximation-quality pass/fail thresholds.
+  ☑ Replace SceneTransitionsKeepPayloadFiniteAndAttenuationBounded's eighteen-by-eight-frame matrix
+    with focused cases only where existing history, clipping or encoding tests leave a distinct gap.
+    - Require an independently authored expected response for the retained behavior. A renderer
+      returning neutral OIT throughout must not pass a test intended to verify cloud transitions.
+      Generic finiteness and attenuation bounds do not justify repeating every scene configuration.
+  ☑ Reduce CompleteRayLatticeMatchesIndependentGeometry's Cartesian primary matrix.
+    - Replace the 3,520 dispatch/readback combinations with a small explicit set covering count
+      clamping, short/empty spans, finite-domain entry/exit, boundary directions, jitter and detail.
+      Keep independent scalar expectations; evaluate pure scheduling arithmetic on the CPU where
+      GPU execution adds no distinct coverage. Avoid repeating equivalent saturated-budget cases.
+  ☑ Reduce the secondary schedule/density matrices and repeated source-field evaluation.
+    - Prune AnchoredQuadraticScheduleMatchesIndependentScalarField's 2,016 dispatch/readback
+      combinations while retaining anchored quadratic weights, short support, finite-domain exit,
+      detail and representative budget/distance boundaries.
+    - In DirectionalSourcesAndOctaveEndpointsMatchFiniteLatticeArithmetic, evaluate unchanged
+      directional density inputs once rather than repeating them across source/octave combinations.
+      Retain zero-source rejection, solar/lunar composition, octave endpoints and finite dense input.
+    - Consolidate overlapping procedural-density and integration cases in CloudSecondaryDensityTests;
+      each retained GPU probe must exercise a distinct field or integration behavior.
+  ☑ Remove remaining redundant fixture work using existing GPU abstractions.
+    - Load only programs needed by the assertion, request reference transport explicitly, reuse
+      unchanged inputs and read each required payload once. Preserve test isolation and ownership.
+      Use existing shader, texture, staging-buffer, framebuffer, command and state owners; no raw GL
+      operations or new generic test framework. Keep Phase 1 measurement classes explicitly opt-in.
+  ☑ Verify the retained contracts through subagents and record comparable before/after test costs.
+    - Reuse applicable historical timing receipts; do not rerun the old full matrices just to obtain
+      another baseline. Record actual dispatch/readback counts, per-test and aggregate durations,
+      configuration and relevant regressions. Demonstrate reduced work and execution cost without
+      introducing automated timing or approximation-quality acceptance thresholds.
+    - Use focused affected tests with per-case progress and bounded hang diagnostics. Reconcile
+      checklist references with removed/consolidated tests; retain historical receipts as history.
+      Complete a second review and independent completion audit before checking off this sub-phase.
+  ☑ Completion: low-value diagnostic/smoke matrices are retired or explicitly opt-in, redundant GPU
+    work is removed, retained correctness contracts pass, and the reduced test cost is documented.
+
 Phase 6: Amortize atmospheric and repeated density/phase evaluation
-  Depends on Phase 5. Outcome: shading avoids repeated work with explicitly qualified approximations.
+  Depends on Phase 5.1. Outcome: shading avoids repeated work with explicitly qualified approximations.
   ☐ Move aerial/local-fog application out of every density-shading sample toward representative-
     distance composition; derive the representative distance and apply the existing transport once.
     - Preserve physical cloud history, underwater/local-medium selection, coverage, lighting range
@@ -820,3 +868,60 @@ Phase 5 implementation and verification (2026-10-18)
     audit pass on the revised candidate. Phase 5 implementation is complete with focused correctness
     receipts; Half remains default. Phase 6 and later implementation, measured performance, final
     selection and user appearance qualification remain unchecked.
+
+Phase 5.1 test cleanup and verification (2026-10-18)
+  Scope/traceability -> Current test policy and Phase 5.1; volumetric proposal Density integration,
+    Scene integration and Quality; atmospheric publication units/encoding; archived hierarchy
+    geometry/ownership; parent cloud/OIT/lifetime contracts -> test-only cleanup. Runtime settings,
+    shaders, native publication and ownership remain unchanged. Historical receipts above retain
+    their original candidate and diagnostic scope; removed tests are not current verification gates.
+  Retained regressions -> primary independent scalar clipping/count/positions/weights/density,
+    minimum/fractional/maximum/fixed budgets, zero/parallel/corner/entry/exit rays, jitter, exposed and
+    connected detail faces, invalid/tiny inputs and exact uniform Beer arithmetic. Secondary cases
+    preserve origin-anchored quadratic intervals, short support, budget/distance boundaries, domain
+    exits, procedural shared density, solar/lunar composition, octave endpoints, zero-source rejection,
+    finite dense saturation and malformed-summary fallback. No approximation-quality assertion exists.
+  Matrix removal -> thirteen termination comparison cases and eighteen eight-frame transition smoke
+    cases are removed. Their historical observations remain available in prior artifacts. Existing
+    TemporalWeightsAndRejectionAreNumericallyObservable and StaticHistoryFollowsBoundedWeightRecurrence
+    supply authored acceptance/rejection/weight responses; HistoryRemainsPhysicalAndEmptyMapCannotGhost
+    and PhysicalStorageEncodingAndForegroundRulesRemainExact retain encoding and empty-transition
+    expectations; NewlyExposedAndOccludedPixelsUseCurrentDepth retains depth-transition expectations.
+    These checks cannot pass on neutral cloud output throughout. Strict first-saturated-step,
+    threshold equality, disabled exit, three independent clips and native six-output bookkeeping remain.
+  Work accounting -> primary lattice probes 3520 -> 18; secondary schedule 2016 -> 12, short-support
+    probes 2 unchanged, malformed summaries 5 unchanged, source/octave probes 109 -> 10 and procedural
+    integration probes 120 -> 12. Combined compute dispatch/readback calls are 5772 -> 59. Unchanged
+    directional density fields are evaluated once each; native primary uploads are 320 -> 18.
+    The eighteen primary and twelve secondary scenarios each share one shader preparation; input
+    owners remain isolated per scenario. The preliminary per-scenario theory setup was superseded
+    after measured shader-preparation overhead exposed a test-duration regression.
+    Termination draws fall 142 -> 16. Removing transition smoke drops 432 draws; trace-only noise
+    and homogeneous checks remove another 12. Two duplicate six-attachment reads and one compact
+    history read are removed. These are source-accounted API calls, not instrumented GPU counters.
+  Fixture ownership -> existing CloudTraversalProbe shader/SSBO submission and managed texture,
+    framebuffer, staging, command and state owners remain. CloudReconstructionScene loads programs
+    lazily; RenderTrace and RenderReference execute only asserted transport. Full reconstruction is
+    retained where its outputs/history matter. No raw GL operations or generic framework is added.
+    CloudWorkMeasurementTests and CloudHierarchyPerformanceTests remain explicitly opt-in.
+  Verification -> artifacts/CloudRealtime/phase5.1/commands.json, result-summary.json,
+    work-counts.json and final-identity.json -> final incremental Release build passes with zero
+    errors; 63 unique current cases pass. focused-corrected.trx supplies 60 unchanged cases and
+    final-matrices.trx supplies three final grouped-probe cases; superseded theory cases are not
+    counted again. Initial missing-Harmony-observer failure remains recorded. Both passing runs
+    use the documented process-only COMPlus_JitNoInline=1; no assertion was weakened.
+  Observed test cost -> historical Phase 4 versus current summed headless case seconds:
+    primary 8.163 -> 1.358; secondary budget 5.186 -> 2.248; secondary density 5.429 -> 3.296;
+    termination 62.733 -> 7.745; reconstruction 92.482 -> 25.879. These five groups total
+    173.993 -> 40.526 seconds. All 63 current cases, including additional Quarter and pipeline
+    regressions, sum to 47.753 seconds. Per-case durations, configuration and raw receipts remain
+    in result-summary.json and historical-durations.json; the old matrices were not rerun.
+    Historical times predate lazy shader/readback improvements; cache, runtime and observer-JIT
+    conditions also differ. This is observed test cost, not isolated optimization attribution,
+    renderer GPU timing, game-performance evidence or an automated timing/quality gate.
+  Candidate identity -> final-identity.json and runtime-source-check.json -> changed test sources
+    and unchanged dependent inputs match the successful receipts; no production/build/shader
+    source changed. The environment rebuild produced a different runtime DLL hash from the old
+    published package; no tested-package identity or repackaging claim is made for this test cleanup.
+  Completion -> second source/assertion review and independent linked-document completion audit
+    pass. All Phase 5.1 tasks are complete; later implementation and final qualification remain open.
