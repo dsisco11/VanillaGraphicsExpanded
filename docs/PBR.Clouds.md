@@ -262,7 +262,10 @@ additional error between neighboring rays. The native full-resolution reference 
 for quality comparisons.
 
 `CloudTemporalHistory` retains only the previous compatible view certificate. Native placement
-differences distinguish camera/cloud movement from grid recentering. History requires consecutive
+differences distinguish camera/cloud movement from grid recentering. Cloud reprojection uses a
+rotation-only view with the previous projection, matching camera-relative ray reconstruction.
+The native eye translation is excluded; placement deltas supply material/camera translation once.
+Shared scene-camera matrices retain their native convention. History requires consecutive
 frames and compatible owner/world/allocation/shader, extent/projection, calibration, medium,
 settings and completed lighting. Monotonic routine uploads may retain history, with current
 support/depth and optical-change checks on the GPU. Cuts, missing input, replacements, mode

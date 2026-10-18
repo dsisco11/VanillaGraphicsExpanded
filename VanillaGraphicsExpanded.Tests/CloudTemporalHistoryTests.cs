@@ -95,6 +95,52 @@ public sealed class CloudTemporalHistoryTests
         Assert.Equal(1,MemoryMarshal.Cast<byte,float>(t.Bytes)[16]);
         Assert.Equal(1,MemoryMarshal.Cast<byte,float>(t.Bytes)[26]); // prior phase y=(10>>1)&1
     }
+    /// <summary>Previous cloud clip coordinates rotate camera-relative points without applying eye translation twice.</summary>
+    [Fact]
+    public void CapturedTranslatedViewUsesCameraRelativeCloudProjection()
+    {
+        float[] projection=[.52166903f,0,0,0,0,1.3032254f,0,0,0,0,-1.0000666f,-1,0,0,-.20000666f,0];
+        float[] capturedView=[-.931172f,-.012012768f,-.36438215f,0,0,.999457f,-.032949593f,0,
+            .36458012f,-.03068174f,-.9306664f,0,0,-1.6982961f,.05598857f,1];
+        foreach(bool distant in new[]{false,true})
+        {
+            var view=(float[])capturedView.Clone();
+            if(distant){view[12]=12345.5f;view[13]=-500;view[14]=-9876.25f;}
+            float[] inverseProjection=new float[16],inverseView=new float[16],fullProjection=new float[16];
+            Mat4f.Invert(inverseProjection,projection);Mat4f.Invert(inverseView,view);Mat4f.Mul(fullProjection,projection,view);
+            using var prior=new VgeFrameUniformBuffer();using var current=new VgeFrameUniformBuffer();
+            prior.Capture(projection,view,inverseProjection,inverseView,fullProjection,fullProjection,new(3440,1377),0,10,Vector3.Zero,Vector3.Zero,0);
+            current.Capture(projection,view,inverseProjection,inverseView,fullProjection,fullProjection,new(3440,1377),0,11,Vector3.Zero,Vector3.Zero,0);
+            var history=new CloudTemporalHistory();var light=Lighting();var input=Input(10);
+            using var parameters=new CloudVolumeParameters();using var temporal=new CloudTemporalParameters();
+            parameters.CaptureMap(20,input.Placement,1,CloudVolumeSettings.Default);parameters.CaptureLighting(light,0,Vector4.Zero,Vector3.Zero);
+            history.Commit(input,prior,CloudVolumeSettings.Default,light,parameters);
+            var next=input with {Frame=11,Generation=12};
+            Assert.True(history.Capture(next,current,CloudVolumeSettings.Default,light,parameters,1720,689,temporal));
+            float[] actual=MemoryMarshal.Cast<byte,float>(temporal.Bytes[..64]).ToArray();
+            // Build the expected matrix independently from rotation-only view algebra, rather
+            // than copying the production matrix's replacement-column implementation.
+            var rotation=(float[])view.Clone();rotation[12]=rotation[13]=rotation[14]=0;
+            float[] expected=new float[16];Mat4f.Mul(expected,projection,rotation);
+            Assert.Equal(expected,actual);
+            foreach(var uv in new[]{new Vector2(.15f,.8f),new Vector2(.5f,.5f),new Vector2(.85f,.7f)})
+            {
+                Vector4 point=Transform(inverseProjection,new(uv*2-Vector2.One,1,1));point/=point.W;
+                Vector4 rotated=Transform(inverseView,new(point.X,point.Y,point.Z,0));
+                Vector3 direction=Vector3.Normalize(new(rotated.X,rotated.Y,rotated.Z));
+                Vector4 clip=Transform(actual,new(direction*1000,1));
+                Assert.InRange(Math.Abs(clip.X/clip.W*.5f+.5f-uv.X),0,2e-6f);
+                Assert.InRange(Math.Abs(clip.Y/clip.W*.5f+.5f-uv.Y),0,2e-6f);
+            }
+            // Native material movement remains explicit after the camera convention is fixed.
+            next=next with {Placement=next.Placement with {CenterX=1,Offset=new(50,1,0)}};
+            Assert.True(history.Capture(next,current,CloudVolumeSettings.Default,light,parameters,1720,689,temporal));
+            Assert.Equal(new Vector3(0,-1,0),MemoryMarshal.Read<Vector3>(temporal.Bytes.Slice(64,12)));
+            history.Invalidate();
+            Assert.False(history.Capture(next,current,CloudVolumeSettings.Default,light,parameters,1720,689,temporal));
+            Assert.Equal(expected,MemoryMarshal.Cast<byte,float>(temporal.Bytes[..64]).ToArray());
+        }
+    }
     /// <summary>Ceil-half dimensions cover odd views and reject excessive storage before GPU allocation.</summary>
     [Fact]
     public void BoundsHistoryStorageAndPersistsApprovedDefault()
@@ -125,5 +171,11 @@ public sealed class CloudTemporalHistoryTests
     /// <summary>Supplies an immutable completed physical atmosphere for history-identity checks.</summary>
     private static AtmosphereLighting Lighting()=>new(Vector3.UnitY,new(10),new(1),Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
     { Moon=-Vector3.UnitY,CalibrationGeneration=1,LookupStorageScale=LightingStorage.PersistentScale };
+    /// <summary>Applies column-major shader matrices independently of the history implementation.</summary>
+    private static Vector4 Transform(float[] matrix,Vector4 value)=>new(
+        matrix[0]*value.X+matrix[4]*value.Y+matrix[8]*value.Z+matrix[12]*value.W,
+        matrix[1]*value.X+matrix[5]*value.Y+matrix[9]*value.Z+matrix[13]*value.W,
+        matrix[2]*value.X+matrix[6]*value.Y+matrix[10]*value.Z+matrix[14]*value.W,
+        matrix[3]*value.X+matrix[7]*value.Y+matrix[11]*value.Z+matrix[15]*value.W);
     #endregion
 }

@@ -492,6 +492,9 @@ Bounded quality policy (implementation contract)
     - Reject history on any change to sample budgets/distances, lattice/jitter policy, termination,
       trace/reconstruction layout or atmosphere application policy, as well as existing lifecycle,
       camera, medium, calibration and completed lighting incompatibilities.
+    - Reproject camera-relative cloud points with projection times the rotation-only previous view.
+      Native eye translation must not enter that matrix: the placement delta supplies translation.
+      Leave the shared scene-camera transform convention unchanged.
 
   Termination policy
     - Candidate view transmittance threshold=.005; supported range [0,.005], with zero disabling this

@@ -47,7 +47,8 @@ internal sealed class CloudTemporalHistory
         var translation=new Vector3((float)dx,placement.Offset.Y-input.Placement.Offset.Y,(float)dz);
         if(!float.IsFinite(translation.X)||!float.IsFinite(translation.Y)||!float.IsFinite(translation.Z)||translation.LengthSquared()>2500)
             compatible=false;
-        output.Capture(valid?previousProjection:camera.CurrentViewProjection,compatible?translation:Vector3.Zero,
+        if(!valid) CaptureCloudProjection(camera,previousProjection);
+        output.Capture(previousProjection,compatible?translation:Vector3.Zero,
             width,height,input.Frame,frame,compatible,quality.TraceScale);
         return compatible;
     }
@@ -57,9 +58,22 @@ internal sealed class CloudTemporalHistory
     {
         owner.SetTarget(input.Owner); mapWidth=input.Storage.Width; world=input.World; allocation=input.Allocation; upload=input.Upload; shader=input.Shader; frame=input.Frame;
         placement=input.Placement; settings=quality; lighting=light; parameters.Bytes.Slice(64,128).CopyTo(medium);
-        camera.Projection.CopyTo(projection); camera.CurrentViewProjection.CopyTo(previousProjection);
+        camera.Projection.CopyTo(projection); CaptureCloudProjection(camera,previousProjection);
         calibration=camera.CalibrationGeneration;
         screen=System.Runtime.InteropServices.MemoryMarshal.Read<Vector2>(camera.Bytes.Slice(384,8)); valid=true;
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Projects camera-relative cloud displacements without reapplying native view translation.</summary>
+    private static void CaptureCloudProjection(VgeFrameUniformBuffer camera,Span<float> target)
+    {
+        // Cloud ray reconstruction applies the inverse view with w=0. Material/camera motion
+        // is supplied separately by the placement delta, so native eye translation must not
+        // enter this transform again. For an affine view, removing translation preserves the
+        // first three VP columns and makes the fourth column equal to projection's fourth.
+        camera.CurrentViewProjection.CopyTo(target);
+        camera.Projection.Slice(12,4).CopyTo(target.Slice(12,4));
     }
     #endregion
 }
