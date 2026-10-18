@@ -430,6 +430,11 @@ Bounded quality policy (implementation contract)
       An existing certified vertical bound may similarly prove remaining samples empty.
     - The same density definition is evaluated independently at every scheduled primary/shadow
       position. No replacement vertical profile, density volume or invented border extension is added.
+    - Before shadow integration, bound a directional source by illuminance*(phase+octaveContribution/
+      (4*pi)). If every channel is strictly below 1e-5 of that environment channel, retain this
+      unoccluded response without a shadow march. The omitted attenuation is bounded by 0.001%
+      of the environment per channel; zero background channels prevent the shortcut. Dominant night
+      lighting retains the complete shadow schedule. Sample controls and optical products stay fixed.
     - At selected default budgets after bounded secondary integration, a primary ray has at most
       768 secondary rays and 7680 secondary full-detail evaluations with both sources active, plus
       at most 384 primary evaluations; these are policy
@@ -1251,3 +1256,47 @@ Continuous atmospheric-input history admission (2026-10-18)
     Release build/package succeeds. Tested/published/directory/ZIP runtime DLLs match, and all 458
     tested production shader binaries match the packaged directory and ZIP with zero mismatches.
     Runtime/test source identities are stable. Live appearance and frame-time acceptance remain open.
+
+Trace component isolation and weak-source shadow work (2026-10-18)
+  Baseline -> artifacts/CloudTemporalDiagnosis/component-cost/summary.json and measurements ->
+    one opt-in experiment uses the actual shader/resource/command abstractions and certified root
+    bounds, fixed 512x256 full / 256x128 trace dimensions, native width 81, a uniform dense field,
+    the fixture's narrow projection, captured-style 384/10 budgets, detail .25/8, shadow distance
+    1500 and termination disabled. Three warmups and five rotated/interleaved pairs isolate each
+    factor. The game remains running; these are contended synthetic trace costs, not native scene
+    reproduction, whole-frame costs or FPS predictions. Readbacks and root construction are untimed.
+    Median paired savings: environment-only 3.161 ms; solar-only .985 ms; detail-off 1.03 ms;
+    primary 96 instead of 384 1.77 ms; shadow 2 instead of 10 1.69 ms; termination .005 1.80 ms.
+    All six favor the variant in five of five pairs. Solar-only physical outputs match exactly;
+    other output differences are diagnostic, with no approximation-quality or timing gates.
+    Quarter shows no useful trace saving in this run, and quadrupling pixels costs only about
+    1.82 times the smaller baseline; these anomalous contended/small-workload observations do not
+    establish renderer scaling. Controls remain unchanged per user direction.
+  Configuration -> configlib-patches.json -> StopTransmittance is registered as a fractional float
+    control, retaining .005 default, range [0,.005] and .0005 step. No persisted setting is migrated
+    or overwritten; an existing zero still disables termination. Eleven existing ordering and
+    termination CPU checks pass. Further savings from changing this value are a separate setting
+    choice, not attributed to the weak-source optimization.
+  Candidate -> artifacts/CloudTemporalDiagnosis/weak-source-per-ray/measurement-summary.json ->
+    eligibility is evaluated once per primary ray; weak responses join the constant environment
+    source and their illuminance follows the existing zero-source rejection inside the march.
+    Settings match the frozen baseline. Day median trace cost is 3.055616 -> 2.045952 ms;
+    median paired saving is 1.252352 ms, with all five pairs positive (1.007616..1.922048 ms).
+    Held-out night medians are 2.023424 -> 2.035712 ms; paired median saving is -.015360 ms,
+    with two positive pairs and a noisy -.529408..+.105472 ms range. This supports approximate
+    parity under contention, not a universal absence of overhead. Night physical outputs match
+    exactly; daytime maximum radiance difference is .0009765625, while transmission, buckets,
+    spacing and support match exactly. These differences remain diagnostic rather than gates.
+    An earlier per-sample eligibility candidate saved daytime work but consistently slowed night
+    by a .253952 ms paired median; it was rejected. Raw receipts remain under weak-source/.
+  Validation -> weak-source-per-ray/focused-cpu.trx and focused-gpu.trx -> 14 CPU and 20 GPU
+    checks pass. The one new focused GPU test checks actual shadow-call rejection and retained
+    unoccluded arithmetic, plus strong-source, night-source and zero-environment-channel paths.
+    Existing resource/shader abstractions are used. Component experiments are opt-in; no default
+    sampling/resolution changes, approximation-quality gates or live frame-time claims are added.
+  Delivery -> weak-source-per-ray/canonical-build.log and package-identity.json -> canonical
+    Release/SPIR-V package build passes. Tested runtime DLL and all 458 production shader binaries
+    match published output, release directory and ZIP with zero mismatches. Fractional control
+    placement/default/step match source, tested assets and all delivery forms. Existing NuGet,
+    nullability, obsolete API and unused-field warnings remain. Package ->
+    Releases/vanillagraphicsexpanded_999.99.9.zip; live full-view performance acceptance stays open.

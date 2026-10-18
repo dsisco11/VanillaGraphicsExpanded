@@ -1,6 +1,7 @@
 using System.Numerics;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Clouds;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -15,6 +16,42 @@ public sealed class CloudSecondaryBudgetTests(HeadlessGLFixture fixture, ITestOu
 {
     private static Vector4[] lastRecords=[];
     #region Public API
+    /// <summary>Weak background-relative sources keep their unoccluded response without shadow work; meaningful sources remain shadowed.</summary>
+    [Fact]
+    public void WeakDirectionalResponseAvoidsOnlyBackgroundBoundedShadowWork()
+    {
+        EnsureShaderTestAvailable();using var program=new CloudTraversalProbe(Programs.Api);
+        using var native=DynamicTexture2D.Create(1,1,PixelInternalFormat.Rgba32f);
+        native.UploadDataImmediate(new float[]{2,0,-.5f,.5f});
+        using var parameters=new CloudVolumeParameters();
+        parameters.CaptureMap(1,default,1,CloudVolumeSettings.Default with {Detail=false,ShadowDistance=50});
+        foreach(var (illuminance,environment,shortcut) in new[]
+        {
+            (.001f,new Vector3(1000),true),
+            (10000f,new Vector3(1000),false),
+            (.2f,new Vector3(.001f),false),
+            (.001f,new Vector3(1000,0,1000),false)
+        })
+        {
+            var lighting=new VanillaGraphicsExpanded.PBR.Atmosphere.AtmosphereLighting(Vector3.UnitY,
+                new(illuminance),environment,Vector3.Zero,Vector3.Zero,System.Collections.Immutable.ImmutableArray<float>.Empty)
+                {CalibrationGeneration=1,LookupStorageScale=LightingStorage.PersistentScale};
+            parameters.CaptureLighting(lighting,0,Vector4.Zero,Vector3.Zero);
+            var result=program.Run(parameters,native,new(25,0,25),Vector3.UnitX,.1f,13);
+            float upper=illuminance*(.1f+.5f/(4*MathF.PI));
+            if(shortcut)
+            {
+                Assert.Equal(0,result[402].X);
+                for(int channel=0;channel<3;channel++)
+                    Assert.InRange(Math.Abs(result[401][channel]-upper),0,upper*3e-6);
+            }
+            else
+            {
+                Assert.True(result[402].X>0,"Strong, night and zero-background channels must retain shadow integration.");
+                Assert.True(result[401].X>0&&result[401].X<upper);
+            }
+        }
+    }
     /// <summary>Exposes actual density calls to distinguish quadratic midpoint support aliasing from an unintended schedule.</summary>
     [Fact]
     public void ShortShadowSupportUsesAnchoredUnclippedIntervalWeights()

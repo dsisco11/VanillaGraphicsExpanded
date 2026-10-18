@@ -51,6 +51,13 @@ float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
 void main()
 {
     counts=vec4(0); measuredOrigin=testOriginLimit.xyz;
+    if(testDirectionMode.w==13.0)
+    {
+        vec3 response=CloudDirectionalUnshadowed(volumeSolar.xyz,testOriginLimit.w)
+            ?volumeSolar.xyz*(testOriginLimit.w+volumeSamples.z/12.5663706144)
+            :CloudDirectional(testOriginLimit.xyz,normalize(testDirectionMode.xyz),volumeSolar.xyz,testOriginLimit.w);
+        intervals[401]=vec4(response,0);counts=vec4(measuredSamples,0,0,0);return;
+    }
     if(testDirectionMode.w==12.0)
     {
         vec2 span=testOriginLimit.xy,supported=testDirectionMode.xy;

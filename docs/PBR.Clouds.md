@@ -152,7 +152,13 @@ jitter does not change the density definition or add density noise.
 View and bounded secondary solar/lunar marches share this density definition. HG single
 scattering uses g=.6 and one isotropic approximate multiple-scattering octave with contribution
 and occlusion .5/.5. This approximates higher-order transport rather than a second explicit
-physical bounce. Environment uses the published E/pi response. Simple uses physical directional
+physical bounce. Environment uses the published E/pi response. Once per primary ray,
+the shader bounds each light by its unoccluded single-plus-octave response. If every channel is
+strictly below 1e-5 of the matching environment channel, it retains the unoccluded response and
+omits the shadow march. This bounds the omitted attenuation by 0.001% of the environment per
+channel. A zero environment channel prevents this shortcut, and meaningful night sources retain
+their normal shadows. The weak constant response joins the environment outside the sample loop.
+Sampling controls, density and optical products are unaffected. Simple uses physical directional
 and environment inputs without volume marching, self-shadowing, 3D noise or temporal resources.
 Native brightness/daylight/base-color attributes are not physical incident illumination.
 Simple retains native shape/coverage controls and applies perception's factor 20 locally without
@@ -304,7 +310,7 @@ The persisted `Clouds` config and ConfigLib expose:
 | `ViewBudgetDistance` | 50 | 50..10000 world units; distance at which the maximum applies |
 | `LightRaySampleMax` | 10 | 2..64 scheduled points per contributing directional light |
 | `ShadowDistance` | 1500 | 50..10000 world units; independent of view distance/clipping |
-| `StopTransmittance` | .005 | 0..0.005; strict post-step view exit, zero disables |
+| `StopTransmittance` | .005 | Fractional control, 0..0.005 in .0005 steps; strict post-step view exit, zero disables |
 | `Detail` | true | Noise and exposed-edge erosion; false samples piecewise constant native density |
 | `DetailAmplitude` | .15 | 0..0.95 bounded interior modulation |
 | `EdgeWidth` | 2 | .01..10 world units of inward softness |

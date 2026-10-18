@@ -45,11 +45,21 @@ float CloudDirectionalPhase(vec3 view,vec3 light)
     float mu=clamp(dot(view,light),-1.0,1.0);
     return .64/(12.5663706144*pow(1.36-1.2*mu,1.5));
 }
+/** Classifies the ray-invariant unoccluded response against every environment channel. */
+bool CloudDirectionalUnshadowed(vec3 illuminance,float phase)
+{
+    // Shadowing can only reduce this response. Retain the unoccluded light when its entire
+    // contribution is below 0.001% of the environment in every channel, avoiding a shadow
+    // march for a negligible source. Strict comparison keeps zero-background channels and
+    // meaningful night lighting on the full integration path; no sample budget is changed.
+    return all(lessThan(illuminance*(phase+volumeSamples.z/12.5663706144),volumeEnvironment.rgb*1e-5));
+}
 /** Combines sample-local shadow depth with a ray's fixed phase and one isotropic approximate octave. */
 vec3 CloudDirectional(vec3 local,vec3 light,vec3 illuminance,float phase)
 {
     if(max(illuminance.r,max(illuminance.g,illuminance.b))<=0.0) return vec3(0);
+    float isotropic=volumeSamples.z/12.5663706144;
     float tau=CloudLightDepth(local,light);
-    return illuminance*(phase*exp(-tau)+volumeSamples.z/12.5663706144*exp(-volumeSamples.w*tau));
+    return illuminance*(phase*exp(-tau)+isotropic*exp(-volumeSamples.w*tau));
 }
 #endif

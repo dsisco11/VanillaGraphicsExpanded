@@ -261,16 +261,6 @@
         "weight": 25.01,
         "values": [2, 4]
       },
-      "CLOUD_STOP_TRANSMITTANCE": {
-        "code": "Clouds.StopTransmittance",
-        "clientSide": true,
-        "name": "Clouds/StopTransmittance",
-        "ingui": "vanillagraphicsexpanded:config-cloud-stop-transmittance",
-        "comment": "vanillagraphicsexpanded:config-cloud-stop-transmittance-tooltip",
-        "default": 0.005,
-        "weight": 25.32,
-        "range": { "min": 0, "max": 0.005, "step": 0.0005 }
-      },
       "POST_BLOOMLEVELS": {
         "code": "Postprocessing.BloomLevels",
         "clientSide": true,
@@ -554,6 +544,16 @@
       }
     },
     "float": {
+      "CLOUD_STOP_TRANSMITTANCE": {
+        "code": "Clouds.StopTransmittance",
+        "clientSide": true,
+        "name": "Clouds/StopTransmittance",
+        "ingui": "vanillagraphicsexpanded:config-cloud-stop-transmittance",
+        "comment": "vanillagraphicsexpanded:config-cloud-stop-transmittance-tooltip",
+        "default": 0.005,
+        "weight": 25.32,
+        "range": { "min": 0, "max": 0.005, "step": 0.0005 }
+      },
       "CLOUD_VIEW_DISTANCE": {
         "code": "Clouds.ViewBudgetDistance",
         "clientSide": true,

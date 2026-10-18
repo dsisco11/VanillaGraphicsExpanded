@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
@@ -227,6 +228,9 @@ internal sealed class CloudReconstructionScene : IDisposable
     }
     /// <summary>Reads the complete traced OIT record including first/last cloud and foreground distances.</summary>
     internal float[][] ReadTraceRecord() => CloudPayloadReadback.Read(traced);
+    /// <summary>Copies the actual staged volume and sampling constants for opt-in measurement receipts.</summary>
+    internal float[][] ReadTraceParameters() => [MemoryMarshal.Cast<byte,float>(Trace.Parameters.Bytes).ToArray(),
+        MemoryMarshal.Cast<byte,float>(Trace.Temporal.Bytes).ToArray()];
     /// <summary>Executes one reduced sample phase without running temporal or spatial reconstruction.</summary>
     internal void RenderTrace(uint frame)
     {

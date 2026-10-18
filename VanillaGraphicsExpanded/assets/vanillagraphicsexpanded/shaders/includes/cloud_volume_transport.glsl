@@ -83,6 +83,15 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     float opacityWeight=0.0,distanceMoment=0.0;
     float solarPhase=max(volumeSolar.r,max(volumeSolar.g,volumeSolar.b))>0.0?CloudDirectionalPhase(direction,volumeSun.xyz):0.0;
     float lunarPhase=max(volumeLunar.r,max(volumeLunar.g,volumeLunar.b))>0.0?CloudDirectionalPhase(direction,volumeMoon.xyz):0.0;
+    // Classify once per ray. Fold weak unshadowed responses into the constant source;
+    // zero illuminance then follows the existing directional-light rejection in the march.
+    bool solarUnshadowed=CloudDirectionalUnshadowed(volumeSolar.rgb,solarPhase);
+    bool lunarUnshadowed=CloudDirectionalUnshadowed(volumeLunar.rgb,lunarPhase);
+    vec3 solar=solarUnshadowed?vec3(0):volumeSolar.rgb;
+    vec3 lunar=lunarUnshadowed?vec3(0):volumeLunar.rgb;
+    vec3 environment=volumeEnvironment.rgb
+        +(solarUnshadowed?volumeSolar.rgb*(solarPhase+volumeSamples.z/12.5663706144):vec3(0))
+        +(lunarUnshadowed?volumeLunar.rgb*(lunarPhase+volumeSamples.z/12.5663706144):vec3(0));
     CloudDensityCache densityCache=CloudDensityCacheStart();
     for(int i=range.x;i<VGE_CLOUD_PRIMARY_LIMIT;i++)
     {
@@ -102,9 +111,9 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
         float near=span.x+float(i)*ds,far=min(span.y,near+ds);
         if(result.depth.y==0.0) result.depth.x=near;
         result.depth.y=far;
-        vec3 source=volumeEnvironment.rgb
-            +CloudDirectional(local,volumeSun.xyz,volumeSolar.rgb,solarPhase)
-            +CloudDirectional(local,volumeMoon.xyz,volumeLunar.rgb,lunarPhase);
+        vec3 source=environment
+            +CloudDirectional(local,volumeSun.xyz,solar,solarPhase)
+            +CloudDirectional(local,volumeMoon.xyz,lunar,lunarPhase);
         // Keep the opacity measure separate from source brightness: dark clouds still transport air.
         // Only contributing scheduled points enter the mean; empty gaps retain their original budgets.
         float weight=transmission*alpha;
