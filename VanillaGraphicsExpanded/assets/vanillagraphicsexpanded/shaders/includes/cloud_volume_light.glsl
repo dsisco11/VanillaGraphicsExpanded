@@ -9,20 +9,7 @@ bool CloudShadowSpan(vec3 origin,vec3 direction,out vec2 span)
 {
     if(!CloudPrimarySpan(origin,direction,volumePrimary.z,span)) return false;
 #ifdef VGE_CLOUD_HIERARCHY
-    // Only a certified, correctly shaped root may narrow the supported vertical domain.
-    // Missing summaries keep the same scheduled points and use native support rejection.
-    if(cloudTraversal.x==0) return true;
-    int root=cloudTraversal.y;
-    if(root<0 || root>7) return true;
-    if(volumeOffsetWidth.w<=float(1<<root) || volumeOffsetWidth.w>float(2<<root)) return true;
-    if(any(notEqual(textureSize(cloudHeightBounds,0),ivec2(1<<root)))) return true;
-    vec2 bounds=texelFetch(cloudHeightBounds,ivec2(0),root).rg;
-    if(bounds.x>bounds.y) return false;
-    // Keep optional clipping local: an unavailable root must not affect horizontal span outputs.
-    float near=span.x,far=span.y;
-    bool supported=CloudSlab(origin.y,direction.y,bounds.x,bounds.y,near,far);
-    span=vec2(near,far);
-    return supported;
+    return CloudRootSpan(origin,direction,span);
 #endif
     return true;
 }

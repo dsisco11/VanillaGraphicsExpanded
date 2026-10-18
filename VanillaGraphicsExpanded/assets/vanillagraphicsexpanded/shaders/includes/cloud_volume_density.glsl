@@ -147,45 +147,4 @@ bool CloudSlab(float o,float d,float lo,float hi,inout float near,inout float fa
     near=max(near,min(t.x,t.y)); far=min(far,max(t.x,t.y));
     return far>near;
 }
-/** Holds monotone DDA traversal in world units without sampling unavailable map cells. */
-struct CloudRay { vec3 o; vec3 d; float t; float end; ivec2 cell; ivec2 stepCell; vec2 next; vec2 delta; };
-/** Enters the finite horizontal map; vertical intervals are intersected against each actual column. */
-bool CloudStart(vec3 o,vec3 d,float limit,out CloudRay ray)
-{
-    float near=0.0,far=limit,extent=volumeOffsetWidth.w*50.0;
-    if(!CloudSlab(o.x,d.x,0.0,extent,near,far)) return false;
-    if(!CloudSlab(o.z,d.z,0.0,extent,near,far)) return false;
-    ray.o=o; ray.d=d; ray.t=near; ray.end=far;
-    ray.cell=ivec2(floor((o+d*(near+1e-4)).xz/50.0));
-    ray.cell=clamp(ray.cell,ivec2(0),ivec2(int(volumeOffsetWidth.w)-1));
-    ray.stepCell=ivec2(sign(d.xz));
-    ray.delta=vec2(1e30); ray.next=vec2(1e30);
-    for(int axis=0;axis<2;axis++) if(abs(d.xz[axis])>=1e-8)
-    {
-        float boundary=float(ray.cell[axis]+(d.xz[axis]>0.0?1:0))*50.0;
-        ray.next[axis]=(boundary-o.xz[axis])/d.xz[axis];
-        ray.delta[axis]=50.0/abs(d.xz[axis]);
-    }
-    return far>near;
-}
-/** Advances both tied axes, visiting each supported column no more than once. */
-bool CloudAdvance(inout CloudRay ray)
-{
-    float next=min(ray.next.x,ray.next.y);
-    if(next>=ray.end) return false;
-    bvec2 crossed=lessThanEqual(ray.next,vec2(next));
-    if(crossed.x) { ray.cell.x+=ray.stepCell.x; ray.next.x+=ray.delta.x; }
-    if(crossed.y) { ray.cell.y+=ray.stepCell.y; ray.next.y+=ray.delta.y; }
-    ray.t=next;
-    if(any(lessThan(ray.cell,ivec2(0)))) return false;
-    return all(lessThan(ray.cell,ivec2(int(volumeOffsetWidth.w))));
-}
-/** Clips a DDA cell against its own vertical interval, including inside and horizontal rays. */
-bool CloudInterval(CloudRay ray,vec4 data,out float near,out float far)
-{
-    near=ray.t; far=min(ray.end,min(ray.next.x,ray.next.y));
-    if(data.r<=0.0) return false;
-    if(!CloudSlab(ray.o.y,ray.d.y,data.b*50.0,data.a*50.0,near,far)) return false;
-    return far>near;
-}
 #endif

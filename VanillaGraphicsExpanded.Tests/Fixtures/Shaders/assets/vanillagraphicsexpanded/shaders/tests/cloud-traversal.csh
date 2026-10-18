@@ -47,7 +47,7 @@ float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
     return (data.r/50.0)/volumeAnchorUnits.z*detail;
 }
 
-/** Exposes actual production traversal intervals while counting native leaf probes independently of helper internals. */
+/** Exposes bounded production schedules and shared density through independent authored queries. */
 void main()
 {
     counts=vec4(0); measuredOrigin=testOriginLimit.xyz;
@@ -110,22 +110,5 @@ void main()
         }
         counts.x=float(count); counts.y=span.x; counts.w=span.y;
         return;
-    }
-    if(testDirectionMode.w>=2.0)
-        counts.z=CloudLightDepth(testOriginLimit.xyz,testDirectionMode.xyz);
-    CloudRay ray;
-    if(!CloudStart(testOriginLimit.xyz,testDirectionMode.xyz,testOriginLimit.w,ray)) return;
-    for(int step=0;step<402;step++)
-    {
-        if(testDirectionMode.w>0.0 && !CloudHierarchySeek(ray)) break;
-        counts.y+=1.0;
-        vec4 data=CloudColumn(ray.cell);
-        float near,far;
-        if(CloudInterval(ray,data,near,far))
-        {
-            intervals[int(counts.x)]=vec4(near,far,vec2(ray.cell));
-            counts.x+=1.0;
-        }
-        if(!CloudAdvance(ray)) break;
     }
 }

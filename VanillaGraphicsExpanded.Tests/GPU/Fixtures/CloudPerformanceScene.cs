@@ -10,6 +10,8 @@ using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.PBR.Clouds;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using Vintagestory.API.Client;
 using Vintagestory.API.Common;
 using Vintagestory.API.MathTools;
@@ -147,12 +149,15 @@ internal sealed class CloudPerformanceScene : IDisposable
     /// <summary>Clears only fixture attachments to the native neutral OIT record before a comparison draw.</summary>
     internal void Clear()
     {
-        int previous = GL.GetInteger(GetPName.DrawFramebufferBinding);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, output.Target.FboId);
-        GL.ClearBuffer(ClearBuffer.Color, 0, new float[] { 1, 1, 1, 1 });
-        GL.ClearBuffer(ClearBuffer.Color, 1, new float[] { 1, 0, 0, 0 });
-        for (int layer = 2; layer < 6; layer++) GL.ClearBuffer(ClearBuffer.Color, layer, new float[4]);
-        GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, previous); StateCache.Current.InvalidateAll();
+        var pass = new RenderPassDesc(output.Target,
+            [new(0,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,1,1,1)),
+             new(1,AttachmentLoad.Clear,Clear:ColorClearValue.Float(1,0,0,0)),
+             new(2,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+             new(3,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+             new(4,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0)),
+             new(5,AttachmentLoad.Clear,Clear:ColorClearValue.Float(0,0,0,0))]);
+        Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.PerformanceClear",[],true,commands=>
+            { commands.BeginPass(pass); commands.EndPass(); }));
     }
     /// <summary>Reads all native OIT attachments independently of private trace and history storage.</summary>
     internal float[][] ReadOutput() => output.Images.Take(6).Select(image => image.ReadPixels()).ToArray();

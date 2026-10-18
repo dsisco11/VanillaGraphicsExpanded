@@ -301,11 +301,11 @@ Phase 6: Amortize atmospheric and repeated density/phase evaluation
 
 Phase 7: Make acceleration optional and efficient for the new integration schedule
   Depends on Phase 6. Outcome: empty-space rejection helps without repeated dense-path overhead.
-  ☐ Compare plain column traversal, cheap root rejection and the current hierarchy under identical
+  ☑ Compare plain column traversal, cheap root rejection and the current hierarchy under identical
     new sample budgets; include construction and GPU barriers in total cost.
     - Consider cheap conservative density rejection and coarse start-distance rejection without
       assuming another prepass or a particular tree traversal is required.
-  ☐ For retained hierarchical traversal, carry node/interval progress through the ray and reuse
+  ☑ For retained hierarchical traversal, carry node/interval progress through the ray and reuse
     valid ancestor bounds instead of restarting root descent after every surviving column.
     - Traverse coherent node intervals front-to-back, ascend only when leaving their footprint and
       advance across missed regions without replaying every skipped native grid boundary twice.
@@ -318,14 +318,14 @@ Phase 7: Make acceleration optional and efficient for the new integration schedu
       fallback on the same lattice when summaries are unavailable; do not restore per-column budgets.
     - Keep certificates and generation rebuild rules for any retained summaries; never sample stale
       data. Stop allocating/building summaries when the selected policy has no active consumer.
-  ☐ Select the production acceleration policy from matched measurements. Retain cheap rejection or
+  ☑ Select the production acceleration policy from matched measurements. Retain cheap rejection or
     direct marching where a tree does not pay for itself; do not require hierarchy use merely because
     it exists. Any DDA retained here locates support for the same scheduled points, not integration cells.
     - Avoid an unmeasured per-frame heuristic, CPU texture readback or settings polling. Record
       selection inputs, transitions, resource demand and any remaining workload regressions.
     - If the tree is retired, remove its unused production resources/program registration and update
       current architecture/catalog contracts; retain only useful independent validation or benchmarks.
-  ☐ Completion: acceleration preserves the same scheduled evaluations and transport results, with
+  ☑ Completion: acceleration preserves the same scheduled evaluations and transport results, with
     tolerances limited to floating-point evaluation differences in equivalent implementations.
     These are correctness checks, not acceptable approximation-error limits; sample placement,
     conservative support and clipping contracts remain unchanged. Total costs support the selected
@@ -459,6 +459,24 @@ Bounded quality policy (implementation contract)
       descriptors only across consecutive samples in that column; retest neighbors at every height.
       Noise and native geometry remain unchanged. Do not infer individual timing savings from
       source operation counts or from combined renderer measurements.
+  Acceleration policy
+    - Reduced tracing uses certified root-height rejection, with direct native support as fallback.
+      The root can reject a whole primary ray, but its clipped vertical interval never replaces
+      the horizontal primary span used for counts, spacing or blue-noise jitter. Shadow roots
+      can skip proven-empty parts of the fixed quadratic schedule without rescaling its distance.
+    - Root intervals expand outward by eight binary32 epsilons times the maximum of one, absolute
+      root heights and abs(origin.y)+abs(direction.y)*spanEnd. Nearly horizontal rays compare both
+      finite-span endpoint heights instead of assuming constant height. Nonfinite bounds retain
+      native support checks. Numerical uncertainty admits work rather than discarding support.
+    - Keep the existing exact-generation GPU reduction/certificate and direct fallback. Lower
+      mips are construction intermediates consumed by the root reduction. No primary/secondary
+      DDA or root-to-leaf tree walk remains in production; surviving samples query their native cells.
+      Cached scheduled-point hierarchy rejection remains an explicit measurement alternative.
+    - Selection is fixed for the reduced consumer, not a per-frame weather/readback/settings
+      heuristic. Off, Simple and the history-free reference require no height-summary allocation.
+      Missing/failed/stale summaries use the identical scheduled native queries; native ownership,
+      resource retirement and successful-commit-only history rotation remain unchanged.
+
   Sampling and temporal identity
     - Use spatial blue-noise primary-ray offsets with an eight-frame temporal index advancing every
       rendered frame, independent of reconstruction phase. Use the traced full-view coordinate;
@@ -1034,3 +1052,109 @@ Phase 6 implementation and verification (2026-10-18)
     audit pass on the corrected, packaged candidate. Phase 6 implementation is complete. Phase 7/8,
     final selection, the underwater timing observation, whole-renderer cost and user appearance
     acceptance remain open; no later task or parent acceptance is marked complete.
+
+Phase 7 implementation and verification (2026-10-18)
+  Schedule/source mapping -> Acceleration policy above; volumetric proposal Density integration,
+    native publication/ownership and Scene integration; archived hierarchy Geometry/Ownership;
+    atmospheric publication units/storage; parent native OIT -> current shading already queried
+    scheduled native cells directly. Only secondary rays consumed the old hierarchy root; the
+    full root-to-leaf walk was dead production code. The comparison holds complete primary spans,
+    counts/jitter, shadow midpoints/weights, detailed density, clipping and native OIT fixed.
+  Selection -> artifacts/CloudRealtime/phase7/matched64-summary.json and measurements64/*.json ->
+    fixed root-only rejection for reduced tracing; direct support when summaries are unavailable.
+    A primary root miss can reject a complete ray but cannot resize its lattice. Secondary bounds
+    conservatively skip empty starts/ends without reallocating samples. No weather/readback-based
+    heuristic, settings polling, new prepass, density volume or native producer change is introduced.
+    Current-source certificates, generation rebuilds, barriers, resource reuse and retirement remain.
+    Lower mips are necessary reduction intermediates for the actively consumed root.
+  Traversal disposition -> conditional retained-tree task -> no hierarchical descent is selected.
+    Removed unused CloudRay/DDA, CloudNodeExit/CloudSkipNode/CloudHierarchySeek and their repeated
+    boundary clocks. No ancestor cursor is needed for root-only rejection. The measured alternative
+    caches per-mip bounds across scheduled points; it does not establish the best possible tree.
+    Its extra complexity has no consistent measured benefit here, so it remains an explicit benchmark
+    rather than another production consumer. Independent native validity, bounds/density, scheduling,
+    physical units, clipping, OIT, source admission and lifecycle checks remain.
+  Numerical progress -> CloudRootSpan and CloudRootRejectionTests -> outward coordinate-scaled
+    binary32 slack replaces dependence on repeated-addition clocks. Nearly horizontal rays compare
+    both finite-span heights, preserving real crossings of thin layers. Nonfinite/malformed or
+    unavailable summaries retain native queries. One focused test uses five maps/seven ray pairs:
+    inclusive height endpoints, thin midpoint support, near-parallel crossing, tiny positive
+    extinction and empty roots. Complete physical optical depth is compared on the same schedule.
+    Its initial thin interval straddled float-rounding uncertainty at the first midpoint; placing
+    that midpoint inside the interval fixes fixture authoring, with unchanged equality tolerances.
+    Independent horizontal endpoint cases retain inclusive-boundary coverage.
+  Earlier counter discrepancy -> historical Phase 1 diagnostic receipts above -> the one-event
+    secondary differences remain unexplained for their old instrumented candidate. They do not
+    characterize this bounded renderer. Retired CloudWorkMeasurementTests required four primary
+    evaluations per occupied column and substituted counters for physical outputs. Current
+    uninstrumented payload/OIT equality and independent scheduled-field checks establish present
+    correctness; neither source cleanup nor those results establishes the historical root cause.
+    The old broad DDA interval matrix and its sole clock-error oracle are retired; the new root
+    boundary test replaces 5502 legacy compute dispatch/readbacks with fourteen focused queries.
+    Source-accounted dispatch counts are test-work counts, not measured GPU instruction savings.
+    The duplicate old opt-in timing class is replaced by CloudAccelerationWorkTests; historical
+    artifacts and their original candidate scope remain intact.
+  Matched costs -> matched64.log/.trx, matched64-summary.json and raw measurements64 -> RTX 4090,
+    NVIDIA 610.88, 64x64 full / 32x32 trace, native widths 200 and 81, current default budgets/detail,
+    three warm rounds and seven rotated-order rounds per policy in both PBR selections. All physical
+    history and six native OIT output differences are exactly zero; allocations remain stable and
+    every nonempty scene contributes. Timed totals include each summary reduction and GPU barriers,
+    production preparation/submission and trace/temporal/resolve; query waits, authoring/uploads,
+    neutral clears, compilation and readback are excluded equally. CPU submission is recorded apart.
+    Median independently timed total milliseconds, direct -> root -> cached point tree:
+      PBR empty/inside: .164864 -> .193536 -> .196608;
+      PBR sparse/ground: 2.531328 -> 2.195456 -> 2.180096;
+      PBR dense/inside: 3.155968 -> 3.027968 -> 3.137536;
+      PBR separated/above: 4.662272 -> 4.576256 -> 4.684800;
+      PBR sparse/edge (81): 2.913280 -> 2.878464 -> 2.895872;
+      PBR+LumOn empty/inside: .153600 -> .184320 -> .184320;
+      PBR+LumOn sparse/ground: 2.744320 -> 2.269184 -> 2.206720;
+      PBR+LumOn dense/inside: 3.167232 -> 3.080192 -> 3.039232;
+      PBR+LumOn separated/above: 4.606976 -> 4.661248 -> 4.673536;
+      PBR+LumOn sparse/edge (81): 2.868224 -> 2.852864 -> 2.867200.
+    The game was running (PID 46836) throughout: these are contended synthetic observations, not
+    uncontended controlled costs or stable performance rankings. Root-only favors sparse/ground
+    here; the small empty view regresses in both modes and separated/above regresses slightly with
+    LumOn. Those regressions stay open. Small differences may be noise; no automated timing gate,
+    isolated optimization attribution, full-view/frame-time or appearance acceptance follows.
+    Phase 8 owns the 512/full-view matrix and final ranking review, including possible policy revision.
+  Final correctness/package -> artifacts/CloudRealtime/phase7/validation-summary.json,
+    canonical-build-result.json, tested-identity.json and package-identity.json -> 229 unique current
+    correctness cases pass: 112 focused GPU, one root-boundary test and 116 CPU/catalog cases.
+    The separate explicit matched-policy measurement passes once. No approximation exclusions or
+    quality/timing acceptance thresholds are used. Initial build interruption, missing fixture imports
+    and the thin-interval authoring failure remain recorded; final receipts supersede those attempts.
+    Canonical Release publish/package and all 458 production shader variants pass; the isolated
+    fixture build validates 538 variants. No game launch or installed shader change was performed.
+  Candidate identity -> package-identity.json -> tested, published, directory-packaged and zipped
+    runtime DLL share B46810DBB306AC3D728B76072A2F5853858793141591D7DD45769E89CAE36264.
+    All 458 actually tested production shader binaries match directory and ZIP, with zero mismatches.
+    Test DLL is 7460EBFF27CCD3E1A043085F1676990E351CEF5CDC3676CDC64ADF55F6C5156F;
+    package ZIP is F252B1872F302CD6BB5FEAB4B26A65844110FA775CDDAC62800F0F39A3815ED6.
+    root-source-equivalence.json directly compares final and frozen measured root helpers/call sites.
+    Their root helper is identical; by-value benchmark primary clipping and the final explicit span
+    copy preserve the same lattice. Generated binary hashes differ, so measured policy binaries are
+    not represented as packaged identities. Frozen final policy sources/hashes govern the comparison;
+    the initial preparation script alone does not reproduce its later boundary amendments.
+  Completion -> second source/test/document review and independent linked-document completion
+    audit pass on the final tested/packaged candidate. Phase 7 is complete. The selected root-only
+    policy retains its active reduction owner; no unused tree-walk program remains. Phase 8, parent
+    acceptance, clean representative-resolution performance and user appearance review remain open.
+  Uncontended repeat -> matched64-uncontended-summary.json, matched64-uncontended.log/.trx,
+    measurements64-uncontended/ and uncontended-before/after.json in the same receipt directory ->
+    after the user closed the game, the exact frozen policies/settings repeat passes in 35.67 seconds.
+    No game PID is present immediately before, after or in any of the ten scenario records; DLL
+    identities remain unchanged. All physical history and six native OIT differences remain zero.
+    Median paired direct-minus-root total milliseconds, PBR / PBR+LumOn:
+      sparse/ground .345088 / .339968 (seven of seven pairs favor root in each mode);
+      dense/inside .120832 / .111616 (five and six of seven pairs favor root);
+      empty/inside -.032768 / -.030720 (all pairs regress).
+    Root total-cost medians improve 16.6-17.3% in sparse/ground and 4.1% in dense/inside; the small
+    empty view regresses 18.8-19.8%, about .03 ms. Edge/above distributions overlap substantially.
+    Sparse/edge with LumOn has a 1.67% median-cost regression even though its median paired saving
+    is positive; both observations remain recorded rather than selecting the favorable statistic.
+    The tree's separated/above LumOn cost median appears 6.68% better than direct, but its paired
+    saving is only .013312 ms with range [-.340992,.490496]; this does not establish a stable win.
+    Root-only selection is unchanged. The earlier contended observations retain their original
+    scope; this small synthetic repeat does not satisfy representative-resolution, whole-frame
+    performance or appearance acceptance. Empty and noisy edge/above observations remain in Phase 8.

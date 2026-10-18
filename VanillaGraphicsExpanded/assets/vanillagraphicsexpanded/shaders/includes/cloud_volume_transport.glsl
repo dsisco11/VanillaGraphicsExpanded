@@ -66,6 +66,12 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     origin.xz+=volumeOffsetWidth.w*25.0;
     vec2 span;
     if(!CloudPrimarySpan(origin,direction,limit,span)) return;
+#ifdef VGE_CLOUD_HIERARCHY
+    // A root miss can reject the complete ray. Its vertical interval must never resize the
+    // primary lattice: counts, distance steps and jitter still use the original horizontal span.
+    vec2 supported=span;
+    if(!CloudRootSpan(origin,direction,supported)) return;
+#endif
     int count=CloudPrimaryCount(span.y-span.x);
     float ds=(span.y-span.x)/float(count);
     float primaryJitter=CloudPrimaryJitter(uv);

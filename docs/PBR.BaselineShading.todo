@@ -231,8 +231,10 @@ Tasks
       docs/PBR.CloudHierarchy.Proposal.md and docs/PBR.CloudHierarchy.todo. Current architecture:
       docs/PBR.Clouds.md; remaining sampling/performance work: docs/PBR.CloudRealtime.todo.
       Native leaves retain owned coarse min/max height summaries.
-    - Solar/lunar self-lighting uses certified root bounds with direct native-support fallback. Primary
-      sampling is independent of summary availability. Archived automated integration qualification
+    - Reduced tracing uses certified root-height rejection with direct native-support fallback.
+      Primary root misses reject whole rays without changing the sample span/count/jitter; solar/lunar
+      roots skip proven-empty scheduled positions. Production has no column DDA or tree descent.
+      Primary sampling is independent of summary availability. Archived automated integration qualification
       applies to its recorded candidate; total GPU benefit and user-run
       live acceptance remain open, so this parent item is not complete.
 

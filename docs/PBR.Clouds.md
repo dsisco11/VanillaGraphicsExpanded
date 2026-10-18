@@ -77,10 +77,19 @@ requires completed image-write barriers, sampler visibility and the exact curren
 plus the reduction executable revision. Source observation precedes depth/lighting admission so
 an unavailable draw cannot retain an invalid source lifetime. Native textures remain borrowed.
 Unavailable, mismatched or failed construction selects direct native support checks at the same
-scheduled positions. Secondary solar/lunar rays use the certified root height interval to reject
-rays or remaining positions outside all supported cloud heights. Their finite horizontal domain
+scheduled positions. A certified root may reject a complete primary ray, but never narrows its
+integration span or changes its sample count, spacing or blue-noise offset. Secondary solar/lunar
+rays use the root height interval to reject rays or remaining positions outside all supported cloud heights.
+Their finite horizontal domain
 and independent shadow distance never use camera visibility or scene-depth clipping. The full-view
 reference uses the same anchored shadow schedule without requiring a height-summary resource.
+Root clipping expands the height interval by eight binary32 epsilons times the maximum of one,
+the absolute root heights and the ray's absolute vertical coordinate bound over its finite span.
+This admits boundary uncertainty, including near-parallel rays, instead of losing inclusive native
+support. Near-parallel rays compare both finite-span heights instead of assuming constant height;
+nonfinite root heights retain direct checks. The tolerance does not depend on grid-crossing clocks.
+No column DDA or repeated root-to-leaf descent participates in transport. Lower summary mips are
+reduction intermediates for the root, rather than a second integration schedule.
 
 `cloud_volume_light.glsl` uses deterministic arithmetic midpoints of quadratic distance intervals.
 For distance D and count N, boundaries are `D*(i/N)^2`; each midpoint evaluates shared density,
@@ -336,10 +345,11 @@ Reference sampling and bucket discretization must be stated when interpreting th
 Repeated eight-frame periods are not independent new samples. Temporal rejection/clamping does not
 imply vanishing noise or an unbiased estimator. Appearance is evaluated through user review.
 
-`CloudHierarchyPerformanceTests` is an opt-in comparison of same-candidate direct support and certified
-root-bound rejection through the production reconstruction scheduler. It records paired GPU
+`CloudAccelerationWorkTests` is an opt-in comparison of frozen direct support, conservative root
+rejection and cached scheduled-point hierarchy rejection through the production reconstruction scheduler.
+It records matched GPU
 construction, trace, temporal, resolve and independently measured total costs, plus CPU submission,
-adapter identity, allocation reuse and raw samples. The accelerated total includes a fresh reduction
+adapter identity, allocation reuse and raw samples. Each summary-backed total includes a fresh reduction
 for each native generation. Synthetic map/depth authoring and shared native producer/scene-depth work
 remain outside both measured paths. Those controlled workloads do not establish live whole-frame
 costs or reproduce captured weather. Large separated-height gaps are adversarial shader-domain
