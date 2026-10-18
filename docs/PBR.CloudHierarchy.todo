@@ -5,6 +5,9 @@ Authority and scope
   Source: docs/PBR.CloudHierarchy.Proposal.md (approved design).
   Parent: docs/PBR.BaselineShading.todo, cloud hierarchy acceleration evaluation.
   Existing cloud implementation: docs/PBR.Clouds.md and docs/PBR.VolumetricClouds.todo.
+  Realtime sampling/traversal follow-up: docs/PBR.CloudRealtime.todo (planning only).
+    It explicitly revisits fixed occupied sampling and acceleration policy; this checklist's
+    historical equivalence receipts do not qualify that future changed renderer.
   The proposal governs scope. Every task remains unchecked until its stated evidence exists.
   Accelerate view and existing solar/lunar self-lighting rays without changing native weather,
   cubic column bounds, procedural fluff, PMJ sampling, lighting or six-attachment OIT composition.

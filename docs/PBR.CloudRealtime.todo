@@ -1,0 +1,234 @@
+Realtime volumetric cloud work
+=============================
+
+Authority and scope
+  Source: user-requested cloud performance analysis and follow-up tasklist request (2026-10-18).
+  Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
+  Inherited contracts: docs/PBR.VolumetricClouds.Proposal.md, docs/PBR.CloudHierarchy.Proposal.md,
+    docs/PBR.Atmosphere.Publication.md and the existing native six-attachment OIT contract.
+  Related checklists: docs/PBR.VolumetricClouds.todo and docs/PBR.CloudHierarchy.todo.
+  This is planning only. Every task below is unchecked; no runtime implementation is implied.
+  Use bounded ray budgets, reduced tracing, practical termination and amortized transport
+    while retaining VGE's native 2D column envelope and procedural density detail.
+  This follow-up intentionally revisits the inherited fixed half-resolution default and preservation
+    of per-column sample counts/PMJ indices. Reconcile those clauses explicitly before implementation;
+    do not misrepresent changed quadrature as exact equivalence to the earlier renderer.
+  Preserve native weather, map units/validity, cubic bounds, connected faces, wind anchoring,
+    solar/lunar physical inputs, one approximate scattering octave, scene encoding and OIT ordering.
+  Retain same-frame native publication, shared material depth plus primary/liquid clipping,
+    change-driven enablement, Off/Simple behavior and resource lifetime ownership in both PBR modes.
+  Do not add a complete density volume, replacement weather producer, installed shader edits,
+    CPU map readback, generic rendering framework or reflection consumer. The existing reflected-cloud
+    integration dependency remains tracked by the parent, not silently satisfied by this work.
+  Bounded secondary marching remains the selected self-lighting approach. A cloud-shadow-map
+    alternative is outside this tasklist's implementation scope. Cast shadows remain
+    deferred to virtual shadow maps; no earlier native producer or previous-frame shadow publication.
+
+Execution and evidence
+  Keep domain-focused files, thin composition roots, directional dependencies, documented methods
+    and classes, visibility regions and comments explaining nontrivial logic.
+  Use existing GPU owners, program/binding contracts, submission, shader registration and cleanup.
+  Run build/test tools through subagents. Routine correctness stays lightweight; full-size captures
+    and timing are explicit qualification. Never launch the game for visual acceptance.
+  Separate source findings, independent numerical checks, GPU correctness, packaging, controlled
+    GPU timing and user-run live acceptance. Leave required acceptance gates open without evidence.
+  Reconcile linked documents, perform a second review and an independent completion audit before
+    marking each increment complete. Do not weaken tests simply to accommodate changed output.
+
+Technical direction
+  Budget samples across complete clipped rays, with explicit caps and distance scaling.
+  Bound secondary tracing distance independently and concentrate shadow samples near their origin.
+  Evaluate quarter-dimension tracing, half-dimension reconstruction and full-view upsampling.
+  Qualify practical transmittance termination against all required physical and OIT outputs.
+  Evaluate fixed phase terms once per primary ray/light and amortize atmospheric composition.
+  Reject proven empty support before expensive density evaluation. Select acceleration by measured
+    total benefit; retaining a min/max tree is not itself an acceptance requirement.
+  Select counts and distances for Vintage Story's world scale and native finite grid.
+
+Phase 1: Freeze baseline and specify bounded quality policy
+  Outcome: the implementation has explicit work limits, comparison modes and numerical criteria.
+  ☐ Reverify current VGE source and the technical direction, recording source identities and settings.
+    - Trace CloudVolumeSettings/CloudRenderingSettings, CloudVolumeParameters, CloudIntegrate,
+      CloudLightDepth, CloudHierarchySeek, reconstruction, history and atmospheric/OIT composition.
+    - Treat artifacts/CloudHierarchy/phase6-512-result-summary.json as historical controlled evidence;
+      establish a fresh candidate rather than assigning its timings to changed current sources.
+  ☐ Freeze a current baseline and record hardware, resolution, settings, shader selection and hashes.
+    - Measure view/secondary work, hierarchy construction, trace, temporal, resolve, CPU submission
+      and total owned cost. Diagnostic counters must be opt-in and excluded from final timed binaries.
+    - Reuse the benchmark scheduler; retain DDA/hierarchy matched comparisons and raw observations.
+  ☐ Define explicit whole-ray view/light budgets, distance scaling, short-ray minimums, finite caps,
+    independent shadow distance, termination error limits and reduced-resolution quality selections.
+    - Record world/metre conversion, how thin intervals survive, PMJ progression, and sampling policy
+      when many occupied intervals exceed a ray's budget. Do not silently truncate the far cloud.
+    - Define independent high-budget/reference modes and quantitative radiance, attenuation, all
+      OIT-channel, depth and temporal acceptance limits before tuning against candidate outputs.
+    - Plan migration of persisted ViewSamples/LightSamples: their old per-column meanings cannot
+      silently become whole-ray counts of four/one. Validate legacy, missing and invalid settings.
+    - Use a .005 threshold and quarter-dimension trace as starting candidates, not established
+      safe defaults. Select actual budgets/distances from VGE scene scale and measured quality.
+  ☐ Reconcile the inherited proposal/checklist clauses being revised and map every finding below
+    to its implementation/verification task. Preserve unaffected ownership and physical contracts.
+  ☐ Completion: a reproducible baseline, bounded policy, migration rules and numerical acceptance
+    criteria exist; neither prior timings nor new policy choices are reported as delivered behavior.
+
+Phase 2: Bound primary integration independently of native grid crossings
+  Depends on Phase 1. Outcome: view-density/shading samples obey a complete-ray budget.
+  ☐ Replace per-occupied-column subdivision allocation in cloud_volume_transport.glsl with the
+    bounded distance-scaled primary policy; distinguish geometry traversal from shading samples.
+    - Clip the supported ray before budgeting; support camera-inside, thin/short intervals, grazing
+      rays, near foreground clips and finite-map exits. Never extend native border columns.
+    - Preserve actual segment lengths and extinction units. Keep exact constant-column optical
+      depth as an independently verifiable property of the detail-disabled path.
+    - Specify coverage-aware interval integration so narrow occupied columns are not silently
+      lost between global samples. Traversal visits do not reset or multiply the shading budget.
+    - Define deterministic sample identities and PMJ stratification under the new schedule, independent
+      of hierarchy node visits. Keep midpoint validation separate from stochastic convergence.
+  ☐ Verify sample-count bounds and independent interval/transport results on empty/sparse/dense maps,
+    odd dimensions, separated heights, tiny positive extinction, boundary ties and detail on/off.
+    - Compare against the frozen baseline and a stable higher-budget oracle; document intentional
+      quadrature changes without forcing bitwise old-output equality or relaxing established limits.
+  ☐ Completion: occupied-cell count no longer multiplies primary shading samples without bound;
+    finite-domain, constant-density and quality criteria pass in both PBR selections.
+
+Phase 3: Bound secondary solar/lunar integration
+  Depends on Phase 2. Outcome: every contributing light has an independent whole-ray work budget.
+  ☐ Replace per-column secondary sample allocation in cloud_volume_light.glsl with bounded counts
+    and a separate physical tracing distance, clipped to the actual supported cloud domain.
+    - Use quadratic near-to-far sample distribution with correct segment weights; preserve
+      narrow occupied support and the same density definition as primary integration.
+    - Budget all occupied spans together, not one complete shadow budget per visited column.
+      Preserve off-camera self-lighting; main-view scene-depth clips must not clip secondary rays.
+    - Skip zero contributing sources before secondary setup. Assess any negligible-light cutoff
+      against admitted physical radiance bounds rather than a hardcoded daylight assumption.
+    - Expose bounded settings through existing configuration/binding contracts, with migration and
+      history invalidation. Keep optional shadow-map replacement outside this implementation.
+  ☐ Verify optical-depth integration and illumination against independent/high-budget references,
+    including low-angle sun/moon, inside-cloud origins, distant occluders and shadow-distance limits.
+    - Quantify bias from finite shadow distance and coarse samples separately from hierarchy errors.
+      Cover solar-only, lunar-only, both lights, zero light and all multiple-scattering coefficients.
+  ☐ Completion: shadow sample counts/distance are bounded independently of occupied column count;
+    self-shadow shape and the additional octave satisfy recorded quality limits.
+
+Phase 4: Terminate negligible work with an OIT-aware error bound
+  Depends on Phase 3. Outcome: nearly saturated transport stops without corrupting transparency bins.
+  ☐ Replace the fixed 1e-6 view predicate with a bounded/configured criterion evaluated at sample
+    granularity, testing the .005 candidate against VGE output error limits.
+    - Bound remaining radiance using physical illumination/admission; include overall transmission,
+      all three bucket transmissions, reconstructed accumulation products and support metadata.
+    - If bucket convergence requires more samples, separate cheap attenuation/bin work from expensive
+      lighting work where the error bound permits; do not discard required far-bin contribution.
+    - Derive light optical-depth saturation for both direct and approximate-octave terms, including
+      zero occlusion and zero contribution endpoints. Keep finite arithmetic throughout.
+  ☐ Verify thick/thin, bright-source, translucent overlap, particle/liquid, inside-cloud and HDR cases
+    against termination-disabled references, including the first saturated sample inside a column.
+  ☐ Completion: expensive work stops at the declared output-error bound; all six OIT outputs and
+    temporal support remain valid. A threshold value alone is insufficient acceptance.
+
+Phase 5: Trace fewer screen positions and reconstruct missing information
+  Depends on Phase 4. Outcome: a quality selection traces quarter view dimensions.
+  ☐ Add quarter-width/quarter-height tracing with half-dimension temporal reconstruction and
+    full-resolution depth-aware texture-only resolve; retain half-dimension and explicit full-view
+    reference selections for quality comparison through existing settings/resource owners.
+    - Generalize CloudVolumeStorage, CloudVolumeReconstruction, CloudTemporalHistory, parameters,
+      trace UVs, phase scheduling, reprojection and resolve coordinates; remove hardcoded factor-two
+      assumptions where they no longer apply. Separate trace and reconstruction dimensions.
+    - Reconstruct unsampled locations from compatible history/current support; do not merely blur
+      a quarter-size image or launch hidden full-resolution density/light marches at disocclusions.
+    - Preserve radiance/transmission and bucket covariance rules, shared payload weights, native OIT
+      products and once-only encoding. Handle odd/small extents and foreground/liquid discontinuities.
+    - Reuse allocations and fixed attachments in stable frames; invalidate/recreate only for actual
+      quality/layout/lifetime changes. Update nominal storage limits without claiming resident bytes.
+  ☐ Verify camera/cloud motion, recentering, thin silhouettes, newly exposed cloud, camera cuts,
+    changing weather/light, resize and mode switches against half/full-view references.
+  ☐ Qualify quarter-dimension quality before selecting the shipped default; record any scene where
+    half-dimension tracing remains necessary instead of silently abandoning inside-cloud acceptance.
+  ☐ Completion: trace-position count is approximately one-sixteenth of full view in the new mode,
+    reconstruction meets stated quality limits and no fallback hides unbudgeted transport work.
+
+Phase 6: Amortize atmospheric and repeated density/phase evaluation
+  Depends on Phase 5. Outcome: shading avoids repeated work with explicitly qualified approximations.
+  ☐ Move aerial/local-fog application out of every density-shading sample toward representative-
+    distance composition; derive the representative distance and apply the existing transport once.
+    - Preserve physical cloud history, underwater/local-medium selection, coverage, lighting range
+      admission and scene encoding. Decide the owning pass and invalidate history when required.
+    - Preserve distributed OIT bucket composition: derive whether one distance is adequate or each
+      bucket needs a representative distance. Do not flatten the volume to a depthless overlay.
+    - Compare to existing per-sample transport for deep clouds, foreground/translucent overlap,
+      horizon, underwater and changing fog; choose bounded extra distance evaluations if needed.
+  ☐ Hoist fixed directional phase evaluation to once per primary ray/light and reuse it for every
+    occupied sample. Check generated shader behavior so compiler hoisting is not claimed as new savings.
+  ☐ Reduce repeated cloud_volume_density.glsl work while preserving the density definition.
+    - Reuse neighboring column descriptors within a sampled interval; retain height-dependent
+      occupancy tests and native validity rules. Avoid neighbor lookups when they cannot affect erosion.
+    - Skip noise when amplitude is zero and skip detailed work when cheap support proves zero density.
+      Retain shared-face continuity, cubic bounds and world/wind anchoring for view and light rays.
+    - Measure before changing procedural noise to a reusable noise texture; such a texture supplies
+      detail only, not a complete density volume. Qualify any replacement's statistics/appearance
+      separately and retain the current noise if no measured benefit justifies the change.
+  ☐ Completion: atmospheric approximation meets quality/OIT limits, exact density/phase optimizations
+    pass equivalence checks, and attributed savings come from measurements rather than source counts.
+
+Phase 7: Make acceleration optional and efficient for the new integration schedule
+  Depends on Phase 6. Outcome: empty-space rejection helps without repeated dense-path overhead.
+  ☐ Compare plain column traversal, cheap root rejection and the current hierarchy under identical
+    new sample budgets; include construction and GPU barriers in total cost.
+    - Consider cheap conservative density rejection and coarse start-distance rejection without
+      assuming another prepass or a particular tree traversal is required.
+  ☐ For retained hierarchical traversal, carry node/interval progress through the ray and reuse
+    valid ancestor bounds instead of restarting root descent after every surviving column.
+    - Traverse coherent node intervals front-to-back, ascend only when leaving their footprint and
+      advance across missed regions without replaying every skipped native grid boundary twice.
+    - Preserve conservative geometry, boundary ties, parallel axes, padding, thin positive density
+      and forward progress. Define numerical tolerances independently of old repeated-addition clocks.
+    - Preserve the new sample schedule across acceleration choices; skipped empty nodes must not
+      change quadrature, PMJ identities or secondary work budgets. Retain safe bounded DDA fallback.
+    - Keep certificates and generation rebuild rules for any retained summaries; never sample stale
+      data. Stop allocating/building summaries when the selected policy has no active consumer.
+  ☐ Select the production acceleration policy from matched measurements. Retain cheap rejection or
+    DDA where a tree does not pay for itself; do not require hierarchy use merely because it exists.
+    - Avoid an unmeasured per-frame heuristic, CPU texture readback or settings polling. Record
+      selection inputs, transitions, resource demand and any remaining workload regressions.
+    - If the tree is retired, remove its unused production resources/program registration and update
+      current architecture/catalog contracts; retain only useful independent validation or benchmarks.
+  ☐ Completion: acceleration preserves the new transport results within declared numerical limits,
+    total costs support the selected policy and dense/inside-cloud regressions are resolved or open.
+
+Phase 8: Qualify the complete renderer and reconcile acceptance
+  Depends on Phase 7. Outcome: the combined policy has reproducible quality and performance evidence.
+  ☐ Freeze the candidate; run canonical build/shader, focused numerical/GPU, lifecycle and package
+    checks through subagents. Verify production asset digests and exact output copies.
+    - Cover Off/Simple/Volumetric, both PBR selections, pause, resize, reload, world replacement,
+      source invalidation, settings migration, reference selection and failed-resource recovery.
+    - Keep density/bounds oracles independent; a new integrator must not validate only against itself.
+  ☐ Measure baseline versus final renderer with matched scenes/settings and separate quality labels.
+    - Report each increment's effects where attributable; distinguish fewer pixels/samples and
+      changed approximation quality from same-output traversal/implementation improvements.
+    - Include empty/sparse/dense clouds; ground/inside/above views; thin edges, low-angle solar/lunar,
+      moving weather/light, odd maps and foreground/translucent/liquid overlap in both PBR modes.
+    - Include the prior 512x512 regression matrix and representative full-view nonempty resolutions.
+      Separate adversarial synthetic cases from native captures and live game evidence.
+    - Record construction, trace, temporal, resolve, independently timed total, CPU submission,
+      nominal storage, measured resident memory when available, hardware, hashes and raw samples.
+      Account for native producer/uploads and shared depth separately in whole-frame assessment.
+    - Report paired distributions and all regressions. Relative improvement is required; do not
+      invent an absolute time target, hide regressions in an aggregate or equate probe counts with speed.
+  ☐ Obtain user-run acceptance of the changed quality policy: cubic fluff, lighting, shadows within
+    clouds, fog, thin support, disocclusion, motion and OIT overlap across relevant views/modes.
+    Earlier appearance acceptance does not establish acceptance of changed sampling/resolution/fog.
+  ☐ Update PBR.Clouds.md to describe only delivered behavior. Reconcile both source proposals,
+    existing cloud checklists and the parent with implemented policy, remaining dependencies and
+    receipts. Retire superseded requirements explicitly without rewriting prior measurement evidence.
+  ☐ Completion: required correctness/package checks, second review, independent audit, measured
+    relative benefit and user acceptance exist; unresolved performance or appearance gates stay open.
+
+Final acceptance
+  ☐ Whole-ray primary/shadow budgets, finite secondary distance and practical output-aware
+    termination replace the identified unbounded-by-quality per-column work multiplication.
+  ☐ Lower-resolution tracing, amortized atmosphere, repeated density/phase work and acceleration
+    each have delivered behavior or an evidence-backed disposition against the stated objective.
+  ☐ All six performance-analysis findings and the earlier density/phase findings map to final receipts;
+    any unimplemented improvement is explicitly recorded, not silently treated as complete.
+  ☐ Native ownership/weather, cubic density support, physical lighting, foreground clips, temporal
+    lifecycle, existing OIT integration and both PBR modes satisfy inherited unaffected contracts.
+  ☐ The parent remains unchecked while required live/performance gates or its separate reflected-
+    cloud integration dependency remain outstanding. No headless result establishes live frame time.

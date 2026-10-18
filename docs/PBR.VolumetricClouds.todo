@@ -5,6 +5,8 @@ Authority and scope
   Source: docs/PBR.VolumetricClouds.Proposal.md (approved 2026-10-16).
   Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
   Atmospheric contract: docs/PBR.Atmosphere.Publication.md.
+  Realtime work follow-up: docs/PBR.CloudRealtime.todo (planning only), covering
+    whole-ray budgets, secondary distance, termination, resolution, atmosphere and traversal.
   This checklist records delivered rendering increments below; final acceptance remains outstanding.
   The proposal governs scope; keep every task unchecked until its stated evidence exists.
   Preserve Off / Simple / Volumetric settings and both standalone PBR and PBR + LumOn operation.
@@ -644,8 +646,6 @@ Phase 4 implementation and verification (2026-10-16)
     - Fresh baseline passed: Debug build 0 errors/15 existing warnings, 78/78 Cloud tests. Installed
       VSEssentials.dll SHA256 remains the Phase 1 value. Installed native cloudmap/volume shaders and
       committed placement source reconfirm the fifty-world-unit map convention and native advection.
-      The proposal's Epic Volumetric Cloud documentation was also consulted directly for ray-marched
-      self-shadowing and the one-octave approximation; no Unreal runtime dependency is introduced.
     - Environment and build command match preceding receipts. Broad Debug build passed with 0 errors
       and 15 existing nullable/obsolete warnings. Production 454 and test 532 shader variants are
       current; dedicated cloud_volume contributes two stages through the existing catalog/packaging.

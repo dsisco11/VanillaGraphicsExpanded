@@ -19,10 +19,9 @@ design-approval gate.
 Replace native cloud drawing with a VGE-owned volumetric renderer while preserving the base
 game's weather-dependent cloud distribution, column heights and bounds, altitude and movement.
 Preserve roughly cubic cloud masses with modest fluff from 3D shader noise inside the native
-column volume. Use the approach documented
-for Unreal Engine: ray-marched three-dimensional density, light transmittance, approximate
+column volume. Use ray-marched three-dimensional density, light transmittance, approximate
 multiple scattering, scalable tracing and reconstruction, and integration with atmospheric lighting.
-This is an independent implementation for VGE's rendering backend, not a dependency on Unreal.
+This is an independent implementation for VGE's rendering backend.
 
 Simple mode retains native mesh geometry and weather-driven shape with a separate VGE-owned shader.
 It preserves a cheaper block-shaped option without volumetric ray marching or 3D noise.
@@ -252,7 +251,7 @@ from the atmospheric integrator, as required by
 [PBR.Atmosphere.Publication.md](PBR.Atmosphere.Publication.md).
 
 Evaluate directional single scattering and cloud self-shadowing, with one additional scattering
-octave as the approved Unreal-style multiple-scattering approximation for Volumetric mode. This
+octave as the approved multiple-scattering approximation for Volumetric mode. This
 additional octave approximates higher-order transport; it is not an explicit simulation of just
 one extra physical bounce. Keep its cost bounded while providing softer, brighter thick-cloud
 interiors. Exact contribution, attenuation, phase and energy-compensation coefficients are
@@ -266,8 +265,8 @@ deferred until virtual shadow maps are implemented. Do not introduce a separate 
 retained previous-frame cloud-shadow publication, or earlier map-generation schedule for those
 consumers in this work. Their integration will be specified with the virtual-shadow-map work.
 
-Light attenuation within the cloud volume remains part of cloud shading. Following the selected
-UE approach, use bounded secondary light marching toward contributing solar/lunar sources to
+Light attenuation within the cloud volume remains part of cloud shading. Use bounded secondary
+light marching toward contributing solar/lunar sources to
 evaluate self-shadowing with the same density definition, including noise, as view-ray integration.
 Light sample counts and stepping are implementation tuning details, not a separate design decision.
 Visible attenuation
@@ -370,8 +369,6 @@ No completion claim follows from this proposal, and the parent requirement remai
 - Installed `assets/game/shaders/cloudmap.fsh` and `cloudvolumetric.fsh`.
 - VGE [SceneColorLegacyPatches.cs](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorLegacyPatches.cs)
   and [SceneColorCompatibilityPublication.cs](../VanillaGraphicsExpanded/PBR/SceneColor/SceneColorCompatibilityPublication.cs).
-- [Epic: Volumetric Cloud Component](https://dev.epicgames.com/documentation/en-us/unreal-engine/volumetric-cloud-component-in-unreal-engine),
-  covering volume ray marching, multiple-scattering approximation, shadowing and reconstruction.
 
 The native findings are version-specific. Reverify the relevant producer and registration contracts
 when the installed game changes.
