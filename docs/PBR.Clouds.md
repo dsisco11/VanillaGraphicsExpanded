@@ -76,31 +76,25 @@ frames reuse storage; source lifetime changes, reload, reset and disposal retire
 requires completed image-write barriers, sampler visibility and the exact current native descriptor
 plus the reduction executable revision. Source observation precedes depth/lighting admission so
 an unavailable draw cannot retain an invalid source lifetime. Native textures remain borrowed.
-Unavailable, mismatched or failed construction selects the existing column traversal explicitly.
-Secondary solar/lunar rays use certified summaries to reject the root or
-skip groups whose complete horizontal ray segment misses their height interval. Owned mip indices
-are one below logical hierarchy levels; the finest summaries descend directly to native columns. Secondary rays operate
-in the finite native map domain independently of camera visibility and scene-depth clipping.
-Primary rays use a uniform distance lattice independently of summary availability. The deterministic
-full-resolution reference uses that same primary lattice and native-column DDA for light rays.
+Unavailable, mismatched or failed construction selects direct native support checks at the same
+scheduled positions. Secondary solar/lunar rays use the certified root height interval to reject
+rays or remaining positions outside all supported cloud heights. Their finite horizontal domain
+and independent shadow distance never use camera visibility or scene-depth clipping. The full-view
+reference uses the same anchored shadow schedule without requiring a height-summary resource.
 
-Surviving light intervals keep the original DDA clocks, sample counts, PMJ indices and integration
-order. Group skips replay boundary additions without native column fetches, preserving accumulated
-float rounding and tied-axis crossings. Nodes already covering the current ray height descend
-without computing an exit clock. Work-limit fallback resumes native leaf work instead of discarding
-density. These reductions in leaf queries do not establish a GPU performance improvement.
-
-`cloud_volume_light.glsl` integrates secondary optical depth after density and optional hierarchy
-helpers are available. Its 1e7-world-unit limit, finite optical-depth saturation and per-column
-quadrature are shared by accelerated and DDA paths. Solar/lunar phase decorrelation remains at
-the directional-light caller. This does not publish cloud shadows onto scene receivers.
+`cloud_volume_light.glsl` uses deterministic arithmetic midpoints of quadratic distance intervals.
+For distance D and count N, boundaries are `D*(i/N)^2`; each midpoint evaluates shared density,
+weighted by its complete interval length in metres. Finite-domain rejection skips unsupported
+positions without rescaling D or redistributing samples. Optical depth stays finite, with no
+optical-depth early exit. At most one shadow ray is launched per nonzero solar/lunar source at each
+contributing primary point. This does not publish cloud shadows onto scene receivers.
 
 Source observation precedes foreground-depth and lighting admission. An ordinary content generation
 withdraws the old certificate while retaining compatible storage; owner, world, allocation or executable
 replacement retires it even if another missing input prevents drawing. Reduced submission revalidates
-the native borrow after pass preparation, then selects certified summaries or DDA immediately before
+the native borrow after pass preparation, then selects certified root bounds or direct support immediately before
 the trace/history/resolve boundary. A revoked borrow submits none of those passes and invalidates
-history. Optional reduction failure leaves ordinary DDA rendering available until reset; it does not
+history. Optional reduction failure leaves direct support checks available until reset; it does not
 release visible ownership or admit native duplicate drawing. Resize/reload reset both owned domains;
 mode release and world teardown dispose them. Simple and Off allocate no cloud-height hierarchy.
 
@@ -127,10 +121,9 @@ Reduced tracing shares one spatial blue-noise offset along each primary ray. A c
 32-by-256 R32F texture stores eight tileable 32-by-32 void-and-cluster rank masks. Full-view pixel
 coordinates select the spatial position and the frame index selects a mask modulo eight, advancing
 independently of reconstruction phases. The history-free reference uses midpoint primary samples.
-Secondary light integration retains its separate 128-sample Owen-scrambled PMJ sequence, per-column
-subdivision and solar/lunar decorrelation. Both sampling textures persist across ordinary frames
-and retire with reconstruction resources on resize, reload or disposal. Sampling jitter does not
-change the density definition or add density noise.
+Secondary samples have no spatial or temporal jitter. The primary noise texture persists across
+ordinary frames and retires with reconstruction resources on resize, reload or disposal. Sampling
+jitter does not change the density definition or add density noise.
 
 View and bounded secondary solar/lunar marches share this density definition. HG single
 scattering uses g=.6 and one isotropic approximate multiple-scattering octave with contribution
@@ -239,23 +232,29 @@ The persisted `Clouds` config and ConfigLib expose:
 | `ViewRaySampleMax` | 384 | 4..384 primary points across the complete clipped ray |
 | `ViewRaySampleMin` | 2 | 1..min(16,max) points for short positive spans |
 | `ViewBudgetDistance` | 50 | 50..10000 world units; distance at which the maximum applies |
-| `LightSamples` | 1 | 1..4 subdivisions per occupied column |
+| `LightRaySampleMax` | 10 | 2..64 scheduled points per contributing directional light |
+| `ShadowDistance` | 1500 | 50..10000 world units; independent of view distance/clipping |
 | `Detail` | true | Noise and exposed-edge erosion; false samples piecewise constant native density |
 | `DetailAmplitude` | .15 | 0..0.95 bounded interior modulation |
 | `EdgeWidth` | 2 | .01..10 world units of inward softness |
 | `NoiseScale` | .08 | .001..1 noise cells per world unit |
 
 Cloud settings use a clean break: absent current fields receive defaults; obsolete fields are not
-reinterpreted. `LightSamples` retains its current per-column meaning. Nonfinite controls restore
+reinterpreted. Nonfinite controls restore
 defaults. The immutable selection supplies admission
 and submission. Reference mode is history-free, not a claim of converged light transport.
 Changing quality or reference selection invalidates incompatible history. Simple ignores these
 volumetric controls.
 
-The 384/2/50 selection is a numerical-quality candidate: rays of at least 50 world units receive
-384 scheduled primary positions. It passes the recorded transport/reconstruction fixtures; its
-realtime cost and suitability as the final shipped quality selection remain unqualified in the
-realtime checklist. Bounded work alone does not establish a speedup, particularly on short rays.
+The current 10-point, 1500-unit secondary selection uses a finite approximation. Full midpoint
+weights can misestimate short or discontinuous support, and finite distance can omit distant
+occluders. Reference discrepancies are diagnostic, without automated approximation-quality gates.
+Final selection still requires measured cost and user appearance review.
+
+The 384/2/50 primary selection assigns 384 scheduled positions to rays of at least 50 world units.
+Primary and secondary quadrature have independent algorithm-correctness checks. Realtime cost and the final
+shipped selection remain unqualified in the realtime checklist. Bounded work alone does not
+establish a speedup, particularly on short rays.
 
 Reduced targets and pipelines persist across stable frames. Resize/reload retire their owned
 resources; wrappers never delete engine attachments. Allocation is bounded before creation to
@@ -279,21 +278,20 @@ native registration restoration, teardown, physical transport, OIT payloads, dep
 storage encoding and temporal reconstruction. Shader catalog and output-asset checks qualify
 packaged owned binaries.
 
-Deterministic reconstruction fixtures retain per-frame reference comparisons. Detailed primary
-sampling is evaluated separately: complete eight-frame periods at matching trace pixels measure
-transmission convergence against higher-budget midpoint references, whose numerical stability
-is checked independently. Full-view bucket and accumulation payloads are compared as a temporal
-mean against the same-budget midpoint reference with the existing spatial error budgets.
-Changing the reference subdivision count also changes the finite-budget OIT bucket weights;
-it cannot establish a converged bucket reference merely by increasing density samples.
-Finite values, attenuation bounds and clipping remain per-frame requirements. The actual
-bounded temporal filter is checked for noise reduction separately from offline sequence
-averaging; repeated eight-frame periods are not independent new samples. Its fixed history weight
-and rejection/clamping do not imply vanishing noise or
-an unbiased transport estimator.
+Automated acceptance covers the specified algorithms, physical units, finite values, attenuation
+bounds, clipping, OIT/encoding arithmetic, deterministic replay, resource lifetimes and history
+admission. Existing approximation-quality assertions are excluded from implementation acceptance
+pending their removal in the realtime checklist. Mixed fixtures retain their independent
+correctness obligations.
 
-`CloudHierarchyPerformanceTests` is an opt-in comparison of same-candidate DDA and certified
-hierarchy traversal through the production reconstruction scheduler. It records paired GPU
+Comparisons with exact or higher-budget transport, reconstructed reference images, temporal means
+and frozen noise/RMS baselines may report diagnostics without approximation-quality assertions.
+Reference sampling and bucket discretization must be stated when interpreting those measurements.
+Repeated eight-frame periods are not independent new samples. Temporal rejection/clamping does not
+imply vanishing noise or an unbiased estimator. Appearance is evaluated through user review.
+
+`CloudHierarchyPerformanceTests` is an opt-in comparison of same-candidate direct support and certified
+root-bound rejection through the production reconstruction scheduler. It records paired GPU
 construction, trace, temporal, resolve and independently measured total costs, plus CPU submission,
 adapter identity, allocation reuse and raw samples. The accelerated total includes a fresh reduction
 for each native generation. Synthetic map/depth authoring and shared native producer/scene-depth work

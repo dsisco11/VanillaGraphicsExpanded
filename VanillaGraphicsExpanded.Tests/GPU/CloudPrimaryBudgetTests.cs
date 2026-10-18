@@ -23,69 +23,57 @@ public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutp
     public void CompleteRayLatticeMatchesIndependentGeometry(bool detail, bool stochastic)
     {
         EnsureShaderTestAvailable();
-        int shader = BuiltShaderFixture.LoadFixture("tests/cloud-traversal.csh", ShaderType.ComputeShader);
-        int program = GL.CreateProgram();
+        using var program = new CloudTraversalProbe(Programs.Api);
         double worstDiscontinuity = 0; int exactUniform = 0;
-        try
+        foreach (int width in new[] { 1, 21, 81, 200 })
         {
-            GL.AttachShader(program, shader); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            foreach (int width in new[] { 1, 21, 81, 200 })
+            using var native = DynamicTexture2D.Create(width, width, PixelInternalFormat.Rgba32f);
+            using var volume = new CloudVolumeParameters();
+            foreach (var quality in new[] { CloudVolumeSettings.Default,
+                CloudVolumeSettings.Default with { ViewRaySampleMax = 96, ViewRaySampleMin = 2, ViewBudgetDistance = 2000 },
+                CloudVolumeSettings.Default with { ViewRaySampleMax = 384, ViewRaySampleMin = 1, ViewBudgetDistance = 50 },
+                CloudVolumeSettings.Default with { ViewRaySampleMax = 4, ViewRaySampleMin = 4, ViewBudgetDistance = 10000 },
+                CloudVolumeSettings.Default with { ViewRaySampleMax = 384, ViewRaySampleMin = 16, ViewBudgetDistance = 10000 } })
             {
-                using var native = DynamicTexture2D.Create(width, width, PixelInternalFormat.Rgba32f);
-                using var volume = new CloudVolumeParameters();
-                foreach (var quality in new[] { CloudVolumeSettings.Default,
-                    CloudVolumeSettings.Default with { ViewRaySampleMax = 96, ViewRaySampleMin = 2, ViewBudgetDistance = 2000 },
-                    CloudVolumeSettings.Default with { ViewRaySampleMax = 384, ViewRaySampleMin = 1, ViewBudgetDistance = 50 },
-                    CloudVolumeSettings.Default with { ViewRaySampleMax = 4, ViewRaySampleMin = 4, ViewBudgetDistance = 10000 },
-                    CloudVolumeSettings.Default with { ViewRaySampleMax = 384, ViewRaySampleMin = 16, ViewBudgetDistance = 10000 } })
+                var settings = quality with { Detail = detail, DetailAmplitude = 0 };
+                volume.CaptureMap(width, default, 1, settings);
+                foreach (int pattern in new[] { 0, 1, 2, 3 })
                 {
-                    var settings = quality with { Detail = detail, DetailAmplitude = 0 };
-                    volume.CaptureMap(width, default, 1, settings);
-                    foreach (int pattern in new[] { 0, 1, 2, 3 })
+                    Vector4[] columns = Columns(width, pattern);
+                    native.UploadDataImmediate(MemoryMarshal.Cast<Vector4, float>(columns.AsSpan()).ToArray());
+                    foreach (var (origin, direction, limit) in Rays(width))
                     {
-                        Vector4[] columns = Columns(width, pattern);
-                        native.UploadDataImmediate(MemoryMarshal.Cast<Vector4, float>(columns.AsSpan()).ToArray());
-                        foreach (var (origin, direction, limit) in Rays(width))
+                        Vector4[] actual = Dispatch(program, volume, native, origin, direction, limit, stochastic);
+                        var span = Span(width, origin, direction, limit);
+                        int count = span is null ? 0 : Math.Min(settings.ViewRaySampleMax, Math.Max(settings.ViewRaySampleMin,
+                            (int)Math.Floor(settings.ViewRaySampleMax * Math.Min(1, (span.Value.End - span.Value.Start) / settings.ViewBudgetDistance))));
+                        Assert.Equal(count, actual.Length);
+                        if (span is null) continue;
+                        double ds = (span.Value.End - span.Value.Start) / count;
+                        for (int i = 0; i < count; i++)
                         {
-                            Vector4[] actual = Dispatch(program, volume, native, origin, direction, limit, stochastic);
-                            var span = Span(width, origin, direction, limit);
-                            int count = span is null ? 0 : Math.Min(settings.ViewRaySampleMax, Math.Max(settings.ViewRaySampleMin,
-                                (int)Math.Floor(settings.ViewRaySampleMax * Math.Min(1, (span.Value.End - span.Value.Start) / settings.ViewBudgetDistance))));
-                            Assert.Equal(count, actual.Length);
-                            if (span is null) continue;
-                            double ds = (span.Value.End - span.Value.Start) / count;
-                            for (int i = 0; i < count; i++)
+                            double t = span.Value.Start + (i + (stochastic ? .173 : .5)) * ds;
+                            Assert.InRange(Math.Abs(actual[i].X - t), 0, Math.Max(.001, Math.Abs(t) * 2e-6));
+                            Assert.InRange(Math.Abs(actual[i].Y - ds), 0, Math.Max(.001, ds * 2e-6));
+                            Vector3 point = origin + direction * actual[i].X;
+                            double density = Density(columns, width, point, detail);
+                            Assert.InRange(Math.Abs(actual[i].Z - density), 0, 2e-6);
+                        }
+                        if(!detail)
+                        {
+                            double sampledTau=actual.Sum(value=>(double)value.Z*value.Y);
+                            var intersections=CloudTraversalOracle.Intersections(columns,width,origin,direction,limit);
+                            double analyticTau=intersections.Sum(value=>(value.Far-value.Near)*columns[value.Z*width+value.X].X/50.0);
+                            double residual=Math.Abs(Math.Exp(-sampledTau)-Math.Exp(-analyticTau));
+                            if(pattern==1&&Math.Abs(intersections.Sum(value=>value.Far-value.Near)-(span.Value.End-span.Value.Start))<1e-5)
                             {
-                                double t = span.Value.Start + (i + (stochastic ? .173 : .5)) * ds;
-                                Assert.InRange(Math.Abs(actual[i].X - t), 0, Math.Max(.001, Math.Abs(t) * 2e-6));
-                                Assert.InRange(Math.Abs(actual[i].Y - ds), 0, Math.Max(.001, ds * 2e-6));
-                                Vector3 point = origin + direction * actual[i].X;
-                                double density = Density(columns, width, point, detail);
-                                Assert.InRange(Math.Abs(actual[i].Z - density), 0, 2e-6);
+                                Assert.InRange(residual,0,2e-5);exactUniform++;
                             }
-                            if(!detail)
-                            {
-                                double sampledTau=actual.Sum(value=>(double)value.Z*value.Y);
-                                var intersections=CloudTraversalOracle.Intersections(columns,width,origin,direction,limit);
-                                double analyticTau=intersections.Sum(value=>(value.Far-value.Near)*columns[value.Z*width+value.X].X/50.0);
-                                double residual=Math.Abs(Math.Exp(-sampledTau)-Math.Exp(-analyticTau));
-                                if(pattern==1&&Math.Abs(intersections.Sum(value=>value.Far-value.Near)-(span.Value.End-span.Value.Start))<1e-5)
-                                {
-                                    Assert.InRange(residual,0,2e-5);exactUniform++;
-                                }
-                                else worstDiscontinuity=Math.Max(worstDiscontinuity,residual);
-                            }
+                            else worstDiscontinuity=Math.Max(worstDiscontinuity,residual);
                         }
                     }
                 }
             }
-        }
-        finally
-        {
-            GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteShader(shader);
-            StateCache.Current.InvalidateAll();
         }
         output.WriteLine($"Uniform complete-span exact checks={exactUniform}; maximum discontinuous-field transmission residual={worstDiscontinuity:G9}; detail={detail}; stochastic={stochastic}. Discontinuous fields expose finite-lattice aliasing and are not asserted analytically exact.");
     }
@@ -94,23 +82,12 @@ public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutp
     #region Private
     #region GPU execution
     /// <summary>Reads actual production-helper positions and shared density without substituting CPU scheduling.</summary>
-    private static Vector4[] Dispatch(int program, CloudVolumeParameters volume, DynamicTexture2D native,
+    private static Vector4[] Dispatch(CloudTraversalProbe program, CloudVolumeParameters volume, DynamicTexture2D native,
         Vector3 origin, Vector3 direction, float limit, bool stochastic)
     {
-        using var ray = new PackedUniformBuffer(32);
-        float[] data = [origin.X, origin.Y, origin.Z, limit, direction.X, direction.Y, direction.Z, stochastic ? 5 : 4];
-        ray.SetBytes(MemoryMarshal.AsBytes(data.AsSpan()));
-        using var output = GpuShaderStorageBuffer.Create(); output.UploadData(new float[403 * 4]);
-        GL.UseProgram(program); native.Bind(0);
-        Assert.True(volume.TryBindToSlot(28)); Assert.True(ray.TryBindToSlot(16)); output.BindBase(0);
-        GL.DispatchCompute(1, 1, 1);
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
-        float[] values = new float[403 * 4];
-        using (StateCache.Current.BindBufferScope(BufferTarget.ShaderStorageBuffer, output.BufferId))
-            GL.GetBufferSubData(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, values.Length * sizeof(float), values);
-        GL.UseProgram(0); StateCache.Current.InvalidateAll();
-        int count = (int)values[402 * 4]; Assert.InRange(count, 0, 384);
-        return MemoryMarshal.Cast<float, Vector4>(values.AsSpan(0, count * 4)).ToArray();
+        Vector4[] records=program.Run(volume,native,origin,direction,limit,stochastic?5:4);
+        int count=(int)records[402].X;Assert.InRange(count,0,384);
+        return records.AsSpan(0,count).ToArray();
     }
     #endregion
 

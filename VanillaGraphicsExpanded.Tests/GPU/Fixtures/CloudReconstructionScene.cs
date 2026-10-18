@@ -94,7 +94,6 @@ internal sealed class CloudReconstructionScene : IDisposable
         Mat4f.Invert(inverse,projection);
         reference.Frame=camera;trace.Frame=camera;temporal.Frame=camera;resolve.Frame=camera;
         reference.Lighting=storage.Buffer;trace.Lighting=storage.Buffer;resolve.Lighting=storage.Buffer;
-        trace.PmjJitter=Own(CloudPmjJitterTexture.Create());
         trace.PrimaryNoise=Own(CloudBlueNoiseTexture.Create());
     }
     /// <summary>Seeds adversarial coarse levels and enables mip selection so an accidental implicit LOD becomes observable.</summary>
@@ -184,7 +183,7 @@ internal sealed class CloudReconstructionScene : IDisposable
         opaque.UploadDataImmediate(Enumerable.Range(0, width * height).Select(i => Depth(i % 5 == 0 ? 20 : 1000)).ToArray());
         liquid.UploadDataImmediate(Enumerable.Range(0, width * height).Select(i => Depth(i % 7 == 0 ? 60 : 1000)).ToArray());
     }
-    /// <summary>Binds only exact-source summaries; a deliberately mismatched certificate exercises explicit DDA fallback.</summary>
+    /// <summary>Binds only exact-source summaries; a deliberately mismatched certificate exercises explicit direct support fallback.</summary>
     internal void UseHierarchy(CloudHierarchy? hierarchy, bool mismatch = false)
     {
         if (hierarchy is null) { trace.SetHierarchy(null); return; }
@@ -206,12 +205,6 @@ internal sealed class CloudReconstructionScene : IDisposable
     {
         trace.Temporal.Capture(previousProjection,Vector3.Zero,lowWidth,lowHeight,fixedPhase?0:frame,unchecked(frame-1),false);
         Draw(trace,traced.Target,false);
-    }
-    /// <summary>Authors separate sampling dimensions to isolate view and secondary transport behavior.</summary>
-    internal void SetJitterDimensions(float view,float light)
-    {
-        var values=Own(DynamicTexture2D.Create(1,1,PixelInternalFormat.Rg32f));
-        values.UploadDataImmediate(new[]{view,light});trace.PmjJitter=values;
     }
     /// <summary>Supplies a known physical reduced payload while the independent density map remains empty.</summary>
     internal float[][] ResolveAuthoredHistory(bool patterned=false)

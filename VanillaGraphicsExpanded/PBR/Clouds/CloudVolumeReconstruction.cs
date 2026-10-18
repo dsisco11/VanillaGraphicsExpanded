@@ -25,7 +25,6 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     private GraphicsPipeline? resolvePipeline;
     private int width,height;
     private int cursor;
-    private CloudPmjJitterTexture? pmjJitter;
     private CloudBlueNoiseTexture? primaryNoise;
 
     #region Public API
@@ -39,9 +38,6 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         temporalProgram=GpuShaderProgramLibraries.Get<CloudTemporalProgram>(api,"cloud_volume_temporal");
         resolveProgram=GpuShaderProgramLibraries.Get<CloudResolveProgram>(api,"cloud_volume_resolve");
         if(traceProgram?.EnsureReady()!=true || temporalProgram?.EnsureReady()!=true || resolveProgram?.EnsureReady()!=true) return false;
-        pmjJitter ??= CloudPmjJitterTexture.Create();
-        pmjJitter.EnsureCreated();
-        traceProgram.PmjJitter=pmjJitter;
         primaryNoise ??= CloudBlueNoiseTexture.Create();
         primaryNoise.EnsureCreated();
         traceProgram.PrimaryNoise=primaryNoise;
@@ -63,7 +59,6 @@ internal sealed class CloudVolumeReconstruction : IDisposable
             var previous=storage.Blocks[(cursor+1)%3]; var next=storage.Blocks[(cursor+2)%3];
             var camera=VgeFrameRenderer.Current;
             Capture(traceProgram,traceProgram.Parameters,input,lighting,settings,sceneDepth,visibilityDepth,liquidDepth);
-            traceProgram.PmjJitter=pmjJitter;
             traceProgram.PrimaryNoise=primaryNoise;
             resolveProgram.SceneDepth=sceneDepth; resolveProgram.VisibilityDepth=visibilityDepth; resolveProgram.LiquidDepth=liquidDepth;
             // The immutable publication and native content certificates identify compatibility. New
@@ -83,7 +78,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
                 var replacement=new GraphicsPipeline(lifetime,description,resolveProgram); resolvePipeline?.Dispose(); resolvePipeline=replacement;
             }
             if(!current()) { Invalidate(); return false; }
-            // A current map can still outlive an unavailable summary. Explicitly select DDA in that case.
+            // An unavailable summary uses native support checks at the same scheduled shadow points.
             traceProgram.SetHierarchy(hierarchy is not null && hierarchy.TryGetCurrent(input,out var bounds)?bounds:null);
             if(!GraphicsCommandContext.TryRun("Cloud.Volume.Temporal",[tracePass.Pipeline,temporalPass.Pipeline,resolvePipeline],true,commands=>
             {
@@ -94,7 +89,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
                 }
             })) { Invalidate(); throw new InvalidOperationException("Cloud reconstruction graphics boundary was rejected."); }
             history.Commit(input,camera,settings,lighting,traceProgram.Parameters);
-            // Reuse the discarded previous block as the next trace; PMJ phase remains frame-driven.
+            // Reuse the discarded previous block as the next trace; primary noise remains frame-driven.
             cursor=(cursor+1)%3; return true;
         }
         catch { Invalidate(); throw; }
@@ -106,7 +101,6 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     {
         Invalidate(); traceProgram=null; temporalProgram=null; resolveProgram=null;
         RenderingCleanup.Run(()=>{resolvePipeline?.Dispose();resolvePipeline=null;},ReleaseTargets,
-            ()=>{pmjJitter?.Dispose();pmjJitter=null;},
             ()=>{primaryNoise?.Dispose();primaryNoise=null;});
     }
     /// <summary>Releases only VGE resources; current native column and scene textures remain borrowed.</summary>

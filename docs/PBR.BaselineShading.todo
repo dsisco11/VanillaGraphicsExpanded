@@ -223,7 +223,7 @@ Tasks
 
   ☐ Validate changed volumetric cloud sampling in game. Primary rays use a whole-ray uniform lattice
     with eight spatial blue-noise masks; reference primary transport remains midpoint. Secondary
-    sampling retains the cloud-owned PMJ sequence. Prior PMJ receipts qualify the legacy primary
+    sampling uses deterministic midpoints of bounded quadratic intervals. Prior PMJ receipts qualify the legacy primary
     sampler only: artifacts/CloudPmj/validation.md. New numerical qualification is tracked in
     docs/PBR.CloudRealtime.todo; live appearance and GPU/frame-time acceptance remain open.
   ☐ Evaluate what type of HZB accelleration structure would be suitable for volumetric cloud rendering.
@@ -231,7 +231,7 @@ Tasks
       docs/PBR.CloudHierarchy.Proposal.md and docs/PBR.CloudHierarchy.todo. Current architecture:
       docs/PBR.Clouds.md; remaining sampling/performance work: docs/PBR.CloudRealtime.todo.
       Native leaves retain owned coarse min/max height summaries.
-    - Solar/lunar self-lighting traversal reuses certified summaries with DDA fallback. Primary
+    - Solar/lunar self-lighting uses certified root bounds with direct native-support fallback. Primary
       sampling is independent of summary availability. Archived automated integration qualification
       applies to its recorded candidate; total GPU benefit and user-run
       live acceptance remain open, so this parent item is not complete.

@@ -28,14 +28,6 @@ vec3 CloudUnproject(vec2 ndc,float depth)
 }
 /** Retains native volumetric halfsmooth distance for each integration interval's OIT bins. */
 float CloudAdjustedDepth(float x) { return x>500.0?x-250.0:x*x*x*(1.0-x/1000.0)/250000.0; }
-/** Bounded anisotropic single scattering plus exactly one isotropic approximate octave. */
-vec3 CloudDirectional(vec3 local,vec3 view,vec3 light,vec3 illuminance,float jitter)
-{
-    if(max(illuminance.r,max(illuminance.g,illuminance.b))<=0.0) return vec3(0);
-    float tau=CloudLightDepth(local,light,jitter), mu=clamp(dot(view,light),-1.0,1.0);
-    float phase=.64/(12.5663706144*pow(1.36-1.2*mu,1.5));
-    return illuminance*(phase*exp(-tau)+volumeSamples.z/12.5663706144*exp(-volumeSamples.w*tau));
-}
 /** Applies local underwater fog instead of an additional atmosphere integration. */
 vec3 CloudTransport(vec3 source,vec3 displacement)
 {
@@ -77,7 +69,6 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     int count=CloudPrimaryCount(span.y-span.x);
     float ds=(span.y-span.x)/float(count);
     float primaryJitter=CloudPrimaryJitter(uv);
-    vec2 jitter=volumeDetail.w>.5?CloudRayJitter(uv):vec2(.5);
     vec4 k=vec4(0); vec3 reveal=vec3(1); float transmission=1.0;
     for(int i=0;i<VGE_CLOUD_PRIMARY_LIMIT;i++)
     {
@@ -95,8 +86,8 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
         if(result.depth.y==0.0) result.depth.x=near;
         result.depth.y=far;
         vec3 source=volumeEnvironment.rgb
-            +CloudDirectional(local,direction,volumeSun.xyz,volumeSolar.rgb,CloudSegmentJitter(jitter.y,cell,i,0x53554E00u))
-            +CloudDirectional(local,direction,volumeMoon.xyz,volumeLunar.rgb,CloudSegmentJitter(jitter.y,cell,i,0x4D4F4F4Eu));
+            +CloudDirectional(local,direction,volumeSun.xyz,volumeSolar.rgb)
+            +CloudDirectional(local,direction,volumeMoon.xyz,volumeLunar.rgb);
         source=CloudTransport(source,direction*t);
         // Encode only RGB, before view coverage and native bucket weighting.
         k.rgb+=transmission*alpha*CloudEncode(source);

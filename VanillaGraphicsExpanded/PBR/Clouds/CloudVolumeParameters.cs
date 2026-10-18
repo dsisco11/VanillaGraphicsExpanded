@@ -40,8 +40,8 @@ internal sealed class CloudVolumeParameters : CpuUniformBuffer
             Anchor(placement.CenterZ, placement.WindTileZ, width), metresPerWorldUnit, 0));
         WriteVector4(32, new(settings.Detail ? settings.DetailAmplitude : 0, settings.Detail ? settings.EdgeWidth : 0,
             settings.NoiseScale, settings.Detail ? 1 : 0));
-        WriteVector4(48, new(settings.ViewRaySampleMax, settings.LightSamples, settings.OctaveContribution, settings.OctaveOcclusion));
-        WriteVector4(192, new(settings.ViewRaySampleMin, settings.ViewBudgetDistance, 0, 0));
+        WriteVector4(48, new(settings.ViewRaySampleMax, settings.LightRaySampleMax, settings.OctaveContribution, settings.OctaveOcclusion));
+        WriteVector4(192, new(settings.ViewRaySampleMin, settings.ViewBudgetDistance, settings.ShadowDistance, 0));
     }
 
     /// <summary>Stages already attenuated lux and E/pi, plus one matching aerial decode and local-medium endpoint.</summary>

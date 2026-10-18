@@ -1,20 +1,42 @@
 #version 430 core
-#define VGE_CLOUD_PMJ
+#define VGE_CLOUD_PRIMARY_NOISE
 #define VGE_CLOUD_HIERARCHY
 @import "../includes/cloud_volume_parameters.glsl"
 @import "../includes/cloud_volume_sampling.glsl"
 @import "../includes/cloud_volume_density.glsl"
 @import "../includes/cloud_volume_hierarchy.glsl"
+layout(std430) buffer CloudTraversalTestResult { vec4 intervals[402]; vec4 counts; };
+vec3 measuredOrigin; int measuredSamples=0;
+/** Records only actual full-density calls made by the production secondary loop. */
+float MeasuredShadowDensity(vec3 point,ivec2 cell,vec4 data)
+{
+    float density=CloudDensity(point,cell,data);
+    if(measuredSamples<402) intervals[measuredSamples]=vec4(length(point-measuredOrigin),density,point.y,0);
+    measuredSamples++; return density;
+}
+#define CloudDensity MeasuredShadowDensity
 @import "../includes/cloud_volume_light.glsl"
+#undef CloudDensity
 @import "../includes/cloud_volume_primary.glsl"
 layout(local_size_x=1) in;
 layout(std140) uniform CloudRayTestInputs { vec4 testOriginLimit; vec4 testDirectionMode; };
-layout(std430) buffer CloudTraversalTestResult { vec4 intervals[402]; vec4 counts; };
 
 /** Exposes actual production traversal intervals while counting native leaf probes independently of helper internals. */
 void main()
 {
-    counts=vec4(0);
+    counts=vec4(0); measuredOrigin=testOriginLimit.xyz;
+    if(testDirectionMode.w==10.0)
+    {
+        vec3 source=CloudDirectional(testOriginLimit.xyz,vec3(0,0,-1),volumeSun.xyz,volumeSolar.xyz)
+            +CloudDirectional(testOriginLimit.xyz,vec3(0,0,-1),volumeMoon.xyz,volumeLunar.xyz);
+        intervals[400]=vec4(source,0);counts.x=float(measuredSamples);return;
+    }
+    if(testDirectionMode.w>=7.0)
+    {
+        counts.z=CloudLightDepth(testOriginLimit.xyz,testDirectionMode.xyz);
+        counts.x=float(measuredSamples);
+        return;
+    }
     if(testDirectionMode.w==6.0)
     {
         // The independent CPU oracle supplies arbitrary query positions, not this shader's lattice.
@@ -48,7 +70,7 @@ void main()
         return;
     }
     if(testDirectionMode.w>=2.0)
-        counts.z=CloudLightDepth(testOriginLimit.xyz,testDirectionMode.xyz,.37);
+        counts.z=CloudLightDepth(testOriginLimit.xyz,testDirectionMode.xyz);
     CloudRay ray;
     if(!CloudStart(testOriginLimit.xyz,testDirectionMode.xyz,testOriginLimit.w,ray)) return;
     for(int step=0;step<402;step++)

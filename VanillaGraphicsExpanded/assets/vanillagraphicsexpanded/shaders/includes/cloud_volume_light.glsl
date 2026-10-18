@@ -1,33 +1,62 @@
 #ifndef VGE_CLOUD_VOLUME_LIGHT
 #define VGE_CLOUD_VOLUME_LIGHT
-/** Integrates a bounded secondary ray through the same density and supported map domain. */
-float CloudLightDepth(vec3 local,vec3 direction,float jitter)
-{
-    CloudRay ray;
-    if(!CloudStart(local,direction,1e7,ray)) return 0.0;
-    float tau=0.0;
-    for(int cellIndex=0;cellIndex<402;cellIndex++)
-    {
-#ifdef VGE_CLOUD_HIERARCHY
-        if(!CloudHierarchySeek(ray)) break;
+#ifndef VGE_CLOUD_LIGHT_LIMIT
+#define VGE_CLOUD_LIGHT_LIMIT 64
 #endif
-        vec4 data=CloudColumn(ray.cell); float near,far;
-        if(CloudInterval(ray,data,near,far))
-        {
-            int count=volumeDetail.w>.5?int(volumeSamples.y):1;
-            float ds=(far-near)/float(count);
-            float phase=volumeDetail.w>.5?CloudSegmentJitter(jitter,ray.cell,0,0x4C494748u):.5;
-            for(int i=0;i<4;i++)
-            {
-                if(i>=count) break;
-                tau=min(1e30,tau+CloudDensity(ray.o+ray.d*(near+(float(i)+phase)*ds),ray.cell,data)*(ds*volumeAnchorUnits.z));
-            }
-        }
-        // Saturation must include the approximate octave, including its unoccluded endpoint.
-        // Keep tau finite so a zero occlusion coefficient never forms zero times infinity.
-        if(tau>=64.0&&(volumeSamples.w==0.0||tau*volumeSamples.w>=32.0)) return tau;
-        if(!CloudAdvance(ray)) break;
+@import "./cloud_volume_primary.glsl"
+/** Bounds shadow work independently of the camera while preserving its origin-anchored schedule. */
+bool CloudShadowSpan(vec3 origin,vec3 direction,out vec2 span)
+{
+    if(!CloudPrimarySpan(origin,direction,volumePrimary.z,span)) return false;
+#ifdef VGE_CLOUD_HIERARCHY
+    // Only a certified, correctly shaped root may narrow the supported vertical domain.
+    // Missing summaries keep the same scheduled points and use native support rejection.
+    if(cloudTraversal.x==0) return true;
+    int root=cloudTraversal.y;
+    if(root<0 || root>7) return true;
+    if(volumeOffsetWidth.w<=float(1<<root) || volumeOffsetWidth.w>float(2<<root)) return true;
+    if(any(notEqual(textureSize(cloudHeightBounds,0),ivec2(1<<root)))) return true;
+    vec2 bounds=texelFetch(cloudHeightBounds,ivec2(0),root).rg;
+    if(bounds.x>bounds.y) return false;
+    // Keep optional clipping local: an unavailable root must not affect horizontal span outputs.
+    float near=span.x,far=span.y;
+    bool supported=CloudSlab(origin.y,direction.y,bounds.x,bounds.y,near,far);
+    span=vec2(near,far);
+    return supported;
+#endif
+    return true;
+}
+/** Integrates deterministic midpoints of quadratic intervals without per-column allocation or saturation. */
+float CloudLightDepth(vec3 local,vec3 direction)
+{
+    vec2 span;
+    if(!CloudShadowSpan(local,direction,span)) return 0.0;
+    float tau=0.0,distance=volumePrimary.z;
+    int count=int(volumeSamples.y);
+    for(int i=0;i<VGE_CLOUD_LIGHT_LIMIT;i++)
+    {
+        if(i>=count) break;
+        float a=float(i)/float(count),b=float(i+1)/float(count);
+        float near=distance*a*a,far=distance*b*b;
+        float position=(near+far)*.5;
+        // Domain rejection never rescales the distance, shifts samples or reallocates their weights.
+        if(position>span.y) break;
+        if(position<span.x) continue;
+        vec3 point=local+direction*position;
+        ivec2 cell=ivec2(floor(point.xz/50.0));
+        vec4 data=CloudColumn(cell);
+        if(data.r<=0.0 || point.y<data.b*50.0 || point.y>data.a*50.0) continue;
+        tau=min(1e30,tau+CloudDensity(point,cell,data)*((far-near)*volumeAnchorUnits.z));
     }
+    // Finite accumulation keeps the unoccluded octave endpoint well-defined at arbitrarily large tau.
     return tau;
+}
+/** Bounded anisotropic single scattering plus exactly one isotropic approximate octave. */
+vec3 CloudDirectional(vec3 local,vec3 view,vec3 light,vec3 illuminance)
+{
+    if(max(illuminance.r,max(illuminance.g,illuminance.b))<=0.0) return vec3(0);
+    float tau=CloudLightDepth(local,light), mu=clamp(dot(view,light),-1.0,1.0);
+    float phase=.64/(12.5663706144*pow(1.36-1.2*mu,1.5));
+    return illuminance*(phase*exp(-tau)+volumeSamples.z/12.5663706144*exp(-volumeSamples.w*tau));
 }
 #endif

@@ -30,111 +30,99 @@ public sealed class CloudPrimaryOracleTests(HeadlessGLFixture fixture, ITestOutp
         native.UploadDataImmediate(MemoryMarshal.Cast<Vector4, float>(columns.AsSpan()).ToArray());
         volume.CaptureMap(4, new CloudPlacement(0, 0, 0, 0, 0, 0, 0, 0, new(0, 0, -50), 0),
             1, CloudVolumeSettings.Default with { Detail = detail });
-        int shader = BuiltShaderFixture.LoadFixture("tests/cloud-traversal.csh", ShaderType.ComputeShader);
-        int program = GL.CreateProgram();
-        try
+        using var program = new CloudTraversalProbe(Programs.Api);
+        scene.SetReferenceSamples(384);
+        scene.Capture(0, 2, 10, 1, 0, detail ? "detail" : "static");
+        scene.RenderReference(); float[][] coarse = scene.ReadReference();
+        scene.SetReferenceSamples(768);
+        scene.Capture(0, 2, 10, 1, 0, detail ? "detail" : "static");
+        scene.RenderReference(); float[][] fine = scene.ReadReference();
+        double oracleStability = 0, referenceStability = 0, worstTransmission = 0, worstPayload = 0;
+        var targets = new double[64][];
+        for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++)
         {
-            GL.AttachShader(program, shader); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            scene.SetReferenceSamples(384);
-            scene.Capture(0, 2, 10, 1, 0, detail ? "detail" : "static");
-            scene.RenderReference(); float[][] coarse = scene.ReadReference();
-            scene.SetReferenceSamples(768);
-            scene.Capture(0, 2, 10, 1, 0, detail ? "detail" : "static");
-            scene.RenderReference(); float[][] fine = scene.ReadReference();
-            double oracleStability = 0, referenceStability = 0, worstTransmission = 0, worstPayload = 0;
-            var targets = new double[64][];
-            for (int y = 0; y < 8; y++) for (int x = 0; x < 8; x++)
+            Vector3 direction = Vector3.Normalize(new((2 * (x + .5f) / 8 - 1) / 4,
+                (2 * (y + .5f) / 8 - 1) / 4, -1));
+            double[] a = Integrate(program, native, volume, columns, direction, 384);
+            double[] b = Integrate(program, native, volume, columns, direction, 768);
+            targets[y * 8 + x] = b;
+            double adaptive = AdaptiveOpticalDepth(program, native, volume, columns, direction);
+            Assert.InRange(Math.Abs(Math.Exp(-adaptive) - b[3]), 0, .002);
+            int pixel = y * 8 + x;
+            for (int channel = 0; channel < 4; channel++)
             {
-                Vector3 direction = Vector3.Normalize(new((2 * (x + .5f) / 8 - 1) / 4,
-                    (2 * (y + .5f) / 8 - 1) / 4, -1));
-                double[] a = Integrate(program, native, volume, columns, direction, 384);
-                double[] b = Integrate(program, native, volume, columns, direction, 768);
-                targets[y * 8 + x] = b;
-                double adaptive = AdaptiveOpticalDepth(program, native, volume, columns, direction);
-                Assert.InRange(Math.Abs(Math.Exp(-adaptive) - b[3]), 0, .002);
-                int pixel = y * 8 + x;
-                for (int channel = 0; channel < 4; channel++)
-                {
-                    oracleStability = Math.Max(oracleStability, Math.Abs(a[channel] - b[channel]));
-                    int layer = channel == 3 ? 1 : 0;
-                    int index = channel == 3 ? pixel : pixel * 3 + channel;
-                    referenceStability = Math.Max(referenceStability, Math.Abs(coarse[layer][index] - fine[layer][index]));
-                    worstTransmission = Math.Max(worstTransmission, Math.Abs(fine[layer][index] - b[channel]));
-                }
-                double alpha = 1 - b[3];
-                // Native Glow blends its authored opacity with source-alpha once more.
-                worstPayload = Math.Max(worstPayload, Math.Abs(fine[2][pixel * 4 + 3] - alpha * alpha));
-                for (int bucket = 0; bucket < 3; bucket++) for (int c = 0; c < 4; c++)
-                {
-                    double expected = alpha * (1 - b[bucket]) * (c == 3 ? 1 : 10);
-                    double residual = Math.Abs(fine[3 + bucket][pixel * 4 + c] - expected) / (c == 3 ? 1 : 10);
-                    worstPayload = Math.Max(worstPayload, residual);
-                }
+                oracleStability = Math.Max(oracleStability, Math.Abs(a[channel] - b[channel]));
+                int layer = channel == 3 ? 1 : 0;
+                int index = channel == 3 ? pixel : pixel * 3 + channel;
+                referenceStability = Math.Max(referenceStability, Math.Abs(coarse[layer][index] - fine[layer][index]));
+                worstTransmission = Math.Max(worstTransmission, Math.Abs(fine[layer][index] - b[channel]));
             }
-            output.WriteLine($"Independent fixed bins: oracle384/768={oracleStability:G9}, reference384/768={referenceStability:G9}, transmission={worstTransmission:G9}, normalizedPayload={worstPayload:G9}");
-            Assert.InRange(oracleStability, 0, .002);
-            Assert.InRange(referenceStability, 0, .002);
-            Assert.InRange(worstTransmission, 0, .01);
-            Assert.InRange(worstPayload, 0, .01);
-            var means = Enumerable.Range(0, 16).Select(_ => new double[20]).ToArray();
-            for (uint frame = 0; frame < 128; frame++)
+            double alpha = 1 - b[3];
+            // Native Glow blends its authored opacity with source-alpha once more.
+            worstPayload = Math.Max(worstPayload, Math.Abs(fine[2][pixel * 4 + 3] - alpha * alpha));
+            for (int bucket = 0; bucket < 3; bucket++) for (int c = 0; c < 4; c++)
             {
-                scene.Capture(frame, 2, 10, 1, 0, detail ? "detail" : "static");
-                scene.RenderTrace(frame, fixedPhase: true);
-                float[][] payload = scene.ReadTrace();
-                float[][] physical = scene.ReadTraceRecord();
-                for (int pixel = 0; pixel < 16; pixel++)
-                {
-                    for (int c = 0; c < 3; c++) means[pixel][c] += physical[0][pixel * 4 + c] / 128.0;
-                    means[pixel][3] += payload[1][pixel] / 128.0;
-                    means[pixel][19] += payload[2][pixel * 4 + 3] / 128.0;
-                    for (int bucket = 0; bucket < 3; bucket++)
-                    {
-                        means[pixel][4 + bucket] += payload[0][pixel * 3 + bucket] / 128.0;
-                        for (int c = 0; c < 4; c++)
-                            means[pixel][7 + bucket * 4 + c] += payload[3 + bucket][pixel * 4 + c] / 128.0;
-                    }
-                    Assert.All(payload.SelectMany(layer => layer), value => Assert.True(float.IsFinite(value) && value >= 0));
-                }
+                double expected = alpha * (1 - b[bucket]) * (c == 3 ? 1 : 10);
+                double residual = Math.Abs(fine[3 + bucket][pixel * 4 + c] - expected) / (c == 3 ? 1 : 10);
+                worstPayload = Math.Max(worstPayload, residual);
             }
-            double meanAttenuation = 0, meanRgb = 0, meanAlpha = 0;
-            for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++)
+        }
+        output.WriteLine($"Independent fixed bins: oracle384/768={oracleStability:G9}, reference384/768={referenceStability:G9}, transmission={worstTransmission:G9}, normalizedPayload={worstPayload:G9}");
+        Assert.InRange(oracleStability, 0, .002);
+        Assert.InRange(referenceStability, 0, .002);
+        Assert.InRange(worstTransmission, 0, .01);
+        Assert.InRange(worstPayload, 0, .01);
+        var means = Enumerable.Range(0, 16).Select(_ => new double[20]).ToArray();
+        for (uint frame = 0; frame < 128; frame++)
+        {
+            scene.Capture(frame, 2, 10, 1, 0, detail ? "detail" : "static");
+            scene.RenderTrace(frame, fixedPhase: true);
+            float[][] payload = scene.ReadTrace();
+            float[][] physical = scene.ReadTraceRecord();
+            for (int pixel = 0; pixel < 16; pixel++)
             {
-                double[] target = targets[y * 2 * 8 + x * 2], mean = means[y * 4 + x];
-                double alpha = 1 - target[3];
-                meanAttenuation = Math.Max(meanAttenuation, Math.Abs(mean[3] - target[3]));
-                meanAlpha = Math.Max(meanAlpha, Math.Abs(mean[19] - alpha));
-                for (int c = 0; c < 3; c++) meanRgb = Math.Max(meanRgb, Math.Abs(mean[c] / 10 - alpha));
+                for (int c = 0; c < 3; c++) means[pixel][c] += physical[0][pixel * 4 + c] / 128.0;
+                means[pixel][3] += payload[1][pixel] / 128.0;
+                means[pixel][19] += payload[2][pixel * 4 + 3] / 128.0;
                 for (int bucket = 0; bucket < 3; bucket++)
                 {
-                    meanAttenuation = Math.Max(meanAttenuation, Math.Abs(mean[4 + bucket] - target[bucket]));
+                    means[pixel][4 + bucket] += payload[0][pixel * 3 + bucket] / 128.0;
                     for (int c = 0; c < 4; c++)
-                    {
-                        double error = Math.Abs(mean[7 + bucket * 4 + c] / (c == 3 ? 1 : 10) - alpha * (1 - target[bucket]));
-                        if (c == 3) meanAlpha = Math.Max(meanAlpha, error);
-                        else meanRgb = Math.Max(meanRgb, error);
-                    }
+                        means[pixel][7 + bucket * 4 + c] += payload[3 + bucket][pixel * 4 + c] / 128.0;
+                }
+                Assert.All(payload.SelectMany(layer => layer), value => Assert.True(float.IsFinite(value) && value >= 0));
+            }
+        }
+        double meanAttenuation = 0, meanRgb = 0, meanAlpha = 0;
+        for (int y = 0; y < 4; y++) for (int x = 0; x < 4; x++)
+        {
+            double[] target = targets[y * 2 * 8 + x * 2], mean = means[y * 4 + x];
+            double alpha = 1 - target[3];
+            meanAttenuation = Math.Max(meanAttenuation, Math.Abs(mean[3] - target[3]));
+            meanAlpha = Math.Max(meanAlpha, Math.Abs(mean[19] - alpha));
+            for (int c = 0; c < 3; c++) meanRgb = Math.Max(meanRgb, Math.Abs(mean[c] / 10 - alpha));
+            for (int bucket = 0; bucket < 3; bucket++)
+            {
+                meanAttenuation = Math.Max(meanAttenuation, Math.Abs(mean[4 + bucket] - target[bucket]));
+                for (int c = 0; c < 4; c++)
+                {
+                    double error = Math.Abs(mean[7 + bucket * 4 + c] / (c == 3 ? 1 : 10) - alpha * (1 - target[bucket]));
+                    if (c == 3) meanAlpha = Math.Max(meanAlpha, error);
+                    else meanRgb = Math.Max(meanRgb, error);
                 }
             }
-            output.WriteLine($"128 frames / eight masks: independent-target mean attenuation={meanAttenuation:G9}, normalizedRGB={meanRgb:G9}, alpha={meanAlpha:G9}");
-            Assert.InRange(meanAttenuation, 0, .01);
-            Assert.InRange(meanRgb, 0, .02);
-            Assert.InRange(meanAlpha, 0, .01);
         }
-        finally
-        {
-            GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteShader(shader);
-            StateCache.Current.InvalidateAll();
-        }
+        output.WriteLine($"128 frames / eight masks: independent-target mean attenuation={meanAttenuation:G9}, normalizedRGB={meanRgb:G9}, alpha={meanAlpha:G9}");
+        Assert.InRange(meanAttenuation, 0, .01);
+        Assert.InRange(meanRgb, 0, .02);
+        Assert.InRange(meanAlpha, 0, .01);
     }
     #endregion
 
     #region Private
     #region Independent integration
     /// <summary>Adapts Simpson subdivisions inside native boxes using independently requested density values and local error estimates.</summary>
-    private static double AdaptiveOpticalDepth(int program, DynamicTexture2D native, CloudVolumeParameters volume,
+    private static double AdaptiveOpticalDepth(CloudTraversalProbe program, DynamicTexture2D native, CloudVolumeParameters volume,
         Vector4[] columns, Vector3 direction)
     {
         Vector3 origin = new(100, 0, 150);
@@ -175,7 +163,7 @@ public sealed class CloudPrimaryOracleTests(HeadlessGLFixture fixture, ITestOutp
     }
 
     /// <summary>Refines density inside independently enumerated native boxes while retaining 8192 fixed bucket intervals.</summary>
-    private static double[] Integrate(int program, DynamicTexture2D native, CloudVolumeParameters volume,
+    private static double[] Integrate(CloudTraversalProbe program, DynamicTexture2D native, CloudVolumeParameters volume,
         Vector4[] columns, Vector3 direction, int subdivisions)
     {
         Vector3 origin = new(100, 0, 150);
@@ -214,29 +202,16 @@ public sealed class CloudPrimaryOracleTests(HeadlessGLFixture fixture, ITestOutp
 
     #region Density queries
     /// <summary>Queries the unchanged GPU density definition at CPU-selected positions without using primary quadrature.</summary>
-    private static float[] Query(int program, DynamicTexture2D native, CloudVolumeParameters volume,
+    private static float[] Query(CloudTraversalProbe program, DynamicTexture2D native, CloudVolumeParameters volume,
         Vector3 origin, Vector3 direction, float[] positions)
     {
-        var result = new float[positions.Length];
-        using var ray = new PackedUniformBuffer(32);
-        using var samples = GpuShaderStorageBuffer.Create();
-        for (int start = 0; start < positions.Length; start += 402)
+        var result=new float[positions.Length];
+        for(int start=0;start<positions.Length;start+=402)
         {
-            int count = Math.Min(402, positions.Length - start);
-            var data = new Vector4[403];
-            for (int i = 0; i < count; i++) data[i].X = positions[start + i];
-            samples.UploadData(MemoryMarshal.Cast<Vector4, float>(data.AsSpan()).ToArray());
-            float[] inputs = [origin.X, origin.Y, origin.Z, count, direction.X, direction.Y, direction.Z, 6];
-            ray.SetBytes(MemoryMarshal.AsBytes(inputs.AsSpan()));
-            GL.UseProgram(program); native.Bind(0);
-            Assert.True(volume.TryBindToSlot(28)); Assert.True(ray.TryBindToSlot(16)); samples.BindBase(0);
-            GL.DispatchCompute(1, 1, 1);
-            GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
-            using (StateCache.Current.BindBufferScope(BufferTarget.ShaderStorageBuffer, samples.BufferId))
-                GL.GetBufferSubData(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, data.Length * 16, data);
-            for (int i = 0; i < count; i++) result[start + i] = data[i].Z;
+            int count=Math.Min(402,positions.Length-start);
+            Vector4[] records=program.Run(volume,native,origin,direction,0,6,positions.AsSpan(start,count));
+            for(int i=0;i<count;i++)result[start+i]=records[i].Z;
         }
-        GL.UseProgram(0); StateCache.Current.InvalidateAll();
         return result;
     }
     #endregion

@@ -227,19 +227,29 @@
         "weight": 25.21,
         "range": { "min": 1, "max": 16, "step": 1 }
       },
-      "CLOUD_LIGHT_SAMPLES": {
-        "code": "Clouds.LightSamples",
+      "CLOUD_LIGHT_RAY_SAMPLE_MAX": {
+        "code": "Clouds.LightRaySampleMax",
         "clientSide": true,
-        "name": "Clouds/LightSamples",
-        "ingui": "vanillagraphicsexpanded:config-cloud-light-samples",
-        "comment": "vanillagraphicsexpanded:config-cloud-light-samples-tooltip",
-        "default": 1,
+        "name": "Clouds/LightRaySampleMax",
+        "ingui": "vanillagraphicsexpanded:config-cloud-light-ray-max",
+        "comment": "vanillagraphicsexpanded:config-cloud-light-ray-max-tooltip",
+        "default": 10,
         "weight": 25.3,
         "range": {
-          "min": 1,
-          "max": 4,
+          "min": 2,
+          "max": 64,
           "step": 1
         }
+      },
+      "CLOUD_SHADOW_DISTANCE": {
+        "code": "Clouds.ShadowDistance",
+        "clientSide": true,
+        "name": "Clouds/ShadowDistance",
+        "ingui": "vanillagraphicsexpanded:config-cloud-shadow-distance",
+        "comment": "vanillagraphicsexpanded:config-cloud-shadow-distance-tooltip",
+        "default": 1500,
+        "weight": 25.31,
+        "range": { "min": 50, "max": 10000, "step": 50 }
       },
       "POST_BLOOMLEVELS": {
         "code": "Postprocessing.BloomLevels",

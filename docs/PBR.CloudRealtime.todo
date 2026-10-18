@@ -30,6 +30,25 @@ Authority and scope
     alternative is outside this tasklist's implementation scope. Cast shadows remain
     deferred to virtual shadow maps; no earlier native producer or previous-frame shadow publication.
 
+Current test policy (user direction, 2026-10-18)
+  Automated tests must not enforce approximation quality. Existing cloud approximation-quality
+    assertions are ignored as implementation/completion gates immediately; Phase 3.1 removes them.
+    This supersedes approximation-error thresholds and baseline-quality requirements in this file
+    and inherited documents, including previously recorded acceptance policies. Historical receipts
+    remain evidence of what was measured, not current requirements or justification for sample counts.
+  Keep correctness tests for the specified finite-budget algorithm: sample positions/counts/weights,
+    physical units, shared density, valid domain/depth clipping, finite bounded outputs, settings,
+    resource ownership, publication, history admission and exact OIT/encoding arithmetic.
+    Floating-point tolerances for those mathematical contracts remain legitimate.
+  Comparisons with denser/exact transport, other sample budgets, reconstructed reference images or
+    frozen noise/RMS baselines may report diagnostics, but must not assert acceptable approximation
+    error, convergence, noise reduction or visual fidelity. This applies to primary/secondary tracing,
+    termination, reconstruction and atmospheric approximations, including existing passing tests.
+  Until cleanup, name excluded approximation tests/assertions in verification receipts. Mixed tests
+    still require their independent correctness coverage; an excluded test is not a passing test.
+    Do not raise sample counts to satisfy retired quality gates. Runtime defaults remain unchanged
+    by this policy edit; performance and user-run appearance acceptance remain separate work.
+
 Execution and evidence
   Keep domain-focused files, thin composition roots, directional dependencies, documented methods
     and classes, visibility regions and comments explaining nontrivial logic.
@@ -39,7 +58,8 @@ Execution and evidence
   Separate source findings, independent numerical checks, GPU correctness, packaging, controlled
     GPU timing and user-run live acceptance. Leave required acceptance gates open without evidence.
   Reconcile linked documents, perform a second review and an independent completion audit before
-    marking each increment complete. Do not weaken tests simply to accommodate changed output.
+    marking each increment complete. Preserve correctness assertions; remove approximation-quality
+    acceptance assertions under the current test policy rather than widening their tolerances.
 
 Technical direction
   Budget samples across complete clipped rays, with explicit caps and distance scaling.
@@ -103,7 +123,7 @@ Phase 2: Bound primary integration independently of native grid crossings
 
 Phase 3: Bound secondary solar/lunar integration
   Depends on Phase 2. Outcome: every contributing light has an independent whole-ray work budget.
-  ☐ Replace per-column secondary sample allocation in cloud_volume_light.glsl with bounded counts
+  ☑ Replace per-column secondary sample allocation in cloud_volume_light.glsl with bounded counts
     and a separate physical tracing distance, with early exit at the actual supported cloud domain.
     - Use quadratic distance interval boundaries and their arithmetic midpoints as shadow positions,
       with density weighted by each interval's physical length. Do not square the midpoint index,
@@ -115,29 +135,60 @@ Phase 3: Bound secondary solar/lunar integration
     - Expose bounded settings through existing configuration/binding contracts and history
       invalidation. Replace LightSamples with the new fields using a clean break and defaults;
       do not convert saved per-column counts. Keep optional shadow-map replacement outside scope.
-  ☐ Verify optical-depth integration and illumination against independent/high-budget references,
+  ☑ Verify optical-depth integration and illumination against independent/high-budget references,
     including low-angle sun/moon, inside-cloud origins, distant occluders and shadow-distance limits.
     - Quantify bias from finite shadow distance and coarse samples separately from hierarchy errors.
       Cover solar-only, lunar-only, both lights, zero light and all multiple-scattering coefficients.
-  ☐ Completion: shadow sample counts/distance are bounded independently of occupied column count;
-    self-shadow shape and the additional octave satisfy recorded quality limits.
+    - Assert the specified finite-budget integration and source/OIT arithmetic. Differences from
+      exact or higher-budget transport are diagnostics only, with no approximation-quality gate.
+  ☑ Completion: shadow sample counts/distance are bounded independently of occupied column count;
+    integration and additional-octave correctness pass; approximation diagnostics are not blockers.
+
+Phase 3.1: Remove cloud approximation-quality acceptance tests
+  Depends on Phase 3. Outcome: automated tests enforce implementation correctness only.
+  ☐ Inventory cloud tests and shared fixtures for approximation-quality assertions, including passing
+    tests. Cover CloudPrimaryOracleTests, CloudPrimaryBudgetTests, CloudSecondaryBudgetTests,
+    CloudVolumeDrawTests, CloudVolumeReconstructionTests and helpers used by those tests.
+    - Identify gates on radiance/attenuation/OIT discrepancy versus exact or higher-budget transport,
+      reconstruction reference envelopes, sample-budget/reference-doubling stability, temporal means,
+      frozen-baseline RMS and noise reduction. Include equivalent indirect or relational assertions.
+    - Classify each assertion by purpose. Retain exact uniform-density Beer-Lambert fixtures only
+      where the complete sampled span is actually uniform; arbitrary discontinuous support is an
+      approximation comparison, even with Detail=false or a constant extinction inside each column.
+  ☐ Remove approximation-quality tests/assertions. Split mixed cases to preserve meaningful algorithm,
+    clipping, finite-value, physical-unit, OIT, settings, lifecycle and history-correctness coverage.
+    - Do not replace removed gates with looser thresholds, golden-image fidelity checks or assertions
+      that more samples must look closer to a reference. Do not leave permanently skipped quality tests.
+    - Retain only useful explicitly invoked diagnostics and independent reference helpers without
+      quality pass/fail assertions. Remove unused fixtures, reference-only assets and build plumbing.
+    - Preserve deterministic replay and exact same-algorithm acceleration/storage equivalence checks;
+      these verify implementation identity rather than acceptable approximation quality.
+  ☐ Reconcile active cloud proposals/checklists/current architecture and verification filters so no
+    automated approximation-quality requirement or hidden equivalent remains. Preserve raw historical
+    results without presenting retired thresholds as current authority. Record remaining manual
+    appearance and measured-performance work separately; do not change runtime defaults in this cleanup.
+  ☐ Verify through subagents: canonical build/shader checks and focused retained correctness tests.
+    Review assertion bodies and shared helpers, not only test names or numeric-literal searches.
+    Complete a second review and independent completion audit before marking this sub-phase complete.
+  ☐ Completion: no cloud automated test enforces approximation quality; retained correctness tests
+    pass and the temporary exclusions in current verification are no longer necessary.
 
 Phase 4: Use practical transmittance termination and qualify OIT error
-  Depends on Phase 3. Outcome: nearly saturated transport stops without corrupting transparency bins.
+  Depends on Phase 3.1. Outcome: sample-granular termination follows its configured predicate.
   ☐ Replace the fixed 1e-6 view predicate with a bounded/configured criterion evaluated at sample
-    granularity, testing the .005 candidate against VGE output error limits.
+    granularity, recording the .005 candidate's output differences without quality pass/fail limits.
     - Stop the primary march after a sample when overall transmittance falls below the configured
       threshold. Compare all bucket transmissions, reconstructed products, glow and support metadata
       against threshold-disabled references; do not require a separate residual-support traversal.
-    - If the threshold fails required OIT quality limits, lower it and requalify. Do not add a second
-      attenuation march or an unrequested residual-bound subsystem to force the candidate to pass.
+    - Report OIT differences for performance/appearance review. Do not add a second attenuation march
+      or residual-bound subsystem to satisfy an automated approximation-quality threshold.
     - Evaluate the bounded shadow sample schedule without optical-depth early termination initially.
       Any later light-ray saturation shortcut needs separate measured benefit and quality justification,
       including zero octave occlusion/contribution endpoints. Keep finite optical-depth arithmetic.
   ☐ Verify thick/thin, bright-source, translucent overlap, particle/liquid, inside-cloud and HDR cases
     against termination-disabled references, including the first saturated sample inside a column.
-  ☐ Completion: threshold termination passes declared output-quality checks for all six OIT outputs
-    and temporal support. A candidate threshold alone is insufficient acceptance.
+  ☐ Completion: predicate placement, finite arithmetic, clipping and OIT/metadata bookkeeping pass
+    correctness checks; differences from termination-disabled transport are recorded as diagnostics.
 
 Phase 5: Trace fewer screen positions and reconstruct missing information
   Depends on Phase 4. Outcome: a quality selection traces quarter view dimensions.
@@ -160,7 +211,8 @@ Phase 5: Trace fewer screen positions and reconstruct missing information
   ☐ Qualify quarter-dimension quality before selecting the shipped default; record any scene where
     half-dimension tracing remains necessary instead of silently abandoning inside-cloud acceptance.
   ☐ Completion: trace-position count is approximately one-sixteenth of full view in the new mode,
-    reconstruction meets stated quality limits and no fallback hides unbudgeted transport work.
+    reconstruction correctness passes and no fallback hides unbudgeted transport work. Approximation
+    comparisons do not enforce automated quality; shipped selection still requires user appearance review.
 
 Phase 6: Amortize atmospheric and repeated density/phase evaluation
   Depends on Phase 5. Outcome: shading avoids repeated work with explicitly qualified approximations.
@@ -182,8 +234,8 @@ Phase 6: Amortize atmospheric and repeated density/phase evaluation
     - Measure before changing procedural noise to a reusable noise texture; such a texture supplies
       detail only, not a complete density volume. Qualify any replacement's statistics/appearance
       separately and retain the current noise if no measured benefit justifies the change.
-  ☐ Completion: atmospheric approximation meets quality/OIT limits, exact density/phase optimizations
-    pass equivalence checks, and attributed savings come from measurements rather than source counts.
+  ☐ Completion: atmospheric composition/OIT correctness and exact density/phase equivalence checks
+    pass; approximation differences are diagnostic and attributed savings come from measurements.
 
 Phase 7: Make acceleration optional and efficient for the new integration schedule
   Depends on Phase 6. Outcome: empty-space rejection helps without repeated dense-path overhead.
@@ -318,9 +370,9 @@ Bounded quality policy (implementation contract)
       768 secondary rays and 7680 secondary full-detail evaluations with both sources active, plus
       at most 384 primary evaluations; these are policy
       upper bounds, not baseline observations. Report actual early exits and skipped zero sources.
-    - Qualification compares 1500,3000 and complete supported-domain shadow distances with other
-      settings fixed. If finite-distance bias exceeds quality limits, increase the distance within
-      its cap and requalify; changing sample count is not proof that distance bias is resolved.
+    - Optional diagnostics compare 1500,3000 and complete supported-domain shadow distances with
+      other settings fixed. Report distance bias separately from sampling bias; neither is an
+      automated quality gate or a requirement to increase sample count/distance.
 
   Sampling and temporal identity
     - Use spatial blue-noise primary-ray offsets with an eight-frame temporal index advancing every
@@ -344,11 +396,9 @@ Bounded quality policy (implementation contract)
     - Break the primary march after the current integration step if overall transmittance is below
       the threshold. Do not add a remaining-support prepass, a second attenuation/bin march or a
       residual-error subsystem. Retain ordinary completed-lighting admission and finite storage bounds.
-    - Qualification, not a new per-sample proof system, determines whether .005 is adequate for all
-      revealage/bin/accumulator/glow outputs and support metadata. Compare threshold-on/off results
-      using the declared transport/OIT quality limits below and report termination-only error
-      separately. Do not impose an additional .001 transmission gate that precludes the .005 candidate
-      by construction. If required quality fails, lower the threshold (including zero) and requalify.
+    - Verify configured termination at the correct sample boundary and retain finite arithmetic.
+      Record differences in revealage, bins, accumulators, glow and metadata without automated
+      approximation-quality limits. Threshold selection uses measured cost and user appearance review.
     - Shadow rays initially evaluate the bounded quadratic schedule until finite-domain exit, with
       no optical-depth saturation shortcut. Keep tau finite and handle zero octave occlusion without
       zero*infinity. Additional shortcuts are optional future work requiring separate evidence.
@@ -358,7 +408,7 @@ Bounded quality policy (implementation contract)
       ViewBudgetDistance, LightRaySampleMax, ShadowDistance, StopTransmittance and TraceScale fields
       through the existing configuration owner. Keep detail fields and FullResolutionReference.
     - TraceScale is an enum with Half and Quarter; initial compatibility selection is Half. Quarter
-      becomes the normal selection only after its own numerical and user appearance gates pass.
+      becomes the normal selection only after correctness, performance and user appearance review.
       FullResolutionReference overrides trace scale, disables temporal history and uses midpoint
       primary sampling and quadratic shadow midpoints; it is not the independent high-budget oracle.
     - User direction requires a clean break: no migration, compatibility converter, schema-version
@@ -369,51 +419,29 @@ Bounded quality policy (implementation contract)
       nonfinite distances and partial current-setting updates. Primary defaults are 384/2/50; later
       light/termination/layout fields receive their own stated defaults when implemented.
 
-  Independent reference and numerical acceptance
-    - Retain the frozen legacy baseline for regression comparisons. Independently enumerate column
-      box intersections in double precision (CloudTraversalOracle), integrate detail-disabled optical
-      depths analytically, and evaluate the detailed field with deterministic adaptive quadrature.
-      Do not derive the oracle's intervals, sample placement or budgets from production traversal.
-    - For detailed transport use reference levels 384/64 then 768/128 view/light samples and
-      complete supported-domain shadows, with termination disabled. In addition, integrate detailed
-      optical depths independently with adaptive subdivision at native boundaries. Require reference
-      doubling stability <=.002 absolute transmission and <=.005 normalized radiance/payload before
-      using it as an oracle. Further refinement or an unresolved reference case remains an evidence gap.
-      Higher reference levels belong to opt-in oracle fixtures and do not widen production quality caps.
-    - Hold density/lighting definitions, physical units, atmosphere inputs and source encoding fixed
-      when isolating quadrature. Hold a converged native bucket-integration schedule fixed when raising
-      lighting/detail counts; changing bucket discretization cannot prove convergence of a fixed target.
-      This separation belongs to the oracle fixtures; production integrates bins on its scheduled
-      primary steps and does not acquire an independent fine bucket march to match the reference.
-    - Compare linear physical RGB normalized by max(1,completed admitted source-radiance bound), not
-      exposure or per-image maxima; normalize OIT RGB by the same bound, and alpha/attenuation remain
-      absolute. Compare every RGB component, bucket, revealage, glow and accumulator alpha separately.
-    - Point-aligned primary transport limits: .01 absolute overall/bucket transmission, .02 normalized
-      physical RGB and each accumulation RGB, .01 accumulation alpha/glow opacity. Uniform-density
-      optical depth tolerance is 2e-5 absolute transmission when the entire span has that density.
-      Discontinuous column fields, including Detail=false, use the finite-budget limits rather than
-      exact optical-depth equivalence. Samples outside supported bounds must evaluate zero density.
-    - Reduced reconstruction retains existing .021 attenuation and .045 normalized payload limits
-      outside the one-full-view-pixel reference envelope, for all six OIT targets. Report raw pointwise
-      maxima too; do not expand that envelope to hide quarter-resolution loss. Compare depth receipts
-      against independent contributing support: no behind-foreground support. Bound sampled first/
-      last-distance uncertainty by one primary step plus max(.05 world units,1e-4*distance), rather
-      than requiring sub-step geometric accuracy from a fixed-step integrator. Metadata must remain
-      clipped to the admitted foreground span and describe the integration steps that contributed.
-      Unaffected clipping, encoding, OIT arithmetic and reconstruction fixtures keep their tolerances
-      and fixture-specific scales. Assertions specific to the replaced per-column/PMJ algorithm remain
-      qualified by the frozen baseline/reference; new production assertions target the declared lattice
-      and quality bounds. Do not widen tolerances to hide failures or call a changed contract equivalent.
-    - For stochastic detailed integration evaluate 128 rendered frames at aligned positions, covering
-      sixteen complete eight-frame noise periods; its temporal mean must satisfy the point-aligned
-      limits. Do not call repeated periods 128 independent samples or promise unbounded convergence.
-      Individual frames must remain finite, bounded and clipped. Separately test the actual history
-      filter over 128 reconstruction phase cycles: after
-      warmup its RMS must not exceed the frozen baseline at matched support, and abrupt lighting/
-      weather/camera changes must reject stale history on the next eligible frame. Offline averaging
-      alone does not establish filtered noise, disocclusion or live appearance acceptance.
-    - Half and Quarter must meet the same stated reconstruction limits. A failing candidate keeps
-      its tasks open; do not raise tolerances after observing output to manufacture acceptance.
+  Correctness verification and optional approximation diagnostics
+    - Keep independent scalar/native-box oracles for the specified sample lattice, shared density,
+      finite domain, units and OIT/encoding formulas. Assert equivalent implementations on the same
+      scheduled positions, with tolerances appropriate to floating-point arithmetic.
+    - Keep exact uniform-density Beer-Lambert checks only when density is uniform over the complete
+      sampled span. Keep settings/budget bounds, deterministic replay, source combinations, octave
+      endpoints, finite outputs, depth clipping, resource lifetimes and history-rejection correctness.
+    - Native support is discontinuous. Production versus exact/high-budget integration, reference
+      doubling, approximation changes, image envelopes, temporal means and filter RMS/noise comparisons
+      are optional measurements without approximation-quality acceptance assertions. They do not block
+      implementation completion or mandate increased sample counts, tracing distances or resolution.
+    - Diagnostic references must state their own approximation/stability limitations. Report physical
+      RGB and OIT differences with explicit normalization and coverage; a normalized radiometric error
+      is not a perceptual error. No mandatory reference-convergence or approximation-error threshold
+      applies, including the former .01/.02/.021/.045 limits or frozen-baseline RMS requirements.
+    - Finite attenuation bounds and admitted foreground clipping remain correctness requirements for
+      every frame. Contributing metadata describes the steps that actually contributed, clipped to
+      the admitted span; it need not match exact unsampled support. Authored temporal arithmetic and
+      stale-history rejection remain tested independently of denoising effectiveness.
+    - Phase 3.1 removes existing approximation assertions and unused machinery. Until then use the
+      current exclusion policy above, preserve necessary mixed-test correctness coverage, and report
+      exclusions explicitly. Neither a passing correctness suite nor diagnostics establish appearance
+      acceptance or measured rendering performance.
 
   Requirement reconciliation
     - Primary per-column multiplication -> Phase 2; secondary multiplication/distance -> Phase 3;
@@ -424,7 +452,7 @@ Bounded quality policy (implementation contract)
       exact arbitrary-column attenuation govern legacy/reference comparisons. The future direct march
       replaces those constraints with fixed distance steps, primary blue noise and shadow midpoints.
     - Uniform-density attenuation remains exact within numeric tolerance. Discontinuous/detailed
-      quadrature uses these quality bounds; acceleration equivalence is measured with the new lattice held
+      quadrature differences are diagnostic; acceleration equivalence is measured with the new lattice held
       fixed. No requirement to use a tree remains if measured cost favors cheap rejection or direct marching.
     - PBR.Clouds.md remains current-state architecture until runtime changes are verified. Preserve
       atmospheric publication, native producer/lifetimes, finite density bounds, six-target OIT,
@@ -611,3 +639,39 @@ Phase 2 implementation and verification (2026-10-18)
     candidate. final-input-recheck.json verifies all 644 inputs unchanged; final-result-summary.json
     records the 230 focused passing checks and numerical receipts. Later phases and parent acceptance
     remain open, including the realtime cost/default-selection and user appearance gates above.
+
+Phase 3 implementation and verification (2026-10-18)
+  Secondary integration -> Secondary budget/distance; volumetric proposal Density integration and
+    lighting; archived hierarchy finite-domain/ownership -> cloud_volume_light.glsl uses one bounded,
+    origin-anchored quadratic schedule per nonzero source, shared actual density and once-only metre
+    conversion. Certified root bounds only reject unsupported points; fallback preserves the schedule.
+    CloudDirectional owns the existing HG/additional-octave formula and rejects zero sources before
+    shadow setup. No per-column allocation, shadow jitter, rescaling or optical-depth early exit remains.
+  Controls/history -> clean-break settings; current cloud architecture -> LightRaySampleMax defaults
+    to 10 (2..64), ShadowDistance to 1500 (50..10000). Existing config/UI, 208-byte UBO and immutable
+    history identity carry both fields. LightSamples and cloud PMJ production resources/bindings are
+    retired without migration. Primary defaults, tracing layout and termination remain unchanged.
+  Correctness evidence -> CloudSecondarySettingsTests, CloudTemporalHistoryTests and shader-binding
+    contracts; CloudSecondaryBudgetTests/CloudSecondaryDensityTests fixed-point field/source checks;
+    hierarchy and production-reconstruction tests -> independent scalar midpoint/weight arithmetic,
+    nonzero procedural detail, units/domain/boundary/inside/low-angle cases, source/octave endpoints,
+    observed bounded density calls and zero-source skips, finite dense transport, certified/fallback
+    equality, malformed summaries, both PBR selections, current-source recovery and resource retirement.
+  Revised test policy -> correctness-commands.json in artifacts/CloudRealtime/phase3 names all excluded
+    approximation tests and preserves mixed-case correctness through exact authored probes. Exclusions
+    are not passes. Approximation assertions remain in source for the separate unchecked Phase 3.1.
+    Prior discrepancy receipts remain diagnostic; no default, distance or tolerance was increased to
+    satisfy retired gates. No alternative estimator, geometry accumulation or density change was added.
+  Diagnostic context -> secondary-initial.trx, secondary-distance.trx and focused-diagnosis.trx retain
+    finite-distance and coarse-sampling observations. The old source-radiance discrepancy metric is not
+    an integrated-radiance or perceptual acceptance test. The vertical span discrepancy was corrected
+    by explicit root guards/shared horizontal clipping; its underlying cause remains unconfirmed.
+  Final verification -> artifacts/CloudRealtime/phase3/final-correctness-build.log records zero errors;
+    production/test shader validation covers 458/538 variants. final-correctness-cpu.trx passes 149/149
+    and final-correctness-gpu.trx passes 117/117, no failures/skips: 266 focused correctness checks.
+    correctness-commands.json names 13 approximation exclusions and two opt-in measurement classes;
+    correctness-result-summary.json records the final receipts and superseded fixture-only failures.
+    correctness-input-recheck.json verifies all 3605 source/asset/shader/binary identities unchanged.
+    Second source/test review and independent linked-document completion audit pass. Phase 3 is
+    complete under the revised correctness-only test policy; Phase 3.1 remains unchecked.
+    Performance, final shipped quality selection and user appearance acceptance remain separate gates.

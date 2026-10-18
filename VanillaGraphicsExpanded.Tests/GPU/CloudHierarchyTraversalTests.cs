@@ -24,7 +24,7 @@ public sealed class CloudHierarchyTraversalTests(HeadlessGLFixture fixture) : Lu
         RunTraversal(width, secondary: false, detail: false);
     }
 
-    /// <summary>Actual bounded light marches preserve independent intervals and optical depth with midpoint and PMJ detail sampling.</summary>
+    /// <summary>Actual bounded light marches preserve independent intervals and optical depth with deterministic quadratic shadow sampling.</summary>
     [Theory]
     [InlineData(21, false)]
     [InlineData(21, true)]
@@ -45,71 +45,62 @@ public sealed class CloudHierarchyTraversalTests(HeadlessGLFixture fixture) : Lu
         using var owner = new CloudHierarchy(() => CloudHierarchyComputeShader.Create(Programs.Api));
         using var native = TestFramework.CreateTexture(width, width, PixelInternalFormat.Rgba32f);
         using var volume = new CloudVolumeParameters();
-        volume.CaptureMap(width, default, 1, CloudVolumeSettings.Default with { Detail = detail, LightSamples = 3 });
-        int shader = BuiltShaderFixture.LoadFixture("tests/cloud-traversal.csh", ShaderType.ComputeShader);
-        int program = GL.CreateProgram();
-        try
+        volume.CaptureMap(width, default, 1, CloudVolumeSettings.Default with { Detail = detail, LightRaySampleMax = 10, ShadowDistance = 1500, DetailAmplitude = 0 });
+        using var program = new CloudTraversalProbe(Programs.Api);
+        var input = new CloudMapInput(new object(), 1, 1, 1, 1, 1, 1,
+            new(native.TextureId, 2, 3, 4, width, 50, 5), default);
+        int probesSaved = 0;
+        bool skippedBesideCloud = false;
+        foreach (int pattern in new[] { 0, 1, 2 })
         {
-            GL.AttachShader(program, shader); GL.LinkProgram(program);
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            Assert.True(linked != 0, GL.GetProgramInfoLog(program));
-            var input = new CloudMapInput(new object(), 1, 1, 1, 1, 1, 1,
-                new(native.TextureId, 2, 3, 4, width, 50, 5), default);
-            int probesSaved = 0;
-            bool skippedBesideCloud = false;
-            foreach (int pattern in new[] { 0, 1, 2 })
+            Vector4[] columns = Columns(width, pattern);
+            native.UploadDataImmediate(MemoryMarshal.Cast<Vector4, float>(columns.AsSpan()).ToArray());
+            input = input with { Generation = input.Generation + 1 };
+            Assert.True(owner.TryBuild(input, () => true), owner.Failure);
+            Assert.True(owner.TryGetCurrent(input, out var bounds));
+            foreach (var (origin, direction) in Rays(width))
             {
-                Vector4[] columns = Columns(width, pattern);
-                native.UploadDataImmediate(MemoryMarshal.Cast<Vector4, float>(columns.AsSpan()).ToArray());
-                input = input with { Generation = input.Generation + 1 };
-                Assert.True(owner.TryBuild(input, () => true), owner.Failure);
-                Assert.True(owner.TryGetCurrent(input, out var bounds));
-                foreach (var (origin, direction) in Rays(width))
+                float limit = secondary ? 1e7f : 100000;
+                var original = Trace(program, volume, native, bounds!, origin, direction, limit, false, secondary);
+                var accelerated = Trace(program, volume, native, bounds!, origin, direction, limit, true, secondary);
+                Assert.Equal(original.Intervals, accelerated.Intervals);
+                Assert.True(accelerated.Probes <= original.Probes);
+                probesSaved += original.Probes - accelerated.Probes;
+                skippedBesideCloud |= original.Intervals.Length > 0 && accelerated.Probes < original.Probes;
+                var oracle = CloudTraversalOracle.Intersections(columns, width, origin, direction, limit);
+                CheckGeometry(columns, width, origin, direction, limit, accelerated.Intervals, oracle);
+                if (secondary)
                 {
-                    float limit = secondary ? 1e7f : 100000;
-                    var original = Trace(program, volume, native, bounds!, origin, direction, limit, false, secondary);
-                    var accelerated = Trace(program, volume, native, bounds!, origin, direction, limit, true, secondary);
-                    Assert.Equal(original.Intervals, accelerated.Intervals);
-                    Assert.True(accelerated.Probes <= original.Probes);
-                    probesSaved += original.Probes - accelerated.Probes;
-                    skippedBesideCloud |= original.Intervals.Length > 0 && accelerated.Probes < original.Probes;
-                    var oracle = CloudTraversalOracle.Intersections(columns, width, origin, direction, limit);
-                    CheckGeometry(columns, width, origin, direction, limit, accelerated.Intervals, oracle);
-                    if (secondary)
+                    Assert.Equal(original.OpticalDepth, accelerated.OpticalDepth);
+                    Assert.True(float.IsFinite(accelerated.OpticalDepth) && accelerated.OpticalDepth >= 0);
+                    if (!detail)
                     {
-                        Assert.Equal(original.OpticalDepth, accelerated.OpticalDepth);
-                        Assert.True(float.IsFinite(accelerated.OpticalDepth) && accelerated.OpticalDepth >= 0);
-                        if (!detail)
-                        {
-                            float analytic = ConstantOpticalDepth(columns, width, original.Intervals);
-                            Assert.InRange(Math.Abs(analytic - accelerated.OpticalDepth), 0, Math.Max(1, analytic) * 1e-5);
-                        }
+                        float analytic = ScheduledOpticalDepth(columns, width, origin, direction);
+                        Assert.InRange(Math.Abs(analytic - accelerated.OpticalDepth), 0, Math.Max(1, analytic) * 1e-5);
                     }
                 }
             }
-            Assert.True(probesSaved > width, "Empty/coarse-missed groups must avoid native leaf queries.");
-            Assert.True(skippedBesideCloud, "Skipping must also reduce probes on rays that integrate occupied clouds.");
         }
-        finally
-        {
-            GL.UseProgram(0); GL.DeleteProgram(program); GL.DeleteShader(shader);
-            StateCache.Current.InvalidateAll();
-        }
+        Assert.True(probesSaved > width, "Empty/coarse-missed groups must avoid native leaf queries.");
+        Assert.True(skippedBesideCloud, "Skipping must also reduce probes on rays that integrate occupied clouds.");
     }
     #endregion
 
     #region Independent checks
-    /// <summary>Integrates admitted interval lengths independently on the CPU, including the unchanged native light saturation.</summary>
-    private static float ConstantOpticalDepth(Vector4[] columns, int width, Vector4[] intervals)
+    /// <summary>Evaluates the new fixed shadow lattice independently; arbitrary native boundaries no longer allocate integration steps.</summary>
+    private static float ScheduledOpticalDepth(Vector4[] columns, int width, Vector3 origin, Vector3 direction)
     {
-        float tau = 0;
-        foreach (var interval in intervals)
+        double tau=0;
+        for(int i=0;i<10;i++)
         {
-            float extinction = columns[(int)interval.W * width + (int)interval.Z].X / 50;
-            tau = MathF.Min(1e30f, tau + extinction * (interval.Y - interval.X));
-            if (tau >= 64) break;
+            double near=1500*i*i/100.0,far=1500*(i+1)*(i+1)/100.0;
+            Vector3 p=origin+direction*(float)((near+far)/2);
+            int x=(int)Math.Floor(p.X/50),z=(int)Math.Floor(p.Z/50);
+            if(x<0||z<0||x>=width||z>=width)continue;
+            Vector4 column=columns[z*width+x];
+            if(column.X>0&&p.Y>=column.Z*50&&p.Y<=column.W*50)tau+=column.X/50.0*(far-near);
         }
-        return tau;
+        return (float)tau;
     }
 
     /// <summary>Qualifies native float corner slivers individually while requiring every substantive independent intersection.</summary>
@@ -151,30 +142,13 @@ public sealed class CloudHierarchyTraversalTests(HeadlessGLFixture fixture) : Lu
     #region GPU dispatch
 
     /// <summary>Executes the actual imported traversal and reads test-only interval/probe records.</summary>
-    private static (Vector4[] Intervals, int Probes, float OpticalDepth) Trace(int program, CloudVolumeParameters volume,
+    private static (Vector4[] Intervals, int Probes, float OpticalDepth) Trace(CloudTraversalProbe program, CloudVolumeParameters volume,
         DynamicTexture2D native, DynamicTexture2D bounds, Vector3 origin, Vector3 direction, float limit, bool accelerated, bool secondary)
     {
-        using var ray = new PackedUniformBuffer(32);
-        using var traversal = new PackedUniformBuffer(16);
-        float[] rayData = [origin.X, origin.Y, origin.Z, limit, direction.X, direction.Y, direction.Z, (secondary ? 2 : 0) + (accelerated ? 1 : 0)];
-        ray.SetBytes(MemoryMarshal.AsBytes(rayData.AsSpan()));
-        byte[] state = new byte[16];
-        UboPacking.WriteIVec4(state, 0, accelerated ? 1 : 0, bounds.MipLevels - 1, 0, 0); traversal.SetBytes(state);
-        using var output = GpuShaderStorageBuffer.Create();
-        output.UploadData(new float[403 * 4]);
-        GL.UseProgram(program);
-        native.Bind(0); bounds.Bind(8);
-        Assert.True(volume.TryBindToSlot(28)); Assert.True(traversal.TryBindToSlot(15)); Assert.True(ray.TryBindToSlot(16));
-        output.BindBase(0);
-        GL.DispatchCompute(1, 1, 1);
-        GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
-        float[] result = new float[403 * 4];
-        using (StateCache.Current.BindBufferScope(BufferTarget.ShaderStorageBuffer, output.BufferId))
-            GL.GetBufferSubData(BufferTarget.ShaderStorageBuffer, IntPtr.Zero, result.Length * sizeof(float), result);
-        GL.UseProgram(0); StateCache.Current.InvalidateAll();
-        int count = (int)result[402 * 4];
-        Assert.InRange(count, 0, 402);
-        return (MemoryMarshal.Cast<float, Vector4>(result.AsSpan(0, count * 4)).ToArray(), (int)result[402 * 4 + 1], result[402 * 4 + 2]);
+        Vector4[] records=program.Run(volume,native,origin,direction,limit,
+            (secondary?2:0)+(accelerated?1:0),bounds:bounds,root:accelerated?bounds.MipLevels-1:null);
+        int count=(int)records[402].X;Assert.InRange(count,0,402);
+        return (records.AsSpan(0,count).ToArray(),(int)records[402].Y,records[402].Z);
     }
 
     #endregion

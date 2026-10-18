@@ -2,7 +2,7 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Tests;
 
-/// <summary>Protects hierarchy availability and the independent depth/PMJ resource contracts in generated cloud stages.</summary>
+/// <summary>Protects hierarchy availability and the independent depth/noise resource contracts in generated cloud stages.</summary>
 public sealed class CloudShaderBindingsTests
 {
     #region Public API
@@ -15,7 +15,7 @@ public sealed class CloudShaderBindingsTests
         Assert.Equal((8, false), (trace.Samplers["cloudHeightBounds"].Slot, trace.Samplers["cloudHeightBounds"].Required));
         Assert.Equal((15, true), (trace.UniformBlocks["CloudTraversalParameters"].Slot, trace.UniformBlocks["CloudTraversalParameters"].Required));
         Assert.Equal((14, true), (trace.UniformBlocks["CloudTemporalParameters"].Slot, trace.UniformBlocks["CloudTemporalParameters"].Required));
-        foreach (var (name, slot) in new[] { ("cloudMap", 0), ("sceneDepth", 1), ("liquidDepth", 2), ("visibilityDepth", 6), ("cloudPmjJitter", 7) })
+        foreach (var (name, slot) in new[] { ("cloudMap", 0), ("sceneDepth", 1), ("liquidDepth", 2), ("visibilityDepth", 6) })
             Assert.Equal((slot, true), (trace.Samplers[name].Slot, trace.Samplers[name].Required));
         Assert.Equal((9, true), (trace.Samplers["cloudPrimaryNoise"].Slot, trace.Samplers["cloudPrimaryNoise"].Required));
 
@@ -33,6 +33,8 @@ public sealed class CloudShaderBindingsTests
         Assert.False(stages.Single(stage => stage.Identity == "cloud_volume_resolve.fsh").Bindings.Samplers.ContainsKey("cloudMap"));
         foreach (string name in new[] { "cloud_volume.fsh", "cloud_volume_temporal.fsh", "cloud_volume_resolve.fsh", "cloud_simple.fsh" })
             Assert.False(stages.Single(stage => stage.Identity == name).Bindings.Samplers.ContainsKey("cloudPrimaryNoise"));
+        foreach(string name in new[] { "cloud_volume_trace.fsh", "cloud_volume.fsh", "cloud_volume_temporal.fsh", "cloud_volume_resolve.fsh", "cloud_simple.fsh" })
+            Assert.False(stages.Single(stage=>stage.Identity==name).Bindings.Samplers.ContainsKey("cloudPmjJitter"));
         var temporal=stages.Single(stage=>stage.Identity=="cloud_volume_temporal.fsh").Bindings;
         Assert.Equal(2,temporal.Samplers.Count);
         Assert.Equal((0,true),(temporal.Samplers["currentPayload"].Slot,temporal.Samplers["currentPayload"].Required));

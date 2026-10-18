@@ -15,8 +15,10 @@ public sealed class CloudRenderingSettings
     [JsonProperty] public float ViewBudgetDistance { get; set; } = 50;
     /// <summary>Bypasses reduced tracing and history for direct full-resolution comparison.</summary>
     [JsonProperty] public bool FullResolutionReference { get; set; }
-    /// <summary>Bounds secondary shadow work per occupied native interval.</summary>
-    [JsonProperty] public int LightSamples { get; set; } = 1;
+    /// <summary>Bounds complete-ray secondary samples independently of native grid crossings.</summary>
+    [JsonProperty] public int LightRaySampleMax { get; set; } = 10;
+    /// <summary>Bounds the shadow span from each contributing primary position in world units.</summary>
+    [JsonProperty] public float ShadowDistance { get; set; } = 1500;
     /// <summary>Disables noise and exposed-edge erosion together for native-transmission comparison.</summary>
     [JsonProperty] public bool Detail { get; set; } = true;
     /// <summary>Controls restrained interior density variation without excavating native occupied interiors.</summary>
@@ -33,7 +35,8 @@ public sealed class CloudRenderingSettings
         ViewRaySampleMax=Math.Clamp(ViewRaySampleMax,4,384);
         ViewRaySampleMin=Math.Clamp(ViewRaySampleMin,1,Math.Min(16,ViewRaySampleMax));
         ViewBudgetDistance=float.IsFinite(ViewBudgetDistance)?Math.Clamp(ViewBudgetDistance,50,10000):50;
-        LightSamples=Math.Clamp(LightSamples,1,4);
+        LightRaySampleMax=Math.Clamp(LightRaySampleMax,2,64);
+        ShadowDistance=float.IsFinite(ShadowDistance)?Math.Clamp(ShadowDistance,50,10000):1500;
         DetailAmplitude=float.IsFinite(DetailAmplitude)?Math.Clamp(DetailAmplitude,0,.95f):.15f;
         EdgeWidth=float.IsFinite(EdgeWidth)?Math.Clamp(EdgeWidth,.01f,10):2;
         NoiseScale=float.IsFinite(NoiseScale)?Math.Clamp(NoiseScale,.001f,1):.08f;
@@ -42,7 +45,7 @@ public sealed class CloudRenderingSettings
     internal CloudVolumeSettings Capture()
     {
         Sanitize();
-        return CloudVolumeSettings.Default with { LightSamples=LightSamples,Detail=Detail,
+        return CloudVolumeSettings.Default with { LightRaySampleMax=LightRaySampleMax,ShadowDistance=ShadowDistance,Detail=Detail,
             DetailAmplitude=DetailAmplitude,EdgeWidth=EdgeWidth,NoiseScale=NoiseScale,
             ViewRaySampleMax=ViewRaySampleMax,ViewRaySampleMin=ViewRaySampleMin,ViewBudgetDistance=ViewBudgetDistance };
     }

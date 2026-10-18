@@ -24,7 +24,9 @@ public sealed class ShaderRegistryTests
         var sources = roots.SelectMany(root => Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories)
             .Where(path => extensions.Contains(Path.GetExtension(path)))
             .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/')))
-            .Where(path => !path.StartsWith("includes/", StringComparison.Ordinal)).Order(StringComparer.Ordinal);
+            // Fixture overlays replace a production source at the same asset path.
+            .Where(path => !path.StartsWith("includes/", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
         var fixtures = ShaderBuildTool.Spirv.TestShaderPrograms.Create();
         Assert.Equal(sources, fixtures.Stages.Values.Select(stage => stage.Source).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
         Assert.Equal(fixtures.Binaries.Count, fixtures.Binaries.Select(binary => binary.BinaryPath).Distinct(StringComparer.OrdinalIgnoreCase).Count());

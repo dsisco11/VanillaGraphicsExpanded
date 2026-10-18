@@ -77,7 +77,7 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         }
         Assert.True(observedSolar && observedLunar, "Both self-shadowed directional sources must affect the tested illumination.");
     }
-    /// <summary>Actual reduced transport preserves every OIT/depth channel and PMJ frame with certified view skipping or DDA fallback.</summary>
+    /// <summary>Actual reduced transport preserves every OIT/depth channel and primary-noise frame with certified view skipping or direct support fallback.</summary>
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
@@ -163,16 +163,6 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         view.Capture(0,2,10,1,0,"homogeneous");view.Render(0,false);var first=view.ReadTrace();
         view.Capture(4,2,10,1,0,"homogeneous");view.Render(4,false);var next=view.ReadTrace();
         for(int layer=0;layer<6;layer++)Assert.Equal(first[layer],next[layer]);
-    }
-    /// <summary>The second sampling dimension changes secondary lighting without moving view-density samples.</summary>
-    [Fact]
-    public void PmjLightDimensionIsIndependentOfViewExtinction()
-    {
-        EnsureShaderTestAvailable();using var view=CreateScene(8,8);
-        view.Capture(0,2,10,1,0,"detail-lit");view.SetJitterDimensions(.4f,.1f);view.Render(0,false);var first=view.ReadTrace();
-        view.SetJitterDimensions(.4f,.9f);view.Render(0,false);var next=view.ReadTrace();
-        Assert.Equal(first[1],next[1]);
-        Assert.Contains(Enumerable.Range(0,first[3].Length),i=>Math.Abs(first[3][i]-next[3][i])>1e-6f);
     }
     /// <summary>Small deterministic scenes bound temporal/spatial residuals independently of the common transport model.</summary>
     [Theory]
@@ -429,6 +419,28 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
     }
     #endregion
     #region History and storage
+    /// <summary>Preserves exact physical-storage, final encoding and foreground rules independently of reconstruction quality comparisons.</summary>
+    [Fact]
+    public void PhysicalStorageEncodingAndForegroundRulesRemainExact()
+    {
+        EnsureShaderTestAvailable();using var unscaled=CreateScene(9,7);using var scaled=CreateScene(9,7);
+        unscaled.Capture(0,2,10,1,0,"static");unscaled.Render(0,false);
+        scaled.Capture(0,2,10,.125f,0,"static");scaled.Render(0,false);
+        var a=unscaled.ReadTraceRecord();var b=scaled.ReadTraceRecord();
+        for(int layer=0;layer<3;layer++)Assert.Equal(a[layer],b[layer]);
+        var first=unscaled.ReadDefault();var second=scaled.ReadDefault();
+        for(int layer=0;layer<6;layer++)for(int index=0;index<first[layer].Length;index++)
+        {
+            bool encodedRgb=layer>=3&&index%4!=3;
+            Assert.InRange(Math.Abs(second[layer][index]-first[layer][index]*(encodedRgb?.125f:1)),0,.0001);
+        }
+        unscaled.SetVisibilityForeground();var authored=unscaled.ResolveAuthoredHistory();
+        for(int y=0;y<7;y++)for(int x=0;x<9;x++)Assert.InRange(Math.Abs(authored[1][y*9+x]-((x+y)%3==0?1f:.4f)),0,.00001);
+        unscaled.Capture(1,0,10,.125f,0,"static");unscaled.Render(1,false);
+        Assert.All(unscaled.ReadDefault()[1],value=>Assert.Equal(1,value));
+        Assert.All(unscaled.ReadDefault()[3],value=>Assert.Equal(0,value));
+    }
+
     /// <summary>Size changes can replace complete owned sets, and stable frames retain the same pipeline and backing images.</summary>
     [Fact]
     public void ReducedTargetsReuseStableStorageAndRetireEveryAttachment()

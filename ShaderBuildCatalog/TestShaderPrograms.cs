@@ -16,15 +16,6 @@ internal static class TestShaderPrograms
             programs.Add(new("tests/" + name, [Fixture(name, "vsh", ShaderStageKind.Vertex), Fixture(name, "fsh", ShaderStageKind.Fragment)], 1));
         programs.Add(new("tests/deletion", [Fixture("deletion", "vsh", ShaderStageKind.Vertex), Fixture("complete-state", "fsh", ShaderStageKind.Fragment)], 1));
         programs.Add(new("tests/temporal-debug", [Fixture("temporal-debug", "csh", ShaderStageKind.Compute)], 1));
-        var cloudTraversal = new GpuBindingContract();
-        cloudTraversal.RegisterSamplerUnit("cloudMap", 0);
-        cloudTraversal.RegisterSamplerUnit("cloudHeightBounds", 8);
-        cloudTraversal.RegisterUniformBlockBinding("CloudVolumeParameters", 28);
-        cloudTraversal.RegisterUniformBlockBinding("CloudTraversalParameters", 15);
-        cloudTraversal.RegisterUniformBlockBinding("CloudRayTestInputs", 16);
-        cloudTraversal.RegisterShaderStorageBlockBinding("CloudTraversalTestResult", 0);
-        programs.Add(new("tests/cloud-traversal", [new ShaderStageContract("tests/cloud-traversal.csh",
-            "tests/cloud-traversal.csh", ShaderStageKind.Compute, cloudTraversal)], 1));
         foreach (string name in new[] { "aerial-lookup", "displacement-metric", "displacement-height", "sun-segment", "relief-on", "relief-off" })
             programs.Add(new("tests/" + name, [Fixture("complete-state", "vsh", ShaderStageKind.Vertex), Numerical(name)], 1));
         foreach (string name in new[] { "particle-draw", "particle-integration", "sampler-handoff", "facing-state" })

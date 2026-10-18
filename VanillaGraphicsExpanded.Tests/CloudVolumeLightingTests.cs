@@ -31,8 +31,10 @@ public sealed class CloudVolumeLightingTests
     [Fact]
     public void ControlsHaveFiniteExplicitLimits()
     {
-        foreach(var settings in new[]{CloudVolumeSettings.Default with { LightSamples=0 },
-            CloudVolumeSettings.Default with { LightSamples=5 },CloudVolumeSettings.Default with { DetailAmplitude=1 },
+        foreach(var settings in new[]{CloudVolumeSettings.Default with { LightRaySampleMax=1 },
+            CloudVolumeSettings.Default with { LightRaySampleMax=65 },CloudVolumeSettings.Default with { ShadowDistance=49 },
+            CloudVolumeSettings.Default with { ShadowDistance=10001 },CloudVolumeSettings.Default with { ShadowDistance=float.NaN },
+            CloudVolumeSettings.Default with { ShadowDistance=float.PositiveInfinity },CloudVolumeSettings.Default with { DetailAmplitude=1 },
             CloudVolumeSettings.Default with { ViewRaySampleMax=3 },CloudVolumeSettings.Default with { ViewRaySampleMax=385 },
             CloudVolumeSettings.Default with { ViewRaySampleMin=0 },CloudVolumeSettings.Default with { ViewRaySampleMin=17 },
             CloudVolumeSettings.Default with { ViewBudgetDistance=float.NaN },CloudVolumeSettings.Default with { ViewBudgetDistance=49 },
@@ -52,6 +54,7 @@ public sealed class CloudVolumeLightingTests
         float[] before=MemoryMarshal.Cast<byte,float>(parameters.Bytes).ToArray();
         Assert.Equal(208,parameters.SizeBytes); Assert.Equal(2,before[6]); Assert.Equal(120,before[16]);
         Assert.Equal(3,before[20]); Assert.Equal(16,before[39]);
+        Assert.Equal(10,before[13]); Assert.Equal(1500,before[50]);
         Assert.Equal(384,before[12]); Assert.Equal(2,before[48]); Assert.Equal(50,before[49]);
         parameters.CaptureMap(20,placement with { WindX=123,WindZ=456 },2,CloudVolumeSettings.Default);
         Assert.Equal(before[4],MemoryMarshal.Cast<byte,float>(parameters.Bytes)[4]);

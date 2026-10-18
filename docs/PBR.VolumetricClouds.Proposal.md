@@ -11,7 +11,9 @@ Its policy specifies uniform primary distance steps with blue-noise ray offsets 
 midpoints of quadratic shadow intervals. It supersedes per-column sampling and PMJ requirements
 for that future integrator and qualifies quarter-dimension tracing before changing the default here.
 Exact arbitrary-column attenuation below remains a legacy/reference property; fixed-step production
-integration uses the stated numerical quality criteria, including for detail-disabled discontinuities.
+integration uses algorithm-correctness tests and optional reference diagnostics. Automated tests do
+not enforce approximation quality, including for detail-disabled discontinuities. The realtime
+checklist tracks removal of existing approximation-quality assertions; appearance remains user-reviewed.
 The current renderer retains its existing behavior until those implementation tasks are verified.
 Native ownership, density support, physical inputs, OIT and deferred cast-shadow scope still apply.
 

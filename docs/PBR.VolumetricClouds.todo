@@ -5,7 +5,7 @@ Authority and scope
   Source: docs/PBR.VolumetricClouds.Proposal.md (approved 2026-10-16).
   Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
   Atmospheric contract: docs/PBR.Atmosphere.Publication.md.
-  Realtime work follow-up: docs/PBR.CloudRealtime.todo (planning only), covering
+  Realtime work follow-up: docs/PBR.CloudRealtime.todo, covering
     whole-ray budgets, secondary distance, termination, resolution, atmosphere and traversal.
   This checklist records delivered rendering increments below; final acceptance remains outstanding.
   The proposal governs scope; keep every task unchecked until its stated evidence exists.

@@ -148,6 +148,52 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
         Assert.InRange(Math.Abs(result.Source.X-expected),0,.0002);
     }
 
+    /// <summary>Checks actual default shadow settings against independent constant-field solar/lunar illumination at octave endpoints.</summary>
+    [Theory]
+    [InlineData(30f,0f,0f,0f,10,1500f)][InlineData(0f,30f,0f,1f,10,1500f)]
+    [InlineData(30f,0f,0f,0f,64,3000f)][InlineData(30f,0f,0f,0f,64,10000f)]
+    [InlineData(30f,3f,1f,0f,10,1500f)][InlineData(30f,3f,1f,1f,10,1500f)][InlineData(0f,0f,1f,0f,10,1500f)]
+    [InlineData(30f,3f,1f,1f,64,3000f)][InlineData(30f,3f,1f,1f,64,10000f)]
+    public void IsolatedShadowIlluminationMeetsIndependentPhysicalLimit(float solar,float lunar,float contribution,float occlusion,int shadowCount,float shadowRange)
+    {
+        EnsureShaderTestAvailable();
+        var result=Draw(2,solar:solar,lunar:lunar,settings:CloudVolumeSettings.Default with
+            {Detail=false,OctaveContribution=contribution,OctaveOcclusion=occlusion},
+            shadowSamples:shadowCount,shadowDistance:shadowRange,
+            solarDirection:-Vector3.UnitZ,lunarDirection:-Vector3.UnitZ);
+        // Two authored view steps at 12.5 and 37.5 units each represent 25 units.
+        // Their independent light paths to the native -Z boundary are 37.5 and 12.5.
+        double phase=.64/(4*Math.PI*Math.Pow(.16,1.5)),expected=0,total=1-Math.Exp(-2);
+        for(int i=0;i<2;i++)
+        {
+            double tau=(i==0?37.5:12.5)*2/50;
+            double source=10+(solar+lunar)*(phase*Math.Exp(-tau)+contribution/(4*Math.PI)*Math.Exp(-occlusion*tau));
+            expected+=Math.Exp(-i)*(1-Math.Exp(-1))*source/total;
+        }
+        double bound=Math.Max(1,10+(solar+lunar)*(phase+contribution/(4*Math.PI)));
+        double error=Math.Abs(result.Source.X-expected)/bound;
+        output.WriteLine($"Shadow count={shadowCount}; distance={shadowRange}; solar={solar}; lunar={lunar}; octave={contribution}/{occlusion}; actualSource={result.Source.X:G9}; analyticSource={expected:G12}; normalizedError={error:G9}");
+        Assert.InRange(error,0,.02);
+    }
+
+    /// <summary>Separates isolated short-ray aliasing from the image response at actual primary and secondary defaults.</summary>
+    [Fact]
+    public void ActualPrimaryAndShadowDefaultsMeetIndependentConstantFieldSource()
+    {
+        EnsureShaderTestAvailable();
+        var result=Draw(2,solar:30,settings:CloudVolumeSettings.Default with {Detail=false,OctaveContribution=0},
+            viewSampleMax:CloudVolumeSettings.Default.ViewRaySampleMax,viewBudgetDistance:CloudVolumeSettings.Default.ViewBudgetDistance,
+            shadowSamples:CloudVolumeSettings.Default.LightRaySampleMax,shadowDistance:CloudVolumeSettings.Default.ShadowDistance,
+            solarDirection:-Vector3.UnitZ);
+        double phase=.64/(4*Math.PI*Math.Pow(.16,1.5));
+        // View attenuation and aligned exit-to-light attenuation sum to sigma*50 everywhere.
+        // This closed form integrates the continuous physical field independently of either lattice.
+        double expected=10+30*phase*2*Math.Exp(-2)/(1-Math.Exp(-2));
+        double bound=10+30*phase,error=Math.Abs(result.Source.X-expected)/bound;
+        output.WriteLine($"Actual primary/shadow defaults: primary={CloudVolumeSettings.Default.ViewRaySampleMax}/{CloudVolumeSettings.Default.ViewBudgetDistance}; shadow={CloudVolumeSettings.Default.LightRaySampleMax}/{CloudVolumeSettings.Default.ShadowDistance}; sourceGpu={result.Source.X:G12}; sourceContinuousExact={expected:G12}; normalizedError={error:G12}");
+        Assert.InRange(error,0,.02);
+    }
+
     /// <summary>Exposed-face detail attenuates the view and both light rays through the identical density multiplier.</summary>
     [Fact]
     public void EdgeDetailIsSharedByViewAndLightTransport()
@@ -270,12 +316,13 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
     /// <summary>Separates straight encoded radiance from native premultiplied bin weights and dimensionless coverage.</summary>
     private sealed record Result(Vector3 Source,float Reveal,Vector3 Buckets,Vector3 BucketAlpha,float GlowAlpha);
 
-    /// <summary>Executes an explicitly authored 96/2000 primary preset for scalar arithmetic, independently of tuned production defaults.</summary>
+    /// <summary>Executes authored scalar presets: 96/2000 primary and two quadratic shadow intervals over 100 units.</summary>
     private Result Draw(float extinction,float units=1,int width=2,bool secondColumn=false,bool sharedNeighbor=true,
         float altitude=0,float offsetZ=-50,float offsetX=0,int centerX=0,CloudVolumeSettings? settings=null,
         float solar=0,float lunar=0,float scale=1,float loss=0,float scatter=0,float sceneDistance=1000,float liquidDistance=1000,
         float[]? view=null,bool underwater=false,float fogDensity=0,float lower=-.5f,float upper=.5f,int windTileX=0,float? visibilityDistance=null,
-        int viewSampleMax=96,float viewBudgetDistance=2000,float farPlane=1000)
+        int viewSampleMax=96,float viewBudgetDistance=2000,float farPlane=1000,
+        int shadowSamples=2,float shadowDistance=100,Vector3? solarDirection=null,Vector3? lunarDirection=null)
     {
         float[] projection=Projection(farPlane);
         float[] inverse=new float[16]; Mat4f.Invert(inverse,projection);
@@ -284,11 +331,11 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
         var program=Programs.Create<CloudVolumeProgram>(); program.Frame=camera; program.Lighting=storage.Buffer;
         var placement=new CloudPlacement(centerX,0,0,0,windTileX,0,0,0,new(offsetX,altitude,offsetZ),0);
         var quality=(settings??(CloudVolumeSettings.Default with {Detail=false})) with
-        {ViewRaySampleMax=viewSampleMax,ViewRaySampleMin=2,ViewBudgetDistance=viewBudgetDistance};
+        {ViewRaySampleMax=viewSampleMax,ViewRaySampleMin=2,ViewBudgetDistance=viewBudgetDistance,LightRaySampleMax=shadowSamples,ShadowDistance=shadowDistance};
         program.Parameters.CaptureMap(width,placement,units,quality);
         Assert.Equal((settings?.Detail??false)?1:0,MemoryMarshal.Cast<byte,float>(program.Parameters.Bytes)[11]);
-        var lighting=new AtmosphereLighting(Vector3.UnitY,new(solar),new(10),Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
-        { Lunar=new(lunar),Moon=-Vector3.UnitY,CalibrationGeneration=1,LookupStorageScale=LightingStorage.PersistentScale,ReconstructionMaximumNits=scatter };
+        var lighting=new AtmosphereLighting(solarDirection??Vector3.UnitY,new(solar),new(10),Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
+        { Lunar=new(lunar),Moon=lunarDirection??-Vector3.UnitY,CalibrationGeneration=1,LookupStorageScale=LightingStorage.PersistentScale,ReconstructionMaximumNits=scatter };
         program.Parameters.CaptureLighting(lighting,underwater?1:0,new(fogDensity,0,0,0),Vector3.Zero);
         using var map=DynamicTexture2D.Create(width,width,PixelInternalFormat.Rgba32f);
         float[] columns=new float[width*width*4];

@@ -12,7 +12,7 @@ public sealed class GeneratedShaderCatalogTests
     {
         var generated = GeneratedShaderCatalog.Programs();
         // Keep the aggregate inventory together so drift reports every changed count.
-        Assert.Equal((Programs: 176, Stages: 225, Assignments: 487, Binaries: 502),
+        Assert.Equal((Programs: 177, Stages: 226, Assignments: 488, Binaries: 503),
             (Programs: generated.Count,
                 Stages: generated.SelectMany(p => p.Stages).Select(s => s.Identity).Distinct().Count(),
                 Assignments: generated.Sum(p => p.Assignments.Count),
