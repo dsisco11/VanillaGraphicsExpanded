@@ -24,4 +24,18 @@ float CloudPrimaryPosition(vec2 span,int count,int index,float jitter)
 {
     return span.x+(float(index)+jitter)*((span.y-span.x)/float(count));
 }
+/** Bounds indices on the original lattice without reallocating samples to the supported interval. */
+ivec2 CloudPrimaryRange(vec2 span,vec2 supported,int count,float jitter)
+{
+    if(supported.x<=span.x && supported.y>=span.y) return ivec2(0,count);
+    float step=(span.y-span.x)/float(count);
+    if(!(step>0.0) || isnan(step) || isinf(step)) return ivec2(0,count);
+    vec2 indices=(supported-vec2(span.x))/step-vec2(jitter);
+    if(any(isnan(indices)) || any(isinf(indices))) return ivec2(0,count);
+    // Root bounds already admit coordinate-rounding uncertainty. Retain an additional lattice
+    // point beyond floor/ceil at either end so inverse index arithmetic cannot discard a tie.
+    // Every surviving point still uses its original index, position, ds and native OIT depth.
+    return ivec2(clamp(floor(indices.x)-1.0,0.0,float(count)),
+        clamp(ceil(indices.y)+2.0,0.0,float(count)));
+}
 #endif

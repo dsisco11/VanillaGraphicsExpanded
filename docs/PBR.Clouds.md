@@ -78,7 +78,11 @@ plus the reduction executable revision. Source observation precedes depth/lighti
 an unavailable draw cannot retain an invalid source lifetime. Native textures remain borrowed.
 Unavailable, mismatched or failed construction selects direct native support checks at the same
 scheduled positions. A certified root may reject a complete primary ray, but never narrows its
-integration span or changes its sample count, spacing or blue-noise offset. Secondary solar/lunar
+integration span or changes its sample count, spacing or blue-noise offset. Its entry/exit distances
+bound a conservative index range on that original lattice, skipping native column queries in
+proven-empty air before and after the supported interval. Neighboring indices are retained around
+the range endpoints to admit floating-point boundary uncertainty. All surviving positions, segment
+weights and OIT depths still use their original indices. Secondary solar/lunar
 rays use the root height interval to reject rays or remaining positions outside all supported cloud heights.
 Their finite horizontal domain
 and independent shadow distance never use camera visibility or scene-depth clipping. The full-view

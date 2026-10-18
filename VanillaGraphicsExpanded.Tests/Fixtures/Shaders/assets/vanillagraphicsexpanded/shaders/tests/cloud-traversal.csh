@@ -51,6 +51,25 @@ float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
 void main()
 {
     counts=vec4(0); measuredOrigin=testOriginLimit.xyz;
+    if(testDirectionMode.w==12.0)
+    {
+        vec2 span=testOriginLimit.xy,supported=testDirectionMode.xy;
+        int count=int(testOriginLimit.z);float jitter=testDirectionMode.z;
+        ivec2 range=CloudPrimaryRange(span,supported,count,jitter);
+        float ds=(span.y-span.x)/float(count),directTau=0.0,windowTau=0.0;
+        for(int i=0;i<384;i++)
+        {
+            if(i>=count) break;
+            float t=CloudPrimaryPosition(span,count,i,jitter);
+            // A varying positive scalar field isolates scheduled-point preservation from
+            // density textures, hierarchy construction and approximation-quality claims.
+            float sigma=t>=supported.x&&t<=supported.y?.001+.0001*cos(t*.17):0.0;
+            float selected=i>=range.x&&i<range.y?sigma:0.0;
+            intervals[i]=vec4(t,sigma,selected,float(i));
+            directTau+=sigma*ds;windowTau+=selected*ds;
+        }
+        counts=vec4(vec2(range),directTau,windowTau);return;
+    }
     if(testDirectionMode.w==11.0)
     {
         CloudDensityCache cache=CloudDensityCacheStart();

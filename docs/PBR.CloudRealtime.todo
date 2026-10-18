@@ -464,6 +464,9 @@ Bounded quality policy (implementation contract)
       The root can reject a whole primary ray, but its clipped vertical interval never replaces
       the horizontal primary span used for counts, spacing or blue-noise jitter. Shadow roots
       can skip proven-empty parts of the fixed quadratic schedule without rescaling its distance.
+      Primary root entry/exit distances bound indices on the unchanged lattice; keep outward
+      floor/ceil guard indices rather than querying clear air before/after that supported range.
+      Original indices still define sample positions, distance weights and native OIT depths.
     - Root intervals expand outward by eight binary32 epsilons times the maximum of one, absolute
       root heights and abs(origin.y)+abs(direction.y)*spanEnd. Nearly horizontal rays compare both
       finite-span endpoint heights instead of assuming constant height. Nonfinite bounds retain
@@ -1161,3 +1164,27 @@ Phase 7 implementation and verification (2026-10-18)
     Root-only selection is unchanged. The earlier contended observations retain their original
     scope; this small synthetic repeat does not satisfy representative-resolution, whole-frame
     performance or appearance acceptance. Empty and noisy edge/above observations remain in Phase 8.
+
+Captured-view reprojection and primary empty-range correction (2026-10-18)
+  Reprojection -> CloudTemporalHistory -> previous cloud points now use projection times the
+    rotation-only previous view. Native eye translation is excluded, matching inverse-view ray
+    reconstruction with w=0; native placement still supplies material/camera translation once.
+    Shared scene-camera matrices, history admission rules and quality settings are unchanged.
+  Empty range -> CloudPrimaryRange and CloudIntegrate -> certified root entry/exit distances bound
+    conservative original-lattice indices. Guard neighbors retain boundary uncertainty; unavailable
+    or nonfinite bounds retain the full schedule. Original count, spacing, jitter, segment weights,
+    density/source evaluation and native OIT depths remain unchanged for surviving sample positions.
+  Focused verification -> artifacts/CloudTemporalDiagnosis/fix/focused-cpu.trx and focused-gpu.trx ->
+    53 CPU and 11 GPU cases pass. The captured-view regression fails against the frozen old runtime
+    at its translated projection column, then passes with the correction; a large translated view,
+    native placement movement and invalid-history fallback are also covered. GPU checks preserve
+    supported scheduled points and finite optical depth across ten authored ranges, root boundaries,
+    production root/direct transport with detail/foreground variants, physical history and quarter
+    reconstruction. GPU checks take 23.64 seconds. These are correctness checks, not approximation
+    quality gates or measured acceleration savings. No live frame-time or flicker acceptance follows;
+    user-run appearance and representative-resolution performance gates remain open.
+  Package -> canonical-build-result.json, tested-identity.json and package-identity.json in the
+    same receipt directory -> canonical Release build succeeds; tested/published/directory/ZIP
+    runtime DLLs match, and all 458 tested production shader binaries match the directory and ZIP
+    with zero mismatches. Source hashes remain unchanged across validation. No game launch, timing
+    comparison or installed-asset modification was performed; the running game was left running.

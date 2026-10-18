@@ -67,22 +67,26 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     vec2 span;
     if(!CloudPrimarySpan(origin,direction,limit,span)) return;
 #ifdef VGE_CLOUD_HIERARCHY
-    // A root miss can reject the complete ray. Its vertical interval must never resize the
-    // primary lattice: counts, distance steps and jitter still use the original horizontal span.
+    // The root interval bounds eligible indices, while the original horizontal span continues
+    // to define the primary lattice, distance weights and blue-noise offset.
     vec2 supported=span;
     if(!CloudRootSpan(origin,direction,supported)) return;
 #endif
     int count=CloudPrimaryCount(span.y-span.x);
     float ds=(span.y-span.x)/float(count);
     float primaryJitter=CloudPrimaryJitter(uv);
+    ivec2 range=ivec2(0,count);
+#ifdef VGE_CLOUD_HIERARCHY
+    range=CloudPrimaryRange(span,supported,count,primaryJitter);
+#endif
     vec3 radiance=vec3(0),reveal=vec3(1); float transmission=1.0;
     float opacityWeight=0.0,distanceMoment=0.0;
     float solarPhase=max(volumeSolar.r,max(volumeSolar.g,volumeSolar.b))>0.0?CloudDirectionalPhase(direction,volumeSun.xyz):0.0;
     float lunarPhase=max(volumeLunar.r,max(volumeLunar.g,volumeLunar.b))>0.0?CloudDirectionalPhase(direction,volumeMoon.xyz):0.0;
     CloudDensityCache densityCache=CloudDensityCacheStart();
-    for(int i=0;i<VGE_CLOUD_PRIMARY_LIMIT;i++)
+    for(int i=range.x;i<VGE_CLOUD_PRIMARY_LIMIT;i++)
     {
-        if(i>=count) break;
+        if(i>=range.y) break;
         float t=CloudPrimaryPosition(span,count,i,primaryJitter);
         vec3 local=origin+direction*t;
         ivec2 cell=ivec2(floor(local.xz/50.0));
