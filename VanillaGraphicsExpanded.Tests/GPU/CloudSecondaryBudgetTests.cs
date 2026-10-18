@@ -33,35 +33,12 @@ public sealed class CloudSecondaryBudgetTests(HeadlessGLFixture fixture, ITestOu
         }
     }
 
-    /// <summary>Measures distant support separately from local sample aliasing against direct native-box optical depth.</summary>
-    [Theory]
-    [InlineData(10,1500f)][InlineData(64,3000f)][InlineData(64,10000f)]
-    public void DistantOccluderMeetsIndependentPhysicalLimit(int count,float distance)
-    {
-        EnsureShaderTestAvailable();
-        const int width=81;
-        using var program = new CloudTraversalProbe(Programs.Api);
-        using var native=DynamicTexture2D.Create(width,width,PixelInternalFormat.Rgba32f);
-        using var volume=new CloudVolumeParameters();
-        Vector4[] columns=Columns(width,2);native.UploadDataImmediate(MemoryMarshal.Cast<Vector4,float>(columns.AsSpan()).ToArray());
-        volume.CaptureMap(width,default,1,CloudVolumeSettings.Default with { Detail=false,OctaveContribution=0,LightRaySampleMax=count,ShadowDistance=distance });
-        Vector3 origin=new(25,0,25),direction=Vector3.UnitX;
-        float actual=Trace(program,volume,native,origin,direction);
-        double bounded=Exact(columns,width,origin,direction,distance),complete=Exact(columns,width,origin,direction,100000);
-        // An aligned source has the maximum HG response. Normalize by its completed
-        // admitted direct-source bound; zero environment and octave isolate self-shadowing.
-        double error=Math.Abs(Math.Exp(-actual)-Math.Exp(-complete));
-        output.WriteLine($"Distant native occluder: count={count}; distance={distance}; tauGpu={actual:G12}; tauBoundedExact={bounded:G12}; tauCompleteExact={complete:G12}; normalizedSourceError={error:G12}; distanceOnlyError={Math.Abs(Math.Exp(-bounded)-Math.Exp(-complete)):G12}; samplingOnlyError={Math.Abs(Math.Exp(-actual)-Math.Exp(-bounded)):G12}");
-        Assert.InRange(error,0,.02);
-    }
-
     /// <summary>Verifies whole-ray quadratic weights without borrowing production traversal or sample positions.</summary>
     [Theory][InlineData(false)][InlineData(true)]
     public void AnchoredQuadraticScheduleMatchesIndependentScalarField(bool detail)
     {
         EnsureShaderTestAvailable();
         using var program = new CloudTraversalProbe(Programs.Api);
-        double worstCoarse=0,worstDistance=0;
         foreach(int width in new[]{1,21,81,200})
         {
             using var native=DynamicTexture2D.Create(width,width,PixelInternalFormat.Rgba32f);
@@ -87,22 +64,11 @@ public sealed class CloudSecondaryBudgetTests(HeadlessGLFixture fixture, ITestOu
                         Assert.True(float.IsFinite(actual)&&actual>=0);
                         Assert.InRange(lastRecords.Length,0,count);
                         Assert.True(Math.Abs(actual-expected)<=Math.Max(1,expected)*2e-5,$"width={width}; pattern={pattern}; distance={distance}; count={count}; origin={origin}; direction={direction}; actual={actual}; expected={expected}; gpuDensityCalls={lastRecords.Length}");
-                        if(!detail)
-                        {
-                            double bounded=Exact(columns,width,origin,direction,distance);
-                            double complete=Exact(columns,width,origin,direction,100000);
-                            worstCoarse=Math.Max(worstCoarse,Math.Abs(Math.Exp(-expected)-Math.Exp(-bounded)));
-                            worstDistance=Math.Max(worstDistance,Math.Abs(Math.Exp(-bounded)-Math.Exp(-complete)));
-                            // Uniform complete spans retain analytic optical depth; discontinuities
-                            // deliberately expose finite sampling and distance limitations separately.
-                            if(pattern==1&&Math.Abs(bounded-distance*.02)<1e-5)
-                                Assert.InRange(Math.Abs(Math.Exp(-actual)-Math.Exp(-bounded)),0,2e-5);
-                        }
+
                     }
                 }
             }
         }
-        output.WriteLine($"detail={detail}; maximum coarse-sampling transmission bias={worstCoarse:G9}; maximum finite-distance transmission bias={worstDistance:G9}. These are distinct approximation measurements, not hierarchy errors or quality acceptance.");
     }
     #endregion
 
@@ -115,11 +81,6 @@ public sealed class CloudSecondaryBudgetTests(HeadlessGLFixture fixture, ITestOu
         lastRecords=records.AsSpan(0,measured).ToArray();
         return records[402].Z;
     }
-
-    /// <summary>Integrates direct native boxes in double precision, independently of bounded sample allocation.</summary>
-    private static double Exact(Vector4[] columns,int width,Vector3 origin,Vector3 direction,float distance)
-        =>CloudTraversalOracle.Intersections(columns,width,origin,direction,distance)
-            .Sum(value=>(value.Far-value.Near)*columns[value.Z*width+value.X].X/50.0);
 
     /// <summary>Computes native support and exposed-face erosion independently with zero procedural amplitude.</summary>
     private static double Density(Vector4[] columns,int width,Vector3 p,bool detail)

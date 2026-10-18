@@ -13,7 +13,7 @@ for that future integrator and qualifies quarter-dimension tracing before changi
 Exact arbitrary-column attenuation below remains a legacy/reference property; fixed-step production
 integration uses algorithm-correctness tests and optional reference diagnostics. Automated tests do
 not enforce approximation quality, including for detail-disabled discontinuities. The realtime
-checklist tracks removal of existing approximation-quality assertions; appearance remains user-reviewed.
+checklist records correctness qualification; appearance remains user-reviewed.
 The current renderer retains its existing behavior until those implementation tasks are verified.
 Native ownership, density support, physical inputs, OIT and deferred cast-shadow scope still apply.
 
@@ -165,7 +165,7 @@ sigmaT(x) = sigmaBase * detail(x)        // inside the native volume; zero outsi
 Tsegment = exp(-sigmaT(x) * dsMetres)
 ```
 
-With detail disabled (`detail = 1`), this reproduces native segment transmittance for the same
+For a complete span of uniform density with detail disabled (`detail = 1`), this reproduces native segment transmittance for the same
 ray and column intersection, independent of lighting. For example, `p = 2` across 50 world units
 gives `T = exp(-2)`, approximately 0.135. This is an optical-depth equivalence, not a promise of
 identical output color or OIT reconstruction. The installed map and volume shaders hardcode 50;
@@ -266,7 +266,7 @@ octave as the approved multiple-scattering approximation for Volumetric mode. Th
 additional octave approximates higher-order transport; it is not an explicit simulation of just
 one extra physical bounce. Keep its cost bounded while providing softer, brighter thick-cloud
 interiors. Exact contribution, attenuation, phase and energy-compensation coefficients are
-implementation tuning choices requiring comparison against reference results. Native cloud
+implementation tuning choices informed by reference diagnostics and user appearance review. Native cloud
 brightness, daylight and sunset tint are not substitutes for physical incident illumination.
 The full-resolution reference mode uses this same lighting model. This decision does not add
 volumetric transport to Simple mode or change the deferral of cast cloud shadows.

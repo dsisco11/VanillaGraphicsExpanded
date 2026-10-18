@@ -40,9 +40,6 @@ internal sealed class CloudReconstructionScene : IDisposable
     private readonly float[] previousProjection=new float[16],currentProjection=new float[16];
     private float surfaceDepth;
     private bool detail,underwater;
-    private int? referenceSamples;
-    private readonly float primaryBudgetDistance;
-    private readonly int primarySampleMax;
     private AtmosphereLighting? capturedLighting;
     private CloudPlacement capturedPlacement;
     #region Public API
@@ -51,21 +48,6 @@ internal sealed class CloudReconstructionScene : IDisposable
     internal CloudReconstructionScene(int width,int height,CloudVolumeProgram reference,CloudTraceProgram trace,CloudTemporalProgram temporal,CloudResolveProgram resolve,bool mipmappedOpaque,int nativeMapWidth,bool independentStorage=false)
     {
         this.width=width;this.height=height;this.reference=reference;this.trace=trace;this.temporal=temporal;this.resolve=resolve;
-        primaryBudgetDistance=CloudVolumeSettings.Default.ViewBudgetDistance;
-        primarySampleMax=CloudVolumeSettings.Default.ViewRaySampleMax;
-        string? requested=Environment.GetEnvironmentVariable("VGE_CLOUD_TEST_VIEW_DISTANCE");
-        if(requested is not null)
-        {
-            if(!float.TryParse(requested,System.Globalization.NumberStyles.Float,System.Globalization.CultureInfo.InvariantCulture,out primaryBudgetDistance)
-                ||!float.IsFinite(primaryBudgetDistance)||primaryBudgetDistance is <50 or >10000)
-                throw new ArgumentException("Invalid explicit test-only primary distance override.");
-        }
-        requested=Environment.GetEnvironmentVariable("VGE_CLOUD_TEST_VIEW_MAX");
-        if(requested is not null)
-        {
-            if(!int.TryParse(requested,out primarySampleMax)||primarySampleMax is <4 or >384)
-                throw new ArgumentException("Invalid explicit test-only primary maximum override.");
-        }
         (lowWidth,lowHeight)=CloudVolumeStorage.Dimensions(width,height);
         camera=Own(new VgeFrameUniformBuffer()); storage=Own(new TestFrameLightingPublication());
         map=Own(DynamicTexture2D.Create(nativeMapWidth,nativeMapWidth,PixelInternalFormat.Rgba32f));
@@ -196,14 +178,10 @@ internal sealed class CloudReconstructionScene : IDisposable
     }
     /// <summary>Reads the complete traced OIT record including first/last cloud and foreground distances.</summary>
     internal float[][] ReadTraceRecord() => CloudPayloadReadback.Read(traced);
-    /// <summary>Selects the allowed dense midpoint budget independently of reduced tracing.</summary>
-    internal void SetReferenceSamples(int count) { referenceSamples=count; }
-    /// <summary>Executes deterministic full-resolution midpoint transport without changing history.</summary>
-    internal void RenderReference() { Draw(reference,expected.Target,true); }
     /// <summary>Executes one reduced sample phase without running temporal or spatial reconstruction.</summary>
-    internal void RenderTrace(uint frame,bool fixedPhase=false)
+    internal void RenderTrace(uint frame)
     {
-        trace.Temporal.Capture(previousProjection,Vector3.Zero,lowWidth,lowHeight,fixedPhase?0:frame,unchecked(frame-1),false);
+        trace.Temporal.Capture(previousProjection,Vector3.Zero,lowWidth,lowHeight,frame,unchecked(frame-1),false);
         Draw(trace,traced.Target,false);
     }
     /// <summary>Supplies a known physical reduced payload while the independent density map remains empty.</summary>
@@ -319,19 +297,10 @@ internal sealed class CloudReconstructionScene : IDisposable
     /// <summary>Supplies identical physical transport inputs to all tracing consumers.</summary>
     private void Configure(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudPlacement placement,AtmosphereLighting lighting)
     {
-        int count=ReferenceEquals(program,reference)?referenceSamples??primarySampleMax:primarySampleMax;
         parameters.CaptureMap(map.Width,placement,1,CloudVolumeSettings.Default with
         {
-            Detail=detail,ViewRaySampleMax=Math.Min(count,384),
-            ViewBudgetDistance=ReferenceEquals(program,reference)&&referenceSamples>=384?50:primaryBudgetDistance
+            Detail=detail
         });
-        if(ReferenceEquals(program,reference)&&count>384)
-        {
-            // Only the test-registry reference overlay admits this ceiling. Production config,
-            // validation and binaries remain capped at 384; opt-in numerical oracles use 768.
-            typeof(CpuUniformBuffer).GetMethod("WriteFloat",System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic)!
-                .Invoke(parameters,[48,(float)count]);
-        }
         parameters.CaptureLighting(lighting,underwater?1:0,new(underwater ? .02f : 0,0,0,0),Vector3.Zero);
         program.Map=map.TextureId;program.SceneDepth=opaque.TextureId;program.VisibilityDepth=visibility.TextureId;program.LiquidDepth=liquid.TextureId;program.AerialRadiance=aerial;program.AerialAttenuation=loss;
     }

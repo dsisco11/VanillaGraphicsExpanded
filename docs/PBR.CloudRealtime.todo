@@ -12,7 +12,9 @@ Authority and scope
     supply inherited geometry/ownership contracts, not current architecture or open task authority.
   Paths prefixed docs/, artifacts/ or VanillaGraphicsExpanded/ are repository-root references;
     sibling Markdown links resolve from the containing document's directory.
-  Phase 1 establishes the measured baseline and quality policy without changing production rendering.
+  Phase 1 records the measured baseline and original quality policy without changing production rendering.
+  Its approximation thresholds and the historical Phase 2 receipts below are superseded by the
+  current correctness-only test policy; they are retained as historical measurements.
   Runtime implementation belongs to the subsequent increments; completion requires their own evidence.
   Use bounded ray budgets, reduced tracing, practical termination and amortized transport
     while retaining VGE's native 2D column envelope and procedural density detail.
@@ -32,7 +34,7 @@ Authority and scope
 
 Current test policy (user direction, 2026-10-18)
   Automated tests must not enforce approximation quality. Existing cloud approximation-quality
-    assertions are ignored as implementation/completion gates immediately; Phase 3.1 removes them.
+    assertions are removed by Phase 3.1; historical exclusions are not current verification filters.
     This supersedes approximation-error thresholds and baseline-quality requirements in this file
     and inherited documents, including previously recorded acceptance policies. Historical receipts
     remain evidence of what was measured, not current requirements or justification for sample counts.
@@ -44,8 +46,8 @@ Current test policy (user direction, 2026-10-18)
     frozen noise/RMS baselines may report diagnostics, but must not assert acceptable approximation
     error, convergence, noise reduction or visual fidelity. This applies to primary/secondary tracing,
     termination, reconstruction and atmospheric approximations, including existing passing tests.
-  Until cleanup, name excluded approximation tests/assertions in verification receipts. Mixed tests
-    still require their independent correctness coverage; an excluded test is not a passing test.
+  Current verification requires no approximation-test exclusions. Mixed tests retain their independent
+    correctness coverage; historical excluded cases were never counted as passing tests.
     Do not raise sample counts to satisfy retired quality gates. Runtime defaults remain unchanged
     by this policy edit; performance and user-run appearance acceptance remain separate work.
 
@@ -116,10 +118,10 @@ Phase 2: Bound primary integration independently of native grid crossings
       measurement, not a requirement for exact full-support integration at every production budget.
   ☑ Verify sample-count bounds and independent interval/transport results on empty/sparse/dense maps,
     odd dimensions, separated heights, tiny positive extinction, boundary ties and detail on/off.
-    - Compare against the frozen baseline and a stable higher-budget oracle; document intentional
-      quadrature changes without forcing bitwise old-output equality or relaxing established limits.
+    - Preserve finite-lattice arithmetic and exact same-algorithm equivalence. Comparisons against
+      a frozen baseline or higher-budget oracle are optional diagnostics without quality thresholds.
   ☑ Completion: occupied-cell count no longer multiplies primary shading samples without bound;
-    finite-domain, constant-density and quality criteria pass in both PBR selections.
+    finite-domain, complete-span uniform-density and algorithm checks pass in both PBR selections.
 
 Phase 3: Bound secondary solar/lunar integration
   Depends on Phase 2. Outcome: every contributing light has an independent whole-ray work budget.
@@ -146,7 +148,7 @@ Phase 3: Bound secondary solar/lunar integration
 
 Phase 3.1: Remove cloud approximation-quality acceptance tests
   Depends on Phase 3. Outcome: automated tests enforce implementation correctness only.
-  ☐ Inventory cloud tests and shared fixtures for approximation-quality assertions, including passing
+  ☑ Inventory cloud tests and shared fixtures for approximation-quality assertions, including passing
     tests. Cover CloudPrimaryOracleTests, CloudPrimaryBudgetTests, CloudSecondaryBudgetTests,
     CloudVolumeDrawTests, CloudVolumeReconstructionTests and helpers used by those tests.
     - Identify gates on radiance/attenuation/OIT discrepancy versus exact or higher-budget transport,
@@ -155,7 +157,7 @@ Phase 3.1: Remove cloud approximation-quality acceptance tests
     - Classify each assertion by purpose. Retain exact uniform-density Beer-Lambert fixtures only
       where the complete sampled span is actually uniform; arbitrary discontinuous support is an
       approximation comparison, even with Detail=false or a constant extinction inside each column.
-  ☐ Remove approximation-quality tests/assertions. Split mixed cases to preserve meaningful algorithm,
+  ☑ Remove approximation-quality tests/assertions. Split mixed cases to preserve meaningful algorithm,
     clipping, finite-value, physical-unit, OIT, settings, lifecycle and history-correctness coverage.
     - Do not replace removed gates with looser thresholds, golden-image fidelity checks or assertions
       that more samples must look closer to a reference. Do not leave permanently skipped quality tests.
@@ -163,14 +165,14 @@ Phase 3.1: Remove cloud approximation-quality acceptance tests
       quality pass/fail assertions. Remove unused fixtures, reference-only assets and build plumbing.
     - Preserve deterministic replay and exact same-algorithm acceleration/storage equivalence checks;
       these verify implementation identity rather than acceptable approximation quality.
-  ☐ Reconcile active cloud proposals/checklists/current architecture and verification filters so no
+  ☑ Reconcile active cloud proposals/checklists/current architecture and verification filters so no
     automated approximation-quality requirement or hidden equivalent remains. Preserve raw historical
     results without presenting retired thresholds as current authority. Record remaining manual
     appearance and measured-performance work separately; do not change runtime defaults in this cleanup.
-  ☐ Verify through subagents: canonical build/shader checks and focused retained correctness tests.
+  ☑ Verify through subagents: canonical build/shader checks and focused retained correctness tests.
     Review assertion bodies and shared helpers, not only test names or numeric-literal searches.
     Complete a second review and independent completion audit before marking this sub-phase complete.
-  ☐ Completion: no cloud automated test enforces approximation quality; retained correctness tests
+  ☑ Completion: no cloud automated test enforces approximation quality; retained correctness tests
     pass and the temporary exclusions in current verification are no longer necessary.
 
 Phase 4: Use practical transmittance termination and qualify OIT error
@@ -330,11 +332,10 @@ Bounded quality policy (implementation contract)
       floor(ViewRaySampleMax*min(1,L/ViewBudgetDistance)))). Set ds=L/Nview. Sample positions are
       tStart+(i+jitter)*ds for i=0..Nview-1, with one blue-noise jitter in [0,1) shared along this ray.
       The history-free deterministic reference uses jitter=.5 on the same uniform distance lattice.
-    - Initial candidate: ViewRaySampleMax=96, ViewRaySampleMin=2, ViewBudgetDistance=2000 world units.
-      Measured primary tuning selects 384/2/50 for final qualification: the initial candidate fails
-      bin/thin-feature/underwater criteria; 192 samples still miss the .01 bucket limit on a native
-      200-wide, approximately 5000-unit constant-density ray; 256 still misses the unchanged thin-height
-      reconstruction limit. Lower settings remain selectable quality tradeoffs.
+    - Current primary controls are ViewRaySampleMax=384, ViewRaySampleMin=2 and
+      ViewBudgetDistance=50 world units. Earlier tuning receipts remain historical; retired
+      approximation thresholds do not justify increasing these controls. Final cost and
+      appearance selection remains separate measured/manual work.
       Supported maxima are 4..384; minimum is 1..min(16,max); distance is 50..10000 world units.
       Nonfinite distance restores 50; sanitize integral controls before conversion/upload.
     - At each position evaluate cheap native validity/support first, then the existing detailed
@@ -438,10 +439,9 @@ Bounded quality policy (implementation contract)
       every frame. Contributing metadata describes the steps that actually contributed, clipped to
       the admitted span; it need not match exact unsampled support. Authored temporal arithmetic and
       stale-history rejection remain tested independently of denoising effectiveness.
-    - Phase 3.1 removes existing approximation assertions and unused machinery. Until then use the
-      current exclusion policy above, preserve necessary mixed-test correctness coverage, and report
-      exclusions explicitly. Neither a passing correctness suite nor diagnostics establish appearance
-      acceptance or measured rendering performance.
+    - Approximation assertions and unused dense-reference machinery are removed in Phase 3.1.
+      Current correctness verification needs no approximation-test exclusions. Neither a passing
+      correctness suite nor diagnostics establish appearance acceptance or measured performance.
 
   Requirement reconciliation
     - Primary per-column multiplication -> Phase 2; secondary multiplication/distance -> Phase 3;
@@ -451,7 +451,7 @@ Bounded quality policy (implementation contract)
       after the declared lower-resolution gates. Preserved per-column sample counts, PMJ identity and
       exact arbitrary-column attenuation govern legacy/reference comparisons. The future direct march
       replaces those constraints with fixed distance steps, primary blue noise and shadow midpoints.
-    - Uniform-density attenuation remains exact within numeric tolerance. Discontinuous/detailed
+    - Complete-span uniform-density attenuation remains exact within numeric tolerance. Discontinuous/detailed
       quadrature differences are diagnostic; acceleration equivalence is measured with the new lattice held
       fixed. No requirement to use a tree remains if measured cost favors cheap rejection or direct marching.
     - PBR.Clouds.md remains current-state architecture until runtime changes are verified. Preserve
@@ -675,3 +675,35 @@ Phase 3 implementation and verification (2026-10-18)
     Second source/test review and independent linked-document completion audit pass. Phase 3 is
     complete under the revised correctness-only test policy; Phase 3.1 remains unchecked.
     Performance, final shipped quality selection and user appearance acceptance remain separate gates.
+
+Phase 3.1 cleanup and verification (2026-10-18)
+  Inventory/removal -> Current test policy and Phase 3.1; volumetric proposal density, lighting,
+    scene integration and temporal contracts -> removed dense primary oracle, distant-shadow
+    discrepancy, reconstruction envelope/ensemble/RMS and spectral-quality gates. Mixed draw tests
+    now assert authored finite primary/shadow schedules and exact native OIT products. Complete-span
+    uniform-density Beer, independent geometry/density, settings/units, finite/domain/depth checks,
+    history arithmetic, deterministic replay and same-algorithm hierarchy/storage equality remain.
+  Fixture cleanup -> current cloud architecture and inherited native ownership/OIT contracts ->
+    removed the test-only 768-point reference overlay, dense-budget reflection writes, calibration
+    environment overrides, unused reference helpers and fixed-phase plumbing. No production code
+    or runtime default changed. No permanently skipped approximation tests remain.
+  Documentation -> volumetric proposal/checklist, current architecture and realtime policy ->
+    retired automated quality criteria explicitly; historical raw receipts remain historical.
+    Archived hierarchy geometry/equivalence contracts and atmospheric publication/encoding are
+    unaffected. The parent cloud task, later realtime work and manual appearance/measured-performance
+    acceptance remain open. Current verification filters require no approximation exclusions.
+  Final candidate -> artifacts/CloudRealtime/phase3.1/commands.json and result-summary.json ->
+    canonical Release package and test builds pass with zero errors; production/test shader checks
+    cover 458/538 variants. final-cloud-cpu.trx passes 149/149, final-catalog-contracts.trx 31/31
+    and final-cloud-gpu.trx 151/151: 331 unique focused checks with no failures/skips. Filters
+    exclude only the two opt-in performance/counter classes; approximation exclusions are empty.
+    package-identity.json verifies matching tested/published/packaged/zipped runtime DLLs and all
+    458 packaged shader binaries. final-input-recheck.json verifies 2652 source and 959 binary/package
+    identities unchanged, with zero mismatches. These are correctness/package receipts, not timings.
+  Superseded attempt -> cloud-gpu.trx retains one finite-OIT expected-arithmetic failure. The
+    independent CPU expectation now uses binary32 perspective-depth and bucket operations, matching
+    the specified shader arithmetic; its 2e-5 tolerance is unchanged. The targeted 2/2 correction
+    cases are included in the final 151 GPU cases, not additional unique passes. No approximation
+    threshold was restored or widened.
+  Completion -> second source/assertion/helper review and independent linked-document completion
+    audit pass on the final candidate. All Phase 3.1 tasks are complete; later tasks remain unchecked.

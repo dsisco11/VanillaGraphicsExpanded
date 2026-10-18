@@ -15,16 +15,16 @@ using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Checks actual reference shader transport against independently computed optical and OIT results.</summary>
+/// <summary>Checks finite-budget shader arithmetic, physical units, clipping and native OIT products.</summary>
 [Collection("GPU")]
 [Trait("Category","GPU")]
-public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
+public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
-    /// <summary>Measures whole-ray bucket quadrature on fixed native-sized domains without triggering saturation termination.</summary>
+    /// <summary>Checks uniform-span attenuation and the declared finite-step native bucket products.</summary>
     [Theory]
     [InlineData(1000,.2f)][InlineData(5000,.05f)]
-    public void NativeWideConstantFieldMatchesIndependentOit(float distance,float extinction)
+    public void NativeWideConstantFieldUsesFiniteStepOitArithmetic(float distance,float extinction)
     {
         EnsureShaderTestAvailable();
         const float farPlane=20000;
@@ -35,52 +35,59 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
         // Recover the admitted span from independently authored camera bytes rather than
         // estimating distance from measured transmittance or borrowing shader ray helpers.
         float[] inverse=new float[16];Mat4f.Invert(inverse,Projection(farPlane));
-        double ndc=2*(double)Depth(distance,farPlane)-1;
-        double span=Math.Abs((inverse[10]*ndc+inverse[14])/(inverse[11]*ndc+inverse[15]));
-        span=Math.Min(span,5050); // explicit inside origin, finite native exit along -Z
-        double sigma=extinction/50.0,transmission=Math.Exp(-sigma*span);
-        double worst=0,worstAlpha=0,worstRgb=0;
-        const int subdivisions=65536;
+        // Projection cancellation, lattice distances and every bucket product are
+        // binary32 operations in the shader. Promoting the depth inversion to
+        // binary64 changes the admitted span before the finite algorithm starts.
+        float ndc=2*Depth(distance,farPlane)-1;
+        float span=MathF.Abs((inverse[10]*ndc+inverse[14])/(inverse[11]*ndc+inverse[15]));
+        span=MathF.Min(span,5050); // explicit inside origin, finite native exit along -Z
+        float sigma=extinction/50,transmission=MathF.Exp(-sigma*span);
+        int count=Math.Min(samples,Math.Max(CloudVolumeSettings.Default.ViewRaySampleMin,
+            (int)Math.Floor(samples*Math.Min(1,span/budgetDistance))));
+        float step=span/count,stepAlpha=1-MathF.Exp(-sigma*step);
         for(int bucket=0;bucket<3;bucket++)
         {
-            double tau=0,ds=span/subdivisions;
-            for(int i=0;i<subdivisions;i++)
+            float expected=1;
+            for(int i=0;i<count;i++)
             {
-                double t=(i+.5)*ds,adjusted=t>500?t-250:t*t*t*(1-t/1000)/250000;
-                double bin=Math.Log(1+adjusted/30);
-                tau+=sigma*ds*(bucket==2&&bin>2?1:Math.Exp(-Math.Pow((bin-bucket)/.832,2)));
+                float t=i*step,adjusted=t>500?t-250:t*t*t*(1-t/1000)/250000;
+                float bin=MathF.Log(1+adjusted/30),normalized=(bin-bucket)/.832f;
+                float weight=bucket==2&&bin>2?1:MathF.Exp(-normalized*normalized);
+                expected*=1-stepAlpha*weight;
             }
-            double expected=Math.Exp(-tau),alpha=(1-transmission)*(1-expected);
-            worst=Math.Max(worst,Math.Abs(actual.Buckets[bucket]-expected));
-            worstAlpha=Math.Max(worstAlpha,Math.Abs(actual.BucketAlpha[bucket]-alpha));
-            worstRgb=Math.Max(worstRgb,Math.Abs(actual.Source.X*actual.BucketAlpha[bucket]/10-alpha));
+            double alpha=(1-transmission)*(1-expected);
+            Assert.InRange(Math.Abs(actual.Buckets[bucket]-expected),0,2e-5);
+            Assert.InRange(Math.Abs(actual.BucketAlpha[bucket]-alpha),0,2e-5);
+            Assert.InRange(Math.Abs(actual.Source.X*actual.BucketAlpha[bucket]/10-alpha),0,2e-5);
         }
-        output.WriteLine($"Wide native200: requestedSpan={distance}; admittedSpan={span:G12}; opacity={extinction}; tau={sigma*span:G9}; max={samples}; distanceBudget={budgetDistance}; overallError={Math.Abs(actual.Reveal-transmission):G9}; bucketError={worst:G9}; alphaError={worstAlpha:G9}; normalizedRgbError={worstRgb:G9}");
         Assert.InRange(Math.Abs(actual.Reveal-transmission),0,2e-5);
-        Assert.InRange(worst,0,.01);Assert.InRange(worstAlpha,0,.01);Assert.InRange(worstRgb,0,.02);
     }
 
-    /// <summary>Native r remains extinction rather than alpha for all positive values and metre conversions.</summary>
+    /// <summary>Native extinction and metre conversion weight the two occupied authored steps without changing the lattice.</summary>
     [Theory]
     [InlineData(.1f,1f)]
     [InlineData(2f,1f)]
     [InlineData(2f,10f)]
     [InlineData(4f,.01f)]
-    public void ConstantColumnMatchesNativeBeerLambert(float extinction,float units)
+    public void ConstantColumnUsesAuthoredFiniteBudgetAndNativeUnits(float extinction,float units)
     {
         EnsureShaderTestAvailable();
         var result=Draw(extinction,units:units);
-        Assert.InRange(Math.Abs(result.Reveal-Math.Exp(-extinction)),0,.00002);
+        // Four 25-unit intervals cover the finite 100-unit map; exactly two midpoints
+        // lie in the occupied column. This is finite-lattice arithmetic, not exact
+        // transport through an arbitrary discontinuous support field.
+        double sigma=extinction/(50.0*units),stepTau=sigma*(25*units);
+        Assert.InRange(Math.Abs(result.Reveal-Math.Exp(-2*stepTau)),0,.00002);
         Assert.InRange(result.Source.X,9.999f,10.001f);
         Assert.InRange(result.GlowAlpha,0,1);
         // Native k*(1-R) is emitted, not the ordinary surface depth-weighted output.
         float alpha=1-result.Reveal;
         Assert.InRange(Math.Abs(result.BucketAlpha.X-alpha*(1-result.Buckets.X)),0,.00001);
         // This authored complete span is 100 units, with two occupied 25-unit steps.
-        // Integrate depth-bin products independently; the former one-column midpoint rule is retired.
+        // Evaluate the native products at the two accepted intervals' near depths.
         for(int bucket=0;bucket<3;bucket++)
         {
-            double expected=1,stepAlpha=1-Math.Exp(-extinction/2);
+            double expected=1,stepAlpha=1-Math.Exp(-stepTau);
             foreach(double near in new double[]{0,25})
             {
                 double adjusted=near*near*near*(1-near/1000)/250000;
@@ -118,14 +125,17 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
         Assert.Equal(1,Draw(0,settings:CloudVolumeSettings.Default).Reveal);
     }
 
-    /// <summary>Subdivision and a different column arrangement retain optical thickness; connected faces are not eroded.</summary>
+    /// <summary>Aligned occupied steps use their authored density; connected faces are not eroded.</summary>
     [Fact]
-    public void SharedFacesAndPathSubdivisionPreserveConstantDensity()
+    public void SharedFacesAndAlignedOccupiedStepsUseNativeDensity()
     {
         EnsureShaderTestAvailable();
         var one=Draw(2);
         var two=Draw(1,secondColumn:true);
-        Assert.InRange(Math.Abs(one.Reveal-two.Reveal),0,.00002);
+        // The first field accepts two 25-unit steps at extinction 2; the second
+        // accepts four at extinction 1. Assert each finite sum independently.
+        Assert.InRange(Math.Abs(one.Reveal-Math.Exp(-2*(2.0/50)*25)),0,.00002);
+        Assert.InRange(Math.Abs(two.Reveal-Math.Exp(-4*(1.0/50)*25)),0,.00002);
         var settings=CloudVolumeSettings.Default with { DetailAmplitude=0 };
         var connected=Draw(1,secondColumn:true,settings:settings);
         Assert.InRange(Math.Abs(two.Reveal-connected.Reveal),0,.00002);
@@ -135,7 +145,7 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
         Assert.Equal(1,isolated.Reveal); // the camera ray lies exactly on its exposed x face
     }
 
-    /// <summary>One approximate octave adds its declared response beyond shadowed HG single scattering.</summary>
+    /// <summary>The accepted 25-unit shadow interval feeds the declared HG and additional-octave arithmetic.</summary>
     [Theory]
     [InlineData(0f)]
     [InlineData(.5f)]
@@ -148,13 +158,13 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
         Assert.InRange(Math.Abs(result.Source.X-expected),0,.0002);
     }
 
-    /// <summary>Checks actual default shadow settings against independent constant-field solar/lunar illumination at octave endpoints.</summary>
+    /// <summary>Anchored finite shadow intervals feed both sources and the octave endpoints without domain rescaling.</summary>
     [Theory]
     [InlineData(30f,0f,0f,0f,10,1500f)][InlineData(0f,30f,0f,1f,10,1500f)]
     [InlineData(30f,0f,0f,0f,64,3000f)][InlineData(30f,0f,0f,0f,64,10000f)]
     [InlineData(30f,3f,1f,0f,10,1500f)][InlineData(30f,3f,1f,1f,10,1500f)][InlineData(0f,0f,1f,0f,10,1500f)]
     [InlineData(30f,3f,1f,1f,64,3000f)][InlineData(30f,3f,1f,1f,64,10000f)]
-    public void IsolatedShadowIlluminationMeetsIndependentPhysicalLimit(float solar,float lunar,float contribution,float occlusion,int shadowCount,float shadowRange)
+    public void IsolatedShadowIlluminationUsesAnchoredFiniteBudget(float solar,float lunar,float contribution,float occlusion,int shadowCount,float shadowRange)
     {
         EnsureShaderTestAvailable();
         var result=Draw(2,solar:solar,lunar:lunar,settings:CloudVolumeSettings.Default with
@@ -162,36 +172,24 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
             shadowSamples:shadowCount,shadowDistance:shadowRange,
             solarDirection:-Vector3.UnitZ,lunarDirection:-Vector3.UnitZ);
         // Two authored view steps at 12.5 and 37.5 units each represent 25 units.
-        // Their independent light paths to the native -Z boundary are 37.5 and 12.5.
+        // Native support admits shadow midpoints only through the remaining 37.5
+        // or 12.5 units. Every admitted midpoint retains its complete interval weight.
         double phase=.64/(4*Math.PI*Math.Pow(.16,1.5)),expected=0,total=1-Math.Exp(-2);
         for(int i=0;i<2;i++)
         {
-            double tau=(i==0?37.5:12.5)*2/50;
+            double tau=0,support=i==0?37.5:12.5;
+            for(int sample=0;sample<shadowCount;sample++)
+            {
+                // Use binary32 interval coordinates so boundary ties are classified
+                // in the same coordinate representation as the uploaded native map.
+                float a=(float)sample/shadowCount,b=(float)(sample+1)/shadowCount;
+                float near=shadowRange*a*a,far=shadowRange*b*b;
+                if((near+far)*.5f<=support) tau+=(far-near)*2/50;
+            }
             double source=10+(solar+lunar)*(phase*Math.Exp(-tau)+contribution/(4*Math.PI)*Math.Exp(-occlusion*tau));
             expected+=Math.Exp(-i)*(1-Math.Exp(-1))*source/total;
         }
-        double bound=Math.Max(1,10+(solar+lunar)*(phase+contribution/(4*Math.PI)));
-        double error=Math.Abs(result.Source.X-expected)/bound;
-        output.WriteLine($"Shadow count={shadowCount}; distance={shadowRange}; solar={solar}; lunar={lunar}; octave={contribution}/{occlusion}; actualSource={result.Source.X:G9}; analyticSource={expected:G12}; normalizedError={error:G9}");
-        Assert.InRange(error,0,.02);
-    }
-
-    /// <summary>Separates isolated short-ray aliasing from the image response at actual primary and secondary defaults.</summary>
-    [Fact]
-    public void ActualPrimaryAndShadowDefaultsMeetIndependentConstantFieldSource()
-    {
-        EnsureShaderTestAvailable();
-        var result=Draw(2,solar:30,settings:CloudVolumeSettings.Default with {Detail=false,OctaveContribution=0},
-            viewSampleMax:CloudVolumeSettings.Default.ViewRaySampleMax,viewBudgetDistance:CloudVolumeSettings.Default.ViewBudgetDistance,
-            shadowSamples:CloudVolumeSettings.Default.LightRaySampleMax,shadowDistance:CloudVolumeSettings.Default.ShadowDistance,
-            solarDirection:-Vector3.UnitZ);
-        double phase=.64/(4*Math.PI*Math.Pow(.16,1.5));
-        // View attenuation and aligned exit-to-light attenuation sum to sigma*50 everywhere.
-        // This closed form integrates the continuous physical field independently of either lattice.
-        double expected=10+30*phase*2*Math.Exp(-2)/(1-Math.Exp(-2));
-        double bound=10+30*phase,error=Math.Abs(result.Source.X-expected)/bound;
-        output.WriteLine($"Actual primary/shadow defaults: primary={CloudVolumeSettings.Default.ViewRaySampleMax}/{CloudVolumeSettings.Default.ViewBudgetDistance}; shadow={CloudVolumeSettings.Default.LightRaySampleMax}/{CloudVolumeSettings.Default.ShadowDistance}; sourceGpu={result.Source.X:G12}; sourceContinuousExact={expected:G12}; normalizedError={error:G12}");
-        Assert.InRange(error,0,.02);
+        Assert.InRange(Math.Abs(result.Source.X-expected),0,.0002);
     }
 
     /// <summary>Exposed-face detail attenuates the view and both light rays through the identical density multiplier.</summary>
@@ -229,7 +227,9 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
         var clipped=Draw(2,sceneDistance:opaque?25:1000,liquidDistance:opaque?1000:25);
         Assert.InRange(Math.Abs(clipped.Reveal-Math.Exp(-1)),0,.0002);
         var inside=Draw(2,offsetZ:-25);
-        Assert.InRange(Math.Abs(inside.Reveal-Math.Exp(-1)),0,.00002);
+        // The inside origin leaves a 75-unit primary span with three 25-unit
+        // intervals; only its first midpoint remains inside the occupied column.
+        Assert.InRange(Math.Abs(inside.Reveal-Math.Exp(-(2.0/50)*25)),0,.00002);
     }
 
     /// <summary>Corrected material depth cannot remove a surviving opaque particle's nearer visibility, and either depth can clip transport.</summary>
@@ -282,7 +282,7 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
         finally { PbrShaderLightingMode.GenerationLumOnEnabled=previous; }
     }
 
-    /// <summary>Material anchoring cancels recentering, while fractional native wind moves detail once.</summary>
+    /// <summary>Density obeys its declared multiplier bounds and material anchoring cancels recentering and committed wind.</summary>
     [Fact]
     public void NoiseIsBoundedAndStableAcrossRecentering()
     {
@@ -291,24 +291,30 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture,ITestOutputHe
         var recentered=Draw(.6f,width:4,secondColumn:true,settings:CloudVolumeSettings.Default,centerX:1,offsetX:50);
         Assert.InRange(Math.Abs(a.Reveal-recentered.Reveal),0,.00002);
         double tau=-Math.Log(a.Reveal);
+        // All seven scheduled points are inside support and farther than the
+        // two-unit exposed-edge softness. Every density multiplier therefore
+        // lies in the declared [1-amplitude,1+amplitude] interval.
         Assert.InRange(tau,.6*3*.85,.6*3*1.15);
         var wind=Draw(.6f,width:4,secondColumn:true,settings:CloudVolumeSettings.Default,offsetX:3);
-        Assert.True(Math.Abs(a.Reveal-wind.Reveal)>1e-6);
+        var recenteredWind=Draw(.6f,width:4,secondColumn:true,settings:CloudVolumeSettings.Default,centerX:1,offsetX:53);
+        Assert.InRange(Math.Abs(wind.Reveal-recenteredWind.Reveal),0,.00002);
         var committedWind=Draw(.6f,width:4,secondColumn:true,settings:CloudVolumeSettings.Default,offsetX:-50,windTileX:1);
         Assert.InRange(Math.Abs(a.Reveal-committedWind.Reveal),0,.00002);
     }
 
-    /// <summary>Purely vertical rays enter from above/below and never depend on a horizontal division by zero.</summary>
+    /// <summary>Vertical rays reject out-of-height samples and retain their scheduled interval weights without horizontal division.</summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
-    public void VerticalRaysUseActualColumnBounds(bool above)
+    public void VerticalRaysRejectOutsideHeightAndUseFiniteWeights(bool above)
     {
         EnsureShaderTestAvailable();
         float[] view=above?[1,0,0,0,0,0,1,0,0,-1,0,0,0,0,0,1]:[1,0,0,0,0,0,-1,0,0,1,0,0,0,0,0,1];
         var result=Draw(2,altitude:above?-100:100,offsetZ:0,view:view,secondColumn:true,sceneDistance:200,
             settings:CloudVolumeSettings.Default with {Detail=false},viewSampleMax:8,viewBudgetDistance:50);
-        Assert.InRange(Math.Abs(result.Reveal-Math.Exp(-2)),0,.00003);
+        // Eight 25-unit intervals cover the authored 200-unit ray; only the
+        // midpoints at 87.5 and 112.5 fall inside the fifty-unit vertical bounds.
+        Assert.InRange(Math.Abs(result.Reveal-Math.Exp(-2*(2.0/50)*25)),0,.00003);
     }
     #endregion
 

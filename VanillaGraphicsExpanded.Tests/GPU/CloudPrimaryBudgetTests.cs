@@ -11,7 +11,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// <summary>Checks the production primary lattice against independent geometric and scalar density calculations.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutputHelper output) : LumOnShaderFunctionalTestBase(fixture)
+public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
     /// <summary>Empty gaps, native crossings and invalid leaves cannot allocate additional shading samples.</summary>
@@ -24,7 +24,7 @@ public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutp
     {
         EnsureShaderTestAvailable();
         using var program = new CloudTraversalProbe(Programs.Api);
-        double worstDiscontinuity = 0; int exactUniform = 0;
+        int exactUniform = 0;
         foreach (int width in new[] { 1, 21, 81, 200 })
         {
             using var native = DynamicTexture2D.Create(width, width, PixelInternalFormat.Rgba32f);
@@ -69,13 +69,12 @@ public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutp
                             {
                                 Assert.InRange(residual,0,2e-5);exactUniform++;
                             }
-                            else worstDiscontinuity=Math.Max(worstDiscontinuity,residual);
                         }
                     }
                 }
             }
         }
-        output.WriteLine($"Uniform complete-span exact checks={exactUniform}; maximum discontinuous-field transmission residual={worstDiscontinuity:G9}; detail={detail}; stochastic={stochastic}. Discontinuous fields expose finite-lattice aliasing and are not asserted analytically exact.");
+        if (!detail) Assert.True(exactUniform > 0, "Uniform complete-span fixtures must exercise analytic attenuation.");
     }
     #endregion
 

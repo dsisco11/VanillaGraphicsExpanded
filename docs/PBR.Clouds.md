@@ -280,9 +280,8 @@ packaged owned binaries.
 
 Automated acceptance covers the specified algorithms, physical units, finite values, attenuation
 bounds, clipping, OIT/encoding arithmetic, deterministic replay, resource lifetimes and history
-admission. Existing approximation-quality assertions are excluded from implementation acceptance
-pending their removal in the realtime checklist. Mixed fixtures retain their independent
-correctness obligations.
+admission. Automated cloud tests enforce correctness without approximation-quality thresholds.
+Mixed fixtures retain their independent correctness obligations.
 
 Comparisons with exact or higher-budget transport, reconstructed reference images, temporal means
 and frozen noise/RMS baselines may report diagnostics without approximation-quality assertions.
