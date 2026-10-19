@@ -28,10 +28,19 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     private int width,height;
     private int cursor;
     private CloudBlueNoiseTexture? primaryNoise;
+    private CloudPerturbationTexture? perturbation;
+    private bool disposed;
     private readonly CloudShadowCache shadowCache;
 
     #region Public API
     #region Preparation and admission
+    /// <summary>Admits one complete static field before ownership; reference and reduced consumers borrow this resource.</summary>
+    internal CloudPerturbationTexture PreparePerturbation()
+    {
+        ObjectDisposedException.ThrowIf(disposed,this);
+        if(perturbation?.IsValid!=true) perturbation=CloudPerturbationTexture.Create();
+        return perturbation;
+    }
     /// <summary>Uses the existing shader library and leaves registration/weather ownership with its caller.</summary>
     internal CloudVolumeReconstruction(ICoreClientAPI api,Func<CloudShadowAttenuationComputeShader>? createShadowCache=null)
     {
@@ -49,6 +58,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         primaryNoise ??= CloudBlueNoiseTexture.Create();
         primaryNoise.EnsureCreated();
         traceProgram.PrimaryNoise=primaryNoise;
+        traceProgram.Perturbation=PreparePerturbation();
         return true;
     }
     /// <summary>Rejects content history and withdraws attenuation while retaining correctly sized history allocations.</summary>
@@ -75,6 +85,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
             Capture(traceProgram,traceProgram.Parameters,input,lighting,settings,sceneDepth,visibilityDepth,liquidDepth);
             traceProgram.SetShadowCache(null,0);
             traceProgram.PrimaryNoise=primaryNoise;
+            traceProgram.Perturbation=PreparePerturbation();
             temporalProgram.SceneDepth=sceneDepth; temporalProgram.VisibilityDepth=visibilityDepth; temporalProgram.LiquidDepth=liquidDepth;
             resolveProgram.SceneDepth=sceneDepth; resolveProgram.VisibilityDepth=visibilityDepth; resolveProgram.LiquidDepth=liquidDepth;
             // Lifecycle and transport-mode certificates identify compatibility. Normal atmospheric
@@ -98,7 +109,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
             DynamicTexture2D? bounds=null;
             if(hierarchy is not null) hierarchy.TryGetCurrent(input,out bounds);
             traceProgram.SetHierarchy(bounds);
-            traceProgram.SetShadowCache(shadowCache.Build(input,lighting,traceProgram.Parameters,settings.ShadowMapResolution,bounds,current,out int source),source);
+            traceProgram.SetShadowCache(shadowCache.Build(input,lighting,traceProgram.Parameters,settings.ShadowMapResolution,bounds,current,out int source,perturbation),source);
             if(!current()) { Invalidate(); return false; }
             if(!GraphicsCommandContext.TryRun("Cloud.Volume.Temporal",[tracePass.Pipeline,temporalPass.Pipeline,resolvePipeline],true,commands=>
             {
@@ -121,10 +132,15 @@ internal sealed class CloudVolumeReconstruction : IDisposable
     {
         Invalidate(); traceProgram=null; temporalProgram=null; resolveProgram=null;
         RenderingCleanup.Run(()=>{resolvePipeline?.Dispose();resolvePipeline=null;},ReleaseTargets,
-            ()=>{primaryNoise?.Dispose();primaryNoise=null;});
+            ()=>{primaryNoise?.Dispose();primaryNoise=null;},()=>{perturbation?.Dispose();perturbation=null;});
     }
     /// <summary>Releases only VGE resources; current native column and scene textures remain borrowed.</summary>
-    public void Dispose() { RenderingCleanup.Run(Reset,shadowCache.Dispose,lifetime.Dispose); }
+    public void Dispose()
+    {
+        if(disposed)return;
+        disposed=true;
+        RenderingCleanup.Run(Reset,shadowCache.Dispose,lifetime.Dispose);
+    }
     #endregion
     #endregion
 

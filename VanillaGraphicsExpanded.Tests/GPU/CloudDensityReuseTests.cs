@@ -8,7 +8,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Checks descriptor reuse and face pruning against the original finite density formula.</summary>
+/// <summary>Checks descriptor reuse and face pruning against independent support arithmetic in the shared sampled field.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class CloudDensityReuseTests(HeadlessGLFixture fixture, ITestOutputHelper output)
@@ -17,7 +17,7 @@ public sealed class CloudDensityReuseTests(HeadlessGLFixture fixture, ITestOutpu
     #region Public API
     /// <summary>One shared program checks independent query batches rather than multiplying settings and scenes.</summary>
     [Fact]
-    public void CachedAndPrunedDensityMatchesOriginalFormula()
+    public void CachedAndPrunedDensityMatchesSharedFieldFormula()
     {
         EnsureShaderTestAvailable();
         using var program = new CloudTraversalProbe(Programs.Api);
@@ -58,7 +58,7 @@ public sealed class CloudDensityReuseTests(HeadlessGLFixture fixture, ITestOutpu
             bool occupied = false;
             for (int i = 0; i < positions.Length; i++)
             {
-                // The fixture computes the unpruned legacy formula independently of the new cache.
+                // The fixture computes unpruned support independently of descriptor reuse.
                 // This is same-field arithmetic equality, not an approximation-quality comparison.
                 float expected = actual[i].Y;
                 Assert.True(float.IsFinite(expected) && expected >= 0);

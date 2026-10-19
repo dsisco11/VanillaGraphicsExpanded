@@ -11,7 +11,7 @@ using VanillaGraphicsExpanded.Tests.GPU.Helpers;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Checks bounded shadow quadrature against the unchanged procedural field at independent scheduled positions.</summary>
+/// <summary>Checks bounded shadow quadrature against the shared sampled field at independent scheduled positions.</summary>
 [Collection("GPU")][Trait("Category","GPU")]
 public sealed class CloudSecondaryDensityTests(HeadlessGLFixture fixture):LumOnShaderFunctionalTestBase(fixture)
 {

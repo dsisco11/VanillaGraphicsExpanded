@@ -223,8 +223,11 @@ Tasks
       distance default is 10000 world units; missing/stale bounds use an explicit conservative
       horizontal-domain schedule. This changes sample positions, weights and approximation.
       Quarter tracing is
-      now the default by explicit user direction; explicit Half remains supported. Phase 9 moves perturbation octaves to
-      a static volumetric noise texture; Phase 10 improves temporal retention and evaluates LumOn
+      now the default by explicit user direction; explicit Half remains supported. Density perturbation uses
+      one hardware-trilinear RGBA8 volume with four normalized octaves, shared by view/light/cache
+      consumers. Its static 1 MiB field retains material/wind anchoring and native support while
+      intentionally changing the noise approximation; user appearance acceptance remains open.
+      Phase 10 improves temporal retention and evaluates LumOn
       reprojection/invalidation reuse. Phase 11 retains final qualification.
       Implementation phases use cached incremental builds, affected-contract checks and existing
       baseline evidence. Full baseline reproduction and canonical release/package verification are

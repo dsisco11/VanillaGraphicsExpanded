@@ -34,24 +34,7 @@ layout(local_size_x=1) in;
 layout(std140) uniform CloudRayTestInputs { vec4 testOriginLimit; vec4 testDirectionMode; };
 uniform sampler2D shadowRecordMap;
 
-/** Retains the original per-corner wrapping independently of production lattice reuse. */
-float ReferenceCloudHash(vec3 lattice,float period)
-{
-    vec3 p=mod(mod(lattice,period),289.0);
-    return fract(sin(dot(p,vec3(17.13,91.71,43.19)))*43758.5453);
-}
-/** Retains the original interpolated noise field for arithmetic-equivalence checks. */
-float ReferenceCloudNoise(vec3 material)
-{
-    float period=max(1.0,floor(volumeDetail.z*12800.0+.5));
-    vec3 p=material*(period/12800.0),i=floor(p),f=fract(p);
-    f=f*f*(3.0-2.0*f);
-    return mix(mix(mix(ReferenceCloudHash(i,period),ReferenceCloudHash(i+vec3(1,0,0),period),f.x),
-        mix(ReferenceCloudHash(i+vec3(0,1,0),period),ReferenceCloudHash(i+vec3(1,1,0),period),f.x),f.y),
-        mix(mix(ReferenceCloudHash(i+vec3(0,0,1),period),ReferenceCloudHash(i+vec3(1,0,1),period),f.x),
-        mix(ReferenceCloudHash(i+vec3(0,1,1),period),ReferenceCloudHash(i+vec3(1,1,1),period),f.x),f.y),f.z);
-}
-/** Retains the original density arithmetic as an algorithm-equivalence oracle, independent of cache, wrapping reuse and face pruning. */
+/** Checks descriptor and face-pruning arithmetic independently, using the declared shared sampled field. */
 float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
 {
     if(data.r<=0.0||local.y<data.b*50.0||local.y>data.a*50.0) return 0.0;
@@ -65,7 +48,7 @@ float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
         if(!CloudOccupied(cell+ivec2(0,-1),local.y)) edge=min(edge,f.y);
         if(!CloudOccupied(cell+ivec2(0,1),local.y)) edge=min(edge,50.0-f.y);
         vec3 material=local+vec3(volumeAnchorUnits.x,0,volumeAnchorUnits.y);
-        detail=(1.0+volumeDetail.x*(2.0*ReferenceCloudNoise(material)-1.0))*smoothstep(0.0,volumeDetail.y,edge);
+        detail=(1.0+volumeDetail.x*(2.0*CloudNoise(material)-1.0))*smoothstep(0.0,volumeDetail.y,edge);
     }
     return (data.r/50.0)/volumeAnchorUnits.z*detail;
 }
@@ -73,7 +56,33 @@ float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
 /** Exposes bounded production schedules and shared density through independent authored queries. */
 void main()
 {
+    if(testDirectionMode.w==20.0)
+    {
+        uint lane=gl_GlobalInvocationID.x;
+        if(lane>=256u)return;
+        float sum=0.0;
+        CloudDensityCache cache=CloudDensityCacheStart();
+        // Each lane queries a different grid traversal within an occupied center column.
+        // One dispatch performs 1048576 shared-density evaluations without CPU readbacks.
+        for(int i=0;i<4096;i++)
+        {
+            uint key=uint(i)+lane*4096u;
+            vec3 p=vec3(50.25+49.5*float(key%127u)/126.0,
+                -49.5+149.0*float((key/127u)%131u)/130.0,
+                50.25+49.5*float((key/16637u)%61u)/60.0);
+            sum+=CloudDensity(p,ivec2(1),CloudColumn(ivec2(1)),cache);
+        }
+        intervals[lane]=vec4(sum,4096,0,0);
+        if(lane==0u)counts=vec4(256,4096,1048576,0);
+        return;
+    }
     counts=vec4(0); measuredOrigin=testOriginLimit.xyz;
+    if(testDirectionMode.w==21.0)
+    {
+        float repeats=max(1.0,floor(volumeDetail.z*(12800.0/8.0)+.5));
+        intervals[0]=textureLod(cloudPerturbation,testOriginLimit.xyz*(repeats/12800.0)+vec3(.5/64.0),0.0);
+        counts=vec4(CloudNoise(testOriginLimit.xyz),repeats,64,1);return;
+    }
     if(testDirectionMode.w==19.0)
     {
         int source=int(testOriginLimit.w);

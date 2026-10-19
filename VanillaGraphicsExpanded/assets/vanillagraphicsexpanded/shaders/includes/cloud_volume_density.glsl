@@ -47,23 +47,16 @@ vec4 CloudDensityNeighbor(int face,CloudDensityCache cache)
     ivec2 offset=face==0?ivec2(-1,0):face==1?ivec2(1,0):face==2?ivec2(0,-1):ivec2(0,1);
     return CloudColumn(cache.cell+offset);
 }
-/** Hashes a periodic lattice; no time or independent wind translation enters the noise. */
-float CloudHash(vec3 lattice,float period)
-{
-    vec3 p=mod(lattice,period);
-    p=mod(p,289.0);
-    return fract(sin(dot(p,vec3(17.13,91.71,43.19)))*43758.5453);
-}
-/** Returns bounded smooth value noise with a fixed world-space period and configurable integer frequency. */
+/** Samples all overlapping octaves once with explicit LOD in compute and divergent ray loops. */
+uniform sampler3D cloudPerturbation;
 float CloudNoise(vec3 material)
 {
-    float period=max(1.0,floor(volumeDetail.z*12800.0+.5));
-    vec3 p=material*(period/12800.0), i=floor(p), f=fract(p);
-    f=f*f*(3.0-2.0*f);
-    return mix(mix(mix(CloudHash(i,period),CloudHash(i+vec3(1,0,0),period),f.x),
-        mix(CloudHash(i+vec3(0,1,0),period),CloudHash(i+vec3(1,1,0),period),f.x),f.y),
-        mix(mix(CloudHash(i+vec3(0,0,1),period),CloudHash(i+vec3(1,0,1),period),f.x),
-        mix(CloudHash(i+vec3(0,1,1),period),CloudHash(i+vec3(1,1,1),period),f.x),f.y),f.z);
+    // Whole repeats preserve the 12800-unit material/recenter period. Texture nodes
+    // store i/64, so the half-texel offset maps those nodes to hardware texel centers.
+    float repeats=max(1.0,floor(volumeDetail.z*(12800.0/8.0)+.5));
+    vec3 uv=material*(repeats/12800.0)+vec3(.5/64.0);
+    vec4 octaves=textureLod(cloudPerturbation,uv,0.0);
+    return clamp(dot(octaves,vec4(8.0,4.0,2.0,1.0)/15.0),0.0,1.0);
 }
 /** Evaluates the shared density field while reusing descriptors, never height-dependent occupancy decisions. */
 float CloudDensity(vec3 local,ivec2 cell,vec4 data,inout CloudDensityCache cache)

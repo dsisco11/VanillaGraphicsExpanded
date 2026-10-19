@@ -167,12 +167,12 @@ same uniform fallback selected by the crossing estimate.
 
 For a supported chord [front,back] and integrated tauMax, mean extinction is
 `tauMax / ((back-front) * metresPerWorldUnit)`. Front is the geometric supported chord entry,
-including native support whose sampled procedural density vanishes. Nonintersecting projected rays
+including native support whose sampled detailed density vanishes. Nonintersecting projected rays
 and zero spans store RGB zero. A nonzero chord with zero sampled density has zero extinction and
 tauMax. Optical-depth accumulation saturates at 1e30. Every generated texel is a finite compact
 record before the whole texture is admitted; alpha never stores source flags or invalid markers.
 
-The shared full-frequency density definition remains unchanged. A diagnostic generation variant
+View rays, retained shadow marches and cache generation share the same sampled density definition. A diagnostic generation variant
 uses two opposite quarter-texel footprint rays with half the total density budget each. Independently
 clipped rays contribute equally weighted optical depth to their containing chord. This approximation
 is not selected for production and has no image-quality acceptance threshold.
@@ -208,17 +208,63 @@ mode release and world teardown dispose them. Simple and Off allocate no cloud-h
 
 ## Density, lighting and scene composition
 
-Volumetric density uses native horizontal footprints and vertical bounds. Periodic procedural
-3D noise modulates density inside that envelope; exposed faces soften inward while occupied
+Volumetric density uses native horizontal footprints and vertical bounds. A static periodic
+3D perturbation texture modulates density inside that envelope; exposed faces soften inward while occupied
 shared faces remain connected. Broad faces and stepped cubic masses remain. Noise follows native
 placement, integer recentering and committed/residual wind without a second advection.
 Consecutive samples in a native column retain its descriptor. Needed neighboring descriptors are
 fetched at the current sample, keeping the ray-local cache small across secondary marches.
 Neighbor occupancy is retested at each sample height. Faces farther than the current nearest face
-or erosion width need no neighbor lookup. Zero detail amplitude skips procedural noise; zero edge
-support returns before noise. The procedural noise field and material anchoring are unchanged.
+or erosion width need no neighbor lookup. Zero detail amplitude skips the noise lookup; zero edge
+support returns before noise. All consumers use the same material anchoring and sampled field.
 Disabling detail also disables edge erosion, restoring piecewise constant native density. Finite
 primary sampling need not integrate a discontinuous column field exactly.
+
+### Static perturbation volume
+
+`CloudPerturbationAsset` validates the versioned embedded `VGE.CloudPerturbation` resource before
+upload. `tools/CloudPerturbation` owns its offline generator; runtime never generates lattice hashes.
+The committed source asset is `PBR/Clouds/cloud-perturbation.bin` in the production project.
+Reproduce it with `dotnet run --project tools/CloudPerturbation -- <output-path>` from the repository
+root. The complete 1,048,608-byte asset has SHA256
+`7B2D9323D65E4E93F3A5DCC85F5C412D0CBC174E10EA3F0A102135B259C313F8`.
+Its 32-byte little-endian header contains magic 0x4E434756, version 1, side 64, channels 4,
+base seed 0x434C4F55, base frequency 8, level count 1 and reserved zero. Payload is x-fastest,
+then y, then z, with interleaved RGBA8 UNORM nodes. Header, exact length and payload digest are
+validated before any GPU allocation is exposed. Missing/corrupt assets or unsupported texture/unit
+limits reject preparation; allocation/upload failures dispose partial storage. Reset/reload permits
+a fresh preparation attempt. There is no procedural fallback or density-field switch during a draw.
+
+RGBA store four independent wrapped value fields at 8, 16, 32 and 64 lattice cells per volume,
+using seeds 0x434C4F55 through 0x434C4F58. The offline integer avalanche hash yields a bounded
+24-bit value; periodic smoothstep interpolation is rounded to the nearest UNORM8 node. Node i
+represents i/64. All four channels share coordinates, with no atlas padding or octave boundaries
+to cross spatially. One hardware-trilinear `textureLod(...,0)` fetch returns all channels, combined
+with fixed normalized weights 8/15, 4/15, 2/15 and 1/15 and clamped to [0,1]. There are no octave
+controls. The existing amplitude remains `1 + amplitude * (2*noise - 1)`, applied once to native
+extinction and inward exposed-edge erosion. The native support and conservative source bounds
+therefore remain valid. Detail-off, zero amplitude and empty support return before texture sampling.
+
+For material coordinate m, R=max(1,floor(NoiseScale*12800/8+.5)) and UV=m*R/12800+.5/64.
+Whole repeats preserve the existing 12800-world-unit material period and committed/recentered wind
+anchoring. The scale now quantizes the base frequency in eight-cell increments; the default .08
+gives 1024 base cells per period and repeats the packed volume every 100 world units. That shorter
+texture repeat is shared by all octaves; the 12800-unit anchoring period remains a multiple of it.
+This deliberately replaces the procedural field, its interpolation
+and fine frequency quantization; additional octaves change the appearance. No exact-field or visual
+equivalence is implied. The unchanged primary blue-noise masks choose ray positions independently.
+
+`CloudVolumeReconstruction` owns one `CloudPerturbationTexture` shared by reduced tracing, retained
+secondary marches and attenuation generation. The reference renderer borrows that same owner even
+when reduced tracing is not selected. Static allocation/upload occurs once per resource lifetime;
+weather, lights and ordinary native publications reuse it. Reset, resize, reload, mode retirement
+and context teardown dispose it through existing cloud lifecycle paths. Simple and Off allocate none.
+The 64-cubed RGBA8 continuous Texture3D uses 1 MiB, one level, linear filtering and repeat in all
+three axes. Sampler unit 11 binds the texture object's declared policy without an overriding clamp
+sampler. There are no mips or implicit derivatives: compute, view and light queries all explicitly
+select level zero. The diagnostic footprint rays still sample this same underlying volume. Fixed
+LOD avoids undefined derivatives but does not provide distance-dependent antialiasing; tiling, fine
+detail aliasing and changed octave appearance remain user-reviewed qualification concerns.
 
 Primary tracing intersects the finite horizontal map, certified layer envelope and admitted
 foreground/liquid distance before selecting a budget. For this clipped length L, including empty gaps, it selects
@@ -422,7 +468,7 @@ The persisted `Clouds` config and ConfigLib expose:
 | `Detail` | true | Noise and exposed-edge erosion; false samples piecewise constant native density |
 | `DetailAmplitude` | .15 | 0..0.95 bounded interior modulation |
 | `EdgeWidth` | 2 | .01..10 world units of inward softness |
-| `NoiseScale` | .08 | .001..1 noise cells per world unit |
+| `NoiseScale` | .08 | .001..1 requested base cells per world unit, quantized to eight-cell increments per material period |
 
 Cloud settings use a clean break: absent current fields receive defaults; obsolete fields are not
 reinterpreted. Nonfinite controls restore
@@ -436,9 +482,9 @@ weights can misestimate short or discontinuous support, and finite distance can 
 occluders. Reference discrepancies are diagnostic, without automated approximation-quality gates.
 Final selection still requires measured cost and user appearance review.
 
-The 384/2/50 primary selection assigns 384 scheduled positions to rays of at least 50 world units.
-Primary and secondary quadrature have independent algorithm-correctness checks. Realtime cost and the final
-shipped selection remain unqualified in the realtime checklist. Bounded work alone does not
+The 384/1/10000 primary selection assigns 384 scheduled positions to clipped rays of at least
+10000 world units. Primary and secondary quadrature have independent algorithm-correctness checks.
+Final live performance and appearance remain unqualified in the realtime checklist. Bounded work alone does not
 establish a speedup, particularly on short rays.
 
 Reduced targets and pipelines persist across stable frames. Resize/reload retire their owned

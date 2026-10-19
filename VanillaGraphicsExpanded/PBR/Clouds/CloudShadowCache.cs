@@ -23,7 +23,7 @@ internal sealed class CloudShadowCache(Func<CloudShadowAttenuationComputeShader>
     internal string? Failure { get; private set; }
     /// <summary>Builds the dominant source's attenuation from the current certified map, never a previous frame.</summary>
     internal DynamicTexture2D? Build(CloudMapInput input,AtmosphereLighting lighting,CloudVolumeParameters parameters,
-        int width,DynamicTexture2D? bounds,Func<bool> current,out int source)
+        int width,DynamicTexture2D? bounds,Func<bool> current,out int source,GpuTexture? perturbation=null)
     {
         source=Peak(lighting.Solar)>=Peak(lighting.Lunar)?0:1;
         if(disposed) return null;
@@ -51,6 +51,7 @@ internal sealed class CloudShadowCache(Func<CloudShadowAttenuationComputeShader>
             allocation=input;
             if(!current()) { Reset(); return null; }
             program.Capture(parameters,bounds,width,Quadrature,source);
+            program.Perturbation=perturbation;
             program.Map=map;program.Target=new(texture,TextureAccess.WriteOnly);
             var prepared=program.ProgramLayout.BinaryInterface?.PreparedBindings
                 ??throw new InvalidOperationException("Cloud attenuation bindings are unavailable.");

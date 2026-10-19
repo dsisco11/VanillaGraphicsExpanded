@@ -57,6 +57,7 @@ internal sealed class CloudVolumeRenderer : IRenderer
         if(program is null) return false;
         program.ConfigureOptions(()=>program.SelfShadowing=Settings.ShadowQuality>0);
         if (program.EnsureReady() != true || (!reference && !reconstruction.Prepare(Settings.ShadowQuality>0))) return false;
+        program.Perturbation=reconstruction.PreparePerturbation();
         geometry ??= new(Layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         return true;
     }

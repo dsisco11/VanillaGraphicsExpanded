@@ -67,7 +67,7 @@ internal sealed class CloudVolumeParameters : CpuUniformBuffer
     #endregion
 
     #region Private
-    /// <summary>Keeps a 256-cell periodic lattice precise even at large committed integer coordinates.</summary>
+    /// <summary>Keeps the 12800-unit material period precise even at large committed integer coordinates.</summary>
     private static float Anchor(int center, int wind, int width)
     {
         double value = ((double)center - wind - width * .5) * 50;
