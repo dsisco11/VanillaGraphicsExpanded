@@ -694,6 +694,27 @@ public abstract class GpuTexture : GpuResource, IDisposable
         }
     }
 
+    /// <summary>Uploads tightly packed UNORM16 or unsigned integer nodes to a layered region without float conversion.</summary>
+    public virtual void UploadDataImmediate(ushort[] data,int x,int y,int z,int regionWidth,int regionHeight,int regionDepth,int mipLevel=0)
+    {
+        ObjectDisposedException.ThrowIf(!IsValid,this);
+        ArgumentNullException.ThrowIfNull(data);
+        Ensure3DLike();
+        if(TextureFormatHelper.GetPixelType(internalFormat)!=PixelType.UnsignedShort)
+            throw new InvalidOperationException($"Unsigned-short upload requires a matching texture format, got {internalFormat}.");
+        if(data.Length!=checked(regionWidth*regionHeight*regionDepth*GetChannelCount()))
+            throw new ArgumentException("Unsigned-short data does not match the texture region.",nameof(data));
+        using var binding=StateCache.Current.BindTextureScope(textureTarget,unit:0,textureId);
+        GL.GetInteger(GetPName.UnpackAlignment,out int previousAlignment);
+        StateCache.Current.SetPixelStore(PixelStoreParameter.UnpackAlignment,1);
+        try
+        {
+            GL.TexSubImage3D(textureTarget,mipLevel,x,y,z,regionWidth,regionHeight,regionDepth,
+                TextureFormatHelper.GetPixelFormat(internalFormat),PixelType.UnsignedShort,data);
+        }
+        finally { StateCache.Current.SetPixelStore(PixelStoreParameter.UnpackAlignment,previousAlignment); }
+    }
+
     public virtual void UploadDataImmediate(uint[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int mipLevel = 0)
     {
         if (!IsValid)
