@@ -603,3 +603,38 @@ destination load/store adds 16 bytes per updated node. These are logical payload
 filtered reads, metadata traffic, caching and actual GPU time require separate measurement.
 These isolated owners have reset/disposal hooks; scene admission and live callback wiring remain
 unregistered. Focused arithmetic/publication checks do not establish runtime cost or appearance.
+
+`LightingVolumeRenderer` submits the candidate through its own full-resolution view program. It
+borrows a complete current camera, frozen photometric publication, native map, independent material/
+particle/liquid depths, completed aerial products and native OIT target. It owns procedural geometry,
+graphics pipelines and a small native-height reduction program; its view program remains with the
+shader library. It neither ticks weather nor registers a live callback or selector. Lighting updates
+remain separate owners, so draw submission does not hide descriptor or refinement work.
+
+The reduction scans each native texel once, rejects malformed/empty controls and writes the finite
+minimum/maximum heights into scratch words 1536–1537. A storage barrier precedes fragment reads.
+The view intersects those heights, finite horizontal support and the nearest of three independent
+foreground clips. It budgets deterministic uniform midpoints across that clipped layer span, with
+at most 96 samples and a 10000-unit default budget distance. Density queries preserve sharp native
+support independently of filtered illumination, including thin clouds and density outside the
+lighting band. Invalid lighting footprints use unshadowed transmission and the coarse diffuse
+environment source. The source is directional first scattering plus retained diffuse, with no
+additional environment or approximate scattering octave.
+
+The integrator retains separate total and three native bucket transmission products. A strict
+post-step termination threshold has a compiled disabled variant; disabled detail, direct self-shadow
+lookup and diffuse lookup also select actual precompiled variants. Atmosphere or local underwater
+response applies once at the opacity-weighted representative distance, then physical RGB is encoded
+once with the matching frozen scene scale. Reveal/Reveal/Glow/Add/Add/Add output policies preserve
+native accumulation, with non-emissive glow RGB zero. The physical camera, atmosphere and encoding
+contracts are shared by both PBR selections; there is no PBR-specific cloud-lighting branch.
+Submission rejects unrepresentable current-source plus retained-diffuse, aerial and local-fog
+arithmetic before drawing. Receiving albedo is applied per direct-source contribution so an
+otherwise representable source sum does not overflow an intermediate before albedo multiplication.
+
+The selected view has no intermediate texture, spatial resolve, screen-space history or dependency
+on existing cloud hierarchy, shadow, transport or reconstruction owners. Its height and view
+parameter blocks raise the total to 1904 of the reserved 2048 bytes; scratch and volume allocations
+are unchanged. Reset retires private pipelines/reduction/geometry and releases synchronous borrows.
+Live ownership, lifecycle registration, scene-bound admission and visual/performance qualification
+remain unregistered and unqualified.

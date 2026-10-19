@@ -90,5 +90,15 @@ public sealed class CloudLightingVolumeDomainTests
         bounds.Reset();bounds.Observe(light with {Solar=Vector3.Zero,Lunar=Vector3.Zero,Environment=Vector3.Zero});
         Assert.Equal(0,bounds.Encoding.Cap);Assert.Equal(0,bounds.SourceCap);
     }
+    /// <summary>Candidate view controls retain independent finite hard limits and an explicit no-termination selection.</summary>
+    [Fact]
+    public void ViewSettingsRejectInvalidFiniteSchedules()
+    {
+        LightingVolumeViewSettings.Default.Validate();
+        (LightingVolumeViewSettings.Default with {Stop=0,Maximum=4,BudgetDistance=50}).Validate();
+        Assert.Throws<ArgumentOutOfRangeException>(()=>(LightingVolumeViewSettings.Default with {Maximum=97}).Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(()=>(LightingVolumeViewSettings.Default with {BudgetDistance=float.NaN}).Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(()=>(LightingVolumeViewSettings.Default with {Stop=-.001f}).Validate());
+    }
     #endregion
 }

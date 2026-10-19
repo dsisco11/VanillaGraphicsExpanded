@@ -294,19 +294,58 @@ Phase 5: Refine diffuse multiple scattering coherently
 Phase 6: Draw the candidate through an independent view path
   Depends on Phases 2–5. Outcome: authored scenes render candidate illumination into native OIT products.
   Validation: cached view/resolve variants and focused clipping/composition checks; no full timing matrix.
-  ☐ Implement the candidate renderer and deterministic view integrator using candidate settings.
+  ☑ Implement the candidate renderer and deterministic view integrator using candidate settings.
     - Clip to current finite native support and foreground/liquid depths. Evaluate native density,
       cached direct/diffuse lighting and current view-dependent directional phase response.
     - Render thin support and out-of-lighting-domain density with the specified coarse fallback.
       Preserve sharp cuboid support independently of filtered illumination.
     - Apply current atmosphere/underwater, photometric encoding and all six OIT outputs through
       public contracts or narrowly scoped private adapters. Support both PBR selections.
-  ☐ Implement the Phase 1 resolution decision and spatial resolve only if that decision requires it.
+  ☑ Implement the Phase 1 resolution decision and spatial resolve only if that decision requires it.
     - Use candidate-owned targets and explicit depth-aware reconstruction. Keep screen-space temporal
       accumulation absent; do not borrow current cloud reconstruction/history resources or settings.
-  ☐ Compile out user-disabled shader paths and keep runtime branches for genuinely dynamic data.
-  ☐ Completion: fixture rendering establishes physical units, declared sampling, support/depth clips,
+  ☑ Compile out user-disabled shader paths and keep runtime branches for genuinely dynamic data.
+  ☑ Completion: fixture rendering establishes physical units, declared sampling, support/depth clips,
     fallback and OIT/encoding arithmetic. Live selection remains unregistered until Phase 7 admission.
+
+  Implementation verification (2026-10-19)
+    View/sampling -> proposal / Deterministic view and initial controls; Coordinates, coverage and
+      allocation; Density, ray schedules and source units -> independent LightingVolumeRenderer,
+      ViewProgram/settings/scene and private view shaders. GPU native-height reduction writes scratch
+      words 1536–1537; layer/horizontal support and separate material/particle/liquid mip-zero clips
+      determine the deterministic uniform-midpoint lattice. Density remains authoritative for thin
+      support, empty gaps and clouds outside the lighting band. No existing hierarchy/transport import.
+    Lighting/output -> proposal / Stored quantities and filtering; Direct illumination and progressive
+      scattering; Physical bounds and coherent publication; PBR.Clouds.md native OIT and
+      PBR.Atmosphere.Publication.md physical-unit/encoding contracts -> exact-mask footprint admission,
+      hardware trilinear cached transmission/diffuse, Q+D without another environment term, current
+      atmosphere or underwater response at the opacity centroid, one frozen-scale encoding and all
+      six native Reveal/Reveal/Glow/Add/Add/Add products. Shared physical contracts have no PBR-route
+      branch. Unrepresentable source/retained-diffuse/aerial/local-fog sums reject before graphics;
+      per-source albedo placement avoids pre-albedo intermediate overflow.
+    Resolution/options/ownership -> selected full-resolution decision and Rendering.Enablement.md
+      lifetime context -> direct OIT submission with no view texture, spatial resolve or screen-space
+      history. Detail, direct lookup, diffuse lookup and optical termination use compiled variants.
+      Typed compute/graphics boundaries separate height writes from fragment readers and preserve
+      synchronous input/executable certificates. The shader library owns the borrowed view program;
+      reset retires private geometry/pipelines/reduction and releases camera/map/atmosphere borrows.
+      Live callback registration, updater composition and before-Opaque bound admission remain Phase 7.
+    Second review and independent completion audit passed. Five affected CPU domain/settings checks
+      passed; their unchanged receipt was reused after shader fixes. Both final GPU view facts passed
+      without skips: 1616 ms finite support/clips/medium/termination, 813 ms cached source/OIT/encoding
+      and unrepresentable-source rejection. Tests enforce the specified finite algorithm and float
+      representation, without approximation quality, image similarity or convergence gates.
+    Validation corrected grouped sampler declarations that prevented typed linked-resource admission.
+      Initial registration invalidated catalog metadata automatically, while compiler caches reused
+      476 production / 559 fixture binaries and compiled 18 new variants. Final cached Release build
+      passed with zero errors and 185 existing warnings; only 16 affected view variants rebuilt per
+      catalog (478 production / 561 fixture records reused). No clean build, broad test suite, package
+      or game run was requested. Receipts: artifacts/cloud-lighting-volume-phase6-final-build.log,
+      -final-tests.log, artifacts/test-results/cloud-lighting-volume-phase6-final-view.trx and the
+      unchanged domain results in cloud-lighting-volume-phase6-focused.trx.
+    No new volume, scratch allocation or intermediate target; parameter blocks total 1904 of 2048
+      reserved bytes. Native targets/resources remain borrowed. User appearance, actual GPU/CPU cost,
+      driver residency, live selection and later qualification remain unchecked.
 
 Phase 7: Integrate selection, lifecycle and focused diagnostics
   Depends on Phases 2–6. Outcome: users can select one removable candidate without coupling algorithms.
