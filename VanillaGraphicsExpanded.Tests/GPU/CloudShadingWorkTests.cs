@@ -3,6 +3,8 @@ using System.Numerics;
 using System.Text.Json;
 using VanillaGraphicsExpanded.PBR.Clouds;
 using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
+using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -13,6 +15,162 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutputHelper output) : RenderTestBase(fixture)
 {
     #region Public API
+    #region Reusable attenuation diagnostics
+    /// <summary>Measures a disposable light-space attenuation prototype, including rebuilds and explicit source/map invalidation.</summary>
+    [Fact]
+    public void ShadowAttenuationPrototypeCosts()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_CLOUD_SHADOW_CACHE_MEASUREMENT")=="1","Explicit cache prototype measurement required.");
+        EnsureContextValid();
+        string directory=Environment.GetEnvironmentVariable("VGE_CLOUD_COMPONENT_OUTPUT")??throw new InvalidOperationException("Output directory required.");
+        Directory.CreateDirectory(directory);
+        bool? previousMode=VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.GenerationLumOnEnabled;
+        try
+        {
+        if(Environment.GetEnvironmentVariable("VGE_CLOUD_MEASUREMENT_LUMON") is string selected)
+            VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.GenerationLumOnEnabled=selected=="1";
+        using var programs=new ComponentShaderPrograms();
+        var builder=programs.CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api));
+        var controls=CloudVolumeSettings.Default with {ViewRaySampleMax=384,LightRaySampleMax=10,ShadowDistance=1500,DetailAmplitude=.25f,EdgeWidth=8,StopTransmittance=0};
+        foreach(string scenario in (Environment.GetEnvironmentVariable("VGE_CLOUD_CACHE_CASES")??"small-day,full-day,full-night").Split(','))
+        {
+            bool full=scenario.StartsWith("full"),night=scenario.EndsWith("night");
+            bool grazing=scenario.Contains("grazing");
+            float solar=night?scenario.Contains("lunar-only")?0:.05f:84431,lunar=night?.2f:20000;
+            int width=full?3440:512,height=full?1377:256;
+            using var before=new CloudReconstructionScene(width,height,programs,false,200,settings:controls);
+            using var after=new CloudReconstructionScene(width,height,programs,false,200,settings:controls);
+            using var oldRoot=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(programs.Api));
+            using var newRoot=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(programs.Api));
+            using var target=DynamicTexture2D.Create(256,256,PixelInternalFormat.Rgba32f);
+            using var timer=new CloudPerformanceTimer();using var rootEnd=GpuTimestampQuery.Create();
+            using var start=GpuTimestampQuery.Create();using var end=GpuTimestampQuery.Create();
+            var oldTimes=new List<double[]>();var newTimes=new List<double[]>();
+            // The second meaningful source remains marched; the cache is rebuilt for each published map.
+            for(int round=-3;round<5;round++)foreach(bool old in (round+3)%2==0?new[]{true,false}:new[]{false,true})
+            {
+                var scene=old?before:after;
+                scene.Capture((uint)(round+3),.125f,night?.001f:1847,1,0,"detail-lit");
+                if(grazing)scene.AuthorHierarchyColumns(false);
+                scene.SetDirectionalLights(Vector3.Normalize(new(-.243f,grazing?.005f:.401f,.883f)),Vector3.Normalize(new(-.897f,.346f,-.274f)),3,solar,lunar);
+                start.Issue();long cpu=Stopwatch.GetTimestamp();timer.Begin();
+                if(old){scene.UseHierarchy(oldRoot);rootEnd.Issue();}
+                else scene.BuildShadowCache(builder,newRoot,target,64,night?1:0,rootEnd);
+                timer.ConstructionComplete();
+                if(old)scene.Render(0,false);else scene.RenderShadowCache(0,false);
+                double submit=Stopwatch.GetElapsedTime(cpu).TotalMilliseconds;
+                double[] values=timer.End(end);long first=start.GetResultNanoseconds();
+                double[] sample=[..values,(rootEnd.GetResultNanoseconds()-first)/1e6,(end.GetResultNanoseconds()-first)/1e6,submit];
+                if(round>=0)(old?oldTimes:newTimes).Add(sample);
+            }
+            var reference=before.ReadTraceRecord();var approximate=after.ReadTraceRecord();
+            var baselineParameters=before.ReadTraceParameters();var cacheParameters=after.ReadShadowCacheParameters();
+            float[] cache=target.ReadPixels();
+            int empty=Enumerable.Range(0,cache.Length/4).Count(i=>cache[i*4+3]==(night?2:1)&&cache[i*4+2]==0);
+            int occupied=Enumerable.Range(0,cache.Length/4).Count(i=>cache[i*4+2]>0);
+            Assert.True(occupied>0,"The prototype must generate nonempty attenuation.");
+            // A changed light invalidates the cached source, while a new native publication must also disable its root.
+            after.SetDirectionalLights(Vector3.UnitY,-Vector3.UnitY,3,25,5);
+            after.RenderTrace(0);var sourceReference=after.ReadTraceRecord();after.RenderShadowCache(0,false);
+            double sourceFallback=sourceReference.Zip(after.ReadTraceRecord(),(a,b)=>a.Zip(b,(x,y)=>Math.Abs((double)x-y)).Max()).Max();
+            after.Capture(9,.2f,1847,1,.25f,"detail-lit");after.UseHierarchy(null);after.RenderTrace(0);
+            var mapReference=after.ReadTraceRecord();after.RenderShadowCache(0,false);
+            double mapFallback=mapReference.Zip(after.ReadTraceRecord(),(a,b)=>a.Zip(b,(x,y)=>Math.Abs((double)x-y)).Max()).Max();
+            Assert.Equal(0,sourceFallback);Assert.Equal(0,mapFallback);
+            after.SetDirectionalLights(Vector3.Normalize(new(-.243f,grazing?.005f:.401f,.883f)),Vector3.Normalize(new(-.897f,.346f,-.274f)),3,solar,lunar);
+            after.BuildShadowCache(builder,newRoot,target,64,night?1:0);after.RenderShadowCache(0,false);
+            float[][] recovered=after.ReadTraceRecord();
+            Assert.All(recovered.SelectMany(layer=>layer),value=>Assert.True(float.IsFinite(value)));
+            Assert.Contains(target.ReadPixels().Where((_,i)=>i%4==3),value=>value==(night?2:1));
+            var receipt=new {scenario,width,height,nativeWidth=200,field=grazing?"sparse stepped columns":"uniform native columns",grazing,
+                cacheWidth=256,quadrature=64,solar,lunar,controls,warmups=3,pairs=5,baselineParameters,cacheParameters,
+                columns=new[]{"constructionGpuMs","traceGpuMs","temporalGpuMs","resolveGpuMs","drawTotalGpuMs","rootGpuMs","wholeGpuMs","submitCpuMs"},
+                baseline=oldTimes,current=newTimes,empty,occupied,sourceFallback,mapFallback,recoveredAfterRebuild=true,
+                maximumAbsoluteDifference=reference.Zip(approximate,(a,b)=>a.Zip(b,(x,y)=>Math.Abs((double)x-y)).Max()).ToArray(),
+                lumOn=VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.LumOnEnabled,fixture.GLRenderer,
+                gamePids=Process.GetProcessesByName("Vintagestory").Select(p=>p.Id).ToArray(),
+                qualification="Opt-in mean-extinction approximation against the same selected executable, fixed narrow projection and declared synthetic native field. Includes same-frame root/cache generation and barriers. Differences diagnostic, no appearance gate or live FPS claim."};
+            File.WriteAllText(Path.Combine(directory,scenario+".json"),JsonSerializer.Serialize(receipt,new JsonSerializerOptions{WriteIndented=true}));
+            output.WriteLine($"Shadow cache {scenario} complete, occupied={occupied}, empty={empty}.");
+        }
+        GlDebug.ThrowIfErrors("Shadow attenuation prototype");
+        }
+        finally {VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.GenerationLumOnEnabled=previousMode;}
+    }
+    #endregion
+    #region Complete production owner diagnostics
+    /// <summary>Measures complete production cloud owners at representative extents without turning timing or output diagnostics into gates.</summary>
+    [Fact]
+    public void FullViewProductionOwnerCosts()
+    {
+        Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_RUN_CLOUD_FULL_VIEW_MEASUREMENT")=="1","Explicit full-view measurement required.");
+        EnsureContextValid();
+        string baselineRoot=Environment.GetEnvironmentVariable("VGE_CLOUD_SHADING_BASELINE_ASSETS")
+            ??throw new InvalidOperationException("Frozen baseline required.");
+        string directory=Environment.GetEnvironmentVariable("VGE_CLOUD_COMPONENT_OUTPUT")
+            ??throw new InvalidOperationException("Output directory required.");
+        Directory.CreateDirectory(directory);
+        using var baselinePrograms=new ComponentShaderPrograms(baselineRoot);
+        using var currentPrograms=new ComponentShaderPrograms(Environment.GetEnvironmentVariable("VGE_CLOUD_SHADING_CANDIDATE_ASSETS"));
+        var controls=CloudVolumeSettings.Default with {ViewRaySampleMax=384,LightRaySampleMax=10,
+            ShadowDistance=1500,DetailAmplitude=.25f,EdgeWidth=8,StopTransmittance=0};
+        foreach(string mode in (Environment.GetEnvironmentVariable("VGE_CLOUD_FULL_VIEW_CASES")??"day,night,quarter,termination").Split(','))
+        {
+            bool diagnostic=mode is "quarter" or "termination";
+            int rounds=diagnostic?3:5;
+            var candidateControls=mode=="quarter"?controls with {TraceScale=CloudTraceScale.Quarter}:
+                mode=="termination"?controls with {StopTransmittance=.005f}:controls;
+            string field=mode=="opaque-tail"?"opaque-tail":"dense";
+            using var before=new CloudPerformanceScene(baselinePrograms,3440,1377,200,field,"inside");
+            using var after=new CloudPerformanceScene(diagnostic?baselinePrograms:currentPrograms,3440,1377,200,field,"inside");
+            var lighting=MeasurementLighting(mode=="night");
+            before.SetMeasurementInputs(controls,lighting);after.SetMeasurementInputs(candidateControls,lighting);
+            using var oldOwner=before.CreateReconstruction();using var newOwner=after.CreateReconstruction();
+            using var oldBounds=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(baselinePrograms.Api));
+            using var newBounds=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create((diagnostic?baselinePrograms:currentPrograms).Api));
+            using var timer=new CloudPerformanceTimer();using var wholeStart=GpuTimestampQuery.Create();
+            using var wholeEnd=GpuTimestampQuery.Create();using var inputEnd=GpuTimestampQuery.Create();
+            var oldTimes=new List<double[]>();var newTimes=new List<double[]>();
+            for(int round=-3;round<rounds;round++)
+            {
+                foreach(bool old in (round+3)%2==0?new[]{true,false}:new[]{false,true})
+                {
+                    double[] sample=MeasureOwner(old?before:after,old?oldOwner:newOwner,old?oldBounds:newBounds,
+                        timer,wholeStart,wholeEnd,inputEnd,(uint)(round+3));
+                    if(round>=0)(old?oldTimes:newTimes).Add(sample);
+                }
+            }
+            var history=after.ReadCommittedHistory(newOwner);
+            var priorHistory=before.ReadCommittedHistory(oldOwner);
+            double[] historyDifference=priorHistory.Zip(history,(a,b)=>a.Zip(b,(x,y)=>Math.Abs((double)x-y)).Max()).ToArray();
+            if(!diagnostic&&Environment.GetEnvironmentVariable("VGE_CLOUD_MEASUREMENT_APPROXIMATION")!="1") Assert.All(historyDifference.Skip(1),value=>Assert.Equal(0,value));
+            var oldTrace=before.ReadLatestTrace(oldOwner);var newTrace=after.ReadLatestTrace(newOwner);
+            double[] traceDifference=oldTrace.Zip(newTrace,
+                (a,b)=>a.Zip(b,(x,y)=>Math.Abs((double)x-y)).Max()).ToArray();
+            if(!diagnostic&&Environment.GetEnvironmentVariable("VGE_CLOUD_MEASUREMENT_APPROXIMATION")!="1")Assert.All(traceDifference.Skip(1),value=>Assert.Equal(0,value));
+            double historyTransmissionDifference=Enumerable.Range(0,history[0].Length/4).Max(pixel=>Math.Abs((double)priorHistory[0][pixel*4+3]-history[0][pixel*4+3]));
+            double traceTransmissionDifference=Enumerable.Range(0,newTrace[0].Length/4).Max(pixel=>Math.Abs((double)oldTrace[0][pixel*4+3]-newTrace[0][pixel*4+3]));
+            if(!diagnostic&&Environment.GetEnvironmentVariable("VGE_CLOUD_MEASUREMENT_APPROXIMATION")!="1")
+            {Assert.Equal(0,historyTransmissionDifference);Assert.Equal(0,traceTransmissionDifference);}
+            int occupied=history[0].Where((_,index)=>index%4==3).Count(value=>value<1);
+            Assert.True(occupied>0,"Full-view field must execute nonempty cloud transport.");
+            var receipt=new {mode,comparison=diagnostic?"separate-baseline-policy-diagnostic":Environment.GetEnvironmentVariable("VGE_CLOUD_COMPONENT_LABEL")??"current-default-shadow-policy",
+                fullWidth=3440,fullHeight=1377,nativeWidth=200,view="inside",field,nativeExtinction=mode=="opaque-tail"?6f:.125f,
+                baselineControls=controls,candidateControls,defaults=CloudVolumeSettings.Default,warmups=3,rounds,
+                columns=new[]{"constructionGpuMs","traceGpuMs","temporalGpuMs","resolveGpuMs","drawTotalGpuMs",
+                    "drawSubmitCpuMs","syntheticInputGpuMs","syntheticInputCpuMs","wholeRendererGpuMs","wholeSubmitCpuMs"},
+                baseline=oldTimes,current=newTimes,actualBaselineParameters=before.ReadParameters(),actualCurrentParameters=after.ReadParameters(),
+                historyAdmitted=after.HistoryEnabled,historyDifference,traceDifference,historyTransmissionDifference,traceTransmissionDifference,occupied,maximumRadiance=history[0].Where((_,i)=>i%4!=3).Max(),
+                lumOn=VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.LumOnEnabled,
+                gamePids=Process.GetProcessesByName("Vintagestory").Select(process=>process.Id).ToArray(),fixture.GLRenderer,fixture.GLVersion,
+                qualification="Representative-resolution synthetic production-owner timing, not native scene replay or live FPS; concurrent game PIDs recorded separately. Native producer absent; synthetic input generation/upload timed separately. Whole interval includes upload, output clear, reduction/barriers and all3passes; query waits/readback excluded. Caps are not observed evaluation counts."};
+            File.WriteAllText(Path.Combine(directory,mode+".json"),JsonSerializer.Serialize(receipt,new JsonSerializerOptions{WriteIndented=true}));
+            output.WriteLine($"Full-view {mode} complete; history={after.HistoryEnabled},occupied={occupied}.");
+        }
+        GlDebug.ThrowIfErrors("Full-view production-owner measurements");
+    }
+    #endregion
+    #region Trace component diagnostics
     /// <summary>Pairs frozen/current executables for one bright-background workload and one held-out night source.</summary>
     [Fact]
     public void WeakDirectionalShadowCost()
@@ -49,7 +207,8 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
                 foreach(bool old in pair%2==0?new[]{true,false}:new[]{false,true})
                     (old?before:after).Add(Measure(old?baseline:current,timer));
             var original=baseline.ReadTraceRecord();var candidate=current.ReadTraceRecord();
-            var receipt=new {scene,fullWidth=512,fullHeight=256,traceWidth=256,traceHeight=128,
+            var receipt=new {comparison=Environment.GetEnvironmentVariable("VGE_CLOUD_COMPONENT_LABEL")??"weak-directional-shadow",
+                scene,fullWidth=512,fullHeight=256,traceWidth=256,traceHeight=128,
                 settings,environment,solar,moon,warmups=3,pairs=5,
                 actualBaselineParameters=baseline.ReadTraceParameters(),actualCurrentParameters=current.ReadTraceParameters(),
                 baselineGpuMilliseconds=before.Select(value=>value.Device),currentGpuMilliseconds=after.Select(value=>value.Device),
@@ -242,8 +401,31 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
         GlDebug.ThrowIfErrors("Cloud shading measurements");
     }
     #endregion
+    #endregion
 
     #region Private
+    /// <summary>Supplies captured-style daytime colors or one meaningful held-out lunar publication.</summary>
+    private static VanillaGraphicsExpanded.PBR.Atmosphere.AtmosphereLighting MeasurementLighting(bool night)=>
+        new(Vector3.Normalize(new(-.24328835f,.4007645f,.8832885f)),night?Vector3.Zero:new(81792.336f,84431.484f,63476),
+            night?new(.001f):new(776.72943f,1847.2366f,3910.907f),Vector3.Zero,Vector3.Zero,System.Collections.Immutable.ImmutableArray<float>.Empty)
+        {Moon=Vector3.Normalize(new(-.8974143f,.34592077f,-.2738365f)),Lunar=night?new(.2f):new(.0011668546f,.0011682245f,.0008359684f),
+            CalibrationGeneration=1,LookupStorageScale=VanillaGraphicsExpanded.PBR.LightingStorage.PersistentScale};
+
+    /// <summary>Times uploads separately and obtains an independent whole-renderer interval before waiting for any query.</summary>
+    private static double[] MeasureOwner(CloudPerformanceScene scene,CloudVolumeReconstruction owner,CloudHierarchy bounds,
+        CloudPerformanceTimer timer,GpuTimestampQuery wholeStart,GpuTimestampQuery wholeEnd,GpuTimestampQuery inputEnd,uint frame)
+    {
+        wholeStart.Issue();long inputStart=Stopwatch.GetTimestamp();var input=scene.Capture(frame);
+        double inputCpu=Stopwatch.GetElapsedTime(inputStart).TotalMilliseconds;inputEnd.Issue();scene.Clear();
+        timer.Begin();long drawStart=Stopwatch.GetTimestamp();Assert.True(bounds.TryBuild(input,()=>true),bounds.Failure);
+        timer.ConstructionComplete();Assert.True(scene.Draw(owner,input,bounds,()=>true));
+        double drawCpu=Stopwatch.GetElapsedTime(drawStart).TotalMilliseconds;
+        double wholeCpu=Stopwatch.GetElapsedTime(inputStart).TotalMilliseconds;
+        double[] stages=timer.End(wholeEnd);
+        long first=wholeStart.GetResultNanoseconds();
+        return [..stages,drawCpu,(inputEnd.GetResultNanoseconds()-first)/1e6,inputCpu,
+            (wholeEnd.GetResultNanoseconds()-first)/1e6,wholeCpu];
+    }
     /// <summary>Separates physical-channel differences from current spacing/support metadata at matched traced pixels.</summary>
     private static object TransportDifferences(float[][] baseline,float[][] candidate,int baselineWidth,int width,int height,int stride)
     {

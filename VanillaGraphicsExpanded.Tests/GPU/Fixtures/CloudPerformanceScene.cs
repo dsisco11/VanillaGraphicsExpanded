@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using HarmonyLib;
 using Moq;
 using OpenTK.Graphics.OpenGL;
@@ -24,6 +25,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal sealed class CloudPerformanceScene : IDisposable
 {
     private readonly Mock<ICoreClientAPI> api = new() { DefaultValue = DefaultValue.Mock };
+    private readonly ComponentShaderPrograms programs;
     private readonly List<IDisposable> owned = [];
     private readonly CloudTraceProgram trace;
     private readonly CloudTemporalProgram temporal;
@@ -43,6 +45,8 @@ internal sealed class CloudPerformanceScene : IDisposable
     private readonly DynamicTexture3D? previousLoss = AtmosphereModSystem.AerialAttenuationTexture;
     private readonly float[] projection = [1,0,0,0,0,1,0,0,0,0,-1.00001f,-1,0,0,-.200001f,0];
     private readonly float[] inverse = new float[16];
+    private CloudVolumeSettings settings=CloudVolumeSettings.Default;
+    private bool fixedLighting;
     private AtmosphereLighting lighting = new(Vector3.UnitY, new(30), new(10), Vector3.Zero, Vector3.Zero, ImmutableArray<float>.Empty)
         { Moon = -Vector3.UnitY, Lunar = new(3), CalibrationGeneration = 1, LookupStorageScale = LightingStorage.PersistentScale };
 
@@ -53,9 +57,20 @@ internal sealed class CloudPerformanceScene : IDisposable
     /// <summary>Reports actual history admission staged by the most recent production draw.</summary>
     internal bool HistoryEnabled => BitConverter.ToSingle(trace.Temporal.Bytes.Slice(96,4))==1;
 
+    /// <summary>Freezes explicit experiment controls and a completed physical publication independently of the moving native field.</summary>
+    internal void SetMeasurementInputs(CloudVolumeSettings controls,AtmosphereLighting publication)
+    {
+        controls.Validate();settings=controls;lighting=publication;fixedLighting=true;
+    }
+
+    /// <summary>Copies staged renderer constants after submission without reading native map textures back.</summary>
+    internal float[][] ReadParameters() => [MemoryMarshal.Cast<byte,float>(trace.Parameters.Bytes).ToArray(),
+        MemoryMarshal.Cast<byte,float>(trace.Temporal.Bytes).ToArray()];
+
     /// <summary>Creates real cloud binaries and main-view publication without starting native weather or the game.</summary>
     internal CloudPerformanceScene(ComponentShaderPrograms programs, int viewWidth, int viewHeight, int mapWidth, string pattern, string viewpoint)
     {
+        this.programs=programs;
         this.mapWidth=mapWidth; this.pattern=pattern; this.viewpoint=viewpoint;
         projection[5]=1/MathF.Tan(75*MathF.PI/360);
         projection[0]=projection[5]*viewHeight/viewWidth;
@@ -98,7 +113,7 @@ internal sealed class CloudPerformanceScene : IDisposable
         float angle=frame*.025f;
         // Hold each immutable lighting publication for several frames so valid temporal history
         // executes between sun/moon updates rather than measuring only rejected-history frames.
-        if(frame%8==0) lighting=lighting with { Sun=Vector3.Normalize(new(MathF.Cos(angle),.2f,MathF.Sin(angle))), Moon=Vector3.Normalize(new(-MathF.Cos(angle),.15f,-MathF.Sin(angle))) };
+        if(!fixedLighting&&frame%8==0) lighting=lighting with { Sun=Vector3.Normalize(new(MathF.Cos(angle),.2f,MathF.Sin(angle))), Moon=Vector3.Normalize(new(-MathF.Cos(angle),.15f,-MathF.Sin(angle))) };
         float[] columns = new float[mapWidth * mapWidth * 4];
         for (int z=0;z<mapWidth;z++) for(int x=0;x<mapWidth;x++)
         {
@@ -106,7 +121,7 @@ internal sealed class CloudPerformanceScene : IDisposable
             if(pattern=="empty" || pattern=="sparse" && ((x/3+z/4)%7!=0)) continue;
             float lower=pattern=="separated" && ((x/3+z/3)&1)!=0?850:300;
             float undulation=5*MathF.Sin(frame*.05f+x*.1f+z*.17f);
-            columns[i*4]=.125f; columns[i*4+2]=(lower+undulation)/50; columns[i*4+3]=(lower+200+undulation)/50;
+            columns[i*4]=pattern=="opaque-tail"?6f:.125f; columns[i*4+2]=(lower+undulation)/50; columns[i*4+3]=(lower+200+undulation)/50;
         }
         map.UploadDataImmediate(columns);
         float altitude=viewpoint=="ground"?0:viewpoint=="above"?1300:400;
@@ -141,11 +156,11 @@ internal sealed class CloudPerformanceScene : IDisposable
     /// <summary>Creates an independent production scheduler using the same controlled borrowed inputs.</summary>
     internal CloudVolumeReconstruction CreateReconstruction()
     {
-        var reconstruction = new CloudVolumeReconstruction(api.Object); AttachPrograms(reconstruction); return reconstruction;
+        var reconstruction = new CloudVolumeReconstruction(api.Object,()=>CloudShadowAttenuationComputeShader.Create(programs.Api)); AttachPrograms(reconstruction); return reconstruction;
     }
     /// <summary>Executes production source admission and all three passes against the existing OIT blend contract.</summary>
     internal bool Draw(CloudVolumeReconstruction reconstruction, CloudMapInput input, CloudHierarchy? hierarchy, Func<bool> current) =>
-        reconstruction.Draw(input, lighting, CloudVolumeSettings.Default, output.Target, depth.TextureId, visibility.TextureId, liquid.TextureId, geometry, current, hierarchy);
+        reconstruction.Draw(input, lighting, settings, output.Target, depth.TextureId, visibility.TextureId, liquid.TextureId, geometry, current, hierarchy);
     /// <summary>Clears only fixture attachments to the native neutral OIT record before a comparison draw.</summary>
     internal void Clear()
     {
@@ -172,7 +187,15 @@ internal sealed class CloudPerformanceScene : IDisposable
     {
         var storage=Assert.IsType<CloudVolumeStorage>(AccessTools.Field(typeof(CloudVolumeReconstruction),"storage").GetValue(reconstruction));
         int cursor=(int)AccessTools.Field(typeof(CloudVolumeReconstruction),"cursor").GetValue(reconstruction)!;
-        return CloudPayloadReadback.Read(storage.Blocks[(cursor+1)%3]);
+        return CloudPayloadReadback.Read(storage.Blocks[storage.Blocks.Length==2?cursor:(cursor+1)%3]);
+    }
+    /// <summary>Reads the most recently traced block independently of the committed temporal output.</summary>
+    internal float[][] ReadLatestTrace(CloudVolumeReconstruction reconstruction)
+    {
+        bool quarter=settings.TraceScale==CloudTraceScale.Quarter;
+        var storage=Assert.IsType<CloudVolumeStorage>(AccessTools.Field(typeof(CloudVolumeReconstruction),quarter?"traceStorage":"storage").GetValue(reconstruction));
+        int cursor=(int)AccessTools.Field(typeof(CloudVolumeReconstruction),"cursor").GetValue(reconstruction)!;
+        return CloudPayloadReadback.Read(storage.Blocks[quarter?0:(cursor+2)%3]);
     }
     /// <summary>Restores ambient publication before releasing fixture-owned resources in reverse dependency order.</summary>
     public void Dispose()

@@ -28,9 +28,11 @@ Authority and scope
   Do not add a complete density volume, replacement weather producer, installed shader edits,
     CPU map readback, generic rendering framework or reflection consumer. The existing reflected-cloud
     integration dependency remains tracked by the parent, not silently satisfied by this work.
-  Bounded secondary marching remains the selected self-lighting approach. A cloud-shadow-map
-    alternative is outside this tasklist's implementation scope. Cast shadows remain
-    deferred to virtual shadow maps; no earlier native producer or previous-frame shadow publication.
+  Reduced tracing uses same-frame internal attenuation for the stronger source by default, following
+    explicit user authorization after the Phase 8 experiment. Bounded secondary marching remains
+    the other-source, reference and fallback path. This does not authorize cast shadows onto scene/atmosphere consumers, an earlier
+    native producer or previous-frame shadow publication; those shadows remain deferred to virtual
+    shadow maps. Preserve current saved settings/defaults while removing repeated implementation work.
 
 Current test policy (user direction, 2026-10-18)
   Automated tests must not enforce approximation quality. Existing cloud approximation-quality
@@ -136,7 +138,8 @@ Phase 3: Bound secondary solar/lunar integration
       against admitted physical radiance bounds rather than a hardcoded daylight assumption.
     - Expose bounded settings through existing configuration/binding contracts and history
       invalidation. Replace LightSamples with the new fields using a clean break and defaults;
-      do not convert saved per-column counts. Keep optional shadow-map replacement outside scope.
+      do not convert saved per-column counts. Shadow-map replacement is outside this increment;
+      the later Phase 8 evaluation does not retroactively qualify a replacement here.
   ☑ Verify optical-depth integration and illumination against independent/high-budget references,
     including low-angle sun/moon, inside-cloud origins, distant occluders and shadow-distance limits.
     - Quantify bias from finite shadow distance and coarse samples separately from hierarchy errors.
@@ -331,8 +334,84 @@ Phase 7: Make acceleration optional and efficient for the new integration schedu
     conservative support and clipping contracts remain unchanged. Total costs support the selected
     policy and dense/inside-cloud regressions are resolved or open.
 
-Phase 8: Qualify the complete renderer and reconcile acceptance
-  Depends on Phase 7. Outcome: the combined policy has reproducible quality and performance evidence.
+Phase 8: Reduce repeated cloud lighting and density work
+  Depends on Phase 7. Outcome: measured shading savings at unchanged settings, with separately
+    reviewed alternatives for approximation, resolution and sampling policy.
+  ☑ Freeze the current candidate and establish representative remaining costs before implementation.
+    - Record source/package identities, actual uploaded controls, trace/reconstruction dimensions,
+      termination value and admitted light sources. Distinguish configured maxima, scheduled points,
+      contributing samples and actual density/shadow evaluations; do not call a cap observed work.
+    - Reuse opt-in measurements and existing GPU/program/resource abstractions. Measure construction,
+      trace, temporal, resolve, CPU submission and independently timed total; keep uploads/readbacks
+      outside trace timing and account for them separately in whole-renderer costs.
+    - Include a representative native/full-view capture plus lean dense/inside and held-out night
+      cases. Preserve the game-running instruction and disclose contention. Existing synthetic
+      component results are prioritization evidence, not a full-view baseline or additive savings.
+  ☑ Evaluate reusable cloud-internal shadow attenuation against bounded secondary marching.
+    - Design a cloud-owned light-space attenuation representation derived from the same committed
+      native map and placement, with explicit coverage, depth/units, filtering, source and generation
+      validity. Include off-camera occluders and inside-cloud queries; scene depth must not clip it.
+    - Compare generation, synchronization, lookup and total costs at identical view/light settings.
+      Include low-angle lighting, moving weather, source motion, map boundaries and dense/sparse cases.
+      State the representation's approximation and finite coverage; retain a valid bounded-march
+      fallback when data is unavailable or outside coverage. Never silently reuse stale attenuation.
+    - Review measured tradeoffs before selecting production behavior. If selected, use existing
+      resource lifetimes, shader bindings, change-driven demand and same-frame publication; allocate
+      only for active consumers and retire on disable/reload/world replacement or failed creation.
+      Do not add a density volume, CPU map readback, external cast shadows or previous-frame publication.
+  ☑ Remove unnecessary directional-light paths without assuming sun/moon exclusivity.
+    - Compare one- and two-source shader specialization for actually admitted sources; handle solar,
+      lunar, both, zero and twilight transitions in both PBR modes. Compile out an unused source where
+      measurements justify the variants; do not confuse cheap rejected calls with actual shadow rays.
+    - Retain the delivered negligible-source shortcut and its unoccluded contribution unless a
+      measured replacement supersedes it. Keep eligibility outside the primary loop.
+    - Evaluate the existing dominant-direct-light selection as a separate policy alternative, including
+      environment accounting and twilight appearance. Do not silently discard a meaningful source or
+      claim that a one-source policy is equivalent to shading both published sources.
+  ☑ Reduce repeated detailed-density cost at unchanged detail controls.
+    - Isolate noise arithmetic, neighbor support queries and descriptor/cache overhead in primary and
+      secondary work. Hoist invariants and reuse only valid descriptors; verify equivalent optimizations
+      against the same finite algorithm rather than adding approximation-quality assertions.
+    - Evaluate footprint-/shadow-distance-dependent detail and cheaper reusable detail evaluation as
+      explicit alternatives. Specify filtering, wind/periodic anchoring, connected-face behavior and
+      source-admission bounds; distinguish arithmetic equivalence from a changed density approximation.
+      Keep the native 2D control map and cubic envelope; review visual tradeoffs before policy changes.
+  ☑ Reevaluate effective sampling, resolution and termination without changing the initial settings.
+    - Diagnose why quarter-dimension tracing did not save time in the small contended experiment;
+      verify actual pass extents, phase scheduling, work counts and total costs at representative size.
+    - Report effective primary allocation versus path length and root-clipped executed ranges; compare
+      budget-distance/max choices in this world's units. Do not infer actual work from 384 alone or
+      increase counts to satisfy retired approximation tests.
+    - Verify the fractional termination control preserves .005 default and any saved zero; quantify
+      disabled versus enabled termination separately, including support and all OIT products. Do not
+      migrate saved values or attribute a threshold change to an implementation-only speedup.
+    - Keep lower-cost sampling/resolution/termination proposals separate from unchanged-setting
+      improvements. Any production/default policy change requires reviewed evidence and user acceptance.
+  ☑ Profile cloud-specific OIT arithmetic and payload bandwidth after the dominant lighting work.
+    - Attribute per-step bucket/log/exp work and reconstruction traffic. Evaluate reusable invariant
+      terms and narrower payload formats with explicit radiance/depth ranges and storage admission.
+      Preserve six-target OIT order/arithmetic, support/spacing metadata and scene encoding exactly
+      for equivalent changes; report any quantization or changed approximation separately for review.
+    - Do not assume format conversion, shader specialization or a larger cache improves performance;
+      retain only measured wins and report held-out regressions rather than hiding them in averages.
+  ☑ Validate the selected changes with focused correctness checks and matched before/after timing.
+    - Reuse existing fixtures; add only coverage for new contracts/failure paths, without raw GL,
+      redundant matrices, approximation-quality gates, FPS assertions or mandatory noise/RMS limits.
+    - Preserve uniform primary steps, quadratic shadow intervals, per-ray phase and root-only support
+      clipping for retained marching paths. Do not rebuild a tree walk or change these correct policies
+      merely to seek parity. Keep actual policy alternatives clearly identified in comparisons.
+    - Record paired distributions, hardware/contention, hashes and raw results; distinguish synthetic
+      shader savings from native whole-frame improvement. A lower sample count or fewer logical probes
+      is not a measured speedup. Do not promise a target FPS from a different scene or renderer.
+    - Run focused checks/canonical build through subagents; verify tested runtime/shader assets against
+      published/package copies. Reconcile linked proposals/checklists and delivered architecture only
+      after selection; leave unchanged contracts and separate reflected-cloud integration intact.
+  ☑ Completion: selected changes have measured total benefit, focused correctness/package evidence,
+    second review and independent audit. Alternative policies are selected or explicitly rejected/
+    deferred with evidence; unresolved regressions and user-run appearance/full-view gates remain open.
+
+Phase 9: Qualify the complete renderer and reconcile acceptance
+  Depends on Phase 8. Outcome: the combined policy has reproducible quality and performance evidence.
   ☐ Freeze the candidate; run canonical build/shader, focused numerical/GPU, lifecycle and package
     checks through subagents. Verify production asset digests and exact output copies.
     - Cover Off/Simple/Volumetric, both PBR selections, pause, resize, reload, world replacement,
@@ -360,11 +439,12 @@ Phase 8: Qualify the complete renderer and reconcile acceptance
     relative benefit and user acceptance exist; unresolved performance or appearance gates stay open.
 
 Final acceptance
-  ☐ Whole-ray primary/shadow budgets, finite secondary distance and qualified threshold
+  ☐ Whole-ray primary budgets, bounded retained secondary marches and qualified threshold
     termination replace the identified unbounded-by-quality per-column work multiplication.
+    Any selected attenuation cache has separately bounded construction, coverage and lookup costs.
   ☐ Lower-resolution tracing, amortized atmosphere, repeated density/phase work and acceleration
     each have delivered behavior or an evidence-backed disposition against the stated objective.
-  ☐ All six performance-analysis findings and the earlier density/phase findings map to final receipts;
+  ☐ All six original performance findings, earlier density/phase findings and Phase 8 tasks map to final receipts;
     any unimplemented improvement is explicitly recorded, not silently treated as complete.
   ☐ Native ownership/weather, cubic density support, physical lighting, foreground clips, temporal
     lifecycle, existing OIT integration and both PBR modes satisfy inherited unaffected contracts.
@@ -375,6 +455,10 @@ Bounded quality policy (implementation contract)
   This section specifies the complete target behavior. Primary controls are implemented separately
     from later secondary, termination and reconstruction changes. Candidate defaults below are fixed
     starting inputs for comparisons, not a claim of validated appearance or a shipped default.
+  Phase 8 may evaluate replacements for repeated self-lighting/detail work and separate quality-control
+    choices. Until selection and reconciliation, the retained marching contracts below remain the
+    baseline. A selected cached/filtered alternative must state its changed approximation explicitly;
+    it cannot claim exact same-density/sample-local equivalence merely by preserving control values.
 
   Work accounting and units
     - Runtime retains one metre per world unit and 50-world-unit native columns. Extinction is
@@ -402,8 +486,10 @@ Bounded quality policy (implementation contract)
       Supported maxima are 4..384; minimum is 1..min(16,max); distance is 50..10000 world units.
       Nonfinite distance restores 50; sanitize integral controls before conversion/upload.
     - At each position evaluate cheap native validity/support first, then the existing detailed
-      density if potentially occupied. Positive contributing density evaluates incident lighting
-      at that same position and starts at most one shadow ray per nonzero solar/lunar source.
+      density if potentially occupied. Positive floating-point weight (transmission*alpha) evaluates
+      incident lighting at that same position and starts at most one shadow ray per nonzero source.
+      Exactly zero weight skips lighting and centroid accumulation, retaining every density,
+      support, transmission and native-bin update; it does not change the termination setting.
       Do not reuse a detail factor or source from another interval, or redistribute unused samples.
     - Use sigma(sample)*dsMetres for optical depth and the existing analytic constant-segment
       scattering integral. Apply native depth-bin weights at each integration step; preserve all
@@ -414,6 +500,14 @@ Bounded quality policy (implementation contract)
       belongs to the analytic oracle, not an additional production column-integration pass.
 
   Secondary budget and distance
+    - Default reduced tracing builds a 256x256 same-frame light-space attenuation map with 64
+      detailed-density quadrature samples per map ray for the stronger published source. Nearest
+      lookup approximates extinction as uniform between first/last occupied distances, clipped to
+      the query's ShadowDistance. This supersedes sample-local marching only for that cached source;
+      both meaningful lights remain represented. Generation includes off-camera density and uses
+      certified root bounds, matching map/placement/lighting and completed write/sample barriers.
+      Unavailable, invalid or uncovered lookup falls back to the bounded schedule below. No previous-
+      frame attenuation is retained. The full-resolution reference always retains marching.
     - Initial candidate LightRaySampleMax=10, supported 2..64, and ShadowDistance=1500 world units,
       supported 50..10000. Nonfinite distance restores 1500. Clip to the finite map; never use main-
       view depth or visibility to reject off-camera shadow density.
@@ -433,7 +527,7 @@ Bounded quality policy (implementation contract)
     - Before shadow integration, bound a directional source by illuminance*(phase+octaveContribution/
       (4*pi)). If every channel is strictly below 1e-5 of that environment channel, retain this
       unoccluded response without a shadow march. The omitted attenuation is bounded by 0.001%
-      of the environment per channel; zero background channels prevent the shortcut. Dominant night
+      of the environment per channel; zero background channels prevent the shortcut. Uncached night
       lighting retains the complete shadow schedule. Sample controls and optical products stay fixed.
     - At selected default budgets after bounded secondary integration, a primary ray has at most
       768 secondary rays and 7680 secondary full-detail evaluations with both sources active, plus
@@ -1021,7 +1115,7 @@ Phase 6 implementation and verification (2026-10-18)
     and sample-depth weighting remain unchanged. Deep/disjoint clouds and varying medium/source
     correlations may differ. The same-field procedural noise is retained; no noise replacement is
     justified or introduced. Diagnostic differences and combined trace timings qualify this change;
-    final user appearance and whole-renderer qualification remain in Phase 8 and the parent checklist.
+    final user appearance and whole-renderer qualification remain in Phase 9 and the parent checklist.
   Superseded density attempt -> initial focused-gpu/remaining-gpu and density diagnostic receipts
     retain a horizontal-erosion regression in both fresh and persistent cache paths. Moving cache
     mutation out of Boolean expressions, fetching each neighbor descriptor explicitly, then applying
@@ -1068,7 +1162,7 @@ Phase 6 implementation and verification (2026-10-18)
     remain recorded. No whole-game performance, target resident memory or appearance acceptance
     follows from these focused receipts. Later phases and parent acceptance remain unchecked.
   Completion -> second source/test/document review and independent linked-document completion
-    audit pass on the corrected, packaged candidate. Phase 6 implementation is complete. Phase 7/8,
+    audit pass on the corrected, packaged candidate. Phase 6 implementation is complete. Phase 7/8/9,
     final selection, the underwater timing observation, whole-renderer cost and user appearance
     acceptance remain open; no later task or parent acceptance is marked complete.
 
@@ -1136,7 +1230,7 @@ Phase 7 implementation and verification (2026-10-18)
     here; the small empty view regresses in both modes and separated/above regresses slightly with
     LumOn. Those regressions stay open. Small differences may be noise; no automated timing gate,
     isolated optimization attribution, full-view/frame-time or appearance acceptance follows.
-    Phase 8 owns the 512/full-view matrix and final ranking review, including possible policy revision.
+    Phase 9 owns the 512/full-view matrix and final ranking review, including possible policy revision.
   Final correctness/package -> artifacts/CloudRealtime/phase7/validation-summary.json,
     canonical-build-result.json, tested-identity.json and package-identity.json -> 229 unique current
     correctness cases pass: 112 focused GPU, one root-boundary test and 116 CPU/catalog cases.
@@ -1157,7 +1251,7 @@ Phase 7 implementation and verification (2026-10-18)
     the initial preparation script alone does not reproduce its later boundary amendments.
   Completion -> second source/test/document review and independent linked-document completion
     audit pass on the final tested/packaged candidate. Phase 7 is complete. The selected root-only
-    policy retains its active reduction owner; no unused tree-walk program remains. Phase 8, parent
+    policy retains its active reduction owner; no unused tree-walk program remains. Phase 8/9, parent
     acceptance, clean representative-resolution performance and user appearance review remain open.
   Uncontended repeat -> matched64-uncontended-summary.json, matched64-uncontended.log/.trx,
     measurements64-uncontended/ and uncontended-before/after.json in the same receipt directory ->
@@ -1176,7 +1270,7 @@ Phase 7 implementation and verification (2026-10-18)
     saving is only .013312 ms with range [-.340992,.490496]; this does not establish a stable win.
     Root-only selection is unchanged. The earlier contended observations retain their original
     scope; this small synthetic repeat does not satisfy representative-resolution, whole-frame
-    performance or appearance acceptance. Empty and noisy edge/above observations remain in Phase 8.
+    performance or appearance acceptance. Empty and noisy edge/above observations remain in Phase 9.
 
 Captured-view reprojection and primary empty-range correction (2026-10-18)
   Reprojection -> CloudTemporalHistory -> previous cloud points now use projection times the
@@ -1300,3 +1394,213 @@ Trace component isolation and weak-source shadow work (2026-10-18)
     placement/default/step match source, tested assets and all delivery forms. Existing NuGet,
     nullability, obsolete API and unused-field warnings remain. Package ->
     Releases/vanillagraphicsexpanded_999.99.9.zip; live full-view performance acceptance stays open.
+
+Phase 8 evaluation and initial delivery (2026-10-18; default cache enablement follows below)
+  Traceability -> Phase 8 and Authority and scope -> PBR.VolumetricClouds.Proposal.md, Ownership,
+    Column-data interpretation, Publication, Density integration, Scene integration and Quality;
+    PBR.Atmosphere.Publication.md, Ownership/transport/publication; PBR.Clouds.md, density/lighting,
+    reconstruction and shared depth; Rendering.Enablement.md, persistent demand/lifecycle;
+    archived hierarchy proposal/checklist at f66895c6, Representation and Ownership/certification.
+    Native same-frame geometry, physical units and source bounds, connected cubic support,
+    wind anchoring, six-target OIT and resource ownership govern all candidates. The parent and
+    volumetric checklist keep separate live/reflection/cast-shadow gates open. Optional candidates
+    do not silently supersede retained marching or default controls.
+  Baseline -> artifacts/CloudRealtime/phase8/baseline-manifest.json and baseline/ -> immutable source,
+    runtime, package and 458 production shader identities. Existing capture SHA835414BE98AEAB7...
+    is unchanged and predates the negligible-source shortcut and continuous-atmosphere history fix.
+    It supplies native scene/settings context, not timing evidence for the current candidate.
+    The game was running at the freeze; no game action is taken. Later process observations are
+    recorded per run, and synthetic and native/live evidence are kept distinct.
+  Shadow-reuse prototype -> cloud_shadow_cache* under
+    VanillaGraphicsExpanded.Tests/Fixtures/Shaders/assets/vanillagraphicsexpanded/shaders/tests/ -> a bounded two-dimensional
+    light-space map stores front/back distance, integrated optical depth and source validity for
+    the dominant admitted source. Conservative projection comes from the same native width and
+    certified root-height interval. Generation samples the same detailed density, with its own
+    explicit bounded quadrature; it never reads scene depth or CPU map data. Lookup approximates
+    optical-depth distribution by mean extinction over the compressed interval and intersects that
+    interval with the query's finite ShadowDistance. Separated matter is intentionally compressed;
+    spatial sampling is nearest and finite-resolution. Invalid projection/coverage/source data
+    falls back to bounded marching, and other sources retain their original integration.
+    The diagnostic rebuilds before consumption; it is not a production cache/publication owner or
+    proof of live appearance. Production selection requires complete cost and approximation review.
+  Equivalent-noise candidate -> noise-equivalent/ and full-view/ under artifacts/CloudRealtime/phase8/ ->
+    wrapping the two lattice endpoints once instead of wrapping eight corners preserves sampled
+    physical outputs exactly and passes the independent original-noise density oracle. It does not
+    establish a timing win at either tested size and was reverted. At 3440x1377 the daytime paired
+    median draw saving is -.2304 ms (1/5 positive); night is +.2632 ms (3/5 positive, noisy).
+    Do not attribute a performance improvement to that source-operation reduction.
+  Representative-size baseline -> full-view/summary.json -> actual production reconstruction and
+    hierarchy owners, 3440x1377, native width 200, dense animated inside-cloud fixture, completed
+    captured-style day colors and held-out night. Controls are 384/10, distance 50/1500, detail
+    .25/8, Half and termination zero; actual staged values are recorded beside default values.
+    Three warmups and five alternating pairs measure construction, trace, temporal, resolve and
+    independent draw total, with synthetic input CPU/GPU costs and a separate outer interval.
+    Baseline daytime trace median 27.163648 ms dominates .870400 ms temporal, .850944 ms resolve
+    and .032768 ms construction. This is an adversarial synthetic field at representative extent,
+    not replay of the captured weather distribution, native producer cost or live frame time.
+  Separate policy diagnostics -> full-view/measurements/quarter.json and termination.json ->
+    three baseline-only pairs each, not selected production changes. Quarter actually traces
+    860x345 instead of 1720x689, retaining half-grid reconstruction: median trace 27.998208 ->
+    7.647232 ms, draw total 30.879744 -> 10.057728 ms, with all three pairs favoring Quarter.
+    The previous tiny contended result does not establish a scaling defect; representative-size
+    work scales usefully. Small-workload occupancy/contention is not independently isolated as
+    its precise cause. Termination .005 instead of zero gives median trace 28.147712 -> 13.531136 ms
+    and draw total 31.336448 -> 16.073728 ms, all three pairs positive. Neither result authorizes
+    changing current controls or predicts native FPS. Ordinary correctness tests remain lightweight.
+  Payload-format disposition -> CloudVolumeLighting.Maximum, CloudVolumeStorage and physical
+    history/OIT contracts -> reject a wholesale RGBA16F substitution. The captured-style source
+    envelope is approximately 74458.77 nits before admission headroom, exceeding half's 65504 finite
+    maximum. History stores physical unencoded radiance independently of exposure; normalized
+    foreground identities and world-space support/spacing share the current array format.
+    Safe narrowing needs separate range/encoding/layout and quantization review. It is deferred,
+    not an equivalent format change or a measured bandwidth win; no unsafe format is shipped.
+  Zero-weight lighting -> cloud_volume_transport.glsl and artifacts/CloudRealtime/phase8/zero-weight/ ->
+    retain the unchanged primary lattice/density/OIT schedule, but evaluate directional lighting and
+    its radiance/centroid sums only when transmission*alpha is strictly positive. An exactly zero
+    floating-point weight cannot contribute to those sums; this is not a new approximation or
+    transmittance threshold. Source bounds and air/fog opacity measure remain unchanged.
+    Twelve existing density/termination correctness cases pass. Matched representative-size draws
+    have exactly identical values in all three committed physical-history layers for moderate day,
+    held-out night and an opaque-tail field (native extinction control p=6), at identical settings.
+    Opaque-tail median trace 27.852 -> 9.475 ms and draw total 29.571 -> 11.001 ms; paired median draw
+    saving 18.758 ms, all five pairs positive (16.280..22.995 ms). Moderate day total 31.499 ->
+    31.700 ms, paired -.201 ms (2/5 positive); night 33.578 -> 32.006 ms, paired +1.616 ms (4/5).
+    Moderate results remain noisy; no universal improvement or native-scene prevalence is claimed.
+    Game-process observations are empty for this run, an external state change; no game action was
+    taken. Earlier contended receipts do not describe this run's process state.
+  Retained density cache -> cloud_volume_density.glsl and variants/column-only/ -> keep only the
+    current column descriptor across samples. Fetch a neighboring descriptor only when that face
+    can reduce erosion, and test its occupied height at the current point. No density value,
+    occupancy decision, noise coordinate or connected-face rule is cached across points. This
+    removes four long-lived neighboring descriptors from each primary/secondary cache; repeated
+    face fetches can increase, so source fetch counts alone do not explain the measured benefit.
+    Against zero-weight-only assets, day draw total 31.285 -> 18.819 ms, paired saving 12.146 ms
+    (5/5 positive, 8.700..14.351); held-out night 31.596 -> 19.523 ms, paired 11.983 ms
+    (5/5, 8.028..14.379). All three trace and committed-history layers match exactly. No measured
+    register/occupancy counters are available, so reduced live state is a mechanism hypothesis.
+  Initial shadow-reuse disposition (superseded by default enablement below) -> cache-prototype/summary.json and alternate-pbr/ -> opt-in only,
+    not selected for production. Same-frame 256x256 RGBA32F generation uses 64 quadrature points
+    per map ray and costs about .15 ms including the root/build boundary and barriers. Full-size
+    synthetic two-source day draw total 37.430 -> 27.352 ms, paired saving 9.906 ms (5/5); a
+    deliberate dual-source night stress case 35.308 -> 26.693 ms, paired 9.135 ms (5/5).
+    Maximum radiance changes are 66.603 and .0003533 respectively; other physical layers match.
+    LumOn=false lunar-only night total 21.790 -> 9.628 ms, paired 12.158 ms (5/5); source/map
+    stale fallbacks match bounded marching exactly. LumOn=true covers the main cases. These
+    narrow-projection fixtures are separate from the wide-FOV production-owner experiment.
+    Both meaningful sources are retained: only the selected source is approximated by the map.
+    Compression of separated matter, finite nearest sampling and source-relative depth alter
+    illumination; reject automatic adoption without appearance review. Production allocation,
+    demand and retirement machinery is therefore not added for an unselected consumer.
+  Shadow-detail alternative -> variants/shadow-noise-off/ -> removing noise only from secondary
+    samples retains primary noise and connected-face erosion but changes self-lighting. Paired
+    draw savings are 1.586 ms day (5/5) and .829 ms night (4/5, range includes -.327 ms); maximum
+    trace radiance changes 38.258 and .000695. Defer this approximation and footprint/distance-
+    filtered detail pending separate filtering/appearance design. Wind and periodic anchoring
+    of retained density remain unchanged. No performance estimate is assigned to unbuilt filters.
+  OIT attribution -> variants/oit-off/ -> invalid-output ablation removing per-step bucket log,
+    Gaussian exponentials and reveal updates saves paired 2.436 ms day and .496 ms night (3/5
+    positive each, negative pairs in both). It deliberately destroys bucket attenuation. Savings
+    include changed stores/compression/compiler scheduling, not a pure special-function-unit
+    measurement. Reject this as production behavior; keep native arithmetic and all six outputs.
+    Temporal/resolve traffic costs about .85 ms each in the baseline; safe format redesign is
+    deferred as above. No unmeasured invariant-hoisting or bandwidth win is claimed.
+  Effective-work interpretation -> CloudPrimaryCount/CloudPrimaryRange and CloudLightDepth ->
+    sample maxima are not observed density or shadow counts. With current world units, horizontal
+    spans at least 50 schedule 384 uniform primary points before certified-root range rejection;
+    e.g. a 1000-unit span has spacing 2.60417 and a 10000-unit span 26.04167. Height clipping
+    retains the original span, spacing and phase and skips certified-empty indices. Shadow cap10
+    over1500 gives interval endpoints 0,15,60,135,...,1500 and midpoint positions 7.5,37.5,97.5,...;
+    root/domain rejection skips points without reallocating weights. Density/support/weight/source
+    admission further separates scheduled points from actual shading. These are algorithm-derived
+    examples, not GPU work counters. No count increase or change to the 50/1500 distances is selected.
+    Fractional termination retains .005 default and saved zero; the exact-zero-weight shortcut
+    retains the full density, support and OIT schedule even with termination disabled.
+  Source-path disposition -> variants/solar-only/, lunar-only/ and source-dispatch/ -> static
+    one-source artifacts retain the negligible-source folded response and match trace/history
+    exactly in their eligible cases. Against zero-weight assets, paired savings are 3.120 ms day
+    and 5.176 ms night (5/5 each). Eligibility is ray/view dependent: a global saved mask cannot
+    safely follow twilight, changing weather or both meaningful sources. A same-draw per-ray
+    dispatch with literal one/two/zero-source helper calls preserves outputs but regresses after
+    the retained column change: day total 19.275 -> 23.887 ms (paired -4.255 ms), night
+    19.751 -> 21.363 ms (paired -2.051 ms), zero positive pairs of five in each. Reject this
+    dispatch; defer separate executable selection until its admission/lifetime and combined cost
+    are qualified. Production keeps actual per-ray eligibility and both meaningful sources in both
+    PBR modes. Static artifact wins are not claimed as delivered savings or actual extra shadow rays
+    from rejected calls. A dominant-source-only policy is also deferred: atmosphere's selected
+    DirectIrradiance is a compatibility reference, while clouds consume separately published solar,
+    lunar and environment. Discarding either meaningful source changes twilight illumination and
+    needs user-run appearance review; no exclusivity or exact-equivalence assumption is introduced.
+  Final selected combination -> final/combined.trx, combined-summary.json and combined-measurements/ ->
+    column-only descriptor retention plus exact-zero-weight lighting skip, compared with the ORIGINAL
+    frozen baseline. RTX4090, OpenGL4.3 NVIDIA610.88; 3440x1377 full view,1720x689 trace,native200,
+    same controls and completed sources,3warmups/5alternating pairs,LumOn=true. Day trace
+    30.203 -> 16.841 ms and draw total32.358 -> 18.708 ms; paired total saving13.352 ms
+    (9.567..15.238,5/5). Night trace30.330 -> 17.151,total32.710 -> 19.462; paired13.770 ms
+    (10.228..14.346,5/5). Opaque-tail trace28.321 -> 6.219,total31.356 -> 8.175; paired23.226 ms
+    (21.881..25.978,5/5). All three physical trace AND committed-history layers match exactly in
+    every case. Results measure synthetic production-owner submissions, not native producer/shared
+    depth, complete game frames or a promise of 120 FPS. No game processes were observed during this
+    run; no game action was taken. Incremental wins above must not be added to these combined gains.
+  Final focused correctness -> final/focused.trx ->68/68,zero skips/failures. Existing density/noise
+    oracle, secondary source/octave and quadratic schedule, weak/strong/zero-background admission,
+    termination/default/saved-zero packing, history/projection and physical/OIT integration checks
+    pass, including both PBR selections. New expensive diagnostics are opt-in and use typed shader,
+    resource and submission abstractions; ordinary correctness has no approximation-quality gate.
+    final/cache-sparse.trx and cache-sparse-grazing/small-sparse-grazing.json -> one small LumOn=false sparse
+    stepped/low-angle case also passes source/map invalidation and successful same-frame rebuild
+    recovery. Its radiance difference387.025 nits is diagnostic, with other layers unchanged; this
+    reinforces the decision to defer the compressed attenuation approximation. Existing detailed
+    density and bounded secondary marching remain the production model.
+  Delivery and completion -> final/canonical.log, package-identity.json, config-identity.json,
+    source-freeze.json and source-verification.json -> canonical Release/SPIR-V build passes;
+    all 2723 frozen code/config source files are unchanged through validation/package creation.
+    Tested runtime DLL SHA256 D34B935617EBD5D9774C249BCB10BB20C3ACFDAEAAFF55B4608C70030226BF74
+    matches publish, release directory and ZIP. All 458 tested production SPV match generated assets,
+    release directory and ZIP with zero mismatches. Plain publish has no compiled shader assets;
+    canonical packaging attaches them from the offline build. Fractional threshold registration
+    remains float, default .005, range 0..0.005 and step .0005 in source, tested, published, directory and ZIP.
+    Package Releases/vanillagraphicsexpanded_999.99.9.zip has SHA256
+    CC5D5A02845E060BA26528B6866BA39BE4CDE070323A6A925280A2BAD36874A7.
+    Existing NuGet/compiler/analyzer warnings remain; no build errors. No game/install action or
+    Git staging command was issued. The index stat-cache byte hash changed; its current staged
+    entries remain the four pre-existing planning documents, recorded in index-identity.json.
+  Review/audit -> second code/document review and independent completion audit against Phase 8,
+    its linked authority/publication/enablement sources and archived certification contracts pass.
+    Traceability above maps each work group to source, decisions and raw receipts. Retained changes
+    preserve density/units/noise/anchoring, source bounds, sample schedules, support, six-target OIT,
+    physical encoding, history and resource ownership. Cache/detail/format/source-selection and
+    control alternatives have explicit measured or contract-backed rejection/deferral. They are
+    not delivered approximation changes. Phase 9, parent/reflection integration and user-run native
+    appearance/whole-frame performance remain open; no headless result completes those gates.
+
+Default internal shadow-cache enablement (2026-10-18)
+  Explicit user direction supersedes the initial decision above to keep attenuation reuse opt-in.
+  Production reduced tracing now builds and uses the selected source's same-frame cache by default.
+  CloudShadowCache owns persistent 256x256 RGBA32F storage and a bounded 64-sample generation pass;
+    existing map/root certification, physical inputs, typed shader/resource contracts and engine
+    boundaries supply generation and submission. The other source, invalid/unavailable/unsupported
+    data and full-resolution reference retain bounded secondary marching. Changed approximation is
+    explicit: first/last occupied distance and integrated optical depth become a nearest-sampled
+    mean-extinction interval. Native density, geometry, primary controls and OIT factors are unchanged.
+  Ordinary draws rebuild before use, complete image/texture visibility barriers and revalidate the
+    native borrow. Source-lifetime replacement, invalidation, resize, reload, disable and teardown
+    retire owned storage. Failed generation selects marching and never publishes previous contents.
+  Live appearance and native whole-frame performance remain open in Phase 9. Earlier prototype
+    timing and source-only delivery hashes above remain historical evidence, not this package's identity.
+  Validation -> artifacts/CloudRealtime/phase8/default-cache/ -> focused.trx passes 13 checks for
+    bindings, density, source arithmetic and integration. After the final persistent-image ordering
+    barrier, production-owner-final.trx passes both PBR cases (2/2), including active default cache,
+    generation-factory failure with exact marching fallback, source revocation and resource retirement.
+    sparse-pbr-0.trx and sparse-pbr-1.trx each pass the small sparse/grazing fallback/rebuild case.
+    These are overlapping focused receipts, not an inflated sum of unique tests. Radiance differences
+    remain diagnostic; unchanged optical factors, clipping/support and failure-path arithmetic remain
+    correctness checks. The obsolete experimental trace/program wrappers are removed; diagnostics
+    use the production shader. Timing environment flags control measurements, not default enablement.
+  Delivery -> default-cache/canonical.log, package-identity.json, config-identity.json and
+    source-verification.json -> canonical Release/SPIR-V build succeeds. All 2722 frozen code/config
+    sources remain unchanged. Tested runtime DLL SHA256
+    4785CB5FCCF16E6895821B94A6F60799A45AB6FAF5969D92B99078845EDA529D matches published/release/ZIP copies;
+    all 459 production shader binaries match tested/generated/release/ZIP assets. Fractional controls
+    remain valid in all five copies. Updated Releases/vanillagraphicsexpanded_999.99.9.zip SHA256
+    C5780588FE6CB2E470B1FF273DC97F6E2D336C712442F53A5132B74EB5D48072. Focused tests and final code/document
+    review support default enablement; no new native FPS or visual acceptance claim is made.

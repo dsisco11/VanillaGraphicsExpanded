@@ -111,15 +111,21 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
         float near=span.x+float(i)*ds,far=min(span.y,near+ds);
         if(result.depth.y==0.0) result.depth.x=near;
         result.depth.y=far;
-        vec3 source=environment
-            +CloudDirectional(local,volumeSun.xyz,solar,solarPhase)
-            +CloudDirectional(local,volumeMoon.xyz,lunar,lunarPhase);
         // Keep the opacity measure separate from source brightness: dark clouds still transport air.
         // Only contributing scheduled points enter the mean; empty gaps retain their original budgets.
         float weight=transmission*alpha;
-        radiance+=weight*source;
-        opacityWeight+=weight;
-        distanceMoment+=weight*t;
+        if(weight>0.0)
+        {
+            // An exactly zero floating-point weight cannot affect radiance or its centroid.
+            // Skip only lighting: the complete schedule still updates density, native bins and
+            // support below, including when transmittance termination is explicitly disabled.
+            vec3 source=environment
+                +CloudDirectional(local,volumeSun.xyz,solar,solarPhase)
+                +CloudDirectional(local,volumeMoon.xyz,lunar,lunarPhase);
+            radiance+=weight*source;
+            opacityWeight+=weight;
+            distanceMoment+=weight*t;
+        }
         transmission*=1.0-alpha;
         float bin=log(CloudAdjustedDepth(near)/30.0+1.0);
         vec3 b=vec3(vgeOitBellCurve(bin),vgeOitBellCurve(bin-1.0),bin>2.0?1.0:vgeOitBellCurve(bin-2.0));

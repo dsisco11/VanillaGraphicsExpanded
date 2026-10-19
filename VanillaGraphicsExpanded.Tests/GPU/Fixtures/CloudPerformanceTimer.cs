@@ -32,9 +32,10 @@ internal sealed class CloudPerformanceTimer : IDisposable
     internal void ConstructionComplete() => stamps[1].Issue();
 
     /// <summary>Closes the whole submitted operation before waiting for any query result.</summary>
-    internal double[] End()
+    internal double[] End(GpuTimestampQuery? wholeEnd=null)
     {
         stamps[8].Issue(); active = null;
+        wholeEnd?.Issue();
         Assert.Equal(3, pass);
         long[] values = stamps.Select(stamp => stamp.GetResultNanoseconds()).ToArray();
         return [(values[1]-values[0])/1e6, (values[3]-values[2])/1e6,

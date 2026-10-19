@@ -111,7 +111,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
         }
         finally {PbrShaderLightingMode.GenerationLumOnEnabled=oldMode;}
     }
-    /// <summary>Certified, revoked and failed summaries preserve complete production reconstruction in either lighting selection.</summary>
+    /// <summary>Default attenuation preserves exact optical metadata and recovers from revoked sources in either lighting selection.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -125,6 +125,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
             using var scene = new ScheduledScene(Programs);
             using var original = scene.CreateReconstruction();
             using var accelerated = scene.CreateReconstruction();
+            using var failedCache=scene.CreateReconstruction(()=>throw new InvalidOperationException("Unavailable optional cloud attenuation"));
             using var hierarchy = new CloudHierarchy(() => CloudHierarchyComputeShader.Create(Programs.Api));
             using var unavailable = new CloudHierarchy(() => throw new InvalidOperationException("Unavailable optional hierarchy"));
             for (uint frame = 0; frame < 5; frame++)
@@ -144,12 +145,45 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
                 Assert.True(scene.Draw(accelerated, input, selected, () => true));
                 Assert.Equal((int)((frame+1)%3),ReadPrivate<int>(accelerated,"cursor"));
                 Assert.Equal(frame is not (2 or 3), scene.HierarchyEnabled);
+                Assert.Equal(frame is not (2 or 3), scene.ShadowCacheEnabled);
                 Assert.Equal(frame is not (0 or 2), scene.HistoryEnabled);
                 var actual = scene.ReadOutput();
-                for (int layer = 0; layer < 6; layer++) Assert.Equal(expected[layer], actual[layer]);
+                // Cache lighting is an intentional approximation. Native optical factors and
+                // accumulation alpha retain their specified arithmetic independently of radiance.
+                for (int layer = 0; layer < 6; layer++)
+                for (int channel=0;channel<actual[layer].Length;channel++)
+                {
+                    Assert.True(float.IsFinite(actual[layer][channel])&&actual[layer][channel]>=0);
+                    if(layer<3||channel%4==3)Assert.Equal(expected[layer][channel],actual[layer][channel]);
+                }
                 var traced = LastTrace(accelerated);
-                for (int layer = 0; layer < 3; layer++) Assert.Equal(expectedTrace[layer], CloudPayloadReadback.Read(traced)[layer]);
+                var raw=CloudPayloadReadback.Read(traced);
+                Assert.Equal(expectedTrace[1],raw[1]);Assert.Equal(expectedTrace[2],raw[2]);
+                for(int channel=0;channel<raw[0].Length;channel++)
+                {
+                    Assert.True(float.IsFinite(raw[0][channel])&&raw[0][channel]>=0);
+                    if(channel%4==3)Assert.Equal(expectedTrace[0][channel],raw[0][channel]);
+                }
+                var cache=ReadPrivate<CloudShadowCache>(accelerated,"shadowCache");
+                var cacheTexture=ReadPrivate<DynamicTexture2D?>(cache,"texture");
+                if(frame is not (2 or 3))
+                {
+                    Assert.NotNull(cacheTexture);Assert.True(cacheTexture.IsValid);
+                    Assert.Equal(input.Frame,ReadPrivate<CloudMapInput?>(cache,"allocation")!.Value.Frame);
+                }
+                else Assert.Null(cacheTexture);
                 Assert.Contains(actual[1], value => value < 1);
+
+                // Optional generator failure retains the original finite shadow algorithm and
+                // records the reason without preventing the production cloud passes from drawing.
+                if(frame==0)
+                {
+                    scene.Clear();Assert.True(scene.Draw(failedCache,input,hierarchy,()=>true));
+                    Assert.False(scene.ShadowCacheEnabled);
+                    Assert.Contains("Unavailable optional cloud attenuation",ReadPrivate<CloudShadowCache>(failedCache,"shadowCache").Failure);
+                    var fallback=CloudPayloadReadback.Read(LastTrace(failedCache));
+                    for(int layer=0;layer<3;layer++)Assert.Equal(expectedTrace[layer],fallback[layer]);
+                }
 
                 // Revocation must reject all three passes, leave OIT untouched and never commit history.
                 if (frame == 1)
@@ -158,6 +192,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
                     Assert.False(scene.Draw(accelerated, input, hierarchy, () => false));
                     Assert.Equal(cursor, ReadPrivate<int>(accelerated, "cursor"));
                     Assert.False(ReadPrivate<bool>(ReadPrivate<CloudTemporalHistory>(accelerated, "history"), "valid"));
+                    Assert.False(cacheTexture!.IsValid);Assert.Null(ReadPrivate<DynamicTexture2D?>(cache,"texture"));
                     var afterRejection = scene.ReadOutput();
                     for (int layer = 0; layer < 6; layer++) Assert.Equal(actual[layer], afterRejection[layer]);
                     Assert.Throws<InvalidOperationException>(()=>scene.Draw(accelerated,input,hierarchy,()=>throw new InvalidOperationException("Revoked draw")));
@@ -170,10 +205,12 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
 
             // Reset is the common resize/reload boundary. Both domains retire owned storage only.
             var oldStorage = ReadPrivate<CloudVolumeStorage>(accelerated, "storage");
+            var oldCache=ReadPrivate<DynamicTexture2D>(ReadPrivate<CloudShadowCache>(accelerated,"shadowCache"),"texture");
             Assert.True(hierarchy.TryGetCurrent(scene.Input, out var retired));
             accelerated.Reset(); hierarchy.Reset();
             Assert.False(oldStorage.Array.IsValid);Assert.All(oldStorage.Blocks,block=>Assert.False(block.View.IsValid));
             Assert.False(retired!.IsValid);
+            Assert.False(oldCache.IsValid);
             scene.AssertBorrowedInputsAlive();
             scene.AttachPrograms(accelerated);
             scene.Resize(11, 9);
@@ -182,6 +219,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
             scene.Clear(); Assert.True(scene.Draw(accelerated, replacement, hierarchy, () => true));
             Assert.NotSame(oldStorage, ReadPrivate<CloudVolumeStorage>(accelerated, "storage"));
             Assert.True(scene.HierarchyEnabled);
+            Assert.True(scene.ShadowCacheEnabled);
             Assert.Equal(6, LastTrace(accelerated).Target.Width);
             Assert.False(scene.HistoryEnabled);
             GlDebug.ThrowIfErrors("Cloud pipeline test");
@@ -201,6 +239,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
     private sealed class ScheduledScene : IDisposable
     {
         private readonly Mock<ICoreClientAPI> api = new() { DefaultValue = DefaultValue.Mock };
+        private readonly ComponentShaderPrograms programs;
         private readonly List<IDisposable> owned = [];
         private readonly CloudTraceProgram trace;
         private readonly CloudTemporalProgram temporal;
@@ -227,12 +266,15 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
         internal CloudMapInput Input { get; private set; }
         /// <summary>Reads the actual trace contract's acceleration flag after production submission.</summary>
         internal bool HierarchyEnabled => UboPacking.ReadUInt32(((ICloudTraceBindings)trace).TraversalInputs.Bytes, 0) != 0;
+        /// <summary>Observes the completed same-frame attenuation binding independently of root availability.</summary>
+        internal bool ShadowCacheEnabled => UboPacking.ReadUInt32(((ICloudTraceBindings)trace).TraversalInputs.Bytes, 8) != 0;
         /// <summary>Reads the production history-admission flag supplied to all three passes.</summary>
         internal bool HistoryEnabled => BitConverter.ToSingle(trace.Temporal.Bytes.Slice(96, 4)) == 1;
 
         /// <summary>Creates real cloud binaries and main-view publication without starting native weather or the game.</summary>
         internal ScheduledScene(ComponentShaderPrograms programs)
         {
+            this.programs=programs;
             api.SetupGet(value => value.Render.FrameWidth).Returns(() => width);
             api.SetupGet(value => value.Render.FrameHeight).Returns(() => height);
             api.SetupGet(value => value.Render.ShaderUniforms).Returns(new DefaultShaderUniforms());
@@ -301,9 +343,9 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
             AccessTools.Field(typeof(CloudVolumeReconstruction), "primaryNoise").SetValue(reconstruction, CloudBlueNoiseTexture.Create());
         }
         /// <summary>Creates an independent production scheduler using the same controlled borrowed inputs.</summary>
-        internal CloudVolumeReconstruction CreateReconstruction()
+        internal CloudVolumeReconstruction CreateReconstruction(Func<CloudShadowAttenuationComputeShader>? createShadowCache=null)
         {
-            var reconstruction = new CloudVolumeReconstruction(api.Object); AttachPrograms(reconstruction); return reconstruction;
+            var reconstruction = new CloudVolumeReconstruction(api.Object,createShadowCache??(()=>CloudShadowAttenuationComputeShader.Create(programs.Api))); AttachPrograms(reconstruction); return reconstruction;
         }
         /// <summary>Executes production source admission and all three passes against the existing OIT blend contract.</summary>
         internal bool Draw(CloudVolumeReconstruction reconstruction, CloudMapInput input, CloudHierarchy? hierarchy, Func<bool> current, CloudVolumeSettings? settings=null) =>

@@ -211,6 +211,8 @@ Tasks
       recorded there. User visual/performance acceptance and the recorded reflection dependency remain open.
     - Realtime work tasklist: docs/PBR.CloudRealtime.todo; reconcile
       sampling, self-lighting, termination, reconstruction, atmosphere and acceleration costs there.
+      Its Phase 8 evaluates repeated shading work and cloud-internal lighting reuse at preserved
+      initial settings; Phase 9 retains final qualification. External cast-shadow deferral is unchanged.
     - Define bounded 3D cloud density, altitude/weather controls, wind and volume lighting. Evaluate
       ray marching, light transmittance and a controlled multiple-scattering approximation.
     - Defer shadows cast by clouds until virtual shadow maps are implemented; retain cloud-volume self-shadowing.

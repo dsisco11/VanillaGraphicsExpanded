@@ -277,10 +277,18 @@ deferred until virtual shadow maps are implemented. Do not introduce a separate 
 retained previous-frame cloud-shadow publication, or earlier map-generation schedule for those
 consumers in this work. Their integration will be specified with the virtual-shadow-map work.
 
-Light attenuation within the cloud volume remains part of cloud shading. Use bounded secondary
-light marching toward contributing solar/lunar sources to
-evaluate self-shadowing with the same density definition, including noise, as view-ray integration.
+Light attenuation within the cloud volume remains part of cloud shading. Reduced tracing uses
+same-frame cloud-internal attenuation for the stronger published solar/lunar source by default.
+A finite light-space map integrates the same detailed density, including noise, and approximates
+its depth distribution by mean extinction between first/last occupied distances. Other contributing
+sources, unavailable cache data and the full-resolution reference use bounded secondary marching.
 Light sample counts and stepping are implementation tuning details, not a separate design decision.
+The realtime follow-up may evaluate reusable same-frame cloud-internal attenuation and filtered
+detail as alternatives to repeated secondary density evaluation. Their approximation, coverage,
+generation cost and visual tradeoffs must be reviewed before production selection; bounded
+marching remains the reference and fallback. Default cache enablement is explicitly authorized by
+the user; its changed approximation still requires live appearance qualification. This does not extend shadow
+publication to the deferred scene or atmosphere consumers described above.
 Visible attenuation
 of the sky and celestial disks also remains in scope through OIT. Environmental response and water
 reflections must be accounted for explicitly without adding the deferred cast-shadow system.

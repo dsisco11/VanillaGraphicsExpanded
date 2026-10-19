@@ -1,3 +1,4 @@
+using System;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.Shaders;
@@ -55,6 +56,18 @@ internal sealed partial class CloudTraceProgram : GpuProgram, ICloudTraceBinding
         bool available = bounds?.IsValid == true;
         HeightBounds = available ? bounds : null;
         UboPacking.WriteIVec4(traversalBytes, 0, available ? 1 : 0, available ? bounds!.MipLevels - 1 : 0, 0, 0);
+        traversal.SetBytes(traversalBytes);
+    }
+    /// <summary>Publishes only completed same-frame attenuation, or explicitly selects bounded shadow marching.</summary>
+    internal void SetShadowCache(DynamicTexture2D? texture,int source)
+    {
+        RequireInputMutation();
+        if(source is <0 or >1) throw new ArgumentOutOfRangeException(nameof(source));
+        bool available=texture?.IsValid==true;
+        ShadowCache=available?texture:null;
+        // Zero disables lookup; one and two identify the selected solar and lunar source.
+        UboPacking.WriteIVec4(traversalBytes,0,BitConverter.ToInt32(traversalBytes,0),
+            BitConverter.ToInt32(traversalBytes,4),available?source+1:0,0);
         traversal.SetBytes(traversalBytes);
     }
     #endregion

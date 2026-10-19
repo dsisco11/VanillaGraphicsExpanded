@@ -28,7 +28,24 @@ float MeasuredShadowDensity(vec3 point,ivec2 cell,vec4 data,inout CloudDensityCa
 layout(local_size_x=1) in;
 layout(std140) uniform CloudRayTestInputs { vec4 testOriginLimit; vec4 testDirectionMode; };
 
-/** Retains the original density arithmetic as an algorithm-equivalence oracle, independent of cache and face pruning. */
+/** Retains the original per-corner wrapping independently of production lattice reuse. */
+float ReferenceCloudHash(vec3 lattice,float period)
+{
+    vec3 p=mod(mod(lattice,period),289.0);
+    return fract(sin(dot(p,vec3(17.13,91.71,43.19)))*43758.5453);
+}
+/** Retains the original interpolated noise field for arithmetic-equivalence checks. */
+float ReferenceCloudNoise(vec3 material)
+{
+    float period=max(1.0,floor(volumeDetail.z*12800.0+.5));
+    vec3 p=material*(period/12800.0),i=floor(p),f=fract(p);
+    f=f*f*(3.0-2.0*f);
+    return mix(mix(mix(ReferenceCloudHash(i,period),ReferenceCloudHash(i+vec3(1,0,0),period),f.x),
+        mix(ReferenceCloudHash(i+vec3(0,1,0),period),ReferenceCloudHash(i+vec3(1,1,0),period),f.x),f.y),
+        mix(mix(ReferenceCloudHash(i+vec3(0,0,1),period),ReferenceCloudHash(i+vec3(1,0,1),period),f.x),
+        mix(ReferenceCloudHash(i+vec3(0,1,1),period),ReferenceCloudHash(i+vec3(1,1,1),period),f.x),f.y),f.z);
+}
+/** Retains the original density arithmetic as an algorithm-equivalence oracle, independent of cache, wrapping reuse and face pruning. */
 float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
 {
     if(data.r<=0.0||local.y<data.b*50.0||local.y>data.a*50.0) return 0.0;
@@ -42,7 +59,7 @@ float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
         if(!CloudOccupied(cell+ivec2(0,-1),local.y)) edge=min(edge,f.y);
         if(!CloudOccupied(cell+ivec2(0,1),local.y)) edge=min(edge,50.0-f.y);
         vec3 material=local+vec3(volumeAnchorUnits.x,0,volumeAnchorUnits.y);
-        detail=(1.0+volumeDetail.x*(2.0*CloudNoise(material)-1.0))*smoothstep(0.0,volumeDetail.y,edge);
+        detail=(1.0+volumeDetail.x*(2.0*ReferenceCloudNoise(material)-1.0))*smoothstep(0.0,volumeDetail.y,edge);
     }
     return (data.r/50.0)/volumeAnchorUnits.z*detail;
 }

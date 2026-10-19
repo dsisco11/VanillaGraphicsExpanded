@@ -11,6 +11,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Rendering.Shaders;
+using VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 using Vintagestory.API.MathTools;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -47,6 +48,12 @@ internal sealed class CloudReconstructionScene : IDisposable
     private float? localFogDensity;
     private AtmosphereLighting? capturedLighting,configuredLighting;
     private CloudPlacement capturedPlacement;
+    private CloudTraceProgram? shadingProbe;
+    private DynamicTexture2D? shadowCache;
+    private long mapPublication,cachePublication;
+    private int cacheSource;
+    private uint capturedFrame;
+    private AtmosphereLighting? cacheLighting;
     #region Public API
     #region View preparation
     /// <summary>Allocates small deterministic targets and independently authored column/depth/atmospheric fixtures.</summary>
@@ -127,6 +134,7 @@ internal sealed class CloudReconstructionScene : IDisposable
     /// <summary>Captures one explicit cloud/camera state, including per-pixel opaque and liquid discontinuities.</summary>
     internal void Capture(uint frame,float extinction,float environment,float scale,float offset,string scene)
     {
+        capturedFrame=frame;mapPublication++;
         shift=offset; detail=scene is "detail" or "detail-lit"; underwater=scene=="underwater";localFogDensity=null;
         float aerialLoss=underwater ? .99f : scene=="aerial" ? .25f : 0;
         float aerialScatter=underwater?100:scene=="aerial"?2:0;
@@ -199,6 +207,7 @@ internal sealed class CloudReconstructionScene : IDisposable
     /// <summary>Authors sparse stepped clouds and optional opaque/visibility/liquid foreground clips independently of the hierarchy.</summary>
     internal void AuthorHierarchyColumns(bool foreground)
     {
+        mapPublication++;
         float[] columns = new float[map.Width * map.Width * 4];
         for (int z = 0; z < map.Width; z++)
         for (int x = 0; x < map.Width; x++)
@@ -219,18 +228,60 @@ internal sealed class CloudReconstructionScene : IDisposable
     internal void UseHierarchy(CloudHierarchy? hierarchy, bool mismatch = false)
     {
         if (hierarchy is null) { Trace.SetHierarchy(null); return; }
-        var input = new CloudMapInput(this, 1, 1, 1, 1, 1, 1,
-            new(map.TextureId, 2, 3, 4, map.Width, 50, 5), default);
+        var input = new CloudMapInput(this, 1, 1, mapPublication, 1, mapPublication, capturedFrame,
+            new(map.TextureId, 2, 3, 4, map.Width, 50, 5), capturedPlacement);
         Assert.True(hierarchy.TryBuild(input, () => true), hierarchy.Failure);
-        bool available = hierarchy.TryGetCurrent(mismatch ? input with { Generation = 2 } : input, out var bounds);
+        bool available = hierarchy.TryGetCurrent(mismatch ? input with { Generation = input.Generation+1 } : input, out var bounds);
         Assert.Equal(!mismatch, available);
         Trace.SetHierarchy(available ? bounds : null);
+    }
+    /// <summary>Generates one same-frame diagnostic attenuation image using certified root bounds and shared physical inputs.</summary>
+    internal void BuildShadowCache(CloudShadowAttenuationComputeShader builder,CloudHierarchy hierarchy,
+        DynamicTexture2D target,int quadrature,int source,GpuTimestampQuery? rootComplete=null)
+    {
+        if(shadingProbe is null)
+        {
+            shadingProbe=programs.Create<CloudTraceProgram>();shadingProbe.Frame=camera;shadingProbe.Lighting=storage.Buffer;
+            shadingProbe.PrimaryNoise=Own(CloudBlueNoiseTexture.Create());
+
+        }
+        Configure(shadingProbe,shadingProbe.Parameters,capturedPlacement,configuredLighting!);
+        var input=new CloudMapInput(this,1,1,mapPublication,1,mapPublication,capturedFrame,
+            new(map.TextureId,2,3,4,map.Width,50,5),capturedPlacement);
+        Assert.True(hierarchy.TryBuild(input,()=>true),hierarchy.Failure);
+        Assert.True(hierarchy.TryGetCurrent(input,out var bounds));
+        rootComplete?.Issue();
+        shadingProbe.SetHierarchy(bounds);builder.Capture(shadingProbe.Parameters,bounds!,target.Width,quadrature,source);
+        builder.Map=map;builder.Target=new(target,TextureAccess.WriteOnly);
+        builder.Dispatch((target.Width+7)/8,(target.Height+7)/8);
+        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);
+        shadowCache=target;cachePublication=mapPublication;cacheLighting=configuredLighting;cacheSource=source;
+    }
+    /// <summary>Runs all three fixture passes with cached lighting, falling back to marching after source or map changes.</summary>
+    internal void RenderShadowCache(uint frame,bool valid)
+    {
+        var probe=shadingProbe??throw new InvalidOperationException("Generate the diagnostic cache before drawing.");
+        Configure(probe,probe.Parameters,capturedPlacement,configuredLighting!);
+        if(cachePublication!=mapPublication)probe.SetHierarchy(null);
+        probe.SetShadowCache(cachePublication==mapPublication&&ReferenceEquals(cacheLighting,configuredLighting)?shadowCache:null,cacheSource);
+        var previous=last??historyA;var next=ReferenceEquals(previous,historyA)?historyB:historyA;
+        foreach(var p in new[]{probe.Temporal,Temporal.Temporal,Resolve.Temporal})
+            p.Capture(previousProjection,new(lastShift-shift,0,0),lowWidth,lowHeight,frame,unchecked(frame-1),valid,settings.TraceScale);
+        BindHistory(Temporal,previous);BindHistory(Resolve,next);Temporal.CurrentPayload=traced.View;
+        queuedPasses=[];Draw(probe,traced.Target,false);Draw(Temporal,next.Target,false);Draw(Resolve,result.Target,true);
+        SubmitQueuedPasses();last=next;lastShift=shift;currentProjection.CopyTo(previousProjection,0);
     }
     /// <summary>Reads the complete traced OIT record including first/last cloud and foreground distances.</summary>
     internal float[][] ReadTraceRecord() => CloudPayloadReadback.Read(traced);
     /// <summary>Copies the actual staged volume and sampling constants for opt-in measurement receipts.</summary>
     internal float[][] ReadTraceParameters() => [MemoryMarshal.Cast<byte,float>(Trace.Parameters.Bytes).ToArray(),
         MemoryMarshal.Cast<byte,float>(Trace.Temporal.Bytes).ToArray()];
+    /// <summary>Copies the diagnostic program's actual staged physical and sampling blocks before invalidation probes.</summary>
+    internal float[][] ReadShadowCacheParameters()
+    {
+        var probe=shadingProbe??throw new InvalidOperationException("Generate the diagnostic cache before reading its inputs.");
+        return [MemoryMarshal.Cast<byte,float>(probe.Parameters.Bytes).ToArray(),MemoryMarshal.Cast<byte,float>(probe.Temporal.Bytes).ToArray()];
+    }
     /// <summary>Executes one reduced sample phase without running temporal or spatial reconstruction.</summary>
     internal void RenderTrace(uint frame)
     {

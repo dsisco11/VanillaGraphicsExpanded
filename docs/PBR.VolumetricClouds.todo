@@ -10,6 +10,12 @@ Authority and scope
     sampling-aware history rejection. Its current history policy supersedes the fixed support
     and optical-difference thresholds and lighting/medium-value identity resets recorded for the
     earlier candidates below. Ordinary day/night and weather updates retain bounded accumulation.
+    Its Phase 8 covers repeated shading costs, cloud-internal attenuation reuse, directional-source
+    specialization, density-detail cost, effective tracing/termination and OIT/payload overhead.
+    Current settings remain the initial baseline; alternative approximation/default policies need
+    separate review. Following explicit default-enablement direction, reduced tracing uses the
+    same-frame dominant-source attenuation cache; the full-resolution reference, other source and
+    unavailable-cache paths retain marching. Complete renderer qualification remains in its Phase 9.
   This checklist records delivered rendering increments below; final acceptance remains outstanding.
   The proposal governs scope; keep every task unchecked until its stated evidence exists.
   Preserve Off / Simple / Volumetric settings and both standalone PBR and PBR + LumOn operation.

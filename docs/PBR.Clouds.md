@@ -99,8 +99,23 @@ reduction intermediates for the root, rather than a second integration schedule.
 For distance D and count N, boundaries are `D*(i/N)^2`; each midpoint evaluates shared density,
 weighted by its complete interval length in metres. Finite-domain rejection skips unsupported
 positions without rescaling D or redistributing samples. Optical depth stays finite, with no
-optical-depth early exit. At most one shadow ray is launched per nonzero solar/lunar source at each
-contributing primary point. This does not publish cloud shadows onto scene receivers.
+optical-depth early exit. This marching path serves the full-resolution reference, the uncached
+light and unavailable-cache fallbacks. It does not publish cloud shadows onto scene receivers.
+
+Reduced tracing uses a same-frame light-space attenuation cache by default for the stronger
+published solar/lunar source. `CloudShadowCache` owns a persistent 256x256 RGBA32F texture and
+regenerates it before each admitted trace, using 64 density samples per map ray. Projection covers
+the finite native map and certified root heights independently of scene depth or camera visibility.
+Each texel records first/last occupied distance, total optical depth and selected-source validity.
+Nearest lookup distributes extinction uniformly over that interval and intersects it with the
+query's finite shadow distance. Separated matter and thin features are therefore approximated.
+The other contributing light retains marching; neither physical source is discarded.
+
+Generation uses the trace's current map, placement, detailed density and lighting. Image-write and
+texture-fetch barriers precede lookup; native publication is revalidated before submission. Missing
+root bounds, failed generation, invalid projection/coverage or invalid records select bounded
+marching. No attenuation is reused from an earlier frame. Compatible allocations persist between
+draws and retire on source-lifetime replacement, invalidation, resize, reload, disable and teardown.
 
 Source observation precedes foreground-depth and lighting admission. An ordinary content generation
 withdraws the old certificate while retaining compatible storage; owner, world, allocation or executable
@@ -117,7 +132,8 @@ Volumetric density uses native horizontal footprints and vertical bounds. Period
 3D noise modulates density inside that envelope; exposed faces soften inward while occupied
 shared faces remain connected. Broad faces and stepped cubic masses remain. Noise follows native
 placement, integer recentering and committed/residual wind without a second advection.
-Consecutive samples in a native column retain its descriptor and lazily loaded neighbor descriptors.
+Consecutive samples in a native column retain its descriptor. Needed neighboring descriptors are
+fetched at the current sample, keeping the ray-local cache small across secondary marches.
 Neighbor occupancy is retested at each sample height. Faces farther than the current nearest face
 or erosion width need no neighbor lookup. Zero detail amplitude skips procedural noise; zero edge
 support returns before noise. The procedural noise field and material anchoring are unchanged.
@@ -128,8 +144,11 @@ Primary tracing clips the ray to the finite horizontal map and admitted foregrou
 distance. For its complete length L, including empty gaps, it selects
 `N=min(max,max(min,floor(max*min(1,L/distance))))` and `ds=L/N`. Positions are
 `tStart+(i+jitter)*ds`; native support checks reject empty points without reallocating their budget.
-Every surviving point evaluates shared density and lighting at that position. Extinction uses the
-step length in metres, and native OIT bin weights apply at each primary step. Uniform density
+Every surviving point evaluates shared density at that position. Positive floating-point opacity
+weight evaluates incident lighting; an exactly zero weight skips source evaluation and shadow rays
+while retaining density, support, transmission and bucket updates on the complete scheduled prefix.
+This also applies when termination is disabled and does not introduce a visibility threshold.
+Extinction uses the step length in metres, and native OIT bin weights apply at each primary step. Uniform density
 over the complete span retains analytic attenuation when early termination is disabled or never
 triggers; a terminated ray represents its integrated prefix. A finite lattice can miss narrow features.
 Primary integration stops after a completed contributing step when overall transmission is strictly
@@ -183,7 +202,8 @@ unchanged. Distance-varying atmospheric response is approximated at the mean; so
 correlations and deep or disjoint support can differ from per-sample transport. Diagnostics and
 user appearance review qualify that tradeoff without automated approximation-quality thresholds.
 Solar and lunar phase terms are fixed for the view ray and evaluated before its primary loop;
-self-shadow optical depth remains independently sampled at each contributing point.
+self-shadow optical depth uses same-frame cached attenuation for the selected reduced-trace source
+and independent bounded marching for the remaining paths.
 
 Both modes use the frozen frame's scene-storage encoding. Physical source bounds join admission before Opaque; exposure
 does not affect attenuation, depth, coverage or physical history. The native pre-lit map color,
@@ -202,7 +222,8 @@ do not publish cast shadows or add a second weather dimming to that response. Th
 no directional reflected-camera cloud consumer in the owned water renderer: reflected cloud
 imagery remains an explicit unsupported integration dependency. Main-view depth/history is never
 substituted for a reflection view. Cloud cast shadows on receivers or atmosphere await the
-virtual-shadow-map owner; no Beer shadow map or earlier producer callback is introduced here.
+virtual-shadow-map owner. The internal attenuation cache has no receiver/atmosphere consumer and
+does not introduce an earlier native producer callback.
 
 ## Shared depth inputs
 

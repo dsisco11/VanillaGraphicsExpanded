@@ -26,42 +26,26 @@ struct CloudDensityCache
     bool valid;
     ivec2 cell;
     vec4 column;
-    vec4 left;
-    vec4 right;
-    vec4 back;
-    vec4 front;
-    bvec4 loaded;
 };
 /** Starts a ray-local descriptor cache without reading the native map or assuming occupied neighbors. */
 CloudDensityCache CloudDensityCacheStart()
 {
-    return CloudDensityCache(false,ivec2(0),vec4(0),vec4(0),vec4(0),vec4(0),vec4(0),bvec4(false));
+    return CloudDensityCache(false,ivec2(0),vec4(0));
 }
-/** Fetches the current column only on cell changes, invalidating its lazily loaded neighboring descriptors. */
+/** Fetches the current column only when the scheduled ray enters a different native cell. */
 vec4 CloudDensityColumn(ivec2 cell,inout CloudDensityCache cache)
 {
     if(!cache.valid || any(notEqual(cache.cell,cell)))
     {
-        cache.valid=true; cache.cell=cell; cache.column=CloudColumn(cell); cache.loaded=bvec4(false);
+        cache.valid=true; cache.cell=cell; cache.column=CloudColumn(cell);
     }
     return cache.column;
 }
-/** Loads a needed neighboring descriptor once, leaving height-dependent occupancy to the current sample. */
-vec4 CloudDensityNeighbor(int face,inout CloudDensityCache cache)
+/** Fetches only a face capable of reducing erosion, without retaining four descriptors across shadow marches. */
+vec4 CloudDensityNeighbor(int face,CloudDensityCache cache)
 {
-    vec4 data;
-    if(!cache.loaded[face])
-    {
-        ivec2 offset=face==0?ivec2(-1,0):face==1?ivec2(1,0):face==2?ivec2(0,-1):ivec2(0,1);
-        data=CloudColumn(cache.cell+offset);
-        if(face==0) cache.left=data;
-        else if(face==1) cache.right=data;
-        else if(face==2) cache.back=data;
-        else cache.front=data;
-        cache.loaded[face]=true;
-    }
-    else data=face==0?cache.left:face==1?cache.right:face==2?cache.back:cache.front;
-    return data;
+    ivec2 offset=face==0?ivec2(-1,0):face==1?ivec2(1,0):face==2?ivec2(0,-1):ivec2(0,1);
+    return CloudColumn(cache.cell+offset);
 }
 /** Hashes a periodic lattice; no time or independent wind translation enters the noise. */
 float CloudHash(vec3 lattice,float period)
@@ -91,12 +75,12 @@ float CloudDensity(vec3 local,ivec2 cell,vec4 data,inout CloudDensityCache cache
         // Callers with an already fetched descriptor can enter the same cache contract directly.
         if(!cache.valid || any(notEqual(cache.cell,cell)))
         {
-            cache.valid=true; cache.cell=cell; cache.column=data; cache.loaded=bvec4(false);
+            cache.valid=true; cache.cell=cell; cache.column=data;
         }
         vec2 f=local.xz-vec2(cell)*50.0;
         float edge=min(local.y-data.b*50.0,data.a*50.0-local.y);
         // A farther face cannot reduce the current minimum; beyond the erosion width it is neutral.
-        // Keep cache mutation outside Boolean expressions: descriptor publication precedes occupancy.
+        // Neighbor occupancy is tested at the current height; no sampled face decision survives it.
         if(f.x<min(edge,volumeDetail.y))
         {
             vec4 neighbor=CloudDensityNeighbor(0,cache);

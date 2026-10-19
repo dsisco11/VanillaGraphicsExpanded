@@ -17,6 +17,9 @@ internal interface ICloudTraceBindings : ICloudVolumeBindings
     /// <summary>Supplies certified coarse height summaries only to reduced view tracing.</summary>
     [ShaderBinding("cloudHeightBounds",ShaderBindingKind.Sampler,8,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp,Required=false)]
     GpuTexture? HeightBounds { set; }
+    /// <summary>Supplies same-frame light-space attenuation; availability is published separately in traversal inputs.</summary>
+    [ShaderBinding("cloudShadowCache",ShaderBindingKind.Sampler,10,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp,Required=false)]
+    GpuTexture? ShadowCache { set; }
     /// <summary>Supplies root-bound availability; zero availability uses native support at the same shadow midpoints.</summary>
     [ShaderBinding("CloudTraversalParameters",ShaderBindingKind.UniformBlock,GpuBindingRegistry.Ubo.Material,ShaderStageKind.Fragment)]
     CpuUniformBuffer TraversalInputs { get; }
