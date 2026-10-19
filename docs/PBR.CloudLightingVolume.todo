@@ -1,0 +1,234 @@
+Persistent cloud lighting volume candidate
+==========================================
+
+Authority and scope
+  Source: docs/PBR.CloudLightingVolume.Proposal.md, complete proposal.
+  User direction: extrapolate that proposal into an implementation plan; this operation is planning-only.
+  Context: docs/PBR.Clouds.md, docs/PBR.Atmosphere.Publication.md and docs/PBR.CloudRealtime.todo.
+  Paths below are repository-root relative unless explicitly stated otherwise.
+  This plan owns a removable candidate, not a replacement of the existing renderer or completion
+    of its realtime checklist. The existing renderer remains the default during evaluation.
+  Retain native weather and finite 50-world-unit column support, physical units, connected cuboid
+    faces, placement/wind anchoring, both PBR modes and the native six-attachment OIT contract.
+  The candidate stores lighting in a shallow 3D grid. It still evaluates native density and integrates
+    the current view. Retained illumination is approximate and may be older than the current frame.
+  Non-goals: complete persistent density storage, sparse bricks, clipmaps, multiple grid levels,
+    lighting mip chains, slice/cell rasterization alternatives, screen-space temporal accumulation,
+    replacement weather, external cast-shadow publication, a generic rendering framework or migration.
+  Optional spatial resolve is a bounded view-resolution decision, not authorization to adopt the
+    current reconstruction/history owner. Full density caching requires a separate decision.
+
+Execution and evidence
+  Keep candidate runtime under VanillaGraphicsExpanded/PBR/Clouds/LightingVolume/ and shaders under
+    VanillaGraphicsExpanded/assets/vanillagraphicsexpanded/shaders/cloud_lighting_volume/.
+  Candidate -> native/public scene contracts and general rendering infrastructure is the dependency
+    direction. Existing cloud algorithms must not depend on candidate resources or shader branches.
+  Use actual GPU/program/binding/submission/barrier abstractions, including in focused test fixtures.
+  Keep composition roots thin, files responsibility-focused, classes/methods documented and visibility
+    regions consistent with repository conventions. Permanent architecture docs describe delivered code.
+  Build/test execution goes through subagents. Each implementation phase uses cached incremental
+    builds and affected contract checks only. Reuse unchanged passing evidence; expand checks only for
+    concrete changes, failures or evidence gaps. No routine clean/full-catalog rebuild, full baseline
+    reproduction or packaging gate. An unexpected full-catalog rebuild is an issue to investigate.
+  Full comparison matrices and canonical packaging occur once against the frozen candidate in Phase 8.
+  Automated tests may enforce declared arithmetic, physical units, bounds, identities, lifecycle and
+    work limits. They must not enforce approximation accuracy, convergence, image similarity, noise
+    reduction or visual fidelity. Do not create redundant GPU suites or increase budgets to satisfy
+    approximation thresholds. Diagnostics report approximation differences without pass/fail gates.
+  Separate source review, mathematical/GPU correctness, controlled timing, packaging and user-run
+    appearance evidence. Never launch or close the game. Report contention during measurements.
+  Before marking a phase complete, reconcile its source requirements, review its diff and record
+    focused evidence and remaining limitations. Later phases and live acceptance remain unchecked.
+
+Open decisions (resolved in Phase 1 before dependent implementation)
+  Initial admitted world extent, vertical band/margin, independent horizontal/vertical spacing,
+    dimension caps, exact texture formats and total allocation budget.
+  Direct/scattering node and ray-step budgets, shadow distance, diffuse propagation support,
+    deterministic angular quadrature, scattering parameters and environment boundary arithmetic.
+  Region granularity, content-change classification in physical terms, fairness/age policy,
+    partial-iteration publication mechanism and fallback-to-valid transition policy.
+  Deterministic view schedule and initial resolution; whether a spatial depth-aware resolve is needed.
+  The proposal's format suggestions and memory/revisit examples are illustrative, not defaults.
+    No FPS target, acceptable approximation error or production promotion is implied by this plan.
+
+Phase 1: Specify finite algorithms and candidate contracts
+  Outcome: later owners can be implemented without inventing storage, numerical or scheduling policy.
+  Validation: source inspection and arithmetic/design review; no baseline matrix or packaging.
+  ☐ Reinspect native preparation/publication, scene-lighting admission, depth demand and OIT contracts.
+    - Locate the narrow selection seam in CloudNativeRuntime and establish the safe ownership-switch
+      boundary. Record whether a minimal preparation/reset/disposal renderer interface is necessary.
+    - List allowed shared camera, atmosphere, calibration, encoding and GPU helpers. No dependency
+      on CloudVolumeReconstruction, CloudShadowCache or current cloud transport include graphs.
+  ☐ Specify material/world/grid transforms, admitted finite domain, vertical margin and region identity.
+    - Resolve fractional wind exactly once, integer recentering, whole-cell shifts, newly exposed slabs,
+      large displacements and density outside lighting coverage. Define thin-feature fallback admission.
+  ☐ Select initial dimensions, formats and resource ceilings from explicit byte accounting.
+    - Account for direct channels, both diffuse iteration buffers, descriptor history, metadata,
+      initialization/copy storage and view targets. Record supported-limit checks and allocation failure.
+    - Resolve filtering footprints and border validity without manual eight-fetch trilinear filtering.
+  ☐ Specify direct integration and diffuse transport with explicit units, directions, weights and steps.
+    - Define directional first-scattering seed, higher-order source units, extinction/albedo factors,
+      environment boundary and final composition without double counting first scattering.
+    - Normalize nonnegative angular weights; empty space carries light but adds no scattering.
+      Define bounded ray support and iteration read/write semantics; do not substitute repeated blur.
+  ☐ Resolve scheduling, refresh/invalidation classification and source-transition policies.
+    - Define work limits, nonstarvation, dependency influence, age/backlog and coherent partial publication.
+    - Specify current unshadowed direct plus coarse environment fallback, zero higher-order fallback,
+      and any local transition smoothing. Invalid prior-region data must never enter a transition.
+    - Choose deterministic view sampling/resolution and disposition the optional spatial resolve.
+  ☐ Completion: record decisions with rationale in the proposal/design record; all dependent open
+    choices above are concrete. No speculative choice becomes an unstated requirement or new subsystem.
+
+Phase 2: Own the grid, resources and isolated density queries
+  Depends on Phase 1. Outcome: a fixture can allocate, remap and sample initialized candidate storage.
+  Validation: cached affected build and focused domain/resource/typed-binding checks; no packaging.
+  ☐ Implement candidate domain/storage owners and private density parameters/includes.
+    - Preserve native extinction conversion, finite support, connected faces, bounded detail and
+      material anchoring. Permit narrowly duplicated density math without extracting a broad framework.
+    - Register candidate shader roots and typed bindings through existing discovery/program owners.
+  ☐ Allocate chosen lighting formats, coherent iteration storage and exact region metadata.
+    - Initialize all sampling footprints to defined fallback data; metadata is not interpolated.
+      Use hardware trilinear filtering with explicit level selection and no cross-domain wrap leakage.
+    - Account for total bytes and reject unsupported dimensions/formats before publishing readiness.
+      Clean up partial allocation and allow lifecycle-controlled recovery.
+  ☐ Implement overlap retention, new-slab initialization and full-domain replacement.
+    - Preserve identity under camera motion, wind and integer recentering; revoke incompatible storage.
+      Retain a stable vertical margin. View support must not be clipped to the lighting grid.
+    - Define reset/retirement hooks; actual native lifecycle wiring follows in Phase 7.
+  ☐ Completion: focused checks establish transforms, footprint validity, bounds, allocation cleanup
+    and read/write separation. No existing cloud owner or shader requires candidate state.
+
+Phase 3: Observe changes and budget persistent work
+  Depends on Phases 1–2. Outcome: current publications produce bounded, nonstarving update demand.
+  Validation: focused scheduler/identity checks and minimal GPU descriptor-comparison coverage only.
+  ☐ Observe current native input through matching synchronous publication certificates.
+    - Keep owned compact prior column descriptors and compare support/extinction on the GPU.
+      Retain computed results and metadata, never a previous-frame native texture borrow.
+    - Generation changes enqueue physically classified refresh/invalidation instead of clearing the
+      entire volume. Missing current input withdraws submission without falsely publishing freshness.
+  ☐ Implement region queues, work budgets, age tracking and the selected fairness rule.
+    - Prioritize new regions, incompatible geometry, newly relevant sources, visible old regions and
+      background refinement. Preserve backlog across publications and report actual revisit ages.
+    - Broad changes may mark the domain dirty but may not cause an unbounded dispatch workload.
+  ☐ Expand dependency updates beyond changed density cells.
+    - Include down-light shadow influence and diffuse propagation support; carry resulting update
+      demand through successive iterations. Do not label untouched dependent lighting as fresh.
+    - Refresh direct visibility on direction changes and diffuse source on weather/lighting changes.
+      Direct intensity-only changes retain transmission; mixed diffuse RGB is not rescaled as exact.
+  ☐ Completion: authored change sequences demonstrate bounded work, retained backlog, nonstarvation,
+    exact region identity and correct fallback admission. No convergence or image-quality assertions.
+
+Phase 4: Compute persistent direct-light transmission
+  Depends on Phases 2–3. Outcome: selected regions retain independent solar/lunar transmission.
+  Validation: incremental direct shader build and focused finite-integration/source-unit checks only.
+  ☐ Implement deterministic bounded node-to-light density integration for each relevant source.
+    - Store transmission separately from current illuminance/color. Preserve domain clipping and
+      physical step lengths; no indefinitely accumulated jittered estimate across changing density.
+    - Skip new work for zero-intensity sources; prioritize newly relevant sources and admit initialized
+      fallback until matching direction/content data is available.
+  ☐ Publish completed direct regions with barriers, source identity and update age.
+    - Neighbor filtering footprints remain initialized and compatible. Failed/incomplete work does
+      not publish readiness. Visibility history follows the specified compatible-change policy.
+  ☐ Completion: typed GPU fixtures establish source separation, declared quadrature, valid domains,
+    finite bounded transmission and publication. Timing or physical-reference accuracy is not a gate.
+
+Phase 5: Refine diffuse multiple scattering coherently
+  Depends on Phases 2–4. Outcome: higher-order source is progressively updated without read/write races.
+  Validation: incremental scattering shader build and focused transport/publication checks only.
+  ☐ Implement the selected isotropic closure and bounded angular/ray integration.
+    - Gather directional first scattering for each ray's outgoing direction plus published higher-order
+      source. Include extinction, albedo, path lengths and the specified incoming environment boundary.
+    - Preserve transport across empty gaps and finite domain boundaries. Do not wrap light transport
+      or count the view's first-scattering response twice.
+  ☐ Implement coherent partial-iteration publication using the mechanism chosen in Phase 1.
+    - Read only published source; write distinct storage. Preserve untouched values when publishing.
+      Explicitly account for any copy traffic or per-region publication overhead.
+    - Consume scheduler budgets and carry age/dependency information forward. No dispatch observes
+      a partially written neighbor as completed history; barriers use existing submission abstractions.
+  ☐ Completion: focused arithmetic and publication checks cover normalized weights, source accounting,
+    untouched-region retention and hazards. No iterative convergence or appearance threshold is added.
+
+Phase 6: Draw the candidate through an independent view path
+  Depends on Phases 2–5. Outcome: authored scenes render candidate illumination into native OIT products.
+  Validation: cached view/resolve variants and focused clipping/composition checks; no full timing matrix.
+  ☐ Implement the candidate renderer and deterministic view integrator using candidate settings.
+    - Clip to current finite native support and foreground/liquid depths. Evaluate native density,
+      cached direct/diffuse lighting and current view-dependent directional phase response.
+    - Render thin support and out-of-lighting-domain density with the specified coarse fallback.
+      Preserve sharp cuboid support independently of filtered illumination.
+    - Apply current atmosphere/underwater, photometric encoding and all six OIT outputs through
+      public contracts or narrowly scoped private adapters. Support both PBR selections.
+  ☐ Implement the Phase 1 resolution decision and spatial resolve only if that decision requires it.
+    - Use candidate-owned targets and explicit depth-aware reconstruction. Keep screen-space temporal
+      accumulation absent; do not borrow current cloud reconstruction/history resources or settings.
+  ☐ Compile out user-disabled shader paths and keep runtime branches for genuinely dynamic data.
+  ☐ Completion: fixture rendering establishes physical units, declared sampling, support/depth clips,
+    fallback and OIT/encoding arithmetic. Live selection remains unregistered until Phase 7 admission.
+
+Phase 7: Integrate selection, lifecycle and focused diagnostics
+  Depends on Phases 2–6. Outcome: users can select one removable candidate without coupling algorithms.
+  Validation: incremental affected build and focused ownership/lifecycle checks; no release packaging.
+  ☐ Wire the developer selector at CloudNativeRuntime volumetric preparation.
+    - Add the minimal lifecycle interface only if required by Phase 1. Retire/unregister the old
+      consumer before activating the selected one; never run both renderers in ordinary play.
+    - Preserve default renderer, Off/Simple semantics, native weather ticking/hooks and change-driven
+      enablement. Existing lighting admission/depth demand observes the selected owner generically.
+    - Initial preparation failure preserves native ownership policy; an admitted draw failure withdraws
+      publication without activating a second renderer halfway through the frame.
+  ☐ Wire reset, context/world retirement, selection change and recovery to all candidate owners.
+    - Dispose candidate storage, callbacks and targets. Resize retains compatible cloud-space history
+      while recreating view targets; incompatible domain/layout/transport changes invalidate storage.
+    - Pause leaves native weather advancement to its owner and follows the selected refinement policy.
+      Restore the existing renderer's unchanged settings when returning to it; add no migration.
+  ☐ Register minimal candidate settings and existing-menu debug visualizers.
+    - Expose density support/lighting coverage, validity/fallback, age/backlog and transition behavior.
+      Report update work and allocation counts without a new debug framework or redundant diagnostics.
+  ☐ Completion: selection/recovery/lifecycle contracts pass focused checks and a dependency review
+    confirms the candidate does not intertwine with current shadow, hierarchy, transport or history code.
+
+Phase 8: Qualify cost, appearance and removability
+  Depends on Phases 1–7. Outcome: evidence supports keeping, revising or removing the candidate.
+  Validation: one frozen-candidate canonical build/package check and matched opt-in comparisons;
+    reuse unchanged focused receipts and valid baseline provenance. Repeat only invalidated evidence.
+  ☐ Freeze source/settings/shader identities; verify canonical production/test outputs and package assets.
+    - Confirm candidate resources are packaged and default selection is unchanged. Cover both PBR
+      modes, Off/Simple/Volumetric, failed preparation/recovery and retirement with existing receipts.
+  ☐ Measure existing and candidate rendering with matched native inputs, extent and declared settings.
+    - Separate descriptor observation, domain maintenance, direct/scattering updates, publication/copies,
+      view integration, optional spatial resolve, CPU submission, total GPU cost and resident allocation.
+    - Include cold initialization, stable warm views, camera/wind motion, evolving weather, low sun and
+      source transitions. Report backlog, oldest lighting age and fallback coverage alongside timings.
+    - State resolution/approximation differences and regressions. Warm-state savings alone do not
+      qualify initialization spikes or sustained backlog. No preselected speedup/FPS claim is a gate.
+  ☐ Obtain user-run appearance assessment of sharp support, thin clouds, gaps, grid motion, source
+    transitions, stale lighting, edge artifacts and deterministic-view aliasing without temporal history.
+    - Record latency/quality tradeoffs and the user's disposition; headless checks do not establish
+      visual acceptance. Later temporal filtering, sparse storage or density caching require new scope.
+  ☐ Audit removability and reconcile delivered documentation.
+    - Enumerate exact candidate directories, settings/debug/shader registrations and the selection seam
+      needed for removal. Confirm no current cloud shader branches or resource owners require them.
+    - Verify return-to-existing behavior and complete candidate resource retirement. Do not delete the
+      candidate merely to perform this audit or promote it to default without explicit user direction.
+    - Keep PBR.Clouds.md current for delivered selection/ownership; keep existing realtime acceptance
+      separate. Record decisions/deviations against the source proposal and unresolved qualification.
+  ☐ Completion: correctness/package evidence, matched costs, user assessment and removal audit have
+    an explicit keep/revise/remove disposition. Missing runtime evidence leaves qualification open.
+
+Proposal coverage
+  Status/purpose and relationship to current rendering -> scope, Phases 1, 6–8.
+  Isolation/integration boundary -> execution policy, Phases 1–2, 6–8.
+  Domain/resolution/geometry -> Phases 1–2, 6 and appearance qualification in Phase 8.
+  Stored quantities/filtering -> Phases 1–2, 4–6 and allocation accounting in Phase 8.
+  Direct illumination/progressive scattering -> Phases 1, 4–5, 6 source composition.
+  Scheduling/changes/retained history -> Phases 1–3, 4–5 publication, Phase 7 lifecycle.
+  View rendering/temporal behavior -> Phase 1 decisions, Phase 6, Phase 8 user assessment.
+  Evaluation/removal criteria -> execution policy, Phases 7–8 and final acceptance below.
+
+Final acceptance
+  ☐ Every source requirement maps to delivered behavior or an explicitly agreed deviation/disposition.
+  ☐ Candidate algorithms/resources remain isolated and removal requires only the enumerated boundary.
+  ☐ Native ownership, physical scene/OIT contracts, both PBR modes and existing renderer selection work.
+  ☐ Retained illumination has coherent publication, bounded work and observable validity/age/backlog.
+  ☐ Focused correctness, canonical package, complete cost accounting and user appearance evidence exist.
+  ☐ Remaining tradeoffs are explicit; neither production promotion nor unrelated realtime-task completion
+    is inferred from this candidate's implementation or qualification.
