@@ -8,7 +8,7 @@
 @import "./cloud_volume_light.glsl"
 #undef CloudDirectional
 @import "./cloud_shadow_frame.glsl"
-@import "./cloud_shadow_filter.glsl"
+@import "./cloud_shadow_record.glsl"
 uniform sampler2D cloudShadowCache;
 vec3 cloudCacheCenter,cloudCacheU,cloudCacheV,cloudCacheRadius,cloudCachedLight;
 int cloudCacheSource;
@@ -20,7 +20,7 @@ void CloudPrepareShadowCache()
     cloudCachedLight=cloudCacheSource==0?volumeSun.xyz:volumeMoon.xyz;
     cloudCacheFrameValid=cloudTraversal.z>0 && CloudShadowFrame(cloudCacheSource,cloudCachedLight,cloudCacheCenter,cloudCacheU,cloudCacheV,cloudCacheRadius);
 }
-/** Filters each ray's finite source window independently; uncertain footprint coverage falls back. */
+/** Reads one certified source record; uncovered points retain bounded secondary integration. */
 bool CloudCachedTransmission(vec3 point,vec3 light,out vec2 transmission)
 {
     transmission=vec2(0);
@@ -29,7 +29,7 @@ bool CloudCachedTransmission(vec3 point,vec3 light,out vec2 transmission)
     vec2 uv=vec2(dot(relative,cloudCacheU),dot(relative,cloudCacheV))/(2.0*cloudCacheRadius.xy)+.5;
     if(any(lessThan(uv,vec2(0)))||any(greaterThanEqual(uv,vec2(1)))) return false;
     float depth=cloudCacheRadius.z-dot(relative,light);
-    return CloudShadowTransmission(cloudShadowCache,uv,cloudCacheSource,depth,volumePrimary.z,
+    return CloudShadowTransmission(cloudShadowCache,uv,depth,volumePrimary.z,
         volumeSamples.w,transmission);
 }
 /** Replaces only the cached source's secondary integration; all other transport uses production code. */

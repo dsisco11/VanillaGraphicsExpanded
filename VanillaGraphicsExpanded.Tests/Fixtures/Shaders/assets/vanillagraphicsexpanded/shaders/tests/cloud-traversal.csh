@@ -5,7 +5,7 @@
 @import "../includes/cloud_volume_sampling.glsl"
 @import "../includes/cloud_volume_density.glsl"
 @import "../includes/cloud_volume_hierarchy.glsl"
-@import "../includes/cloud_shadow_filter.glsl"
+@import "../includes/cloud_shadow_record.glsl"
 @import "../includes/cloud_shadow_frame.glsl"
 layout(std430) buffer CloudTraversalTestResult { vec4 intervals[402]; vec4 counts; };
 vec3 measuredOrigin; int measuredSamples=0;
@@ -32,6 +32,7 @@ float MeasuredShadowDensity(vec3 point,ivec2 cell,vec4 data,inout CloudDensityCa
 #undef CloudDensity
 layout(local_size_x=1) in;
 layout(std140) uniform CloudRayTestInputs { vec4 testOriginLimit; vec4 testDirectionMode; };
+uniform sampler2D shadowRecordMap;
 
 /** Retains the original per-corner wrapping independently of production lattice reuse. */
 float ReferenceCloudHash(vec3 lattice,float period)
@@ -72,31 +73,6 @@ float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
 /** Exposes bounded production schedules and shared density through independent authored queries. */
 void main()
 {
-    if(testDirectionMode.w==16.0||testDirectionMode.w==17.0)
-    {
-        uint index=gl_GlobalInvocationID.y*20u+gl_GlobalInvocationID.x;
-        if(index>=400u) return;
-        vec2 sum=vec2(0);float admitted=0;
-        // An opt-in throughput diagnostic uses independent result locations and
-        // changing footprints so the compiler cannot fold away repeated lookups.
-        for(int query=0;query<64;query++)
-        {
-            vec2 uv=(vec2(gl_GlobalInvocationID.xy)+fract(vec2(.618034,.414214)*float(query+1)))/20.0;
-            vec2 transmission;bool valid;
-            if(testDirectionMode.w==16.0)
-                valid=CloudShadowTransmission(cloudMap,uv,0,testOriginLimit.w,
-                    testDirectionMode.x,testDirectionMode.y,transmission);
-            else
-            {
-                float tau;
-                valid=CloudShadowSegmentDepth(cloudMap,ivec2(uv*float(textureSize(cloudMap,0).x)),0,
-                    testOriginLimit.w,testDirectionMode.x,tau);
-                transmission=exp(-vec2(tau,testDirectionMode.y*tau));
-            }
-            if(valid){sum+=transmission;admitted+=1.0;}
-        }
-        intervals[index]=vec4(sum,admitted,0);return;
-    }
     counts=vec4(0); measuredOrigin=testOriginLimit.xyz;
     if(testDirectionMode.w==19.0)
     {
@@ -111,12 +87,11 @@ void main()
     {
         vec3 origin=testOriginLimit.xyz,direction=normalize(testDirectionMode.xyz);
         vec2 clipped,chord=vec2(0);float length=0.0,tau=0.0;bool valid=true;
-        vec4 opticalDepth[4];for(int group=0;group<4;group++)opticalDepth[group]=vec4(0);
         if(CloudShadowDomainSpan(origin,direction,testOriginLimit.w,clipped))
         {
             valid=CloudShadowSupportMeasure(origin,direction,clipped,chord,length);
-            if(valid)valid=CloudShadowSupportIntegrate(origin,direction,clipped,chord,length,
-                int(volumeSamples.y),8,1.0,opticalDepth,tau);
+            if(valid)valid=CloudShadowSupportIntegrate(origin,direction,clipped,length,
+                int(volumeSamples.y),1.0,tau);
         }
         intervals[401]=vec4(chord,CloudShadowSupportCount(length,int(volumeSamples.y)),0);
         counts=vec4(length,measuredSamples,tau,valid?1.0:0.0);return;
@@ -124,14 +99,14 @@ void main()
     if(testDirectionMode.w==15.0)
     {
         vec2 transmission;
-        bool valid=CloudShadowTransmission(cloudMap,testOriginLimit.xy,int(testOriginLimit.z),
+        bool valid=CloudShadowTransmission(shadowRecordMap,testOriginLimit.xy,
             testOriginLimit.w,testDirectionMode.x,testDirectionMode.y,transmission);
         counts=vec4(transmission,valid?1.0:0.0,0);return;
     }
     if(testDirectionMode.w==14.0)
     {
         float tau;
-        bool valid=CloudShadowSegmentDepth(cloudMap,ivec2(testOriginLimit.xy),int(testOriginLimit.z),
+        bool valid=CloudShadowRecordDepth(texelFetch(cloudMap,ivec2(testOriginLimit.xy),0).rgb,
             testOriginLimit.w,testDirectionMode.x,tau);
         counts=vec4(tau,valid?1.0:0.0,exp(-tau),0);return;
     }

@@ -90,13 +90,14 @@ int CloudShadowSupportCount(float length,int budget)
 {
     return length>0.0?min(budget,max(1,int(ceil(length/50.0)))):0;
 }
-/** Distributes one whole-ray budget over occupied arc length, splitting weights across gaps and storage bins. */
-bool CloudShadowSupportIntegrate(vec3 origin,vec3 direction,vec2 clipped,vec2 chord,float length,
-    int budget,int segments,float areaWeight,inout vec4 opticalDepth[4],inout float tau)
+/** Walks one occupied-arc schedule, optionally evaluating density after an identical dry run has succeeded. */
+bool CloudShadowSupportSchedule(vec3 origin,vec3 direction,vec2 clipped,float length,
+    int budget,float areaWeight,bool evaluate,inout float tau)
 {
     if(length<=0.0) return true;
     int count=CloudShadowSupportCount(length,budget);
     float ds=length/float(count),arc=0.0;
+    CloudDensityCache cache=CloudDensityCacheStart();
     CloudShadowSupport walk=CloudShadowSupportStart(origin,direction,clipped);
     vec2 span;ivec2 cell;vec4 data;
     if(!CloudShadowSupportNext(origin,direction,walk,span,cell,data)) return false;
@@ -106,24 +107,20 @@ bool CloudShadowSupportIntegrate(vec3 origin,vec3 direction,vec2 clipped,vec2 ch
         if(sampleIndex>=count) break;
         float end=sampleIndex==count-1?length:float(sampleIndex+1)*ds;
         float middle=(float(sampleIndex)+.5)*ds;
-        vec4 weights[4];for(int group=0;group<4;group++) weights[group]=vec4(0);
         float sigma=0.0;bool sampled=false;
         // Each pass visits at most 401 columns per ray; subdivision never adds
         // density evaluations. A stratum may represent several disjoint intervals.
         for(int piece=0;piece<402;piece++)
         {
             float nextArc=min(end,supportEnd);
-            float near=span.x+clamp(arc-supportStart,0.0,span.y-span.x);
-            float far=span.x+clamp(nextArc-supportStart,0.0,span.y-span.x);
             if(!sampled&&middle<=nextArc)
             {
-                vec3 point=origin+direction*(span.x+clamp(middle-supportStart,0.0,span.y-span.x));
-                sigma=CloudDensity(point,cell,data);sampled=true;
-            }
-            for(int group=0;group<4;group++)
-            {
-                if(group>=segments/4) break;
-                weights[group]+=CloudShadowSegmentOverlap(vec2(near,far),chord,group,segments);
+                if(evaluate)
+                {
+                    vec3 point=origin+direction*(span.x+clamp(middle-supportStart,0.0,span.y-span.x));
+                    sigma=CloudDensity(point,cell,data,cache);
+                }
+                sampled=true;
             }
             arc=nextArc;
             if(arc>=end) break;
@@ -131,13 +128,18 @@ bool CloudShadowSupportIntegrate(vec3 origin,vec3 direction,vec2 clipped,vec2 ch
             supportStart=supportEnd;supportEnd+=span.y-span.x;
         }
         if(!sampled||arc<end) return false;
-        for(int group=0;group<4;group++)
-        {
-            if(group>=segments/4) break;
-            opticalDepth[group]=min(vec4(1e30),opticalDepth[group]+weights[group]*sigma*volumeAnchorUnits.z*areaWeight);
-        }
-        tau=min(1e30,tau+sigma*(end-float(sampleIndex)*ds)*volumeAnchorUnits.z*areaWeight);
+        if(evaluate) tau=min(1e30,tau+sigma*(end-float(sampleIndex)*ds)*volumeAnchorUnits.z*areaWeight);
     }
     return true;
+}
+/** Validates the complete bounded schedule before streaming density, preserving the fallback's density cap. */
+bool CloudShadowSupportIntegrate(vec3 origin,vec3 direction,vec2 clipped,float length,
+    int budget,float areaWeight,inout float tau)
+{
+    float unused=0.0;
+    // Both passes consume the same immutable native publication and arithmetic.
+    // The dry run removes partial-generation failure without per-sample storage arrays.
+    if(!CloudShadowSupportSchedule(origin,direction,clipped,length,budget,areaWeight,false,unused)) return false;
+    return CloudShadowSupportSchedule(origin,direction,clipped,length,budget,areaWeight,true,tau);
 }
 #endif

@@ -110,13 +110,16 @@ or secondary shadow marching, including in the full-resolution reference.
 Reference and reduced transport share the `VGE_CLOUD_SELF_SHADOWING` compile-time option;
 quality zero selects a precompiled variant with shadow marches and cache lookup code excluded.
 The CPU owner skips attenuation generation and releases its resources when disabled. `CloudShadowCache`
-owns a persistent RGBA32F atlas with the selected width and three times that height, and
-regenerates it before each admitted trace, using at most 64 density evaluations per texel. Projection covers
-the finite native map and certified root heights independently of scene depth or camera visibility.
-The first square tile records each ray's supported chord endpoints, total optical depth and
-selected-source validity. Two more tiles pack eight equal-depth segment optical depths in RGBA,
-for 3, 12 or 48 MiB of texture payload respectively. Changing quality retires incompatible storage;
-disabling caching releases its resources and skips generation.
+owns a persistent square RGBA32F texture and regenerates it before each admitted trace, using at
+most 64 density evaluations per texel. RGB stores front depth in world units along the current
+light-space ray, nonnegative mean extinction in inverse metres, and dimensionless maximum optical
+depth. Alpha is unused; source identity and publication are discrete whole-cache certificates in
+the existing CPU binding and traversal inputs. Payload sizes are 1, 4 and 16 MiB respectively,
+including the unused fourth format channel. RGBA32F supports compute image writes and linear
+sampling. The lookup uses one hardware-bilinear parameter sample at explicit LOD zero.
+Changing quality retires incompatible
+storage; disabling caching releases its resources and skips generation. Projection covers the
+finite native map and certified root heights independently of scene depth or camera visibility.
 
 `CloudVolumeParameters` transports an independent tangent for each celestial source between
 lighting captures. The shortest rotation carries that tangent through both vertical poles without
@@ -146,38 +149,46 @@ Generation estimates crossed native columns from the root-clipped chord as
 `1 + ceil(abs(light.x) * length / 50) + ceil(abs(light.z) * length / 50)`.
 Estimates above 16 retain the original 64 uniformly weighted midpoint evaluations across that chord.
 This avoids expensive native-grid scans on long or grazing rays; narrow or disjoint features can
-still be missed by that finite lattice. Eligible shorter rays walk native columns twice: first to
-measure occupied geometric arc length, then to integrate it. Empty native columns and vertically
+still be missed by that finite lattice. Eligible shorter rays measure occupied geometric arc length,
+validate their complete stratum schedule without density evaluation, then stream its integration. Empty native columns and vertically
 disjoint intervals do not spend density evaluations. Exact-zero slab clipping admits small nonzero
 directions that enter the domain or a column's height interval over the finite ray.
 
 For occupied length L, allocation is `min(64, max(1, ceil(L / 50)))`, with no samples for empty support.
-Each midpoint is located on occupied arc length. Its represented weight is split across the actual
-disjoint support intervals and depth bins, without assigning extinction to gaps or multiplying the
-budget per column. World-length weights convert to metres exactly as in other cloud integration.
-Each support pass has a defensive 401-column limit for the maximum 200x200 native grid; the geometric
-estimate limits ordinary selected walks to short chords. An incomplete walk makes that cache record
-unavailable and selects bounded marching. Zero sampled density never certifies native support empty:
-metadata retains the native supported chord even if all sampled optical contributions vanish.
+Each midpoint is located on occupied arc length and weighted only by its occupied stratum length,
+including strata crossing disjoint support intervals. World-length weights convert to metres exactly
+as in other cloud integration. Each support pass has a defensive 401-column limit for the maximum
+200x200 native grid. A density-free dry run validates the complete support schedule before
+any detailed density evaluation, avoiding per-sample position arrays. If a bounded support pass cannot finish, the same ray uses the
+original uniform quadrature over its root/domain-clipped chord; it never spends a second density
+budget or publishes an unavailable sentinel among valid texels. Long/grazing chords retain the
+same uniform fallback selected by the crossing estimate.
+
+For a supported chord [front,back] and integrated tauMax, mean extinction is
+`tauMax / ((back-front) * metresPerWorldUnit)`. Front is the geometric supported chord entry,
+including native support whose sampled procedural density vanishes. Nonintersecting projected rays
+and zero spans store RGB zero. A nonzero chord with zero sampled density has zero extinction and
+tauMax. Optical-depth accumulation saturates at 1e30. Every generated texel is a finite compact
+record before the whole texture is admitted; alpha never stores source flags or invalid markers.
 
 The shared full-frequency density definition remains unchanged. A diagnostic generation variant
-evaluates two opposite quarter-texel footprint rays with half the total density budget each and equal
-weights. Both rays clip independently; their density integrals contribute to a common chord's bins.
-This is a bounded filtered-density approximation, not an average of ray transmissions or exact area
-integration. It reduces axial samples per ray and can miss unsampled footprint structure. Its measured
-generation overhead prevented production selection; ordinary generation uses the center ray. Static
-noise prefiltering and final appearance/performance qualification remain tracked in the realtime plan.
-Lookup evaluates a texel-center 2x2 bilinear footprint. Each contributing ray intersects the query's
-finite shadow-distance window with its own depth segments, assuming uniform extinction only within
-each segment. Direct and approximate-octave transmissions are exponentiated separately for each ray,
-then combined with the same nonnegative weights; optical depths are never interpolated. Empty
-segments preserve gaps between sampled layers; features missed by generation and structure within
-a segment remain approximated. Valid empty coverage contributes unit transmission. Every
-positive-weight tap must have matching discrete source validity and finite supported records.
-Missing or invalid coverage, including footprints crossing the map edge, selects bounded marching
-for the complete query. Taps with exactly zero weight require no coverage; edge taps are neither
-clamped nor discarded and the remaining weights are never renormalized around unavailable data.
-The other contributing light retains marching; neither physical source is discarded.
+uses two opposite quarter-texel footprint rays with half the total density budget each. Independently
+clipped rays contribute equally weighted optical depth to their containing chord. This approximation
+is not selected for production and has no image-quality acceptance threshold.
+
+Lookup hardware-filters the compact RGB parameters before evaluating cumulative optical depth as
+`tau(z) = min(tauMax, meanExtinction * max(0,z-front) * metresPerWorldUnit)`.
+The finite ShadowDistance response is `max(0,tau(depth)-tau(depth-ShadowDistance))`, evaluating both
+endpoints from that same fetched record. Direct and additional-octave transmissions are evaluated
+once each from that window depth. Empty records give unit transmission. Separated layers and gaps
+are represented by a single mean-extinction ramp; their depth structure is intentionally lost.
+This changes the shadow approximation and does not promise equivalent images. Only footprints
+between the outer texel centers are admitted; edge-crossing footprints and malformed records use
+bounded marching. A linear-clamp typed sampler is used, but coverage checks prevent implicit border
+extension. Filtering parameters differs from averaging transmission; no exact area or gap preservation
+is claimed. No manual neighboring-ray transmission averaging remains. Source and native
+publication must match the complete cache, independently of sampled parameters. The other meaningful
+light retains marching; neither physical source is discarded.
 
 Generation uses the trace's current map, placement, detailed density and lighting. Image-write and
 texture-fetch barriers precede lookup; native publication is revalidated before submission. Missing

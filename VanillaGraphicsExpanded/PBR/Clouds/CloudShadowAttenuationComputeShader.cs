@@ -6,7 +6,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
 /// <summary>Owns bounded same-frame light-space attenuation generation for cloud tracing.</summary>
-[ShaderProgram("Contract","cloud_shadow_cache",3)]
+[ShaderProgram("Contract","cloud_shadow_cache",4)]
 [ShaderStage("Contract",ShaderStageKind.Compute,"cloud_shadow_cache.csh")]
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(GenerationPolicy))]
 internal sealed partial class CloudShadowAttenuationComputeShader : GpuComputeProgram,ICloudShadowAttenuationComputeBindings
@@ -26,14 +26,14 @@ internal sealed partial class CloudShadowAttenuationComputeShader : GpuComputePr
         return new(pipeline!);
     }
     /// <summary>Stages one certified source and bounded generation schedule before dispatch.</summary>
-    internal void Capture(CpuUniformBuffer parameters,DynamicTexture2D bounds,int width,int count,int source,int segments=CloudShadowCache.DepthSegments)
+    internal void Capture(CpuUniformBuffer parameters,DynamicTexture2D bounds,int width,int count,int source)
     {
         RequireInputMutation();
-        if(width<1||count is <1 or >128||source is <0 or >1||segments is not (8 or 16))throw new ArgumentOutOfRangeException(nameof(count));
+        if(width<1||count is <1 or >128||source is <0 or >1)throw new ArgumentOutOfRangeException(nameof(count));
         volume=parameters;HeightBounds=bounds;
         Span<byte> bytes=stackalloc byte[16];
         UboPacking.WriteIVec4(bytes,0,1,bounds.MipLevels-1,0,0);traversal.SetBytes(bytes);
-        UboPacking.WriteIVec4(bytes,0,width,count,source,segments);inputs.SetBytes(bytes);
+        UboPacking.WriteIVec4(bytes,0,width,count,source,0);inputs.SetBytes(bytes);
     }
     #endregion
     #region Private

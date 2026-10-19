@@ -213,15 +213,12 @@ Tasks
     - Realtime work tasklist: docs/PBR.CloudRealtime.todo; reconcile
       sampling, self-lighting, termination, reconstruction, atmosphere and acceleration costs there.
       Its Phase 8 evaluates repeated shading work and cloud-internal lighting reuse at preserved
-      initial settings. Subphases 8.1–8.4 supply segmented attenuation, depth-correct transmission
-      filtering, bounded generation allocation and transported per-source projection orientation;
-      measured costs, rejected area sampling and
-      contention are recorded in that checklist, with final acceptance still open. Cache
-      projection and source validity remain same-frame. Planned subphases 8.5/8.6 replace the
-      segmented atlas and per-neighbor transmission filtering with a compact front-depth/mean-
-      extinction/maximum-optical-depth record, sampled once with hardware parameter filtering.
-      This deliberately changes the approximation to reduce repeated lookup cost; measured
-      comparisons and final visual/performance acceptance remain required. Planned subphase 8.7
+      initial settings. The current cache uses compact front-depth/mean-extinction/maximum-optical-
+      depth records with a single hardware-filtered parameter sample, bounded generation and
+      transported per-source projection orientation. The approximation replaces separated layers/gaps with a mean ramp;
+      finite ShadowDistance and same-frame source/publication validity remain intact. Hardware
+      filtering is included by explicit user direction; subphase 8.6 retains remaining qualification. Measured costs and final visual/performance
+      acceptance remain required. Planned subphase 8.7
       budgets primary samples over the clipped cloud-layer intersection, including measured selection
       of the budget distance to prevent unintended work increases and explicit uncertified-bound fallback.
       Quarter tracing is

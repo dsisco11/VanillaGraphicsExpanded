@@ -39,6 +39,7 @@ internal sealed class CloudTraversalProbe : IDisposable
         program.SetRay(origin, direction, mode is 6 or 11 ? positions.Length : limit, mode);
         program.SetTraversal(root);
         program.Map = map;
+        program.ShadowRecord = map;
         program.HeightBounds = bounds;
         program.Result = output;
         program.Dispatch(1);
@@ -46,19 +47,6 @@ internal sealed class CloudTraversalProbe : IDisposable
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
         using var mapped = output.MapScope<Vector4>(0, records.Length, MapBufferAccessMask.MapReadBit);
         return mapped.Span.ToArray();
-    }
-
-    /// <summary>Times the authored lookup dispatch, including activation, with result readback outside the GPU interval.</summary>
-    internal double MeasureShadowLookup(CloudVolumeParameters volume,GpuTexture map,bool filtered,GpuTimerQuery timer)
-    {
-        output.UploadData(new Vector4[403]);
-        program.SetVolume(volume);
-        program.SetRay(Vector3.Zero,new(40,.5f,0),60,filtered?16:17);
-        program.SetTraversal(null);
-        program.Map=map;program.HeightBounds=null;program.Result=output;
-        timer.Begin();program.Dispatch(20,20);timer.End();
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
-        return timer.GetResultNanoseconds()/1e6;
     }
 
     /// <summary>Retires the shader before its borrowed storage, preserving enclosing program scopes.</summary>

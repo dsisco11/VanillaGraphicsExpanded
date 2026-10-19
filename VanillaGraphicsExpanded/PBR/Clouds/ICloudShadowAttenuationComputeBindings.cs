@@ -19,10 +19,10 @@ internal interface ICloudShadowAttenuationComputeBindings
     /// <summary>Publishes summary availability and mip identity.</summary>
     [ShaderBinding("CloudTraversalParameters",ShaderBindingKind.UniformBlock,15,ShaderStageKind.Compute)]
     CpuUniformBuffer TraversalInputs { get; }
-    /// <summary>Publishes logical cache width, quadrature count, selected source and depth-segment count.</summary>
+    /// <summary>Publishes logical cache width, quadrature count, selected source and a reserved zero word.</summary>
     [ShaderBinding("CloudShadowCacheInputs",ShaderBindingKind.UniformBlock,16,ShaderStageKind.Compute)]
     CpuUniformBuffer CacheInputs { get; }
-    /// <summary>Borrows the RGBA32F atlas containing metadata and packed optical-depth segments.</summary>
+    /// <summary>Borrows the square RGBA32F texture containing front depth, mean extinction and maximum optical depth.</summary>
     [ShaderBinding("shadowCacheTarget",ShaderBindingKind.Image,0,ShaderStageKind.Compute)]
     GpuTextureBinding Target { set; }
     #endregion

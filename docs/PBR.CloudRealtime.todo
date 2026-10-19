@@ -526,12 +526,12 @@ Phase 8.4: Stabilize cache projection and reconcile the lighting upgrades
 Phase 8.5: Replace segmented self-shadow storage with a compact single-fetch record
   Depends on Phase 8.4. Outcome: each map texel stores front depth, mean extinction and maximum
     optical depth, eliminating the depth-segment atlas and per-query segment reconstruction.
-    Phase 8.6 then enables hardware filtering of this compact representation. Its nearest-read
-    intermediate is explicit, not the final filtered lookup or a selectable production mode.
+    User direction (2026-10-19) includes hardware filtering in this implementation: use one linear
+    parameter sample immediately, without a nearest-only intermediate or production mode toggle.
   Validation: cached incremental affected-variant build and lean record/unit/lifecycle checks.
     Reuse frozen segmented assets for one narrow opt-in comparison; no clean baseline reproduction,
     full-resolution matrix or release packaging before Phase 11. Builds/tests run through subagents.
-  ☐ Specify the compact approximation and finite-depth contract before replacing the representation.
+  ☑ Specify the compact approximation and finite-depth contract before replacing the representation.
     - Define front depth in the current light-space ray, nonnegative mean extinction in inverse metres
       and dimensionless maximum optical depth. Derive all three from the same bounded quadrature
       and shared density, retaining current source selection, coverage and transported orientation.
@@ -541,7 +541,7 @@ Phase 8.5: Replace segmented self-shadow storage with a compact single-fetch rec
     - State the lost depth information: separated layers and gaps become a mean-extinction ramp.
       This intentionally replaces segment-depth fidelity; do not assert equivalent images or retain
       segment storage merely to satisfy retired approximation tests. Keep existing density budgets.
-  ☐ Generate and publish one filterable compact texture through the existing cache owner and bindings.
+  ☑ Generate and publish one filterable compact texture through the existing cache owner and bindings.
     - Choose a supported compute-writeable and linearly filterable format. Store three parameters
       together in one texel; account for a possible fourth format channel and actual allocation bytes.
     - Establish complete valid coverage for every texel eligible for filtering. Source identity and
@@ -551,28 +551,29 @@ Phase 8.5: Replace segmented self-shadow storage with a compact single-fetch rec
       validity texture fetch. Define empty-edge records so later filtering has deliberate semantics.
     - Preserve committed native map/root/light identity, off-camera support, write/sample barriers,
       quality sizes, resource recovery/retirement and current rebuild cadence. No shadow history.
-  ☐ Replace segment lookup with one nearest record fetch and its finite-window evaluation.
+  ☑ Replace segment lookup with one hardware-filtered record sample and its finite-window evaluation.
     - Retain direct and additional-octave attenuation from the same resulting tau, both meaningful
       lights, existing source admission and bounded marching for unavailable/uncovered queries.
       ShadowQuality zero continues to compile out self-shadow paths, including reference marching.
     - Remove superseded segment-atlas ownership, bindings/helpers and segment-specific fixture modes
       or tests once their replacement contracts are covered. Preserve frozen comparison assets outside
       normal rendering. Use existing typed GPU abstractions; add no raw GL or generic cache framework.
-  ☐ Reuse focused checks for authored compact-record arithmetic, finite windows, empty/invalid inputs,
+  ☑ Reuse focused checks for authored compact-record arithmetic, finite windows, empty/invalid inputs,
     physical units, source/publication revocation, quality zero and recovery in both PBR modes.
     Measure generation/barriers, lookup/trace, temporal/resolve, independent total, CPU and storage at
     matched explicit controls. Report all regressions and approximation changes without quality gates.
-  ☐ Completion: compact storage and a one-fetch nearest intermediate replace segmented reconstruction,
+  ☑ Completion: compact storage and a one-fetch hardware-filtered lookup replace segmented reconstruction,
     with updated current architecture/parent, tested identities, second review and independent audit.
-    Hardware-filtered production selection belongs to Phase 8.6; live acceptance remains in Phase 11.
+    Phase 8.6 reconciles remaining filtering qualification; live acceptance remains in Phase 11.
 
-Phase 8.6: Hardware-filter compact shadow parameters before evaluating attenuation
-  Depends on Phase 8.5. Outcome: the cached-light hot path uses one hardware-bilinear texture sample
-    of front depth, mean extinction and maximum optical depth, then evaluates attenuation once.
+Phase 8.6: Qualify hardware-filtered compact shadow parameters
+  Depends on Phase 8.5. User direction includes hardware filtering in Phase 8.5; this follow-up
+    qualifies remaining boundary/appearance/cost tradeoffs using that implementation and its evidence.
+    The hot path already samples compact parameters once, then evaluates attenuation.
   Validation: cached incremental affected-variant build and focused sampling/boundary checks.
-    Reuse existing opt-in lookup/combined diagnostics and frozen assets; no redundant baseline rebuild,
+    Reuse existing opt-in combined diagnostics and frozen assets; no redundant baseline rebuild,
     test matrix or release packaging. Builds/tests run through subagents; final qualification is Phase 11.
-  ☐ Configure the existing texture/sampler abstraction for linear filtering at explicit LOD zero.
+  ☐ Reuse Phase 8.5 evidence to verify the linear sampler and explicit LOD-zero implementation.
     - Sample all compact parameters together with one texture operation. Remove the manual 2x2
       neighbor loop, independent depth reconstruction and per-neighbor exponentials. Hardware still
       filters neighboring texels internally; one shader sample does not mean one physical memory read.
@@ -592,8 +593,9 @@ Phase 8.6: Hardware-filter compact shadow parameters before evaluating attenuati
     interpolation and resulting attenuation against independent arithmetic, including borders and
     source withdrawal. Use actual typed samplers/programs/resources. Prune superseded filter tests
     and magic-number fixture modes instead of growing a parallel test suite or diagnostic framework.
-  ☐ Compare compact nearest, compact hardware filtering and retained segmented transmission filtering
-    separately in the existing opt-in diagnostics at identical resolution, controls and source data.
+  ☐ Reuse the compact hardware-filtered versus frozen segmented comparison from Phase 8.5.
+    Add a compact-nearest diagnostic only if an unresolved filtering cost requires it; it is never
+    a production option. Keep identical resolution, controls and source data.
     Record actual selected shader identities, generation/barriers, lookup/trace, temporal/resolve,
     independent total, CPU and storage; include held-out night/grazing regressions. Reuse unaffected
     evidence and report sampling-policy differences separately from implementation cost reductions.
@@ -879,9 +881,9 @@ Bounded quality policy (implementation contract)
 
   Secondary budget and distance
     - Default reduced tracing builds a logical 256x256 same-frame attenuation map with at most 64
-      detailed-density quadrature samples per map ray for the stronger published source. Eight
-      depth segments retain the sampled extinction distribution; 2x2 lookup evaluates each ray's
-      finite ShadowDistance transmission before filtering direct and octave visibility separately.
+      detailed-density quadrature samples per map ray for the stronger published source. One hardware-
+      filtered record stores front depth, mean inverse-metre extinction and maximum optical depth.
+      Evaluate its finite ShadowDistance ramp window before direct and octave transmissions.
       Short chords use bounded occupied-arc allocation; the geometric crossing estimate above 16
       retains uniform midpoint allocation. See PBR.Clouds.md for the full finite algorithm and
       unavailable-coverage fallback. Transported per-source tangents define a continuous orientation
@@ -2327,3 +2329,64 @@ Quarter-default and configuration correction (2026-10-19)
     recovery GPU checks in both PBR modes. No game launch/reload, timing or packaging is performed.
     This validates source/configuration contracts; live ConfigLib loading and changed-default
     appearance/performance remain user-run qualification. Planned Phases 8.5/8.6 remain unchecked.
+
+Phase 8.5 compact cached attenuation receipt (2026-10-19)
+  Contract -> this section, PBR.Clouds.md / same-frame attenuation, parent cloud item,
+    archived volumetric proposal e87de94d / density, publication, lighting and OIT,
+    archived hierarchy proposal f66895c6 / conservative bounds and source ownership,
+    PBR.Atmosphere.Publication.md / physical inputs and transport ownership.
+    Current user direction supersedes the planned nearest intermediate: hardware filtering ships now.
+  Representation and finite window -> cloud_shadow_cache.csh, cloud_shadow_record.glsl,
+    CloudShadowCache and typed trace bindings -> one square RGBA32F image stores front world depth,
+    mean inverse-metre extinction and maximum dimensionless tau; alpha is unused. One LOD-zero
+    hardware-linear RGB sample precedes finite-window ramp evaluation and two response exponentials.
+    Full generated footprint/source publication is required; empty records are finite RGB zero,
+    borders retain bounded fallback, and no interpolated validity or separate validity fetch exists.
+    This intentionally loses separated-layer/gap detail and changes filtering before attenuation;
+    no equivalent-image, exact-area or approximation-quality acceptance claim is made.
+  Generation and lifecycle -> shared support/density, existing owner and production integration ->
+    original caps/weights, off-camera coverage, transported projection, both physical lights,
+    quality-zero compile option, source revocation, barriers and resource recovery remain intact.
+    A complete density-free schedule preflight precedes streaming density on eligible short rays.
+    Incomplete support uses bounded uniform generation before publication without a second density
+    budget. Segmented atlas/helpers, two old test classes and fixture timing modes 16/17 are removed;
+    the frozen segmented comparison remains outside runtime assets. No settings migration is added.
+  Focused evidence -> artifacts/CloudRealtime/phase8.5/focused.trx -> 10/10 pass, zero skipped;
+    streaming-focused.trx rechecks the five affected record/schedule/production-recovery cases after
+    the helper revision, 5/5 pass in 30 seconds. Both PBR modes retain production recovery and all
+    quality sizes. Unchanged projection/physical-input/binding evidence is reused, not rerun.
+    streaming-build.log -> cached Release build passes in 15.91 seconds, zero warnings/errors;
+    three production and five fixture shader variants compile, 460/539 binaries are reused.
+    No clean baseline build, full-resolution matrix, game actions or packaging is performed.
+  Measurement -> combined.trx, combined/*.json and combined-summary.json in that artifact directory ->
+    one opt-in diagnostic passes for three synthetic 512x256 views, native width 200, explicit Quarter,
+    cache 256, generation cap 64, ViewMax/Min 384/1, LightMax 10, ShadowDistance 1500 and termination 0.
+    Same controls and policy 1 on independently frozen segmented and current compact assets, three
+    warmups and five alternating pairs; RTX4090, no game PIDs observed, other GPU load uncontrolled.
+    All three cases contain 65,536 finite records, zero invalid, exact source/map withdrawal fallback
+    agreement and finite recovery. Storage drops from 3 MiB to 1 MiB, including unused alpha.
+    Median milliseconds, segmented -> compact hardware-filtered:
+      case      generation+barriers       trace including lookup       independent whole
+      day       0.051200 -> 0.044032      2.942976 -> 1.658880          3.085312 -> 1.792000
+      grazing   0.203776 -> 0.150528      2.186240 -> 1.258496          2.703360 -> 1.505280
+      night     0.039936 -> 0.030720      3.026944 -> 1.778688          3.401728 -> 1.900544
+    Every stage, CPU submission, independent whole interval and paired spread is retained in JSON.
+    CPU paired-median changes are -0.1096/-0.0576/+0.3684 ms (day/grazing/night): night regresses.
+    Grazing CPU medians also rise 0.9970 -> 1.1635 ms despite its negative paired median; night
+    medians rise 1.1361 -> 1.3401 ms. These short CPU samples are noisy. Day resolve and day/grazing
+    root medians rise by 0.001024 ms each, with zero paired-median change. Temporal batch stalls
+    affect whole-interval medians; do not attribute their savings to the unchanged temporal shader.
+    The first array-staged candidate regressed generation to 0.195584/1.071104/0.130048 ms;
+    first-candidate/ preserves those receipts. The streaming revision removes that observed slowdown;
+    register pressure/spilling was a hypothesis, not independently measured hardware-counter evidence.
+    This is a changed approximation and synthetic cost comparison, not native replay or live FPS.
+  Identity and review -> measured-binaries.json and final-identity.json -> current runtime/test DLLs,
+    manifest, fourteen selected frozen/current SPV hashes and five affected source/runtime asset
+    hashes match; frozen programs load through typed owners without a binary adapter. Runtime SHA256
+    35E8B259267B26A588FC143EA1F02FA9C67F21FA1449E2E4147D228F4A2CD112;
+    current generation policy-1 SPV 08F06CD967A555B87D2C1490A4C7F5725917212BC1872649552A2DDD35F1060D.
+    Second review covers the full task/source mapping, streaming preflight/cap and sampler ordering.
+    Independent audit passes with no unresolved findings after checking implementation, linked
+    documents, focused evidence and identities. The five Phase 8.5 tasks are complete.
+    Remaining filtering qualification reuses this evidence in 8.6; live appearance, full renderer
+    performance and release/package qualification remain open in Phase 11.

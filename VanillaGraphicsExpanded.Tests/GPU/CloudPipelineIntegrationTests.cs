@@ -251,7 +251,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
                     {
                         Assert.NotNull(texture);
                         Assert.Equal(controls.ShadowMapResolution,texture.Width);
-                        Assert.Equal(controls.ShadowMapResolution*3,texture.Height);
+                        Assert.Equal(controls.ShadowMapResolution,texture.Height);
                     }
                     previousCache=texture;
                 }

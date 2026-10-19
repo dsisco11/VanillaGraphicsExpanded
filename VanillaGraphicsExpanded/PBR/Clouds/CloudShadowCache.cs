@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 /// <summary>Owns same-frame attenuation storage and bounded generation for the active reduced cloud trace.</summary>
 internal sealed class CloudShadowCache(Func<CloudShadowAttenuationComputeShader> createProgram) : IDisposable
 {
-    internal const int Quadrature=64, DepthSegments=8;
+    internal const int Quadrature=64;
     private CloudShadowAttenuationComputeShader? program;
     private DynamicTexture2D? texture;
     private BorrowedTexture? map;
@@ -44,12 +44,13 @@ internal sealed class CloudShadowCache(Func<CloudShadowAttenuationComputeShader>
             // map/placement/light publication. There is no cross-frame attenuation certificate.
             program??=createProgram();
             if(!program.EnsureReady()) throw new InvalidOperationException(program.PreparationLog);
-            // One metadata tile precedes groups of four optical-depth segments in RGBA tiles.
-            texture??=DynamicTexture2D.Create(width,width*(1+DepthSegments/4),PixelInternalFormat.Rgba32f);
+            // RGB carries front depth, inverse-metre mean extinction and maximum tau.
+            // RGBA32F supports image writes and later linear sampling; alpha is unused.
+            texture??=DynamicTexture2D.Create(width,width,PixelInternalFormat.Rgba32f);
             map??=new BorrowedTexture(input.Storage.Map);
             allocation=input;
             if(!current()) { Reset(); return null; }
-            program.Capture(parameters,bounds,width,Quadrature,source,DepthSegments);
+            program.Capture(parameters,bounds,width,Quadrature,source);
             program.Map=map;program.Target=new(texture,TextureAccess.WriteOnly);
             var prepared=program.ProgramLayout.BinaryInterface?.PreparedBindings
                 ??throw new InvalidOperationException("Cloud attenuation bindings are unavailable.");

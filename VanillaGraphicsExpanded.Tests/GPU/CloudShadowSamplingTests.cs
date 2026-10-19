@@ -58,16 +58,12 @@ public sealed class CloudShadowSamplingTests(HeadlessGLFixture fixture) : Render
         foreach(int policy in new[]{1,2})
         {
             using var builder=programs.CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api,policy));
-            using var target=DynamicTexture2D.Create(8,24,PixelInternalFormat.Rgba32f);
+            using var target=DynamicTexture2D.Create(8,8,PixelInternalFormat.Rgba32f);
             scene.BuildShadowCache(builder,hierarchy,target,64,0);
             float[] records=target.ReadPixels();int metadata=(1*8+1)*4;
-            Assert.Equal(1,records[metadata+3]);
+            Assert.Equal(0,records[metadata+3]);
             Assert.InRange(Math.Abs(records[metadata+2]-.125f),0,1e-5f);
-            // Summed depth records use the same nonnegative area weights as total tau.
-            float sum=0;
-            for(int segment=0;segment<8;segment++)
-                sum+=records[((1+(segment/4+1)*8)*8+1)*4+segment%4];
-            Assert.InRange(Math.Abs(sum-.125f),0,1e-5f);
+            Assert.InRange(Math.Abs(records[metadata+1]-.125f/50),0,1e-6f);
             if(policy==1)
             {
                 // Long horizontal chords exceed the support-query estimate. Check
@@ -81,7 +77,7 @@ public sealed class CloudShadowSamplingTests(HeadlessGLFixture fixture) : Render
                     if(x<350||x>=650) expected+=.125f/50*(1000f/64);
                 }
                 records=target.ReadPixels();metadata=(4*8+4)*4;
-                Assert.Equal(1,records[metadata+3]);
+                Assert.Equal(0,records[metadata+3]);
                 Assert.InRange(Math.Abs(records[metadata+2]-expected),0,1e-5f);
                 scene.SetDirectionalLights(Vector3.UnitY,Vector3.UnitY,3,100,1);
             }

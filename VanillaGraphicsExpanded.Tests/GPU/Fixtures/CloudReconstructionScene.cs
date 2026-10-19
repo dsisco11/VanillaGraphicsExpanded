@@ -252,9 +252,15 @@ internal sealed class CloudReconstructionScene : IDisposable
         Assert.True(hierarchy.TryBuild(input,()=>true),hierarchy.Failure);
         Assert.True(hierarchy.TryGetCurrent(input,out var bounds));
         rootComplete?.Issue();
-        int segments=(target.Height/target.Width-1)*4;
-        // The frozen coarse diagnostic executable ignores the segment word and uses a square image.
-        shadingProbe.SetHierarchy(bounds);builder.Capture(shadingProbe.Parameters,bounds!,target.Width,quadrature,source,Math.Max(8,segments));
+        shadingProbe.SetHierarchy(bounds);builder.Capture(shadingProbe.Parameters,bounds!,target.Width,quadrature,source);
+        if(target.Height==target.Width*3)
+        {
+            // Only frozen segmented comparison binaries consume the retired fourth word.
+            // Production generation has no segmented option or compatibility path.
+            Span<byte> legacy=stackalloc byte[16];
+            UboPacking.WriteIVec4(legacy,0,target.Width,quadrature,source,8);
+            ((PackedUniformBuffer)((ICloudShadowAttenuationComputeBindings)builder).CacheInputs).SetBytes(legacy);
+        }
         builder.Map=map;builder.Target=new(target,TextureAccess.WriteOnly);
         builder.Dispatch((target.Width+7)/8,(target.Width+7)/8);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);
