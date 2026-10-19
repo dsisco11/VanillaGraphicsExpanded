@@ -224,9 +224,9 @@ Tasks
       horizontal-domain schedule. This changes sample positions, weights and approximation.
       Quarter tracing is
       now the default by explicit user direction; explicit Half remains supported. Density perturbation uses
-      one hardware-trilinear RGBA8 volume with four normalized octaves, shared by view/light/cache
-      consumers. Its static 1 MiB field retains material/wind anchoring and native support while
-      intentionally changing the noise approximation; user appearance acceptance remains open.
+      one procedural value-noise field with integer corner hashes and shared periodic lattice setup.
+      View/light/cache consumers retain native support, amplitude bounds and material/wind anchoring.
+      User appearance acceptance and measured performance qualification remain open.
       Phase 10 improves temporal retention and evaluates LumOn
       reprojection/invalidation reuse. Phase 11 retains final qualification.
       Implementation phases use cached incremental builds, affected-contract checks and existing

@@ -29,7 +29,7 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
         {
         if(Environment.GetEnvironmentVariable("VGE_CLOUD_MEASUREMENT_LUMON") is string selected)
             VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.GenerationLumOnEnabled=selected=="1";
-        using var programs=new ComponentShaderPrograms(Environment.GetEnvironmentVariable("VGE_CLOUD_SHADING_CANDIDATE_ASSETS"));
+        using var programs=new ComponentShaderPrograms();
         string? coarseRoot=Environment.GetEnvironmentVariable("VGE_CLOUD_COARSE_BASELINE_ASSETS");
         using var coarsePrograms=coarseRoot is null?null:new ComponentShaderPrograms(coarseRoot);
         int policy=int.TryParse(Environment.GetEnvironmentVariable("VGE_CLOUD_CACHE_POLICY"),out int selectedPolicy)?selectedPolicy:1;
@@ -142,66 +142,6 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
     }
     #endregion
     #region Complete production owner diagnostics
-    /// <summary>Measures isolated shared-density evaluation and immutable resource startup without enforcing approximation quality.</summary>
-    [Fact]
-    public void StaticPerturbationDensityCosts()
-    {
-        Assert.SkipUnless(Environment.GetEnvironmentVariable("VGE_CLOUD_NOISE_MEASUREMENT")=="1","Explicit static-noise measurement required.");
-        EnsureContextValid();
-        string baselineRoot=Environment.GetEnvironmentVariable("VGE_CLOUD_SHADING_BASELINE_ASSETS")
-            ??throw new InvalidOperationException("Frozen density baseline required.");
-        string directory=Environment.GetEnvironmentVariable("VGE_CLOUD_COMPONENT_OUTPUT")
-            ??throw new InvalidOperationException("Measurement directory required.");
-        Directory.CreateDirectory(directory);
-        using var beforePrograms=new ComponentShaderPrograms(baselineRoot);
-        using var afterPrograms=new ComponentShaderPrograms(Environment.GetEnvironmentVariable("VGE_CLOUD_SHADING_CANDIDATE_ASSETS"));
-        using var timer=GpuTimerQuery.Create("Tests.Cloud.Noise.Density");
-        long startup=Stopwatch.GetTimestamp();timer.Begin();
-        using var noise=CloudPerturbationTexture.Create();
-        timer.End();double startupCpuMs=Stopwatch.GetElapsedTime(startup).TotalMilliseconds;
-        double startupGpuMs=timer.GetResultNanoseconds()/1e6;
-        using var map=DynamicTexture2D.Create(3,3,PixelInternalFormat.Rgba32f);
-        map.UploadDataImmediate(Enumerable.Range(0,9).SelectMany(_=>new[]{.125f,0f,-1f,2f}).ToArray());
-        using var volume=new CloudVolumeParameters();
-        volume.CaptureMap(3,default,1,CloudVolumeSettings.Default with {DetailAmplitude=.25f,EdgeWidth=8});
-        using var oldProgram=CloudTraversalComputeShader.Create(beforePrograms.Api);
-        using var newProgram=CloudTraversalComputeShader.Create(afterPrograms.Api);
-        using var oldResult=GpuShaderStorageBuffer.Create(debugName:"Tests.Cloud.Noise.Before");
-        using var newResult=GpuShaderStorageBuffer.Create(debugName:"Tests.Cloud.Noise.After");
-        oldResult.UploadData(new Vector4[403]);newResult.UploadData(new Vector4[403]);
-        foreach(var (program,result) in new[]{(oldProgram,oldResult),(newProgram,newResult)})
-        {
-            Assert.True(program.EnsureReady(),program.PreparationLog);
-            program.SetVolume(volume);program.SetRay(Vector3.Zero,Vector3.UnitX,0,20);program.SetTraversal(null);
-            program.Map=map;program.ShadowRecord=map;program.HeightBounds=null;program.Perturbation=noise;program.Result=result;
-        }
-        var oldTimes=new List<double>();var newTimes=new List<double>();
-        // Alternate warmed dispatches; the million-query grid is identical for all frozen fields.
-        // Query waits and result mapping occur after the GPU interval, never inside its sample loop.
-        for(int round=-3;round<5;round++)
-        foreach(bool old in (round+3)%2==0?new[]{true,false}:new[]{false,true})
-        {
-            timer.Begin();(old?oldProgram:newProgram).Dispatch(256);timer.End();
-            double elapsed=timer.GetResultNanoseconds()/1e6;
-            if(round>=0)(old?oldTimes:newTimes).Add(elapsed);
-        }
-        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
-        using var oldMapped=oldResult.MapScope<Vector4>(0,403,MapBufferAccessMask.MapReadBit);
-        using var newMapped=newResult.MapScope<Vector4>(0,403,MapBufferAccessMask.MapReadBit);
-        Assert.Equal(1048576,oldMapped.Span[402].Z);Assert.Equal(1048576,newMapped.Span[402].Z);
-        double oldSum=0,newSum=0;
-        for(int i=0;i<256;i++){Assert.True(float.IsFinite(oldMapped.Span[i].X));Assert.True(float.IsFinite(newMapped.Span[i].X));oldSum+=oldMapped.Span[i].X;newSum+=newMapped.Span[i].X;}
-        File.WriteAllText(Path.Combine(directory,"density.json"),JsonSerializer.Serialize(new
-        {
-            comparison=Environment.GetEnvironmentVariable("VGE_CLOUD_COMPONENT_LABEL"),evaluations=1048576,
-            warmups=3,pairs=5,baselineGpuMs=oldTimes,currentGpuMs=newTimes,startupCpuMs,startupGpuMs,
-            payloadBytes=1048576,assetBytes=1048608,mipCount=1,textureFetchesPerPerturbedEvaluation=1,
-            baselineDensitySum=oldSum,currentDensitySum=newSum,fixture.GLRenderer,fixture.GLVersion,
-            gamePids=Process.GetProcessesByName("Vintagestory").Select(process=>process.Id).ToArray(),
-            qualification="Synthetic warm-cache occupied-center-column grid, not native FPS or a bandwidth stress scene. Density differences are diagnostics. Startup CPU covers asset validation and allocation/upload submission, excludes query wait. GPU startup is elapsed between query commands, including submission gaps while validation runs, not isolated transfer bandwidth. Concurrent GPU load uncontrolled."
-        },new JsonSerializerOptions{WriteIndented=true}));
-        GlDebug.ThrowIfErrors("Static perturbation density measurement");
-    }
     /// <summary>Measures complete production cloud owners at representative extents without turning timing or output diagnostics into gates.</summary>
     [Fact]
     public void FullViewProductionOwnerCosts()
@@ -215,22 +155,21 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
         Directory.CreateDirectory(directory);
         using var baselinePrograms=new ComponentShaderPrograms(baselineRoot);
         using var currentPrograms=new ComponentShaderPrograms(Environment.GetEnvironmentVariable("VGE_CLOUD_SHADING_CANDIDATE_ASSETS"));
-        bool noiseExperiment=Environment.GetEnvironmentVariable("VGE_CLOUD_NOISE_MEASUREMENT")=="1";
-        var controls=CloudVolumeSettings.Default with {ViewBudgetDistance=noiseExperiment?10000:50,TraceScale=CloudTraceScale.Quarter,ViewRaySampleMin=1,ViewRaySampleMax=384,LightRaySampleMax=10,
+        var controls=CloudVolumeSettings.Default with {ViewBudgetDistance=50,TraceScale=CloudTraceScale.Quarter,ViewRaySampleMin=1,ViewRaySampleMax=384,LightRaySampleMax=10,
             ShadowDistance=1500,DetailAmplitude=.25f,EdgeWidth=8,StopTransmittance=0};
         foreach(string budget in (Environment.GetEnvironmentVariable("VGE_CLOUD_PRIMARY_BUDGETS")??"0").Split(','))
         foreach(string mode in (Environment.GetEnvironmentVariable("VGE_CLOUD_FULL_VIEW_CASES")??"day,night,quarter,termination").Split(','))
         {
             bool budgetExperiment=budget!="0";
-            bool diagnostic=noiseExperiment||budgetExperiment||mode is "quarter" or "termination";
-            int rounds=noiseExperiment||budgetExperiment?5:diagnostic?3:5;
+            bool diagnostic=budgetExperiment||mode is "quarter" or "termination";
+            int rounds=budgetExperiment?5:diagnostic?3:5;
             var candidateControls=mode=="quarter"?controls with {TraceScale=CloudTraceScale.Quarter}:
                 mode=="termination"?controls with {StopTransmittance=.005f}:controls;
             if(budgetExperiment)candidateControls=controls with {ViewBudgetDistance=float.Parse(budget,System.Globalization.CultureInfo.InvariantCulture)};
-            int width=noiseExperiment||budgetExperiment?512:3440,height=noiseExperiment||budgetExperiment?256:1377;
+            int width=budgetExperiment?512:3440,height=budgetExperiment?256:1377;
             string view=mode=="ground"||mode=="grazing"?"ground":mode=="above"?"above":"inside";
             string field=mode=="opaque-tail"?"opaque-tail":mode=="above"?"separated":mode=="grazing"?"sparse":"dense";
-            var candidatePrograms=diagnostic&&!budgetExperiment&&!noiseExperiment?baselinePrograms:currentPrograms;
+            var candidatePrograms=diagnostic&&!budgetExperiment?baselinePrograms:currentPrograms;
             using var before=new CloudPerformanceScene(baselinePrograms,width,height,200,field,view);
             using var after=new CloudPerformanceScene(candidatePrograms,width,height,200,field,view);
             var lighting=MeasurementLighting(mode=="night");
@@ -265,14 +204,14 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
             {Assert.Equal(0,historyTransmissionDifference);Assert.Equal(0,traceTransmissionDifference);}
             int occupied=history[0].Where((_,index)=>index%4==3).Count(value=>value<1);
             Assert.True(occupied>0,"Full-view field must execute nonempty cloud transport.");
-            var receipt=new {mode,comparison=noiseExperiment?Environment.GetEnvironmentVariable("VGE_CLOUD_COMPONENT_LABEL")??"static-noise-substitution":diagnostic?"separate-baseline-policy-diagnostic":Environment.GetEnvironmentVariable("VGE_CLOUD_COMPONENT_LABEL")??"current-default-shadow-policy",
+            var receipt=new {mode,comparison=diagnostic?"separate-baseline-policy-diagnostic":Environment.GetEnvironmentVariable("VGE_CLOUD_COMPONENT_LABEL")??"current-default-shadow-policy",
                 fullWidth=width,fullHeight=height,nativeWidth=200,view,field,nativeExtinction=mode=="opaque-tail"?6f:.125f,
                 baselineControls=controls,candidateControls,defaults=CloudVolumeSettings.Default,warmups=3,rounds,
                 columns=new[]{"constructionGpuMs","traceGpuMs","temporalGpuMs","resolveGpuMs","drawTotalGpuMs",
                     "drawSubmitCpuMs","syntheticInputGpuMs","syntheticInputCpuMs","wholeRendererGpuMs","wholeSubmitCpuMs"},
                 baseline=oldTimes,current=newTimes,actualBaselineParameters=before.ReadParameters(),actualCurrentParameters=after.ReadParameters(),
-                baselinePrimaryWork=budgetExperiment&&!noiseExperiment?before.ReadPrimaryWork(oldBounds,true):null,
-                currentPrimaryWork=budgetExperiment&&!noiseExperiment?after.ReadPrimaryWork(newBounds,false):null,
+                baselinePrimaryWork=budgetExperiment?before.ReadPrimaryWork(oldBounds,true):null,
+                currentPrimaryWork=budgetExperiment?after.ReadPrimaryWork(newBounds,false):null,
                 historyAdmitted=after.HistoryEnabled,historyDifference,traceDifference,historyTransmissionDifference,traceTransmissionDifference,occupied,maximumRadiance=history[0].Where((_,i)=>i%4!=3).Max(),
                 lumOn=VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.LumOnEnabled,
                 gamePids=Process.GetProcessesByName("Vintagestory").Select(process=>process.Id).ToArray(),fixture.GLRenderer,fixture.GLVersion,

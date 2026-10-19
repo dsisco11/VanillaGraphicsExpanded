@@ -32,7 +32,6 @@ internal sealed class CloudReconstructionScene : IDisposable
     private readonly TestFrameLightingPublication storage;
     private readonly DynamicTexture2D map,opaque,visibility,liquid;
     private readonly DynamicTexture3D aerial,loss;
-    private CloudPerturbationTexture? perturbation;
     private readonly CloudVolumeSurface traced,historyA,historyB;
     private readonly CloudOitSurface result;
     private CloudOitSurface? expected;
@@ -264,7 +263,7 @@ internal sealed class CloudReconstructionScene : IDisposable
             UboPacking.WriteIVec4(legacy,0,target.Width,quadrature,source,8);
             ((PackedUniformBuffer)((ICloudShadowAttenuationComputeBindings)builder).CacheInputs).SetBytes(legacy);
         }
-        builder.Perturbation=Perturbation;builder.Map=map;builder.Target=new(target,TextureAccess.WriteOnly);
+        builder.Map=map;builder.Target=new(target,TextureAccess.WriteOnly);
         builder.Dispatch((target.Width+7)/8,(target.Width+7)/8);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);
         shadowCache=target;cachePublication=mapPublication;cacheLighting=configuredLighting;cacheSource=source;
@@ -415,8 +414,6 @@ internal sealed class CloudReconstructionScene : IDisposable
     #endregion
     #endregion
     #region Private
-    /// <summary>Shares one immutable upload among all lazily admitted density consumers in this scene.</summary>
-    private CloudPerturbationTexture Perturbation => perturbation??=Own(CloudPerturbationTexture.Create());
     #region Demand-loaded programs
     /// <summary>Loads direct transport only when the caller requests a reference draw.</summary>
     private CloudVolumeProgram Reference
@@ -497,7 +494,6 @@ internal sealed class CloudReconstructionScene : IDisposable
     /// <summary>Supplies identical physical transport inputs to all tracing consumers.</summary>
     private void Configure(ICloudVolumeBindings program,CloudVolumeParameters parameters,CloudPlacement placement,AtmosphereLighting lighting)
     {
-        program.Perturbation=Perturbation;
         parameters.CaptureMap(map.Width,placement,1,settings with
         {
             Detail=detail

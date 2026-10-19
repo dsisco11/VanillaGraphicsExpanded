@@ -8,9 +8,6 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 internal interface ICloudVolumeBindings : CameraExposure.IPhotometricFrameBindings
 {
     #region Public API
-    /// <summary>Shares one static periodic volume; object filtering and repeat apply without a sampler override.</summary>
-    [ShaderBinding("cloudPerturbation",ShaderBindingKind.Sampler,11,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture3D)]
-    GpuTexture? Perturbation { set; }
     /// <summary>Supplies a complete camera contract, independently selectable for controlled views.</summary>
     [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Fragment)]
     CpuUniformBuffer FrameInputs { get; }

@@ -338,7 +338,6 @@ public sealed class CloudVolumeDrawTests(HeadlessGLFixture fixture) : LumOnShade
         using var camera=TestFrameCamera.Create(inverse,view??Mat4f.Create(),1,1,.1f,farPlane);
         using var storage=new TestFrameLightingPublication(); storage.Capture(scale);
         var program=Programs.Create<CloudVolumeProgram>(); program.Frame=camera; program.Lighting=storage.Buffer;
-        using var perturbation=CloudPerturbationTexture.Create();program.Perturbation=perturbation;
         var placement=new CloudPlacement(centerX,0,0,0,windTileX,0,0,0,new(offsetX,altitude,offsetZ),0);
         var quality=(settings??(CloudVolumeSettings.Default with {Detail=false})) with
         {ViewRaySampleMax=viewSampleMax,ViewRaySampleMin=2,ViewBudgetDistance=viewBudgetDistance,LightRaySampleMax=shadowSamples,ShadowDistance=shadowDistance};

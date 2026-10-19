@@ -7,9 +7,6 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 internal interface ICloudShadowAttenuationComputeBindings
 {
     #region Public API
-    /// <summary>Uses the identical static density field and hardware filtering as view and retained light rays.</summary>
-    [ShaderBinding("cloudPerturbation",ShaderBindingKind.Sampler,11,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D)]
-    GpuTexture? Perturbation { set; }
     /// <summary>Borrows native column controls through the ordinary nearest sampler.</summary>
     [ShaderBinding("cloudMap",ShaderBindingKind.Sampler,0,ShaderStageKind.Compute,Sampler=ShaderSamplerPolicy.NearestClamp)]
     GpuTexture? Map { set; }

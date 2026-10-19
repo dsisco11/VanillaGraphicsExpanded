@@ -25,9 +25,9 @@ Authority and scope
   Primary layer budgeting supersedes inherited horizontal-lattice/root-index-skipping equivalence
     requirements. Certified layer entry/exit define the primary schedule in both paths; missing
     bounds use an explicit horizontal fallback. The measured budget-distance default is 10000.
-  Static perturbation replaces inherited single-field live-noise equivalence with one packed
-    hardware-filtered multi-octave field. Native support, amplitude bounds and material/wind anchoring
-    remain controlling; procedural identity and fine frequency quantization do not.
+  User direction supersedes static perturbation texture work: retain a single procedural value-noise
+    field with cheaper integer hashing and shared periodic lattice setup. Native support, amplitude
+    bounds and material/wind anchoring remain controlling; the noise pattern may change.
   Runtime implementation belongs to the subsequent increments; completion requires their own evidence.
   Use bounded ray budgets, reduced tracing, practical termination and amortized transport
     while retaining VGE's native 2D column envelope and bounded volumetric density detail.
@@ -640,126 +640,24 @@ Phase 8.7: Budget primary samples across the clipped cloud-layer intersection
     primary contract, settings, current architecture and parent; identify superseded historical lattice
     requirements explicitly. Final appearance and whole-renderer performance remain in Phase 11.
 
-Phase 9: Precompute cloud perturbation octaves in a static volumetric noise texture
-  Depends on Phase 8 and subphases 8.1–8.5 and 8.7. Outcome: cloud detail samples one static packed noise
-    resource instead of evaluating procedural lattice hashes at each density sample.
-  Validation: incrementally build affected consumers; verify the generated noise asset and focused
-    integration contracts. Reuse procedural baseline assets; defer full reproduction/release ZIP to Phase 11.
-  Selected asset contract: one 64x64x64 RGBA8 continuous 3D texture, one level, hardware trilinear
-    repeat, explicit LOD zero in every consumer. RGBA contain independent periodic value fields at
-    8/16/32/64 lattice cells per volume, seeds 0x434C4F55 through 0x434C4F58, combined with normalized
-    weights 8/15,4/15,2/15,1/15. Octaves are fixed, not additional user settings. NoiseScale selects
-    max(1,round(NoiseScale*12800/8)) whole volume repeats per 12800-world-unit material period;
-    frequency is quantized in eight-cell increments (default .08 retains 1024 base cells per period).
-    The default texture tile repeats every 100 world units; tiling appearance remains user-reviewed.
-    This preserves periodic recenter/wind anchoring, while intentionally replacing the hash field,
-    its interpolation and fine frequency quantization. The amplitude remains a single bounded
-    multiplier 1+amplitude*(2*noise-1), never four extinction contributions. Texel i stores the field
-    at i/64; sampling adds half a texel. No atlas padding, cross-channel interpolation, mip storage,
-    implicit derivatives or independent time animation. One lookup returns all four octaves.
-    Single-channel substitution diagnostics isolate added octaves from replacing procedural noise.
-  ☑ Specify the noise asset and overlapping-octave contract before replacing the live field.
-    - Record the existing single-field CloudNoise behavior, detail controls, material coordinates,
-      period, bounds and all consumers. Distinguish density perturbation from primary-ray blue noise;
-      the temporal sampling masks remain separate and unchanged.
-    - Define octave frequencies, seeds, amplitudes, normalization and combination/erosion semantics.
-      State which octaves remain independently adjustable and which can be precombined. Preserve
-      bounded density/source-admission guarantees when multiple octaves overlap; do not accidentally
-      multiply extinction or change the meaning of the existing perturbation amplitude control.
-    - Choose one static resource containing the logical array of 3D octave fields. Evaluate channel
-      packing in a single 3D texture for co-located octaves, or a packed volume layout when necessary,
-      against existing GPU target/sampler support. Do not assume a native 3D-array sampler exists or
-      substitute 2D array slices without correct interpolation along the volume's third dimension.
-    - Specify dimensions, format, quantization, periodic boundaries, texel-center mapping and mip/LOD
-      policy. Account for all octave storage, mip levels and atlas padding; prevent filtering between
-      unrelated packed volumes. Isolate additional octave richness from the cost of replacing noise.
-  ☑ Generate deterministic tileable noise offline and package it as a reproducible static asset.
-    - Record generation parameters, seed, tool/source ownership, asset format/version and digest.
-      Include wrap-correct mip generation if selected. Do not generate or upload the field every frame,
-      depend on native weather-map contents, or bake complete cloud density into the asset.
-    - Use a narrowly scoped reproducible generator and existing asset/build conventions; keep the
-      generation algorithm outside shipped per-sample shading. Do not add a general noise framework.
-  ☑ Load and own the resource through existing texture/program/binding abstractions.
-    - Upload once per owning GPU-resource lifetime, reuse across primary, retained secondary and
-      shadow-cache generation paths, and retire/recreate through existing disable/reload/context
-      lifecycle rules. Keep weather/light changes from rebuilding static noise; avoid per-frame I/O.
-    - Define asset/resource admission and failed-load recovery through the existing cloud owner.
-      Do not silently switch density fields mid-frame, add settings migration or expose new controls
-      merely to select packing. Verify supported texture limits and sampler/binding availability.
-  ☑ Replace live perturbation arithmetic with filtered texture sampling in the shared density path.
-    - Preserve native cubic support, connected faces, world/material period and wind anchoring. Keep
-      early exits for disabled detail, zero amplitude and empty support before sampling the texture.
-    - Coordinate with the shadow footprint policy from Phase 8.3: define explicit LOD/footprints for
-      compute and divergent ray loops rather than relying on undefined implicit derivatives. Preserve
-      the same underlying noise asset/coordinates across view and light queries; document intentional
-      filtering differences. Do not add independent time animation or reset history for ordinary weather.
-    - Treat the new sampled multi-octave field as an intentional approximation change, not proof of
-      identical procedural density. Remove superseded live hash/noise code from production consumers;
-      keep a frozen comparison candidate outside the normal rendering path for measured evaluation.
-  ☑ Validate the resource and integration with lean existing fixtures and typed GPU abstractions.
-    - Check deterministic asset identity, layout, wrap/addressing, octave isolation/combination bounds,
-      mip dimensions, zero-detail bypass, bindings and resource lifetime/failure handling. These are
-      finite algorithm/resource contracts, not spectral, image-error or approximation-quality gates.
-    - Compare procedural baseline, texture substitution and added-octave choices separately at matched
-      settings. Measure density/trace and cache-generation costs, total renderer cost, upload/startup
-      overhead and memory; report bandwidth/cache-pressure regressions and actual lookup counts.
-      Reuse opt-in diagnostics rather than multiplying routine scene/octave/resolution test matrices.
-    - Inspect repetition, seams, thin/connected edges and motion through user-run appearance review.
-      Do not claim a texture lookup guarantees a speedup or raise sampling counts to meet retired tests.
-  ☑ Completion: reproducible static texture asset and shared sampling replace live perturbation computation,
-    with measured costs, focused incremental checks through subagents, exact generated/tested asset identity,
-    second review and independent audit. Reconcile delivered architecture and linked plans; final
-    appearance/performance acceptance remains in Phase 11.
-
-Phase 9.1: Precombine fixed noise octaves and evaluate scalar texture cost
-  Depends on Phase 9. Outcome: compare a smaller scalar noise volume against the current packed
-    volume and frozen procedural baseline, select a representation from measured costs, and investigate
-    persistent tracing regressions without assuming fewer arithmetic instructions mean faster shading.
-  Validation: cached incremental builds and focused affected-contract checks through subagents.
-    Reuse the Phase 9 baseline identities, typed fixtures and opt-in diagnostics. No clean/full-catalog
-    rebuild, repeated baseline reproduction, routine full-resolution matrix or release ZIP gate;
-    final combined qualification remains in Phase 11.
-  ☐ Define and generate scalar candidates from the existing fixed octave combination.
-    - Precombine the decoded RGBA8 node values with weights 8/15,4/15,2/15,1/15 offline. Linear
-      filtering commutes with this fixed weighted sum before scalar storage quantization. Preserve
-      dimensions, seeds, octave content, normalization, native support, amplitude semantics, UVs,
-      repeat/texel-center mapping, wind anchoring and explicit LOD zero; do not change sampling budgets.
-    - Evaluate R8 UNORM (256 KiB) and R16 UNORM (512 KiB), including existing format/upload/sampler
-      support and their defined rounding. Keep frequency, tiling and LOD changes out of this comparison.
-      The Phase 9 R-only diagnostic still uses RGBA8 storage; it is not a scalar-format baseline.
-    - Extend the narrowly scoped offline generator with reproducible format/version/digest contracts.
-      Keep frozen comparison assets outside normal rendering; add no runtime generation or new settings.
-  ☐ Integrate scalar sampling through the existing shared cloud resource owner and typed bindings.
-    - Retain one hardware-trilinear 3D sample, using its scalar result directly without a runtime octave
-      dot product. Share the same admitted field across reference, reduced, secondary and cache paths.
-    - Preserve early bypasses, one upload per resource lifetime, admission/failure recovery and
-      reset/reload/disable/context retirement. Use a clean break for any selected asset format;
-      add no migration, automatic procedural fallback or mid-frame density-field switch.
-  ☐ Compare scalar candidates, current RGBA8 and the frozen procedural shader at matched controls.
-    - Reuse small day/night density, trace, cache-generation and complete-owner diagnostics. Compare
-      each scalar format directly with the retained baselines; do not infer an end-to-end result by
-      combining percentages from separately measured comparisons or summing stage medians.
-    - Record paired raw samples/distributions, CPU submission, startup/upload costs, storage, exact
-      asset/executable identities and all regressions. Record competing GPU workloads and keep their
-      impact explicit. Consistent paired tracing regressions must not be dismissed solely as contention.
-    - Distinguish texture instructions, filtered spatial texels and actual memory transactions. A smaller
-      resource or one sampling instruction does not establish reduced latency or a frame-time benefit.
-  ☐ Profile remaining tracing regressions if scalar sampling does not remove them.
-    - Use profiling/disassembly supported by the actual graphics API and target GPU; first verify
-      tool support. Examine texture throughput/stalls, cache behavior, memory traffic, arithmetic/
-      special-function utilization, registers and occupancy where available, against the procedural path.
-    - Separate measured bottlenecks from hypotheses about bandwidth, dependent-fetch latency or
-      insufficient latency hiding. If counters are unavailable, retain that attribution as unverified;
-      do not replace missing evidence with source operation counts or a broad new profiling framework.
-    - Select and document the supported representation/disposition from the evidence. Do not claim
-      a speedup or promote a candidate solely because it has fewer channels or less shader arithmetic.
-  ☐ Verify deterministic generation/identity, scalar quantization arithmetic, three-axis hardware
-    filtering/wrap, combination bounds, shared consumers, bypasses and lifetime/failure contracts
-    with lean existing fixtures. Add no spectral, image-error, convergence or approximation-quality gates.
-  ☐ Completion: scalar comparisons and conditional profiling have an evidence-backed disposition,
-    focused checks, second review and independent audit. Reconcile the selected asset/runtime contract
-    in PBR.Clouds.md and this plan; retain raw regressions and any unresolved hardware attribution.
-    User appearance, tiling/quantization review and final native performance acceptance stay in Phase 11.
+Phase 9: Simplify procedural cloud perturbation
+  Outcome: remove the cloud-specific static texture, offline generator, resource ownership/bindings
+    and texture-only diagnostics. Preserve independently owned generic GPU upload functionality.
+  Validation: one incremental affected-variant build and focused density, anchoring, binding and
+    shared-consumer checks. No clean rebuild, repeated baseline matrix or packaging gate here.
+  ☑ Replace sine-based corner hashing with bounded integer hashing in one shared value-noise field.
+    - Wrap lattice coordinates once per sample and reuse coordinate products across corner hashes.
+    - Preserve native density support, amplitude/detail controls, edge erosion, original scale mapping
+      and periodic material/wind anchoring. No noise texture, extra octaves or quality gate.
+  ☑ Remove abandoned texture resources, generator, embedded asset, bindings and texture-only tests.
+    - Retain meaningful density bounds, wind/recentering and shared-consumer contract checks.
+  ☑ Reconcile current architecture and validate affected shaders/contracts with focused checks.
+    - Report the changed noise pattern and any measurement limits; do not infer a speedup from ALU counts.
+    - Live appearance and final performance acceptance remain in Phase 11.
+    - Focused receipt: artifacts/CloudRealtime/procedural-cleanup/; incremental build passed with
+      seven production and nine fixture variants compiled. Six focused contract checks passed;
+      texture resource absence and retained disposal guard verified in the built assembly.
+      No timing comparison or live visual acceptance was performed.
 
 Phase 10: Improve volumetric-cloud temporal filtering and retain compatible sampling history
   Depends on Phase 9 and the delivered cloud reconstruction/history contracts. Outcome: longer useful
@@ -818,7 +716,7 @@ Phase 10: Improve volumetric-cloud temporal filtering and retain compatible samp
     performance and user appearance acceptance. Do not claim a larger frame count guarantees improvement.
 
 Phase 11: Qualify the complete renderer and reconcile acceptance
-  Depends on Phase 10, Phase 9 and subphase 9.1, Phase 8 and subphases 8.1–8.5 and 8.7. Outcome: the combined policy has reproducible quality
+  Depends on Phase 10, Phase 9, Phase 8 and subphases 8.1–8.5 and 8.7. Outcome: the combined policy has reproducible quality
     and performance evidence. The completed original Phase 8 does not qualify these later upgrades.
   Validation: this is the final full baseline-reproduction/canonical packaging gate, performed once
     against a frozen combined candidate. Reuse unchanged focused evidence and valid baseline provenance;
@@ -835,7 +733,7 @@ Phase 11: Qualify the complete renderer and reconcile acceptance
     - Include separated cloud layers and light-space grid/source transitions from subphases 8.1–8.5 and 8.7.
       Explicitly qualify the compact parameter-filtered approximation replacing segmented lookup.
       Include the layer-intersection primary lattice, selected budget distance and uncertified-bound fallback.
-      Include subphase 9.1's scalar/packed/procedural disposition and any remaining tracing regressions.
+      Include the procedural perturbation cost and any unresolved tracing bottlenecks.
       Keep diagnostic scene coverage opt-in rather than duplicating it across routine GPU suites.
     - Include empty/sparse/dense clouds; ground/inside/above views; thin edges, low-angle solar/lunar,
       moving weather/light, odd maps and foreground/translucent/liquid overlap in both PBR modes.
@@ -848,8 +746,8 @@ Phase 11: Qualify the complete renderer and reconcile acceptance
       invent an absolute time target, hide regressions in an aggregate or equate probe counts with speed.
   ☐ Obtain user-run acceptance of the changed quality policy: cubic fluff, lighting, shadows within
     clouds, fog, thin support, disocclusion, motion and OIT overlap across relevant views/modes.
-    Include the static noise field's octave appearance, tiling, seams, scalar quantization and wind
-      anchoring from Phase 9 and subphase 9.1.
+    Include the procedural noise field's appearance, periodic seams and wind
+      anchoring from Phase 9.
     Include Phase 10 history retention, stationary noise, moving edges/trails, disocclusion recovery
       and response to continuous day/night/weather changes with LumOn both disabled and enabled.
     Earlier appearance acceptance does not establish acceptance of changed sampling/resolution/fog.
@@ -865,7 +763,7 @@ Final acceptance
     Any selected attenuation cache has separately bounded construction, coverage and lookup costs.
   ☐ Lower-resolution tracing, amortized atmosphere, repeated density/phase work and acceleration
     each have delivered behavior or an evidence-backed disposition against the stated objective.
-  ☐ All six original performance findings, earlier density/phase findings and Phase 8, subphases 8.1–8.5 and 8.7, and Phase 9/9.1/10 tasks
+  ☐ All six original performance findings, earlier density/phase findings and Phase 8, subphases 8.1–8.5 and 8.7, and Phase 9/10 tasks
     map to final receipts;
     any unimplemented improvement is explicitly recorded, not silently treated as complete.
   ☐ Native ownership/weather, cubic density support, physical lighting, foreground clips, temporal
@@ -2512,98 +2410,3 @@ Phase 8.7 layer-intersection primary budgeting receipt (2026-10-19)
     with no outstanding findings after checking the current implementation, linked sources,
     selected-default evidence and final identities. All five Phase 8.7 tasks are complete.
     Final appearance and whole-renderer/release qualification remain open in Phase 11.
-
-Phase 9 static perturbation integration receipt (2026-10-19)
-  Traceability: asset/octave specification and generation -> Phase 9 selected asset contract,
-    PBR.Clouds.md / Static perturbation volume, archived volumetric proposal density/ownership and
-    archived hierarchy conservative support -> retain native envelope, bounded amplitude, shared
-    material/wind coordinates and physical extinction; intentionally replace the procedural field.
-    The frozen original used eight sine hashes, wrapped first by rounded NoiseScale*12800 and then
-    289, with smoothstep value interpolation. Primary blue-noise sampling is separate and unchanged.
-    The replacement packs independently seeded 8/16/32/64-cell fields in one RGBA8 volume, with
-    normalized weights 8/15,4/15,2/15,1/15. Whole eight-cell frequency quantization preserves the
-    12800-unit anchoring macroperiod; default volume repetition is 100 world units. Changed field,
-    interpolation and tiling are approximation changes, not same-field equivalence or quality claims.
-  Reproduction -> tools/CloudPerturbation and CloudPerturbationAsset -> two independent generator
-    executions and shipped asset are byte-identical, SHA256
-    7B2D9323D65E4E93F3A5DCC85F5C412D0CBC174E10EA3F0A102135B259C313F8.
-    Generated identity/tool hashes are in artifacts/CloudRealtime/phase9/generated-identity.json.
-    Source asset embeds in the production assembly; runtime validates header/layout/length and
-    payload digest before allocation. One 64-cubed RGBA8 level uses 1,048,576 GPU payload bytes;
-    file size is 1,048,608 bytes, including its 32-byte header. No mip or atlas padding storage.
-  Ownership/sampling -> current cloud architecture, atmosphere publication and six-attachment OIT
-    -> CloudVolumeReconstruction owns one upload per resource lifetime. Reference, reduced view,
-    retained secondary and cache generation borrow it through typed sampler-unit-11 bindings.
-    Existing reset/resize/reload/disable/context/teardown paths retire it; weather/light updates reuse
-    it. Initial asset/upload failure rejects ownership preparation; partial GPU creation is disposed.
-    No procedural fallback or mid-frame field substitution is introduced. Terminal disposal rejects
-    reallocation. Simple and Off do not allocate it. No native producer, scene-depth, atmosphere,
-    source range, ray-budget, OIT or history-admission policy is changed.
-    CloudNoise uses one explicit-LOD-zero hardware-trilinear 3D sample returning all four channels;
-    spatial interpolation is performed by hardware, not manual octave/slice fetching. A filtered
-    instruction can access eight spatial texels; one instruction is not one physical memory read.
-    All paths share UVs and level zero, with repeat object policy and no overriding clamp sampler.
-    Detail-off, zero amplitude and zero support still bypass the lookup. Live volume hashes are
-    removed; frozen procedural and R-only candidates exist only in diagnostic artifact trees.
-  Focused verification -> asset identity/corruption, generated bindings, hardware three-axis wrap/
-    interpolation, octave combination/bounds, stable/recreated/retired storage, descriptor pruning,
-    primary/secondary finite quadrature, wind/recentering and production recovery -> current test
-    policy. Hardware interpolation is checked at exact half-node fractions, avoiding an assumption
-    of arbitrary-fraction filter precision. No approximation-quality or timing gates were added.
-  Measurements -> artifacts/CloudRealtime/phase9/procedural-to-one/ and one-to-four/ -> each comparison
-    has warm density, complete owner day/night and cache day/night JSON. Frozen procedural production
-    reference/trace/cache binaries exactly match the prior layer-budget baseline; the R-only candidate
-    changes only the fixed blend weights, retaining identical volume/filter/UV/storage. FullView uses
-    512x256 Quarter, native width 200, matched 384/1/10000 primary, 10/1500 shadow, amplitude .25,
-    edge 8 and termination zero; cache diagnostics use quality 1/256 and generation policy 1/cap 64.
-    Three warmups and five alternating pairs run on RTX 4090 / OpenGL 4.3 NVIDIA 610.88. Game PID
-    104716 remains running and GPU contention is uncontrolled. These are synthetic diagnostics,
-    not native replay or live FPS. Both sides use the current scheduler; the frozen procedural
-    shader does not sample the noise texture, although its comparison owner still allocates it.
-    Root construction, trace, temporal, resolve, draw total and independently timestamped whole
-    intervals are retained. Whole includes synthetic input/upload/clear, hierarchy, cache generation
-    and all passes; waits/readback are excluded. Cache generation plus barriers is separately measured
-    after root completion. Do not sum stage medians or treat unrelated temporal spikes as noise gains.
-  GPU median milliseconds (each arrow is its own matched comparison, not a combined direct test):
-    Procedural -> R-only: million-query warm density 2.512896 -> 2.308096;
-      trace day .482304 -> .528384, night .467968 -> .525312 (9.6%/12.3% regressions);
-      cache generation day .043008 -> .029696, night .029696 -> .031744 (night regression);
-      whole owner day 2.012160 -> 1.089536, night .702464 -> .745472 (night regression).
-    R-only -> RGBA: warm density 2.480128 -> 2.070528, with 2/5 paired regressions;
-      trace day .526336 -> .535552, night .525312 -> .530432 (both regress);
-      cache generation day .034816 -> .030720, night .031744 -> .031744;
-      whole owner day .776192 -> .785408 (regression), night 1.078272 -> .770048.
-    Density samples include 2–6 ms spikes; apparent whole wins coincide with unrelated temporal
-    spikes. No intrinsic four-octave gain or established end-to-end speedup follows. CPU draw-submit
-    medians also regress for procedural -> R (day .9464 -> 1.2107, night .7980 -> .9363 ms) and
-    R -> RGBA day (.8330 -> .8837 ms); R -> RGBA night improves .7186 -> .5484 ms, with noisy tails
-    including 6.8107 ms cache submission. All columns, ranges, paired deltas and regressing-pair counts
-    are preserved in measurement-summary.json and the raw ten JSON records. Additional texture
-    traffic/latency is a possible explanation, not measured bandwidth/cache-counter attribution.
-    Startup CPU validation/allocation/upload submission is 1.5004 and 1.6467 ms. GPU query intervals
-    report .001024 ms each; these do not isolate transfer bandwidth or include CPU query waits.
-    The bulk workload performs 1,048,576 perturbed density queries with one filtered sample per query.
-  Validation/provenance -> build.log, guard-build.log, focused.trx and final-focused.trx -> eleven
-    unique affected correctness cases pass with zero skips. Ten original passing cases are retained;
-    the corrected exact-half-node filter/lifecycle case passes separately. A late disposal-guard edit
-    initially left a stale assembly; targeted recompilation and the terminal-disposal assertion prove
-    the final code. Production compiled seven affected shaders (456 cache hits); fixtures compiled
-    nine (535 hits). Two diagnostic clones compiled nine each through shared caches. Follow-up C#
-    builds retained all shaders. No clean/full-catalog compiler rebuild or release ZIP was required.
-    Six opt-in method executions have passing final evidence across the two comparisons. The initial
-    cache diagnostic failed because its uncached comparison lacked the cache probe's primary root;
-    post-timing setup now supplies the same certified root. Separate cache TRXs pass and retain exact
-    source/map fallback assertions (all differences zero), finite records and successful rebuilds.
-    Unchanged earlier checks were not repeated. All 24 selected shader entries across three roots
-    match their manifests; final-identity.json records exact manifests/binaries and embedded asset.
-    Runtime SHA256: 9183CBB3681FE39CABB112D8003872B9FF4288AC101F6819534A586B3D9E1C63.
-    Test SHA256: B45A578EA5DF9CDE94D4F35DC990050FF0E8D0A3DDE33EEEE3866F33CD9DD250.
-  Second review has reconciled every item with these sources and evidence. Appearance, the 100-unit
-    tile/seams/fine-detail aliasing, native performance, release/package qualification and combined
-    acceptance remain open in Phase 11; Phase 10 temporal work and the parent integration dependency
-    remain unchecked. Focused correctness establishes neither visual acceptance nor a speedup.
-
-  Independent completion audit directly rechecked controlling documents, current source, eleven
-    focused correctness cases, six final diagnostic executions and exact generated/embedded/shader
-    identities. It found the implementation contract fully satisfied with no outstanding findings.
-    All six Phase 9 entries are complete; later work and live acceptance remain open as stated above.

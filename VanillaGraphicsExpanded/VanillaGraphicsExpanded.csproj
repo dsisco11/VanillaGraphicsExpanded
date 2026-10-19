@@ -21,7 +21,6 @@
   <ItemGroup>
     <InternalsVisibleTo Include="VanillaGraphicsExpanded.Tests" />
     <EmbeddedResource Include="PBR/Materials/Energy/ggx-energy.bin" LogicalName="VGE.MicrofacetEnergy" />
-    <EmbeddedResource Include="PBR/Clouds/cloud-perturbation.bin" LogicalName="VGE.CloudPerturbation" />
   </ItemGroup>
 
   <!-- Generate only absent source data, before resource discovery. Existing assets are never refreshed by timestamps. -->

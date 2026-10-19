@@ -6,9 +6,6 @@ namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 internal interface ICloudTraversalComputeBindings
 {
     #region Public API
-    /// <summary>Samples the actual immutable density resource using its linear repeat object policy.</summary>
-    [ShaderBinding("cloudPerturbation",ShaderBindingKind.Sampler,11,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D)]
-    GpuTexture? Perturbation { set; }
     /// <summary>Supplies native column data through the ordinary sampler publication path.</summary>
     [ShaderBinding("cloudMap", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute, Sampler = ShaderSamplerPolicy.NearestClamp)]
     GpuTexture? Map { set; }

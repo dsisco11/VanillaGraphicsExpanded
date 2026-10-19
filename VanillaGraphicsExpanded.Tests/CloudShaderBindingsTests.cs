@@ -25,11 +25,6 @@ public sealed class CloudShaderBindingsTests
         Assert.Equal((1, true), (reduction.Images["targetBounds"].Slot, reduction.Images["targetBounds"].Required));
         Assert.Equal((14, true), (reduction.UniformBlocks["CloudHierarchyParameters"].Slot, reduction.UniformBlocks["CloudHierarchyParameters"].Required));
         var reference=stages.Single(stage=>stage.Identity=="cloud_volume.fsh").Bindings;
-        foreach(string name in new[]{"cloud_volume.fsh","cloud_volume_trace.fsh","cloud_shadow_cache.csh","tests/cloud-traversal.csh"})
-        {
-            var sampler=stages.Single(stage=>stage.Identity==name).Bindings.Samplers["cloudPerturbation"];
-            Assert.Equal((11,true),(sampler.Slot,sampler.Required));
-        }
         Assert.Equal((8,false),(reference.Samplers["cloudHeightBounds"].Slot,reference.Samplers["cloudHeightBounds"].Required));
         Assert.Equal((15,true),(reference.UniformBlocks["CloudTraversalParameters"].Slot,reference.UniformBlocks["CloudTraversalParameters"].Required));
         foreach (string name in new[] { "cloud_volume_temporal.fsh", "cloud_volume_resolve.fsh", "cloud_simple.fsh" })

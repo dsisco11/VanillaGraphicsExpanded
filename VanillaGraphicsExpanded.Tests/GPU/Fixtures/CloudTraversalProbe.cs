@@ -13,7 +13,6 @@ internal sealed class CloudTraversalProbe : IDisposable
 {
     private readonly CloudTraversalComputeShader program;
     private readonly GpuShaderStorageBuffer output;
-    private readonly CloudPerturbationTexture perturbation;
 
     #region Public API
     /// <summary>Prepares the registered fixture binary and adopts its result storage exception-safely.</summary>
@@ -23,11 +22,9 @@ internal sealed class CloudTraversalProbe : IDisposable
         try
         {
             if (!program.EnsureReady()) throw new InvalidOperationException(program.PreparationLog);
-            perturbation=CloudPerturbationTexture.Create();
             output = GpuShaderStorageBuffer.Create(debugName: "Tests.Cloud.Traversal.Results");
-            program.Perturbation=perturbation;
         }
-        catch { program.Dispose(); perturbation?.Dispose(); output?.Dispose(); throw; }
+        catch { program.Dispose(); throw; }
     }
 
     /// <summary>Publishes a complete retained input set, dispatches one invocation and reads its diagnostic records.</summary>
@@ -53,6 +50,6 @@ internal sealed class CloudTraversalProbe : IDisposable
     }
 
     /// <summary>Retires the shader before its borrowed storage, preserving enclosing program scopes.</summary>
-    public void Dispose() => RenderingCleanup.Run(program.Dispose, output.Dispose, perturbation.Dispose);
+    public void Dispose() => RenderingCleanup.Run(program.Dispose, output.Dispose);
     #endregion
 }

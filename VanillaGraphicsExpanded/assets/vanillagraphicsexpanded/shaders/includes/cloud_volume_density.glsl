@@ -47,16 +47,32 @@ vec4 CloudDensityNeighbor(int face,CloudDensityCache cache)
     ivec2 offset=face==0?ivec2(-1,0):face==1?ivec2(1,0):face==2?ivec2(0,-1):ivec2(0,1);
     return CloudColumn(cache.cell+offset);
 }
-/** Samples all overlapping octaves once with explicit LOD in compute and divergent ray loops. */
-uniform sampler3D cloudPerturbation;
+/** Mixes a corner key using integer arithmetic, without transcendental hash evaluation. */
+float CloudHash(uint key)
+{
+    key^=key>>16u; key*=0x7feb352du;
+    key^=key>>15u; key*=0x846ca68bu;
+    key^=key>>16u;
+    return float(key>>8u)*(1.0/16777216.0);
+}
+/** Interpolates one bounded periodic field, sharing lattice wrapping and coordinate keys across its corners. */
 float CloudNoise(vec3 material)
 {
-    // Whole repeats preserve the 12800-unit material/recenter period. Texture nodes
-    // store i/64, so the half-texel offset maps those nodes to hardware texel centers.
-    float repeats=max(1.0,floor(volumeDetail.z*(12800.0/8.0)+.5));
-    vec3 uv=material*(repeats/12800.0)+vec3(.5/64.0);
-    vec4 octaves=textureLod(cloudPerturbation,uv,0.0);
-    return clamp(dot(octaves,vec4(8.0,4.0,2.0,1.0)/15.0),0.0,1.0);
+    float period=max(1.0,floor(volumeDetail.z*12800.0+.5));
+    vec3 p=material*(period/12800.0), base=floor(p), f=fract(p);
+    f=f*f*(3.0-2.0*f);
+    // Wrap the lower corner once. The upper corner is either its successor or the
+    // periodic origin, including negative material coordinates and one-cell periods.
+    uvec3 lower=uvec3(mod(base,vec3(period))), upper=lower+uvec3(1);
+    upper=uvec3(upper.x>=uint(period)?0u:upper.x,
+        upper.y>=uint(period)?0u:upper.y,upper.z>=uint(period)?0u:upper.z);
+    uvec3 a=lower*uvec3(0x9e3779b9u,0x85ebca6bu,0xc2b2ae35u);
+    uvec3 b=upper*uvec3(0x9e3779b9u,0x85ebca6bu,0xc2b2ae35u);
+    // Reuse the six coordinate products; only the final avalanche differs per corner.
+    return mix(mix(mix(CloudHash(a.x^a.y^a.z^0x434c4f55u),CloudHash(b.x^a.y^a.z^0x434c4f55u),f.x),
+        mix(CloudHash(a.x^b.y^a.z^0x434c4f55u),CloudHash(b.x^b.y^a.z^0x434c4f55u),f.x),f.y),
+        mix(mix(CloudHash(a.x^a.y^b.z^0x434c4f55u),CloudHash(b.x^a.y^b.z^0x434c4f55u),f.x),
+        mix(CloudHash(a.x^b.y^b.z^0x434c4f55u),CloudHash(b.x^b.y^b.z^0x434c4f55u),f.x),f.y),f.z);
 }
 /** Evaluates the shared density field while reusing descriptors, never height-dependent occupancy decisions. */
 float CloudDensity(vec3 local,ivec2 cell,vec4 data,inout CloudDensityCache cache)

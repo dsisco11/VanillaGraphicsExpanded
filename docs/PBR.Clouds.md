@@ -208,8 +208,8 @@ mode release and world teardown dispose them. Simple and Off allocate no cloud-h
 
 ## Density, lighting and scene composition
 
-Volumetric density uses native horizontal footprints and vertical bounds. A static periodic
-3D perturbation texture modulates density inside that envelope; exposed faces soften inward while occupied
+Volumetric density uses native horizontal footprints and vertical bounds. A periodic procedural
+value-noise field modulates density inside that envelope; exposed faces soften inward while occupied
 shared faces remain connected. Broad faces and stepped cubic masses remain. Noise follows native
 placement, integer recentering and committed/residual wind without a second advection.
 Consecutive samples in a native column retain its descriptor. Needed neighboring descriptors are
@@ -220,51 +220,23 @@ support returns before noise. All consumers use the same material anchoring and 
 Disabling detail also disables edge erosion, restoring piecewise constant native density. Finite
 primary sampling need not integrate a discontinuous column field exactly.
 
-### Static perturbation volume
+### Procedural perturbation
 
-`CloudPerturbationAsset` validates the versioned embedded `VGE.CloudPerturbation` resource before
-upload. `tools/CloudPerturbation` owns its offline generator; runtime never generates lattice hashes.
-The committed source asset is `PBR/Clouds/cloud-perturbation.bin` in the production project.
-Reproduce it with `dotnet run --project tools/CloudPerturbation -- <output-path>` from the repository
-root. The complete 1,048,608-byte asset has SHA256
-`7B2D9323D65E4E93F3A5DCC85F5C412D0CBC174E10EA3F0A102135B259C313F8`.
-Its 32-byte little-endian header contains magic 0x4E434756, version 1, side 64, channels 4,
-base seed 0x434C4F55, base frequency 8, level count 1 and reserved zero. Payload is x-fastest,
-then y, then z, with interleaved RGBA8 UNORM nodes. Header, exact length and payload digest are
-validated before any GPU allocation is exposed. Missing/corrupt assets or unsupported texture/unit
-limits reject preparation; allocation/upload failures dispose partial storage. Reset/reload permits
-a fresh preparation attempt. There is no procedural fallback or density-field switch during a draw.
+The shared density shader evaluates one smooth value-noise field. Integer corner hashes replace
+transcendental hashing. Each sample wraps its lower lattice coordinate once, derives the wrapped
+upper coordinate and shares six coordinate products across eight corner hashes. Smoothstep and
+trilinear interpolation keep the field bounded in [0,1].
 
-RGBA store four independent wrapped value fields at 8, 16, 32 and 64 lattice cells per volume,
-using seeds 0x434C4F55 through 0x434C4F58. The offline integer avalanche hash yields a bounded
-24-bit value; periodic smoothstep interpolation is rounded to the nearest UNORM8 node. Node i
-represents i/64. All four channels share coordinates, with no atlas padding or octave boundaries
-to cross spatially. One hardware-trilinear `textureLod(...,0)` fetch returns all channels, combined
-with fixed normalized weights 8/15, 4/15, 2/15 and 1/15 and clamped to [0,1]. There are no octave
-controls. The existing amplitude remains `1 + amplitude * (2*noise - 1)`, applied once to native
-extinction and inward exposed-edge erosion. The native support and conservative source bounds
-therefore remain valid. Detail-off, zero amplitude and empty support return before texture sampling.
+For material coordinate m, the lattice coordinate is m*P/12800, where
+P=max(1,floor(NoiseScale*12800+.5)). Integer lattice wrapping preserves the 12800-world-unit
+material period, including negative coordinates and one-cell periods. Native placement, recentering
+and committed/residual wind use the same material anchoring in view, light and cache queries.
 
-For material coordinate m, R=max(1,floor(NoiseScale*12800/8+.5)) and UV=m*R/12800+.5/64.
-Whole repeats preserve the existing 12800-world-unit material period and committed/recentered wind
-anchoring. The scale now quantizes the base frequency in eight-cell increments; the default .08
-gives 1024 base cells per period and repeats the packed volume every 100 world units. That shorter
-texture repeat is shared by all octaves; the 12800-unit anchoring period remains a multiple of it.
-This deliberately replaces the procedural field, its interpolation
-and fine frequency quantization; additional octaves change the appearance. No exact-field or visual
-equivalence is implied. The unchanged primary blue-noise masks choose ray positions independently.
-
-`CloudVolumeReconstruction` owns one `CloudPerturbationTexture` shared by reduced tracing, retained
-secondary marches and attenuation generation. The reference renderer borrows that same owner even
-when reduced tracing is not selected. Static allocation/upload occurs once per resource lifetime;
-weather, lights and ordinary native publications reuse it. Reset, resize, reload, mode retirement
-and context teardown dispose it through existing cloud lifecycle paths. Simple and Off allocate none.
-The 64-cubed RGBA8 continuous Texture3D uses 1 MiB, one level, linear filtering and repeat in all
-three axes. Sampler unit 11 binds the texture object's declared policy without an overriding clamp
-sampler. There are no mips or implicit derivatives: compute, view and light queries all explicitly
-select level zero. The diagnostic footprint rays still sample this same underlying volume. Fixed
-LOD avoids undefined derivatives but does not provide distance-dependent antialiasing; tiling, fine
-detail aliasing and changed octave appearance remain user-reviewed qualification concerns.
+The multiplier is 1+amplitude*(2*noise-1). It multiplies native extinction and the unchanged inward
+exposed-edge factor once; native support and conservative density bounds remain valid. Detail-off,
+zero amplitude and empty support avoid noise evaluation. Perturbation needs no texture allocation,
+asset generation or sampler binding. Primary-ray blue-noise masks are independent. Finite sampling
+can alias fine detail; appearance and performance require user review and matched measurements.
 
 Primary tracing intersects the finite horizontal map, certified layer envelope and admitted
 foreground/liquid distance before selecting a budget. For this clipped length L, including empty gaps, it selects
@@ -468,7 +440,7 @@ The persisted `Clouds` config and ConfigLib expose:
 | `Detail` | true | Noise and exposed-edge erosion; false samples piecewise constant native density |
 | `DetailAmplitude` | .15 | 0..0.95 bounded interior modulation |
 | `EdgeWidth` | 2 | .01..10 world units of inward softness |
-| `NoiseScale` | .08 | .001..1 requested base cells per world unit, quantized to eight-cell increments per material period |
+| `NoiseScale` | .08 | .001..1 noise cells per world unit |
 
 Cloud settings use a clean break: absent current fields receive defaults; obsolete fields are not
 reinterpreted. Nonfinite controls restore
