@@ -9,6 +9,7 @@ vec4 CandidateColumn(ivec2 cell)
     if(any(lessThan(cell,ivec2(0)))||any(greaterThanEqual(cell,ivec2(width)))) return vec4(0);
     vec4 data=texelFetch(candidateMap,cell,0);
     if(any(isnan(data))||any(isinf(data))||data.r<0.0||data.a<=data.b) return vec4(0);
+    if(any(isinf(data.ba*50.0))) return vec4(0);
     return data;
 }
 /** Tests whether a neighbor covers this height, avoiding seams on occupied shared faces. */
@@ -121,7 +122,11 @@ float CandidateDensity(vec3 local,ivec2 cell,vec4 data,inout CandidateDensityCac
     }
     #endif
     // Native r is extinction per fifty world units, including producer fading/perception.
-    return (data.r/50.0)/candidateAnchorUnits.z*detail;
+    // Preserve conversion before modulation: reassociating r*detail first can overflow
+    // for admitted finite controls even though physical extinction is representable.
+    precise float sigma=(data.r/50.0)/candidateAnchorUnits.z;
+    precise float result=sigma*detail;
+    return result;
 }
 /** Evaluates independent density queries without retaining descriptors across unrelated samples. */
 float CandidateDensity(vec3 local,ivec2 cell,vec4 data)

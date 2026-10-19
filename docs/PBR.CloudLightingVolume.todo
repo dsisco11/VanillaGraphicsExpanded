@@ -198,18 +198,45 @@ Phase 3: Observe changes and budget persistent work
 Phase 4: Compute persistent direct-light transmission
   Depends on Phases 2–3. Outcome: selected regions retain independent solar/lunar transmission.
   Validation: incremental direct shader build and focused finite-integration/source-unit checks only.
-  ☐ Implement deterministic bounded node-to-light density integration for each relevant source.
+  ☑ Implement deterministic bounded node-to-light density integration for each relevant source.
     - Store transmission separately from current illuminance/color. Preserve domain clipping and
       physical step lengths; no indefinitely accumulated jittered estimate across changing density.
     - Skip new work for zero-intensity sources; prioritize newly relevant sources and admit initialized
       fallback until matching direction/content data is available.
-  ☐ Publish completed direct regions with barriers, source identity and update age.
+  ☑ Publish completed direct regions with barriers, source identity and update age.
     - Serialize solar/lunar and node-owned invalidation passes; preserve encoded diffuse RGB and other
       alpha bits during image-load/store. Barrier before any diffuse/view readers; no overlapping writers.
     - Neighbor filtering footprints remain initialized and compatible. Failed/incomplete work does
       not publish readiness. Visibility history follows the specified compatible-change policy.
-  ☐ Completion: typed GPU fixtures establish source separation, declared quadrature, valid domains,
+  ☑ Completion: typed GPU fixtures establish source separation, declared quadrature, valid domains,
     finite bounded transmission and publication. Timing or physical-reference accuracy is not a gate.
+
+  Implementation verification (2026-10-19)
+    Direct integration -> proposal / Density, ray schedules and source units; Coordinates, coverage
+      and allocation; PBR.Clouds.md native-map and atmospheric physical-unit contracts -> isolated
+      LightingVolumeDirect/Program/bindings and direct.csh, private density and shared compiled options.
+      Exactly 32 uniform midpoints, finite horizontal exit/1500-unit cap, metre weights and finite tau
+      saturation; no main-view clip or optical early exit. Transmission excludes source illuminance.
+    Publication -> proposal / Physical bounds and coherent publication; Change classification and
+      bounded scheduling; Rendering.Enablement.md lifecycle boundary -> exact frozen native/source
+      batch admission, serialized solar/lunar image writes, preserved diffuse RGB/unrelated masks,
+      per-region arithmetic-failure bits and successful completion ages/revisions. No extra volume.
+    Typed GPU checks cover both compiled detail variants, independent sources, intensity-only reuse,
+      source normalization, finite support/gaps, malformed/extreme controls, guard validity, metadata,
+      inactive-source skipping and post-write failure/recovery. Comparisons use the specified finite
+      algorithm with float/half storage precision, never approximation-quality or dense-reference gates.
+    Second review and independent audit passed. Validation corrected framebuffer visibility in the
+      reusable test readback, activation demand that previously set priority without enqueuing work,
+      and intermediate extinction overflow by protecting unit conversion before detail modulation.
+      The existing scheduler regression now requires an actual selected job for an activated source.
+    Final cached Release build passed with zero warnings/errors; only two production and four fixture
+      variants rebuilt. Both direct GPU facts passed (1631 ms activation/failure, 648 ms quadrature/
+      channel preservation); unchanged passing scheduler/observation facts were reused. Build/test
+      receipts: artifacts/cloud-lighting-volume-phase4-build.log and -tests.log, with direct TRX under
+      artifacts/test-results/. Shader registration initially invalidated catalog identities; subsequent
+      checks reused caches. No clean build, broad baseline matrix, packaging or game run was requested.
+    Candidate remains unregistered. Diffuse solving, view rendering, live integration, cost/appearance
+      qualification and actual driver residency remain later work. Owned-payload accounting is unchanged.
 
 Phase 5: Refine diffuse multiple scattering coherently
   Depends on Phases 2–4. Outcome: higher-order source is progressively updated without read/write races.

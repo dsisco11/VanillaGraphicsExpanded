@@ -105,7 +105,7 @@ void main()
         uint bit=1u<<channel;
         bool enabled=channel==2u?workHistory.w!=0:(uint(workDemand.x)&bit)!=0u;
         if(!enabled) { flags&=~(bit|(bit<<4u)|(bit<<8u)); continue; }
-        bool dirty=hard || scratch[3]!=0u || (channel<2u?(uint(workDemand.y)&bit)!=0u:
+        bool dirty=hard || scratch[3]!=0u || (channel<2u?((uint(workDemand.y)|uint(workDemand.z))&bit)!=0u:
             workDemand.w!=0 || scratch[11]!=0u);
         // Diffuse refinement remains eligible after a completed iteration, without a freshness claim.
         if(channel==2u && (flags&bit)==0u) dirty=true;
@@ -168,6 +168,7 @@ void main()
     {
         uint bit=1u<<channel;
         if((uint(workDelta.w)&bit)==0u || (flags&(bit<<16u))==0u) continue;
+        if((regions[base+15u]&bit)!=0u) continue;
         regions[base+2u+channel]=workFrame.x;
         regions[base+8u+channel]=regions[base+11u+channel];
         flags&=~(bit|(bit<<4u)|(bit<<8u)|(bit<<16u));

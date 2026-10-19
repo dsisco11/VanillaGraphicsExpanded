@@ -16,7 +16,7 @@ internal sealed partial class LightingVolumeProbeProgram : GpuComputeProgram, IL
     private readonly PackedUniformBuffer query = new(16);
     #region Public API
     /// <summary>Removes procedural density detail structurally when disabled.</summary>
-    [ShaderOption("VGE_LIGHTING_VOLUME_DETAIL",true)]
+    [ShaderOptionReference(typeof(LightingVolumeShaderOptions),nameof(LightingVolumeShaderOptions.Detail))]
     internal static partial ShaderOption<bool> Detail { get; }
     /// <summary>Loads only the registered test root and the selected detail variant.</summary>
     internal static LightingVolumeProbeProgram Create(ICoreAPI api,bool detail)

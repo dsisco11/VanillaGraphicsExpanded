@@ -18,6 +18,7 @@ internal sealed class LightingVolumeWork(Func<int,LightingVolumeWorkProgram> cre
     private LightingVolumeDomain? previousGrid;
     private Vector3 sun,moon,solar,lunar,environment;
     private long windowX,windowZ;
+    private long nativeGeneration,nativeUpload;
     private uint generation,revision,frame;
     private bool history,observed,failed,disposed;
     private int active;
@@ -70,6 +71,7 @@ internal sealed class LightingVolumeWork(Func<int,LightingVolumeWorkProgram> cre
             Check(current);
             windowX=x;windowZ=z;generation=storage.Generation;previousGrid=storage.Domain;history=true;observed=true;
             frame=borrow.Frame;sun=lighting.Sun;moon=lighting.Moon;solar=lighting.Solar;lunar=lighting.Lunar;
+            nativeGeneration=borrow.Generation;nativeUpload=borrow.Upload;
             environment=lighting.Environment;active=nextActive;Ready=true;
             return true;
         }
@@ -83,7 +85,8 @@ internal sealed class LightingVolumeWork(Func<int,LightingVolumeWorkProgram> cre
 
     /// <summary>Commits metadata only after every emitted job in the specified channels completed its lighting writes.</summary>
     /// <remarks>Bits zero/one/two select solar/lunar/diffuse. Callers must validate the same frozen publication;
-    /// partial or failed solver batches must never call this method. Selection alone is never completion.</remarks>
+    /// partial or failed dispatches must never call this method. GPU per-region failure bits reject arithmetic
+    /// failures from otherwise completed dispatches. Selection alone is never completion.</remarks>
     internal bool Complete(LightingVolumeStorage storage,uint completedFrame,int channels,Func<bool> current)
     {
         ObjectDisposedException.ThrowIf(disposed,this);
@@ -100,6 +103,15 @@ internal sealed class LightingVolumeWork(Func<int,LightingVolumeWorkProgram> cre
         }
         catch(Exception error) when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
         { failed=true;history=false;Ready=false;Failure=error.Message;storage.Withdraw();return false; }
+    }
+
+    /// <summary>Returns only the direct source identity frozen with these selected jobs and this exact native publication.</summary>
+    internal bool TryDirectBatch(LightingVolumeStorage storage,CloudMapInput input,out Vector3 solarDirection,
+        out Vector3 lunarDirection,out int sources)
+    {
+        solarDirection=sun;lunarDirection=moon;sources=active;
+        return Ready && storage.Ready && storage.Generation==generation && storage.Domain==previousGrid &&
+            input.Frame==frame && input.Generation==nativeGeneration && input.Upload==nativeUpload && storage.Accepts(input);
     }
 
     /// <summary>Releases operation executables and revokes observation identity at explicit recovery boundaries.</summary>

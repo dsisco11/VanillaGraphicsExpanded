@@ -60,6 +60,8 @@ public sealed class CloudLightingVolumeWorkTests(HeadlessGLFixture fixture):LumO
         Assert.True(work.Update(storage,input,map,lighting,planes,()=>true));Assert.Equal(15,Node(storage,2,16,2).W);
         lighting=lighting with {Lunar=Vector3.One};input=input with {Frame=8};
         Assert.True(work.Update(storage,input,map,lighting,planes,()=>true));Assert.Equal(11,Node(storage,2,16,2).W);
+        uint[] activated=Read(storage.Scratch!,576);
+        Assert.True(activated.Skip(64).Take((int)activated[4]).Any(job=>(job&1u)!=0u));
         Assert.True(work.Complete(storage,8,1,()=>true));
         uint oldGeneration=storage.Generation;
         placement=placement with {CenterX=-20};input=input with {Placement=placement,Frame=9};

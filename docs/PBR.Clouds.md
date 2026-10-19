@@ -553,3 +553,22 @@ and grid; selection itself never certifies illumination. Successful batches requ
 dependency work. No lighting solver is registered, so these primitives currently run only when
 explicitly constructed by a caller or focused fixture. Their correctness checks do not qualify
 runtime scheduling cost, lighting latency or visual appearance.
+
+`LightingVolumeDirect` consumes only the selected jobs and source directions frozen by the work
+owner for the same frame, native generation/upload, allocation and grid. It stores independent
+solar/lunar transmission in RG16F; illuminance and exposure do not enter that storage. Each
+occupied node integrates 32 uniform midpoints over at most 1500 world units, clipped only to the
+finite native horizontal domain. Native density still determines vertical support and empty gaps.
+Optical-depth arithmetic saturates at a finite bound, with no optical early exit or view-depth clip.
+Native extinction converts to physical units before bounded detail modulation, with protected
+arithmetic ordering to avoid intermediate overflow for large finite controls.
+Density detail selects an actual compiled variant owned by `LightingVolumeShaderOptions`.
+
+Solar and lunar execute in separate ordered passes. A selected region uses one invocation per
+admitted node, preserves the other transmission channel and encoded diffuse RGB, and edits only
+its own validity bit. Image/storage/sampling barriers separate each pass and completion. Numerical
+failure clears that channel's validity throughout the region and leaves its update pending;
+dispatch or certificate failure withdraws the complete storage publication. Completion records
+only successful region channels. Inactive sources request no executable or dispatch, and native
+texture references are released after synchronous submission. The solver has reset/disposal hooks
+and remains unregistered with the live renderer.
