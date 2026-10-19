@@ -508,6 +508,51 @@ acceptance or live frame time. Weather appearance, cubic fluff, motion, in-game 
 transitions and hardware-specific GPU/CPU/memory budgets remain acceptance activities in the
 linked checklist.
 
+## Stored density-volume resources
+
+`PBR/Clouds/Volume/` owns an independent storage foundation for persistent cloud density and
+illumination. It is not registered as a selectable visible renderer. Its storage contract is
+specified in [the density-volume proposal](PBR.CloudVolume.Proposal.md).
+
+`CloudVolumeDomain` uses fixed 19.53125-unit horizontal cells, 64 vertical interior cells and
+zero-density guards. The initial vertical band is 800 units; an out-of-band envelope selects a
+snapped replacement band, doubling up to 25,600 units without cropping cloud support. Horizontal
+material keys map to circular texture slots. Repeat in X/Z joins adjacent material keys across
+physical texture seams; ClampToEdge in Y and logical empty guards bound finite support.
+
+`CloudVolumeFields` owns R16F density, RG16F direct visibility, two RGBA16F diffuse fields with
+zero alpha, one latest native-descriptor snapshot and exact block metadata/occupancy buffers.
+Textures use hardware trilinear filtering; no shared sampler override replaces their mixed wrap
+state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB parameter/scratch
+allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
+128 bytes; the remaining 3968 bytes are reserved for additional candidate parameters/work state.
+
+`CloudVolumeStorage` admits format/dispatch/device limits before allocation. Incoming fields
+initialize at most 4096 physical blocks per call. They contain zero density, unit direct visibility
+and a bounded caller-supplied diffuse fallback. Initialization alone does not certify weather
+density: publication additionally requires its caller's density-completion certificate. A previous
+complete domain remains published during replacement, with at most two field sets resident.
+Both sets fit the 1 GiB replacement ceiling; each fits the 512 MiB resident ceiling.
+
+Compatible recentering retains overlapping material slots without relocation textures, clears
+new/guard cells and revokes touched block completion metadata. Exact owner/world/representation,
+context and executable identities prevent unrelated storage reuse. Reset/disposal releases complete
+and partial allocations. Failed pending initialization retires the incoming set; a failed in-place
+scroll or diffuse publication withdraws sampling until recovery.
+
+Recenter maintenance scans the bounded physical allocation in batches of at most 4096 blocks,
+finishing its ordered scan before exposing the new window. This scan can require 18 dispatches
+at maximum coverage; its cost is separate from subsequent weather-density generation jobs.
+Retained pending revisions and first-pending ages survive that scan even when whole-block
+completion stamps must be revoked.
+
+Diffuse publication first copies the complete old field into its existing spare. A refinement
+callback writes the spare, and completion/certificate checks precede the texture/scale swap.
+Barriers cover image writes, texture sampling and integer metadata. Physical RGB is capped and
+quantized downward to representable half values during encoding/rescaling, retaining the declared
+radiance bound. The caller skips this operation when no diffuse work is selected. This storage
+foundation has no weather-density generator, transport solver or live view consumer.
+
 ## Independent lighting-volume candidate
 
 `PBR/Clouds/LightingVolume/` owns an independent lighting-grid candidate. `Clouds.VolumeRenderer`

@@ -4,7 +4,7 @@ Persistent cloud density and illumination volume
 Authority and scope
   Source: docs/PBR.CloudVolume.Proposal.md, complete proposal including Traversal acceleration candidates.
   Context: docs/PBR.Clouds.md and docs/PBR.Atmosphere.Publication.md; existing consumer/GPU contracts.
-  User invocation authorizes this new plan, not runtime implementation. Execute only requested phases.
+  Runtime implementation is authorized only through explicitly requested phases.
   Selected specification: proposal / Selected representation and numerical contract. Its concrete
     values govern implementation; illustrative tables and old lighting-only constants do not.
   This plan owns a new removable candidate. PBR.CloudLightingVolume.todo and PBR.CloudRealtime.todo
@@ -80,7 +80,7 @@ Phase 1 verification
     coordinates; byte/copy/fairness arithmetic was reviewed. Second review and independent completion
     audit passed after resolving half-storage bounds, initialization snapshot semantics and density
     shaping formulas. Diff whitespace check passed. Documentation-only work: no build, GPU test,
-    packaging, measured performance or live appearance claim. Phases 2 onward remain unimplemented.
+    packaging, measured performance or live appearance claim. Later work has its own verification.
 
 Selected specification summary
   User choice: approximately 352 MiB base experiment, 512x64x512 nominal cells, coarse shape first.
@@ -104,21 +104,37 @@ Selected specification summary
 Phase 2 - Own stable volume storage and publication
   Depends on: Phase 1.
   Outcome: an isolated, bounded volume can be initialized, retained and retired safely.
-  [ ] Implement domain/addressing and owned R16F density, RG16F visibility and two RGBA16F diffuse
+  [x] Implement domain/addressing and owned R16F density, RG16F visibility and two RGBA16F diffuse
       fields, region metadata and selected occupancy storage through existing abstractions.
       Admit actual device format/dimension limits and checked memory totals before allocation.
-  [ ] Initialize all texels to defined density/lighting values. Implement hardware trilinear samplers
+  [x] Initialize all texels to defined density/lighting values. Implement hardware trilinear samplers
       plus exact region identity, without manual eight-fetch interpolation or validity hiding density.
-  [ ] Preserve overlapping material cells on recenter, initialize entering slabs/guards and distinguish
+  [x] Preserve overlapping material cells on recenter, initialize entering slabs/guards and distinguish
       circular seams from finite edges. Revoke unrelated identities on replacement/reset.
-  [ ] Implement bounded startup/replacement and height expansion policy; retain the last coherent
+  [x] Implement bounded startup/replacement and height expansion policy; retain the last coherent
       publication during pending changes and release partial allocations on failure.
-  [ ] Implement field/scale/revision publication and ordered read/write boundaries. Justify any spare
+  [x] Implement field/scale/revision publication and ordered read/write boundaries. Justify any spare
       beyond diffuse ping-pong by an actual hazard; no default descriptor/flag/remap allocation stack.
-  [ ] Verify focused addressing, seam/guard, format/accounting, identity and cleanup contracts; update
+  [x] Verify focused addressing, seam/guard, format/accounting, identity and cleanup contracts; update
       current architecture documentation for storage delivered here. Use incremental validation only.
-  [ ] Completion: stored fields have coherent identity and usable initialization within the agreed
+  [x] Completion: stored fields have coherent identity and usable initialization within the agreed
       resident/peak budget, including recenter/replacement/failure paths.
+
+Phase 2 verification
+  Source mapping: all storage tasks -> proposal / Selected representation and numerical contract
+    (layout, native coordinates, initialization/publication, encoding, metadata); integration context
+    -> PBR.Clouds.md, PBR.Atmosphere.Publication.md / Publication contract, Rendering.Enablement.md.
+  Independent Volume owners and maintenance/copy shaders deliver bounded initialization, circular
+    retention, exact metadata, declared half storage and certified field/scale/domain publication.
+  Second review and independent completion audit passed after correcting scroll maintenance to
+    preserve pending revisions/ages while revoking completion. Existing GPU abstractions used.
+  Cached Release build 21.39s, 0 errors (169 existing warnings); three focused tests passed, none
+    skipped, 612ms including GPU storage. Only changed maintenance shader recompiled in final retry.
+  Receipts: artifacts/cloud-volume-storage-retry-build.log, artifacts/cloud-volume-storage-retry-tests.log,
+    artifacts/test-results/cloud-volume-storage-retry.trx. No package, game or approximation-quality gate.
+  Current architecture documented in PBR.Clouds.md / Stored density-volume resources. Storage is not
+    a live selectable renderer; density generation, transport and integration remain later work.
+    Recenter full-scan and diffuse-copy performance are unqualified; no speed/appearance acceptance.
 
 Phase 3 - Generate persistent volumetric density
   Depends on: Phase 2.
