@@ -602,8 +602,64 @@ Phase 8.6: Hardware-filter compact shadow parameters before evaluating attenuati
     focused checks, tested identities, second review and independent audit pass. Native performance,
     moving-light/layered/edge appearance and remaining tradeoffs stay open for Phase 11.
 
+Phase 8.7: Budget primary samples across the clipped cloud-layer intersection
+  Depends on Phase 8.6. Outcome: layer entry/exit determine the complete primary lattice and its
+    distance-scaled budget, replacing horizontal-domain budgeting followed by height-index skipping.
+    This intentionally changes sample positions and weights; it is not an equivalent acceleration.
+  Validation: cached incremental affected-variant builds and focused finite-algorithm checks through
+    subagents. Reuse the existing opt-in work/timing fixtures and frozen baseline; no clean rebuild,
+    broad GPU matrix or release packaging before Phase 11. No approximation-quality assertions.
+  ☐ Define one conservative main-view integration interval before allocating samples.
+    - Intersect the finite native horizontal domain, current committed occupied height envelope and
+      opaque/primary/liquid foreground clips. Handle camera-inside entry, empty roots, parallel and
+      near-parallel rays, grazing exits and zero-length intervals conservatively.
+    - Use the envelope intersection, including empty gaps between separated layers or columns.
+      Do not compute occupied arc length, add a per-ray support prepass, integrate optical mass or
+      allocate independent budgets per column. Never clip off-camera secondary/cache occluders with
+      this main-view interval; their independent distance and coverage contracts remain unchanged.
+    - Separate authoritative layer-bound availability from optional acceleration selection. Certify
+      bounds against the current map generation/placement, including GPU-native height animation.
+      Define a conservative horizontal-domain fallback when bounds are unavailable or uncertified;
+      document its different schedule explicitly instead of treating it as equivalent layer budgeting.
+      Empty certified bounds produce no march; missing bounds must never certify empty support.
+  ☐ Allocate and integrate one bounded uniform lattice over that interval in reduced and reference paths.
+    - Let L=tEnd-tStart. For L>0 use N=min(ViewRaySampleMax,max(ViewRaySampleMin,
+      floor(ViewRaySampleMax*min(1,L/ViewBudgetDistance)))), ds=L/N and
+      t_i=tStart+(i+jitter)*ds. Retain one blue-noise offset per reduced ray and midpoint jitter .5
+      in the history-free reference. No nonlinear primary distribution or occupancy redistribution.
+    - Both paths use the same certified interval/fallback policy and physical-length weights. Optional
+      acceleration may skip proven-empty positions within this new lattice without redefining it.
+      Preserve shared density, native bin overlap/weighting, termination ordering, all OIT products,
+      foreground clips, representative-distance transport and world/metre conversion exactly once.
+    - Stage actual new spacing/support metadata for reconstruction and history admission. Do not
+      retain old horizontal-lattice spacing, invalidate history for routine weather/light evolution
+      or introduce another temporal system. Handle discrete sampling-policy activation coherently.
+  ☐ Select the distance-to-budget scale using actual work and cost measurements before shipping it.
+    - Record current horizontal span, layer intersection, scheduled count, height-skipped positions,
+      actual density/lighting work and termination separately. Current ViewBudgetDistance=50 reaches
+      the 384-sample cap on most positive layer spans; copying it blindly can greatly increase work.
+      For example, a 100-unit layer inside a 5000-unit horizontal span currently receives roughly
+      eight lattice positions before conservative margins; rebudgeting it at distance 50 gives 384.
+    - Evaluate bounded budget-distance choices at unchanged Quarter resolution, cache policy and
+      unrelated controls. Declare candidate controls before comparisons, record sample spacing and
+      all regressions, and distinguish changed approximation from implementation savings. Adjust
+      supported ranges/defaults only with an explicit measured selection; add no settings migration.
+  ☐ Rework existing primary budget/range fixtures around the new authoritative interval.
+    - Use independent authored intersections, count/position/weight oracles, uniform-density units,
+      gaps, short/thin/inside/grazing rays, foreground clipping and unavailable/stale-bound fallback.
+      Cover reference/reduced consistency and both PBR integrations with existing lean typed fixtures.
+      Replace superseded horizontal-lattice assertions and obsolete range-skip-only fixture modes;
+      do not keep two production budget algorithms merely to preserve old tests.
+    - Use narrow opt-in ground/inside/above and held-out grazing/night comparisons for bounds setup,
+      trace, temporal/resolve, independently timed total, CPU and storage. Reuse unaffected evidence;
+      quality differences remain diagnostics and user-run appearance review, never automated gates.
+  ☐ Completion: layer-based primary budgeting and an evidence-backed distance scale are implemented,
+    with focused checks, tested identities, second review and independent audit. Reconcile the active
+    primary contract, settings, current architecture and parent; identify superseded historical lattice
+    requirements explicitly. Final appearance and whole-renderer performance remain in Phase 11.
+
 Phase 9: Precompute cloud perturbation octaves in a static volumetric noise texture
-  Depends on Phase 8 and subphases 8.1–8.6. Outcome: cloud detail samples one static packed noise
+  Depends on Phase 8 and subphases 8.1–8.7. Outcome: cloud detail samples one static packed noise
     resource instead of evaluating procedural lattice hashes at each density sample.
   Validation: incrementally build affected consumers; verify the generated noise asset and focused
     integration contracts. Reuse procedural baseline assets; defer full reproduction/release ZIP to Phase 11.
@@ -717,7 +773,7 @@ Phase 10: Improve volumetric-cloud temporal filtering and retain compatible samp
     performance and user appearance acceptance. Do not claim a larger frame count guarantees improvement.
 
 Phase 11: Qualify the complete renderer and reconcile acceptance
-  Depends on Phase 10, Phase 9, Phase 8 and subphases 8.1–8.6. Outcome: the combined policy has reproducible quality
+  Depends on Phase 10, Phase 9, Phase 8 and subphases 8.1–8.7. Outcome: the combined policy has reproducible quality
     and performance evidence. The completed original Phase 8 does not qualify these later upgrades.
   Validation: this is the final full baseline-reproduction/canonical packaging gate, performed once
     against a frozen combined candidate. Reuse unchanged focused evidence and valid baseline provenance;
@@ -731,8 +787,9 @@ Phase 11: Qualify the complete renderer and reconcile acceptance
   ☐ Measure baseline versus final renderer with matched scenes/settings and separate quality labels.
     - Report each increment's effects where attributable; distinguish fewer pixels/samples and
       changed approximation quality from same-output traversal/implementation improvements.
-    - Include separated cloud layers and light-space grid/source transitions from subphases 8.1–8.6.
+    - Include separated cloud layers and light-space grid/source transitions from subphases 8.1–8.7.
       Explicitly qualify the compact parameter-filtered approximation replacing segmented lookup.
+      Include the layer-intersection primary lattice, selected budget distance and uncertified-bound fallback.
       Keep diagnostic scene coverage opt-in rather than duplicating it across routine GPU suites.
     - Include empty/sparse/dense clouds; ground/inside/above views; thin edges, low-angle solar/lunar,
       moving weather/light, odd maps and foreground/translucent/liquid overlap in both PBR modes.
@@ -761,7 +818,7 @@ Final acceptance
     Any selected attenuation cache has separately bounded construction, coverage and lookup costs.
   ☐ Lower-resolution tracing, amortized atmosphere, repeated density/phase work and acceleration
     each have delivered behavior or an evidence-backed disposition against the stated objective.
-  ☐ All six original performance findings, earlier density/phase findings and Phase 8/8.1–8.6/9/10 tasks
+  ☐ All six original performance findings, earlier density/phase findings and Phase 8/8.1–8.7/9/10 tasks
     map to final receipts;
     any unimplemented improvement is explicitly recorded, not silently treated as complete.
   ☐ Native ownership/weather, cubic density support, physical lighting, foreground clips, temporal
@@ -788,6 +845,9 @@ Bounded quality policy (implementation contract)
       oracle estimate must not be presented as an observed GPU counter.
 
   Primary budget
+    - This describes current horizontal-domain budgeting. Approved Phase 8.7 replaces it with a
+      clipped layer-intersection lattice and measured budget-distance selection; until delivered,
+      current behavior and historical fixed-lattice receipts must not be described as that new policy.
     - Intersect the finite horizontal map domain and current main-view opaque/primary/liquid clips
       to obtain [tStart,tEnd]. A zero-length span performs no march. Let L=tEnd-tStart, including
       empty gaps. Use that same span across acceleration choices. Certified height bounds may reject

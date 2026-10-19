@@ -221,7 +221,10 @@ Tasks
       segmented atlas and per-neighbor transmission filtering with a compact front-depth/mean-
       extinction/maximum-optical-depth record, sampled once with hardware parameter filtering.
       This deliberately changes the approximation to reduce repeated lookup cost; measured
-      comparisons and final visual/performance acceptance remain required. Quarter tracing is
+      comparisons and final visual/performance acceptance remain required. Planned subphase 8.7
+      budgets primary samples over the clipped cloud-layer intersection, including measured selection
+      of the budget distance to prevent unintended work increases and explicit uncertified-bound fallback.
+      Quarter tracing is
       now the default by explicit user direction; explicit Half remains supported. Phase 9 moves perturbation octaves to
       a static volumetric noise texture; Phase 10 improves temporal retention and evaluates LumOn
       reprojection/invalidation reuse. Phase 11 retains final qualification.
