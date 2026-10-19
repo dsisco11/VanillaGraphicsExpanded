@@ -1,0 +1,235 @@
+Persistent cloud density and illumination volume
+================================================
+
+Authority and scope
+  Source: docs/PBR.CloudVolume.Proposal.md, complete proposal including Traversal acceleration candidates.
+  Context: docs/PBR.Clouds.md and docs/PBR.Atmosphere.Publication.md; existing consumer/GPU contracts.
+  User invocation authorizes this new plan, not runtime implementation. Execute only requested phases.
+  Proposal decisions remain unresolved: Phase 1 resolves them before implementation proceeds. The
+    illustrative memory table and old lighting-only constants are not selected defaults.
+  This plan owns a new removable candidate. PBR.CloudLightingVolume.todo and PBR.CloudRealtime.todo
+    retain separate authority; no old completion receipts count as implementation of this design.
+  Stored 3D density is authoritative for view, direct and diffuse integration. Native descriptors
+    feed generation only; procedural density must not reappear as a per-ray fallback.
+  Preserve finite native coverage, placement/wind identity, physical units, both PBR modes, depth,
+    atmosphere and six-attachment OIT contracts. Sampled density is an explicit shape approximation.
+  Start with shallow anisotropic dense storage, shared density/lighting lattice and coarse occupancy,
+    subject to the Phase 1 feasibility gate. Sparse bricks/clipmaps require a proposal revision if
+    needed; separate lighting resolution is a later measured optimization, not implicit scope.
+  No replacement weather, general path tracer, widely spaced slice rendering, required screen-space
+    temporal accumulation, migration, generic rendering framework or automatic old-candidate removal.
+  Initial correctness view is full-resolution OIT. Reduced-resolution spatial reconstruction is a
+    separate later decision. No claim that persistent lighting eliminates final view integration.
+
+Execution and evidence (applies to every phase)
+  Use PBR/Clouds/Volume/ and private shaders/cloud_volume/ under the production project. Keep files
+    responsibility-focused and roots thin; document classes/methods and follow visibility regions.
+  Candidate depends on public/native scene contracts and general infrastructure, not existing cloud
+    transport/shadow/reconstruction algorithms or lighting-only resource owners. Use existing GPU,
+    program, binding, submission and barrier abstractions in production and tests; no raw GL fixtures.
+  Run builds/tests through subagents. Use cached incremental builds and affected contract checks only;
+    reuse unchanged passing evidence. Expand checks only for concrete changes, failures or evidence gaps.
+  No routine clean/full-catalog rebuild, full baseline matrix or packaging during implementation.
+    Investigate unexpected broad rebuilds; reserve frozen-candidate packaging/matrix work for Phase 9.
+  No approximation-quality, convergence, image-difference, noise or visual-fidelity test thresholds.
+    Tests cover declared math, finite values, units, resource identity/lifetime, publication and bounds.
+    Reuse focused fixtures and avoid redundant cases. Never raise budgets to satisfy approximation tests.
+  Distinguish source review, focused/headless evidence, measured GPU cost, package and user appearance.
+    Never launch/close the game; honor the user's running-game choice and disclose timing contention.
+  Before completion, reconcile proposal coverage, review changes and record proportionate evidence.
+    Permanent architecture docs describe delivered behavior only; later phases remain unchecked.
+
+Phase 1 - Select the representation and numerical contract
+  Outcome: concrete reviewed constants and publication rules make implementation feasible without
+    silently substituting the old lighting-only design.
+  [ ] Resolve resident memory ceiling and smallest cloud feature worth preserving with the user.
+      Select finite horizontal coverage, vertical coverage/margin, anisotropic dimensions, guards
+      and region/block sizes together. Document representable feature scale and filtering softness.
+  [ ] Calculate complete resident and peak replacement memory: 22 bytes/voxel base fields plus guards,
+      metadata, occupancy, scratch and any justified transient allocation. Include copy bandwidth.
+      If dense coverage is unaffordable, stop downstream implementation and revise the proposal for
+      an explicitly selected alternative; do not silently clip coverage or restore procedural lookup.
+  [ ] Specify stable material keys, camera independence, wind transform once, circular addressing,
+      filtered seam adjacency, finite empty guards and bounded coordinate arithmetic.
+  [ ] Specify density cell-average coverage, connected-face/detail generation, units, half-float
+      representability, generation quadrature and neighbor influence. Select initialization and
+      out-of-band replacement policy, including retained age and failure behavior.
+  [ ] Specify direct integration, relevant-source rules and any explicit distance truncation.
+      Specify diffuse recurrence/direction weights/albedo/environment boundary, first-scattering
+      separation, finite radiance bounds, exposure-independent encoding and field/scale publication.
+      Do not copy old counts/distances/budgets without an independent recorded rationale.
+  [ ] Specify metadata granularity and alpha use only if required; initialized lighting fallback,
+      stale/invalid distinctions, source/geometry change dependencies and transition policy.
+  [ ] Select density/direct/diffuse work limits, fairness, source revisions, bounded initialization,
+      and failure atomicity. Specify copy-before-partial-diffuse-update and its charged cost.
+  [ ] Evaluate coarse DDA versus signed/unsigned distance bounds and hybrid maintenance requirements.
+      Select an initial strategy (coarse DDA is the proposal's first candidate); identify whether a
+      distance prototype is justified for Phase 8. Do not mandate two production structures.
+  [ ] Derive view/transport traversal limits from admitted extent and spacing, including empty-block
+      traversal. Retain the half-voxel axis rule for the initial view; no silent cap-induced coarsening.
+  [ ] Record selected settings/compiled options and source decisions in the proposal; flag any changed
+      architectural assumption for agreement before dependent work. Review arithmetic and coverage.
+  [ ] Completion: no implementation-critical constants or publication semantics remain implicit;
+      memory/feature tradeoff is agreed and the selected specification reconciles with the proposal.
+
+Phase 2 - Own stable volume storage and publication
+  Depends on: Phase 1.
+  Outcome: an isolated, bounded volume can be initialized, retained and retired safely.
+  [ ] Implement domain/addressing and owned R16F density, RG16F visibility and two RGBA16F diffuse
+      fields, region metadata and selected occupancy storage through existing abstractions.
+      Admit actual device format/dimension limits and checked memory totals before allocation.
+  [ ] Initialize all texels to defined density/lighting values. Implement hardware trilinear samplers
+      plus exact region identity, without manual eight-fetch interpolation or validity hiding density.
+  [ ] Preserve overlapping material cells on recenter, initialize entering slabs/guards and distinguish
+      circular seams from finite edges. Revoke unrelated identities on replacement/reset.
+  [ ] Implement bounded startup/replacement and height expansion policy; retain the last coherent
+      publication during pending changes and release partial allocations on failure.
+  [ ] Implement field/scale/revision publication and ordered read/write boundaries. Justify any spare
+      beyond diffuse ping-pong by an actual hazard; no default descriptor/flag/remap allocation stack.
+  [ ] Verify focused addressing, seam/guard, format/accounting, identity and cleanup contracts; update
+      current architecture documentation for storage delivered here. Use incremental validation only.
+  [ ] Completion: stored fields have coherent identity and usable initialization within the agreed
+      resident/peak budget, including recenter/replacement/failure paths.
+
+Phase 3 - Generate persistent volumetric density
+  Depends on: Phase 2.
+  Outcome: native weather produces stored 3D shape that all later ray consumers can share.
+  [ ] Capture certified native descriptors synchronously; retain no borrowed native texture across
+      callbacks. Observe content changes without treating publication generation alone as a reset.
+  [ ] Implement generation-only native cuboid overlap/coverage, connected faces and perturbation.
+      Store cell-average extinction; thin cell intersections contribute under the selected contract.
+  [ ] Implement bounded density jobs and content revisions; coalesce observations without resetting
+      pending age. Update neighbor influence; pure wind translation retains unchanged material data.
+  [ ] Publish complete regions/boundaries after barriers, preserve unaffected data and expose spatial
+      age differences. Handle out-of-band changes using the selected replacement policy.
+  [ ] Update conservative occupancy with each density publication, including the hardware-filtering
+      footprint. Revoke unsafe old empty certificates before new occupied density becomes readable.
+  [ ] Verify declared coverage math, finite stored units, publication ordering and change retention
+      with focused fixtures; no procedural approximation/image gate. Update density documentation.
+  [ ] Completion: density and safe occupancy are persistent and inspectable; no ray shader needs
+      native geometry or procedural detail to determine visible/transport density.
+
+Phase 4 - Traverse stored density and schedule retained work
+  Depends on: Phase 3.
+  Outcome: bounded ray traversal and fair lighting jobs are ready for both transport solvers.
+  [ ] Implement the selected initial traversal (coarse DDA unless Phase 1 explicitly revised it),
+      retaining state across block boundaries. Support zero direction components, anisotropic cells,
+      negative rays, finite edges and circular addressing with forward progress.
+  [ ] Skip only certified empty support; preserve actual integration lengths and the selected occupied
+      sampling rule. Avoid root restarts and silent work-limit truncation of admitted rays.
+  [ ] Implement separate bounded direct/diffuse queues after density publication. Prioritize new/
+      changed content and active/visible stale work, with fair offscreen service and persistent ages.
+  [ ] Propagate nonlocal density demand conservatively, initially domain-wide if selected. Coalesce
+      once per update; retain dirty state and actual completed revisions until successful work.
+  [ ] Handle light direction, intensity/environment, activation and refinement demand independently.
+      Fog/exposure/camera motion must not clear compatible volume history.
+  [ ] Verify traversal coverage/progress, filter-support safety, fairness/work limits and failed-work
+      stamps with focused contract checks. Document behavior; no full performance matrix here.
+  [ ] Completion: traversal is bounded and conservative, and queued work cannot become falsely fresh
+      through selection alone or indefinitely starve due to repeated content changes.
+
+Phase 5 - Retain direct illumination through stored density
+  Depends on: Phase 4.
+  Outcome: published direct transmission is reused across views and frames.
+  [ ] Implement selected direct integrals using density textures and traversal exclusively. Store solar/
+      lunar transmission; honor the finite domain and label any selected transport-distance truncation.
+  [ ] Dispatch only relevant-source work; prioritize activation, retain compatible direction-stale
+      results and apply current source intensity later without recomputing unchanged transmission.
+  [ ] Publish successful region results/revisions after barriers; missing illumination uses the selected
+      finite fallback without hiding occupied clouds. Failure cannot certify partial output as current.
+  [ ] Verify physical integration arithmetic, finite values, source activation/intensity behavior,
+      disabled compiled paths and publication through focused existing abstractions. Update docs.
+  [ ] Completion: direct lighting consumes published density only and remains reusable under compatible
+      source changes with honest age/dependency metadata. Incremental validation receipts are recorded.
+
+Phase 6 - Progressively transport diffuse illumination
+  Depends on: Phase 5.
+  Outcome: retained higher-order/environment source is refined under a fixed budget.
+  [ ] Implement the specified recurrence using stored density/direct visibility and previous diffuse
+      source; physical segment extinction/albedo and normalized direction weights govern transport.
+  [ ] Include incoming environment once, traverse empty gaps, and keep outgoing first scattering
+      separate from diffuse higher orders. Use selected finite radiance bounds/encoding.
+  [ ] Copy published diffuse data to the destination before partial writes; preserve untouched values,
+      perform selected updates from the coherent source, then publish field and scale together.
+      Skip copy/swap for empty batches. Charge full copy traffic separately from solver work.
+  [ ] Propagate refinement demand and retain stale illumination across ordinary atmosphere changes.
+      Apply the agreed fallback/transition policy without mixing incompatible density identities.
+  [ ] Verify declared recurrence/units, bounds, copy preservation, scale publication and failure rules
+      with focused tests only; no convergence or reference-image threshold. Update current docs.
+  [ ] Completion: bounded successful batches refine a coherent persistent source without double
+      counting environment/first scattering or losing untouched regions.
+
+Phase 7 - Draw and select the independent stored-volume candidate
+  Depends on: Phase 6.
+  Outcome: the user can select and inspect actual stored volumetric clouds in game.
+  [ ] Implement full-resolution view integration from published density, visibility and diffuse
+      textures only. Clip domain/material/particle/liquid intervals; use voxel-relative steps and
+      actual clipped lengths with conservative empty skipping. No procedural fallback or old cap.
+  [ ] Evaluate current directional phase response plus diffuse once; apply atmosphere/local-medium
+      and scene encoding once. Preserve both PBR modes and six native OIT products.
+  [ ] Admit retained-energy bounds and independent camera/atmosphere calibration identities through
+      established scene contracts. Do not reserve radiance from current sources alone.
+  [ ] Wire shader discovery/typed variants and one thin consumer into existing lifecycle/selection.
+      Retire old consumers before activation; preserve Existing and lighting-only selections, native
+      Off/Simple meanings, and recovery policy. No migration or hidden background candidate work.
+  [ ] Expose selected settings through existing configuration, with disabled paths compiled out.
+      Add focused diagnostics to the existing debug menu: density, region identity/age, fallback,
+      pending/actual work and resident memory. Avoid ordinary-play synchronous readback.
+  [ ] Document exact in-game selection/reload instructions. Verify focused OIT/clipping, lifecycle,
+      publication/binding and compiled-path contracts; reuse passing storage/solver evidence.
+  [ ] Completion: independent consumer is usable in game, shader registration/configuration are covered,
+      and no screen-space temporal history or procedural view-density path is required. Appearance
+      remains user acceptance, not established by these incremental checks.
+
+Phase 8 - Evaluate acceleration and update cost
+  Depends on: Phase 7; Phase 1 initial acceleration decision.
+  Outcome: a justified acceleration choice accounts for maintenance as well as traversal savings.
+  [ ] Measure the selected baseline narrowly: density, occupancy, direct, diffuse, full-field copy and
+      view costs, plus actual traversal/work counts and memory. Separate steady and changing content.
+  [ ] Evaluate signed versus unsigned distance bounds and hybrid traversal against coarse DDA.
+      Prototype only if the recorded feasibility/cost analysis warrants it; otherwise record explicit
+      deferral and rationale without claiming a measured distance-field comparison.
+  [ ] For any distance prototype, establish conservative distances to all potentially nonzero filtered
+      density, accounting for anisotropic cells, quantization and reconstruction error. Do not use a
+      visible isosurface threshold or assume hardware-interpolated distances are automatically safe.
+  [ ] For any prototype, repair/revoke nonlocal certificates on density additions before publication;
+      retain safe smaller bounds on removals. Fall back to safe DDA/no skipping during repair. Include
+      recenter/domain changes, guards and all three ray consumers in the safety contract.
+  [ ] Compare implemented alternatives including construction/update time, memory and weather backlog;
+      preserve occupied integration semantics. Keep only the justified selected strategy and remove
+      rejected experimental paths/resources. Do not require both structures in ordinary rendering.
+  [ ] Investigate diffuse-copy cost only if measured as a bottleneck; an alternate publication scheme
+      requires a separately recorded design decision, not an automatic expansion of this phase.
+  [ ] Verify affected conservative traversal/publication contracts with incremental checks; document
+      the selected algorithm and distinguish analysis from measured results. No quality thresholds.
+  [ ] Completion: selected acceleration has honest total-cost evidence and safe density-update semantics;
+      all unimplemented alternatives are explicitly deferred, with no misleading comparison claim.
+
+Phase 9 - Qualify the frozen candidate and reconcile documentation
+  Depends on: Phase 8.
+  Outcome: measured total cost, memory and user appearance determine candidate acceptance.
+  [ ] Freeze the candidate and run canonical packaging/required final checks once. Verify delivered
+      assets, selectable settings and cleanup; do not treat older candidate receipts as qualification.
+  [ ] Measure total/per-pass GPU time and resident/peak memory at stated hardware/settings/resolution.
+      Include startup, steady views, camera motion, wind, evolving weather, light transitions and
+      recenter/replacement. Report update spikes, density/lighting backlog, age and fallback coverage.
+  [ ] Compare matched view resolutions and label default-resolution differences. Separate illumination
+      amortization from per-pixel view cost; disclose running-game contention and measurement limits.
+  [ ] Obtain user-run appearance review for shape/thin layers, volume continuity, grid/seam motion,
+      stable lighting, leakage, fallback transitions and stale-weather response. Never launch the
+      game, invent acceptance, or replace review with automated approximation thresholds.
+  [ ] Reconcile all proposal requirements and selected decisions with delivered code, documentation and
+      focused evidence. Audit removable ownership and ensure no rejected prototype dependencies remain.
+  [ ] Record acceptance or concrete outstanding limitations. If quality/memory/cost is unacceptable,
+      retain candidate status and propose the next decision rather than silently shrinking coverage,
+      adding procedural density or restoring a screen-space temporal dependency.
+  [ ] Completion: package, correctness, GPU measurements and human appearance results are distinguished;
+      all required acceptance is satisfied or explicitly left open. Do not remove/promote the older
+      candidates without the user's separate replacement decision.
+
+Final acceptance
+  [ ] View, direct and diffuse consumers use the persistent 3D density and reusable lighting fields.
+  [ ] Agreed memory/feature coverage, bounded updates, conservative traversal and lifecycle hold.
+  [ ] User accepts appearance and measured total cost at the stated configuration; no FPS guarantee
+      is inferred from architecture or headless tests.
+  [ ] Proposal/current docs match implementation; outstanding work and deferred alternatives are explicit.
