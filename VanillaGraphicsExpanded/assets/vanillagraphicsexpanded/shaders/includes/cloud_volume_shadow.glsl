@@ -8,7 +8,7 @@
 @import "./cloud_volume_light.glsl"
 #undef CloudDirectional
 @import "./cloud_shadow_frame.glsl"
-@import "./cloud_shadow_segments.glsl"
+@import "./cloud_shadow_filter.glsl"
 uniform sampler2D cloudShadowCache;
 vec3 cloudCacheCenter,cloudCacheU,cloudCacheV,cloudCacheRadius,cloudCachedLight;
 int cloudCacheSource;
@@ -20,25 +20,25 @@ void CloudPrepareShadowCache()
     cloudCachedLight=cloudCacheSource==0?volumeSun.xyz:volumeMoon.xyz;
     cloudCacheFrameValid=cloudTraversal.z>0 && CloudShadowFrame(cloudCachedLight,cloudCacheCenter,cloudCacheU,cloudCacheV,cloudCacheRadius);
 }
-/** Integrates the finite source window through the cached depth segments; invalid coverage falls back. */
-bool CloudCachedDepth(vec3 point,vec3 light,out float tau)
+/** Filters each ray's finite source window independently; uncertain footprint coverage falls back. */
+bool CloudCachedTransmission(vec3 point,vec3 light,out vec2 transmission)
 {
-    tau=0.0;
+    transmission=vec2(0);
     if(!cloudCacheFrameValid||any(notEqual(light,cloudCachedLight))) return false;
     vec3 relative=point-cloudCacheCenter;
     vec2 uv=vec2(dot(relative,cloudCacheU),dot(relative,cloudCacheV))/(2.0*cloudCacheRadius.xy)+.5;
     if(any(lessThan(uv,vec2(0)))||any(greaterThanEqual(uv,vec2(1)))) return false;
     float depth=cloudCacheRadius.z-dot(relative,light);
-    ivec2 pixel=ivec2(floor(uv*float(textureSize(cloudShadowCache,0).x)));
-    return CloudShadowSegmentDepth(cloudShadowCache,pixel,cloudCacheSource,depth,volumePrimary.z,tau);
+    return CloudShadowTransmission(cloudShadowCache,uv,cloudCacheSource,depth,volumePrimary.z,
+        volumeSamples.w,transmission);
 }
 /** Replaces only the cached source's secondary integration; all other transport uses production code. */
 vec3 CloudDirectional(vec3 local,vec3 light,vec3 illuminance,float phase)
 {
     if(max(illuminance.r,max(illuminance.g,illuminance.b))<=0.0) return vec3(0);
-    float tau;
-    if(!CloudCachedDepth(local,light,tau)) return CloudMarchDirectional(local,light,illuminance,phase);
-    return illuminance*(phase*exp(-tau)+volumeSamples.z/12.5663706144*exp(-volumeSamples.w*tau));
+    vec2 transmission;
+    if(!CloudCachedTransmission(local,light,transmission)) return CloudMarchDirectional(local,light,illuminance,phase);
+    return illuminance*(phase*transmission.x+volumeSamples.z/12.5663706144*transmission.y);
 }
 #else
 @import "./cloud_volume_light.glsl"

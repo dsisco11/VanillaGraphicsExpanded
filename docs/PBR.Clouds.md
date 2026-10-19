@@ -118,10 +118,16 @@ for 3, 12 or 48 MiB of texture payload respectively. Changing quality retires in
 disabling caching releases its resources and skips generation. Each of the same 64 midpoint density
 samples contributes to its original integration interval; overlap splits that contribution across
 segment boundaries.
-Nearest lookup intersects the query's finite shadow-distance window with those segments and assumes
-uniform extinction only within each segment. Empty segments preserve gaps between sampled layers;
-features missed by generation and structure within a segment remain approximated. Valid empty
-coverage retains source validity with zero optical depth; unavailable records select marching.
+Lookup evaluates a texel-center 2x2 bilinear footprint. Each contributing ray intersects the query's
+finite shadow-distance window with its own depth segments, assuming uniform extinction only within
+each segment. Direct and approximate-octave transmissions are exponentiated separately for each ray,
+then combined with the same nonnegative weights; optical depths are never interpolated. Empty
+segments preserve gaps between sampled layers; features missed by generation and structure within
+a segment remain approximated. Valid empty coverage contributes unit transmission. Every
+positive-weight tap must have matching discrete source validity and finite supported records.
+Missing or invalid coverage, including footprints crossing the map edge, selects bounded marching
+for the complete query. Taps with exactly zero weight require no coverage; edge taps are neither
+clamped nor discarded and the remaining weights are never renormalized around unavailable data.
 The other contributing light retains marching; neither physical source is discarded.
 
 Generation uses the trace's current map, placement, detailed density and lighting. Image-write and

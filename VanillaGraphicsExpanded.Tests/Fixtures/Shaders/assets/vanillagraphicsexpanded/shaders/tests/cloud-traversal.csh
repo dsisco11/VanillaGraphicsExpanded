@@ -5,7 +5,7 @@
 @import "../includes/cloud_volume_sampling.glsl"
 @import "../includes/cloud_volume_density.glsl"
 @import "../includes/cloud_volume_hierarchy.glsl"
-@import "../includes/cloud_shadow_segments.glsl"
+@import "../includes/cloud_shadow_filter.glsl"
 layout(std430) buffer CloudTraversalTestResult { vec4 intervals[402]; vec4 counts; };
 vec3 measuredOrigin; int measuredSamples=0;
 /** Records only actual full-density calls made by the production secondary loop. */
@@ -68,7 +68,39 @@ float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
 /** Exposes bounded production schedules and shared density through independent authored queries. */
 void main()
 {
+    if(testDirectionMode.w==16.0||testDirectionMode.w==17.0)
+    {
+        uint index=gl_GlobalInvocationID.y*20u+gl_GlobalInvocationID.x;
+        if(index>=400u) return;
+        vec2 sum=vec2(0);float admitted=0;
+        // An opt-in throughput diagnostic uses independent result locations and
+        // changing footprints so the compiler cannot fold away repeated lookups.
+        for(int query=0;query<64;query++)
+        {
+            vec2 uv=(vec2(gl_GlobalInvocationID.xy)+fract(vec2(.618034,.414214)*float(query+1)))/20.0;
+            vec2 transmission;bool valid;
+            if(testDirectionMode.w==16.0)
+                valid=CloudShadowTransmission(cloudMap,uv,0,testOriginLimit.w,
+                    testDirectionMode.x,testDirectionMode.y,transmission);
+            else
+            {
+                float tau;
+                valid=CloudShadowSegmentDepth(cloudMap,ivec2(uv*float(textureSize(cloudMap,0).x)),0,
+                    testOriginLimit.w,testDirectionMode.x,tau);
+                transmission=exp(-vec2(tau,testDirectionMode.y*tau));
+            }
+            if(valid){sum+=transmission;admitted+=1.0;}
+        }
+        intervals[index]=vec4(sum,admitted,0);return;
+    }
     counts=vec4(0); measuredOrigin=testOriginLimit.xyz;
+    if(testDirectionMode.w==15.0)
+    {
+        vec2 transmission;
+        bool valid=CloudShadowTransmission(cloudMap,testOriginLimit.xy,int(testOriginLimit.z),
+            testOriginLimit.w,testDirectionMode.x,testDirectionMode.y,transmission);
+        counts=vec4(transmission,valid?1.0:0.0,0);return;
+    }
     if(testDirectionMode.w==14.0)
     {
         float tau;

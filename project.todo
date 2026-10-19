@@ -88,6 +88,13 @@ Issues:
       ☐ Investigate potential optimizations for memory layout and data transfer patterns to improve overall GPU efficiency.
 
   PBR Shading:
+    ☐ Reevaluate local-exposure sample interpolation to fix jarring transitions around object edges.
+      - Diagnose sample placement, reconstruction weights and foreground/background mixing at depth
+        and luminance discontinuities; distinguish spatial interpolation artifacts from temporal changes.
+      - Evaluate edge-aware interpolation that preserves smooth exposure within surfaces without
+        abrupt brightness changes or halos at silhouettes. Preserve exposure bounds and composition order.
+      - Reuse the local-exposure debug visualizer and focused incremental checks; confirm the result
+        through user-run review of stationary and moving object edges in both PBR modes.
     ☐ Profile and optimize ambient-occlusion GPU cost while preserving visibility quality. See docs/PBR.BaselineShading.todo.
     ☐ Optimize owned postprocessing submission, state transitions and pass scheduling. See docs/PBR.BaselineShading.todo.
     ☐ Optimize water rendering and composition preparation, receiver sampling and background capture. See docs/PBR.WaterPerformance.todo.

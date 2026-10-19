@@ -213,10 +213,16 @@ Tasks
     - Realtime work tasklist: docs/PBR.CloudRealtime.todo; reconcile
       sampling, self-lighting, termination, reconstruction, atmosphere and acceleration costs there.
       Its Phase 8 evaluates repeated shading work and cloud-internal lighting reuse at preserved
-      initial settings; outstanding subphases 8.1–8.4 refine attenuation depth, transmission filtering,
-      generation sampling/footprints and projection stability. Phase 9 moves perturbation octaves to
+      initial settings. Subphases 8.1–8.2 supply segmented attenuation and depth-correct transmission
+      filtering; measured costs and contention are recorded in that checklist, with final acceptance
+      still open. Outstanding subphases 8.3–8.4 cover generation sampling/footprints and projection
+      stability. Phase 9 moves perturbation octaves to
       a static volumetric noise texture; Phase 10 improves temporal retention and evaluates LumOn
       reprojection/invalidation reuse. Phase 11 retains final qualification.
+      Implementation phases use cached incremental builds, affected-contract checks and existing
+      baseline evidence. Full baseline reproduction and canonical release/package verification are
+      final-qualification work in Phase 11, not repeated completion gates for each increment; follow
+      the validation scope in PBR.CloudRealtime.todo / Execution and evidence.
       External cast-shadow deferral is unchanged.
     - Define bounded 3D cloud density, altitude/weather controls, wind and volume lighting. Evaluate
       ray marching, light transmittance and a controlled multiple-scattering approximation.

@@ -62,6 +62,21 @@ Execution and evidence
   Use existing GPU owners, program/binding contracts, submission, shader registration and cleanup.
   Run build/test tools through subagents. Routine correctness stays lightweight; full-size captures
     and timing are explicit qualification. Never launch the game for visual acceptance.
+  Validation scope (user direction, 2026-10-19): implementation phases use cached incremental builds
+    and focused checks for affected contracts. Reuse passing evidence for unchanged dependencies;
+    do not repeat checks without a new change, failure or unresolved concern that invalidates it.
+    Do not request clean/full-catalog shader rebuilds, full baseline reproduction or release packaging
+    as routine phase-completion gates. Retain valid caches and compile only affected shader variants
+    and dependencies. An unexpected full-catalog rebuild is a build-system issue to investigate,
+    not a reason to repeat it for baseline, testing and packaging during the same implementation.
+    Reuse recorded baseline manifests/digests; if provenance is missing, establish only the affected
+    baseline programs needed for the comparison. Keep phase-specific timings narrowly scoped and
+    opt-in; full-resolution matrices belong to final qualification rather than every iteration.
+    Full baseline reproduction and canonical release/package identity checks belong to Phase 11,
+    once the combined candidate is frozen. Expand earlier validation only when explicitly requested
+    or when a concrete failure/evidence gap requires it; state that reason and use the smallest
+    sufficient check. These rules supersede per-increment canonical/package requirements in inherited
+    plans and historical receipts. Retain second review and independent audit against this scope.
   Separate source findings, independent numerical checks, GPU correctness, packaging, controlled
     GPU timing and user-run live acceptance. Leave required acceptance gates open without evidence.
   Reconcile linked documents, perform a second review and an independent completion audit before
@@ -439,7 +454,7 @@ Phase 8.1: Preserve shadow attenuation along the light-ray depth
 
 Phase 8.2: Filter transmission at the shading depth
   Depends on Phase 8.1. Outcome: neighboring cache texels contribute depth-correct light visibility.
-  ☐ Evaluate each neighboring texel's finite-window attenuation before combining its transmission.
+  ☑ Evaluate each neighboring texel's finite-window attenuation before combining its transmission.
     - Start with a bounded 2x2 footprint and normalized nonnegative weights. Filter direct visibility
       and approximate-octave visibility separately using their respective extinction responses.
       Do not exponentiate averaged optical depth or derive octave visibility from averaged direct light.
@@ -448,14 +463,16 @@ Phase 8.2: Filter transmission at the shading depth
       validity flags as continuous data or silently normalize away missing occluder coverage.
     - Keep metadata discrete and preserve finite ShadowDistance, source selection, OIT products and
       source-admission bounds. Use the existing typed sampling/binding/submission abstractions.
-  ☐ Verify constant/empty fields, weights, depth windows and invalid/edge handling with focused
+  ☑ Verify constant/empty fields, weights, depth windows and invalid/edge handling with focused
     arithmetic/contract checks. Inspect block boundaries and layered clouds through opt-in diagnostics;
     measure lookup and total costs separately. Add no mandatory smoothness/noise/approximation limits.
-  ☐ Completion: filtered responses and fallback behavior are implemented and reviewed, with focused
+  ☑ Completion: filtered responses and fallback behavior are implemented and reviewed, with focused
     correctness evidence, measured costs and independent audit; manual appearance remains open.
 
 Phase 8.3: Improve cache-generation sampling and footprint handling
   Depends on Phase 8.2. Outcome: generation spends bounded work deliberately across supported chords.
+  Validation: incremental affected-variant build, focused support/weight checks and the bounded
+    diagnostics below; reuse baseline evidence. No full baseline rebuild or release package gate.
   ☐ Diagnose actual chord lengths, occupied support, sample spacing and projected texel footprints.
     Include grazing light: 64 uniform points over 10,000 world units are 156.25 units apart, compared
     with 50-world-unit native columns. Separate missed support from lost depth representation.
@@ -479,6 +496,8 @@ Phase 8.3: Improve cache-generation sampling and footprint handling
 
 Phase 8.4: Stabilize cache projection and reconcile the lighting upgrades
   Depends on Phase 8.3. Outcome: continuous light/map motion has a deliberate projection policy.
+  Validation: incremental affected-variant build, focused projection/lifecycle checks and one matched
+    combined comparison using the retained baseline. Full reproduction/packaging is deferred to Phase 11.
   ☐ Replace the reference-axis switch at abs(light.y)=.99 with a stable basis/orientation policy.
     Handle poles, solar/lunar direction changes and dominant-source transitions explicitly. Preserve
     source validity; orientation metadata continuity must never authorize stale attenuation reuse.
@@ -494,14 +513,16 @@ Phase 8.4: Stabilize cache projection and reconcile the lighting upgrades
     raw paired results and held-out regressions. Distinguish changed approximation from equivalent
     implementation savings, and synthetic diagnostics from native whole-frame performance.
   ☐ Reconcile linked plans and current-state architecture only for delivered behavior. Run required
-    focused/canonical/package checks through subagents and verify exact tested/published assets.
+    incremental builds and focused checks through subagents; record tested shader/asset identities.
     Avoid redundant GPU work; leave user-run appearance and whole-renderer qualification to Phase 11.
-  ☐ Completion: projection policy and cache upgrades have focused correctness/package evidence,
+  ☐ Completion: projection policy and cache upgrades have focused correctness and tested-asset evidence,
     second review and independent audit. Unresolved cost/appearance tradeoffs remain explicitly open.
 
 Phase 9: Precompute cloud perturbation octaves in a static volumetric noise texture
   Depends on Phase 8 and subphases 8.1–8.4. Outcome: cloud detail samples one static packed noise
     resource instead of evaluating procedural lattice hashes at each density sample.
+  Validation: incrementally build affected consumers; verify the generated noise asset and focused
+    integration contracts. Reuse procedural baseline assets; defer full reproduction/release ZIP to Phase 11.
   ☐ Specify the noise asset and overlapping-octave contract before replacing the live field.
     - Record the existing single-field CloudNoise behavior, detail controls, material coordinates,
       period, bounds and all consumers. Distinguish density perturbation from primary-ray blue noise;
@@ -550,14 +571,16 @@ Phase 9: Precompute cloud perturbation octaves in a static volumetric noise text
       Reuse opt-in diagnostics rather than multiplying routine scene/octave/resolution test matrices.
     - Inspect repetition, seams, thin/connected edges and motion through user-run appearance review.
       Do not claim a texture lookup guarantees a speedup or raise sampling counts to meet retired tests.
-  ☐ Completion: packaged texture and shared sampling replace live perturbation computation, with
-    measured costs, focused correctness/package checks through subagents, exact asset verification,
+  ☐ Completion: reproducible static texture asset and shared sampling replace live perturbation computation,
+    with measured costs, focused incremental checks through subagents, exact generated/tested asset identity,
     second review and independent audit. Reconcile delivered architecture and linked plans; final
     appearance/performance acceptance remains in Phase 11.
 
 Phase 10: Improve volumetric-cloud temporal filtering and retain compatible sampling history
   Depends on Phase 9 and the delivered cloud reconstruction/history contracts. Outcome: longer useful
     accumulation with fewer unnecessary resets, while rejecting genuinely incompatible observations.
+  Validation: incremental affected-variant build and focused history/reprojection checks, plus the
+    selected opt-in diagnostics. No full baseline reproduction or canonical package gate before Phase 11.
   ☐ Establish the current retention behavior before changing the filter.
     - Inspect CloudTemporalHistory, CloudTemporalParameters, cloud_volume_temporal.fsh and quarter
       reconstruction. Record actual weights, effective accumulation horizon, reprojection coordinates,
@@ -605,13 +628,17 @@ Phase 10: Improve volumetric-cloud temporal filtering and retain compatible samp
       disocclusion and evolving weather/light. Add no convergence, RMS, noise-reduction or image-quality
       assertions. Measure temporal/reconstruction and total costs, storage and any diagnostic overhead.
   ☐ Completion: selected retention policy and LumOn reuse decision are documented and implemented,
-    with focused checks/canonical package verification through subagents, second review and independent
+    with focused incremental checks and tested-asset identity through subagents, second review and independent
     audit. Update current-state documentation only for delivered behavior; Phase 11 owns final measured
     performance and user appearance acceptance. Do not claim a larger frame count guarantees improvement.
 
 Phase 11: Qualify the complete renderer and reconcile acceptance
   Depends on Phase 10, Phase 9, Phase 8 and subphases 8.1–8.4. Outcome: the combined policy has reproducible quality
     and performance evidence. The completed original Phase 8 does not qualify these later upgrades.
+  Validation: this is the final full baseline-reproduction/canonical packaging gate, performed once
+    against a frozen combined candidate. Reuse unchanged focused evidence and valid baseline provenance;
+    rebuild baseline programs only where provenance requires it. Repeat broader qualification only
+    when candidate changes or failures invalidate the applicable evidence; avoid redundant clean builds.
   ☐ Freeze the candidate; run canonical build/shader, focused numerical/GPU, lifecycle and package
     checks through subagents. Verify production asset digests and exact output copies.
     - Cover Off/Simple/Volumetric, both PBR selections, pause, resize, reload, world replacement,
@@ -1910,3 +1937,62 @@ Depth-resolved attenuation receipts (2026-10-19)
     the selected tasks and archived/current contracts. The audit independently rehashed all 2743
     final inputs with zero mismatches and reconciled the single post-canonical diagnostic-only delta.
     Phase 8.1 is complete; later subphases and Phase 11 acceptance remain unchecked.
+
+Transmission filtering receipts (2026-10-19)
+  Traceability -> Phase 8.2 and inherited authority -> volumetric proposal/checklist e87de94d
+    (Ownership, Density integration and lighting, Scene integration), hierarchy proposal/checklist
+    f66895c6 (Representation, Ownership and publication), PBR.Atmosphere.Publication.md and
+    PBR.Clouds.md -> current native support/units/publication, physical inputs, typed resource
+    ownership, independent source admission and unchanged six-target OIT. Implementation is confined
+    to cloud_shadow_filter.glsl and its cloud_volume_shadow.glsl consumer; generation, primary
+    integration, settings, reference/other-source marching and history policies are unchanged.
+  Algorithm -> evaluate each positive-weight texel-center 2x2 tap's finite ShadowDistance window
+    against its own chord/segments. Average exp(-tau) and exp(-octaveExtinction*tau) independently;
+    never interpolate optical depth, metadata flags or derive the octave from averaged direct light.
+    Valid empty coverage contributes one. Missing/source-mismatched/nonfinite contributing data or
+    an out-of-map contributing tap replaces the complete query with bounded marching. Exact zero
+    weights require no tap; edge coverage is neither clamped nor renormalized around missing rays.
+  Correctness -> artifacts/CloudRealtime/phase8.2/focused.trx and filter.trx -> nine unique ordinary
+    checks pass: eight existing segment/secondary/settings/bindings/integration checks, including
+    both PBR modes, plus one new filter arithmetic case. filter.trx also contains the separate
+    opt-in lookup diagnostic, not a tenth ordinary check. Tests cover independent depth spans,
+    normalized weights, constant/empty fields, zero/partial/outside windows, discrete validity,
+    nonfinite/negative records, edge fallback and zero-weight unavailable neighbors. Assertions
+    describe the finite algorithm and binary32 roundoff, with no approximation-quality gate.
+  Baseline -> baseline/identity.json and baseline/rebuilt-binary-comparison.json -> pre-change
+    sources and built assets are frozen independently of candidate edits. Fresh immutable source
+    compilation reproduces all 461 frozen production binaries exactly, with zero mismatches.
+  Lookup -> lookup/lookup.json -> RTX4090, OpenGL4.3 NVIDIA610.88, 256x256/eight segments,
+    400 invocations times 64 queries, three warmups/seven alternating pairs. Nearest/filtered
+    dispatch medians are .064512/.236544 ms, including activation, without generation or transport.
+    A separate thirteen-position quarter-texel sweep crosses an authored empty/occupied boundary
+    with an internal depth gap: direct transmission transitions 1 to .36787945 and octave 1 to
+    .60653067, with independently blended intermediate values and all validity flags one.
+    This inspects the specified arithmetic, not image smoothness or user appearance acceptance.
+  Total costs -> full-owner/, owner-summary.json -> matched frozen-nearest/current-filtered owners,
+    3440x1377, Half, native width 200, unchanged uploaded controls, three warmups/five alternating
+    pairs. Day trace medians 7.344 -> 16.494 ms, complete renderer 11.216 -> 24.209; night trace
+    7.110 -> 17.703, complete renderer 14.775 -> 36.659. These are material observed regressions.
+    Raw construction, temporal, resolve, CPU submission, synthetic input and independently timed
+    total intervals are retained. Optical/support payload differences are zero; changed radiance
+    is diagnostic. This lighting approximation is not reported as an exact-output optimization.
+  Layered/thin -> layered-thin/, layered-thin-summary.json -> 512x256, current filtered cache versus
+    retained marching, rather than nearest versus filtered. Whole medians are 7.249 versus 13.682 ms
+    layered and 2.221 versus 7.007 thin; source/map invalidation and successful rebuild checks pass.
+    Differences remain diagnostic. The game remained running (PID 86144) throughout measurements,
+    as requested. Large unrelated temporal-pass variation demonstrates contention: neither these
+    apparent savings nor the nearest/filter regressions establish isolated production cost, native
+    FPS or live visual acceptance. No sample counts or other controls were reduced. Phase 11 retains
+    appearance and final performance acceptance; subsequent sampling/projection work remains open.
+  Delivery -> canonical.log, package-identity.json, raw-shader-identity.json and source-verification.json
+    -> canonical ./build.ps1 --configuration=Release --spirv=true succeeds. All 2683 frozen non-document
+    inputs remain unchanged. Runtime DLL SHA256
+    6F99C48C997421C210A16284550334DE2BB650CB2C5DC50F4E757876015BF175 matches tested, published,
+    release-directory and ZIP copies; all 461 production SPV match tested/generated/release/ZIP assets.
+    Changed shadow-consumer and new filtering GLSL assets also match the release ZIP. Package
+    Releases/vanillagraphicsexpanded_999.99.9.zip SHA256 is
+    5F3109E4CB22BCD68CD6894DF80A3818D8F85A0E75A5DB826A1E05DE54A5471E.
+    Existing compiler/analyzer/NuGet warnings remain separate from successful build and package checks.
+  Review -> second code/document review and independent audit-stage-completion are clear, including
+    direct source/document consultation, boundary diagnostics, baseline reproduction, all frozen inputs
+    and actual package identity. Phase 8.2 is complete; later subphases and Phase 11 remain unchecked.

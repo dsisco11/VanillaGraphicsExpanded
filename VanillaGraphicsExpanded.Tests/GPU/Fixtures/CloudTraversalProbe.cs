@@ -48,6 +48,19 @@ internal sealed class CloudTraversalProbe : IDisposable
         return mapped.Span.ToArray();
     }
 
+    /// <summary>Times the authored lookup dispatch, including activation, with result readback outside the GPU interval.</summary>
+    internal double MeasureShadowLookup(CloudVolumeParameters volume,GpuTexture map,bool filtered,GpuTimerQuery timer)
+    {
+        output.UploadData(new Vector4[403]);
+        program.SetVolume(volume);
+        program.SetRay(Vector3.Zero,new(40,.5f,0),60,filtered?16:17);
+        program.SetTraversal(null);
+        program.Map=map;program.HeightBounds=null;program.Result=output;
+        timer.Begin();program.Dispatch(20,20);timer.End();
+        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
+        return timer.GetResultNanoseconds()/1e6;
+    }
+
     /// <summary>Retires the shader before its borrowed storage, preserving enclosing program scopes.</summary>
     public void Dispose() => RenderingCleanup.Run(program.Dispose, output.Dispose);
     #endregion
