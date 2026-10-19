@@ -213,10 +213,10 @@ Tasks
     - Realtime work tasklist: docs/PBR.CloudRealtime.todo; reconcile
       sampling, self-lighting, termination, reconstruction, atmosphere and acceleration costs there.
       Its Phase 8 evaluates repeated shading work and cloud-internal lighting reuse at preserved
-      initial settings. Subphases 8.1–8.2 supply segmented attenuation and depth-correct transmission
-      filtering; measured costs and contention are recorded in that checklist, with final acceptance
-      still open. Outstanding subphases 8.3–8.4 cover generation sampling/footprints and projection
-      stability. Phase 9 moves perturbation octaves to
+      initial settings. Subphases 8.1–8.3 supply segmented attenuation, depth-correct transmission
+      filtering and bounded generation allocation; measured costs, rejected area sampling and
+      contention are recorded in that checklist, with final acceptance still open. Outstanding
+      subphase 8.4 covers projection stability. Phase 9 moves perturbation octaves to
       a static volumetric noise texture; Phase 10 improves temporal retention and evaluates LumOn
       reprojection/invalidation reuse. Phase 11 retains final qualification.
       Implementation phases use cached incremental builds, affected-contract checks and existing
@@ -246,7 +246,8 @@ Tasks
       Native leaves retain owned coarse min/max height summaries.
     - Reduced tracing uses certified root-height rejection with direct native-support fallback.
       Primary root misses reject whole rays without changing the sample span/count/jitter; solar/lunar
-      roots skip proven-empty scheduled positions. Production has no column DDA or tree descent.
+      roots skip proven-empty scheduled positions. Primary and retained secondary transport have no
+      column DDA or tree descent; cache generation uses a bounded native-support walk on short chords.
       Primary sampling is independent of summary availability. Archived automated integration qualification
       applies to its recorded candidate; total GPU benefit and user-run
       live acceptance remain open, so this parent item is not complete.

@@ -26,6 +26,9 @@ float MeasuredShadowDensity(vec3 point,ivec2 cell,vec4 data,inout CloudDensityCa
 @import "../includes/cloud_volume_light.glsl"
 #undef CloudDensity
 @import "../includes/cloud_volume_primary.glsl"
+#define CloudDensity MeasuredShadowDensity
+@import "../includes/cloud_shadow_support.glsl"
+#undef CloudDensity
 layout(local_size_x=1) in;
 layout(std140) uniform CloudRayTestInputs { vec4 testOriginLimit; vec4 testDirectionMode; };
 
@@ -94,6 +97,20 @@ void main()
         intervals[index]=vec4(sum,admitted,0);return;
     }
     counts=vec4(0); measuredOrigin=testOriginLimit.xyz;
+    if(testDirectionMode.w==18.0)
+    {
+        vec3 origin=testOriginLimit.xyz,direction=normalize(testDirectionMode.xyz);
+        vec2 clipped,chord=vec2(0);float length=0.0,tau=0.0;bool valid=true;
+        vec4 opticalDepth[4];for(int group=0;group<4;group++)opticalDepth[group]=vec4(0);
+        if(CloudShadowDomainSpan(origin,direction,testOriginLimit.w,clipped))
+        {
+            valid=CloudShadowSupportMeasure(origin,direction,clipped,chord,length);
+            if(valid)valid=CloudShadowSupportIntegrate(origin,direction,clipped,chord,length,
+                int(volumeSamples.y),8,1.0,opticalDepth,tau);
+        }
+        intervals[401]=vec4(chord,CloudShadowSupportCount(length,int(volumeSamples.y)),0);
+        counts=vec4(length,measuredSamples,tau,valid?1.0:0.0);return;
+    }
     if(testDirectionMode.w==15.0)
     {
         vec2 transmission;

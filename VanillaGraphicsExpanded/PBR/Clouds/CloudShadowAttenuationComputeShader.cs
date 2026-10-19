@@ -6,18 +6,22 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
 /// <summary>Owns bounded same-frame light-space attenuation generation for cloud tracing.</summary>
-[ShaderProgram("Contract","cloud_shadow_cache",1)]
+[ShaderProgram("Contract","cloud_shadow_cache",3)]
 [ShaderStage("Contract",ShaderStageKind.Compute,"cloud_shadow_cache.csh")]
+[ShaderUse("Contract",ShaderStageKind.Compute,nameof(GenerationPolicy))]
 internal sealed partial class CloudShadowAttenuationComputeShader : GpuComputeProgram,ICloudShadowAttenuationComputeBindings
 {
     private readonly PackedUniformBuffer traversal=new(16),inputs=new(16);
     private CpuUniformBuffer? volume;
     #region Public API
+    /// <summary>Selects bounded support allocation by default, with retained uniform and area diagnostic variants.</summary>
+    [ShaderOption("VGE_CLOUD_SHADOW_POLICY",1,Domain=new object[]{0,1,2})]
+    internal static partial ShaderOption<int> GenerationPolicy {get;}
     /// <summary>Creates the cloud executable using production compute preparation.</summary>
-    internal static CloudShadowAttenuationComputeShader Create(ICoreAPI api)
+    internal static CloudShadowAttenuationComputeShader Create(ICoreAPI api,int policy=1)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
-        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract),out var pipeline,out string log,
+        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract).With(GenerationPolicy,policy),out var pipeline,out string log,
             "Cloud.ShadowAttenuation",layout:layout))throw new InvalidOperationException(log);
         return new(pipeline!);
     }

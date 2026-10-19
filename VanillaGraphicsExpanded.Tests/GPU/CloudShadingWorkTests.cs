@@ -16,7 +16,7 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
 {
     #region Public API
     #region Reusable attenuation diagnostics
-    /// <summary>Measures a disposable light-space attenuation prototype, including rebuilds and explicit source/map invalidation.</summary>
+    /// <summary>Pairs retained uniform generation with one bounded allocation or footprint policy and validates cache invalidation.</summary>
     [Fact]
     public void ShadowAttenuationPrototypeCosts()
     {
@@ -30,7 +30,10 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
         if(Environment.GetEnvironmentVariable("VGE_CLOUD_MEASUREMENT_LUMON") is string selected)
             VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.GenerationLumOnEnabled=selected=="1";
         using var programs=new ComponentShaderPrograms();
-        var builder=programs.CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api));
+        int policy=int.TryParse(Environment.GetEnvironmentVariable("VGE_CLOUD_CACHE_POLICY"),out int selectedPolicy)?selectedPolicy:1;
+        Assert.InRange(policy,0,2);
+        var builder=programs.CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api,policy));
+        var baselineBuilder=programs.CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api,0));
         int segments=int.TryParse(Environment.GetEnvironmentVariable("VGE_CLOUD_CACHE_SEGMENTS"),out int selectedSegments)
             ?selectedSegments:CloudShadowCache.DepthSegments;
         Assert.True(segments is 8 or 16,"Cache depth segments must be 8 or 16.");
@@ -48,15 +51,17 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
             using var oldRoot=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(programs.Api));
             using var newRoot=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(programs.Api));
             using var target=DynamicTexture2D.Create(256,256*(1+segments/4),PixelInternalFormat.Rgba32f);
+            using var baselineTarget=DynamicTexture2D.Create(256,256*(1+segments/4),PixelInternalFormat.Rgba32f);
             using var timer=new CloudPerformanceTimer();using var rootEnd=GpuTimestampQuery.Create();
             using var start=GpuTimestampQuery.Create();using var end=GpuTimestampQuery.Create();
             var oldTimes=new List<double[]>();var newTimes=new List<double[]>();
-            // The second meaningful source remains marched; the cache is rebuilt for each published map.
+            // Both policies rebuild their cache for each publication; alternating pair order
+            // separates generation changes from unchanged transport and lookup work.
             for(int round=-3;round<5;round++)foreach(bool old in (round+3)%2==0?new[]{true,false}:new[]{false,true})
             {
                 var scene=old?before:after;
                 scene.Capture((uint)(round+3),.125f,night?.001f:1847,1,0,"detail-lit");
-                if(grazing)scene.AuthorHierarchyColumns(false);
+                if(grazing||scenario.Contains("sparse"))scene.AuthorHierarchyColumns(false);
                 if(layered||thin)
                 {
                     // Separate native banks expose depth gaps; a shallow supported layer
@@ -73,20 +78,27 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
                 }
                 scene.SetDirectionalLights(sun,Vector3.Normalize(new(-.897f,.346f,-.274f)),3,solar,lunar);
                 start.Issue();long cpu=Stopwatch.GetTimestamp();timer.Begin();
-                if(old){scene.UseHierarchy(oldRoot);rootEnd.Issue();}
+                if(old)scene.BuildShadowCache(baselineBuilder,oldRoot,baselineTarget,64,night?1:0,rootEnd);
                 else scene.BuildShadowCache(builder,newRoot,target,64,night?1:0,rootEnd);
                 timer.ConstructionComplete();
-                if(old)scene.Render(0,false);else scene.RenderShadowCache(0,false);
+                scene.RenderShadowCache(0,false);
                 double submit=Stopwatch.GetElapsedTime(cpu).TotalMilliseconds;
                 double[] values=timer.End(end);long first=start.GetResultNanoseconds();
                 double[] sample=[..values,(rootEnd.GetResultNanoseconds()-first)/1e6,(end.GetResultNanoseconds()-first)/1e6,submit];
                 if(round>=0)(old?oldTimes:newTimes).Add(sample);
             }
             var reference=before.ReadTraceRecord();var approximate=after.ReadTraceRecord();
-            var baselineParameters=before.ReadTraceParameters();var cacheParameters=after.ReadShadowCacheParameters();
+            var baselineParameters=before.ReadShadowCacheParameters();
+            var cacheParameters=after.ReadShadowCacheParameters();
             float[] cache=target.ReadPixels();
             int empty=Enumerable.Range(0,target.Width*target.Width).Count(i=>cache[i*4+3]==(night?2:1)&&cache[i*4+2]==0);
             int occupied=Enumerable.Range(0,target.Width*target.Width).Count(i=>cache[i*4+2]>0);
+            int valid=Enumerable.Range(0,target.Width*target.Width).Count(i=>cache[i*4+3]==(night?2:1));
+            int invalid=target.Width*target.Width-valid;
+            int validOccupied=Enumerable.Range(0,target.Width*target.Width)
+                .Count(i=>cache[i*4+3]==(night?2:1)&&cache[i*4+2]>0);
+            float[] chordLengths=Enumerable.Range(0,target.Width*target.Width)
+                .Where(i=>cache[i*4+1]>cache[i*4]).Select(i=>cache[i*4+1]-cache[i*4]).Order().ToArray();
             Assert.True(occupied>0,"The prototype must generate nonempty attenuation.");
             // A changed light invalidates the cached source, while a new native publication must also disable its root.
             after.SetDirectionalLights(Vector3.UnitY,-Vector3.UnitY,3,25,5);
@@ -104,11 +116,17 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
             var receipt=new {scenario,width,height,nativeWidth=200,field=layered?"separated native banks":thin?"two-unit shallow layer":grazing?"sparse stepped columns":"uniform native columns",grazing,
                 cacheWidth=256,depthSegments=segments,storageBytes=target.Width*target.Height*16,quadrature=64,solar,lunar,controls,warmups=3,pairs=5,baselineParameters,cacheParameters,
                 columns=new[]{"constructionGpuMs","traceGpuMs","temporalGpuMs","resolveGpuMs","drawTotalGpuMs","rootGpuMs","wholeGpuMs","submitCpuMs"},
-                baseline=oldTimes,current=newTimes,empty,occupied,sourceFallback,mapFallback,recoveredAfterRebuild=true,
+                baseline=oldTimes,current=newTimes,baselinePolicy=0,currentPolicy=policy,
+                baselineGenerationAndBarrierGpuMs=oldTimes.Select(row=>row[0]-row[5]),
+                currentGenerationAndBarrierGpuMs=newTimes.Select(row=>row[0]-row[5]),
+                empty,occupied,valid,invalid,validOccupied,chords=new {count=chordLengths.Length,minimumWorld=chordLengths.FirstOrDefault(),
+                    medianWorld=chordLengths.Length==0?0:chordLengths[chordLengths.Length/2],maximumWorld=chordLengths.LastOrDefault(),
+                    maximumUniformSpacingWorld=chordLengths.LastOrDefault()/64},
+                sourceFallback,mapFallback,recoveredAfterRebuild=true,
                 maximumAbsoluteDifference=reference.Zip(approximate,(a,b)=>a.Zip(b,(x,y)=>Math.Abs((double)x-y)).Max()).ToArray(),
                 lumOn=VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.LumOnEnabled,fixture.GLRenderer,
                 gamePids=Process.GetProcessesByName("Vintagestory").Select(p=>p.Id).ToArray(),
-                qualification="Opt-in segmented attenuation approximation against retained marching, fixed narrow projection and declared synthetic native field. Includes same-frame root/cache generation and barriers. Differences diagnostic, no appearance gate or live FPS claim."};
+                qualification="Opt-in selected generation policy against retained uniform cached generation, fixed narrow projection and declared synthetic native field. Generation includes dispatch/activation/barrier after root; trace includes lookup plus transport; whole is independently timestamped. Differences diagnostic, no appearance gate or live FPS claim."};
             File.WriteAllText(Path.Combine(directory,scenario+".json"),JsonSerializer.Serialize(receipt,new JsonSerializerOptions{WriteIndented=true}));
             output.WriteLine($"Shadow cache {scenario} complete, occupied={occupied}, empty={empty}.");
         }

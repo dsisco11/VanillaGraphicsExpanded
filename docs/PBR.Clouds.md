@@ -91,7 +91,8 @@ the absolute root heights and the ray's absolute vertical coordinate bound over 
 This admits boundary uncertainty, including near-parallel rays, instead of losing inclusive native
 support. Near-parallel rays compare both finite-span heights instead of assuming constant height;
 nonfinite root heights retain direct checks. The tolerance does not depend on grid-crossing clocks.
-No column DDA or repeated root-to-leaf descent participates in transport. Lower summary mips are
+No column DDA or repeated root-to-leaf descent participates in primary or retained secondary transport.
+Cache generation has its own bounded native-support walk, described below. Lower summary mips are
 reduction intermediates for the root, rather than a second integration schedule.
 
 `cloud_volume_light.glsl` uses deterministic arithmetic midpoints of quadratic distance intervals.
@@ -110,14 +111,38 @@ Reference and reduced transport share the `VGE_CLOUD_SELF_SHADOWING` compile-tim
 quality zero selects a precompiled variant with shadow marches and cache lookup code excluded.
 The CPU owner skips attenuation generation and releases its resources when disabled. `CloudShadowCache`
 owns a persistent RGBA32F atlas with the selected width and three times that height, and
-regenerates it before each admitted trace, using 64 density samples per map ray. Projection covers
+regenerates it before each admitted trace, using at most 64 density evaluations per texel. Projection covers
 the finite native map and certified root heights independently of scene depth or camera visibility.
 The first square tile records each ray's supported chord endpoints, total optical depth and
 selected-source validity. Two more tiles pack eight equal-depth segment optical depths in RGBA,
 for 3, 12 or 48 MiB of texture payload respectively. Changing quality retires incompatible storage;
-disabling caching releases its resources and skips generation. Each of the same 64 midpoint density
-samples contributes to its original integration interval; overlap splits that contribution across
-segment boundaries.
+disabling caching releases its resources and skips generation.
+
+Generation estimates crossed native columns from the root-clipped chord as
+`1 + ceil(abs(light.x) * length / 50) + ceil(abs(light.z) * length / 50)`.
+Estimates above 16 retain the original 64 uniformly weighted midpoint evaluations across that chord.
+This avoids expensive native-grid scans on long or grazing rays; narrow or disjoint features can
+still be missed by that finite lattice. Eligible shorter rays walk native columns twice: first to
+measure occupied geometric arc length, then to integrate it. Empty native columns and vertically
+disjoint intervals do not spend density evaluations. Exact-zero slab clipping admits small nonzero
+directions that enter the domain or a column's height interval over the finite ray.
+
+For occupied length L, allocation is `min(64, max(1, ceil(L / 50)))`, with no samples for empty support.
+Each midpoint is located on occupied arc length. Its represented weight is split across the actual
+disjoint support intervals and depth bins, without assigning extinction to gaps or multiplying the
+budget per column. World-length weights convert to metres exactly as in other cloud integration.
+Each support pass has a defensive 401-column limit for the maximum 200x200 native grid; the geometric
+estimate limits ordinary selected walks to short chords. An incomplete walk makes that cache record
+unavailable and selects bounded marching. Zero sampled density never certifies native support empty:
+metadata retains the native supported chord even if all sampled optical contributions vanish.
+
+The shared full-frequency density definition remains unchanged. A diagnostic generation variant
+evaluates two opposite quarter-texel footprint rays with half the total density budget each and equal
+weights. Both rays clip independently; their density integrals contribute to a common chord's bins.
+This is a bounded filtered-density approximation, not an average of ray transmissions or exact area
+integration. It reduces axial samples per ray and can miss unsampled footprint structure. Its measured
+generation overhead prevented production selection; ordinary generation uses the center ray. Static
+noise prefiltering and final appearance/performance qualification remain tracked in the realtime plan.
 Lookup evaluates a texel-center 2x2 bilinear footprint. Each contributing ray intersects the query's
 finite shadow-distance window with its own depth segments, assuming uniform extinction only within
 each segment. Direct and approximate-octave transmissions are exponentiated separately for each ray,

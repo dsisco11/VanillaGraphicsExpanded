@@ -18,7 +18,7 @@ public sealed class CloudShadowSegmentTests(HeadlessGLFixture fixture) : RenderT
     {
         EnsureContextValid();
         using var programs=new ComponentShaderPrograms();
-        using var builder=programs.CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api));
+        using var builder=programs.CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api,0));
         using var probe=new CloudTraversalProbe(programs.Api);
         using var volume=new CloudVolumeParameters();
         using var scene=new CloudReconstructionScene(9,9,programs,false,20,

@@ -473,25 +473,25 @@ Phase 8.3: Improve cache-generation sampling and footprint handling
   Depends on Phase 8.2. Outcome: generation spends bounded work deliberately across supported chords.
   Validation: incremental affected-variant build, focused support/weight checks and the bounded
     diagnostics below; reuse baseline evidence. No full baseline rebuild or release package gate.
-  ☐ Diagnose actual chord lengths, occupied support, sample spacing and projected texel footprints.
+  ☑ Diagnose actual chord lengths, occupied support, sample spacing and projected texel footprints.
     Include grazing light: 64 uniform points over 10,000 world units are 156.25 units apart, compared
     with 50-world-unit native columns. Separate missed support from lost depth representation.
-  ☐ Select a bounded allocation policy using chord length, conservative support and footprint.
+  ☑ Select a bounded allocation policy using chord length, conservative support and footprint.
     - Specify interval weights and units, maximum work and handling of disjoint support/thin layers.
       Support subdivision must not multiply the per-ray budget per column or certify unsampled
       intervals empty merely because sampled density was zero. Account for support-query overhead.
     - Compare allocation changes against the existing 64-sample generation budget before separately
       evaluating a higher cap or resolution. Do not raise counts to satisfy retired quality tests.
-  ☐ Evaluate footprint-aware shadow-density detail or bounded area sampling as an explicit changed
+  ☑ Evaluate footprint-aware shadow-density detail or bounded area sampling as an explicit changed
     approximation. Point samples of full-frequency procedural detail do not constitute filtering.
     Preserve cubic envelopes, connected faces, native bounds, wind and periodic anchoring; retain
     primary/reference density behavior unless a separate policy change is approved. Keep admission
     bounds conservative for the selected shadow approximation and avoid repeated per-view generation.
-  ☐ Reuse focused checks for weighted constant fields, units, work bounds and conservative support.
+  ☑ Reuse focused checks for weighted constant fields, units, work bounds and conservative support.
     Compare allocation and footprint alternatives separately in opt-in long/grazing, layered,
     dense/sparse and held-out night diagnostics. Record generation, lookup and independently timed
     total costs and all regressions; no approximation-quality assertions or combinatorial test matrix.
-  ☐ Completion: a documented bounded policy is implemented, focused checks and matched costs exist,
+  ☑ Completion: a documented bounded policy is implemented, focused checks and matched costs exist,
     and second review/independent audit cover support and density contracts. Phase 11 owns acceptance.
 
 Phase 8.4: Stabilize cache projection and reconcile the lighting upgrades
@@ -1996,3 +1996,92 @@ Transmission filtering receipts (2026-10-19)
   Review -> second code/document review and independent audit-stage-completion are clear, including
     direct source/document consultation, boundary diagnostics, baseline reproduction, all frozen inputs
     and actual package identity. Phase 8.2 is complete; later subphases and Phase 11 remain unchecked.
+
+Bounded generation and footprint receipts (2026-10-19)
+  Traceability -> Phase 8.3 and inherited authority -> volumetric proposal/checklist e87de94d
+    (Column-data interpretation, Density integration and lighting, Publication and native lifecycle),
+    hierarchy proposal/checklist f66895c6 (Representation, Ownership and publication), atmospheric
+    publication and current PBR.Clouds.md -> native geometric support/units, shared anchored density,
+    same-frame certified sources, unchanged primary/reference transport and six-target OIT. These
+    map to cloud_shadow_support.glsl, cloud_shadow_cache.csh and the typed generation program.
+  Diagnosis -> artifacts/CloudRealtime/phase8.3/support-footprints.json and derive-support.cjs ->
+    independent CPU slab intersections against authored native geometry at 25 selected logical pixels
+    per case, including center and both proposed area rays. These are geometric diagnostics, not CPU
+    readback of the native map or observed work counts for every GPU ray. Root chord, occupied length,
+    disjoint intervals, uniform-64 support hits, count/spacing and projection footprint are separate.
+    Day footprint is 48.027x19.442 world units with maximum selected occupied length 124.66;
+    grazing is 48.027x.751 with maximum occupied 4631.58 versus root chord 10371.91. The latter's
+    uniform-64 spacing can exceed 162 world units, versus 50-world-unit native columns. Layered and
+    thin selected chords reach 10000, with a 300-unit gap in the layered field. Segment storage cannot
+    recover matter absent from sampled density; exact support discovery has its own measurable cost.
+  Allocation -> production policy 1 estimates horizontal column visits conservatively from the
+    root-clipped chord: 1+ceil(abs(light.x)*length/50)+ceil(abs(light.z)*length/50). Estimates above 16
+    retain the original bounded uniform generator without scanning columns. Eligible shorter rays
+    measure native occupied arc length, then sample min(cap,max(1,ceil(occupiedLength/50))) midpoints
+    on that arc. The cap remains 64 per complete texel ray, not per column. Each sample's weight is
+    divided across its represented native intervals and depth bins; gaps contribute no weight.
+    The estimate selects uniform fallback in 23/25 sampled grazing centers and all sampled layered/
+    thin centers. Selected day/night centers need at most three density evaluations, sparse four.
+    These sampled counts are derived diagnostics; GPU work bounds are checked independently.
+  Support and units -> exact-zero cache-local slab clipping covers tiny nonzero horizontal and
+    vertical crossings without altering primary/reference helpers. Each native-support pass has a
+    defensive 401-column limit (802 queries per center ray before density-neighbor queries). Failed
+    walks publish unavailable records and select bounded marching. Zero procedural samples cannot
+    certify native support empty; metadata retains the geometric chord. World-length weights use
+    the existing metres conversion. Source selection, publication/barriers/lifetimes, noise anchoring,
+    weather, user controls, primary/secondary schedules, OIT and temporal policy remain unchanged.
+  Footprint decision -> initial/ contains separate pure-support-center and two-area-ray trials.
+    The area variant uses opposite quarter-texel points, independent clipping/support and equal
+    density weights, splitting the same 64-evaluation cap into at most 32 per ray. It averages density
+    integrals, not transmissions, and loses axial resolution; two points are not exact area filtering.
+    Unrestricted scans regress generation sharply: grazing pure-support 1.621 ms and area 6.383 ms
+    versus about .13 ms uniform; layered .735/1.100 and thin .713/1.175 ms versus about .10-.12.
+    Full raw cases/regressions remain in initial/generation-summary.json. These exploratory trials
+    predate the selected hybrid guard; their policy-1 label is not the final immutable policy-1 shader.
+    Area sampling is rejected for production cost; point-sampled full-frequency detail is not claimed
+    to be prefiltered. The static noise/footprint work and user appearance review remain separate.
+  Selected costs -> policy1/, generation-summary.json -> RTX4090/OpenGL4.3 NVIDIA610.88, 512x256 view,
+    native width 200, logical 256 cache/eight segments, 64 cap, unchanged uploaded settings, three
+    warmups/five alternating pairs against retained uniform policy 0 in the same process. Generation
+    plus barriers is construction minus separately timed root; trace includes lookup and transport;
+    whole is independently timestamped. GPU medians in ms (uniform -> selected):
+      Case       Generation/barriers     Whole renderer
+      Day        .1454 -> .0563           3.507 -> 3.305
+      Grazing    .1341 -> .2263           2.350 -> 2.778
+      Layered    .1290 -> .2150           7.346 -> 9.487
+      Thin       .1044 -> .1649           2.204 -> 2.256
+      Sparse     .1300 -> .0870           2.523 -> 4.121
+      Night      .1454 -> .0553           3.525 -> 3.118
+    The guard avoids the large scan penalties but long-ray generation still regresses about .06-.09 ms.
+    Raw paired distributions, construction, trace, temporal, resolve, CPU and total samples retain all
+    regressions. Game processes remained running as requested, with externally changing PIDs recorded
+    per case; large unrelated temporal variations contaminate whole medians. Neither apparent total
+    savings nor regressions establish isolated native performance, and no blanket speedup is claimed.
+    All six selected-policy caches have 65536 valid source records and zero invalid records. Source/map
+    revocation and rebuild recovery pass; radiance differences are diagnostic, optical/support payload
+    differences zero. This is changed finite quadrature, not an exact-output optimization.
+  Lookup -> lookup/lookup.json -> existing isolated 400x64-query diagnostic, nearest/filtered medians
+    .063488/.233472 ms, separately from generation and total transport. Production trace/temporal/
+    resolve/root shader identities are retained; the fixture executable changed to expose support tests,
+    so this diagnostic was rerun rather than assigning old fixture timings to a new binary.
+  Correctness -> focused.trx, hybrid-focused.trx and uniform-recheck.trx -> eight unique ordinary
+    checks pass with applicable unchanged evidence reused. Final focused rechecks cover actual sample
+    cap saturation, gaps, reverse/vertical/diagonal and tiny-direction crossings, two-metres/world
+    conversion, short-chord generation/area weights, long-chord finite fallback and both PBR recovery
+    cases; retained mixed-density/8-and-16-bin/source/window arithmetic also passes after refactoring.
+    One new ordinary fact reuses the typed traversal/program/resource fixtures. No approximation-quality,
+    smoothness, convergence or timing gates were added; existing opt-in diagnostics supply comparisons.
+  Validation scope -> cached incremental Release builds only; the final algorithm build compiles three
+    production and three test variants, retaining other cached outputs. No clean baseline rebuild,
+    canonical release/package build or game action was performed. Current-state architecture and the
+    parent checklist describe the selected hybrid and rejected area tradeoff. Phase 11 retains final
+    packaging, user appearance and native whole-frame performance acceptance.
+  Identity/review -> final-identity.json, measured-identity.json and initial/identity.json distinguish
+    final selected binaries from recovered exploratory shader binaries. The final runtime DLL SHA256
+    is F8793A845E47EB99E6A89487E32D06EB3ABA33B3F3C41866E7F6B3EA95512F45; ten prior cloud binaries
+    remain unchanged. The last test-only edit changes the diagnostic's default policy from 2 to 1;
+    measured runs explicitly selected their policy, so their paths and runtime/shaders are unaffected.
+    Its cached build reuses all 463 production/544 fixture variants without compiler invocations.
+    Initial whole-runtime identity was not frozen; those trials are exploratory, with exact shader
+    binaries recovered separately. Second review and independent audit are clear for the selected
+    policy, linked contracts and scoped evidence. Phase 8.3 is complete; later work remains unchecked.
