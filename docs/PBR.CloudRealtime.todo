@@ -20,7 +20,7 @@ Authority and scope
   current correctness-only test policy; they are retained as historical measurements.
   User direction (2026-10-19): Quarter is now the default tracing selection, superseding inherited
     Half-default requirements. Explicit saved Half remains supported without migration. New cache
-    work in Phases 8.5/8.6 replaces segmented per-neighbor transmission evaluation with a compact
+    work in Phase 8.5 replaces segmented per-neighbor transmission evaluation with a compact
     one-fetch record and hardware filtering of its parameters; prior receipts remain historical.
   Runtime implementation belongs to the subsequent increments; completion requires their own evidence.
   Use bounded ray budgets, reduced tracing, practical termination and amortized transport
@@ -552,6 +552,13 @@ Phase 8.5: Replace segmented self-shadow storage with a compact single-fetch rec
     - Preserve committed native map/root/light identity, off-camera support, write/sample barriers,
       quality sizes, resource recovery/retirement and current rebuild cadence. No shadow history.
   ☑ Replace segment lookup with one hardware-filtered record sample and its finite-window evaluation.
+    - Use the typed linear sampler at explicit LOD zero. Filter front depth, mean extinction and
+      maximum optical depth before evaluating the finite window and two attenuation responses.
+      One shader sample still filters neighboring texels internally; it is not one physical memory read.
+    - Admit only complete generated footprints between outer texel centers; empty records are valid,
+      but edge-crossing or unavailable coverage uses bounded fallback without border extension.
+      Filtering parameters changes layer/edge shadows compared with averaging transmissions;
+      preserve projection, finite distance, OIT/encoding and continuous visible-cloud history.
     - Retain direct and additional-octave attenuation from the same resulting tau, both meaningful
       lights, existing source admission and bounded marching for unavailable/uncovered queries.
       ShadowQuality zero continues to compile out self-shadow paths, including reference marching.
@@ -560,52 +567,19 @@ Phase 8.5: Replace segmented self-shadow storage with a compact single-fetch rec
       normal rendering. Use existing typed GPU abstractions; add no raw GL or generic cache framework.
   ☑ Reuse focused checks for authored compact-record arithmetic, finite windows, empty/invalid inputs,
     physical units, source/publication revocation, quality zero and recovery in both PBR modes.
+    Verify hardware parameter interpolation and resulting attenuation against independent arithmetic,
+    including varying/empty records and borders, through actual typed samplers and program owners.
     Measure generation/barriers, lookup/trace, temporal/resolve, independent total, CPU and storage at
     matched explicit controls. Report all regressions and approximation changes without quality gates.
+    Reuse the frozen segmented comparison, including night/grazing cases and tested shader identities;
+    no additional nearest diagnostic or repeated validation is required without an unresolved finding.
   ☑ Completion: compact storage and a one-fetch hardware-filtered lookup replace segmented reconstruction,
     with updated current architecture/parent, tested identities, second review and independent audit.
-    Phase 8.6 reconciles remaining filtering qualification; live acceptance remains in Phase 11.
-
-Phase 8.6: Qualify hardware-filtered compact shadow parameters
-  Depends on Phase 8.5. User direction includes hardware filtering in Phase 8.5; this follow-up
-    qualifies remaining boundary/appearance/cost tradeoffs using that implementation and its evidence.
-    The hot path already samples compact parameters once, then evaluates attenuation.
-  Validation: cached incremental affected-variant build and focused sampling/boundary checks.
-    Reuse existing opt-in combined diagnostics and frozen assets; no redundant baseline rebuild,
-    test matrix or release packaging. Builds/tests run through subagents; final qualification is Phase 11.
-  ☐ Reuse Phase 8.5 evidence to verify the linear sampler and explicit LOD-zero implementation.
-    - Sample all compact parameters together with one texture operation. Remove the manual 2x2
-      neighbor loop, independent depth reconstruction and per-neighbor exponentials. Hardware still
-      filters neighboring texels internally; one shader sample does not mean one physical memory read.
-    - Apply finite-window tau evaluation to the filtered record, then compute direct and octave
-      transmissions once each. Parameters are filtered before attenuation; do not keep transmission
-      averaging as the production path or add a runtime user toggle between the two algorithms.
-  ☐ Define projected footprint, empty-edge and unavailable/out-of-map behavior explicitly.
-    - Preserve whole-cache source/publication validity from Phase 8.5. Never interpolate validity,
-      source identities or unavailable sentinels. Admit only footprints covered by valid generated
-      records; retain bounded fallback for uncertain coverage instead of implicit border extension.
-    - Document that filtering front depth, extinction and saturation parameters differs from filtering
-      transmission and can change layer/edge shadows. Do not claim exact area integration, preserved
-      gaps or same-output savings; no approximation-quality acceptance thresholds are permitted.
-    - Keep current projection, finite ShadowDistance, both physical source responses, OIT/encoding,
-      continuous visible-cloud history and compiled quality-zero behavior unchanged.
-  ☐ Reuse small authored constant/varying/empty records to verify finite hardware-filtered parameter
-    interpolation and resulting attenuation against independent arithmetic, including borders and
-    source withdrawal. Use actual typed samplers/programs/resources. Prune superseded filter tests
-    and magic-number fixture modes instead of growing a parallel test suite or diagnostic framework.
-  ☐ Reuse the compact hardware-filtered versus frozen segmented comparison from Phase 8.5.
-    Add a compact-nearest diagnostic only if an unresolved filtering cost requires it; it is never
-    a production option. Keep identical resolution, controls and source data.
-    Record actual selected shader identities, generation/barriers, lookup/trace, temporal/resolve,
-    independent total, CPU and storage; include held-out night/grazing regressions. Reuse unaffected
-    evidence and report sampling-policy differences separately from implementation cost reductions.
-  ☐ Completion: the production cached source uses one hardware-filtered compact-record sample and
-    attenuation evaluated afterward. Reconcile architecture, parent and superseded active contracts;
-    focused checks, tested identities, second review and independent audit pass. Native performance,
-    moving-light/layered/edge appearance and remaining tradeoffs stay open for Phase 11.
+    Hardware-filtering implementation and focused qualification are included; live appearance and
+    whole-renderer performance acceptance remain in Phase 11.
 
 Phase 8.7: Budget primary samples across the clipped cloud-layer intersection
-  Depends on Phase 8.6. Outcome: layer entry/exit determine the complete primary lattice and its
+  Depends on Phase 8.5. Outcome: layer entry/exit determine the complete primary lattice and its
     distance-scaled budget, replacing horizontal-domain budgeting followed by height-index skipping.
     This intentionally changes sample positions and weights; it is not an equivalent acceleration.
   Validation: cached incremental affected-variant builds and focused finite-algorithm checks through
@@ -661,7 +635,7 @@ Phase 8.7: Budget primary samples across the clipped cloud-layer intersection
     requirements explicitly. Final appearance and whole-renderer performance remain in Phase 11.
 
 Phase 9: Precompute cloud perturbation octaves in a static volumetric noise texture
-  Depends on Phase 8 and subphases 8.1–8.7. Outcome: cloud detail samples one static packed noise
+  Depends on Phase 8 and subphases 8.1–8.5 and 8.7. Outcome: cloud detail samples one static packed noise
     resource instead of evaluating procedural lattice hashes at each density sample.
   Validation: incrementally build affected consumers; verify the generated noise asset and focused
     integration contracts. Reuse procedural baseline assets; defer full reproduction/release ZIP to Phase 11.
@@ -775,7 +749,7 @@ Phase 10: Improve volumetric-cloud temporal filtering and retain compatible samp
     performance and user appearance acceptance. Do not claim a larger frame count guarantees improvement.
 
 Phase 11: Qualify the complete renderer and reconcile acceptance
-  Depends on Phase 10, Phase 9, Phase 8 and subphases 8.1–8.7. Outcome: the combined policy has reproducible quality
+  Depends on Phase 10, Phase 9, Phase 8 and subphases 8.1–8.5 and 8.7. Outcome: the combined policy has reproducible quality
     and performance evidence. The completed original Phase 8 does not qualify these later upgrades.
   Validation: this is the final full baseline-reproduction/canonical packaging gate, performed once
     against a frozen combined candidate. Reuse unchanged focused evidence and valid baseline provenance;
@@ -789,7 +763,7 @@ Phase 11: Qualify the complete renderer and reconcile acceptance
   ☐ Measure baseline versus final renderer with matched scenes/settings and separate quality labels.
     - Report each increment's effects where attributable; distinguish fewer pixels/samples and
       changed approximation quality from same-output traversal/implementation improvements.
-    - Include separated cloud layers and light-space grid/source transitions from subphases 8.1–8.7.
+    - Include separated cloud layers and light-space grid/source transitions from subphases 8.1–8.5 and 8.7.
       Explicitly qualify the compact parameter-filtered approximation replacing segmented lookup.
       Include the layer-intersection primary lattice, selected budget distance and uncertified-bound fallback.
       Keep diagnostic scene coverage opt-in rather than duplicating it across routine GPU suites.
@@ -820,7 +794,7 @@ Final acceptance
     Any selected attenuation cache has separately bounded construction, coverage and lookup costs.
   ☐ Lower-resolution tracing, amortized atmosphere, repeated density/phase work and acceleration
     each have delivered behavior or an evidence-backed disposition against the stated objective.
-  ☐ All six original performance findings, earlier density/phase findings and Phase 8/8.1–8.7/9/10 tasks
+  ☐ All six original performance findings, earlier density/phase findings and Phase 8, subphases 8.1–8.5 and 8.7, and Phase 9/10 tasks
     map to final receipts;
     any unimplemented improvement is explicitly recorded, not silently treated as complete.
   ☐ Native ownership/weather, cubic density support, physical lighting, foreground clips, temporal
@@ -2328,7 +2302,7 @@ Quarter-default and configuration correction (2026-10-19)
     covering defaults, explicit Half, invalid selection, history rejection and existing Quarter and
     recovery GPU checks in both PBR modes. No game launch/reload, timing or packaging is performed.
     This validates source/configuration contracts; live ConfigLib loading and changed-default
-    appearance/performance remain user-run qualification. Planned Phases 8.5/8.6 remain unchecked.
+    appearance/performance remain user-run qualification. At this receipt, Phase 8.5 implementation was still pending.
 
 Phase 8.5 compact cached attenuation receipt (2026-10-19)
   Contract -> this section, PBR.Clouds.md / same-frame attenuation, parent cloud item,
@@ -2388,5 +2362,5 @@ Phase 8.5 compact cached attenuation receipt (2026-10-19)
     Second review covers the full task/source mapping, streaming preflight/cap and sampler ordering.
     Independent audit passes with no unresolved findings after checking implementation, linked
     documents, focused evidence and identities. The five Phase 8.5 tasks are complete.
-    Remaining filtering qualification reuses this evidence in 8.6; live appearance, full renderer
-    performance and release/package qualification remain open in Phase 11.
+    Hardware-filtering requirements and their qualification are consolidated into Phase 8.5;
+    live appearance, full renderer performance and release/package qualification remain open in Phase 11.

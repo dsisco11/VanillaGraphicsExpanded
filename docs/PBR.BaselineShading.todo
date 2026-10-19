@@ -217,8 +217,8 @@ Tasks
       depth records with a single hardware-filtered parameter sample, bounded generation and
       transported per-source projection orientation. The approximation replaces separated layers/gaps with a mean ramp;
       finite ShadowDistance and same-frame source/publication validity remain intact. Hardware
-      filtering is included by explicit user direction; subphase 8.6 retains remaining qualification. Measured costs and final visual/performance
-      acceptance remain required. Planned subphase 8.7
+      filtering and its focused qualification are consolidated into subphase 8.5. Final visual and
+      whole-renderer performance acceptance remain in Phase 11. Planned subphase 8.7
       budgets primary samples over the clipped cloud-layer intersection, including measured selection
       of the budget distance to prevent unintended work increases and explicit uncertified-bound fallback.
       Quarter tracing is
