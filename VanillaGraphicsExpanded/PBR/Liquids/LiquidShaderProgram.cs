@@ -26,7 +26,7 @@ internal sealed partial class LiquidShaderProgram : GpuProgram, ILiquidPoolInput
     [ShaderOption("VGE_LIQUID_CAPTURE_MODE", 0, Domain = new object[] { 0, 1, 2, 3 })]
     internal partial int CaptureMode { get; set; }
     /// <summary>Selects the precompiled UV or x2/x4/x8 receiver algorithm at zero/one/two/three.</summary>
-    [ShaderOption("VGE_WATER_REFRACTION_QUALITY", 3, Domain = new object[] { 0, 1, 2, 3 })]
+    [ShaderOption("VGE_WATER_REFRACTION_QUALITY", 2, Domain = new object[] { 0, 1, 2, 3 })]
     internal partial int RefractionQuality { get; set; }
     /// <summary>Selects precompiled half-source metadata decoding at one or full-source reconstruction at two.</summary>
     [ShaderOption("VGE_WATER_BACKGROUND_RESOLUTION", 2, Domain = new object[] { 1, 2 })]

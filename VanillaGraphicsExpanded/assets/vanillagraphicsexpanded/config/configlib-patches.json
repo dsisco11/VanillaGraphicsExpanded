@@ -45,7 +45,7 @@
         "name": "WaterRefractionEnabled",
         "ingui": "vanillagraphicsexpanded:config-water-refraction",
         "comment": "vanillagraphicsexpanded:config-water-refraction-tooltip",
-        "default": false,
+        "default": true,
         "weight": 0.2
       },
       "ENABLED": {
@@ -54,7 +54,7 @@
         "name": "LumOn/Enabled",
         "ingui": "vanillagraphicsexpanded:config-lumon-enabled",
         "comment": "vanillagraphicsexpanded:config-lumon-enabled-tooltip",
-        "default": true,
+        "default": false,
         "weight": 1.0
       },
       "ANCHOR_JITTER_ENABLED": {
@@ -223,7 +223,7 @@
         "name": "Clouds/ViewRaySampleMin",
         "ingui": "vanillagraphicsexpanded:config-cloud-view-minimum",
         "comment": "vanillagraphicsexpanded:config-cloud-view-minimum-tooltip",
-        "default": 2,
+        "default": 1,
         "weight": 25.21,
         "range": { "min": 1, "max": 16, "step": 1 }
       },
@@ -305,7 +305,7 @@
         "name": "WaterRefractionQuality",
         "ingui": "vanillagraphicsexpanded:config-water-quality",
         "comment": "vanillagraphicsexpanded:config-water-quality-tooltip",
-        "default": 3,
+        "default": 2,
         "weight": 0.3,
         "values": [0, 1, 2, 3]
       },
@@ -335,7 +335,7 @@
         "name": "Atmosphere/SkyLutQuality",
         "ingui": "vanillagraphicsexpanded:config-atmosphere-lut-quality",
         "comment": "vanillagraphicsexpanded:config-atmosphere-lut-resolution-tooltip",
-        "default": 0,
+        "default": 2,
         "weight": 22.0,
         "range": { "min": 0, "max": 3, "step": 1 }
       },

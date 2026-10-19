@@ -46,13 +46,13 @@ The publication owner validates the complete input generation before uploading a
 and publishes its reconstructed RGB bound with the textures. Camera exposure does not change C.
 
 Angular dimensions follow atmospheric quality: 32x24, 64x48, 96x72 or 128x96. Distance depth
-is fixed at 24. The paired RGBA16F aerial textures consume 432 KiB at default quality and
+is fixed at 24. The paired RGBA16F aerial textures consume 432 KiB at quality zero and
 6.75 MiB at maximum quality, per complete set. Sky storage is additional. Two resource sets
 allow upload into the spare set before atomically publishing all three texture IDs and the
 matching immutable lighting snapshot. Upload failure retains the previous complete set.
 
 The GPU queue output includes four lighting vectors, sky texels and both aerial arrays in
-RGBA32F: 909376 bytes at default quality, 14549056 bytes at maximum. Maximum buffer payload
+RGBA32F: 909376 bytes at quality zero, 14549056 bytes at maximum. Maximum buffer payload
 including the 64-byte parameters and 131072-byte source table is 14680192 bytes. Immutable
 CPU snapshots and the two display texture sets are additional. GPU results currently pass
 through the existing readback/publication path; this increases transfer costs as well as

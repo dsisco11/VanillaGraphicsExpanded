@@ -9,7 +9,7 @@ public sealed class AtmosphereSettings
 {
     /// <summary>Global sky quality from zero to three; atmospheric lookups and celestial resources share this selector.</summary>
     [JsonProperty]
-    public int SkyLutQuality { get; set; } = 0;
+    public int SkyLutQuality { get; set; } = 2;
 
     /// <summary>Azimuth resolution derived from the bounded quality level.</summary>
     internal int LookupWidth => AtmosphereLookup.DefaultWidth * (Math.Clamp(SkyLutQuality, 0, 3) + 1);

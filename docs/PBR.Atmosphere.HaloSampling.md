@@ -21,7 +21,7 @@ Multiple scattering, display conversion and texture precision were excluded to
 isolate angular interpolation. The diagnostic passed and its source was removed;
 output is retained in `artifacts/halo-sampling-diagnostic.log`.
 
-| Sun elevation | Default 32x24 row spacing | Default maximum relative RGB error | 128x96 maximum error |
+| Sun elevation | Quality-zero 32x24 row spacing | Quality-zero maximum relative RGB error | 128x96 maximum error |
 | --- | --- | --- | --- |
 | 45 degrees | 10.927 degrees | 5.414% | 0.564% |
 | 60 degrees | 12.293 degrees | 4.349% | 0.604% |
@@ -62,7 +62,7 @@ unconfirmed; live comparison is still required.
 
 ## Reconstruction validation
 
-The retained `AtmosphereMieTransportTests` comparison uses the default 32x24 grid,
+The retained `AtmosphereMieTransportTests` comparison uses the quality-zero 32x24 grid,
 altitude 0.001 km, aerosol 1, and solar direction `normalize(0.25, 1, 0.1)`.
 It compares cell-center interpolation across the upper sky against direct scalar
 single scattering. Split/original summed squared RGB error is 0.0851072, a 91.5%

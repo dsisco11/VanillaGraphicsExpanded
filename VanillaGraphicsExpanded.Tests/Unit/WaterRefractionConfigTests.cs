@@ -44,7 +44,7 @@ public sealed class WaterRefractionConfigTests
             WaterRefractionBackgroundScale = scale };
         config.Sanitize();
         Assert.True(config.WaterRefractionEnabled);
-        Assert.Equal(3,config.WaterRefractionQuality);
+        Assert.Equal(2,config.WaterRefractionQuality);
         Assert.Equal(2,config.WaterRefractionBackgroundScale);
     }
 
@@ -69,7 +69,7 @@ public sealed class WaterRefractionConfigTests
         }
         Assert.Equal(new[] {0,1,2,3},settings[codes[1]]["values"]!.Values<int>());
         Assert.Equal(new[] {1,2},settings[codes[2]]["values"]!.Values<int>());
-        Assert.Equal(3,settings[codes[1]]["default"]!.Value<int>());
+        Assert.Equal(2,settings[codes[1]]["default"]!.Value<int>());
         Assert.Equal(2,settings[codes[2]]["default"]!.Value<int>());
     }
 

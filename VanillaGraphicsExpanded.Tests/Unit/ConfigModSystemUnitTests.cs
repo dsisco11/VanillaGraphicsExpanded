@@ -180,7 +180,7 @@ public sealed class ConfigModSystemUnitTests
         eventData.SetString("MappingKey", "ENABLED");
         eventData.SetString("Value", value.Value<bool>() ? "true" : "false");
         var target = new VgeConfig();
-        Assert.True(target.LumOn.Enabled);
+        target.LumOn.Enabled = true;
         var applied = Apply(target, eventData, new Dictionary<string, string> { ["ENABLED"] = code });
         Assert.Equal(1, applied.applied);
         Assert.False(target.LumOn.Enabled);

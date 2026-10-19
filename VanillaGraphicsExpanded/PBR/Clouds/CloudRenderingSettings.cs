@@ -10,7 +10,7 @@ public sealed class CloudRenderingSettings
     /// <summary>Bounds complete-ray primary evaluations independently of native grid crossings.</summary>
     [JsonProperty] public int ViewRaySampleMax { get; set; } = 384;
     /// <summary>Retains a small bounded minimum on short positive-length primary spans.</summary>
-    [JsonProperty] public int ViewRaySampleMin { get; set; } = 2;
+    [JsonProperty] public int ViewRaySampleMin { get; set; } = 1;
     /// <summary>Defines the world distance over which the primary count reaches its maximum.</summary>
     [JsonProperty] public float ViewBudgetDistance { get; set; } = 50;
     /// <summary>Selects half or quarter view dimensions for tracing, with half-dimension reconstruction.</summary>

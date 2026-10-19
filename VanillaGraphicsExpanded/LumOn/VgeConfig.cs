@@ -613,7 +613,7 @@ public class VgeConfig
         /// Master enable for LumOn.
         /// </summary>
         [JsonProperty]
-        public bool Enabled { get; set; } = true;
+        public bool Enabled { get; set; } = false;
 
         // ═══════════════════════════════════════════════════════════════
         // Probe Grid Settings (SPG-001)
@@ -1411,11 +1411,11 @@ public class VgeConfig
 
     /// <summary>Enables bounded screen-space water refraction and optional opaque snapshots.</summary>
     [JsonProperty]
-    public bool WaterRefractionEnabled { get; set; } = false;
+    public bool WaterRefractionEnabled { get; set; } = true;
 
     /// <summary>Selects pixel-normal offset at zero or total ray-depth budgets x2/x4/x8 at one/two/three.</summary>
     [JsonProperty]
-    public int WaterRefractionQuality { get; set; } = 3;
+    public int WaterRefractionQuality { get; set; } = 2;
 
     /// <summary>Selects half-size water receiver buffers at one or full-size buffers at two, independently of quality.</summary>
     [JsonProperty]
@@ -1496,7 +1496,7 @@ public class VgeConfig
         Postprocessing.LocalExposure ??= new();
         ShadingQuality = PBR.ShadingQuality.Normalize(ShadingQuality);
         // Preserve the saved enable flag while restoring unsupported quality/resolution values to defaults.
-        if (WaterRefractionQuality is < 0 or > 3) WaterRefractionQuality = 3;
+        if (WaterRefractionQuality is < 0 or > 3) WaterRefractionQuality = 2;
         if (WaterRefractionBackgroundScale is not (1 or 2)) WaterRefractionBackgroundScale = 2;
         Debug ??= new DebugConfig();
         Debug.Sanitize();

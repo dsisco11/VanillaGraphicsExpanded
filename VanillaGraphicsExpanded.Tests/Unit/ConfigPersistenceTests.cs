@@ -136,10 +136,10 @@ public sealed class ConfigPersistenceTests
         Assert.NotNull(stored["MaterialAtlas"]!["TerrainSubdivision"]!["MaximumLevel"]);
         Assert.False(stored["LumOn"]!["Enabled"]!.Value<bool>());
         Assert.True(stored["WaterRefractionEnabled"]!.Value<bool>());
-        Assert.Equal(3,stored["WaterRefractionQuality"]!.Value<int>());
+        Assert.Equal(2,stored["WaterRefractionQuality"]!.Value<int>());
         Assert.Equal(2,stored["WaterRefractionBackgroundScale"]!.Value<int>());
         Assert.True(ConfigModSystem.Config.WaterRefractionEnabled);
-        Assert.Equal(3,ConfigModSystem.Config.WaterRefractionQuality);
+        Assert.Equal(2,ConfigModSystem.Config.WaterRefractionQuality);
         Assert.Equal(2,ConfigModSystem.Config.WaterRefractionBackgroundScale);
         api.Verify(x => x.StoreModConfig(It.IsAny<JObject>(), It.IsAny<string>()), Times.Once);
     }
@@ -232,7 +232,7 @@ public sealed class ConfigPersistenceTests
 
     /// <summary>ConfigLib uses bounded integer inputs without named mapping serialization.</summary>
     [Theory]
-    [InlineData("ATMOSPHERE_SKY_LUT_QUALITY", 0, 3, 0)]
+    [InlineData("ATMOSPHERE_SKY_LUT_QUALITY", 0, 3, 2)]
     [InlineData("TESSELLATION_MAXIMUM_LEVEL", 1, 8, 5)]
     [InlineData("TERRAIN_SURFACE_DETAIL_MODE", 0, 2, 1)]
     public void ControlsDeclareNumericBounds(string key, int minimum, int maximum, int defaultValue)

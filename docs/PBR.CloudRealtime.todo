@@ -395,7 +395,7 @@ Bounded quality policy (implementation contract)
       floor(ViewRaySampleMax*min(1,L/ViewBudgetDistance)))). Set ds=L/Nview. Sample positions are
       tStart+(i+jitter)*ds for i=0..Nview-1, with one blue-noise jitter in [0,1) shared along this ray.
       The history-free deterministic reference uses jitter=.5 on the same uniform distance lattice.
-    - Current primary controls are ViewRaySampleMax=384, ViewRaySampleMin=2 and
+    - Current primary controls are ViewRaySampleMax=384, ViewRaySampleMin=1 and
       ViewBudgetDistance=50 world units. Earlier tuning receipts remain historical; retired
       approximation thresholds do not justify increasing these controls. Final cost and
       appearance selection remains separate measured/manual work.

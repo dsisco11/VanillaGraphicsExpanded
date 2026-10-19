@@ -11,7 +11,7 @@ public sealed class CloudPrimarySettingsTests
     #region Public API
     /// <summary>Absent controls use current defaults and explicit current controls survive a save and load.</summary>
     [Theory]
-    [InlineData("{}",384,2,50)]
+    [InlineData("{}",384,1,50)]
     [InlineData("{\"ViewRaySampleMax\":120,\"ViewRaySampleMin\":7,\"ViewBudgetDistance\":500}",120,7,500)]
     public void CurrentDefaultsAndOverridesRoundTrip(string json,int maximum,int minimum,float distance)
     {

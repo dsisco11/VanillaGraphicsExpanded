@@ -69,7 +69,8 @@ dimensions linearly; its RGB payload ranges from 6 KiB to 96 KiB.
 count multiplied by `(quality + 1)`, preserving the baseline at quality zero. Quality
 therefore improves interpolation and angular, ray and solar-transmittance integration accuracy.
 These budgets compound: the nested solar-integration work bound scales as
-`(quality + 1)^5` (up to 1024 times the default at quality 3), while table storage scales as `(quality + 1)^2`.
+`(quality + 1)^5` (up to 1024 times quality zero at quality 3), while table storage scales as `(quality + 1)^2`.
+The configured default is quality 2: a 96x72 sky LUT and 96x48 multiple-scattering LUT.
 This is an operation-count bound, not a measured time prediction; high settings can have very long
 worker latency even with SIMD acceleration. Builds remain asynchronous, retain the previous displayed
 LUT and check cancellation between batched ray steps and ground evaluations.

@@ -729,7 +729,7 @@ Quality changes leave receiver allocations intact. Disable retains the existing 
 retirement gates. These controls affect refraction; they do not disable water geometry or medium lighting.
 
 `RefractionQuality` declares structural option `VGE_WATER_REFRACTION_QUALITY`, with finite
-domain `0..3` and default `3`. `RefractionBackgroundScale` declares
+domain `0..3` and default `2`. `RefractionBackgroundScale` declares
 `VGE_WATER_BACKGROUND_RESOLUTION`, with domain `1,2` and default `2`, matching persisted
 resolution choices rather than the snapshot owner's inverse divisor. Both are fragment-only
 `ShaderUse` entries. `CanTakeOwnership` batches both selections with `ConfigureOptions` before
@@ -798,13 +798,13 @@ assembly and SPIR-V output directories; it did not replace the running client's 
 
 | Persisted property | Values and default | Contract |
 | --- | --- | --- |
-| `WaterRefractionEnabled` | Existing Boolean, default `false` | Preserve existing saved values. Off is independent of quality. |
-| `WaterRefractionQuality` | Integer `0` = pixel-normal offset, `1` = x2, `2` = x4, `3` = ray march x8 (default) | Present the UI in lowest-to-highest order, labelled Water Quality. Values are stable identifiers, not loop counts. |
+| `WaterRefractionEnabled` | Existing Boolean, default `true` | Preserve existing saved values. Off is independent of quality. |
+| `WaterRefractionQuality` | Integer `0` = pixel-normal offset, `1` = x2, `2` = x4 (default), `3` = ray march x8 | Present the UI in lowest-to-highest order, labelled Water Quality. Values are stable identifiers, not loop counts. |
 | `WaterRefractionBackgroundScale` | Integer resolution choice `1` = half width and height, `2` = full size (default) | Independent of quality; all four qualities support both resolutions. Convert to the inverse size divisor at receiver ownership boundaries. |
 
 Missing leaves use these defaults through the existing `ConfigModSystem` load/default-materialization
 and `VgeConfig.Sanitize` paths. Preserve the current enable flag when migrating old documents.
-Unknown integer quality values reset to `3`; unsupported resolution choices reset to `2`, rather than silently
+Unknown integer quality values reset to `2`; unsupported resolution choices reset to `2`, rather than silently
 turning the feature off. Wrong JSON types follow the existing loader's error/recovery policy.
 Runtime changes are adopted as one
 frame-consistent settings snapshot; a resolution change invalidates publication before replacing

@@ -11,8 +11,8 @@ public sealed class AtmosphereResolutionTests
     #region Configuration
     /// <summary>Quality survives serialization, clamps safely and scales both dimensions linearly together.</summary>
     [Theory]
-    [InlineData("{}", 0, 32, 24)]
-    [InlineData("{\"Atmosphere\":null}", 0, 32, 24)]
+    [InlineData("{}", 2, 96, 72)]
+    [InlineData("{\"Atmosphere\":null}", 2, 96, 72)]
     [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":0}}", 0, 32, 24)]
     [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":1}}", 1, 64, 48)]
     [InlineData("{\"Atmosphere\":{\"SkyLutQuality\":2}}", 2, 96, 72)]

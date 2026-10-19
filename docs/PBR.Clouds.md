@@ -306,7 +306,7 @@ The persisted `Clouds` config and ConfigLib expose:
 | `FullResolutionReference` | false | Full view, midpoint transport, no history or upsampling; overrides trace scale |
 | `TraceScale` | Half (2) | Half or Quarter (4) view dimensions; reconstruction stays half dimensions |
 | `ViewRaySampleMax` | 384 | 4..384 primary points across the complete clipped ray |
-| `ViewRaySampleMin` | 2 | 1..min(16,max) points for short positive spans |
+| `ViewRaySampleMin` | 1 | 1..min(16,max) points for short positive spans |
 | `ViewBudgetDistance` | 50 | 50..10000 world units; distance at which the maximum applies |
 | `LightRaySampleMax` | 10 | 2..64 scheduled points per contributing directional light |
 | `ShadowDistance` | 1500 | 50..10000 world units; independent of view distance/clipping |
