@@ -3,7 +3,8 @@ Persistent cloud lighting volume candidate
 
 Authority and scope
   Source: docs/PBR.CloudLightingVolume.Proposal.md, complete proposal.
-  User direction: extrapolate that proposal into an implementation plan; this operation is planning-only.
+  User direction: implement this plan only through explicitly requested phases. Phase 1 is specification
+    work; runtime implementation and final qualification belong to subsequent phases.
   Context: docs/PBR.Clouds.md, docs/PBR.Atmosphere.Publication.md and docs/PBR.CloudRealtime.todo.
   Paths below are repository-root relative unless explicitly stated otherwise.
   This plan owns a removable candidate, not a replacement of the existing renderer or completion
@@ -15,8 +16,8 @@ Authority and scope
   Non-goals: complete persistent density storage, sparse bricks, clipmaps, multiple grid levels,
     lighting mip chains, slice/cell rasterization alternatives, screen-space temporal accumulation,
     replacement weather, external cast-shadow publication, a generic rendering framework or migration.
-  Optional spatial resolve is a bounded view-resolution decision, not authorization to adopt the
-    current reconstruction/history owner. Full density caching requires a separate decision.
+  The selected initial view is full resolution without spatial resolve; adding reduced-resolution
+    reconstruction requires a later decision. Full density caching requires a separate decision.
 
 Execution and evidence
   Keep candidate runtime under VanillaGraphicsExpanded/PBR/Clouds/LightingVolume/ and shaders under
@@ -40,44 +41,69 @@ Execution and evidence
   Before marking a phase complete, reconcile its source requirements, review its diff and record
     focused evidence and remaining limitations. Later phases and live acceptance remain unchecked.
 
-Open decisions (resolved in Phase 1 before dependent implementation)
-  Initial admitted world extent, vertical band/margin, independent horizontal/vertical spacing,
-    dimension caps, exact texture formats and total allocation budget.
-  Direct/scattering node and ray-step budgets, shadow distance, diffuse propagation support,
-    deterministic angular quadrature, scattering parameters and environment boundary arithmetic.
-  Region granularity, content-change classification in physical terms, fairness/age policy,
-    partial-iteration publication mechanism and fallback-to-valid transition policy.
-  Deterministic view schedule and initial resolution; whether a spatial depth-aware resolve is needed.
-  The proposal's format suggestions and memory/revisit examples are illustrative, not defaults.
-    No FPS target, acceptable approximation error or production promotion is implied by this plan.
+Selected specification
+  Authority: proposal / Selected candidate contract. Its constants are initial experiment inputs,
+    not measured production defaults, an FPS target or acceptable approximation-error thresholds.
+  Grid: 100x25x100 world-unit cells, stable vertical band [-400,400], finite native horizontal extent,
+    fixed ceil(W/2)+1 horizontal interior cells and guard nodes, at most 103x34x103 texels.
+  Storage: RG16F direct transmission, two RGBA16F fields with scaled diffuse RGB and unscaled alpha masks, descriptor and region
+    circular history and region-remap storage. Maximum owned payload 10,694,704 bytes (10.20 MiB); ceiling 32 MiB.
+  Transport: albedo .9, HG g=.6; direct 32 uniform midpoints / 1500 units; diffuse six axis directions,
+    twelve uniform midpoints / 300 units and explicit isotropic environment boundary. The retained
+    diffuse term includes transported environment, which view composition must not add twice.
+  Scheduling: 512 direct region-source jobs and 256 diffuse region jobs per eligible frame, half
+    reserved for round-robin fairness; fixed-domain worst-case revisit 43 eligible frames. Dirty age
+    and backlog remain observable. Compatible changes retain stale lighting; hard local changes
+    invalidate filter footprints. Nonlocal demand conservatively marks the domain dirty.
+  Publication: independent read/write fields, complete RGBA copy before partial updates,
+    lighting/region remap spares, circular descriptor addressing and absolute region keys. Initialized fallback switches immediately to
+    completed compatible lighting. Candidate radiance bounds include lifetime retained maxima.
+  View: full resolution, deterministic midpoint budget capped at 96 / distance 10000, stop .005,
+    no temporal accumulation or spatial resolve. Exposure/OIT/depth/atmosphere remain shared contracts.
+  Interface: selected consumer preparation, reset/disposal and radiance-bound admission only.
+    Keep renderer default Existing. Actual format support, appearance and performance remain unverified
+    until their implementation/qualification tasks; changing constants requires an explicit recorded edit.
 
 Phase 1: Specify finite algorithms and candidate contracts
   Outcome: later owners can be implemented without inventing storage, numerical or scheduling policy.
   Validation: source inspection and arithmetic/design review; no baseline matrix or packaging.
-  ☐ Reinspect native preparation/publication, scene-lighting admission, depth demand and OIT contracts.
+  ☑ Reinspect native preparation/publication, scene-lighting admission, depth demand and OIT contracts.
     - Locate the narrow selection seam in CloudNativeRuntime and establish the safe ownership-switch
       boundary. Record whether a minimal preparation/reset/disposal renderer interface is necessary.
     - List allowed shared camera, atmosphere, calibration, encoding and GPU helpers. No dependency
       on CloudVolumeReconstruction, CloudShadowCache or current cloud transport include graphs.
-  ☐ Specify material/world/grid transforms, admitted finite domain, vertical margin and region identity.
+  ☑ Specify material/world/grid transforms, admitted finite domain, vertical margin and region identity.
     - Resolve fractional wind exactly once, integer recentering, whole-cell shifts, newly exposed slabs,
       large displacements and density outside lighting coverage. Define thin-feature fallback admission.
-  ☐ Select initial dimensions, formats and resource ceilings from explicit byte accounting.
+  ☑ Select initial dimensions, formats and resource ceilings from explicit byte accounting.
     - Account for direct channels, both diffuse iteration buffers, descriptor history, metadata,
       initialization/copy storage and view targets. Record supported-limit checks and allocation failure.
     - Resolve filtering footprints and border validity without manual eight-fetch trilinear filtering.
-  ☐ Specify direct integration and diffuse transport with explicit units, directions, weights and steps.
+  ☑ Specify direct integration and diffuse transport with explicit units, directions, weights and steps.
     - Define directional first-scattering seed, higher-order source units, extinction/albedo factors,
       environment boundary and final composition without double counting first scattering.
     - Normalize nonnegative angular weights; empty space carries light but adds no scattering.
       Define bounded ray support and iteration read/write semantics; do not substitute repeated blur.
-  ☐ Resolve scheduling, refresh/invalidation classification and source-transition policies.
+  ☑ Resolve scheduling, refresh/invalidation classification and source-transition policies.
     - Define work limits, nonstarvation, dependency influence, age/backlog and coherent partial publication.
     - Specify current unshadowed direct plus coarse environment fallback, zero higher-order fallback,
       and any local transition smoothing. Invalid prior-region data must never enter a transition.
     - Choose deterministic view sampling/resolution and disposition the optional spatial resolve.
-  ☐ Completion: record decisions with rationale in the proposal/design record; all dependent open
+  ☑ Completion: record decisions with rationale in the proposal/design record; all dependent open
     choices above are concrete. No speculative choice becomes an unstated requirement or new subsystem.
+
+  Specification verification (2026-10-19)
+    Task-to-source mapping: native/publication task -> proposal / Native admission and shared boundary,
+      PBR.Clouds.md native/depth/OIT contracts, PBR.Atmosphere.Publication.md publication/physical units,
+      Rendering.Enablement.md and inspected runtime/scene sources. Coordinate/storage tasks -> proposal /
+      Coordinates, coverage and allocation plus coherent publication. Transport task -> Density, ray
+      schedules and source units plus Physical bounds. Scheduling/view task -> Change classification
+      and bounded scheduling plus Deterministic view and initial controls.
+    Second review and independent audit verified these specifications and arithmetic. Review corrected
+      descriptor/region remap storage and fixed grid dimensions under recentering. All six entries are
+      satisfied as specification work; no runtime implementation, build, GPU or appearance claim is made.
+    Existing CloudRealtime scope/test/execution policy was consulted; its renderer-specific transport
+      and same-frame-cache requirements are not imposed on this separately authorized candidate.
 
 Phase 2: Own the grid, resources and isolated density queries
   Depends on Phase 1. Outcome: a fixture can allocate, remap and sample initialized candidate storage.
@@ -87,8 +113,13 @@ Phase 2: Own the grid, resources and isolated density queries
       material anchoring. Permit narrowly duplicated density math without extracting a broad framework.
     - Register candidate shader roots and typed bindings through existing discovery/program owners.
   ☐ Allocate chosen lighting formats, coherent iteration storage and exact region metadata.
+    - Pack occupied/solar-valid/lunar-valid/diffuse-valid bits as the exact integer 0..15 in alpha.
+      Fetch masks with texelFetch; scale/filter RGB only. Keep domain identity in publication/region records.
     - Initialize all sampling footprints to defined fallback data; metadata is not interpolated.
       Use hardware trilinear filtering with explicit level selection and no cross-domain wrap leakage.
+    - Bind each diffuse field to its exposure-independent power-of-two storage scale; decode before
+      lighting calculations and clamp decoded physical values to Dcap. Publish scale and field together.
+      Cover encoding/range and failed-publication contracts without approximation-quality assertions.
     - Account for total bytes and reject unsupported dimensions/formats before publishing readiness.
       Clean up partial allocation and allow lifecycle-controlled recovery.
   ☐ Implement overlap retention, new-slab initialization and full-domain replacement.
@@ -102,7 +133,15 @@ Phase 3: Observe changes and budget persistent work
   Depends on Phases 1–2. Outcome: current publications produce bounded, nonstarving update demand.
   Validation: focused scheduler/identity checks and minimal GPU descriptor-comparison coverage only.
   ☐ Observe current native input through matching synchronous publication certificates.
-    - Keep owned compact prior column descriptors and compare support/extinction on the GPU.
+    - Keep observation and hard-change-reference descriptors in W-by-W circular textures keyed by
+      positive-modulo material column coordinates. Retain overlapping slots without descriptor copies.
+      Validate old slot identity against the last committed window/domain; initialize entering columns
+      and enqueue departing influence before replacement. One writer per slot reads before updating;
+      publish the window after barriers and revoke history after a failed in-place observation.
+    - Compare support/extinction on the GPU using these exact descriptor records. Classify locally
+      and atomically OR affected-region observation demand and the existing header refresh bit.
+      Use the barrier-separated scheduler pass to merge demand while preserving pending ages;
+      comparison never races on node masks or timestamps. Allocate no column-classification texture.
       Retain computed results and metadata, never a previous-frame native texture borrow.
     - Generation changes enqueue physically classified refresh/invalidation instead of clearing the
       entire volume. Missing current input withdraws submission without falsely publishing freshness.
@@ -127,6 +166,8 @@ Phase 4: Compute persistent direct-light transmission
     - Skip new work for zero-intensity sources; prioritize newly relevant sources and admit initialized
       fallback until matching direction/content data is available.
   ☐ Publish completed direct regions with barriers, source identity and update age.
+    - Serialize solar/lunar and node-owned invalidation passes; preserve encoded diffuse RGB and other
+      alpha bits during image-load/store. Barrier before any diffuse/view readers; no overlapping writers.
     - Neighbor filtering footprints remain initialized and compatible. Failed/incomplete work does
       not publish readiness. Visibility history follows the specified compatible-change policy.
   ☐ Completion: typed GPU fixtures establish source separation, declared quadrature, valid domains,
@@ -142,7 +183,11 @@ Phase 5: Refine diffuse multiple scattering coherently
       or count the view's first-scattering response twice.
   ☐ Implement coherent partial-iteration publication using the mechanism chosen in Phase 1.
     - Read only published source; write distinct storage. Preserve untouched values when publishing.
-      Explicitly account for any copy traffic or per-region publication overhead.
+      Re-encode retained texels in the existing copy pass when the required storage scale grows;
+      encode new values with the same destination scale and retain the old field/scale on failure.
+      Copy alpha exactly, including across remaps and RGB rescaling. Preserve direct/occupancy bits
+      when publishing diffuse validity. Retain mask-bearing fields for direct-only operation.
+      Account for RGBA copy traffic and additional direct/metadata read-modify-write traffic separately.
     - Consume scheduler budgets and carry age/dependency information forward. No dispatch observes
       a partially written neighbor as completed history; barriers use existing submission abstractions.
   ☐ Completion: focused arithmetic and publication checks cover normalized weights, source accounting,
