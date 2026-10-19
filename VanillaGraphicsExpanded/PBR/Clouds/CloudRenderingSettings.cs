@@ -21,6 +21,8 @@ public sealed class CloudRenderingSettings
     [JsonProperty] public int LightRaySampleMax { get; set; } = 10;
     /// <summary>Bounds the shadow span from each contributing primary position in world units.</summary>
     [JsonProperty] public float ShadowDistance { get; set; } = 1500;
+    /// <summary>Disables self-shadowing at zero; other levels select 256, 512 and 1024 light-space pixels per axis.</summary>
+    [JsonProperty] public int ShadowQuality { get; set; } = 1;
     /// <summary>Stops after an integrated primary step below this transmission; zero evaluates the complete budget.</summary>
     [JsonProperty] public float StopTransmittance { get; set; } = .005f;
     /// <summary>Disables noise and exposed-edge erosion together for native-transmission comparison.</summary>
@@ -42,6 +44,7 @@ public sealed class CloudRenderingSettings
         ViewBudgetDistance=float.IsFinite(ViewBudgetDistance)?Math.Clamp(ViewBudgetDistance,50,10000):50;
         StopTransmittance=float.IsFinite(StopTransmittance)?Math.Clamp(StopTransmittance,0,.005f):.005f;
         LightRaySampleMax=Math.Clamp(LightRaySampleMax,2,64);
+        ShadowQuality=Math.Clamp(ShadowQuality,0,3);
         ShadowDistance=float.IsFinite(ShadowDistance)?Math.Clamp(ShadowDistance,50,10000):1500;
         DetailAmplitude=float.IsFinite(DetailAmplitude)?Math.Clamp(DetailAmplitude,0,.95f):.15f;
         EdgeWidth=float.IsFinite(EdgeWidth)?Math.Clamp(EdgeWidth,.01f,10):2;
@@ -52,7 +55,7 @@ public sealed class CloudRenderingSettings
     {
         Sanitize();
         return CloudVolumeSettings.Default with { LightRaySampleMax=LightRaySampleMax,ShadowDistance=ShadowDistance,StopTransmittance=StopTransmittance,TraceScale=TraceScale,Detail=Detail,
-            DetailAmplitude=DetailAmplitude,EdgeWidth=EdgeWidth,NoiseScale=NoiseScale,
+            DetailAmplitude=DetailAmplitude,EdgeWidth=EdgeWidth,NoiseScale=NoiseScale,ShadowQuality=ShadowQuality,
             ViewRaySampleMax=ViewRaySampleMax,ViewRaySampleMin=ViewRaySampleMin,ViewBudgetDistance=ViewBudgetDistance };
     }
     #endregion

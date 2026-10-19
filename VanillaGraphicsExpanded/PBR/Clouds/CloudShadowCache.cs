@@ -10,11 +10,12 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 /// <summary>Owns same-frame attenuation storage and bounded generation for the active reduced cloud trace.</summary>
 internal sealed class CloudShadowCache(Func<CloudShadowAttenuationComputeShader> createProgram) : IDisposable
 {
-    private const int Width=256, Quadrature=64;
+    internal const int Quadrature=64, DepthSegments=8;
     private CloudShadowAttenuationComputeShader? program;
     private DynamicTexture2D? texture;
     private BorrowedTexture? map;
     private CloudMapInput? allocation;
+    private int resolution;
     private bool failed,disposed;
 
     #region Public API
@@ -22,11 +23,17 @@ internal sealed class CloudShadowCache(Func<CloudShadowAttenuationComputeShader>
     internal string? Failure { get; private set; }
     /// <summary>Builds the dominant source's attenuation from the current certified map, never a previous frame.</summary>
     internal DynamicTexture2D? Build(CloudMapInput input,AtmosphereLighting lighting,CloudVolumeParameters parameters,
-        DynamicTexture2D? bounds,Func<bool> current,out int source)
+        int width,DynamicTexture2D? bounds,Func<bool> current,out int source)
     {
         source=Peak(lighting.Solar)>=Peak(lighting.Lunar)?0:1;
         if(disposed) return null;
+        if(width is not (0 or 256 or 512 or 1024)) throw new ArgumentOutOfRangeException(nameof(width));
+        // Quality changes retire incompatible allocations and failed-generation state.
+        // Disabling self-shadowing skips compute; the shared flag also bypasses marching.
+        if(resolution!=width) Reset();
+        if(width==0) return null;
         if(allocation is { } previous && !SameLifetime(previous,input)) Reset();
+        resolution=width;
         if(bounds?.IsValid!=true || Math.Max(Peak(lighting.Solar),Peak(lighting.Lunar))<=0 || !current())
         { Reset(); return null; }
         if(failed) return null;
@@ -37,11 +44,12 @@ internal sealed class CloudShadowCache(Func<CloudShadowAttenuationComputeShader>
             // map/placement/light publication. There is no cross-frame attenuation certificate.
             program??=createProgram();
             if(!program.EnsureReady()) throw new InvalidOperationException(program.PreparationLog);
-            texture??=DynamicTexture2D.Create(Width,Width,PixelInternalFormat.Rgba32f);
+            // One metadata tile precedes groups of four optical-depth segments in RGBA tiles.
+            texture??=DynamicTexture2D.Create(width,width*(1+DepthSegments/4),PixelInternalFormat.Rgba32f);
             map??=new BorrowedTexture(input.Storage.Map);
             allocation=input;
             if(!current()) { Reset(); return null; }
-            program.Capture(parameters,bounds,Width,Quadrature,source);
+            program.Capture(parameters,bounds,width,Quadrature,source,DepthSegments);
             program.Map=map;program.Target=new(texture,TextureAccess.WriteOnly);
             var prepared=program.ProgramLayout.BinaryInterface?.PreparedBindings
                 ??throw new InvalidOperationException("Cloud attenuation bindings are unavailable.");
@@ -51,7 +59,7 @@ internal sealed class CloudShadowCache(Func<CloudShadowAttenuationComputeShader>
                 {
                     // Finish prior-frame sampling before overwriting persistent attenuation storage.
                     GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
-                    program.Dispatch(Width/8,Width/8);
+                    program.Dispatch(width/8,width/8);
                     GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);
                 })) throw new InvalidOperationException("Cloud attenuation compute boundary rejected.");
             GlDebug.ThrowIfErrors("Cloud attenuation generation");
@@ -62,14 +70,14 @@ internal sealed class CloudShadowCache(Func<CloudShadowAttenuationComputeShader>
         }
         catch(Exception error) when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {
-            Reset();allocation=input;failed=true;Failure=error.Message;
+            Reset();allocation=input;resolution=width;failed=true;Failure=error.Message;
             return null;
         }
     }
     /// <summary>Releases owned storage and executable while leaving native textures with their producer.</summary>
     internal void Reset()
     {
-        allocation=null;failed=false;Failure=null;
+        allocation=null;resolution=0;failed=false;Failure=null;
         RenderingCleanup.Run(()=>{texture?.Dispose();texture=null;},()=>{map?.Dispose();map=null;},()=>{program?.Dispose();program=null;});
     }
     /// <summary>Ends this consumer lifetime permanently before retiring its GPU resources.</summary>

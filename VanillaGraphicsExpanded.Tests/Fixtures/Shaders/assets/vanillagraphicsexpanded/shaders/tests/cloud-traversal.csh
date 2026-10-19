@@ -5,6 +5,7 @@
 @import "../includes/cloud_volume_sampling.glsl"
 @import "../includes/cloud_volume_density.glsl"
 @import "../includes/cloud_volume_hierarchy.glsl"
+@import "../includes/cloud_shadow_segments.glsl"
 layout(std430) buffer CloudTraversalTestResult { vec4 intervals[402]; vec4 counts; };
 vec3 measuredOrigin; int measuredSamples=0;
 /** Records only actual full-density calls made by the production secondary loop. */
@@ -68,6 +69,13 @@ float ReferenceCloudDensity(vec3 local,ivec2 cell,vec4 data)
 void main()
 {
     counts=vec4(0); measuredOrigin=testOriginLimit.xyz;
+    if(testDirectionMode.w==14.0)
+    {
+        float tau;
+        bool valid=CloudShadowSegmentDepth(cloudMap,ivec2(testOriginLimit.xy),int(testOriginLimit.z),
+            testOriginLimit.w,testDirectionMode.x,tau);
+        counts=vec4(tau,valid?1.0:0.0,exp(-tau),0);return;
+    }
     if(testDirectionMode.w==13.0)
     {
         vec3 response=CloudDirectionalUnshadowed(volumeSolar.xyz,testOriginLimit.w)

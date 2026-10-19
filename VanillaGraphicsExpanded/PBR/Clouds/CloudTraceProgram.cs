@@ -6,9 +6,10 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
 /// <summary>Owns the cloud reconstruction executable and its immutable submission parameters.</summary>
-[ShaderProgram("Contract", "cloud_volume_trace", 1)]
+[ShaderProgram("Contract", "cloud_volume_trace", 2)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "cloud_volume.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "cloud_volume_trace.fsh")]
+[ShaderUse("Contract",ShaderStageKind.Fragment,nameof(SelfShadowing))]
 internal sealed partial class CloudTraceProgram : GpuProgram, ICloudTraceBindings
 {
     internal readonly CloudVolumeParameters Parameters;
@@ -20,6 +21,9 @@ internal sealed partial class CloudTraceProgram : GpuProgram, ICloudTraceBinding
 
     #region Public API
     #region Preparation
+    /// <summary>Selects the precompiled transport variant before executable preparation.</summary>
+    [ShaderOptionReference(typeof(CloudShaderOptions),nameof(CloudShaderOptions.SelfShadowing))]
+    internal partial bool SelfShadowing { get; set; }
     /// <summary>Registers the dedicated resource contract and owns its parameter block.</summary>
     public CloudTraceProgram()
     {

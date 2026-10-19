@@ -251,11 +251,19 @@ internal sealed class CloudReconstructionScene : IDisposable
         Assert.True(hierarchy.TryBuild(input,()=>true),hierarchy.Failure);
         Assert.True(hierarchy.TryGetCurrent(input,out var bounds));
         rootComplete?.Issue();
-        shadingProbe.SetHierarchy(bounds);builder.Capture(shadingProbe.Parameters,bounds!,target.Width,quadrature,source);
+        int segments=(target.Height/target.Width-1)*4;
+        shadingProbe.SetHierarchy(bounds);builder.Capture(shadingProbe.Parameters,bounds!,target.Width,quadrature,source,segments);
         builder.Map=map;builder.Target=new(target,TextureAccess.WriteOnly);
-        builder.Dispatch((target.Width+7)/8,(target.Height+7)/8);
+        builder.Dispatch((target.Width+7)/8,(target.Width+7)/8);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);
         shadowCache=target;cachePublication=mapPublication;cacheLighting=configuredLighting;cacheSource=source;
+    }
+    /// <summary>Authors native column controls for finite shadow-generation arithmetic checks.</summary>
+    internal void SetShadowColumns(float[] columns)
+    {
+        if(columns.Length!=map.Width*map.Height*4) throw new ArgumentException("Native map shape does not match columns.",nameof(columns));
+        map.UploadDataImmediate(columns);
+        mapPublication++;
     }
     /// <summary>Runs all three fixture passes with cached lighting, falling back to marching after source or map changes.</summary>
     internal void RenderShadowCache(uint frame,bool valid)
@@ -403,7 +411,7 @@ internal sealed class CloudReconstructionScene : IDisposable
         get
         {
             if(reference is not null)return reference;
-            reference=programs.Create<CloudVolumeProgram>();reference.Frame=camera;reference.Lighting=storage.Buffer;
+            reference=programs.Create<CloudVolumeProgram>(p=>p.SelfShadowing=settings.ShadowQuality>0);reference.Frame=camera;reference.Lighting=storage.Buffer;
             if(configuredLighting is not null)Configure(reference,reference.Parameters,capturedPlacement,configuredLighting);
             return reference;
         }
@@ -414,7 +422,7 @@ internal sealed class CloudReconstructionScene : IDisposable
         get
         {
             if(trace is not null)return trace;
-            trace=programs.Create<CloudTraceProgram>();trace.Frame=camera;trace.Lighting=storage.Buffer;
+            trace=programs.Create<CloudTraceProgram>(p=>p.SelfShadowing=settings.ShadowQuality>0);trace.Frame=camera;trace.Lighting=storage.Buffer;
             trace.PrimaryNoise=Own(CloudBlueNoiseTexture.Create());
             if(configuredLighting is not null)Configure(trace,trace.Parameters,capturedPlacement,configuredLighting);
             return trace;

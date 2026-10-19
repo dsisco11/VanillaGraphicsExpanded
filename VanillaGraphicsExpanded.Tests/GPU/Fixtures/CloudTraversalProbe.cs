@@ -16,9 +16,9 @@ internal sealed class CloudTraversalProbe : IDisposable
 
     #region Public API
     /// <summary>Prepares the registered fixture binary and adopts its result storage exception-safely.</summary>
-    internal CloudTraversalProbe(ICoreAPI api)
+    internal CloudTraversalProbe(ICoreAPI api,bool selfShadowing=true)
     {
-        program = CloudTraversalComputeShader.Create(api);
+        program = CloudTraversalComputeShader.Create(api,selfShadowing);
         try
         {
             if (!program.EnsureReady()) throw new InvalidOperationException(program.PreparationLog);

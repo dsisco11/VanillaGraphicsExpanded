@@ -4,9 +4,12 @@ Realtime volumetric cloud work
 Authority and scope
   Source: user-requested cloud performance analysis and follow-up tasklist request (2026-10-18).
   Parent: docs/PBR.BaselineShading.todo, physically motivated volumetric clouds.
-  Inherited contracts: docs/PBR.VolumetricClouds.Proposal.md, archived hierarchy proposal,
+  Inherited contracts: archived docs/PBR.VolumetricClouds.Proposal.md, archived hierarchy proposal,
     docs/PBR.Atmosphere.Publication.md and the existing native six-attachment OIT contract.
-  Related checklists: docs/PBR.VolumetricClouds.todo and archived hierarchy checklist.
+  Related checklists: archived docs/PBR.VolumetricClouds.todo and archived hierarchy checklist.
+  Volumetric archive: commit e87de94d, docs/PBR.VolumetricClouds.Proposal.md and
+    docs/PBR.VolumetricClouds.todo (read with git show <commit>:<path>); these removed documents
+    supply inherited design/ownership contracts and historical receipts, not current open tasks.
   Hierarchy archive: commit f66895c6, docs/PBR.CloudHierarchy.Proposal.md and
     docs/PBR.CloudHierarchy.todo (read with git show <commit>:<path>). These removed documents
     supply inherited geometry/ownership contracts, not current architecture or open task authority.
@@ -412,9 +415,9 @@ Phase 8: Reduce repeated cloud lighting and density work
 
 Phase 8.1: Preserve shadow attenuation along the light-ray depth
   Depends on Phase 8. Outcome: separated layers and empty gaps remain distinguishable in the cache.
-  ☐ Record the current 256x256, 64-sample, single-interval cache as the comparison baseline, including
+  ☑ Record the current 256x256, 64-sample, single-interval cache as the comparison baseline, including
     actual settings, source identity, construction/lookup costs and storage. Preserve current defaults.
-  ☐ Replace the first/last occupied interval and uniform-extinction assumption with depth segments.
+  ☑ Replace the first/last occupied interval and uniform-extinction assumption with depth segments.
     - Evaluate 8 and 16 segments per texel as initial candidates; define depth coordinates, world-unit
       conversion, segment optical-depth contributions and explicit valid-empty/unavailable metadata.
       This stores light attenuation, not a density volume or replacement native weather data.
@@ -424,13 +427,13 @@ Phase 8.1: Preserve shadow attenuation along the light-ray depth
     - Initially reuse the existing generation density samples to isolate representation cost. More
       stored segments cannot recover features missed by those samples. Account for metadata and
       allocation overhead: 256x256x16 R32F alone is 4 MiB versus the current 1 MiB RGBA32F target.
-  ☐ Integrate the representation through existing typed shader/resource abstractions and cache owner.
+  ☑ Integrate the representation through existing typed shader/resource abstractions and cache owner.
     Preserve same-frame source/map validity, complete occluder coverage, bounded-march fallback,
     retained reference/other-source paths and disable/reload/world-replacement resource lifetimes.
-  ☐ Reuse lean fixtures to verify segment overlap arithmetic, units, empty/unavailable distinctions
+  ☑ Reuse lean fixtures to verify segment overlap arithmetic, units, empty/unavailable distinctions
     and finite transmission. Use layered, thin and inside-cloud cases for opt-in diagnostics and
     manual comparison; do not gate on agreement with a denser integrator or image-error thresholds.
-  ☐ Completion: representation and lookup are implemented, focused correctness and measured total
+  ☑ Completion: representation and lookup are implemented, focused correctness and measured total
     cost/storage are recorded, and second review/independent audit cover the changed contracts.
     Appearance acceptance and complete-renderer qualification remain in Phase 11.
 
@@ -1807,3 +1810,103 @@ Default internal shadow-cache enablement (2026-10-18)
     remain valid in all five copies. Updated Releases/vanillagraphicsexpanded_999.99.9.zip SHA256
     C5780588FE6CB2E470B1FF273DC97F6E2D336C712442F53A5132B74EB5D48072. Focused tests and final code/document
     review support default enablement; no new native FPS or visual acceptance claim is made.
+
+Depth-resolved attenuation receipts (2026-10-19)
+  Traceability -> Phase 8.1, Authority and scope, current test policy -> archived volumetric proposal
+    e87de94d (Ownership boundary, Density, Lighting, Publication and native lifecycle, Scene integration),
+    hierarchy f66895c6 (Representation, Ownership and publication), PBR.Atmosphere.Publication.md
+    (Publication contract), and PBR.Clouds.md -> native units/support, current physical inputs,
+    same-frame certification, typed ownership, retained marching and unchanged six-target OIT.
+    These contracts map to CloudShadowCache/CloudShadowAttenuationComputeShader, cloud_shadow_cache.csh,
+    cloud_shadow_segments.glsl and cloud_volume_shadow.glsl; the existing production-owner integration
+    cases retain source revocation, failure fallback, both PBR modes and retirement checks.
+  Baseline -> artifacts/CloudRealtime/phase8.1/baseline-source.zip and baseline-identity.json ->
+    immutable dda8fafa29b543ef2b9ac8f9ae1cb3cf944d9b51 source, 256x256 RGBA32F, 64 quadrature samples,
+    1 MiB texture payload. baseline-binaries.json identifies the independently built coarse runtime
+    and shader assets; baseline-small-uncontended/ and baseline-owner/ retain raw controls/timings.
+    The initial baseline-small/ run had a concurrent game process. Subsequent small/owner runs
+    record no game process; the agent did not start or close the game. Keep those observations separate.
+  Representation -> generation/lookup tasks -> metadata plus RGBA groups of four segment contributions
+    in the existing 2D image/sampler abstraction. Eight segments use 256x768 RGBA32F (3 MiB), sixteen
+    use 256x1280 (5 MiB), including the 1 MiB metadata tile and excluding driver overhead. Each ray
+    retains its original 64 midpoint density evaluations and segment-length/unit weights; interval
+    overlaps distribute contributions among equal subdivisions of that ray's root-clipped chord.
+    Lookup sums only finite-window overlaps, with uniform extinction within each segment. Empty
+    segments retain sampled gaps; unsampled thin matter and intra-segment structure remain approximated.
+    Metadata distinguishes valid empty from unavailable/source-mismatched rays. Nonfinite/negative
+    contributing records select marching; finite tau saturates safely. No previous-frame cache,
+    source-selection, primary-density, saved setting, secondary-march or temporal policy is changed.
+  Focused evidence -> CloudShadowSegmentTests -> independent 64-midpoint CPU contribution calculation,
+    both 8/16 layouts and solar/lunar records, interior/gap/partial/zero/outside windows, empty versus
+    unavailable/source mismatch, negative/nonfinite rejection and finite saturation. This specifies
+    the finite algorithm, not acceptable image or approximation error. The first two fixture failures
+    exposed unsupported map width and unintended scenario-driven detail; both fixture inputs were
+    corrected. The metadata-sum comparison uses a documented 64-term binary32 summation-error bound
+    for grouped versus ray-ordered addition; approximation-quality tolerances remain prohibited.
+  Candidate diagnostics -> candidate-small-8/, candidate-small-16/, small-comparison-summary.json ->
+    RTX 4090, synthetic 512x256 view, native width 200, Half, 384/10 configured view/light caps,
+    ShadowDistance 1500, detail amplitude .25, edge width 8, termination disabled, three warmups and
+    five alternating march/cache pairs. Actual uploaded parameters and individual samples are in JSON.
+    Generation remains 64 points; caps are not observed work counters. Coarse/8/16 whole-operation
+    GPU medians in ms: day 1.734/1.981/2.125; night 1.829/2.293/2.447; sparse/grazing 1.357/1.538/1.603.
+    These separate runs match declared scene/settings, not same-process paired coarse/segmented frames.
+    Each run's marching comparison is paired. Construction includes root/cache generation and barriers;
+    trace includes lookup plus all transport, not an isolated fetch microbenchmark. Temporal/resolve,
+    CPU submission and independent total are retained separately. Output differences are diagnostic.
+  Selection -> eight segments for lower measured cost and 3 MiB storage; sixteen remains opt-in for
+    comparison. This is a cost-based choice, not validated visual superiority. Both layouts cost more
+    than the coarse cache in these matched small cases. Layered/thin diagnostics are opt-in; required
+    user-run appearance and native whole-frame performance acceptance remain open in Phase 11.
+  Complete owner costs -> baseline-owner/, candidate-owner-8/, candidate-owner-16/ and
+    owner-comparison-summary.json -> actual production ownership, 3440x1377, Half, native width 200,
+    synthetic dense inside-cloud view, same explicit controls, three warmups/five pairs, RTX 4090,
+    LumOn disabled and no concurrent game process. Each process repeats two owners with the same
+    representation to expose repeatability spread; coarse versus segmented runs are separate
+    processes, not a paired before/after speed measurement. Whole-GPU medians in ms for those two
+    owners: coarse day 6.639/7.406, eight day 10.678/8.892, sixteen day 11.494/11.103; coarse night
+    7.502/7.603, eight night 8.889/9.038, sixteen night 10.754/9.857. Retain every raw distribution;
+    the eight-segment daytime repeat spread is substantial. These are real diagnostic regressions,
+    not claimed native FPS or noise-free estimates. Most observed difference is in the trace interval.
+    Owner construction timestamps isolate root reduction only; cache generation/barriers occur
+    before the trace and remain included in independently timed draw/whole totals. All three graphics
+    stages, synthetic input upload, CPU submission and exact uploaded controls remain in the JSON.
+  Layered/thin diagnostics -> candidate-diagnostic-8/ and candidate-small-16/ -> separated native
+    banks and a two-world-unit supported layer, same midpoint schedule and opt-in fixture. Eight whole
+    medians are .265 ms layered versus paired marching .188 (regression), and 1.030 ms thin versus
+    3.245; sixteen is .276 versus .185 layered and 1.083 versus 3.447 thin. These comparisons change
+    attenuation approximation and are neither quality gates nor a replacement for live review.
+    The initial layered layout's 3000..7000 gap lay outside the visible queries' finite light windows;
+    retain those initial costs as generation/first-bank diagnostics, not evidence of querying that gap.
+    Corrected candidate-layered-gap-8/ and candidate-layered-gap-16/ move the gap to 350..650 world
+    units, inside the actual 1500-unit windows. Both pass fallback/rebuild and finite-output checks;
+    radiance changes are diagnostic, with unchanged optical/support channels. Whole medians are
+    3.496 ms eight versus paired marching 8.232, and 3.497 ms sixteen versus 8.181. Raw pairs and
+    generation/trace costs remain in layered-gap-summary.json. These scene-specific comparisons do
+    not supersede the coarse-cache regressions or establish user appearance acceptance.
+    Eight remains the cheaper evaluated depth-resolved choice, not a performance fix over coarse
+    attenuation. Storage rises by 2 MiB and measured full-view costs regress; this tradeoff and its
+    final acceptance remain open in Phase 11. No sample counts or unrelated defaults were lowered.
+  Final focused evidence -> final-focused.trx -> 4/4 unique checks, zero skips/failures: the segment
+    finite-algorithm case, typed shader bindings and the two existing production-owner PBR cases.
+    Earlier failed fixture receipts remain historical and are not counted as passing tests.
+  Delivery -> canonical.log, package-identity.json and final-source-freeze.json -> canonical
+    ./build.ps1 --configuration=Release --spirv=true succeeds. Runtime SHA256
+    50D1532A8C2FA1B31EE0BAA61B407ABA249EAEB72688B308D0D7E6E5E980DBB8 matches validated/tested,
+    published, release-directory and ZIP copies. All 459 production shader binaries match tested,
+    generated, release-directory and ZIP assets; plain dotnet publish does not contain those binaries.
+    The delivered
+    Releases/vanillagraphicsexpanded_999.99.9.zip SHA256 is
+    A1EB7053DEFFDD614BAEBA18E0E7861CFA3BAF2CB07AA46E980608DF49F326E6. Existing compiler/NuGet warnings
+    remain separate from successful build/package checks. No source default/settings migration,
+    installed shader edit or live-game appearance/performance claim accompanies this delivery.
+    raw-shader-identity.json also verifies the three changed/new GLSL assets against release/ZIP
+    copies. canonical-source-freeze.json preserves the canonical input snapshot; the only later
+    non-document delta is the diagnostic bank predicate in CloudShadingWorkTests.cs, recorded in
+    layered-source-delta.json. Cached test rebuild and both corrected diagnostic runs preserve
+    runtime/shader identity (layered-final-identity.json); final-source-freeze.json records all 2743
+    final non-document inputs. The existing four focused correctness results remain applicable.
+
+  Review -> second code/document review and independent audit-stage-completion are clear against
+    the selected tasks and archived/current contracts. The audit independently rehashed all 2743
+    final inputs with zero mismatches and reconciled the single post-canonical diagnostic-only delta.
+    Phase 8.1 is complete; later subphases and Phase 11 acceptance remain unchecked.

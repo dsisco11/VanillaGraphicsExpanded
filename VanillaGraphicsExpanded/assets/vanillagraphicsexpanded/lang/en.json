@@ -17,6 +17,8 @@
   "config-cloud-stop-transmittance": "Cloud stop transmittance",
   "config-cloud-stop-transmittance-tooltip": "Stop after a cloud step leaves less than this fraction of light transmitted (0–0.005). Zero disables early termination.",
   "config-cloud-shadow-distance": "Cloud shadow distance",
+  "config-cloud-shadow-quality": "Cloud shadow quality",
+  "config-cloud-shadow-quality-tooltip": "Cloud self-shadowing: 0 = disabled, 1 = 256x256, 2 = 512x512, 3 = 1024x1024. Disabled uses unoccluded lighting with no cache or shadow ray marching. Higher levels increase generation work and memory. Default: 1.",
   "config-cloud-shadow-distance-tooltip": "Maximum self-shadow tracing distance from each cloud sample in world units (50–10000).",
   "config-cloud-amplitude": "Cloud detail amplitude",
   "config-cloud-amplitude-tooltip": "Interior density variation (0–0.95). It does not preserve exact optical thickness.",

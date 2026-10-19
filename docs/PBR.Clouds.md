@@ -4,8 +4,7 @@ VGE owns separate Simple and Volumetric shaders while native Vintage Story weath
 produce geometry and column controls. The native `cloudRenderMode` preference remains authoritative:
 0 is Off, 1 is Volumetric, and 2 is Simple. Rendering works independently of LumOn and uses the
 same [completed atmospheric publication](PBR.Atmosphere.Publication.md) in both PBR selections.
-Implementation and acceptance evidence is tracked in [the cloud checklist](PBR.VolumetricClouds.todo).
-Current sampling and remaining qualification work are tracked in the
+Implementation, current sampling and remaining acceptance/qualification work are tracked in the
 [realtime cloud checklist](PBR.CloudRealtime.todo). Height-summary ownership is described below.
 
 ## Scheduling and ownership
@@ -103,12 +102,26 @@ optical-depth early exit. This marching path serves the full-resolution referenc
 light and unavailable-cache fallbacks. It does not publish cloud shadows onto scene receivers.
 
 Reduced tracing uses a same-frame light-space attenuation cache by default for the stronger
-published solar/lunar source. `CloudShadowCache` owns a persistent 256x256 RGBA32F texture and
+published solar/lunar source. `Clouds.ShadowQuality` selects disabled self-shadowing (0), or logical
+256x256 (1, default), 512x512 (2) and 1024x1024 (3) light-space maps. Zero retains unoccluded direct
+lighting and the approximate scattering octave for both sources, with no cache generation/lookups
+or secondary shadow marching, including in the full-resolution reference.
+Reference and reduced transport share the `VGE_CLOUD_SELF_SHADOWING` compile-time option;
+quality zero selects a precompiled variant with shadow marches and cache lookup code excluded.
+The CPU owner skips attenuation generation and releases its resources when disabled. `CloudShadowCache`
+owns a persistent RGBA32F atlas with the selected width and three times that height, and
 regenerates it before each admitted trace, using 64 density samples per map ray. Projection covers
 the finite native map and certified root heights independently of scene depth or camera visibility.
-Each texel records first/last occupied distance, total optical depth and selected-source validity.
-Nearest lookup distributes extinction uniformly over that interval and intersects it with the
-query's finite shadow distance. Separated matter and thin features are therefore approximated.
+The first square tile records each ray's supported chord endpoints, total optical depth and
+selected-source validity. Two more tiles pack eight equal-depth segment optical depths in RGBA,
+for 3, 12 or 48 MiB of texture payload respectively. Changing quality retires incompatible storage;
+disabling caching releases its resources and skips generation. Each of the same 64 midpoint density
+samples contributes to its original integration interval; overlap splits that contribution across
+segment boundaries.
+Nearest lookup intersects the query's finite shadow-distance window with those segments and assumes
+uniform extinction only within each segment. Empty segments preserve gaps between sampled layers;
+features missed by generation and structure within a segment remain approximated. Valid empty
+coverage retains source validity with zero optical depth; unavailable records select marching.
 The other contributing light retains marching; neither physical source is discarded.
 
 Generation uses the trace's current map, placement, detailed density and lighting. Image-write and
@@ -202,8 +215,9 @@ unchanged. Distance-varying atmospheric response is approximated at the mean; so
 correlations and deep or disjoint support can differ from per-sample transport. Diagnostics and
 user appearance review qualify that tradeoff without automated approximation-quality thresholds.
 Solar and lunar phase terms are fixed for the view ray and evaluated before its primary loop;
-self-shadow optical depth uses same-frame cached attenuation for the selected reduced-trace source
-and independent bounded marching for the remaining paths.
+when self-shadowing is enabled, optical depth uses same-frame cached attenuation for the selected
+reduced-trace source and independent bounded marching for the remaining paths. Quality zero uses
+the unoccluded directional response for both sources.
 
 Both modes use the frozen frame's scene-storage encoding. Physical source bounds join admission before Opaque; exposure
 does not affect attenuation, depth, coverage or physical history. The native pre-lit map color,
@@ -331,6 +345,7 @@ The persisted `Clouds` config and ConfigLib expose:
 | `ViewBudgetDistance` | 50 | 50..10000 world units; distance at which the maximum applies |
 | `LightRaySampleMax` | 10 | 2..64 scheduled points per contributing directional light |
 | `ShadowDistance` | 1500 | 50..10000 world units; independent of view distance/clipping |
+| `ShadowQuality` | 1 | 0 disables self-shadowing; 1/2/3 select 256/512/1024 pixels per axis |
 | `StopTransmittance` | .005 | Fractional control, 0..0.005 in .0005 steps; strict post-step view exit, zero disables |
 | `Detail` | true | Noise and exposed-edge erosion; false samples piecewise constant native density |
 | `DetailAmplitude` | .15 | 0..0.95 bounded interior modulation |

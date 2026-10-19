@@ -12,6 +12,12 @@ void main()
 {
     vec2 uv=CloudTraceUv(ivec2(gl_FragCoord.xy),cloudTrace.zw);
     CloudPayload p=CloudEmpty(uv);
-    if(VgeFrameLightingValid(vgeFrame.frameIndex,VgeLightingCalibrationGeneration())) { CloudPrepareShadowCache(); CloudIntegrate(uv,p); }
+    if(VgeFrameLightingValid(vgeFrame.frameIndex,VgeLightingCalibrationGeneration()))
+    {
+#if VGE_CLOUD_SELF_SHADOWING
+        CloudPrepareShadowCache();
+#endif
+        CloudIntegrate(uv,p);
+    }
     CloudWrite(p); outCloudDepth=p.depth;
 }

@@ -222,6 +222,33 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
             Assert.True(scene.ShadowCacheEnabled);
             Assert.Equal(6, LastTrace(accelerated).Target.Width);
             Assert.False(scene.HistoryEnabled);
+            if(!lumOn)
+            {
+                // One lifecycle sequence covers allocation changes in both directions and
+                // zero-quality retirement without multiplying the lighting-mode matrix.
+                DynamicTexture2D? previousCache=null;
+                uint qualityFrame=10;
+                foreach(int quality in new[]{3,2,0,1})
+                {
+                    var controls=CloudVolumeSettings.Default with {ShadowQuality=quality};
+                    var qualityInput=scene.Capture(qualityFrame++);
+                    Assert.True(hierarchy.TryBuild(qualityInput,()=>true),hierarchy.Failure);
+                    scene.Clear();Assert.True(scene.Draw(accelerated,qualityInput,hierarchy,()=>true,controls));
+                    var cache=ReadPrivate<CloudShadowCache>(accelerated,"shadowCache");
+                    var texture=ReadPrivate<DynamicTexture2D?>(cache,"texture");
+                    Assert.Equal(quality!=0,scene.ShadowCacheEnabled);
+                    Assert.Equal(quality!=0,ReadPrivate<CloudTraceProgram>(accelerated,"traceProgram").SelfShadowing);
+                    if(previousCache is not null)Assert.False(previousCache.IsValid);
+                    if(quality==0)Assert.Null(texture);
+                    else
+                    {
+                        Assert.NotNull(texture);
+                        Assert.Equal(controls.ShadowMapResolution,texture.Width);
+                        Assert.Equal(controls.ShadowMapResolution*3,texture.Height);
+                    }
+                    previousCache=texture;
+                }
+            }
             GlDebug.ThrowIfErrors("Cloud pipeline test");
         }
         finally { PbrShaderLightingMode.GenerationLumOnEnabled = previous; }

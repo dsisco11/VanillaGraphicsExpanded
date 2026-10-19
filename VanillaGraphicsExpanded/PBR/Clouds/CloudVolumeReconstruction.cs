@@ -39,11 +39,12 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         shadowCache=new(createShadowCache??(()=>CloudShadowAttenuationComputeShader.Create(api)));
     }
     /// <summary>Requires all reduced-path executables before the default draw can take ownership.</summary>
-    internal bool Prepare()
+    internal bool Prepare(bool selfShadowing=true)
     {
         traceProgram=GpuShaderProgramLibraries.Get<CloudTraceProgram>(api,"cloud_volume_trace");
         temporalProgram=GpuShaderProgramLibraries.Get<CloudTemporalProgram>(api,"cloud_volume_temporal");
         resolveProgram=GpuShaderProgramLibraries.Get<CloudResolveProgram>(api,"cloud_volume_resolve");
+        if(traceProgram is not null)traceProgram.ConfigureOptions(()=>traceProgram.SelfShadowing=selfShadowing);
         if(traceProgram?.EnsureReady()!=true || temporalProgram?.EnsureReady()!=true || resolveProgram?.EnsureReady()!=true) return false;
         primaryNoise ??= CloudBlueNoiseTexture.Create();
         primaryNoise.EnsureCreated();
@@ -61,6 +62,10 @@ internal sealed class CloudVolumeReconstruction : IDisposable
         if(traceProgram is null||temporalProgram is null||resolveProgram is null) { Invalidate(); return false; }
         try
         {
+            // Select and admit the requested executable before constructing pass identities.
+            // A failed variant switch must not draw the previously installed lighting policy.
+            traceProgram.ConfigureOptions(()=>traceProgram.SelfShadowing=settings.ShadowQuality>0);
+            if(!traceProgram.EnsureReady()) { Invalidate(); return false; }
             EnsureSize(api.Render.FrameWidth,api.Render.FrameHeight,settings.TraceScale);
             bool quarter=settings.TraceScale==CloudTraceScale.Quarter;
             var trace=quarter?traceStorage!.Blocks[0]:storage!.Blocks[cursor];
@@ -93,7 +98,7 @@ internal sealed class CloudVolumeReconstruction : IDisposable
             DynamicTexture2D? bounds=null;
             if(hierarchy is not null) hierarchy.TryGetCurrent(input,out bounds);
             traceProgram.SetHierarchy(bounds);
-            traceProgram.SetShadowCache(shadowCache.Build(input,lighting,traceProgram.Parameters,bounds,current,out int source),source);
+            traceProgram.SetShadowCache(shadowCache.Build(input,lighting,traceProgram.Parameters,settings.ShadowMapResolution,bounds,current,out int source),source);
             if(!current()) { Invalidate(); return false; }
             if(!GraphicsCommandContext.TryRun("Cloud.Volume.Temporal",[tracePass.Pipeline,temporalPass.Pipeline,resolvePipeline],true,commands=>
             {

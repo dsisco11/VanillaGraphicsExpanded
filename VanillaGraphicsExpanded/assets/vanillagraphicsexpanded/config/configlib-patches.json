@@ -241,6 +241,16 @@
           "step": 1
         }
       },
+      "CLOUD_SHADOW_QUALITY": {
+        "code": "Clouds.ShadowQuality",
+        "clientSide": true,
+        "name": "Clouds/ShadowQuality",
+        "ingui": "vanillagraphicsexpanded:config-cloud-shadow-quality",
+        "comment": "vanillagraphicsexpanded:config-cloud-shadow-quality-tooltip",
+        "default": 1,
+        "weight": 25.32,
+        "range": { "min": 0, "max": 3, "step": 1 }
+      },
       "CLOUD_SHADOW_DISTANCE": {
         "code": "Clouds.ShadowDistance",
         "clientSide": true,

@@ -206,9 +206,10 @@ Tasks
       migrate direct lighting, composite/display resolve, liquids and water-volume inputs together.
 
   ☐ Implement physically motivated volumetric clouds integrated with the sky.
-    - Approved proposal: docs/PBR.VolumetricClouds.Proposal.md (2026-10-16).
-    - Implementation checklist: docs/PBR.VolumetricClouds.todo; runtime delivery and qualification are
-      recorded there. User visual/performance acceptance and the recorded reflection dependency remain open.
+    - Approved proposal: docs/PBR.VolumetricClouds.Proposal.md (2026-10-16), archived at e87de94d.
+      Its implementation checklist docs/PBR.VolumetricClouds.todo is archived at the same commit;
+      read both with git show <commit>:<path>. Current qualification is in PBR.CloudRealtime.todo.
+      User visual/performance acceptance and the recorded reflection dependency remain open.
     - Realtime work tasklist: docs/PBR.CloudRealtime.todo; reconcile
       sampling, self-lighting, termination, reconstruction, atmosphere and acceleration costs there.
       Its Phase 8 evaluates repeated shading work and cloud-internal lighting reuse at preserved

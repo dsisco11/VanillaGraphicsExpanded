@@ -5,6 +5,7 @@
 #endif
 @import "./cloud_volume_primary.glsl"
 /** Bounds shadow work independently of the camera while preserving its origin-anchored schedule. */
+#if VGE_CLOUD_SELF_SHADOWING
 bool CloudShadowSpan(vec3 origin,vec3 direction,out vec2 span)
 {
     if(!CloudPrimarySpan(origin,direction,volumePrimary.z,span)) return false;
@@ -13,9 +14,11 @@ bool CloudShadowSpan(vec3 origin,vec3 direction,out vec2 span)
 #endif
     return true;
 }
+#endif
 /** Integrates deterministic midpoints of quadratic intervals without per-column allocation or saturation. */
 float CloudLightDepth(vec3 local,vec3 direction)
 {
+#if VGE_CLOUD_SELF_SHADOWING
     vec2 span;
     if(!CloudShadowSpan(local,direction,span)) return 0.0;
     float tau=0.0,distance=volumePrimary.z;
@@ -38,6 +41,9 @@ float CloudLightDepth(vec3 local,vec3 direction)
     }
     // Finite accumulation keeps the unoccluded octave endpoint well-defined at arbitrarily large tau.
     return tau;
+#else
+    return 0.0;
+#endif
 }
 /** Evaluates the fixed anisotropic phase once for one primary ray and directional light. */
 float CloudDirectionalPhase(vec3 view,vec3 light)
@@ -45,21 +51,29 @@ float CloudDirectionalPhase(vec3 view,vec3 light)
     float mu=clamp(dot(view,light),-1.0,1.0);
     return .64/(12.5663706144*pow(1.36-1.2*mu,1.5));
 }
-/** Classifies the ray-invariant unoccluded response against every environment channel. */
+/** Selects unoccluded lighting for disabled shadows or a background-negligible directional source. */
 bool CloudDirectionalUnshadowed(vec3 illuminance,float phase)
 {
+#if VGE_CLOUD_SELF_SHADOWING
     // Shadowing can only reduce this response. Retain the unoccluded light when its entire
     // contribution is below 0.001% of the environment in every channel, avoiding a shadow
     // march for a negligible source. Strict comparison keeps zero-background channels and
     // meaningful night lighting on the full integration path; no sample budget is changed.
     return all(lessThan(illuminance*(phase+volumeSamples.z/12.5663706144),volumeEnvironment.rgb*1e-5));
+#else
+    return true;
+#endif
 }
 /** Combines sample-local shadow depth with a ray's fixed phase and one isotropic approximate octave. */
 vec3 CloudDirectional(vec3 local,vec3 light,vec3 illuminance,float phase)
 {
     if(max(illuminance.r,max(illuminance.g,illuminance.b))<=0.0) return vec3(0);
     float isotropic=volumeSamples.z/12.5663706144;
+#if VGE_CLOUD_SELF_SHADOWING
     float tau=CloudLightDepth(local,light);
     return illuminance*(phase*exp(-tau)+isotropic*exp(-volumeSamples.w*tau));
+#else
+    return illuminance*(phase+isotropic);
+#endif
 }
 #endif

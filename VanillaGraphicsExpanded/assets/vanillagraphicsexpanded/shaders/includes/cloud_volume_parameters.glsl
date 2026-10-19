@@ -1,10 +1,13 @@
 #ifndef VGE_CLOUD_VOLUME_PARAMETERS
 #define VGE_CLOUD_VOLUME_PARAMETERS
+#ifndef VGE_CLOUD_SELF_SHADOWING
+#define VGE_CLOUD_SELF_SHADOWING 1
+#endif
 @import "./vge_frame_ubo.glsl"
 layout(std140,binding=28) uniform CloudVolumeParameters
 {
     vec4 volumeOffsetWidth;
-    vec4 volumeAnchorUnits;
+    vec4 volumeAnchorUnits; // material anchor X/Z, metres per world unit, reserved
     vec4 volumeDetail;
     vec4 volumeSamples;
     vec4 volumeSolar;

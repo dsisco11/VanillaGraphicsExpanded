@@ -6,15 +6,17 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 internal readonly record struct CloudVolumeSettings(int LightRaySampleMax = 10,
     float DetailAmplitude = .15f, float EdgeWidth = 2, float NoiseScale = .08f,
     bool Detail = true, float OctaveContribution = .5f, float OctaveOcclusion = .5f,
-    int ViewRaySampleMax = 384, int ViewRaySampleMin = 1, float ViewBudgetDistance = 50, float ShadowDistance = 1500, float StopTransmittance = .005f, CloudTraceScale TraceScale = CloudTraceScale.Half)
+    int ViewRaySampleMax = 384, int ViewRaySampleMin = 1, float ViewBudgetDistance = 50, float ShadowDistance = 1500, float StopTransmittance = .005f, CloudTraceScale TraceScale = CloudTraceScale.Half, int ShadowQuality = 1)
 {
     #region Public API
     /// <summary>Constructs explicit defaults rather than the zero-initialized value-type representation.</summary>
     internal static CloudVolumeSettings Default => new(10, .15f, 2, .08f, true, .5f, .5f);
+    /// <summary>Maps enabled self-shadow quality to a square light-space footprint; zero disables self-shadowing.</summary>
+    internal int ShadowMapResolution => ShadowQuality==0?0:128<<ShadowQuality;
     /// <summary>Rejects unsupported arithmetic and excessive work before lighting admission or submission.</summary>
     internal void Validate()
     {
-        if (TraceScale is not (CloudTraceScale.Half or CloudTraceScale.Quarter)
+        if (ShadowQuality is < 0 or > 3 || TraceScale is not (CloudTraceScale.Half or CloudTraceScale.Quarter)
             || !float.IsFinite(StopTransmittance) || StopTransmittance is < 0 or > .005f
             || LightRaySampleMax is < 2 or > 64
             || !float.IsFinite(ShadowDistance) || ShadowDistance is < 50 or > 10000

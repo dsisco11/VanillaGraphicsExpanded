@@ -31,18 +31,23 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
             VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.GenerationLumOnEnabled=selected=="1";
         using var programs=new ComponentShaderPrograms();
         var builder=programs.CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api));
+        int segments=int.TryParse(Environment.GetEnvironmentVariable("VGE_CLOUD_CACHE_SEGMENTS"),out int selectedSegments)
+            ?selectedSegments:CloudShadowCache.DepthSegments;
+        Assert.True(segments is 8 or 16,"Cache depth segments must be 8 or 16.");
         var controls=CloudVolumeSettings.Default with {ViewRaySampleMax=384,LightRaySampleMax=10,ShadowDistance=1500,DetailAmplitude=.25f,EdgeWidth=8,StopTransmittance=0};
         foreach(string scenario in (Environment.GetEnvironmentVariable("VGE_CLOUD_CACHE_CASES")??"small-day,full-day,full-night").Split(','))
         {
             bool full=scenario.StartsWith("full"),night=scenario.EndsWith("night");
             bool grazing=scenario.Contains("grazing");
+            bool layered=scenario.Contains("layered"),thin=scenario.Contains("thin");
+            Vector3 sun=layered||thin?Vector3.UnitX:Vector3.Normalize(new(-.243f,grazing?.005f:.401f,.883f));
             float solar=night?scenario.Contains("lunar-only")?0:.05f:84431,lunar=night?.2f:20000;
             int width=full?3440:512,height=full?1377:256;
             using var before=new CloudReconstructionScene(width,height,programs,false,200,settings:controls);
             using var after=new CloudReconstructionScene(width,height,programs,false,200,settings:controls);
             using var oldRoot=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(programs.Api));
             using var newRoot=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(programs.Api));
-            using var target=DynamicTexture2D.Create(256,256,PixelInternalFormat.Rgba32f);
+            using var target=DynamicTexture2D.Create(256,256*(1+segments/4),PixelInternalFormat.Rgba32f);
             using var timer=new CloudPerformanceTimer();using var rootEnd=GpuTimestampQuery.Create();
             using var start=GpuTimestampQuery.Create();using var end=GpuTimestampQuery.Create();
             var oldTimes=new List<double[]>();var newTimes=new List<double[]>();
@@ -52,7 +57,21 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
                 var scene=old?before:after;
                 scene.Capture((uint)(round+3),.125f,night?.001f:1847,1,0,"detail-lit");
                 if(grazing)scene.AuthorHierarchyColumns(false);
-                scene.SetDirectionalLights(Vector3.Normalize(new(-.243f,grazing?.005f:.401f,.883f)),Vector3.Normalize(new(-.897f,.346f,-.274f)),3,solar,lunar);
+                if(layered||thin)
+                {
+                    // Separate native banks expose depth gaps; a shallow supported layer
+                    // diagnoses thin features without imposing image-quality assertions.
+                    var columns=new float[200*200*4];
+                    for(int z=0;z<200;z++) for(int x=0;x<200;x++)
+                    {
+                        int index=(z*200+x)*4;
+                        columns[index]=!layered||x<7||x>=13?.125f:0;
+                        columns[index+2]=thin?-.02f:-1;
+                        columns[index+3]=thin?.02f:2;
+                    }
+                    scene.SetShadowColumns(columns);
+                }
+                scene.SetDirectionalLights(sun,Vector3.Normalize(new(-.897f,.346f,-.274f)),3,solar,lunar);
                 start.Issue();long cpu=Stopwatch.GetTimestamp();timer.Begin();
                 if(old){scene.UseHierarchy(oldRoot);rootEnd.Issue();}
                 else scene.BuildShadowCache(builder,newRoot,target,64,night?1:0,rootEnd);
@@ -66,8 +85,8 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
             var reference=before.ReadTraceRecord();var approximate=after.ReadTraceRecord();
             var baselineParameters=before.ReadTraceParameters();var cacheParameters=after.ReadShadowCacheParameters();
             float[] cache=target.ReadPixels();
-            int empty=Enumerable.Range(0,cache.Length/4).Count(i=>cache[i*4+3]==(night?2:1)&&cache[i*4+2]==0);
-            int occupied=Enumerable.Range(0,cache.Length/4).Count(i=>cache[i*4+2]>0);
+            int empty=Enumerable.Range(0,target.Width*target.Width).Count(i=>cache[i*4+3]==(night?2:1)&&cache[i*4+2]==0);
+            int occupied=Enumerable.Range(0,target.Width*target.Width).Count(i=>cache[i*4+2]>0);
             Assert.True(occupied>0,"The prototype must generate nonempty attenuation.");
             // A changed light invalidates the cached source, while a new native publication must also disable its root.
             after.SetDirectionalLights(Vector3.UnitY,-Vector3.UnitY,3,25,5);
@@ -77,19 +96,19 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
             var mapReference=after.ReadTraceRecord();after.RenderShadowCache(0,false);
             double mapFallback=mapReference.Zip(after.ReadTraceRecord(),(a,b)=>a.Zip(b,(x,y)=>Math.Abs((double)x-y)).Max()).Max();
             Assert.Equal(0,sourceFallback);Assert.Equal(0,mapFallback);
-            after.SetDirectionalLights(Vector3.Normalize(new(-.243f,grazing?.005f:.401f,.883f)),Vector3.Normalize(new(-.897f,.346f,-.274f)),3,solar,lunar);
+            after.SetDirectionalLights(sun,Vector3.Normalize(new(-.897f,.346f,-.274f)),3,solar,lunar);
             after.BuildShadowCache(builder,newRoot,target,64,night?1:0);after.RenderShadowCache(0,false);
             float[][] recovered=after.ReadTraceRecord();
             Assert.All(recovered.SelectMany(layer=>layer),value=>Assert.True(float.IsFinite(value)));
             Assert.Contains(target.ReadPixels().Where((_,i)=>i%4==3),value=>value==(night?2:1));
-            var receipt=new {scenario,width,height,nativeWidth=200,field=grazing?"sparse stepped columns":"uniform native columns",grazing,
-                cacheWidth=256,quadrature=64,solar,lunar,controls,warmups=3,pairs=5,baselineParameters,cacheParameters,
+            var receipt=new {scenario,width,height,nativeWidth=200,field=layered?"separated native banks":thin?"two-unit shallow layer":grazing?"sparse stepped columns":"uniform native columns",grazing,
+                cacheWidth=256,depthSegments=segments,storageBytes=target.Width*target.Height*16,quadrature=64,solar,lunar,controls,warmups=3,pairs=5,baselineParameters,cacheParameters,
                 columns=new[]{"constructionGpuMs","traceGpuMs","temporalGpuMs","resolveGpuMs","drawTotalGpuMs","rootGpuMs","wholeGpuMs","submitCpuMs"},
                 baseline=oldTimes,current=newTimes,empty,occupied,sourceFallback,mapFallback,recoveredAfterRebuild=true,
                 maximumAbsoluteDifference=reference.Zip(approximate,(a,b)=>a.Zip(b,(x,y)=>Math.Abs((double)x-y)).Max()).ToArray(),
                 lumOn=VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.LumOnEnabled,fixture.GLRenderer,
                 gamePids=Process.GetProcessesByName("Vintagestory").Select(p=>p.Id).ToArray(),
-                qualification="Opt-in mean-extinction approximation against the same selected executable, fixed narrow projection and declared synthetic native field. Includes same-frame root/cache generation and barriers. Differences diagnostic, no appearance gate or live FPS claim."};
+                qualification="Opt-in segmented attenuation approximation against retained marching, fixed narrow projection and declared synthetic native field. Includes same-frame root/cache generation and barriers. Differences diagnostic, no appearance gate or live FPS claim."};
             File.WriteAllText(Path.Combine(directory,scenario+".json"),JsonSerializer.Serialize(receipt,new JsonSerializerOptions{WriteIndented=true}));
             output.WriteLine($"Shadow cache {scenario} complete, occupied={occupied}, empty={empty}.");
         }

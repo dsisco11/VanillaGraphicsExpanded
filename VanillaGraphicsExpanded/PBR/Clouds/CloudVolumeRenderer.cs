@@ -54,7 +54,9 @@ internal sealed class CloudVolumeRenderer : IRenderer
         Settings = ConfigModSystem.Config.Clouds.Capture();
         reference = ConfigModSystem.Config.Clouds.FullResolutionReference;
         program = GpuShaderProgramLibraries.Get<CloudVolumeProgram>(api, "cloud_volume");
-        if (program?.EnsureReady() != true || (!reference && !reconstruction.Prepare())) return false;
+        if(program is null) return false;
+        program.ConfigureOptions(()=>program.SelfShadowing=Settings.ShadowQuality>0);
+        if (program.EnsureReady() != true || (!reference && !reconstruction.Prepare(Settings.ShadowQuality>0))) return false;
         geometry ??= new(Layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), proceduralVertices: 3);
         return true;
     }

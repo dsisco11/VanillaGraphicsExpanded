@@ -85,6 +85,7 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     float lunarPhase=max(volumeLunar.r,max(volumeLunar.g,volumeLunar.b))>0.0?CloudDirectionalPhase(direction,volumeMoon.xyz):0.0;
     // Classify once per ray. Fold weak unshadowed responses into the constant source;
     // zero illuminance then follows the existing directional-light rejection in the march.
+#if VGE_CLOUD_SELF_SHADOWING
     bool solarUnshadowed=CloudDirectionalUnshadowed(volumeSolar.rgb,solarPhase);
     bool lunarUnshadowed=CloudDirectionalUnshadowed(volumeLunar.rgb,lunarPhase);
     vec3 solar=solarUnshadowed?vec3(0):volumeSolar.rgb;
@@ -92,6 +93,11 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     vec3 environment=volumeEnvironment.rgb
         +(solarUnshadowed?volumeSolar.rgb*(solarPhase+volumeSamples.z/12.5663706144):vec3(0))
         +(lunarUnshadowed?volumeLunar.rgb*(lunarPhase+volumeSamples.z/12.5663706144):vec3(0));
+#else
+    vec3 environment=volumeEnvironment.rgb
+        +volumeSolar.rgb*(solarPhase+volumeSamples.z/12.5663706144)
+        +volumeLunar.rgb*(lunarPhase+volumeSamples.z/12.5663706144);
+#endif
     CloudDensityCache densityCache=CloudDensityCacheStart();
     for(int i=range.x;i<VGE_CLOUD_PRIMARY_LIMIT;i++)
     {
@@ -119,9 +125,11 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
             // An exactly zero floating-point weight cannot affect radiance or its centroid.
             // Skip only lighting: the complete schedule still updates density, native bins and
             // support below, including when transmittance termination is explicitly disabled.
-            vec3 source=environment
-                +CloudDirectional(local,volumeSun.xyz,solar,solarPhase)
-                +CloudDirectional(local,volumeMoon.xyz,lunar,lunarPhase);
+            vec3 source=environment;
+#if VGE_CLOUD_SELF_SHADOWING
+            source+=CloudDirectional(local,volumeSun.xyz,solar,solarPhase);
+            source+=CloudDirectional(local,volumeMoon.xyz,lunar,lunarPhase);
+#endif
             radiance+=weight*source;
             opacityWeight+=weight;
             distanceMoment+=weight*t;

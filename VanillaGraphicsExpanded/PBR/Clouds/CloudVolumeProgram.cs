@@ -5,9 +5,10 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
 /// <summary>Owns the history-free cloud executable and its immutable submission parameters.</summary>
-[ShaderProgram("Contract", "cloud_volume", 1)]
+[ShaderProgram("Contract", "cloud_volume", 2)]
 [ShaderStage("Contract", ShaderStageKind.Vertex, "cloud_volume.vsh")]
 [ShaderStage("Contract", ShaderStageKind.Fragment, "cloud_volume.fsh")]
+[ShaderUse("Contract",ShaderStageKind.Fragment,nameof(SelfShadowing))]
 internal sealed partial class CloudVolumeProgram : GpuProgram, ICloudVolumeBindings
 {
     internal readonly CloudVolumeParameters Parameters;
@@ -15,6 +16,9 @@ internal sealed partial class CloudVolumeProgram : GpuProgram, ICloudVolumeBindi
     private GpuShaderStorageBuffer? lighting;
 
     #region Public API
+    /// <summary>Selects the precompiled reference lighting variant before executable preparation.</summary>
+    [ShaderOptionReference(typeof(CloudShaderOptions),nameof(CloudShaderOptions.SelfShadowing))]
+    internal partial bool SelfShadowing { get; set; }
     /// <summary>Registers the dedicated resource contract and owns its parameter block.</summary>
     public CloudVolumeProgram()
     {

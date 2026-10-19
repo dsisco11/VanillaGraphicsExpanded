@@ -2,13 +2,15 @@ using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.PBR.Clouds;
 using Vintagestory.API.Common;
 
 namespace VanillaGraphicsExpanded.Rendering.Shaders.Fixtures;
 
 /// <summary>Runs cloud diagnostic helpers through production compute preparation and generated input publication.</summary>
-[ShaderProgram("Contract", "tests/cloud-traversal", 1)]
+[ShaderProgram("Contract", "tests/cloud-traversal", 2)]
 [ShaderStage("Contract", ShaderStageKind.Compute, "tests/cloud-traversal.csh")]
+[ShaderUse("Contract",ShaderStageKind.Compute,nameof(SelfShadowing))]
 internal sealed partial class CloudTraversalComputeShader : GpuComputeProgram, ICloudTraversalComputeBindings
 {
     private readonly PackedUniformBuffer ray = new(32);
@@ -16,12 +18,15 @@ internal sealed partial class CloudTraversalComputeShader : GpuComputeProgram, I
     private CpuUniformBuffer? volume;
 
     #region Public API
+    /// <summary>Selects the same compile-time transport policy as production cloud programs.</summary>
+    [ShaderOptionReference(typeof(CloudShaderOptions),nameof(CloudShaderOptions.SelfShadowing))]
+    internal static partial ShaderOption<bool> SelfShadowing { get; }
     /// <summary>Loads the registered offline fixture through the same executable owner used by runtime compute shaders.</summary>
-    internal static CloudTraversalComputeShader Create(ICoreAPI api)
+    internal static CloudTraversalComputeShader Create(ICoreAPI api,bool selfShadowing=true)
     {
         var layout = new GpuProgramLayout();
         layout.RegisterContract(Contract.Stages[0].Bindings);
-        if (!GpuComputePipeline.TryCreateFromAssets(api, new ShaderSettings(Contract), out var pipeline,
+        if (!GpuComputePipeline.TryCreateFromAssets(api, new ShaderSettings(Contract).With(SelfShadowing,selfShadowing), out var pipeline,
                 out string log, "Tests.Cloud.Traversal", layout: layout))
             throw new InvalidOperationException("Cloud traversal fixture unavailable: " + log);
         return new(pipeline!);
