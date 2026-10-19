@@ -149,7 +149,7 @@ Phase 2: Own the grid, resources and isolated density queries
 Phase 3: Observe changes and budget persistent work
   Depends on Phases 1–2. Outcome: current publications produce bounded, nonstarving update demand.
   Validation: focused scheduler/identity checks and minimal GPU descriptor-comparison coverage only.
-  ☐ Observe current native input through matching synchronous publication certificates.
+  ☑ Observe current native input through matching synchronous publication certificates.
     - Keep observation and hard-change-reference descriptors in W-by-W circular textures keyed by
       positive-modulo material column coordinates. Retain overlapping slots without descriptor copies.
       Validate old slot identity against the last committed window/domain; initialize entering columns
@@ -162,17 +162,38 @@ Phase 3: Observe changes and budget persistent work
       Retain computed results and metadata, never a previous-frame native texture borrow.
     - Generation changes enqueue physically classified refresh/invalidation instead of clearing the
       entire volume. Missing current input withdraws submission without falsely publishing freshness.
-  ☐ Implement region queues, work budgets, age tracking and the selected fairness rule.
+  ☑ Implement region queues, work budgets, age tracking and the selected fairness rule.
     - Prioritize new regions, incompatible geometry, newly relevant sources, visible old regions and
       background refinement. Preserve backlog across publications and report actual revisit ages.
     - Broad changes may mark the domain dirty but may not cause an unbounded dispatch workload.
-  ☐ Expand dependency updates beyond changed density cells.
+  ☑ Expand dependency updates beyond changed density cells.
     - Include down-light shadow influence and diffuse propagation support; carry resulting update
       demand through successive iterations. Do not label untouched dependent lighting as fresh.
     - Refresh direct visibility on direction changes and diffuse source on weather/lighting changes.
       Direct intensity-only changes retain transmission; mixed diffuse RGB is not rescaled as exact.
-  ☐ Completion: authored change sequences demonstrate bounded work, retained backlog, nonstarvation,
+  ☑ Completion: authored change sequences demonstrate bounded work, retained backlog, nonstarvation,
     exact region identity and correct fallback admission. No convergence or image-quality assertions.
+
+  Implementation verification (2026-10-19)
+    Observation -> proposal / Change classification and bounded scheduling; PBR.Clouds.md borrowed-map
+      contract -> LightingVolumeWork/Program and work_observation.glsl: current certified borrows,
+      positive-modulo circular identities, cumulative hard references and atomic region demand.
+    Scheduling -> proposal / Coordinates, coverage and allocation; Change classification and bounded
+      scheduling -> work.csh/work_selection.glsl: stable remapped cursors, bounded GPU lists/priority
+      heap, persistent pending ages, channel revisions and separate successful-batch completion.
+    Dependencies/publication -> proposal / Physical bounds and coherent publication; atmospheric
+      source units and Rendering.Enablement.md lifecycle boundaries -> barrier-separated demand,
+      node-owned masks, global dependent refresh, source transitions, failed-work withdrawal and reset.
+    Second review and independent completion audit passed. Cached Release build passed with no errors.
+      All four affected GPU checks passed; after review fixes the two work checks passed again
+      (590 ms observation/history/failure and 1074 ms maximum-domain fairness). Unchanged storage
+      checks were reused. Tests cover retained backlog, negative/circular keys, cumulative changes,
+      source activation/intensity/direction, frustum flags, failed publication, counter rollover and
+      maximum-domain 43-frame fair selection. No approximation quality or convergence gate was added.
+    Lists/header/heap use existing scratch; 2048 parameter bytes plus 63488 scratch bytes preserve
+      the fixed 65536-byte allowance and 10.20 MiB maximum owned-payload accounting. No native map
+      readback, new allocation class, lighting solver, live callback, full baseline matrix or packaging
+      was added. Runtime cost, appearance, live lifecycle and debug-menu wiring remain later work.
 
 Phase 4: Compute persistent direct-light transmission
   Depends on Phases 2–3. Outcome: selected regions retain independent solar/lunar transmission.

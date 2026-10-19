@@ -31,6 +31,15 @@ internal sealed class LightingVolumeStorage(Func<LightingVolumeMaintenanceProgra
     internal long StorageBytes => Domain?.Bytes ?? 0;
 
     #region Public API
+    #region Admission and publication
+    /// <summary>Checks that synchronous work borrows the exact lifetime and placement admitted by storage.</summary>
+    internal bool Accepts(CloudMapInput input) => Ready && ReferenceEquals(owner, input.Owner) && world == input.World &&
+        allocation == input.Allocation && shader == input.Shader && nativeStorage == input.Storage &&
+        Domain == new LightingVolumeDomain(input.Storage.Width, input.Placement);
+
+    /// <summary>Withdraws sampling after failed in-place work; explicit recovery must initialize compatible storage again.</summary>
+    internal void Withdraw() => Ready = false;
+
     /// <summary>Admits capabilities before allocation and retains only compatible overlapping material nodes.</summary>
     internal void Ensure(CloudMapInput input, LightingVolumeEncoding encoding, Func<bool> current)
     {
@@ -103,6 +112,8 @@ internal sealed class LightingVolumeStorage(Func<LightingVolumeMaintenanceProgra
         }
     }
 
+    #endregion
+    #region Capability admission and retirement
     /// <summary>Rejects unsupported fixed work shapes and payloads without allocating resources.</summary>
     internal static void Validate(LightingVolumeDomain domain, GraphicsCapabilities caps)
     {
@@ -113,7 +124,7 @@ internal sealed class LightingVolumeStorage(Func<LightingVolumeMaintenanceProgra
             caps.MaxCombinedTextureImageUnits < 2 || caps.MaxComputeTextureImageUnits < 2 ||
             caps.MaxUniformBufferBindings < 1 || caps.MaxUniformBlockSize < 96 ||
             caps.MaxComputeShaderStorageBlocks < 2 || caps.MaxShaderStorageBufferBindings < 2 ||
-            caps.MaxShaderStorageBlockSize < Math.Max(64L * domain.Regions, 65280) ||
+            caps.MaxShaderStorageBlockSize < Math.Max(64L * domain.Regions, 63488) ||
             caps.MaxComputeWorkGroupInvocations < 64 || caps.MaxComputeWorkGroupSize.Length < 3 ||
             caps.MaxComputeWorkGroupCount.Length < 3 || domain.Bytes > 32L * 1024 * 1024)
             throw new NotSupportedException("Cloud lighting volume storage exceeds context capabilities.");
@@ -131,6 +142,7 @@ internal sealed class LightingVolumeStorage(Func<LightingVolumeMaintenanceProgra
 
     /// <summary>Permanently retires every candidate-owned allocation and executable.</summary>
     public void Dispose() { if (disposed) return; disposed = true; Reset(); }
+    #endregion
     #endregion
 
     #region Private
@@ -158,8 +170,8 @@ internal sealed class LightingVolumeStorage(Func<LightingVolumeMaintenanceProgra
         var empty = new float[checked(4 * domain.Width * domain.Width)];
         PreviousObservation.UploadDataImmediate(empty); HardReference.UploadDataImmediate(empty);
         regions = Buffer(domain.Regions * 16); regionSpare = Buffer(domain.Regions * 16);
-        // Reserve 256 bytes for maintenance/density parameters within the fixed allowance.
-        Scratch = Buffer(65280 / 4);
+        // Reserve 2048 bytes for maintenance, density and six work parameter blocks within the fixed allowance.
+        Scratch = Buffer(63488 / 4);
         GlDebug.ThrowIfErrors("Cloud lighting volume allocation");
     }
 

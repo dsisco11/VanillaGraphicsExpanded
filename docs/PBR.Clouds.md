@@ -530,3 +530,26 @@ readiness while preserving the old texture/scale pair. Private density helpers r
 native cuboid support and connected faces. Lighting lookup checks all eight exact mask entries
 before using one hardware trilinear sample per admitted field; invalid coverage uses unshadowed
 direct and coarse environment fallback. These helpers perform no screen-space accumulation.
+
+`LightingVolumeWork` borrows a matching current native publication synchronously. GPU comparison
+updates two exact circular descriptor histories using unwrapped CPU window keys and bounded GPU
+offsets. The previous observation tracks each completed comparison; the hard-change reference
+advances only after local invalidation demand, catching accumulated small changes. Column writers
+atomically coalesce region demand. A separate node-owned pass updates occupancy and channel masks
+while retaining encoded RGB. Failed in-place work withdraws readiness and requires explicit reset;
+missing current input skips work without advancing completion timestamps.
+
+GPU scheduling retains dirty state, pending ages and material-key cursors. Density changes mark
+all dependent lighting dirty, while hard local changes also invalidate filtering footprints.
+Source direction changes retain compatible transmission as stale; newly active sources invalidate
+only their own direct channel. Intensity changes dirty diffuse lighting without rescaling retained
+RGB. Half the 512 direct and 256 diffuse job budgets goes to persistent round-robin selection;
+the remainder uses a bounded priority heap ordered by incompatibility, new source, frustum visibility,
+pending age and lattice index. Job lists and counters stay GPU-owned. The exact region records
+distinguish enqueue time, last actual update and completed/pending observation revisions.
+
+The completion operation accepts only successful selected channel batches from the same frame
+and grid; selection itself never certifies illumination. Successful batches request later diffuse
+dependency work. No lighting solver is registered, so these primitives currently run only when
+explicitly constructed by a caller or focused fixture. Their correctness checks do not qualify
+runtime scheduling cost, lighting latency or visual appearance.
