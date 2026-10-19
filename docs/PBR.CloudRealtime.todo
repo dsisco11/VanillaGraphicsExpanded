@@ -711,6 +711,56 @@ Phase 9: Precompute cloud perturbation octaves in a static volumetric noise text
     second review and independent audit. Reconcile delivered architecture and linked plans; final
     appearance/performance acceptance remains in Phase 11.
 
+Phase 9.1: Precombine fixed noise octaves and evaluate scalar texture cost
+  Depends on Phase 9. Outcome: compare a smaller scalar noise volume against the current packed
+    volume and frozen procedural baseline, select a representation from measured costs, and investigate
+    persistent tracing regressions without assuming fewer arithmetic instructions mean faster shading.
+  Validation: cached incremental builds and focused affected-contract checks through subagents.
+    Reuse the Phase 9 baseline identities, typed fixtures and opt-in diagnostics. No clean/full-catalog
+    rebuild, repeated baseline reproduction, routine full-resolution matrix or release ZIP gate;
+    final combined qualification remains in Phase 11.
+  ☐ Define and generate scalar candidates from the existing fixed octave combination.
+    - Precombine the decoded RGBA8 node values with weights 8/15,4/15,2/15,1/15 offline. Linear
+      filtering commutes with this fixed weighted sum before scalar storage quantization. Preserve
+      dimensions, seeds, octave content, normalization, native support, amplitude semantics, UVs,
+      repeat/texel-center mapping, wind anchoring and explicit LOD zero; do not change sampling budgets.
+    - Evaluate R8 UNORM (256 KiB) and R16 UNORM (512 KiB), including existing format/upload/sampler
+      support and their defined rounding. Keep frequency, tiling and LOD changes out of this comparison.
+      The Phase 9 R-only diagnostic still uses RGBA8 storage; it is not a scalar-format baseline.
+    - Extend the narrowly scoped offline generator with reproducible format/version/digest contracts.
+      Keep frozen comparison assets outside normal rendering; add no runtime generation or new settings.
+  ☐ Integrate scalar sampling through the existing shared cloud resource owner and typed bindings.
+    - Retain one hardware-trilinear 3D sample, using its scalar result directly without a runtime octave
+      dot product. Share the same admitted field across reference, reduced, secondary and cache paths.
+    - Preserve early bypasses, one upload per resource lifetime, admission/failure recovery and
+      reset/reload/disable/context retirement. Use a clean break for any selected asset format;
+      add no migration, automatic procedural fallback or mid-frame density-field switch.
+  ☐ Compare scalar candidates, current RGBA8 and the frozen procedural shader at matched controls.
+    - Reuse small day/night density, trace, cache-generation and complete-owner diagnostics. Compare
+      each scalar format directly with the retained baselines; do not infer an end-to-end result by
+      combining percentages from separately measured comparisons or summing stage medians.
+    - Record paired raw samples/distributions, CPU submission, startup/upload costs, storage, exact
+      asset/executable identities and all regressions. Record competing GPU workloads and keep their
+      impact explicit. Consistent paired tracing regressions must not be dismissed solely as contention.
+    - Distinguish texture instructions, filtered spatial texels and actual memory transactions. A smaller
+      resource or one sampling instruction does not establish reduced latency or a frame-time benefit.
+  ☐ Profile remaining tracing regressions if scalar sampling does not remove them.
+    - Use profiling/disassembly supported by the actual graphics API and target GPU; first verify
+      tool support. Examine texture throughput/stalls, cache behavior, memory traffic, arithmetic/
+      special-function utilization, registers and occupancy where available, against the procedural path.
+    - Separate measured bottlenecks from hypotheses about bandwidth, dependent-fetch latency or
+      insufficient latency hiding. If counters are unavailable, retain that attribution as unverified;
+      do not replace missing evidence with source operation counts or a broad new profiling framework.
+    - Select and document the supported representation/disposition from the evidence. Do not claim
+      a speedup or promote a candidate solely because it has fewer channels or less shader arithmetic.
+  ☐ Verify deterministic generation/identity, scalar quantization arithmetic, three-axis hardware
+    filtering/wrap, combination bounds, shared consumers, bypasses and lifetime/failure contracts
+    with lean existing fixtures. Add no spectral, image-error, convergence or approximation-quality gates.
+  ☐ Completion: scalar comparisons and conditional profiling have an evidence-backed disposition,
+    focused checks, second review and independent audit. Reconcile the selected asset/runtime contract
+    in PBR.Clouds.md and this plan; retain raw regressions and any unresolved hardware attribution.
+    User appearance, tiling/quantization review and final native performance acceptance stay in Phase 11.
+
 Phase 10: Improve volumetric-cloud temporal filtering and retain compatible sampling history
   Depends on Phase 9 and the delivered cloud reconstruction/history contracts. Outcome: longer useful
     accumulation with fewer unnecessary resets, while rejecting genuinely incompatible observations.
@@ -768,7 +818,7 @@ Phase 10: Improve volumetric-cloud temporal filtering and retain compatible samp
     performance and user appearance acceptance. Do not claim a larger frame count guarantees improvement.
 
 Phase 11: Qualify the complete renderer and reconcile acceptance
-  Depends on Phase 10, Phase 9, Phase 8 and subphases 8.1–8.5 and 8.7. Outcome: the combined policy has reproducible quality
+  Depends on Phase 10, Phase 9 and subphase 9.1, Phase 8 and subphases 8.1–8.5 and 8.7. Outcome: the combined policy has reproducible quality
     and performance evidence. The completed original Phase 8 does not qualify these later upgrades.
   Validation: this is the final full baseline-reproduction/canonical packaging gate, performed once
     against a frozen combined candidate. Reuse unchanged focused evidence and valid baseline provenance;
@@ -785,6 +835,7 @@ Phase 11: Qualify the complete renderer and reconcile acceptance
     - Include separated cloud layers and light-space grid/source transitions from subphases 8.1–8.5 and 8.7.
       Explicitly qualify the compact parameter-filtered approximation replacing segmented lookup.
       Include the layer-intersection primary lattice, selected budget distance and uncertified-bound fallback.
+      Include subphase 9.1's scalar/packed/procedural disposition and any remaining tracing regressions.
       Keep diagnostic scene coverage opt-in rather than duplicating it across routine GPU suites.
     - Include empty/sparse/dense clouds; ground/inside/above views; thin edges, low-angle solar/lunar,
       moving weather/light, odd maps and foreground/translucent/liquid overlap in both PBR modes.
@@ -797,7 +848,8 @@ Phase 11: Qualify the complete renderer and reconcile acceptance
       invent an absolute time target, hide regressions in an aggregate or equate probe counts with speed.
   ☐ Obtain user-run acceptance of the changed quality policy: cubic fluff, lighting, shadows within
     clouds, fog, thin support, disocclusion, motion and OIT overlap across relevant views/modes.
-    Include the static noise field's octave appearance, tiling, seams and wind anchoring from Phase 9.
+    Include the static noise field's octave appearance, tiling, seams, scalar quantization and wind
+      anchoring from Phase 9 and subphase 9.1.
     Include Phase 10 history retention, stationary noise, moving edges/trails, disocclusion recovery
       and response to continuous day/night/weather changes with LumOn both disabled and enabled.
     Earlier appearance acceptance does not establish acceptance of changed sampling/resolution/fog.
@@ -813,7 +865,7 @@ Final acceptance
     Any selected attenuation cache has separately bounded construction, coverage and lookup costs.
   ☐ Lower-resolution tracing, amortized atmosphere, repeated density/phase work and acceleration
     each have delivered behavior or an evidence-backed disposition against the stated objective.
-  ☐ All six original performance findings, earlier density/phase findings and Phase 8, subphases 8.1–8.5 and 8.7, and Phase 9/10 tasks
+  ☐ All six original performance findings, earlier density/phase findings and Phase 8, subphases 8.1–8.5 and 8.7, and Phase 9/9.1/10 tasks
     map to final receipts;
     any unimplemented improvement is explicitly recorded, not silently treated as complete.
   ☐ Native ownership/weather, cubic density support, physical lighting, foreground clips, temporal
