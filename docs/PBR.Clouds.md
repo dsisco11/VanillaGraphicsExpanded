@@ -629,6 +629,9 @@ response applies once at the opacity-weighted representative distance, then phys
 once with the matching frozen scene scale. Reveal/Reveal/Glow/Add/Add/Add output policies preserve
 native accumulation, with non-emissive glow RGB zero. The physical camera, atmosphere and encoding
 contracts are shared by both PBR selections; there is no PBR-specific cloud-lighting branch.
+Engine block/point-light calibration and atmospheric solar calibration have independent generation
+identities. The frozen photometric buffer matches the camera calibration; the completed atmosphere
+supplies its own valid identity and lookup scale. The two calibration counters are not compared.
 Submission rejects unrepresentable current-source plus retained-diffuse, aerial and local-fog
 arithmetic before drawing. Receiving albedo is applied per direct-source contribution so an
 otherwise representable source sum does not overflow an intermediate before albedo multiplication.

@@ -35,6 +35,9 @@ public sealed class CloudLightingVolumeViewTests(HeadlessGLFixture fixture):LumO
     {
         EnsureShaderTestAvailable();using var scene=new LightingVolumeViewSceneFixture(Programs);
         var settings=new LightingVolumeViewSettings(4,50,0,false,true,true);
+        // Atmospheric and engine-light calibrations are independent; unequal valid
+        // generations must not reject a correctly frozen physical view.
+        scene.Atmosphere=scene.Atmosphere with {CalibrationGeneration=7};
         scene.SeedLighting(.25f,.75f,new Vector3(12),15);
         var value=scene.Draw(settings);
         float phase=.64f/(4*MathF.PI*MathF.Pow(1.36f,1.5f));

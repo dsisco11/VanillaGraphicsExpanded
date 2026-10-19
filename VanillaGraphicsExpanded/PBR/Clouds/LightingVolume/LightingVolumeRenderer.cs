@@ -55,12 +55,21 @@ internal sealed class LightingVolumeRenderer(LightingVolumeViewProgram program,F
         GpuFramebuffer target,Func<bool> current,int debugMode=0)
     {
         ObjectDisposedException.ThrowIf(disposed,this);Ready=false;
-        if(!prepared||failed||!storage.Accepts(input)||!current()||scene.Camera.FrameIndex!=input.Frame ||
-            scene.Camera.CalibrationGeneration!=scene.Atmosphere.CalibrationGeneration ||
-            map.TextureId!=input.Storage.Map || map.Width!=input.Storage.Width || map.Height!=input.Storage.Width ||
-            map.TextureTarget!=TextureTarget.Texture2D || map.InternalFormat!=PixelInternalFormat.Rgba32f) return false;
+        if(!prepared||failed) return Reject(Failure??"Candidate view is not prepared.");
+        Failure=null;
+        if(!storage.Accepts(input)||!current()) return Reject("Candidate view storage/native publication certificate is unavailable.");
+        if(scene.Camera.FrameIndex!=input.Frame)
+            return Reject($"Candidate camera frame {scene.Camera.FrameIndex} differs from native frame {input.Frame}.");
+        // Atmospheric solar calibration and engine block/point-light calibration have
+        // independent identities. Frozen photometric storage validates the camera's
+        // calibration in the shader; the completed atmospheric publication validates its own.
+        if(scene.Atmosphere.CalibrationGeneration==0) return Reject("Candidate atmosphere has no completed calibration identity.");
+        if(map.TextureId!=input.Storage.Map || map.Width!=input.Storage.Width || map.Height!=input.Storage.Width ||
+            map.TextureTarget!=TextureTarget.Texture2D || map.InternalFormat!=PixelInternalFormat.Rgba32f)
+            return Reject("Candidate native map texture does not match its admitted storage.");
         Vector2 extent=MemoryMarshal.Read<Vector2>(scene.Camera.Bytes.Slice(384,8));
-        if(extent.X!=target.Width||extent.Y!=target.Height) return false;
+        if(extent.X!=target.Width||extent.Y!=target.Height)
+            return Reject($"Candidate camera extent {extent.X}x{extent.Y} differs from OIT target {target.Width}x{target.Height}.");
         try
         {
             Check(current);
@@ -101,6 +110,8 @@ internal sealed class LightingVolumeRenderer(LightingVolumeViewProgram program,F
     public void Dispose() {if(disposed)return;disposed=true;RenderingCleanup.Run(Reset,lifetime.Dispose);}
     #endregion
     #region Private
+    /// <summary>Reports a rejected preflight without concealing its reason or mutating retained lighting.</summary>
+    private bool Reject(string reason) {Failure=reason;return false;}
     /// <summary>Separates current support reduction from fragment readers with SSBO visibility barriers.</summary>
     private void Reduce()
     {
