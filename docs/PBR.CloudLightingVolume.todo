@@ -350,23 +350,62 @@ Phase 6: Draw the candidate through an independent view path
 Phase 7: Integrate selection, lifecycle and focused diagnostics
   Depends on Phases 2–6. Outcome: users can select one removable candidate without coupling algorithms.
   Validation: incremental affected build and focused ownership/lifecycle checks; no release packaging.
-  ☐ Wire the developer selector at CloudNativeRuntime volumetric preparation.
+  ☑ Wire the developer selector at CloudNativeRuntime volumetric preparation.
     - Add the minimal lifecycle interface only if required by Phase 1. Retire/unregister the old
       consumer before activating the selected one; never run both renderers in ordinary play.
     - Preserve default renderer, Off/Simple semantics, native weather ticking/hooks and change-driven
       enablement. Existing lighting admission/depth demand observes the selected owner generically.
     - Initial preparation failure preserves native ownership policy; an admitted draw failure withdraws
       publication without activating a second renderer halfway through the frame.
-  ☐ Wire reset, context/world retirement, selection change and recovery to all candidate owners.
+  ☑ Wire reset, context/world retirement, selection change and recovery to all candidate owners.
     - Dispose candidate storage, callbacks and targets. Resize retains compatible cloud-space history
       while recreating view targets; incompatible domain/layout/transport changes invalidate storage.
     - Pause leaves native weather advancement to its owner and follows the selected refinement policy.
       Restore the existing renderer's unchanged settings when returning to it; add no migration.
-  ☐ Register minimal candidate settings and existing-menu debug visualizers.
+  ☑ Register minimal candidate settings and existing-menu debug visualizers.
     - Expose density support/lighting coverage, validity/fallback, age/backlog and transition behavior.
       Report update work and allocation counts without a new debug framework or redundant diagnostics.
-  ☐ Completion: selection/recovery/lifecycle contracts pass focused checks and a dependency review
+  ☑ Completion: selection/recovery/lifecycle contracts pass focused checks and a dependency review
     confirms the candidate does not intertwine with current shadow, hierarchy, transport or history code.
+
+  Implementation verification (2026-10-19)
+    Selection/admission -> proposal / Native admission and shared boundary; Physical bounds and
+      coherent publication; PBR.Clouds.md ownership/depth/OIT and PBR.Atmosphere.Publication.md scene
+      publication; Rendering.Enablement.md -> ICloudVolumeConsumer, applied-config CloudVolumeSelection,
+      early CloudNativeRuntime selection and generic Maximum delegation. Existing remains default;
+      native Off/Simple, producer hooks and ownership-driven shared depth demand are unchanged.
+      Retire/unregister precedes replacement. Unadmitted preparation failure retains native drawing;
+      admitted failure withdraws publication without selecting another draw in that frame.
+    Lifetime/updates -> proposal / Isolation and integration boundary; Scheduling, changes and retained
+      history; selected physical/publication contracts -> LightingVolumeConsumer/Solution own bounded
+      observation, direct, scattering and independent view submission. Preparation admits programs,
+      maximum-layout formats/limits and finite bounds before ownership. Current native/frame/source
+      certificates gate synchronous work; native wrappers are released at callback exit. Lifetime
+      high-water bounds are admitted before Opaque through the selected consumer. View-only controls
+      retain compatible lighting; density/transport controls clear it. Resize retires target metadata
+      only, since this full-resolution candidate has no view target. Reload/world/context/selection
+      retirement disposes all candidate owners; native weather remains native-owned during pause.
+    Settings/diagnostics -> proposal / Deterministic view and initial controls; fallback/transition
+      policy -> separate Clouds.LightingVolume record, ConfigLib/localization and Cloud Lighting Volume
+      in the existing debug menu. Coverage and exact valid/fallback footprint colors expose spatial
+      retention and immediate completed-channel transitions. Optional once-per-second metadata reads
+      report selected jobs, pre-update backlog/ages, current dirty regions, retained-channel age,
+      physical caps and allocation payload/counts. Inactive retained history is explicitly labeled.
+      GUI ticks read cached text; ordinary rendering performs no diagnostic readback. Disabled feature
+      paths use compiled options. No current shadow/hierarchy/transport/reconstruction dependency exists.
+    Second review and independent completion audit passed with no unresolved findings. Twenty focused
+      checks passed without skips: selected-owner/configuration, existing ownership/depth demand,
+      finite domain/settings and three view GPU facts including integrated update-to-OIT submission
+      and resource retirement. Tests enforce declared contracts, not approximation accuracy or quality.
+      Final GPU facts and unchanged earlier CPU receipts were reused after text/assertion-only cleanup.
+    Final cached Release build passed in 31.12 seconds with zero errors and 185 existing warnings;
+      all 494 production and 577 fixture variants were reused without shader compiler invocations.
+      Initial shader changes compiled only sixteen view variants per catalog; metadata refresh did
+      not imply full binary compilation. Receipts: artifacts/cloud-lighting-volume-phase7-qualified-build.log,
+      artifacts/cloud-lighting-volume-phase7-tests.log and TRX files cloud-lighting-volume-phase7-focused.trx,
+      -final-view.trx and -final-selection.trx under artifacts/test-results/. No clean build, broad suite,
+      package or game run. Actual live mode/world transitions, cost, packaging and user appearance
+      remain Phase 8 qualification. Later tasks and final acceptance remain unchecked.
 
 Phase 8: Qualify cost, appearance and removability
   Depends on Phases 1–7. Outcome: evidence supports keeping, revising or removing the candidate.

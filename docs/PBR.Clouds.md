@@ -18,7 +18,7 @@ reload or mode release, avoiding a second draw with a different lighting convent
 
 Native `FluffyClouds.CloudRendererMap` retains its OIT .30 callback, worker, uploads, texture
 allocation and shader subscriptions. Its callback alone ticks volumetric weather and generates
-the map. VGE's independently registered `CloudVolumeRenderer` draws at OIT .31. A direct gate
+the map. VGE's selected volumetric consumer draws at OIT .31. A direct gate
 on the current native volumetric callback suppresses its visible draw while the replacement
 owns that mode. Native settings watchers can freely register the native callback again; its
 gate still applies. VGE does not tick this producer or modify its registration.
@@ -508,11 +508,12 @@ acceptance or live frame time. Weather appearance, cubic fluff, motion, in-game 
 transitions and hardware-specific GPU/CPU/memory budgets remain acceptance activities in the
 linked checklist.
 
-## Isolated lighting-volume storage
+## Independent lighting-volume candidate
 
-`PBR/Clouds/LightingVolume/` owns an independently usable lighting-grid foundation. It has no
-registered cloud renderer or live selector. Native cloud ownership and the
-existing drawing path do not depend on it. Its intended rendering contract is described in the
+`PBR/Clouds/LightingVolume/` owns an independent lighting-grid candidate. `Clouds.VolumeRenderer`
+selects `Existing` (0, default) or `LightingVolumeCandidate` (1), separately from native Off/Simple/
+Volumetric selection. Candidate controls live under `Clouds.LightingVolume`; existing quality settings
+are retained unchanged when switching. Its numerical rendering contract is described in the
 [lighting-volume proposal](PBR.CloudLightingVolume.Proposal.md).
 
 `LightingVolumeDomain` uses unwrapped material lattice keys with 100x25x100-unit cells and a
@@ -550,8 +551,8 @@ distinguish enqueue time, last actual update and completed/pending observation r
 
 The completion operation accepts only successful selected channel batches from the same frame
 and grid; selection itself never certifies illumination. Successful batches request later diffuse
-dependency work. No lighting solver is registered, so these primitives currently run only when
-explicitly constructed by a caller or focused fixture. Their correctness checks do not qualify
+dependency work. The selected candidate coordinates these primitives through `LightingVolumeSolution`.
+Their correctness checks do not qualify
 runtime scheduling cost, lighting latency or visual appearance.
 
 `LightingVolumeDirect` consumes only the selected jobs and source directions frozen by the work
@@ -570,8 +571,8 @@ its own validity bit. Image/storage/sampling barriers separate each pass and com
 failure clears that channel's validity throughout the region and leaves its update pending;
 dispatch or certificate failure withdraws the complete storage publication. Completion records
 only successful region channels. Inactive sources request no executable or dispatch, and native
-texture references are released after synchronous submission. The solver has reset/disposal hooks
-and remains unregistered with the live renderer.
+texture references are released after synchronous submission. The selected candidate owns the solver's
+reset/disposal lifetime; the solver has no independent native callback.
 
 `LightingVolumeScattering` refines at most 256 selected regions from the published diffuse field.
 Each occupied node gathers six equally weighted axis rays, with twelve uniform midpoints over
@@ -601,14 +602,14 @@ Direct updates additionally load/store 16 bytes of mask-bearing RGBA per source-
 of RG transmission; node invalidation loads/stores 16 bytes per allocated texel. Refinement's selected
 destination load/store adds 16 bytes per updated node. These are logical payload traffic counts;
 filtered reads, metadata traffic, caching and actual GPU time require separate measurement.
-These isolated owners have reset/disposal hooks; scene admission and live callback wiring remain
-unregistered. Focused arithmetic/publication checks do not establish runtime cost or appearance.
+The candidate consumer admits lifetime source envelopes through the generic selected-consumer
+boundary before Opaque. Focused arithmetic/publication checks do not establish runtime cost or appearance.
 
 `LightingVolumeRenderer` submits the candidate through its own full-resolution view program. It
 borrows a complete current camera, frozen photometric publication, native map, independent material/
 particle/liquid depths, completed aerial products and native OIT target. It owns procedural geometry,
 graphics pipelines and a small native-height reduction program; its view program remains with the
-shader library. It neither ticks weather nor registers a live callback or selector. Lighting updates
+shader library. The view owner neither ticks weather nor registers a callback. Lighting updates
 remain separate owners, so draw submission does not hide descriptor or refinement work.
 
 The reduction scans each native texel once, rejects malformed/empty controls and writes the finite
@@ -636,5 +637,37 @@ The selected view has no intermediate texture, spatial resolve, screen-space his
 on existing cloud hierarchy, shadow, transport or reconstruction owners. Its height and view
 parameter blocks raise the total to 1904 of the reserved 2048 bytes; scratch and volume allocations
 are unchanged. Reset retires private pipelines/reduction/geometry and releases synchronous borrows.
-Live ownership, lifecycle registration, scene-bound admission and visual/performance qualification
-remain unregistered and unqualified.
+
+`CloudNativeRuntime` manages either renderer through `ICloudVolumeConsumer`: preparation, reset,
+disposal, native callback and physical maximum. Applied configuration captures a pending selector
+and candidate settings snapshot on the rendering thread. Before .002 applies selection, retires
+the previous owner before preparing a replacement, and leaves native drawing available when initial
+preparation fails. A change after this boundary waits for the next frame. Actual ownership continues
+to drive shared material-depth demand in either PBR selection; scene publication has no candidate branch.
+
+`LightingVolumeConsumer` coordinates the private solution and view at OIT .31 after certified native
+map generation. Before-Opaque source admission retains brighter lifetime envelopes and current aerial/
+local-fog bounds; the draw verifies the frozen scene inputs. Synchronous map wrappers are disposed
+at callback exit, and no previous-frame native borrow is retained. Pause leaves native weather with
+its existing owner; certified paused inputs can continue refinement. Missing current inputs skip
+without advancing completed update ages. Admitted work failure withdraws publication and latches
+until reset/reload/selection recovery, while native drawing remains suppressed for that ownership.
+
+Resize retires borrowed target metadata and keeps compatible cloud-space lighting. There are no
+candidate view targets to resize. World/context replacement, reload and consumer retirement release
+every private owner. Detail/self-shadowing/diffuse setting changes clear the candidate solution at
+early preparation; view budget/termination changes retain compatible lighting. Disabled shader paths
+select precompiled variants, and disabled transport creates no corresponding jobs or solver executable.
+
+Candidate controls default to 96 view samples, 10000-unit budget distance, .005 stop transmission,
+with detail, self-shadowing and diffuse enabled. ConfigLib exposes the selector and these independent
+controls. Grid, transport and scheduling budgets remain fixed. No screen-space temporal filtering is used.
+
+The existing VGE debug menu contains Cloud Lighting Volume. Coverage colors distinguish native
+density within/outside lighting coverage; validity colors distinguish complete valid footprints from
+fallback across occupied view samples. Their spatial proportions expose fallback/coverage and the
+immediate switch to completed lighting. The panel reports selected work, backlog, dirty regions,
+actual update ages, allocation payload/counts and transition policy. Scheduler metadata is read only
+while this view is active, at most once per second; GUI ticks read cached text. No new diagnostic
+texture or framework is allocated. The coarse fallback is source-lit, so black illumination also
+produces a black diagnostic view. Live appearance, timing and package qualification remain open.

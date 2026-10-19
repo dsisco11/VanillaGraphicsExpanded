@@ -94,8 +94,15 @@ internal sealed class LightingVolumeViewSceneFixture:IDisposable
     #endregion
     #region Submission and retirement
     /// <summary>Clears native products and draws the actual candidate owner with a frozen test scene publication.</summary>
-    internal float[][] Draw(LightingVolumeViewSettings settings,float scale=1,Func<bool>? current=null,bool succeeds=true)
+    internal float[][] Draw(LightingVolumeViewSettings settings,float scale=1,Func<bool>? current=null,bool succeeds=true,
+        LightingVolumeSolution? solution=null)
     {
+        if(solution is not null)
+        {
+            solution.Prepare(settings);solution.Bounds.Observe(Atmosphere);
+            Span<Vector4> planes=stackalloc Vector4[6];LightingVolumeViewFrustum.Capture(camera,input,planes);
+            Assert.True(solution.Update(input,map,Atmosphere,planes,settings,current??(()=>true)),solution.Failure);
+        }
         lighting.Capture(scale);Assert.True(renderer.Prepare(settings),renderer.Failure);
         RenderPassColor[] colors=Enumerable.Range(0,6).Select(i=>new RenderPassColor(i,AttachmentLoad.Clear,
             Clear:i<2?ColorClearValue.Float(1,1,1,1):ColorClearValue.Float(0,0,0,0))).ToArray();
@@ -103,7 +110,7 @@ internal sealed class LightingVolumeViewSceneFixture:IDisposable
         {commands.BeginPass(new RenderPassDesc(output.Target,colors));commands.EndPass();}));
         var scene=new LightingVolumeViewScene(camera,lighting.Buffer,Atmosphere,material,visibility,liquid,aerial,attenuation,
             shafts,Underwater,Fog,FogColor);
-        bool drawn=renderer.Draw(storage,input,map,scene,output.Target,current??(()=>true));
+        bool drawn=renderer.Draw(solution?.Storage??storage,input,map,scene,output.Target,current??(()=>true));
         if(succeeds) Assert.True(drawn,renderer.Failure);
         else {Assert.False(drawn);Assert.False(renderer.Ready);Assert.NotNull(renderer.Failure);}
         return output.Images.Select(texture=>texture.ReadPixels()).ToArray();

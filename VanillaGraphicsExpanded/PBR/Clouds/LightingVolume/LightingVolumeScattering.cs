@@ -17,6 +17,15 @@ internal sealed class LightingVolumeScattering(Func<bool,LightingVolumeScatterin
     internal string? Failure { get; private set; }
 
     #region Public API
+    /// <summary>Prepares only enabled scattering with its selected compiled direct-lookup option.</summary>
+    internal void Prepare(bool enabled,bool shadows)
+    {
+        ObjectDisposedException.ThrowIf(disposed,this);
+        if(!enabled) return;
+        if(program is null) {program=createProgram(shadows);shadowVariant=shadows;}
+        if(!program.EnsureReady()) throw new InvalidOperationException(program.PreparationLog);
+        ValidateLimits();
+    }
     /// <summary>Copies unchanged RGBA, refines selected nodes from the old field, then publishes the complete texture/scale pair.</summary>
     internal bool Update(LightingVolumeStorage storage,LightingVolumeWork work,CloudMapInput input,GpuTexture map,Func<bool> current)
     {

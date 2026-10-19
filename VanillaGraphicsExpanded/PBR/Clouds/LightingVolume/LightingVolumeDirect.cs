@@ -17,6 +17,15 @@ internal sealed class LightingVolumeDirect(Func<LightingVolumeDirectProgram> cre
     internal string? Failure { get; private set; }
 
     #region Public API
+    /// <summary>Prepares enabled direct work without creating an executable for a disabled channel family.</summary>
+    internal void Prepare(bool enabled)
+    {
+        ObjectDisposedException.ThrowIf(disposed,this);
+        if(!enabled) return;
+        program??=createProgram();
+        if(!program.EnsureReady()) throw new InvalidOperationException(program.PreparationLog);
+        ValidateLimits();
+    }
     /// <summary>Submits the frozen selected solar/lunar batches in order, then commits their actual update metadata.</summary>
     internal bool Update(LightingVolumeStorage storage,LightingVolumeWork work,CloudMapInput input,GpuTexture map,Func<bool> current)
     {

@@ -16,6 +16,8 @@ internal static class VgeShaderPrograms
     {
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudSimpleProgram.Contract.Identity, () => new PBR.Clouds.CloudSimpleProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudVolumeProgram.Contract.Identity, () => new PBR.Clouds.CloudVolumeProgram());
+        GpuShaderProgramLibraries.Declare(api, PBR.Clouds.LightingVolume.LightingVolumeViewProgram.Contract.Identity,
+            () => new PBR.Clouds.LightingVolume.LightingVolumeViewProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudTraceProgram.Contract.Identity, () => new PBR.Clouds.CloudTraceProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudTemporalProgram.Contract.Identity, () => new PBR.Clouds.CloudTemporalProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudResolveProgram.Contract.Identity, () => new PBR.Clouds.CloudResolveProgram());

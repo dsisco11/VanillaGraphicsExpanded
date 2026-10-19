@@ -44,7 +44,7 @@ internal sealed partial class LightingVolumeViewProgram:GpuProgram,ILightingVolu
     }
     /// <summary>Stages one bounded current native/grid transform, physical source snapshot and medium.</summary>
     internal void Capture(LightingVolumeDomain domain,CloudPlacement placement,LightingVolumeEncoding encoding,
-        LightingVolumeViewSettings settings,LightingVolumeViewScene scene)
+        LightingVolumeViewSettings settings,LightingVolumeViewScene scene,int debugMode=0)
     {
         RequireInputMutation();settings.Validate();var light=scene.Atmosphere;
         // Physical source admission is independent of exposure and never calls the existing cloud transport owner.
@@ -66,7 +66,7 @@ internal sealed partial class LightingVolumeViewProgram:GpuProgram,ILightingVolu
             (1+16384.0/(1<<23)));
         grid.Capture(domain,placement,encoding);Span<byte> bytes=stackalloc byte[144];
         Vector3 sun=Direction(light.Sun),moon=Direction(light.Moon);
-        UboPacking.WriteVec4(bytes,0,settings.Maximum,settings.BudgetDistance,settings.Stop,0);
+        UboPacking.WriteVec4(bytes,0,settings.Maximum,settings.BudgetDistance,settings.Stop,debugMode);
         UboPacking.WriteVec4(bytes,16,light.Solar.X,light.Solar.Y,light.Solar.Z,0);
         UboPacking.WriteVec4(bytes,32,light.Lunar.X,light.Lunar.Y,light.Lunar.Z,0);
         UboPacking.WriteVec4(bytes,48,light.Environment.X,light.Environment.Y,light.Environment.Z,0);

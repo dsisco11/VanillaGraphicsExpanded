@@ -2,7 +2,7 @@
 
 ## Status and purpose
 
-Candidate design and numerical contract, implemented through [the candidate tasklist](PBR.CloudLightingVolume.todo). Isolated domain/storage maintenance, density queries, descriptor observation, bounded work scheduling, persistent direct transmission, progressive diffuse solving and full-resolution view submission are available; live selection and qualification remain subsequent work. This document does not claim a live registered renderer or authorize replacement of the current default.
+Candidate design and numerical contract, implemented through [the candidate tasklist](PBR.CloudLightingVolume.todo). Domain/storage maintenance, density queries, descriptor observation, bounded work scheduling, persistent direct transmission, progressive diffuse solving and full-resolution view submission are available through an independent developer-selectable consumer. The existing renderer remains the default. Cost, packaging and user appearance qualification remain open.
 
 The candidate would retain cloud-space illumination in a three-dimensional GPU volume and progressively update it with compute shaders. Many view samples and successive frames could reuse that illumination. The experiment asks whether this reduces total cloud rendering cost and improves lighting stability at an acceptable memory cost and update delay.
 

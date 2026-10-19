@@ -40,7 +40,7 @@ internal sealed class LightingVolumeRenderer(LightingVolumeViewProgram program,F
             heights??=createHeights();
             if(!heights.EnsureReady()) throw new InvalidOperationException(heights.PreparationLog);
             var caps=GpuSupport.Graphics;
-            if(caps.MaxDrawBuffers<6 || caps.MaxFragmentShaderStorageBlocks<2 || caps.MaxCombinedTextureImageUnits<9 ||
+            if(caps.MaxDrawBuffers<6 || caps.MaxFragmentShaderStorageBlocks<2 || caps.MaxTextureImageUnits<9 || caps.MaxCombinedTextureImageUnits<9 ||
                 caps.MaxUniformBufferBindings<=GpuBindingRegistry.Ubo.Frame || caps.MaxComputeWorkGroupInvocations<64 ||
                 caps.MaxComputeWorkGroupSize[0]<64) throw new NotSupportedException("Candidate view exceeds rendering capabilities.");
             geometry??=new(Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
@@ -52,7 +52,7 @@ internal sealed class LightingVolumeRenderer(LightingVolumeViewProgram program,F
     }
     /// <summary>Reduces current support and draws one full-view native OIT contribution from caller-certified resources.</summary>
     internal bool Draw(LightingVolumeStorage storage,CloudMapInput input,GpuTexture map,LightingVolumeViewScene scene,
-        GpuFramebuffer target,Func<bool> current)
+        GpuFramebuffer target,Func<bool> current,int debugMode=0)
     {
         ObjectDisposedException.ThrowIf(disposed,this);Ready=false;
         if(!prepared||failed||!storage.Accepts(input)||!current()||scene.Camera.FrameIndex!=input.Frame ||
@@ -66,7 +66,7 @@ internal sealed class LightingVolumeRenderer(LightingVolumeViewProgram program,F
             Check(current);
             heights!.Capture(input.Storage.Width);heights.Map=map;heights.Scratch=storage.Scratch;
             Reduce();Check(current);
-            program.Capture(storage.Domain!,input.Placement,storage.Encoding,settings,scene);
+            program.Capture(storage.Domain!,input.Placement,storage.Encoding,settings,scene,debugMode);
             program.Frame=scene.Camera;program.Lighting=scene.Lighting;program.Scratch=storage.Scratch;
             program.Map=map;program.Direct=storage.Direct;program.DiffuseField=storage.Diffuse;
             program.MaterialDepth=scene.MaterialDepth;program.VisibilityDepth=scene.VisibilityDepth;program.LiquidDepth=scene.LiquidDepth;

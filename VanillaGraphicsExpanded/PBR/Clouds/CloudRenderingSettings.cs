@@ -7,6 +7,10 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 [JsonObject(MemberSerialization.OptIn)]
 public sealed class CloudRenderingSettings
 {
+    /// <summary>Selects the candidate only by explicit developer choice.</summary>
+    [JsonProperty] public CloudVolumeRendererKind VolumeRenderer { get; set; }=CloudVolumeRendererKind.Existing;
+    /// <summary>Owns candidate controls separately from existing quality.</summary>
+    [JsonProperty] public LightingVolume.LightingVolumeSettings LightingVolume { get; set; }=new();
     /// <summary>Bounds complete-ray primary evaluations independently of native grid crossings.</summary>
     [JsonProperty] public int ViewRaySampleMax { get; set; } = 384;
     /// <summary>Retains a small bounded minimum on short positive-length primary spans.</summary>
@@ -38,6 +42,8 @@ public sealed class CloudRenderingSettings
     /// <summary>Bounds persisted input before it controls shader work; nonfinite values restore authored defaults.</summary>
     public void Sanitize()
     {
+        if(!Enum.IsDefined(VolumeRenderer)) VolumeRenderer=CloudVolumeRendererKind.Existing;
+        LightingVolume ??= new();LightingVolume.Sanitize();
         if(TraceScale is not (CloudTraceScale.Half or CloudTraceScale.Quarter)) TraceScale=CloudTraceScale.Quarter;
         ViewRaySampleMax=Math.Clamp(ViewRaySampleMax,4,384);
         ViewRaySampleMin=Math.Clamp(ViewRaySampleMin,1,Math.Min(16,ViewRaySampleMax));

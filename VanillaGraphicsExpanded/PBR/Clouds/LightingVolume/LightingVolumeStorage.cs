@@ -32,6 +32,14 @@ internal sealed class LightingVolumeStorage(Func<LightingVolumeMaintenanceProgra
 
     #region Public API
     #region Admission and publication
+    /// <summary>Admits maximum-layout capabilities and maintenance executable before native map availability.</summary>
+    internal void Prepare()
+    {
+        ObjectDisposedException.ThrowIf(disposed,this);
+        program??=createProgram();
+        if(!program.EnsureReady()) throw new InvalidOperationException(program.PreparationLog);
+        Validate(new LightingVolumeDomain(200,default),GpuSupport.Graphics);ValidateFormats();
+    }
     /// <summary>Checks that synchronous work borrows the exact lifetime and placement admitted by storage.</summary>
     internal bool Accepts(CloudMapInput input) => Ready && ReferenceEquals(owner, input.Owner) && world == input.World &&
         allocation == input.Allocation && shader == input.Shader && nativeStorage == input.Storage &&

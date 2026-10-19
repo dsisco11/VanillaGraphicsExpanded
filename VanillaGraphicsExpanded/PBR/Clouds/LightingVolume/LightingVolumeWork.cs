@@ -30,6 +30,21 @@ internal sealed class LightingVolumeWork(Func<int,LightingVolumeWorkProgram> cre
 
     #region Public API
     #region Observation and publication
+    /// <summary>Admits structural operations before transferring visible ownership.</summary>
+    internal void Prepare()
+    {
+        ObjectDisposedException.ThrowIf(disposed,this);
+        if(failed) throw new InvalidOperationException(Failure);
+        PreparePrograms();
+        var caps=GpuSupport.Graphics;
+        if(caps.MaxImageUnits<3 || caps.MaxComputeImageUniforms<3 || caps.MaxUniformBlockSize<208 ||
+            caps.MaxComputeWorkGroupInvocations<64 || caps.MaxComputeWorkGroupSize[0]<64 ||
+            caps.MaxComputeWorkGroupCount[0]<(360706+63)/64)
+            throw new NotSupportedException("Lighting work requires three image slots and 64-wide dispatches.");
+        var format=GpuSupport.GetInternalFormatCapabilities(ImageTarget.Texture2D,SizedInternalFormat.Rgba32f);
+        if(!format.Supported || format.ImageLoadSupport==0 || format.ImageStoreSupport==0)
+            throw new NotSupportedException("Lighting observation requires RGBA32F image load/store support.");
+    }
     /// <summary>Observes one certified publication and selects jobs; source values remain physical and unencoded.</summary>
     internal bool Update(LightingVolumeStorage storage,CloudMapInput? input,GpuTexture? map,AtmosphereLighting lighting,
         ReadOnlySpan<Vector4> nativeFrustum,Func<bool> current,bool directEnabled=true,bool diffuseEnabled=true)

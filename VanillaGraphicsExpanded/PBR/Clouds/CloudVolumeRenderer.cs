@@ -15,7 +15,7 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
 /// <summary>Draws reconstructed or reference transport at the native volume order; never advances native weather.</summary>
-internal sealed class CloudVolumeRenderer : IRenderer
+internal sealed class CloudVolumeRenderer : ICloudVolumeConsumer
 {
     internal static readonly VertexLayoutDesc Layout = new([]);
     private readonly ICoreClientAPI api;
@@ -35,6 +35,8 @@ internal sealed class CloudVolumeRenderer : IRenderer
     #region Preparation and admission
     /// <summary>Retains the exact bounded quality admitted before the scene lighting scale is frozen.</summary>
     internal CloudVolumeSettings Settings { get; private set; } = CloudVolumeSettings.Default;
+    /// <summary>Admits the existing physical envelope without exposing settings through selection.</summary>
+    public float Maximum(Atmosphere.AtmosphereLighting lighting,float localFogMaximum)=>CloudVolumeLighting.Maximum(lighting,localFogMaximum,Settings);
     /// <summary>Consumes native generation at .30 before the later Simple callback.</summary>
     public double RenderOrder => .31;
     /// <summary>Clouds are independent of visible terrain chunks.</summary>
@@ -48,7 +50,7 @@ internal sealed class CloudVolumeRenderer : IRenderer
         unregisterResize = ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder, Reset);
     }
     /// <summary>Admits the dedicated executable and procedural geometry before visible ownership.</summary>
-    internal bool Prepare()
+    public bool Prepare()
     {
         if (disposed || failed || AtmosphereModSystem.Lighting is null || !GpuUniformRingSystem.TryGetCurrent(out _)) return false;
         Settings = ConfigModSystem.Config.Clouds.Capture();
@@ -140,7 +142,7 @@ internal sealed class CloudVolumeRenderer : IRenderer
     #endregion
     #region Resource lifecycle
     /// <summary>Expires owned pipeline and borrowed framebuffer metadata without touching native texture storage.</summary>
-    internal void Reset()
+    public void Reset()
     {
         failed = false; program = null;
         RenderingCleanup.Run(cloudHierarchy.Reset, reconstruction.Reset, () => { pipeline?.Dispose(); pipeline = null; }, () => { target?.Dispose(); target = null; });

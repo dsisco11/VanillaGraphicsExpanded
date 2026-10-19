@@ -54,6 +54,30 @@ float ViewPhase(vec3 direction,vec3 light)
 /** Applies current physical sources to retained transmission and diffuse source, with explicit channel fallback. */
 vec3 ViewSource(vec3 q,vec2 phases)
 {
+    // Developer menu state is dynamic, separate from persisted feature options.
+    if(viewBudget.w>0.0)
+    {
+        vec3 uv;uint required=0u;
+#if VGE_LIGHTING_VOLUME_DIRECT
+        if(any(greaterThan(viewSolar.rgb,vec3(0)))) required|=2u;
+        if(any(greaterThan(viewLunar.rgb,vec3(0)))) required|=4u;
+#endif
+#if VGE_LIGHTING_VOLUME_DIFFUSE
+        required|=8u;
+#endif
+        bool valid=CandidateFootprint(q,required,uv);
+        vec3 color=valid?vec3(.05,1,.05):vec3(1,.05,.05);
+        if(viewBudget.w<1.5)
+        {
+            vec3 node=(q-candidateFirstNodeScale.xyz)/vec3(100,25,100);
+            bool covered=all(greaterThanEqual(node,vec3(0)))&&all(lessThan(node,candidateGridCap.xyz-1.0));
+            color=covered?vec3(.1,.4,1):vec3(1,.1,.05);
+        }
+        // Stay inside the admitted physical envelope even for black source publications.
+        float solar=max(max(viewSolar.r,viewSolar.g),viewSolar.b),lunar=max(max(viewLunar.r,viewLunar.g),viewLunar.b);
+        float environment=max(max(viewEnvironment.r,viewEnvironment.g),viewEnvironment.b);
+        return color*(.09*solar+.09*lunar+.9*environment);
+    }
     vec2 visibility=vec2(1);
 #if VGE_LIGHTING_VOLUME_DIRECT
     if(any(greaterThan(viewSolar.rgb,vec3(0)))) visibility.x=CandidateTransmission(q,0);

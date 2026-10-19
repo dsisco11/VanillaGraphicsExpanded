@@ -1,4 +1,11 @@
 {
+  "config-cloud-renderer": "Volumetric renderer (0: existing, 1: lighting-volume candidate)",
+  "config-candidate-detail": "Candidate density detail",
+  "config-candidate-shadows": "Candidate self-shadowing",
+  "config-candidate-diffuse": "Candidate diffuse transport",
+  "config-candidate-samples": "Candidate view sample maximum",
+  "config-candidate-distance": "Candidate view budget distance",
+  "config-candidate-stop": "Candidate stop transmission (0: disabled)",
   "config-section-clouds": "Clouds",
   "config-cloud-reference": "Full-resolution reference",
   "config-cloud-reference-tooltip": "Bypass half-resolution tracing and temporal reconstruction for comparison. Simple clouds are unaffected.",

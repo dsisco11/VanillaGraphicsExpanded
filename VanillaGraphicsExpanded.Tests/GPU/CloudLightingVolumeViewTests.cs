@@ -9,6 +9,26 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CloudLightingVolumeViewTests(HeadlessGLFixture fixture):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>The integrated update chain admits retained bounds, executes typed solvers and submits one finite native view.</summary>
+    [Fact]
+    public void IntegratedLightingSolutionDrawsAndRetiresItsOwnResources()
+    {
+        EnsureShaderTestAvailable();using var scene=new LightingVolumeViewSceneFixture(Programs);
+        var settings=new LightingVolumeViewSettings(4,50,0,false,true,true);
+        var solution=new LightingVolumeSolution(Programs.Api,false);
+        try
+        {
+            var images=scene.Draw(settings,solution:solution);
+            Assert.True(solution.Storage.Ready);Assert.True(solution.Storage.StorageBytes>0);
+            Assert.InRange(Math.Abs(images[1][0]-MathF.Exp(-2)),0,2e-5f);
+            Assert.All(images.SelectMany(x=>x),v=>Assert.True(float.IsFinite(v)&&v>=0));
+            float cap=solution.Bounds.Encoding.Cap;
+            solution.Bounds.Observe(scene.Atmosphere with {Solar=Vector3.Zero,Lunar=Vector3.Zero,Environment=Vector3.Zero});
+            Assert.Equal(cap,solution.Bounds.Encoding.Cap);
+        }
+        finally {solution.Dispose();}
+        Assert.False(solution.Storage.Ready);Assert.Equal(0,solution.Storage.StorageBytes);Assert.Equal(0,solution.Bounds.Encoding.Cap);
+    }
     /// <summary>The declared finite lattice emits independent bucket/overall products and applies Q plus cached D once.</summary>
     [Fact]
     public void DeterministicViewUsesPhysicalCachedSourcesAndNativeProducts()
