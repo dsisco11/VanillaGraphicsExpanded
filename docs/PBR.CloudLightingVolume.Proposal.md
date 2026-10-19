@@ -2,7 +2,7 @@
 
 ## Status and purpose
 
-Candidate design and numerical contract. The user has authorized planning and specification through [the candidate tasklist](PBR.CloudLightingVolume.todo). Runtime implementation and qualification remain subsequent work; this document does not claim a delivered renderer or authorize replacement of the current default.
+Candidate design and numerical contract, implemented through [the candidate tasklist](PBR.CloudLightingVolume.todo). Isolated domain/storage maintenance and density-query helpers are available; lighting solvers, view rendering, live selection and qualification remain subsequent work. This document does not claim a delivered renderer or authorize replacement of the current default.
 
 The candidate would retain cloud-space illumination in a three-dimensional GPU volume and progressively update it with compute shaders. Many view samples and successive frames could reuse that illumination. The experiment asks whether this reduces total cloud rendering cost and improves lighting stability at an acceptable memory cost and update delay.
 

@@ -101,6 +101,8 @@ public sealed record GraphicsCapabilities
     public int MaxTextureImageUnits { get; init; }
     /// <summary>Maximum combined texture image units across shader stages.</summary>
     public int MaxCombinedTextureImageUnits { get; init; }
+    /// <summary>Maximum texture image units available to one compute executable.</summary>
+    public int MaxComputeTextureImageUnits { get; init; }
     /// <summary>Maximum number of texture image units available to the vertex shader stage.</summary>
     public int MaxVertexTextureImageUnits { get; init; }
     /// <summary>Number of uniform-buffer binding points.</summary>

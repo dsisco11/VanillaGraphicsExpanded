@@ -507,3 +507,26 @@ These receipts establish source/automated contracts, not user visual
 acceptance or live frame time. Weather appearance, cubic fluff, motion, in-game lifecycle
 transitions and hardware-specific GPU/CPU/memory budgets remain acceptance activities in the
 linked checklist.
+
+## Isolated lighting-volume storage
+
+`PBR/Clouds/LightingVolume/` owns an independently usable lighting-grid foundation. It has no
+registered cloud renderer, live selector or lighting solver. Native cloud ownership and the
+existing drawing path do not depend on it. Its intended rendering contract is described in the
+[lighting-volume proposal](PBR.CloudLightingVolume.Proposal.md).
+
+`LightingVolumeDomain` uses unwrapped material lattice keys with 100x25x100-unit cells and a
+fixed vertical band. CPU double-precision anchors become bounded native-local GPU offsets;
+fractional wind enters through committed native placement once. Guard nodes remain invalid.
+`LightingVolumeStorage` owns continuous RG16F direct volumes, scaled RGBA16F diffuse/mask fields,
+native descriptor textures and exact region buffers. Capability and payload admission precede
+readiness. Overlapping grid shifts use distinct source/destination fields and region records;
+replacement retires old storage before allocating new storage. Reset releases the entire set.
+
+The maintenance executable initializes defined fallback storage and preserves overlapping data
+through barrier-complete remapping. Diffuse copies re-encode RGB while retaining exact alpha
+masks and publish the texture with its power-of-two physical scale. Failed copies withdraw
+readiness while preserving the old texture/scale pair. Private density helpers retain current
+native cuboid support and connected faces. Lighting lookup checks all eight exact mask entries
+before using one hardware trilinear sample per admitted field; invalid coverage uses unshadowed
+direct and coarse environment fallback. These helpers perform no screen-space accumulation.

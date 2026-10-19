@@ -108,11 +108,11 @@ Phase 1: Specify finite algorithms and candidate contracts
 Phase 2: Own the grid, resources and isolated density queries
   Depends on Phase 1. Outcome: a fixture can allocate, remap and sample initialized candidate storage.
   Validation: cached affected build and focused domain/resource/typed-binding checks; no packaging.
-  ☐ Implement candidate domain/storage owners and private density parameters/includes.
+  ☑ Implement candidate domain/storage owners and private density parameters/includes.
     - Preserve native extinction conversion, finite support, connected faces, bounded detail and
       material anchoring. Permit narrowly duplicated density math without extracting a broad framework.
     - Register candidate shader roots and typed bindings through existing discovery/program owners.
-  ☐ Allocate chosen lighting formats, coherent iteration storage and exact region metadata.
+  ☑ Allocate chosen lighting formats, coherent iteration storage and exact region metadata.
     - Pack occupied/solar-valid/lunar-valid/diffuse-valid bits as the exact integer 0..15 in alpha.
       Fetch masks with texelFetch; scale/filter RGB only. Keep domain identity in publication/region records.
     - Initialize all sampling footprints to defined fallback data; metadata is not interpolated.
@@ -122,13 +122,30 @@ Phase 2: Own the grid, resources and isolated density queries
       Cover encoding/range and failed-publication contracts without approximation-quality assertions.
     - Account for total bytes and reject unsupported dimensions/formats before publishing readiness.
       Clean up partial allocation and allow lifecycle-controlled recovery.
-  ☐ Implement overlap retention, new-slab initialization and full-domain replacement.
+  ☑ Implement overlap retention, new-slab initialization and full-domain replacement.
     - Preserve identity under camera motion, wind and integer recentering; revoke incompatible storage.
       Retain a stable vertical margin. View support must not be clipped to the lighting grid.
     - Define reset/retirement hooks; actual native lifecycle wiring follows in Phase 7.
-  ☐ Completion: focused checks establish transforms, footprint validity, bounds, allocation cleanup
+  ☑ Completion: focused checks establish transforms, footprint validity, bounds, allocation cleanup
     and read/write separation. No existing cloud owner or shader requires candidate state.
 
+  Implementation verification (2026-10-19)
+    Domain/private density -> proposal / Coordinates, coverage and allocation; Density, ray schedules
+      and source units; PBR.Clouds.md native-map/density contracts -> LightingVolumeDomain/Parameters,
+      private density include and focused placement/support checks. No current transport imports.
+    Storage/publication -> proposal / Stored quantities and filtering; Physical bounds and coherent
+      publication -> typed maintenance program, LightingVolumeStorage/Encoding, target-specific
+      format/limit admission, initialized guards, remap spares, exact masks and paired field scales.
+    Retention/lifetime -> proposal / Coordinates and coherent publication; Rendering.Enablement.md
+      lifecycle context -> overlapping key remaps, retained region timestamps, replacement retirement,
+      reset/disposal and failed-publication recovery checks. Live wiring remains Phase 7 work.
+    Second review and independent audit passed after replacing rounded-log scale admission with an
+      exact significand check. Cached Release build passed; all five focused tests passed without skips
+      (three CPU, two GPU). The two GPU checks totaled 556 ms. After the encoding-only fix, all three
+      affected CPU checks passed again; unchanged GPU evidence was reused. Final shader caches reused
+      464 production and 547 test variants with zero compiler invocations. Initial new-root registration
+      invalidated catalog identities; subsequent builds reused them. No clean build, broad test matrix,
+      packaging, live selection, appearance or runtime performance qualification was performed.
 Phase 3: Observe changes and budget persistent work
   Depends on Phases 1–2. Outcome: current publications produce bounded, nonstarving update demand.
   Validation: focused scheduler/identity checks and minimal GPU descriptor-comparison coverage only.

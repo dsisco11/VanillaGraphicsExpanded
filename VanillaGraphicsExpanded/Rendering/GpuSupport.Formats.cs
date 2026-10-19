@@ -27,9 +27,16 @@ public static partial class GpuSupport
             GL.GetInternalformat(target, format, InternalFormatParameter.InternalformatSupported, 1, out int supported);
             GlDebug.ThrowIfErrors("Internal format support");
             int renderable = 0;
+            int imageLoad = 0, imageStore = 0, filter = 0;
             int[] samples = [];
             if (supported != 0)
             {
+                if (target is ImageTarget.Texture2D or ImageTarget.Texture3D)
+                {
+                    GL.GetInternalformat(target, format, InternalFormatParameter.ShaderImageLoad, 1, out imageLoad);
+                    GL.GetInternalformat(target, format, InternalFormatParameter.ShaderImageStore, 1, out imageStore);
+                    GL.GetInternalformat(target, format, InternalFormatParameter.Filter, 1, out filter);
+                }
                 GL.GetInternalformat(target, format, InternalFormatParameter.FramebufferRenderable, 1, out renderable);
                 if (target is ImageTarget.Renderbuffer or ImageTarget.Texture2DMultisample or ImageTarget.Texture2DMultisampleArray)
                 {
@@ -43,6 +50,9 @@ public static partial class GpuSupport
             var result = new InternalFormatCapabilities
             {
                 Supported = supported != 0,
+                ImageLoadSupport = imageLoad,
+                ImageStoreSupport = imageStore,
+                FilterSupport = filter,
                 FramebufferRenderableSupport = renderable,
                 SampleCounts = [.. samples]
             };

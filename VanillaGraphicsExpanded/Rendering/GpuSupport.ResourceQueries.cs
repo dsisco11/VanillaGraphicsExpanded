@@ -17,6 +17,7 @@ public static partial class GpuSupport
         int maxArrayTextureLayers = default;
         int maxTextureImageUnits = default;
         int maxCombinedTextureImageUnits = default;
+        int maxComputeTextureImageUnits = 0;
         int maxVertexTextureImageUnits = default;
         int maxUniformBufferBindings = default;
         int maxUniformBlockSize = default;
@@ -110,6 +111,7 @@ public static partial class GpuSupport
 
         if (capabilities.SupportsArbComputeShader)
         {
+            maxComputeTextureImageUnits = SafeGetInt(GetPName.MaxComputeTextureImageUnits);
             maxComputeWorkGroupCount = SafeGetInt3((GetIndexedPName)GetPName.MaxComputeWorkGroupCount);
             maxComputeWorkGroupSize = SafeGetInt3((GetIndexedPName)GetPName.MaxComputeWorkGroupSize);
             maxComputeWorkGroupInvocations = SafeGetInt(GetPName.MaxComputeWorkGroupInvocations);
@@ -143,6 +145,7 @@ public static partial class GpuSupport
             MaxArrayTextureLayers = maxArrayTextureLayers,
             MaxTextureImageUnits = maxTextureImageUnits,
             MaxCombinedTextureImageUnits = maxCombinedTextureImageUnits,
+            MaxComputeTextureImageUnits = maxComputeTextureImageUnits,
             MaxVertexTextureImageUnits = maxVertexTextureImageUnits,
             MaxUniformBufferBindings = maxUniformBufferBindings,
             MaxUniformBlockSize = maxUniformBlockSize,
