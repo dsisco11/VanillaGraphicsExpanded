@@ -66,6 +66,63 @@ internal sealed class CloudPerformanceScene : IDisposable
     /// <summary>Copies staged renderer constants after submission without reading native map textures back.</summary>
     internal float[][] ReadParameters() => [MemoryMarshal.Cast<byte,float>(trace.Parameters.Bytes).ToArray(),
         MemoryMarshal.Cast<byte,float>(trace.Temporal.Bytes).ToArray()];
+    /// <summary>Reports shader-evaluated authored ray work outside timing, including the frozen lattice's retired index window.</summary>
+    internal object[] ReadPrimaryWork(CloudHierarchy hierarchy,bool horizontalBaseline)
+    {
+        Assert.True(hierarchy.TryGetCurrent(Input,out var bounds));
+        float[] heights=bounds!.ReadPixels(bounds.MipLevels-1),columns=map.ReadPixels();
+        var offset=MemoryMarshal.Read<Vector4>(trace.Parameters.Bytes);
+        Vector3 origin=-new Vector3(offset.X,offset.Y,offset.Z)+new Vector3(mapWidth*25,0,mapWidth*25);
+        using var probe=new CloudTraversalProbe(programs.Api);
+        var results=new List<object>();
+        foreach(var ndc in new[]{Vector2.Zero,new Vector2(-.5f,.5f),new Vector2(.5f,-.5f)})
+        {
+            var local=new Vector3(ndc.X/projection[0],ndc.Y/projection[5],-1);
+            var direction=Vector3.Normalize(new Vector3(local.X*inverseView[0]+local.Y*inverseView[4]+local.Z*inverseView[8],
+                local.X*inverseView[1]+local.Y*inverseView[5]+local.Z*inverseView[9],
+                local.X*inverseView[2]+local.Y*inverseView[6]+local.Z*inverseView[10]));
+            Vector4[] records=probe.Run(trace.Parameters,map,origin,direction,20000,5,
+                bounds:bounds,root:bounds.MipLevels-1);
+            int count=(int)records[402].X;
+            float start=records[402].Y,end=records[402].W;
+            float horizontalStart=horizontalBaseline?start:records[401].X,horizontalEnd=horizontalBaseline?end:records[401].Y;
+            float lo=horizontalStart,hi=horizontalEnd;
+            float slack=8*1.1920929e-7f*Math.Max(1,Math.Max(Math.Max(Math.Abs(heights[0]),Math.Abs(heights[1])),
+                Math.Abs(origin.Y)+Math.Abs(direction.Y)*horizontalEnd));
+            if(direction.Y!=0)
+            {
+                float a=(heights[0]-slack-origin.Y)/direction.Y,b=(heights[1]+slack-origin.Y)/direction.Y;
+                lo=Math.Max(lo,Math.Min(a,b));hi=Math.Min(hi,Math.Max(a,b));
+            }
+            else if(origin.Y<heights[0]-slack||origin.Y>heights[1]+slack)hi=lo;
+            int first=0,last=count;
+            float spacing=count==0?0:(end-start)/count;
+            if(horizontalBaseline&&count>0)
+            {
+                first=(int)Math.Clamp(MathF.Floor((lo-start)/spacing-.173f)-1,0,count);
+                last=hi>lo?(int)Math.Clamp(MathF.Ceiling((hi-start)/spacing-.173f)+2,0,count):first;
+            }
+            int visited=0,density=0,lighting=0;bool terminated=false;float transmission=1;
+            for(int i=first;i<last;i++)
+            {
+                visited++;Vector3 point=origin+direction*records[i].X;
+                int x=(int)MathF.Floor(point.X/50),z=(int)MathF.Floor(point.Z/50);
+                if(x<0||z<0||x>=mapWidth||z>=mapWidth)continue;
+                int pixel=(z*mapWidth+x)*4;
+                if(columns[pixel]<=0||point.Y<columns[pixel+2]*50||point.Y>columns[pixel+3]*50)continue;
+                density++;float alpha=Math.Clamp(1-MathF.Exp(-records[i].Z*spacing),0,1);
+                if(alpha<=0)continue;
+                if(transmission*alpha>0)lighting++;
+                transmission*=1-alpha;
+                if(transmission<settings.StopTransmittance){terminated=true;break;}
+            }
+            results.Add(new {ndc,origin,direction,horizontalStart,horizontalEnd,layerStart=lo,layerEnd=hi,
+                scheduled=count,heightSkipped=count-(last-first),visited,densityCalls=density,
+                positiveWeightLightingSamples=lighting,terminated,spacing,jitter=.173f,
+                note="Three authored rays, finite GPU-evaluated densities; CPU classifies native support and reproduces the declared prefix arithmetic. Not full-frame instrumentation or timing."});
+        }
+        return results.ToArray();
+    }
 
     /// <summary>Creates real cloud binaries and main-view publication without starting native weather or the game.</summary>
     internal CloudPerformanceScene(ComponentShaderPrograms programs, int viewWidth, int viewHeight, int mapWidth, string pattern, string viewpoint)

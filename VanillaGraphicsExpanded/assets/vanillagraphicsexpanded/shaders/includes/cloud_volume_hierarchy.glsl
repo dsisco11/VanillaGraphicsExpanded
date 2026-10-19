@@ -18,15 +18,13 @@ bool CloudRootSpan(vec3 origin,vec3 direction,inout vec2 span)
     // rays. It depends on absolute coordinates and span, never an accumulated grid-crossing clock.
     float magnitude=max(1.0,max(max(abs(bounds.x),abs(bounds.y)),abs(origin.y)+abs(direction.y)*span.y));
     float slack=8.0*1.1920928955078125e-7*magnitude;
-    // A nearly horizontal ray can still cross a thin layer over a long finite span. Compare
-    // both endpoints instead of applying the general slab helper's origin-only parallel rule.
-    if(abs(direction.y)<1e-8)
-    {
-        vec2 heights=origin.y+direction.y*span;
-        return max(heights.x,heights.y)>=bounds.x-slack && min(heights.x,heights.y)<=bounds.y+slack;
-    }
+    // Small nonzero slopes still define entry/exit over a finite ray. Only exact
+    // parallelism keeps the complete horizontal interval when inside the layer.
+    if(direction.y==0.0) return origin.y>=bounds.x-slack&&origin.y<=bounds.y+slack;
     float near=span.x,far=span.y;
-    if(!CloudSlab(origin.y,direction.y,bounds.x-slack,bounds.y+slack,near,far)) return false;
+    vec2 hits=(bounds+vec2(-slack,slack)-origin.y)/direction.y;
+    near=max(near,min(hits.x,hits.y));far=min(far,max(hits.x,hits.y));
+    if(far<=near) return false;
     span=vec2(near,far);
     return true;
 }

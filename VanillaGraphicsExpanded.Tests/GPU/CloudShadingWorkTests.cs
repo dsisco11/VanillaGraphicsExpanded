@@ -154,22 +154,29 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
         Directory.CreateDirectory(directory);
         using var baselinePrograms=new ComponentShaderPrograms(baselineRoot);
         using var currentPrograms=new ComponentShaderPrograms(Environment.GetEnvironmentVariable("VGE_CLOUD_SHADING_CANDIDATE_ASSETS"));
-        var controls=CloudVolumeSettings.Default with {ViewRaySampleMax=384,LightRaySampleMax=10,
+        var controls=CloudVolumeSettings.Default with {ViewBudgetDistance=50,TraceScale=CloudTraceScale.Quarter,ViewRaySampleMin=1,ViewRaySampleMax=384,LightRaySampleMax=10,
             ShadowDistance=1500,DetailAmplitude=.25f,EdgeWidth=8,StopTransmittance=0};
+        foreach(string budget in (Environment.GetEnvironmentVariable("VGE_CLOUD_PRIMARY_BUDGETS")??"0").Split(','))
         foreach(string mode in (Environment.GetEnvironmentVariable("VGE_CLOUD_FULL_VIEW_CASES")??"day,night,quarter,termination").Split(','))
         {
-            bool diagnostic=mode is "quarter" or "termination";
-            int rounds=diagnostic?3:5;
+            bool budgetExperiment=budget!="0";
+            bool diagnostic=budgetExperiment||mode is "quarter" or "termination";
+            int rounds=budgetExperiment?5:diagnostic?3:5;
             var candidateControls=mode=="quarter"?controls with {TraceScale=CloudTraceScale.Quarter}:
                 mode=="termination"?controls with {StopTransmittance=.005f}:controls;
-            string field=mode=="opaque-tail"?"opaque-tail":"dense";
-            using var before=new CloudPerformanceScene(baselinePrograms,3440,1377,200,field,"inside");
-            using var after=new CloudPerformanceScene(diagnostic?baselinePrograms:currentPrograms,3440,1377,200,field,"inside");
+            if(budgetExperiment)candidateControls=controls with {ViewBudgetDistance=float.Parse(budget,System.Globalization.CultureInfo.InvariantCulture)};
+            int width=budgetExperiment?512:3440,height=budgetExperiment?256:1377;
+            string view=mode=="ground"||mode=="grazing"?"ground":mode=="above"?"above":"inside";
+            string field=mode=="opaque-tail"?"opaque-tail":mode=="above"?"separated":mode=="grazing"?"sparse":"dense";
+            var candidatePrograms=diagnostic&&!budgetExperiment?baselinePrograms:currentPrograms;
+            using var before=new CloudPerformanceScene(baselinePrograms,width,height,200,field,view);
+            using var after=new CloudPerformanceScene(candidatePrograms,width,height,200,field,view);
             var lighting=MeasurementLighting(mode=="night");
+            if(mode=="grazing")lighting=lighting with {Sun=Vector3.Normalize(new(-.243f,.005f,.883f))};
             before.SetMeasurementInputs(controls,lighting);after.SetMeasurementInputs(candidateControls,lighting);
             using var oldOwner=before.CreateReconstruction();using var newOwner=after.CreateReconstruction();
             using var oldBounds=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(baselinePrograms.Api));
-            using var newBounds=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create((diagnostic?baselinePrograms:currentPrograms).Api));
+            using var newBounds=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(candidatePrograms.Api));
             using var timer=new CloudPerformanceTimer();using var wholeStart=GpuTimestampQuery.Create();
             using var wholeEnd=GpuTimestampQuery.Create();using var inputEnd=GpuTimestampQuery.Create();
             var oldTimes=new List<double[]>();var newTimes=new List<double[]>();
@@ -197,16 +204,18 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
             int occupied=history[0].Where((_,index)=>index%4==3).Count(value=>value<1);
             Assert.True(occupied>0,"Full-view field must execute nonempty cloud transport.");
             var receipt=new {mode,comparison=diagnostic?"separate-baseline-policy-diagnostic":Environment.GetEnvironmentVariable("VGE_CLOUD_COMPONENT_LABEL")??"current-default-shadow-policy",
-                fullWidth=3440,fullHeight=1377,nativeWidth=200,view="inside",field,nativeExtinction=mode=="opaque-tail"?6f:.125f,
+                fullWidth=width,fullHeight=height,nativeWidth=200,view,field,nativeExtinction=mode=="opaque-tail"?6f:.125f,
                 baselineControls=controls,candidateControls,defaults=CloudVolumeSettings.Default,warmups=3,rounds,
                 columns=new[]{"constructionGpuMs","traceGpuMs","temporalGpuMs","resolveGpuMs","drawTotalGpuMs",
                     "drawSubmitCpuMs","syntheticInputGpuMs","syntheticInputCpuMs","wholeRendererGpuMs","wholeSubmitCpuMs"},
                 baseline=oldTimes,current=newTimes,actualBaselineParameters=before.ReadParameters(),actualCurrentParameters=after.ReadParameters(),
+                baselinePrimaryWork=budgetExperiment?before.ReadPrimaryWork(oldBounds,true):null,
+                currentPrimaryWork=budgetExperiment?after.ReadPrimaryWork(newBounds,false):null,
                 historyAdmitted=after.HistoryEnabled,historyDifference,traceDifference,historyTransmissionDifference,traceTransmissionDifference,occupied,maximumRadiance=history[0].Where((_,i)=>i%4!=3).Max(),
                 lumOn=VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.LumOnEnabled,
                 gamePids=Process.GetProcessesByName("Vintagestory").Select(process=>process.Id).ToArray(),fixture.GLRenderer,fixture.GLVersion,
                 qualification="Representative-resolution synthetic production-owner timing, not native scene replay or live FPS; concurrent game PIDs recorded separately. Native producer absent; synthetic input generation/upload timed separately. Whole interval includes upload, output clear, reduction/barriers and all3passes; query waits/readback excluded. Caps are not observed evaluation counts."};
-            File.WriteAllText(Path.Combine(directory,mode+".json"),JsonSerializer.Serialize(receipt,new JsonSerializerOptions{WriteIndented=true}));
+            File.WriteAllText(Path.Combine(directory,mode+(budgetExperiment?"-budget"+budget:"")+".json"),JsonSerializer.Serialize(receipt,new JsonSerializerOptions{WriteIndented=true,IncludeFields=true}));
             output.WriteLine($"Full-view {mode} complete; history={after.HistoryEnabled},occupied={occupied}.");
         }
         GlDebug.ThrowIfErrors("Full-view production-owner measurements");

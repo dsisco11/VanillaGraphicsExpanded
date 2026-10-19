@@ -23,6 +23,7 @@ internal sealed class CloudReconstructionScene : IDisposable
     private readonly CloudVolumeSettings settings;
     private readonly ComponentShaderPrograms programs;
     private CloudVolumeProgram? reference;
+    private DynamicTexture2D? primaryBounds;
     private CloudTraceProgram? trace;
     private CloudTemporalProgram? temporal;
     private CloudResolveProgram? resolve;
@@ -228,13 +229,14 @@ internal sealed class CloudReconstructionScene : IDisposable
     /// <summary>Binds only exact-source summaries; a deliberately mismatched certificate exercises explicit direct support fallback.</summary>
     internal void UseHierarchy(CloudHierarchy? hierarchy, bool mismatch = false)
     {
-        if (hierarchy is null) { Trace.SetHierarchy(null); return; }
+        if (hierarchy is null) { primaryBounds=null;Trace.SetHierarchy(null);reference?.SetHierarchy(null);return; }
         var input = new CloudMapInput(this, 1, 1, mapPublication, 1, mapPublication, capturedFrame,
             new(map.TextureId, 2, 3, 4, map.Width, 50, 5), capturedPlacement);
         Assert.True(hierarchy.TryBuild(input, () => true), hierarchy.Failure);
         bool available = hierarchy.TryGetCurrent(mismatch ? input with { Generation = input.Generation+1 } : input, out var bounds);
         Assert.Equal(!mismatch, available);
         Trace.SetHierarchy(available ? bounds : null);
+        primaryBounds=available?bounds:null;reference?.SetHierarchy(primaryBounds);
     }
     /// <summary>Generates one same-frame diagnostic attenuation image using certified root bounds and shared physical inputs.</summary>
     internal void BuildShadowCache(CloudShadowAttenuationComputeShader builder,CloudHierarchy hierarchy,
@@ -420,6 +422,7 @@ internal sealed class CloudReconstructionScene : IDisposable
         {
             if(reference is not null)return reference;
             reference=programs.Create<CloudVolumeProgram>(p=>p.SelfShadowing=settings.ShadowQuality>0);reference.Frame=camera;reference.Lighting=storage.Buffer;
+            reference.SetHierarchy(primaryBounds);
             if(configuredLighting is not null)Configure(reference,reference.Parameters,capturedPlacement,configuredLighting);
             return reference;
         }

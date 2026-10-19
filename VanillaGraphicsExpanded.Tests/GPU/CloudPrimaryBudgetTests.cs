@@ -27,7 +27,8 @@ public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutp
             "empty-columns", "separated-heights", "invalid-and-tiny-columns", "outside-entry",
             "negative-entry", "zero-span", "parallel-inside", "parallel-outside", "positive-corner",
             "negative-corner", "near-parallel-boundary", "blue-noise-offset", "detail-exposed-face",
-            "detail-connected-face"
+            "detail-connected-face", "layer-entry", "above-layer", "inside-layer", "near-horizontal-entry",
+            "missing-bounds", "stale-bounds"
         })
         {
             output.WriteLine($"Primary lattice: {scenario}");
@@ -37,10 +38,22 @@ public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutp
             volume.CaptureMap(test.Width, default, 1, test.Settings);
             Vector4[] columns = Columns(test.Width, test.Pattern);
             native.UploadDataImmediate(MemoryMarshal.Cast<Vector4, float>(columns.AsSpan()).ToArray());
+            using var hierarchy=test.Width>=20?new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(Programs.Api)):null;
+            DynamicTexture2D? bounds=null;
+            if(hierarchy is not null)
+            {
+                var input=new CloudMapInput(this,1,1,1,1,1,1,new(native.TextureId,2,3,4,test.Width,50,5),default);
+                Assert.True(hierarchy.TryBuild(input,()=>true),hierarchy.Failure);
+                if(scenario=="stale-bounds")Assert.False(hierarchy.TryGetCurrent(input with {Generation=2},out bounds));
+                else if(scenario!="missing-bounds")Assert.True(hierarchy.TryGetCurrent(input,out bounds));
+            }
 
             // Compare the production helper with independently clipped geometry and scalar density.
-            Vector4[] actual = Dispatch(program, volume, native, test.Origin, test.Direction, test.Limit, test.Stochastic);
+            Vector4[] records=program.Run(volume,native,test.Origin,test.Direction,test.Limit,test.Stochastic?5:4,
+                bounds:bounds,root:bounds is null?null:bounds.MipLevels-1);
+            Vector4[] actual=records.AsSpan(0,(int)records[402].X).ToArray();
             var span = Span(test.Width, test.Origin, test.Direction, test.Limit);
+            if(bounds is not null&&span is not null)span=LayerSpan(columns,test.Origin,test.Direction,span.Value);
             int count = span is null ? 0 : Math.Min(test.Settings.ViewRaySampleMax, Math.Max(test.Settings.ViewRaySampleMin,
                 (int)Math.Floor(test.Settings.ViewRaySampleMax * Math.Min(1,
                     (span.Value.End - span.Value.Start) / test.Settings.ViewBudgetDistance))));
@@ -71,17 +84,6 @@ public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutp
     #endregion
 
     #region Private
-    #region GPU execution
-    /// <summary>Reads actual production-helper positions and shared density without substituting CPU scheduling.</summary>
-    private static Vector4[] Dispatch(CloudTraversalProbe program, CloudVolumeParameters volume, DynamicTexture2D native,
-        Vector3 origin, Vector3 direction, float limit, bool stochastic)
-    {
-        Vector4[] records=program.Run(volume,native,origin,direction,limit,stochastic?5:4);
-        int count=(int)records[402].X;Assert.InRange(count,0,384);
-        return records.AsSpan(0,count).ToArray();
-    }
-    #endregion
-
     #region Independent scalar reference
     /// <summary>Clips horizontal slabs with double arithmetic, independently of all production traversal helpers.</summary>
     private static (double Start, double End)? Span(int width, Vector3 origin, Vector3 direction, float limit)
@@ -89,11 +91,25 @@ public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutp
         double start = 0, end = limit;
         foreach (var (o, d) in new[] { (origin.X, direction.X), (origin.Z, direction.Z) })
         {
-            if (Math.Abs(d) < 1e-8) { if (o < 0 || o > width * 50) return null; continue; }
+            if (d==0) { if (o < 0 || o > width * 50) return null; continue; }
             double a = -o / (double)d, b = (width * 50 - o) / (double)d;
             start = Math.Max(start, Math.Min(a, b)); end = Math.Min(end, Math.Max(a, b));
         }
         return end > start ? (start, end) : null;
+    }
+    /// <summary>Independently reduces valid authored heights and intersects their conservative envelope.</summary>
+    private static (double Start,double End)? LayerSpan(Vector4[] columns,Vector3 origin,Vector3 direction,(double Start,double End) horizontal)
+    {
+        var occupied=columns.Where(c=>float.IsFinite(c.X)&&float.IsFinite(c.Y)&&float.IsFinite(c.Z)
+            &&float.IsFinite(c.W)&&c.X>0&&c.W>c.Z).ToArray();
+        if(occupied.Length==0)return null;
+        double lo=occupied.Min(c=>(double)c.Z*50),hi=occupied.Max(c=>(double)c.W*50);
+        double slack=8*1.1920928955078125e-7*Math.Max(1,Math.Max(Math.Max(Math.Abs(lo),Math.Abs(hi)),
+            Math.Abs(origin.Y)+Math.Abs(direction.Y)*horizontal.End));
+        if(direction.Y==0)return origin.Y>=lo-slack&&origin.Y<=hi+slack?horizontal:null;
+        double a=(lo-slack-origin.Y)/direction.Y,b=(hi+slack-origin.Y)/direction.Y;
+        double start=Math.Max(horizontal.Start,Math.Min(a,b)),end=Math.Min(horizontal.End,Math.Max(a,b));
+        return end>start?(start,end):null;
     }
 
     /// <summary>Evaluates native boxes and exposed-face erosion without GLSL, DDA or hierarchy reuse.</summary>
@@ -148,11 +164,16 @@ public sealed class CloudPrimaryBudgetTests(HeadlessGLFixture fixture, ITestOutp
     /// <summary>Authors representative geometry and budget boundaries instead of a Cartesian scene matrix.</summary>
     private static RayCase CreateCase(string scenario)
     {
-        var settings = CloudVolumeSettings.Default with { Detail = false, DetailAmplitude = 0 };
+        var settings = CloudVolumeSettings.Default with { Detail = false, DetailAmplitude = 0,StopTransmittance=0 };
         var inside = new Vector3(25, 0, 25);
         // Interior scaling deliberately uses a fractional result, distinguishing floor from rounding.
         return scenario switch
         {
+            "layer-entry" => new(21,2,new(25,-200,25),Vector3.Normalize(new(0,1,1)),1500,settings),
+            "above-layer" => new(21,2,new(25,300,25),Vector3.Normalize(new(0,-1,1)),1500,settings),
+            "inside-layer" => new(21,2,inside,Vector3.Normalize(new(0,1,1)),1500,settings),
+            "near-horizontal-entry" => new(21,2,new(25,-50.0001f,25),new(0,1e-9f,0),1e7f,settings),
+            "missing-bounds" or "stale-bounds" => new(21,2,new(25,-200,25),Vector3.Normalize(new(0,1,1)),1500,settings),
             "minimum-short-span" => new(1, 1, inside, Vector3.UnitZ, .01f,
                 settings with { ViewRaySampleMax = 384, ViewRaySampleMin = 16, ViewBudgetDistance = 10000 }),
             "scaled-interior-count" => new(21, 1, inside, Vector3.UnitX, 123,

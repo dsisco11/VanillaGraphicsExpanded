@@ -218,9 +218,10 @@ Tasks
       transported per-source projection orientation. The approximation replaces separated layers/gaps with a mean ramp;
       finite ShadowDistance and same-frame source/publication validity remain intact. Hardware
       filtering and its focused qualification are consolidated into subphase 8.5. Final visual and
-      whole-renderer performance acceptance remain in Phase 11. Planned subphase 8.7
-      budgets primary samples over the clipped cloud-layer intersection, including measured selection
-      of the budget distance to prevent unintended work increases and explicit uncertified-bound fallback.
+      whole-renderer performance acceptance remain in Phase 11. Primary samples are budgeted over
+      the certified cloud-layer intersection in reduced and reference paths. The measured budget
+      distance default is 10000 world units; missing/stale bounds use an explicit conservative
+      horizontal-domain schedule. This changes sample positions, weights and approximation.
       Quarter tracing is
       now the default by explicit user direction; explicit Half remains supported. Phase 9 moves perturbation octaves to
       a static volumetric noise texture; Phase 10 improves temporal retention and evaluates LumOn
@@ -240,8 +241,9 @@ Tasks
     - Define replacement of vanilla clouds and clean disable/reload behavior. Validate thin/thick
       clouds, moving sun, weather, disocclusion, water reflections and fog; measure GPU and memory cost.
 
-  ☐ Validate changed volumetric cloud sampling in game. Primary rays use a whole-ray uniform lattice
-    with eight spatial blue-noise masks; reference primary transport remains midpoint. Secondary
+  ☐ Validate changed volumetric cloud sampling in game. Primary rays use a certified layer-intersection
+    uniform lattice, with an explicit horizontal fallback and eight spatial blue-noise masks;
+    reference primary transport remains midpoint. Secondary
     sampling uses deterministic midpoints of bounded quadratic intervals. Prior PMJ receipts qualify the legacy primary
     sampler only: artifacts/CloudPmj/validation.md. New numerical qualification is tracked in
     docs/PBR.CloudRealtime.todo; live appearance and GPU/frame-time acceptance remain open.

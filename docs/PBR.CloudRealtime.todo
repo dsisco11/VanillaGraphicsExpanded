@@ -22,6 +22,9 @@ Authority and scope
     Half-default requirements. Explicit saved Half remains supported without migration. New cache
     work in Phase 8.5 replaces segmented per-neighbor transmission evaluation with a compact
     one-fetch record and hardware filtering of its parameters; prior receipts remain historical.
+  Primary layer budgeting supersedes inherited horizontal-lattice/root-index-skipping equivalence
+    requirements. Certified layer entry/exit define the primary schedule in both paths; missing
+    bounds use an explicit horizontal fallback. The measured budget-distance default is 10000.
   Runtime implementation belongs to the subsequent increments; completion requires their own evidence.
   Use bounded ray budgets, reduced tracing, practical termination and amortized transport
     while retaining VGE's native 2D column envelope and procedural density detail.
@@ -585,7 +588,7 @@ Phase 8.7: Budget primary samples across the clipped cloud-layer intersection
   Validation: cached incremental affected-variant builds and focused finite-algorithm checks through
     subagents. Reuse the existing opt-in work/timing fixtures and frozen baseline; no clean rebuild,
     broad GPU matrix or release packaging before Phase 11. No approximation-quality assertions.
-  ☐ Define one conservative main-view integration interval before allocating samples.
+  ☑ Define one conservative main-view integration interval before allocating samples.
     - Intersect the finite native horizontal domain, current committed occupied height envelope and
       opaque/primary/liquid foreground clips. Handle camera-inside entry, empty roots, parallel and
       near-parallel rays, grazing exits and zero-length intervals conservatively.
@@ -598,7 +601,7 @@ Phase 8.7: Budget primary samples across the clipped cloud-layer intersection
       Define a conservative horizontal-domain fallback when bounds are unavailable or uncertified;
       document its different schedule explicitly instead of treating it as equivalent layer budgeting.
       Empty certified bounds produce no march; missing bounds must never certify empty support.
-  ☐ Allocate and integrate one bounded uniform lattice over that interval in reduced and reference paths.
+  ☑ Allocate and integrate one bounded uniform lattice over that interval in reduced and reference paths.
     - Let L=tEnd-tStart. For L>0 use N=min(ViewRaySampleMax,max(ViewRaySampleMin,
       floor(ViewRaySampleMax*min(1,L/ViewBudgetDistance)))), ds=L/N and
       t_i=tStart+(i+jitter)*ds. Retain one blue-noise offset per reduced ray and midpoint jitter .5
@@ -610,9 +613,9 @@ Phase 8.7: Budget primary samples across the clipped cloud-layer intersection
     - Stage actual new spacing/support metadata for reconstruction and history admission. Do not
       retain old horizontal-lattice spacing, invalidate history for routine weather/light evolution
       or introduce another temporal system. Handle discrete sampling-policy activation coherently.
-  ☐ Select the distance-to-budget scale using actual work and cost measurements before shipping it.
+  ☑ Select the distance-to-budget scale using actual work and cost measurements before shipping it.
     - Record current horizontal span, layer intersection, scheduled count, height-skipped positions,
-      actual density/lighting work and termination separately. Current ViewBudgetDistance=50 reaches
+      actual density/lighting work and termination separately. Pre-change ViewBudgetDistance=50 reaches
       the 384-sample cap on most positive layer spans; copying it blindly can greatly increase work.
       For example, a 100-unit layer inside a 5000-unit horizontal span currently receives roughly
       eight lattice positions before conservative margins; rebudgeting it at distance 50 gives 384.
@@ -620,7 +623,7 @@ Phase 8.7: Budget primary samples across the clipped cloud-layer intersection
       unrelated controls. Declare candidate controls before comparisons, record sample spacing and
       all regressions, and distinguish changed approximation from implementation savings. Adjust
       supported ranges/defaults only with an explicit measured selection; add no settings migration.
-  ☐ Rework existing primary budget/range fixtures around the new authoritative interval.
+  ☑ Rework existing primary budget/range fixtures around the new authoritative interval.
     - Use independent authored intersections, count/position/weight oracles, uniform-density units,
       gaps, short/thin/inside/grazing rays, foreground clipping and unavailable/stale-bound fallback.
       Cover reference/reduced consistency and both PBR integrations with existing lean typed fixtures.
@@ -629,7 +632,7 @@ Phase 8.7: Budget primary samples across the clipped cloud-layer intersection
     - Use narrow opt-in ground/inside/above and held-out grazing/night comparisons for bounds setup,
       trace, temporal/resolve, independently timed total, CPU and storage. Reuse unaffected evidence;
       quality differences remain diagnostics and user-run appearance review, never automated gates.
-  ☐ Completion: layer-based primary budgeting and an evidence-backed distance scale are implemented,
+  ☑ Completion: layer-based primary budgeting and an evidence-backed distance scale are implemented,
     with focused checks, tested identities, second review and independent audit. Reconcile the active
     primary contract, settings, current architecture and parent; identify superseded historical lattice
     requirements explicitly. Final appearance and whole-renderer performance remain in Phase 11.
@@ -821,24 +824,22 @@ Bounded quality policy (implementation contract)
       oracle estimate must not be presented as an observed GPU counter.
 
   Primary budget
-    - This describes current horizontal-domain budgeting. Approved Phase 8.7 replaces it with a
-      clipped layer-intersection lattice and measured budget-distance selection; until delivered,
-      current behavior and historical fixed-lattice receipts must not be described as that new policy.
-    - Intersect the finite horizontal map domain and current main-view opaque/primary/liquid clips
-      to obtain [tStart,tEnd]. A zero-length span performs no march. Let L=tEnd-tStart, including
-      empty gaps. Use that same span across acceleration choices. Certified height bounds may reject
-      an empty ray or skip proven-empty lattice positions; they do not redefine the sample count,
-      spacing or origin. Do not add a support prepass to calculate occupied length or optical mass.
+    - Intersect the finite horizontal map, certified current cloud-layer height envelope and
+      main-view opaque/primary/liquid clips before allocating primary samples in either render path.
+      A zero-length or certified-empty interval performs no march. Let L=tEnd-tStart, including
+      empty gaps between columns/layers. No occupied-length or optical-mass prepass is performed.
+      Missing, failed or stale bounds retain a conservative horizontal-domain lattice; explicitly
+      treat this as a different schedule. Optional acceleration cannot redefine the selected lattice.
     - Set Nview=min(ViewRaySampleMax,max(ViewRaySampleMin,
       floor(ViewRaySampleMax*min(1,L/ViewBudgetDistance)))). Set ds=L/Nview. Sample positions are
       tStart+(i+jitter)*ds for i=0..Nview-1, with one blue-noise jitter in [0,1) shared along this ray.
       The history-free deterministic reference uses jitter=.5 on the same uniform distance lattice.
     - Current primary controls are ViewRaySampleMax=384, ViewRaySampleMin=1 and
-      ViewBudgetDistance=50 world units. Earlier tuning receipts remain historical; retired
+      ViewBudgetDistance=10000 world units. Earlier tuning receipts remain historical; retired
       approximation thresholds do not justify increasing these controls. Final cost and
       appearance selection remains separate measured/manual work.
       Supported maxima are 4..384; minimum is 1..min(16,max); distance is 50..10000 world units.
-      Nonfinite distance restores 50; sanitize integral controls before conversion/upload.
+      Nonfinite distance restores 10000; sanitize integral controls before conversion/upload.
     - At each position evaluate cheap native validity/support first, then the existing detailed
       density if potentially occupied. Positive floating-point weight (transmission*alpha) evaluates
       incident lighting at that same position and starts at most one shadow ray per nonzero source.
@@ -919,24 +920,20 @@ Bounded quality policy (implementation contract)
       Noise and native geometry remain unchanged. Do not infer individual timing savings from
       source operation counts or from combined renderer measurements.
   Acceleration policy
-    - Reduced tracing uses certified root-height rejection, with direct native support as fallback.
-      The root can reject a whole primary ray, but its clipped vertical interval never replaces
-      the horizontal primary span used for counts, spacing or blue-noise jitter. Shadow roots
-      can skip proven-empty parts of the fixed quadratic schedule without rescaling its distance.
-      Primary root entry/exit distances bound indices on the unchanged lattice; keep outward
-      floor/ceil guard indices rather than querying clear air before/after that supported range.
-      Original indices still define sample positions, distance weights and native OIT depths.
+    - Both primary paths use certified layer entry/exit as authoritative budget geometry, independently
+      of optional traversal acceleration. Shadow roots can skip proven-empty parts of the independent
+      fixed quadratic schedule without rescaling its distance or using main-view foreground clips.
     - Root intervals expand outward by eight binary32 epsilons times the maximum of one, absolute
-      root heights and abs(origin.y)+abs(direction.y)*spanEnd. Nearly horizontal rays compare both
-      finite-span endpoint heights instead of assuming constant height. Nonfinite bounds retain
-      native support checks. Numerical uncertainty admits work rather than discarding support.
+      root heights and abs(origin.y)+abs(direction.y)*spanEnd. Only exact-zero slopes are parallel;
+      near-parallel rays compute entry/exit by slab division. Nonfinite bounds retain native support
+      checks. Numerical uncertainty admits work rather than discarding support.
     - Keep the existing exact-generation GPU reduction/certificate and direct fallback. Lower
       mips are construction intermediates consumed by the root reduction. No primary/secondary
       DDA or root-to-leaf tree walk remains in production; surviving samples query their native cells.
       Cached scheduled-point hierarchy rejection remains an explicit measurement alternative.
-    - Selection is fixed for the reduced consumer, not a per-frame weather/readback/settings
-      heuristic. Off, Simple and the history-free reference require no height-summary allocation.
-      Missing/failed/stale summaries use the identical scheduled native queries; native ownership,
+    - Layer bounds are shared by reduced/reference paths, not selected by a per-frame weather/
+      readback/settings heuristic. Off and Simple require no height-summary allocation.
+      Missing/failed/stale summaries select the documented horizontal fallback; native ownership,
       resource retirement and successful-commit-only history rotation remain unchanged.
 
   Sampling and temporal identity
@@ -2364,3 +2361,86 @@ Phase 8.5 compact cached attenuation receipt (2026-10-19)
     documents, focused evidence and identities. The five Phase 8.5 tasks are complete.
     Hardware-filtering requirements and their qualification are consolidated into Phase 8.5;
     live appearance, full renderer performance and release/package qualification remain open in Phase 11.
+
+Phase 8.7 layer-intersection primary budgeting receipt (2026-10-19)
+  Contract -> this section, PBR.Clouds.md / height summaries and primary integration, parent cloud
+    item, archived volumetric proposal e87de94d / density, lighting, native OIT and publication,
+    archived hierarchy proposal f66895c6 / conservative geometry/source ownership, and
+    PBR.Atmosphere.Publication.md / physical inputs and medium ownership. This contract explicitly
+    supersedes horizontal-lattice/root-range equivalence requirements in earlier receipts/archives.
+  Interval and integration -> cloud_volume_primary.glsl, cloud_volume_hierarchy.glsl and
+    cloud_volume_transport.glsl -> intersect horizontal domain, current certified root envelope and
+    foreground limits before count allocation. Both primary paths share the interval and conservative
+    horizontal fallback. Exact-zero parallel handling admits finite small-slope entry/exit; existing
+    outward height slack remains. Empty certified roots skip marching; missing/stale data never
+    certify emptiness. Gaps remain in the envelope; no occupied-arc/optical-mass primary prepass.
+    Uniform positions/length weights, reduced blue-noise offsets and reference midpoints remain.
+    New ds feeds support/history metadata; density, OIT products, representative transport and
+    completed-step termination ordering are preserved. Secondary/cache coverage remains independent
+    of main-view foreground/layer clips; optional global height rejection retains anchored light steps.
+  Publication and lifecycle -> ICloudVolumeBindings, both programs and CloudVolumeRenderer -> share
+    certified bounds in reference/reduced paths independently of traversal acceleration. Reference
+    now builds/borrows the same source-certified GPU summary and revalidates immediately before draw.
+    Existing owner/source/executable retirement and missing-bound fallback remain authoritative.
+    Shader reload/reset handles policy activation; changed settings invalidate history through the
+    existing settings identity. Ordinary layer/weather/lighting evolution does not gain invalidation.
+  Selection -> CloudRenderingSettings, CloudVolumeSettings, ConfigLib asset and tooltip -> default
+    and nonfinite recovery are 10000 world units, cap/min remain 384/1 and range remains 50..10000.
+    Explicit saved values, including 50, remain unchanged; no conversion or migration is added.
+    Declare 2000/5000/10000 candidates before measurement. All five 2000 and 5000 trace/whole GPU
+    medians regressed against frozen horizontal budgeting at distance 50. At 5000, central ground-ray
+    density work is similar (82 -> 84), but off-axis work rises. Select 10000 as the only tested
+    choice improving trace/whole GPU medians in every scenario, with nominal spacing near 26 world
+    units (integer counts apply). This changes sample density/positions and approximation; it is not
+    same-output acceleration, a quality guarantee or evidence that still larger distances are suitable.
+  Focused correctness -> artifacts/CloudRealtime/phase8.7/focused.trx -> 11/11 pass, zero skipped:
+    authored intersections/counts/positions/weights/density, empty/gapped/inside/near-parallel cases,
+    stale/unavailable fallback, reference/reduced execution, both PBR production recovery, physical
+    units and foreground clipping. Old range helper/mode 12/test and ten obsolete view/light
+    lattice-equivalence cases are replaced by the authoritative interval checks and one fallback smoke
+    case. Final focused receipt rechecks defaults/sanitization, asset ordering and the default-sensitive
+    GPU oracle: 9/9 pass. Existing unaffected receipts are reused; no approximation-quality gate.
+  Build and identity -> build.log, final-build.log, candidate-binaries.json, candidate-identity.json
+    and final-identity.json -> initial cached build 1:36, seven production/nine fixture variants
+    compiled. Final defaults build 1:29, zero shader compiler invocations; all 463/544 SPV binaries
+    reused. Final selected shader bytes equal measured candidate bytes and manifest hashes; six
+    affected source/runtime-asset hashes match. Measured candidate and final assembly identities are
+    separate: final assembly contains selected defaults and diagnostic serialization-only changes.
+    Final runtime SHA256 D04A933DDB28C0F3E6D2A077983A9BF50DBAA04EA8211566A940BC9AA879180D.
+    No clean baseline rebuild, full-resolution matrix, packaging, installed edits or game actions.
+  Measurement -> candidates.trx, candidates/*.json and candidate-summary.json -> one opt-in run
+    covers five views times three declared distances; three warmups and five alternating pairs per
+    comparison, 512x256/Quarter, native width 200, cache quality 1/256 with unchanged policy, ViewMax/Min
+    384/1, LightMax 10, ShadowDistance 1500, detail amplitude .25/edge 8 and termination disabled.
+    Frozen horizontal baseline uses explicit distance 50; candidates use their declared distances.
+    RTX4090/OpenGL4.3, no game PIDs observed, other load uncontrolled. All cases admit history.
+    Selected distance 10000, median milliseconds, horizontal -> layer budgeting:
+      view      trace including cache lookup       independently timed complete interval
+      ground    0.313344 -> 0.225280                0.589824 -> 0.478208
+      inside    0.670720 -> 0.512000                0.924672 -> 0.766976
+      above     0.474112 -> 0.335872                0.761856 -> 0.621568
+      grazing   0.266240 -> 0.168960                0.514048 -> 0.416768
+      night     0.662528 -> 0.509952                0.898048 -> 0.728064
+    Construction times summary reduction/barriers; cache generation executes inside the draw owner.
+    All trace/temporal/resolve/draw-total, independent whole, synthetic input and CPU columns/spreads
+    are recorded separately. Whole includes synthetic upload/clear, reduction and production passes;
+    readback/query waits are excluded. No sums of stage medians substitute for independent timing.
+    Three authored rays diagnose horizontal/layer span, scheduled count, height-skipped positions,
+    visited samples, density evaluations, positive-weight lighting sites, spacing and termination.
+    GPU-evaluated densities and CPU support/prefix classification are outside timing; these are not
+    full-frame shader counters. Fixed ray order is center, (-.5,.5), (.5,-.5), jitter .173, limit 20000;
+    vector JSON fields in measured receipts are empty objects, so use that source geometry and scalar
+    intervals/parameters. Future serialization includes fields; numeric timing/work data is retained.
+    Central density calls fall ground 82 -> 41, inside/night 384 -> 192, above 62 -> 29, grazing 11 -> 5.
+    The comparisons disable termination to isolate budget work; terminated flags are therefore false.
+    Unchanged cache/summary texture sizes imply no storage saving; reference now also owns summaries.
+    Report all regressions: draw CPU paired medians rise inside .0079, above .0019, night .0657 ms;
+    synthetic-input/whole CPU also vary, including above/ground/night whole-CPU median increases.
+    Inside synthetic-input GPU has a small positive paired delta. Full stage/paired ranges are in
+    the summary; short CPU/input variations do not establish production CPU regressions or savings.
+    No live appearance, capture replay, default-termination cost or native FPS claim is made.
+  Review -> second review reconciles task/document ownership, interval/fallback mathematics, selected
+    controls, actual spacing, source certificates and lean tests. Independent completion audit passes
+    with no outstanding findings after checking the current implementation, linked sources,
+    selected-default evidence and final identities. All five Phase 8.7 tasks are complete.
+    Final appearance and whole-renderer/release qualification remain open in Phase 11.

@@ -117,25 +117,6 @@ void main()
             :CloudDirectional(testOriginLimit.xyz,normalize(testDirectionMode.xyz),volumeSolar.xyz,testOriginLimit.w);
         intervals[401]=vec4(response,0);counts=vec4(measuredSamples,0,0,0);return;
     }
-    if(testDirectionMode.w==12.0)
-    {
-        vec2 span=testOriginLimit.xy,supported=testDirectionMode.xy;
-        int count=int(testOriginLimit.z);float jitter=testDirectionMode.z;
-        ivec2 range=CloudPrimaryRange(span,supported,count,jitter);
-        float ds=(span.y-span.x)/float(count),directTau=0.0,windowTau=0.0;
-        for(int i=0;i<384;i++)
-        {
-            if(i>=count) break;
-            float t=CloudPrimaryPosition(span,count,i,jitter);
-            // A varying positive scalar field isolates scheduled-point preservation from
-            // density textures, hierarchy construction and approximation-quality claims.
-            float sigma=t>=supported.x&&t<=supported.y?.001+.0001*cos(t*.17):0.0;
-            float selected=i>=range.x&&i<range.y?sigma:0.0;
-            intervals[i]=vec4(t,sigma,selected,float(i));
-            directTau+=sigma*ds;windowTau+=selected*ds;
-        }
-        counts=vec4(vec2(range),directTau,windowTau);return;
-    }
     if(testDirectionMode.w==11.0)
     {
         CloudDensityCache cache=CloudDensityCacheStart();
@@ -180,19 +161,35 @@ void main()
     {
         vec2 span;
         if(!CloudPrimarySpan(testOriginLimit.xyz,testDirectionMode.xyz,testOriginLimit.w,span)) return;
+        vec2 horizontal=span;
+        intervals[401]=vec4(horizontal,0,0);
+        if(!CloudRootSpan(testOriginLimit.xyz,testDirectionMode.xyz,span)) return;
+        intervals[401]=vec4(horizontal,span);
         int count=CloudPrimaryCount(span.y-span.x);
         float ds=(span.y-span.x)/float(count);
         float jitter=testDirectionMode.w==4.0?.5:.173;
+        float transmission=1.0,visited=0.0,densityCalls=0.0,lightingSamples=0.0,terminated=0.0;
         for(int i=0;i<384;i++)
         {
             if(i>=count) break;
             float t=CloudPrimaryPosition(span,count,i,jitter);
             vec3 p=testOriginLimit.xyz+testDirectionMode.xyz*t;
             ivec2 cell=ivec2(floor(p.xz/50.0));
-            float sigma=CloudDensity(p,cell,CloudColumn(cell));
+            vec4 data=CloudColumn(cell);float sigma=0.0;
+            visited+=1.0;
+            if(data.r>0.0&&p.y>=data.b*50.0&&p.y<=data.a*50.0)
+            {sigma=CloudDensity(p,cell,data);densityCalls+=1.0;}
             intervals[i]=vec4(t,ds,sigma,0);
             counts.z+=sigma*ds;
+            float alpha=clamp(1.0-exp(-sigma*ds*volumeAnchorUnits.z),0.0,1.0);
+            if(alpha>0.0)
+            {
+                if(transmission*alpha>0.0)lightingSamples+=1.0;
+                transmission*=1.0-alpha;
+                if(transmission<volumePrimary.w){terminated=1.0;break;}
+            }
         }
+        intervals[400]=vec4(visited,densityCalls,lightingSamples,terminated);
         counts.x=float(count); counts.y=span.x; counts.w=span.y;
         return;
     }

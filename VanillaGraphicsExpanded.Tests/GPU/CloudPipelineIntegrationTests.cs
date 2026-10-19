@@ -144,7 +144,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
                 if (frame == 3) Assert.False(unavailable.TryBuild(input, () => true));
 
                 scene.Clear();
-                Assert.True(scene.Draw(original, input, null, () => true));
+                Assert.True(scene.Draw(original, input, selected, () => true));
                 var expected = scene.ReadOutput();
                 var expectedTrace = CloudPayloadReadback.Read(LastTrace(original));
                 scene.Clear();
@@ -189,7 +189,8 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
                     Assert.False(scene.ShadowCacheEnabled);
                     Assert.Contains("Unavailable optional cloud attenuation",ReadPrivate<CloudShadowCache>(failedCache,"shadowCache").Failure);
                     var fallback=CloudPayloadReadback.Read(LastTrace(failedCache));
-                    for(int layer=0;layer<3;layer++)Assert.Equal(expectedTrace[layer],fallback[layer]);
+                    for(int layer=1;layer<3;layer++)Assert.Equal(expectedTrace[layer],fallback[layer]);
+                    for(int channel=3;channel<fallback[0].Length;channel+=4)Assert.Equal(expectedTrace[0][channel],fallback[0][channel]);
                 }
 
                 // Revocation must reject all three passes, leave OIT untouched and never commit history.

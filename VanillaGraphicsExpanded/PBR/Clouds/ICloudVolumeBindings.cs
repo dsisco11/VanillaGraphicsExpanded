@@ -14,6 +14,12 @@ internal interface ICloudVolumeBindings : CameraExposure.IPhotometricFrameBindin
     /// <summary>Supplies the admitted map placement and lighting.</summary>
     [ShaderBinding("CloudVolumeParameters", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.ShaderInputs, ShaderStageKind.Fragment)]
     CpuUniformBuffer Inputs { get; }
+    /// <summary>Borrows certified layer bounds independently of optional traversal acceleration.</summary>
+    [ShaderBinding("cloudHeightBounds",ShaderBindingKind.Sampler,8,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp,Required=false)]
+    GpuTexture? HeightBounds { set; }
+    /// <summary>Publishes current layer-bound availability and root identity for both primary paths.</summary>
+    [ShaderBinding("CloudTraversalParameters",ShaderBindingKind.UniformBlock,GpuBindingRegistry.Ubo.Material,ShaderStageKind.Fragment)]
+    CpuUniformBuffer TraversalInputs { get; }
     /// <summary>Borrows initialized native column data without binding its pre-lit color texture.</summary>
     [ShaderBinding("cloudMap", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int Map { set; }

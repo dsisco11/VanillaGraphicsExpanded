@@ -2,9 +2,7 @@
 @import "./cloud_volume_sampling.glsl"
 @import "./cloud_volume_density.glsl"
 @import "./cloud_volume_primary.glsl"
-#ifdef VGE_CLOUD_HIERARCHY
 @import "./cloud_volume_hierarchy.glsl"
-#endif
 @import "./cloud_volume_light.glsl"
 @import "./atmosphere_aerial.glsl"
 @import "./pbr_scene_storage.glsl"
@@ -66,19 +64,11 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
     origin.xz+=volumeOffsetWidth.w*25.0;
     vec2 span;
     if(!CloudPrimarySpan(origin,direction,limit,span)) return;
-#ifdef VGE_CLOUD_HIERARCHY
-    // The root interval bounds eligible indices, while the original horizontal span continues
-    // to define the primary lattice, distance weights and blue-noise offset.
-    vec2 supported=span;
-    if(!CloudRootSpan(origin,direction,supported)) return;
-#endif
+    // Certified layer entry/exit define the lattice; missing bounds retain the horizontal span.
+    if(!CloudRootSpan(origin,direction,span)) return;
     int count=CloudPrimaryCount(span.y-span.x);
     float ds=(span.y-span.x)/float(count);
     float primaryJitter=CloudPrimaryJitter(uv);
-    ivec2 range=ivec2(0,count);
-#ifdef VGE_CLOUD_HIERARCHY
-    range=CloudPrimaryRange(span,supported,count,primaryJitter);
-#endif
     vec3 radiance=vec3(0),reveal=vec3(1); float transmission=1.0;
     float opacityWeight=0.0,distanceMoment=0.0;
     float solarPhase=max(volumeSolar.r,max(volumeSolar.g,volumeSolar.b))>0.0?CloudDirectionalPhase(direction,volumeSun.xyz):0.0;
@@ -99,9 +89,9 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
         +volumeLunar.rgb*(lunarPhase+volumeSamples.z/12.5663706144);
 #endif
     CloudDensityCache densityCache=CloudDensityCacheStart();
-    for(int i=range.x;i<VGE_CLOUD_PRIMARY_LIMIT;i++)
+    for(int i=0;i<VGE_CLOUD_PRIMARY_LIMIT;i++)
     {
-        if(i>=range.y) break;
+        if(i>=count) break;
         float t=CloudPrimaryPosition(span,count,i,primaryJitter);
         vec3 local=origin+direction*t;
         ivec2 cell=ivec2(floor(local.xz/50.0));
@@ -112,7 +102,7 @@ void CloudIntegrate(vec2 uv,inout CloudPayload result)
         float alpha=clamp(1.0-exp(-sigma*(ds*volumeAnchorUnits.z)),0.0,1.0);
         if(alpha<=0.0) continue;
         // First/last contributing intervals are stochastic support estimates. Retain their
-        // original lattice spacing so history can admit endpoint quantization uncertainty.
+        // actual layer-lattice spacing so history can admit endpoint quantization uncertainty.
         result.spacing=ds;
         float near=span.x+float(i)*ds,far=min(span.y,near+ds);
         if(result.depth.y==0.0) result.depth.x=near;

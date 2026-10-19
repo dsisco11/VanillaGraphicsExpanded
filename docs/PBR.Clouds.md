@@ -65,7 +65,7 @@ physical-lighting input. Native owners alone dispose their resources.
 ## Cloud height summaries
 
 `CloudHierarchy` builds coarse RG32F min/max height summaries at the volumetric draw boundary,
-after native map generation and before reduced tracing. The native map remains the logical leaf
+after native map generation and before reduced or reference tracing. The native map remains the logical leaf
 level; owned mip zero reduces 2-by-2 native columns. Higher mips combine minimum lower and maximum
 upper bounds in world units relative to the cloud layer. Logical power-of-two padding contributes
 empty intervals without fetching out-of-map texels. Empty summaries use positive/negative infinity.
@@ -75,21 +75,22 @@ frames reuse storage; source lifetime changes, reload, reset and disposal retire
 requires completed image-write barriers, sampler visibility and the exact current native descriptor
 plus the reduction executable revision. Source observation precedes depth/lighting admission so
 an unavailable draw cannot retain an invalid source lifetime. Native textures remain borrowed.
-Unavailable, mismatched or failed construction selects direct native support checks at the same
-scheduled positions. A certified root may reject a complete primary ray, but never narrows its
-integration span or changes its sample count, spacing or blue-noise offset. Its entry/exit distances
-bound a conservative index range on that original lattice, skipping native column queries in
-proven-empty air before and after the supported interval. Neighboring indices are retained around
-the range endpoints to admit floating-point boundary uncertainty. All surviving positions, segment
-weights and OIT depths still use their original indices. Secondary solar/lunar
-rays use the root height interval to reject rays or remaining positions outside all supported cloud heights.
-Their finite horizontal domain
-and independent shadow distance never use camera visibility or scene-depth clipping. The full-view
-reference uses the same anchored shadow schedule without requiring a height-summary resource.
+Certified root heights intersect the horizontal map and current foreground-depth interval before
+primary samples are allocated in both reduced and reference rendering. This envelope includes
+empty gaps between native columns or separated layers; no occupied-length prepass is performed.
+The resulting interval defines count, spacing, sample positions and physical-length weights.
+Certified empty bounds skip the march. Unavailable, mismatched or failed bounds conservatively
+retain the full horizontal interval with direct native support checks. That fallback has a different
+lattice; it is not an equivalent acceleration of layer budgeting. Bounds are certified independently
+of any optional traversal selection, including current GPU-native height animation.
+Secondary solar/lunar rays retain their origin-anchored schedule. Their global height rejection,
+finite horizontal domain and independent shadow distance never use main-view layer or foreground
+clips. The reference uses the same primary interval policy and midpoint jitter, retaining independent
+bounded shadow marching.
 Root clipping expands the height interval by eight binary32 epsilons times the maximum of one,
 the absolute root heights and the ray's absolute vertical coordinate bound over its finite span.
 This admits boundary uncertainty, including near-parallel rays, instead of losing inclusive native
-support. Near-parallel rays compare both finite-span heights instead of assuming constant height;
+support. Only exact-zero directions are parallel; small nonzero slopes compute finite entry/exit;
 nonfinite root heights retain direct checks. The tolerance does not depend on grid-crossing clocks.
 No column DDA or repeated root-to-leaf descent participates in primary or retained secondary transport.
 Cache generation has its own bounded native-support walk, described below. Lower summary mips are
@@ -219,10 +220,15 @@ support returns before noise. The procedural noise field and material anchoring 
 Disabling detail also disables edge erosion, restoring piecewise constant native density. Finite
 primary sampling need not integrate a discontinuous column field exactly.
 
-Primary tracing clips the ray to the finite horizontal map and admitted foreground/liquid
-distance. For its complete length L, including empty gaps, it selects
+Primary tracing intersects the finite horizontal map, certified layer envelope and admitted
+foreground/liquid distance before selecting a budget. For this clipped length L, including empty gaps, it selects
 `N=min(max,max(min,floor(max*min(1,L/distance))))` and `ds=L/N`. Positions are
 `tStart+(i+jitter)*ds`; native support checks reject empty points without reallocating their budget.
+The default budget distance is 10000 world units, with ViewMax 384 and ViewMin 1. Below the cap,
+this gives nominal spacing near 26 world units, subject to the minimum and integer count. Explicit
+saved distances remain supported; nonfinite distances restore 10000. Changing the distance
+invalidates history through the existing settings identity. Shader reload/reset handles activation
+of a changed sampling policy; ordinary weather, layer motion and lighting retain history.
 Every surviving point evaluates shared density at that position. Positive floating-point opacity
 weight evaluates incident lighting; an exactly zero weight skips source evaluation and shadow rays
 while retaining density, support, transmission and bucket updates on the complete scheduled prefix.
@@ -330,7 +336,7 @@ are a separate cloud-owned resource. Shared resource reuse alone does not establ
 
 ## Reconstruction and controls
 
-Volumetric mode defaults to ceil-half width/height tracing with a rotating 2x2 pixel phase,
+The Half selection uses ceil-half width/height tracing with a rotating 2x2 pixel phase,
 bounded temporal accumulation and depth-aware full-view reconstruction. `CloudVolumeReconstruction`
 owns one immutable nine-layer RGBA32F `Texture2DArray` for the Half selection, with three disjoint three-layer views.
 Each view has a persistent framebuffer with its three local layers attached to the payload outputs.
@@ -408,7 +414,7 @@ The persisted `Clouds` config and ConfigLib expose:
 | `TraceScale` | Quarter (4) | Half (2) or Quarter view dimensions; reconstruction stays half dimensions |
 | `ViewRaySampleMax` | 384 | 4..384 primary points across the complete clipped ray |
 | `ViewRaySampleMin` | 1 | 1..min(16,max) points for short positive spans |
-| `ViewBudgetDistance` | 50 | 50..10000 world units; distance at which the maximum applies |
+| `ViewBudgetDistance` | 10000 | 50..10000 world units; clipped layer distance at which the maximum applies |
 | `LightRaySampleMax` | 10 | 2..64 scheduled points per contributing directional light |
 | `ShadowDistance` | 1500 | 50..10000 world units; independent of view distance/clipping |
 | `ShadowQuality` | 1 | 0 disables self-shadowing; 1/2/3 select 256/512/1024 pixels per axis |

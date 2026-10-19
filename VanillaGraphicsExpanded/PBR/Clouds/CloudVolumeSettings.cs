@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 internal readonly record struct CloudVolumeSettings(int LightRaySampleMax = 10,
     float DetailAmplitude = .15f, float EdgeWidth = 2, float NoiseScale = .08f,
     bool Detail = true, float OctaveContribution = .5f, float OctaveOcclusion = .5f,
-    int ViewRaySampleMax = 384, int ViewRaySampleMin = 1, float ViewBudgetDistance = 50, float ShadowDistance = 1500, float StopTransmittance = .005f, CloudTraceScale TraceScale = CloudTraceScale.Quarter, int ShadowQuality = 1)
+    int ViewRaySampleMax = 384, int ViewRaySampleMin = 1, float ViewBudgetDistance = 10000, float ShadowDistance = 1500, float StopTransmittance = .005f, CloudTraceScale TraceScale = CloudTraceScale.Quarter, int ShadowQuality = 1)
 {
     #region Public API
     /// <summary>Constructs explicit defaults rather than the zero-initialized value-type representation.</summary>

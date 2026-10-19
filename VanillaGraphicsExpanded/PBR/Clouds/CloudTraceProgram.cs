@@ -52,8 +52,8 @@ internal sealed partial class CloudTraceProgram : GpuProgram, ICloudTraceBinding
     /// <summary>Publishes owned reprojection parameters.</summary>
     CpuUniformBuffer ICloudTraceBindings.TemporalInputs => Temporal;
     /// <summary>Publishes traversal availability independently of density and temporal controls.</summary>
-    CpuUniformBuffer ICloudTraceBindings.TraversalInputs => traversal;
-    /// <summary>Stages a certified hierarchy or explicitly disables acceleration for this submission.</summary>
+    CpuUniformBuffer ICloudVolumeBindings.TraversalInputs => traversal;
+    /// <summary>Stages current authoritative layer bounds or explicitly selects the horizontal fallback.</summary>
     internal void SetHierarchy(DynamicTexture2D? bounds)
     {
         RequireInputMutation();

@@ -11,7 +11,7 @@ public sealed class CloudPrimarySettingsTests
     #region Public API
     /// <summary>Absent controls use current defaults and explicit current controls survive a save and load.</summary>
     [Theory]
-    [InlineData("{}",384,1,50)]
+    [InlineData("{}",384,1,10000)]
     [InlineData("{\"ViewRaySampleMax\":120,\"ViewRaySampleMin\":7,\"ViewBudgetDistance\":500}",120,7,500)]
     public void CurrentDefaultsAndOverridesRoundTrip(string json,int maximum,int minimum,float distance)
     {
@@ -54,7 +54,7 @@ public sealed class CloudPrimarySettingsTests
     {
         var value=new CloudRenderingSettings {ViewRaySampleMax=int.MinValue,ViewRaySampleMin=int.MaxValue,ViewBudgetDistance=distance};
         var quality=value.Capture();quality.Validate();
-        Assert.Equal(4,quality.ViewRaySampleMax);Assert.Equal(4,quality.ViewRaySampleMin);Assert.Equal(50,quality.ViewBudgetDistance);
+        Assert.Equal(4,quality.ViewRaySampleMax);Assert.Equal(4,quality.ViewRaySampleMin);Assert.Equal(10000,quality.ViewBudgetDistance);
         value.ViewRaySampleMax=int.MaxValue;value.ViewRaySampleMin=int.MinValue;value.ViewBudgetDistance=.001f;
         quality=value.Capture();quality.Validate();
         Assert.Equal(384,quality.ViewRaySampleMax);Assert.Equal(1,quality.ViewRaySampleMin);Assert.Equal(50,quality.ViewBudgetDistance);

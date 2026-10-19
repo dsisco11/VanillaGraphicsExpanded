@@ -9,7 +9,7 @@
   "config-cloud-view-minimum": "Minimum cloud view samples",
   "config-cloud-view-minimum-tooltip": "Minimum samples on a short cloud ray, bounded by its maximum (1–16).",
   "config-cloud-view-distance": "Cloud sample budget distance",
-  "config-cloud-view-distance-tooltip": "World distance at which cloud rays reach their maximum sample count (50–10000).",
+  "config-cloud-view-distance-tooltip": "Clipped cloud-layer distance at which view rays reach their maximum sample count (50–10000 world units).",
   "config-cloud-light-ray-max": "Cloud shadow sample maximum",
   "config-cloud-light-ray-max-tooltip": "Maximum density evaluations per solar or lunar shadow ray (2–64).",
   "config-cloud-trace-scale": "Cloud trace scale",

@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests;
 public sealed class CloudShaderBindingsTests
 {
     #region Public API
-    /// <summary>Only reduced tracing admits optional summaries, while reduction retains disjoint image slots and required native data.</summary>
+    /// <summary>Both primary paths admit optional certified layer bounds while other passes retain independent resources.</summary>
     [Fact]
     public void HierarchyBindingsPreserveOptionalFallbackAndIndependentDepthInputs()
     {
@@ -24,7 +24,10 @@ public sealed class CloudShaderBindingsTests
         Assert.Equal((0, true), (reduction.Images["sourceBounds"].Slot, reduction.Images["sourceBounds"].Required));
         Assert.Equal((1, true), (reduction.Images["targetBounds"].Slot, reduction.Images["targetBounds"].Required));
         Assert.Equal((14, true), (reduction.UniformBlocks["CloudHierarchyParameters"].Slot, reduction.UniformBlocks["CloudHierarchyParameters"].Required));
-        foreach (string name in new[] { "cloud_volume.fsh", "cloud_volume_temporal.fsh", "cloud_volume_resolve.fsh", "cloud_simple.fsh" })
+        var reference=stages.Single(stage=>stage.Identity=="cloud_volume.fsh").Bindings;
+        Assert.Equal((8,false),(reference.Samplers["cloudHeightBounds"].Slot,reference.Samplers["cloudHeightBounds"].Required));
+        Assert.Equal((15,true),(reference.UniformBlocks["CloudTraversalParameters"].Slot,reference.UniformBlocks["CloudTraversalParameters"].Required));
+        foreach (string name in new[] { "cloud_volume_temporal.fsh", "cloud_volume_resolve.fsh", "cloud_simple.fsh" })
         {
             var bindings = stages.Single(stage => stage.Identity == name).Bindings;
             Assert.False(bindings.Samplers.ContainsKey("cloudHeightBounds"));

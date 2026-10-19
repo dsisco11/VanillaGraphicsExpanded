@@ -570,7 +570,7 @@
         "name": "Clouds/ViewBudgetDistance",
         "ingui": "vanillagraphicsexpanded:config-cloud-view-distance",
         "comment": "vanillagraphicsexpanded:config-cloud-view-distance-tooltip",
-        "default": 50,
+        "default": 10000,
         "weight": 25.22,
         "range": { "min": 50, "max": 10000, "step": 50 }
       },

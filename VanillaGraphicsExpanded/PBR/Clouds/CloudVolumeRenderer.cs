@@ -98,17 +98,18 @@ internal sealed class CloudVolumeRenderer : IRenderer
                 catch { replacement.Dispose(); throw; }
                 target?.Dispose(); target = replacement;
             }
+            // Layer bounds determine primary budgeting in both render paths. They are
+            // certified against this native publication, independently of traversal policy.
+            var source = new CloudHierarchySource(input);
+            cloudHierarchy.TryBuild(input, () => runtime.TryGetMap(out var current) && source.Matches(current));
             if (!reference)
             {
-                // This same-context boundary follows native map generation. Missing summaries retain
-                // the existing DDA; hierarchical tracing is admitted separately by its consumer.
-                var source = new CloudHierarchySource(input);
-                cloudHierarchy.TryBuild(input, () => runtime.TryGetMap(out var current) && source.Matches(current));
+                // Both paths consume current layer bounds. Unavailable certification
+                // selects the documented horizontal-domain budget without traversal.
                 reconstruction.Draw(input, lighting, Settings, target, hierarchy.TextureId, primary.DepthTextureId, liquid.DepthTextureId, geometry,
                     () => runtime.TryGetMap(out var current) && current == input, cloudHierarchy);
                 return;
             }
-            cloudHierarchy.Reset();
             reconstruction.Invalidate();
             var pass = new RenderPassDesc(target, LiquidPipelineStates.SurfaceOutputs);
             using var metadata = new RenderPassTargets(pass);
@@ -121,6 +122,8 @@ internal sealed class CloudVolumeRenderer : IRenderer
             }
             // Revalidate the borrow directly before synchronous submission, never retain it for another frame.
             if (!runtime.TryGetMap(out var current) || current != input) return;
+            cloudHierarchy.TryGetCurrent(input,out var bounds);
+            program.SetHierarchy(bounds);
             if (!GraphicsCommandContext.TryRun("Cloud.Volume.Reference", [pipeline], true, commands =>
             {
                 commands.BeginPass(pass); commands.SetPipeline(pipeline);

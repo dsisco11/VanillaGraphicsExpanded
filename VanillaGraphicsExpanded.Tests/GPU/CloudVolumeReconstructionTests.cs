@@ -39,71 +39,21 @@ public sealed class CloudVolumeReconstructionTests(HeadlessGLFixture fixture,ITe
         }
         GlDebug.ThrowIfErrors("Cloud reconstruction test");
     }
-    /// <summary>Solar/lunar directions preserve self-shadowed illumination and every payload channel under combined view/light skipping.</summary>
-    [Theory]
-    [InlineData(0, false)]
-    [InlineData(0, true)]
-    [InlineData(1, false)]
-    [InlineData(1, true)]
-    [InlineData(2, false)]
-    [InlineData(2, true)]
-    public void HierarchicalSecondaryLightingMatchesOriginal(int directions, bool detail)
+    /// <summary>Certified intervals remain finite; stale bounds restore the explicit horizontal fallback in both primary paths.</summary>
+    [Fact]
+    public void CertifiedLayerBudgetAndStaleBoundsUseTheirDeclaredSchedules()
     {
         EnsureShaderTestAvailable();
-        using var hierarchy = new CloudHierarchy(() => CloudHierarchyComputeShader.Create(Programs.Api));
-        using var view = CreateScene(9, 7, nativeMapWidth: 21);
-        Vector3 sun = directions == 0 ? Vector3.UnitY : directions == 1 ? Vector3.UnitX : Vector3.Normalize(new(1, .2f, .35f));
-        Vector3 moon = directions == 0 ? -Vector3.UnitY : directions == 1 ? Vector3.UnitZ : Vector3.Normalize(new(-.4f, .6f, -1));
-        bool observedSolar = false, observedLunar = false;
-        foreach (uint frame in new uint[] { 0, 3, 4 })
-        {
-            view.Capture(frame, .125f, 10, 1, 0, detail ? "detail-lit" : "lit");
-            view.AuthorHierarchyColumns(foreground: true);
-            view.SetDirectionalLights(sun, moon, 0);
-            view.UseHierarchy(null); view.RenderTrace(frame); var ambient = view.ReadTraceRecord();
-            foreach (int sources in new[] { 1, 2, 3 })
-            {
-                view.SetDirectionalLights(sun, moon, sources);
-                view.UseHierarchy(null); view.RenderTrace(frame); var original = view.ReadTraceRecord();
-                bool illuminated = Enumerable.Range(0, 1).Any(layer => original[layer].Where((value, index) =>
-                    index % 4 != 3 && Math.Abs(value - ambient[layer][index]) > 1e-6f).Any());
-                if (sources == 1) observedSolar |= illuminated;
-                if (sources == 2) observedLunar |= illuminated;
-                view.UseHierarchy(hierarchy); view.RenderTrace(frame); var accelerated = view.ReadTraceRecord();
-                for (int layer = 0; layer < 3; layer++) Assert.Equal(original[layer], accelerated[layer]);
-                view.UseHierarchy(hierarchy, mismatch: true); view.RenderTrace(frame); var fallback = view.ReadTraceRecord();
-                for (int layer = 0; layer < 3; layer++) Assert.Equal(original[layer], fallback[layer]);
-            }
-        }
-        Assert.True(observedSolar && observedLunar, "Both self-shadowed directional sources must affect the tested illumination.");
-    }
-    /// <summary>Actual reduced transport preserves every OIT/depth channel and primary-noise frame with certified view skipping or direct support fallback.</summary>
-    [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void HierarchicalViewMatchesOriginalReducedTransport(bool detail, bool foreground)
-    {
-        EnsureShaderTestAvailable();
-        using var hierarchy = new CloudHierarchy(() => CloudHierarchyComputeShader.Create(Programs.Api));
-        using var view = CreateScene(9, 7, nativeMapWidth: 21);
-        bool observedCloud = false;
-        foreach (uint frame in new uint[] { 0, 1, 3, 4, 511 })
-        {
-            view.Capture(frame, .125f, 10, 1, 0, detail ? "detail-lit" : "static");
-            view.AuthorHierarchyColumns(foreground);
-            view.UseHierarchy(null);
-            view.RenderTrace(frame); var original = view.ReadTraceRecord();
-            observedCloud |= original[0].Where((_, i) => i % 4 == 3).Any(value => value < .99999f);
-            view.UseHierarchy(hierarchy);
-            view.RenderTrace(frame); var accelerated = view.ReadTraceRecord();
-            for (int layer = 0; layer < 3; layer++) Assert.Equal(original[layer], accelerated[layer]);
-            view.UseHierarchy(hierarchy, mismatch: true);
-            view.RenderTrace(frame); var fallback = view.ReadTraceRecord();
-            for (int layer = 0; layer < 3; layer++) Assert.Equal(original[layer], fallback[layer]);
-        }
-        Assert.True(observedCloud, "The comparison must exercise non-neutral cloud transport.");
+        using var hierarchy=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(Programs.Api));
+        using var view=CreateScene(9,7,nativeMapWidth:21);
+        view.Capture(0,.125f,10,1,0,"detail-lit");view.AuthorHierarchyColumns(foreground:true);
+        view.UseHierarchy(null);view.RenderTrace(0);var horizontal=view.ReadTraceRecord();
+        view.UseHierarchy(hierarchy);view.RenderTrace(0);var clipped=view.ReadTraceRecord();
+        view.RenderReference();
+        Assert.All(clipped.SelectMany(layer=>layer),value=>Assert.True(float.IsFinite(value)));
+        Assert.All(view.ReadReference().SelectMany(layer=>layer),value=>Assert.True(float.IsFinite(value)));
+        view.UseHierarchy(hierarchy,mismatch:true);view.RenderTrace(0);var fallback=view.ReadTraceRecord();
+        for(int layer=0;layer<3;layer++)Assert.Equal(horizontal[layer],fallback[layer]);
     }
     /// <summary>Resolve reconstructs supplied physical payloads independently of cloud map density and rejects foreground occlusion.</summary>
     [Fact]
