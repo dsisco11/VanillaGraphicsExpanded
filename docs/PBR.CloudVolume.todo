@@ -5,16 +5,16 @@ Authority and scope
   Source: docs/PBR.CloudVolume.Proposal.md, complete proposal including Traversal acceleration candidates.
   Context: docs/PBR.Clouds.md and docs/PBR.Atmosphere.Publication.md; existing consumer/GPU contracts.
   User invocation authorizes this new plan, not runtime implementation. Execute only requested phases.
-  Proposal decisions remain unresolved: Phase 1 resolves them before implementation proceeds. The
-    illustrative memory table and old lighting-only constants are not selected defaults.
+  Selected specification: proposal / Selected representation and numerical contract. Its concrete
+    values govern implementation; illustrative tables and old lighting-only constants do not.
   This plan owns a new removable candidate. PBR.CloudLightingVolume.todo and PBR.CloudRealtime.todo
     retain separate authority; no old completion receipts count as implementation of this design.
   Stored 3D density is authoritative for view, direct and diffuse integration. Native descriptors
     feed generation only; procedural density must not reappear as a per-ray fallback.
   Preserve finite native coverage, placement/wind identity, physical units, both PBR modes, depth,
     atmosphere and six-attachment OIT contracts. Sampled density is an explicit shape approximation.
-  Start with shallow anisotropic dense storage, shared density/lighting lattice and coarse occupancy,
-    subject to the Phase 1 feasibility gate. Sparse bricks/clipmaps require a proposal revision if
+  Start with shallow anisotropic dense storage, shared density/lighting lattice and coarse occupancy.
+    Sparse bricks/clipmaps require a proposal revision if
     needed; separate lighting resolution is a later measured optimization, not implicit scope.
   No replacement weather, general path tracer, widely spaced slice rendering, required screen-space
     temporal accumulation, migration, generic rendering framework or automatic old-candidate removal.
@@ -42,35 +42,64 @@ Execution and evidence (applies to every phase)
 Phase 1 - Select the representation and numerical contract
   Outcome: concrete reviewed constants and publication rules make implementation feasible without
     silently substituting the old lighting-only design.
-  [ ] Resolve resident memory ceiling and smallest cloud feature worth preserving with the user.
+  [x] Resolve resident memory ceiling and smallest cloud feature worth preserving with the user.
       Select finite horizontal coverage, vertical coverage/margin, anisotropic dimensions, guards
       and region/block sizes together. Document representable feature scale and filtering softness.
-  [ ] Calculate complete resident and peak replacement memory: 22 bytes/voxel base fields plus guards,
+  [x] Calculate complete resident and peak replacement memory: 22 bytes/voxel base fields plus guards,
       metadata, occupancy, scratch and any justified transient allocation. Include copy bandwidth.
       If dense coverage is unaffordable, stop downstream implementation and revise the proposal for
       an explicitly selected alternative; do not silently clip coverage or restore procedural lookup.
-  [ ] Specify stable material keys, camera independence, wind transform once, circular addressing,
+  [x] Specify stable material keys, camera independence, wind transform once, circular addressing,
       filtered seam adjacency, finite empty guards and bounded coordinate arithmetic.
-  [ ] Specify density cell-average coverage, connected-face/detail generation, units, half-float
+  [x] Specify density cell-average coverage, connected-face/detail generation, units, half-float
       representability, generation quadrature and neighbor influence. Select initialization and
       out-of-band replacement policy, including retained age and failure behavior.
-  [ ] Specify direct integration, relevant-source rules and any explicit distance truncation.
+  [x] Specify direct integration, relevant-source rules and any explicit distance truncation.
       Specify diffuse recurrence/direction weights/albedo/environment boundary, first-scattering
       separation, finite radiance bounds, exposure-independent encoding and field/scale publication.
       Do not copy old counts/distances/budgets without an independent recorded rationale.
-  [ ] Specify metadata granularity and alpha use only if required; initialized lighting fallback,
+  [x] Specify metadata granularity and alpha use only if required; initialized lighting fallback,
       stale/invalid distinctions, source/geometry change dependencies and transition policy.
-  [ ] Select density/direct/diffuse work limits, fairness, source revisions, bounded initialization,
+  [x] Select density/direct/diffuse work limits, fairness, source revisions, bounded initialization,
       and failure atomicity. Specify copy-before-partial-diffuse-update and its charged cost.
-  [ ] Evaluate coarse DDA versus signed/unsigned distance bounds and hybrid maintenance requirements.
+  [x] Evaluate coarse DDA versus signed/unsigned distance bounds and hybrid maintenance requirements.
       Select an initial strategy (coarse DDA is the proposal's first candidate); identify whether a
       distance prototype is justified for Phase 8. Do not mandate two production structures.
-  [ ] Derive view/transport traversal limits from admitted extent and spacing, including empty-block
+  [x] Derive view/transport traversal limits from admitted extent and spacing, including empty-block
       traversal. Retain the half-voxel axis rule for the initial view; no silent cap-induced coarsening.
-  [ ] Record selected settings/compiled options and source decisions in the proposal; flag any changed
+  [x] Record selected settings/compiled options and source decisions in the proposal; flag any changed
       architectural assumption for agreement before dependent work. Review arithmetic and coverage.
-  [ ] Completion: no implementation-critical constants or publication semantics remain implicit;
+  [x] Completion: no implementation-critical constants or publication semantics remain implicit;
       memory/feature tradeoff is agreed and the selected specification reconciles with the proposal.
+
+Phase 1 verification
+  Source mapping: representation/storage/numerical tasks -> proposal / Selected representation and
+    numerical contract; integration obligations -> PBR.Clouds.md / Ownership, Borrowed map, Composition,
+    Shared depth; PBR.Atmosphere.Publication.md / Publication contract; Rendering.Enablement.md.
+  User selected the 352 MiB coarse-shape experiment. Source inspection checked native units/material
+    coordinates; byte/copy/fairness arithmetic was reviewed. Second review and independent completion
+    audit passed after resolving half-storage bounds, initialization snapshot semantics and density
+    shaping formulas. Diff whitespace check passed. Documentation-only work: no build, GPU test,
+    packaging, measured performance or live appearance claim. Phases 2 onward remain unimplemented.
+
+Selected specification summary
+  User choice: approximately 352 MiB base experiment, 512x64x512 nominal cells, coarse shape first.
+  Fixed horizontal spacing 19.53125 units; initial vertical band 800 units/64 cells. Reported band
+    expansion keeps 64 cells and coarsens Y; replace from a frozen admitted snapshot, never crop.
+  Maximum guarded allocation 515x66x515; 8x4x8 physical work blocks, at most 71,825 blocks.
+  Formats R16F density, RG16F direct, two RGBA16F diffuse (alpha zero). One latest descriptor snapshot,
+    block metadata/occupancy and 1 MiB fixed allowance. Resident payload 391,679,376 bytes; replacement
+    peak 783,358,752 bytes. Admission ceilings 512 MiB/1 GiB; driver overhead separately measured.
+  Hardware trilinear sampling with circular X/Z, finite logical guards and bounded material keys.
+  Coarse DDA first; no initial distance field. View/gather operation cap 2048, direct 1024, derived
+    from nominal voxel-relative spacing and crossings, not a quality-driven sample cap.
+  Density generation uses cuboid overlap and eight shaping samples per overlap. Direct traverses
+    the complete finite domain; diffuse uses eight cube-corner directions and 400-metre closure.
+  Density/direct/diffuse budgets 4096/64/32 block jobs; source jobs count separately. Half fair service.
+    All-block lighting revisit bound 4490 eligible frames is an explicit risk, not a latency promise.
+  Diffuse copy traffic 280,077,600 bytes per batch. Downward bounded half encoding preserves Dcap.
+  Full-resolution OIT; detail/self-shadow/diffuse enabled, stop .005 (zero compiles out termination).
+    No screen-space history, procedural view-density fallback, migration or renderer promotion.
 
 Phase 2 - Own stable volume storage and publication
   Depends on: Phase 1.
