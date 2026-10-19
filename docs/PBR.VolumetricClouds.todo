@@ -15,7 +15,11 @@ Authority and scope
     Current settings remain the initial baseline; alternative approximation/default policies need
     separate review. Following explicit default-enablement direction, reduced tracing uses the
     same-frame dominant-source attenuation cache; the full-resolution reference, other source and
-    unavailable-cache paths retain marching. Complete renderer qualification remains in its Phase 9.
+    unavailable-cache paths retain marching. Planned subphases 8.1–8.4 cover depth-resolved attenuation,
+    transmission filtering, generation sampling/footprints and projection stability; these upgrades
+    remain outstanding. Its Phase 9 plans static packed volumetric perturbation noise and overlapping
+    octaves. Its Phase 10 evaluates longer temporal accumulation, compatible history retention and
+    reuse of LumOn reprojection/invalidation facilities. Complete qualification remains in Phase 11.
   This checklist records delivered rendering increments below; final acceptance remains outstanding.
   The proposal governs scope; keep every task unchecked until its stated evidence exists.
   Preserve Off / Simple / Volumetric settings and both standalone PBR and PBR + LumOn operation.

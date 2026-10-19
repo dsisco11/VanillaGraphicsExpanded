@@ -410,8 +410,205 @@ Phase 8: Reduce repeated cloud lighting and density work
     second review and independent audit. Alternative policies are selected or explicitly rejected/
     deferred with evidence; unresolved regressions and user-run appearance/full-view gates remain open.
 
-Phase 9: Qualify the complete renderer and reconcile acceptance
-  Depends on Phase 8. Outcome: the combined policy has reproducible quality and performance evidence.
+Phase 8.1: Preserve shadow attenuation along the light-ray depth
+  Depends on Phase 8. Outcome: separated layers and empty gaps remain distinguishable in the cache.
+  ☐ Record the current 256x256, 64-sample, single-interval cache as the comparison baseline, including
+    actual settings, source identity, construction/lookup costs and storage. Preserve current defaults.
+  ☐ Replace the first/last occupied interval and uniform-extinction assumption with depth segments.
+    - Evaluate 8 and 16 segments per texel as initial candidates; define depth coordinates, world-unit
+      conversion, segment optical-depth contributions and explicit valid-empty/unavailable metadata.
+      This stores light attenuation, not a density volume or replacement native weather data.
+    - Integrate only the overlap between the query's finite ShadowDistance window and each segment.
+      Preserve gaps and inside-cloud queries; state the remaining within-segment approximation.
+      Handle zero spans, partial overlaps, nonnegative finite extinction and saturated transmission.
+    - Initially reuse the existing generation density samples to isolate representation cost. More
+      stored segments cannot recover features missed by those samples. Account for metadata and
+      allocation overhead: 256x256x16 R32F alone is 4 MiB versus the current 1 MiB RGBA32F target.
+  ☐ Integrate the representation through existing typed shader/resource abstractions and cache owner.
+    Preserve same-frame source/map validity, complete occluder coverage, bounded-march fallback,
+    retained reference/other-source paths and disable/reload/world-replacement resource lifetimes.
+  ☐ Reuse lean fixtures to verify segment overlap arithmetic, units, empty/unavailable distinctions
+    and finite transmission. Use layered, thin and inside-cloud cases for opt-in diagnostics and
+    manual comparison; do not gate on agreement with a denser integrator or image-error thresholds.
+  ☐ Completion: representation and lookup are implemented, focused correctness and measured total
+    cost/storage are recorded, and second review/independent audit cover the changed contracts.
+    Appearance acceptance and complete-renderer qualification remain in Phase 11.
+
+Phase 8.2: Filter transmission at the shading depth
+  Depends on Phase 8.1. Outcome: neighboring cache texels contribute depth-correct light visibility.
+  ☐ Evaluate each neighboring texel's finite-window attenuation before combining its transmission.
+    - Start with a bounded 2x2 footprint and normalized nonnegative weights. Filter direct visibility
+      and approximate-octave visibility separately using their respective extinction responses.
+      Do not exponentiate averaged optical depth or derive octave visibility from averaged direct light.
+    - Treat valid empty coverage as unit transmission. Define edge coverage and unavailable taps,
+      including when a bounded march must replace an uncertain result; never interpolate source or
+      validity flags as continuous data or silently normalize away missing occluder coverage.
+    - Keep metadata discrete and preserve finite ShadowDistance, source selection, OIT products and
+      source-admission bounds. Use the existing typed sampling/binding/submission abstractions.
+  ☐ Verify constant/empty fields, weights, depth windows and invalid/edge handling with focused
+    arithmetic/contract checks. Inspect block boundaries and layered clouds through opt-in diagnostics;
+    measure lookup and total costs separately. Add no mandatory smoothness/noise/approximation limits.
+  ☐ Completion: filtered responses and fallback behavior are implemented and reviewed, with focused
+    correctness evidence, measured costs and independent audit; manual appearance remains open.
+
+Phase 8.3: Improve cache-generation sampling and footprint handling
+  Depends on Phase 8.2. Outcome: generation spends bounded work deliberately across supported chords.
+  ☐ Diagnose actual chord lengths, occupied support, sample spacing and projected texel footprints.
+    Include grazing light: 64 uniform points over 10,000 world units are 156.25 units apart, compared
+    with 50-world-unit native columns. Separate missed support from lost depth representation.
+  ☐ Select a bounded allocation policy using chord length, conservative support and footprint.
+    - Specify interval weights and units, maximum work and handling of disjoint support/thin layers.
+      Support subdivision must not multiply the per-ray budget per column or certify unsampled
+      intervals empty merely because sampled density was zero. Account for support-query overhead.
+    - Compare allocation changes against the existing 64-sample generation budget before separately
+      evaluating a higher cap or resolution. Do not raise counts to satisfy retired quality tests.
+  ☐ Evaluate footprint-aware shadow-density detail or bounded area sampling as an explicit changed
+    approximation. Point samples of full-frequency procedural detail do not constitute filtering.
+    Preserve cubic envelopes, connected faces, native bounds, wind and periodic anchoring; retain
+    primary/reference density behavior unless a separate policy change is approved. Keep admission
+    bounds conservative for the selected shadow approximation and avoid repeated per-view generation.
+  ☐ Reuse focused checks for weighted constant fields, units, work bounds and conservative support.
+    Compare allocation and footprint alternatives separately in opt-in long/grazing, layered,
+    dense/sparse and held-out night diagnostics. Record generation, lookup and independently timed
+    total costs and all regressions; no approximation-quality assertions or combinatorial test matrix.
+  ☐ Completion: a documented bounded policy is implemented, focused checks and matched costs exist,
+    and second review/independent audit cover support and density contracts. Phase 11 owns acceptance.
+
+Phase 8.4: Stabilize cache projection and reconcile the lighting upgrades
+  Depends on Phase 8.3. Outcome: continuous light/map motion has a deliberate projection policy.
+  ☐ Replace the reference-axis switch at abs(light.y)=.99 with a stable basis/orientation policy.
+    Handle poles, solar/lunar direction changes and dominant-source transitions explicitly. Preserve
+    source validity; orientation metadata continuity must never authorize stale attenuation reuse.
+  ☐ Define grid origin/phase behavior under native-map motion, wind, recentering and support-height
+    changes. Preserve off-camera occluders and finite-distance coverage; do not introduce camera-only
+    coverage. Rebuild from the current committed publication rather than accumulating old shadow data.
+    Ordinary continuous lighting/weather changes must not reset visible-cloud temporal history.
+  ☐ Reuse focused basis/coverage/lifecycle checks across the former axis boundary, map/source changes
+    and both PBR modes. Inspect slow light motion and map transitions manually; do not assert image
+    flicker/noise thresholds or add a second temporal shadow-history system.
+  ☐ Compare the combined candidate with the frozen coarse-cache baseline at unchanged controls.
+    Include construction, barriers, lookup/trace, temporal/resolve, CPU submission and storage; retain
+    raw paired results and held-out regressions. Distinguish changed approximation from equivalent
+    implementation savings, and synthetic diagnostics from native whole-frame performance.
+  ☐ Reconcile linked plans and current-state architecture only for delivered behavior. Run required
+    focused/canonical/package checks through subagents and verify exact tested/published assets.
+    Avoid redundant GPU work; leave user-run appearance and whole-renderer qualification to Phase 11.
+  ☐ Completion: projection policy and cache upgrades have focused correctness/package evidence,
+    second review and independent audit. Unresolved cost/appearance tradeoffs remain explicitly open.
+
+Phase 9: Precompute cloud perturbation octaves in a static volumetric noise texture
+  Depends on Phase 8 and subphases 8.1–8.4. Outcome: cloud detail samples one static packed noise
+    resource instead of evaluating procedural lattice hashes at each density sample.
+  ☐ Specify the noise asset and overlapping-octave contract before replacing the live field.
+    - Record the existing single-field CloudNoise behavior, detail controls, material coordinates,
+      period, bounds and all consumers. Distinguish density perturbation from primary-ray blue noise;
+      the temporal sampling masks remain separate and unchanged.
+    - Define octave frequencies, seeds, amplitudes, normalization and combination/erosion semantics.
+      State which octaves remain independently adjustable and which can be precombined. Preserve
+      bounded density/source-admission guarantees when multiple octaves overlap; do not accidentally
+      multiply extinction or change the meaning of the existing perturbation amplitude control.
+    - Choose one static resource containing the logical array of 3D octave fields. Evaluate channel
+      packing in a single 3D texture for co-located octaves, or a packed volume layout when necessary,
+      against existing GPU target/sampler support. Do not assume a native 3D-array sampler exists or
+      substitute 2D array slices without correct interpolation along the volume's third dimension.
+    - Specify dimensions, format, quantization, periodic boundaries, texel-center mapping and mip/LOD
+      policy. Account for all octave storage, mip levels and atlas padding; prevent filtering between
+      unrelated packed volumes. Isolate additional octave richness from the cost of replacing noise.
+  ☐ Generate deterministic tileable noise offline and package it as a reproducible static asset.
+    - Record generation parameters, seed, tool/source ownership, asset format/version and digest.
+      Include wrap-correct mip generation if selected. Do not generate or upload the field every frame,
+      depend on native weather-map contents, or bake complete cloud density into the asset.
+    - Use a narrowly scoped reproducible generator and existing asset/build conventions; keep the
+      generation algorithm outside shipped per-sample shading. Do not add a general noise framework.
+  ☐ Load and own the resource through existing texture/program/binding abstractions.
+    - Upload once per owning GPU-resource lifetime, reuse across primary, retained secondary and
+      shadow-cache generation paths, and retire/recreate through existing disable/reload/context
+      lifecycle rules. Keep weather/light changes from rebuilding static noise; avoid per-frame I/O.
+    - Define asset/resource admission and failed-load recovery through the existing cloud owner.
+      Do not silently switch density fields mid-frame, add settings migration or expose new controls
+      merely to select packing. Verify supported texture limits and sampler/binding availability.
+  ☐ Replace live perturbation arithmetic with filtered texture sampling in the shared density path.
+    - Preserve native cubic support, connected faces, world/material period and wind anchoring. Keep
+      early exits for disabled detail, zero amplitude and empty support before sampling the texture.
+    - Coordinate with the shadow footprint policy from Phase 8.3: define explicit LOD/footprints for
+      compute and divergent ray loops rather than relying on undefined implicit derivatives. Preserve
+      the same underlying noise asset/coordinates across view and light queries; document intentional
+      filtering differences. Do not add independent time animation or reset history for ordinary weather.
+    - Treat the new sampled multi-octave field as an intentional approximation change, not proof of
+      identical procedural density. Remove superseded live hash/noise code from production consumers;
+      keep a frozen comparison candidate outside the normal rendering path for measured evaluation.
+  ☐ Validate the resource and integration with lean existing fixtures and typed GPU abstractions.
+    - Check deterministic asset identity, layout, wrap/addressing, octave isolation/combination bounds,
+      mip dimensions, zero-detail bypass, bindings and resource lifetime/failure handling. These are
+      finite algorithm/resource contracts, not spectral, image-error or approximation-quality gates.
+    - Compare procedural baseline, texture substitution and added-octave choices separately at matched
+      settings. Measure density/trace and cache-generation costs, total renderer cost, upload/startup
+      overhead and memory; report bandwidth/cache-pressure regressions and actual lookup counts.
+      Reuse opt-in diagnostics rather than multiplying routine scene/octave/resolution test matrices.
+    - Inspect repetition, seams, thin/connected edges and motion through user-run appearance review.
+      Do not claim a texture lookup guarantees a speedup or raise sampling counts to meet retired tests.
+  ☐ Completion: packaged texture and shared sampling replace live perturbation computation, with
+    measured costs, focused correctness/package checks through subagents, exact asset verification,
+    second review and independent audit. Reconcile delivered architecture and linked plans; final
+    appearance/performance acceptance remains in Phase 11.
+
+Phase 10: Improve volumetric-cloud temporal filtering and retain compatible sampling history
+  Depends on Phase 9 and the delivered cloud reconstruction/history contracts. Outcome: longer useful
+    accumulation with fewer unnecessary resets, while rejecting genuinely incompatible observations.
+  ☐ Establish the current retention behavior before changing the filter.
+    - Inspect CloudTemporalHistory, CloudTemporalParameters, cloud_volume_temporal.fsh and quarter
+      reconstruction. Record actual weights, effective accumulation horizon, reprojection coordinates,
+      support/foreground admission, neighborhood clamping and successful-commit-only history rotation.
+    - Distinguish the eight-frame blue-noise sequence, quarter sampling phase, history texture count
+      and effective sample age. Increasing accumulation does not inherently require storing every
+      historical frame or extending the noise sequence; evaluate those choices separately.
+    - Add only opt-in diagnostics needed to attribute history rejection, clamping and effective weight.
+      Separate global resets, per-pixel rejection and history that survives admission but is clamped
+      away. Observe stationary views, camera/wind motion and continuous day/night/weather evolution.
+  ☐ Evaluate reuse of existing LumOn temporal reprojection and invalidation facilities.
+    - Inspect lumon_reprojection.glsl, lumon_probe_atlas_temporal.fsh, FrameCameraHistory and the
+      relevant LumOn history/dependency owners. Identify reusable coordinate, validity, confidence,
+      weighting and diagnostic mechanisms rather than assuming a single drop-in temporal system.
+    - Compare their assumptions with cloud material/wind motion, volumetric support/representative
+      depth, foreground/liquid clips, physical radiance/transmission and reduced-grid reconstruction.
+      Surface depth, velocity or probe identity must not replace cloud-specific validity blindly.
+    - Record which facilities can be reused directly, adapted narrowly or should remain separate,
+      with ownership and dependency direction. Keep clouds functional when LumOn is disabled; do not
+      activate its renderer/probes or introduce a generic temporal framework to obtain helper reuse.
+  ☐ Evaluate a longer accumulation horizon and retention-aware temporal weights.
+    - Compare the current horizon with bounded longer candidates; specify current/history weights,
+      warm-up, age/confidence saturation and recovery after rejection. Define effective sample count
+      for correlated/repeated observations rather than equating elapsed frames with independent samples.
+    - Avoid incrementing confidence merely for copying an unsampled quarter-grid location. Define
+      confidence/age treatment for reconstructed samples, repeated noise phases and partial coverage.
+      Evaluate noise-cycle changes separately if repetition limits useful accumulation.
+    - Inspect neighborhood clipping and support uncertainty alongside weights: a larger nominal
+      frame count cannot retain information discarded every frame. Balance stationary noise retention
+      against trails, disocclusion recovery and response to actual lighting/weather changes.
+  ☐ Implement the selected cloud-compatible reprojection, retention and invalidation policy.
+    - Preserve the corrected camera-relative transform and native material/wind translation. Retain
+      history through ordinary continuous lighting, fog, weather uploads and cache updates; do not
+      restore value/publication-identity resets that prevent convergence during normal gameplay.
+    - Keep explicit cuts, incompatible resource/world/shader/layout changes, nonconsecutive commits,
+      invalid coordinates and genuinely uncovered/disoccluded regions safe. Review existing settings,
+      projection and motion invalidations individually; maximize compatible retention, not stale reuse.
+    - Preserve current foreground/liquid clipping, bounded physical optical payloads, unaveraged
+      current support/spacing metadata, OIT encoding, both PBR modes and history-free reference mode.
+      Own any additional confidence storage through existing typed resources/bindings/lifecycle.
+  ☐ Validate with focused arithmetic, coordinate, admission and lifecycle checks using existing
+    fixtures and GPU abstractions. Cover weight/age bounds, new-sample versus copied-history behavior,
+    camera/wind reprojection, valid retention and required resets without redundant scene matrices.
+    - Use opt-in diagnostic comparisons and user-run review for stationary flicker, edges, movement,
+      disocclusion and evolving weather/light. Add no convergence, RMS, noise-reduction or image-quality
+      assertions. Measure temporal/reconstruction and total costs, storage and any diagnostic overhead.
+  ☐ Completion: selected retention policy and LumOn reuse decision are documented and implemented,
+    with focused checks/canonical package verification through subagents, second review and independent
+    audit. Update current-state documentation only for delivered behavior; Phase 11 owns final measured
+    performance and user appearance acceptance. Do not claim a larger frame count guarantees improvement.
+
+Phase 11: Qualify the complete renderer and reconcile acceptance
+  Depends on Phase 10, Phase 9, Phase 8 and subphases 8.1–8.4. Outcome: the combined policy has reproducible quality
+    and performance evidence. The completed original Phase 8 does not qualify these later upgrades.
   ☐ Freeze the candidate; run canonical build/shader, focused numerical/GPU, lifecycle and package
     checks through subagents. Verify production asset digests and exact output copies.
     - Cover Off/Simple/Volumetric, both PBR selections, pause, resize, reload, world replacement,
@@ -420,6 +617,8 @@ Phase 9: Qualify the complete renderer and reconcile acceptance
   ☐ Measure baseline versus final renderer with matched scenes/settings and separate quality labels.
     - Report each increment's effects where attributable; distinguish fewer pixels/samples and
       changed approximation quality from same-output traversal/implementation improvements.
+    - Include separated cloud layers and light-space grid/source transitions from subphases 8.1–8.4.
+      Keep diagnostic scene coverage opt-in rather than duplicating it across routine GPU suites.
     - Include empty/sparse/dense clouds; ground/inside/above views; thin edges, low-angle solar/lunar,
       moving weather/light, odd maps and foreground/translucent/liquid overlap in both PBR modes.
     - Include the prior 512x512 regression matrix and representative full-view nonempty resolutions.
@@ -431,6 +630,9 @@ Phase 9: Qualify the complete renderer and reconcile acceptance
       invent an absolute time target, hide regressions in an aggregate or equate probe counts with speed.
   ☐ Obtain user-run acceptance of the changed quality policy: cubic fluff, lighting, shadows within
     clouds, fog, thin support, disocclusion, motion and OIT overlap across relevant views/modes.
+    Include the static noise field's octave appearance, tiling, seams and wind anchoring from Phase 9.
+    Include Phase 10 history retention, stationary noise, moving edges/trails, disocclusion recovery
+      and response to continuous day/night/weather changes with LumOn both disabled and enabled.
     Earlier appearance acceptance does not establish acceptance of changed sampling/resolution/fog.
   ☐ Update PBR.Clouds.md to describe only delivered behavior. Reconcile both source proposals,
     existing cloud checklists and the parent with implemented policy, remaining dependencies and
@@ -444,7 +646,8 @@ Final acceptance
     Any selected attenuation cache has separately bounded construction, coverage and lookup costs.
   ☐ Lower-resolution tracing, amortized atmosphere, repeated density/phase work and acceleration
     each have delivered behavior or an evidence-backed disposition against the stated objective.
-  ☐ All six original performance findings, earlier density/phase findings and Phase 8 tasks map to final receipts;
+  ☐ All six original performance findings, earlier density/phase findings and Phase 8/8.1–8.4/9/10 tasks
+    map to final receipts;
     any unimplemented improvement is explicitly recorded, not silently treated as complete.
   ☐ Native ownership/weather, cubic density support, physical lighting, foreground clips, temporal
     lifecycle, existing OIT integration and both PBR modes satisfy inherited unaffected contracts.
@@ -1115,7 +1318,7 @@ Phase 6 implementation and verification (2026-10-18)
     and sample-depth weighting remain unchanged. Deep/disjoint clouds and varying medium/source
     correlations may differ. The same-field procedural noise is retained; no noise replacement is
     justified or introduced. Diagnostic differences and combined trace timings qualify this change;
-    final user appearance and whole-renderer qualification remain in Phase 9 and the parent checklist.
+    final user appearance and whole-renderer qualification remain in Phase 11 and the parent checklist.
   Superseded density attempt -> initial focused-gpu/remaining-gpu and density diagnostic receipts
     retain a horizontal-erosion regression in both fresh and persistent cache paths. Moving cache
     mutation out of Boolean expressions, fetching each neighbor descriptor explicitly, then applying
@@ -1230,7 +1433,7 @@ Phase 7 implementation and verification (2026-10-18)
     here; the small empty view regresses in both modes and separated/above regresses slightly with
     LumOn. Those regressions stay open. Small differences may be noise; no automated timing gate,
     isolated optimization attribution, full-view/frame-time or appearance acceptance follows.
-    Phase 9 owns the 512/full-view matrix and final ranking review, including possible policy revision.
+    Phase 11 owns the 512/full-view matrix and final ranking review, including possible policy revision.
   Final correctness/package -> artifacts/CloudRealtime/phase7/validation-summary.json,
     canonical-build-result.json, tested-identity.json and package-identity.json -> 229 unique current
     correctness cases pass: 112 focused GPU, one root-boundary test and 116 CPU/catalog cases.
@@ -1270,7 +1473,7 @@ Phase 7 implementation and verification (2026-10-18)
     saving is only .013312 ms with range [-.340992,.490496]; this does not establish a stable win.
     Root-only selection is unchanged. The earlier contended observations retain their original
     scope; this small synthetic repeat does not satisfy representative-resolution, whole-frame
-    performance or appearance acceptance. Empty and noisy edge/above observations remain in Phase 9.
+    performance or appearance acceptance. Empty and noisy edge/above observations remain in Phase 11.
 
 Captured-view reprojection and primary empty-range correction (2026-10-18)
   Reprojection -> CloudTemporalHistory -> previous cloud points now use projection times the
@@ -1570,7 +1773,7 @@ Phase 8 evaluation and initial delivery (2026-10-18; default cache enablement fo
     preserve density/units/noise/anchoring, source bounds, sample schedules, support, six-target OIT,
     physical encoding, history and resource ownership. Cache/detail/format/source-selection and
     control alternatives have explicit measured or contract-backed rejection/deferral. They are
-    not delivered approximation changes. Phase 9, parent/reflection integration and user-run native
+    not delivered approximation changes. Phase 11, parent/reflection integration and user-run native
     appearance/whole-frame performance remain open; no headless result completes those gates.
 
 Default internal shadow-cache enablement (2026-10-18)
@@ -1585,7 +1788,7 @@ Default internal shadow-cache enablement (2026-10-18)
   Ordinary draws rebuild before use, complete image/texture visibility barriers and revalidate the
     native borrow. Source-lifetime replacement, invalidation, resize, reload, disable and teardown
     retire owned storage. Failed generation selects marching and never publishes previous contents.
-  Live appearance and native whole-frame performance remain open in Phase 9. Earlier prototype
+  Live appearance and native whole-frame performance remain open in Phase 11. Earlier prototype
     timing and source-only delivery hashes above remain historical evidence, not this package's identity.
   Validation -> artifacts/CloudRealtime/phase8/default-cache/ -> focused.trx passes 13 checks for
     bindings, density, source arithmetic and integration. After the final persistent-image ordering

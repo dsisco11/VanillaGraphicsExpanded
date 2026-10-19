@@ -212,7 +212,11 @@ Tasks
     - Realtime work tasklist: docs/PBR.CloudRealtime.todo; reconcile
       sampling, self-lighting, termination, reconstruction, atmosphere and acceleration costs there.
       Its Phase 8 evaluates repeated shading work and cloud-internal lighting reuse at preserved
-      initial settings; Phase 9 retains final qualification. External cast-shadow deferral is unchanged.
+      initial settings; outstanding subphases 8.1–8.4 refine attenuation depth, transmission filtering,
+      generation sampling/footprints and projection stability. Phase 9 moves perturbation octaves to
+      a static volumetric noise texture; Phase 10 improves temporal retention and evaluates LumOn
+      reprojection/invalidation reuse. Phase 11 retains final qualification.
+      External cast-shadow deferral is unchanged.
     - Define bounded 3D cloud density, altitude/weather controls, wind and volume lighting. Evaluate
       ray marching, light transmittance and a controlled multiple-scattering approximation.
     - Defer shadows cast by clouds until virtual shadow maps are implemented; retain cloud-volume self-shadowing.
