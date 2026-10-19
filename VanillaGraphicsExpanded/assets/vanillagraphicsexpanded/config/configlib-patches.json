@@ -248,7 +248,7 @@
         "ingui": "vanillagraphicsexpanded:config-cloud-shadow-quality",
         "comment": "vanillagraphicsexpanded:config-cloud-shadow-quality-tooltip",
         "default": 1,
-        "weight": 25.32,
+        "weight": 25.33,
         "range": { "min": 0, "max": 3, "step": 1 }
       },
       "CLOUD_SHADOW_DISTANCE": {
