@@ -241,12 +241,12 @@ Phase 4: Compute persistent direct-light transmission
 Phase 5: Refine diffuse multiple scattering coherently
   Depends on Phases 2–4. Outcome: higher-order source is progressively updated without read/write races.
   Validation: incremental scattering shader build and focused transport/publication checks only.
-  ☐ Implement the selected isotropic closure and bounded angular/ray integration.
+  ☑ Implement the selected isotropic closure and bounded angular/ray integration.
     - Gather directional first scattering for each ray's outgoing direction plus published higher-order
       source. Include extinction, albedo, path lengths and the specified incoming environment boundary.
     - Preserve transport across empty gaps and finite domain boundaries. Do not wrap light transport
       or count the view's first-scattering response twice.
-  ☐ Implement coherent partial-iteration publication using the mechanism chosen in Phase 1.
+  ☑ Implement coherent partial-iteration publication using the mechanism chosen in Phase 1.
     - Read only published source; write distinct storage. Preserve untouched values when publishing.
       Re-encode retained texels in the existing copy pass when the required storage scale grows;
       encode new values with the same destination scale and retain the old field/scale on failure.
@@ -255,8 +255,41 @@ Phase 5: Refine diffuse multiple scattering coherently
       Account for RGBA copy traffic and additional direct/metadata read-modify-write traffic separately.
     - Consume scheduler budgets and carry age/dependency information forward. No dispatch observes
       a partially written neighbor as completed history; barriers use existing submission abstractions.
-  ☐ Completion: focused arithmetic and publication checks cover normalized weights, source accounting,
+  ☑ Completion: focused arithmetic and publication checks cover normalized weights, source accounting,
     untouched-region retention and hazards. No iterative convergence or appearance threshold is added.
+
+  Implementation verification (2026-10-19)
+    Transport -> proposal / Direct illumination and progressive scattering; Density, ray schedules
+      and source units; PBR.Clouds.md native-map units and PBR.Atmosphere.Publication.md physical
+      source contract -> isolated LightingVolumeScattering/Program/bindings and scattering.csh:
+      six equal-weight axis directions, twelve uniform midpoints, finite horizontal exit/300-unit
+      cap, physical extinction, HG directional first scattering plus published diffuse, one incoming
+      environment boundary and receiving albedo. Native density continues across gaps and outside
+      lighting-band coverage; hardware-filtered lighting uses exact footprint admission/fallback.
+    Publication/bounds -> proposal / Physical bounds and coherent publication; Change classification
+      and bounded scheduling; Rendering.Enablement.md lifetime context -> Work's frozen physical
+      snapshot, GPU-selected 256-region list, existing spare copy with deferred commit, old-field-only
+      sampling, RGB-only rescaling, exact mask preservation and per-region failed-channel suppression.
+      Completion preserves pending ages/dependencies and publishes texture/scale only after barriers.
+      LightingVolumeBounds retains lifetime componentwise source envelopes, outward physical caps and
+      scene-headroom admission; live before-Opaque wiring remains Phase 7 work. Direct-disabled lookup
+      uses a compiled variant. Diffuse-disabled work creates no executable, copy, refinement or swap.
+    Second review and independent completion audit passed. All eight affected checks passed without
+      skips: four CPU domain/encoding/bound checks, two existing GPU storage checks and two new GPU
+      scattering checks. New GPU facts took 883 ms (finite recurrence/channel masks) and 1683 ms
+      (partial retention, scale growth, disablement and failed-spare publication). Comparisons enforce
+      only the specified finite arithmetic with float/half representation tolerance; no approximation,
+      convergence or appearance gate was added. Existing unrelated receipts were not rerun.
+    Release build passed with zero errors and 185 existing compiler/analyzer warnings. The initial
+      shader-use attribute error was corrected. New-root registration and rebuilt compiler identities
+      automatically invalidated the catalog (476 production / 559 fixture variants); no clean build
+      was requested. Receipts: artifacts/cloud-lighting-volume-phase5-build.log, -tests.log and
+      artifacts/test-results/cloud-lighting-volume-phase5-focused.trx. No full test matrix or package.
+    No new texture/scratch allocation; parameter blocks total 1680 of the reserved 2048 bytes.
+      Full-copy traffic is 16*V bytes/batch (5.50 MiB maximum). Additional direct RGBA/RG traffic is
+      16+8 bytes/source-node; invalidation is 16*V; selected diffuse destination load/store is 16 bytes
+      per node. Actual filtered/metadata traffic, driver residency, total cost and user appearance
+      remain qualification work. Candidate view, live selector and later phases remain unchecked.
 
 Phase 6: Draw the candidate through an independent view path
   Depends on Phases 2–5. Outcome: authored scenes render candidate illumination into native OIT products.

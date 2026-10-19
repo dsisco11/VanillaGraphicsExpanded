@@ -89,7 +89,8 @@ internal sealed class LightingVolumeStorage(Func<LightingVolumeMaintenanceProgra
     }
 
     /// <summary>Copies a complete field with a monotonic scale, publishing the texture and scale atomically.</summary>
-    internal bool CopyDiffuse(LightingVolumeEncoding target, Func<bool> current)
+    internal bool CopyDiffuse(LightingVolumeEncoding target, Func<bool> current,
+        Action<DynamicTexture3D>? refine = null, Func<bool>? complete = null)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         if (!Ready) throw new InvalidOperationException("Lighting storage is unavailable.");
@@ -98,8 +99,11 @@ internal sealed class LightingVolumeStorage(Func<LightingVolumeMaintenanceProgra
         {
             if (!current()) throw new InvalidOperationException("Diffuse copy lost its publication certificate.");
             Run(Domain!, Domain, Encoding, target, 2);
+            // The solver reads the still-published field and overwrites only its selected spare nodes.
+            refine?.Invoke(diffuseSpare!);
             if (!current() || !program!.IsValid || executable != ((IGpuProgram)program).ExecutableRevision)
                 throw new InvalidOperationException("Diffuse copy lost its input or executable certificate.");
+            if (complete is not null && !complete()) throw new InvalidOperationException("Diffuse completion rejected.");
             (diffuse, diffuseSpare) = (diffuseSpare, diffuse);
             Encoding = target;
             return true;
@@ -170,7 +174,7 @@ internal sealed class LightingVolumeStorage(Func<LightingVolumeMaintenanceProgra
         var empty = new float[checked(4 * domain.Width * domain.Width)];
         PreviousObservation.UploadDataImmediate(empty); HardReference.UploadDataImmediate(empty);
         regions = Buffer(domain.Regions * 16); regionSpare = Buffer(domain.Regions * 16);
-        // Reserve 2048 bytes for maintenance, density and six work parameter blocks within the fixed allowance.
+        // Reserve 2048 bytes for maintenance, density, direct, scattering and six work parameter blocks.
         Scratch = Buffer(63488 / 4);
         GlDebug.ThrowIfErrors("Cloud lighting volume allocation");
     }

@@ -511,7 +511,7 @@ linked checklist.
 ## Isolated lighting-volume storage
 
 `PBR/Clouds/LightingVolume/` owns an independently usable lighting-grid foundation. It has no
-registered cloud renderer, live selector or lighting solver. Native cloud ownership and the
+registered cloud renderer or live selector. Native cloud ownership and the
 existing drawing path do not depend on it. Its intended rendering contract is described in the
 [lighting-volume proposal](PBR.CloudLightingVolume.Proposal.md).
 
@@ -572,3 +572,34 @@ dispatch or certificate failure withdraws the complete storage publication. Comp
 only successful region channels. Inactive sources request no executable or dispatch, and native
 texture references are released after synchronous submission. The solver has reset/disposal hooks
 and remains unregistered with the live renderer.
+
+`LightingVolumeScattering` refines at most 256 selected regions from the published diffuse field.
+Each occupied node gathers six equally weighted axis rays, with twelve uniform midpoints over
+at most 300 world units per ray. Native horizontal support clips transport; the vertical lighting
+band does not. Empty gaps preserve transmission. Directional first scattering uses current physical
+solar/lunar illuminance, normalized HG response and cached transmission, with no nested shadow march.
+The incoming environment appears once at each finite ray endpoint. The published diffuse source
+already includes transported environment and higher orders; view composition uses first scattering
+plus diffuse without adding environment again. Direct-disabled programs compile out transmission
+lookups; diffuse-disabled work creates no solver executable, dispatch, copy or swap.
+
+Every diffuse batch copies the complete RGBA field to its existing spare, then overwrites selected
+nodes while sampling only the old field. Hardware trilinear RGB sampling requires eight exact valid
+mask entries. Output preserves occupancy/direct bits, replaces diffuse RGB and validity, and clears
+diffuse validity throughout a numerically failed region. Barriers precede successful-channel age/
+revision completion and atomic texture/scale publication. Untouched texels retain RGB and exact
+alpha. Failed batches withdraw readiness and retain the previous coherent texture/scale pair.
+
+`LightingVolumeBounds` retains componentwise physical source envelopes and derives conservative
+first/diffuse source bounds independently of exposure. Its scene-admission method includes aerial
+reconstruction, local fog and accumulation margin. Half-float diffuse storage uses a monotonic
+power-of-two scale; the full copy re-encodes retained RGB when it grows. Both pre-store and decoded
+physical values are bounded. Envelopes may shrink only with cleared lighting. The parameter blocks
+remain within the reserved 2048 bytes, and no additional volume or scratch allocation is needed.
+The full diffuse copy accounts for 16 bytes per allocated texel (about 5.50 MiB at maximum extent).
+Direct updates additionally load/store 16 bytes of mask-bearing RGBA per source-node, plus 8 bytes
+of RG transmission; node invalidation loads/stores 16 bytes per allocated texel. Refinement's selected
+destination load/store adds 16 bytes per updated node. These are logical payload traffic counts;
+filtered reads, metadata traffic, caching and actual GPU time require separate measurement.
+These isolated owners have reset/disposal hooks; scene admission and live callback wiring remain
+unregistered. Focused arithmetic/publication checks do not establish runtime cost or appearance.

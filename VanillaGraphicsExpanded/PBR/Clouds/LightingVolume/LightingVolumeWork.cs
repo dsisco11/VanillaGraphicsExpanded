@@ -22,10 +22,14 @@ internal sealed class LightingVolumeWork(Func<int,LightingVolumeWorkProgram> cre
     private uint generation,revision,frame;
     private bool history,observed,failed,disposed;
     private int active;
+    private bool diffuse;
+    private bool selfShadowing;
+    private AtmosphereLighting? lightingBatch;
     internal bool Ready { get; private set; }
     internal string? Failure { get; private set; }
 
     #region Public API
+    #region Observation and publication
     /// <summary>Observes one certified publication and selects jobs; source values remain physical and unencoded.</summary>
     internal bool Update(LightingVolumeStorage storage,CloudMapInput? input,GpuTexture? map,AtmosphereLighting lighting,
         ReadOnlySpan<Vector4> nativeFrustum,Func<bool> current,bool directEnabled=true,bool diffuseEnabled=true)
@@ -72,7 +76,7 @@ internal sealed class LightingVolumeWork(Func<int,LightingVolumeWorkProgram> cre
             windowX=x;windowZ=z;generation=storage.Generation;previousGrid=storage.Domain;history=true;observed=true;
             frame=borrow.Frame;sun=lighting.Sun;moon=lighting.Moon;solar=lighting.Solar;lunar=lighting.Lunar;
             nativeGeneration=borrow.Generation;nativeUpload=borrow.Upload;
-            environment=lighting.Environment;active=nextActive;Ready=true;
+            environment=lighting.Environment;active=nextActive;diffuse=diffuseEnabled;selfShadowing=directEnabled;lightingBatch=lighting;Ready=true;
             return true;
         }
         catch(Exception error) when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
@@ -114,10 +118,21 @@ internal sealed class LightingVolumeWork(Func<int,LightingVolumeWorkProgram> cre
             input.Frame==frame && input.Generation==nativeGeneration && input.Upload==nativeUpload && storage.Accepts(input);
     }
 
+    /// <summary>Returns the immutable physical source snapshot and refinement selection for this exact native batch.</summary>
+    internal bool TryDiffuseBatch(LightingVolumeStorage storage,CloudMapInput input,out AtmosphereLighting? lighting,
+        out bool enabled,out bool shadows)
+    {
+        lighting=lightingBatch;enabled=diffuse;shadows=selfShadowing;
+        return lighting is not null && Ready && storage.Ready && storage.Generation==generation && storage.Domain==previousGrid &&
+            input.Frame==frame && input.Generation==nativeGeneration && input.Upload==nativeUpload && storage.Accepts(input);
+    }
+
+    #endregion
+    #region Lifetime
     /// <summary>Releases operation executables and revokes observation identity at explicit recovery boundaries.</summary>
     internal void Reset()
     {
-        Ready=history=observed=failed=false;Failure=null;previousGrid=null;generation=revision=frame=0;
+        Ready=history=observed=failed=false;Failure=null;previousGrid=null;lightingBatch=null;generation=revision=frame=0;
         // Attempt every retirement even when an executable's release fails.
         Action[] releases=new Action[programs.Length];
         for(int i=0;i<programs.Length;i++) {int slot=i;releases[i]=()=>{programs[slot]?.Dispose();programs[slot]=null;};}
@@ -125,6 +140,7 @@ internal sealed class LightingVolumeWork(Func<int,LightingVolumeWorkProgram> cre
     }
     /// <summary>Retires this coordinator without acquiring native texture ownership.</summary>
     public void Dispose() {if(disposed)return;disposed=true;Reset();}
+    #endregion
     #endregion
 
     #region Private

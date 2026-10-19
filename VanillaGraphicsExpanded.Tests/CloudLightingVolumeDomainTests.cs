@@ -1,4 +1,6 @@
 using System.Numerics;
+using System.Collections.Immutable;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.PBR.Clouds;
 using VanillaGraphicsExpanded.PBR.Clouds.LightingVolume;
 using VanillaGraphicsExpanded.Rendering;
@@ -65,6 +67,28 @@ public sealed class CloudLightingVolumeDomainTests
             Assert.False(new LightingVolumeEncoding(1,MathF.BitIncrement(power)).IsValid);
             Assert.False(new LightingVolumeEncoding(1,MathF.BitDecrement(power)).IsValid);
         }
+    }
+
+    /// <summary>Lifetime source bounds retain earlier maxima, use physical source units and reject unrepresentable admission.</summary>
+    [Fact]
+    public void DiffuseBoundsRetainPhysicalSourceEnvelopesUntilReset()
+    {
+        var bounds=new LightingVolumeBounds();
+        var light=new AtmosphereLighting(Vector3.UnitY,new Vector3(10,2,1),new Vector3(3,4,5),Vector3.Zero,Vector3.Zero,
+            ImmutableArray<float>.Empty){Lunar=new Vector3(2),ReconstructionMaximumNits=7};
+        float maximum=bounds.Observe(light,3);
+        double q=.9*(1+.6)/(4*Math.PI*Math.Pow(1-.6,2))*12;
+        double d=.9*(q+5)/.1;
+        Assert.InRange(bounds.SourceCap,q,q+1e-5);
+        Assert.InRange(bounds.Encoding.Cap,d,d+1e-4);
+        Assert.True(maximum>=q+d+10);
+        var retained=bounds.Encoding;
+        Assert.Equal(maximum,bounds.Observe(light with {Solar=Vector3.Zero,Lunar=Vector3.Zero,Environment=Vector3.Zero},3));
+        Assert.Equal(retained,bounds.Encoding);
+        Assert.Throws<ArgumentOutOfRangeException>(()=>bounds.Observe(light with {Solar=new Vector3(float.MaxValue)}));
+        Assert.Equal(retained,bounds.Encoding);
+        bounds.Reset();bounds.Observe(light with {Solar=Vector3.Zero,Lunar=Vector3.Zero,Environment=Vector3.Zero});
+        Assert.Equal(0,bounds.Encoding.Cap);Assert.Equal(0,bounds.SourceCap);
     }
     #endregion
 }

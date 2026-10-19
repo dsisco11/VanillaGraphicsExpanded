@@ -9,5 +9,8 @@ internal static partial class LightingVolumeShaderOptions
     /// <summary>Includes bounded procedural detail and exposed-face erosion only in enabled variants.</summary>
     [ShaderOption("VGE_LIGHTING_VOLUME_DETAIL",true)]
     internal static partial ShaderOption<bool> Detail { get; }
+    /// <summary>Includes cached direct-transmission sampling only when self-shadowing is enabled.</summary>
+    [ShaderOption("VGE_LIGHTING_VOLUME_DIRECT",true)]
+    internal static partial ShaderOption<bool> Direct { get; }
     #endregion
 }
