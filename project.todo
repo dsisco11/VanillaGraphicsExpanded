@@ -17,8 +17,66 @@ Issues:
   Debug View System:
     ☐ Refactor debug view system so that debug view panels can actually have nested categories, allowing for better organization and easier navigation of complex debug information.
     ☐ Split all of the Probe-view debug modes into nested categories for better organization. e.g. all "Probe-atlas" views should be under the "Probe atlas" category, etc.
+    ☐ Move local-exposure visualization into the existing VGE debug visualizers menu.
+      - Remove Postprocessing.LocalExposure.Visualize from persisted settings, snapshots, ConfigLib controls
+        and setting-specific localization; use a clean break without migration or compatibility code.
+      - Register the existing brightening/darkening visualization through DebugViewRegistry and the
+        existing viewer lifecycle. Keep selection transient and independent of LumOn enablement;
+        report unavailable local-exposure data rather than silently enabling the effect.
+      - Remove the visualization flag/branch from normal final display composition. Route the debug
+        output through a dedicated debug executable or declared precompiled debug option, reusing
+        completed local-exposure data and existing GPU abstractions rather than a second producer.
+      - Verify menu selection/exit, unavailable data, resize/reload and both PBR modes with focused
+        checks; returning to normal rendering must restore the normal display pipeline.
 
   Performance:
+    Shader Options:
+      ☐ Replace user-configuration feature branches with declared precompiled shader options.
+        - Use the existing typed ShaderOption/ShaderUse contracts, variant catalog and preparation
+          lifecycle. Select the requested executable before pass/PSO preparation; reject a failed
+          switch rather than rendering the previous policy. Avoid redundant variant combinations.
+        - Keep numerical tuning values as uniforms where appropriate. Compile enable/disable choices
+          separately, including features disabled by a zero-valued control; do not generate a variant
+          for every possible amplitude, threshold or other continuous value.
+        - Preserve runtime guards for geometry, lighting, current publications, resource availability,
+          disocclusion and other per-frame/per-sample facts; these are not configuration switches.
+        ☐ Compile cloud detail and its noise bypass as feature selections.
+          - Replace volumeDetail.w and the zero-amplitude noise selection in cloud_volume_density.glsl
+            with options derived from Clouds.Detail and whether DetailAmplitude is positive.
+          - Apply the same density policy to reduced tracing, reference transport, retained secondary
+            marching and shadow-cache generation. Preserve cubic support, connected faces, anchoring
+            and actual amplitude/scale controls; omit disabled noise/erosion work from the binary.
+        ☐ Compile cloud primary early-termination enablement separately from its threshold.
+          - Derive enablement from Clouds.StopTransmittance > 0. Remove the per-step termination
+            comparison when zero; retain the configured threshold and strict post-step exit when on.
+          - Preserve primary sampling, support metadata, physical units and all OIT output arithmetic.
+        ☐ Compile LumOn anchor jitter enablement in anchor and temporal shaders.
+          - Replace the AnchorJitterEnabled uniform switch in lumon_probe_anchor.fsh and
+            lumon_probe_atlas_temporal.fsh with a shared option; retain jitter scale/cycle as data.
+          - Keep anchor coordinates and temporal reconstruction consistent across selection changes,
+            including applicable history invalidation and debug consumers.
+        ☐ Compile LumOn optional velocity-based reprojection.
+          - Replace configuration-driven enableVelocityReprojection branches in the atlas temporal
+            shader with an option derived from LumOn.EnableReprojectionVelocity.
+          - Preserve displaced-surface rejection and other required geometry/history safety checks
+            even when coordinate remapping is off. Retain velocity metadata/resources still needed
+            for those checks; do not remove them merely because reprojection is disabled.
+        ☐ Compile native FXAA enablement in luminance preparation and final display.
+          - Replace the user-setting paths through passInfo.z and exposure.z in pbr_post_luma.fsh and
+            pbr_final.fsh with coordinated options; exclude the edge filter and its luma preparation
+            when disabled. Cover both local-exposure selections without changing display encoding.
+          - Distinguish the persistent native FXAA setting from the transient postprocessing pass gate.
+        ☐ Compile disabled bloom and light-shaft radiance out of final composition.
+          - Select bloom/shaft consumer options from the configured effect enablement, alongside the
+            existing CPU producer gating. Exclude disabled texture sampling, arithmetic and sampler
+            requirements from pbr_final.fsh instead of always reading neutral replacement textures.
+          - Preserve enabled effect composition order, source-local exposure, current-frame validity
+            fallback and independent light-shaft occlusion consumers; do not conflate radiance with
+            occlusion or remove guards for unavailable publications.
+        - Verify each enabled/disabled binary structurally through emitted SPIR-V/reflection and lean
+          correctness checks using existing typed GPU fixtures. Run build/test tools through subagents;
+          avoid redundant matrices, approximation-quality gates and unmeasured performance claims.
+          Measure representative costs separately and reconcile current-state shader documentation.
     PipelineState:
       ☑ Evolve graphics pipeline state into an authoritative submission system. Approved proposal: docs/Rendering.AuthoritativePipelineState.Proposal.md. Plan: docs/Rendering.AuthoritativePipelineState.todo. Automated acceptance and measurements: docs/Rendering.AuthoritativePipelineState.md / System acceptance; user live acceptance remains pending.
       ☑ Establish concrete framebuffer targets through render-pass setup and compatible target signatures through pipeline validation. Coverage: docs/Rendering.AuthoritativePipelineState.md / Remaining consumer submission; explicit image and published window destinations.
