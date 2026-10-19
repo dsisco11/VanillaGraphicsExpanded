@@ -118,6 +118,30 @@ selected-source validity. Two more tiles pack eight equal-depth segment optical 
 for 3, 12 or 48 MiB of texture payload respectively. Changing quality retires incompatible storage;
 disabling caching releases its resources and skips generation.
 
+`CloudVolumeParameters` transports an independent tangent for each celestial source between
+lighting captures. The shortest rotation carries that tangent through both vertical poles without
+switching reference axes. Initialization chooses a well-conditioned axis once; a discontinuous
+near-antipodal direction change keeps the previous tangent projected into the new plane (an exact
+antipode uses a half turn about that tangent). The shader reorthogonalizes the staged tangent and
+uses its cross product with the current light for the second axis. Solar and lunar orientations
+advance independently even when not dominant. A dominant-source transition selects that source's
+current frame and regenerates its attenuation; it does not rotate or reuse the other source's data.
+This small geometric state contains no opacity, publication certificate or temporal shadow history.
+It is owned by the parameter/program lifetime; recreation may choose a new initial grid orientation.
+
+The grid is centered on the current native map's local horizontal midpoint and certified height
+midpoint. Each axis extent is the full native box's projected half extent, so off-camera support
+remains covered. Texel centers subdivide that current box without world-grid snapping: native
+recentering moves the box with the committed map, wind follows the existing material coordinates,
+and changed root heights update its center and scale immediately. Continuous motion can therefore
+change sample phase and footprint; orientation transport removes the axis-switch discontinuity,
+but does not promise stationary shadows under all moving inputs. Retaining an old origin or extent
+would need additional coverage and source certification. Generation and lookup instead derive the
+same current frame from the same staged parameters and root. Every admitted draw rebuilds current
+attenuation, and a missing or revoked publication remains unavailable regardless of orientation.
+These geometric changes do not reset visible-cloud temporal history for ordinary weather or light
+motion; its existing lifecycle, medium and reprojection admission rules remain authoritative.
+
 Generation estimates crossed native columns from the root-clipped chord as
 `1 + ceil(abs(light.x) * length / 50) + ceil(abs(light.z) * length / 50)`.
 Estimates above 16 retain the original 64 uniformly weighted midpoint evaluations across that chord.

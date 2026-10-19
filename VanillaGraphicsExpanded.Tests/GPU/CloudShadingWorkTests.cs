@@ -30,10 +30,12 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
         if(Environment.GetEnvironmentVariable("VGE_CLOUD_MEASUREMENT_LUMON") is string selected)
             VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.GenerationLumOnEnabled=selected=="1";
         using var programs=new ComponentShaderPrograms();
+        string? coarseRoot=Environment.GetEnvironmentVariable("VGE_CLOUD_COARSE_BASELINE_ASSETS");
+        using var coarsePrograms=coarseRoot is null?null:new ComponentShaderPrograms(coarseRoot);
         int policy=int.TryParse(Environment.GetEnvironmentVariable("VGE_CLOUD_CACHE_POLICY"),out int selectedPolicy)?selectedPolicy:1;
         Assert.InRange(policy,0,2);
         var builder=programs.CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api,policy));
-        var baselineBuilder=programs.CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api,0));
+        var baselineBuilder=(coarsePrograms??programs).CreateCompute(api=>CloudShadowAttenuationComputeShader.Create(api,0));
         int segments=int.TryParse(Environment.GetEnvironmentVariable("VGE_CLOUD_CACHE_SEGMENTS"),out int selectedSegments)
             ?selectedSegments:CloudShadowCache.DepthSegments;
         Assert.True(segments is 8 or 16,"Cache depth segments must be 8 or 16.");
@@ -46,12 +48,12 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
             Vector3 sun=layered||thin?Vector3.UnitX:Vector3.Normalize(new(-.243f,grazing?.005f:.401f,.883f));
             float solar=night?scenario.Contains("lunar-only")?0:.05f:84431,lunar=night?.2f:20000;
             int width=full?3440:512,height=full?1377:256;
-            using var before=new CloudReconstructionScene(width,height,programs,false,200,settings:controls);
+            using var before=new CloudReconstructionScene(width,height,coarsePrograms??programs,false,200,settings:controls);
             using var after=new CloudReconstructionScene(width,height,programs,false,200,settings:controls);
-            using var oldRoot=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(programs.Api));
+            using var oldRoot=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create((coarsePrograms??programs).Api));
             using var newRoot=new CloudHierarchy(()=>CloudHierarchyComputeShader.Create(programs.Api));
             using var target=DynamicTexture2D.Create(256,256*(1+segments/4),PixelInternalFormat.Rgba32f);
-            using var baselineTarget=DynamicTexture2D.Create(256,256*(1+segments/4),PixelInternalFormat.Rgba32f);
+            using var baselineTarget=DynamicTexture2D.Create(256,coarsePrograms is null?256*(1+segments/4):256,PixelInternalFormat.Rgba32f);
             using var timer=new CloudPerformanceTimer();using var rootEnd=GpuTimestampQuery.Create();
             using var start=GpuTimestampQuery.Create();using var end=GpuTimestampQuery.Create();
             var oldTimes=new List<double[]>();var newTimes=new List<double[]>();
@@ -114,7 +116,9 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
             Assert.All(recovered.SelectMany(layer=>layer),value=>Assert.True(float.IsFinite(value)));
             Assert.Contains(target.ReadPixels().Where((_,i)=>i%4==3),value=>value==(night?2:1));
             var receipt=new {scenario,width,height,nativeWidth=200,field=layered?"separated native banks":thin?"two-unit shallow layer":grazing?"sparse stepped columns":"uniform native columns",grazing,
-                cacheWidth=256,depthSegments=segments,storageBytes=target.Width*target.Height*16,quadrature=64,solar,lunar,controls,warmups=3,pairs=5,baselineParameters,cacheParameters,
+                cacheWidth=256,depthSegments=segments,storageBytes=target.Width*target.Height*16,
+                baselineStorageBytes=baselineTarget.Width*baselineTarget.Height*16,coarseBaseline=coarseRoot,
+                quadrature=64,solar,lunar,controls,warmups=3,pairs=5,baselineParameters,cacheParameters,
                 columns=new[]{"constructionGpuMs","traceGpuMs","temporalGpuMs","resolveGpuMs","drawTotalGpuMs","rootGpuMs","wholeGpuMs","submitCpuMs"},
                 baseline=oldTimes,current=newTimes,baselinePolicy=0,currentPolicy=policy,
                 baselineGenerationAndBarrierGpuMs=oldTimes.Select(row=>row[0]-row[5]),
@@ -126,7 +130,9 @@ public sealed class CloudShadingWorkTests(HeadlessGLFixture fixture, ITestOutput
                 maximumAbsoluteDifference=reference.Zip(approximate,(a,b)=>a.Zip(b,(x,y)=>Math.Abs((double)x-y)).Max()).ToArray(),
                 lumOn=VanillaGraphicsExpanded.PBR.PbrShaderLightingMode.LumOnEnabled,fixture.GLRenderer,
                 gamePids=Process.GetProcessesByName("Vintagestory").Select(p=>p.Id).ToArray(),
-                qualification="Opt-in selected generation policy against retained uniform cached generation, fixed narrow projection and declared synthetic native field. Generation includes dispatch/activation/barrier after root; trace includes lookup plus transport; whole is independently timestamped. Differences diagnostic, no appearance gate or live FPS claim."};
+                qualification=coarseRoot is null?
+                    "Opt-in selected generation policy against retained uniform cached generation. Generation includes dispatch/activation/barrier after root; trace includes lookup plus transport; whole is independently timestamped. Differences diagnostic, no appearance gate or live FPS claim.":
+                    "Combined cache upgrades against independently frozen coarse generation/trace assets through an explicitly recorded binary ABI adapter. Unchanged declared controls and synthetic native field; changed approximation. Generation includes dispatch/activation/barrier after root; trace includes lookup plus transport; whole is independently timestamped. Concurrent GPU load is uncontrolled; recorded gamePids identify observed game processes; no appearance or native FPS claim."};
             File.WriteAllText(Path.Combine(directory,scenario+".json"),JsonSerializer.Serialize(receipt,new JsonSerializerOptions{WriteIndented=true}));
             output.WriteLine($"Shadow cache {scenario} complete, occupied={occupied}, empty={empty}.");
         }

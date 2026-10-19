@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.PBR.Clouds;
 
 namespace VanillaGraphicsExpanded.Tests;
 
-/// <summary>Checks finite primary termination controls, persistence and unchanged parameter layout.</summary>
+/// <summary>Checks finite primary termination controls, persistence and explicit parameter offsets.</summary>
 public sealed class CloudTerminationSettingsTests
 {
     #region Public API
@@ -18,7 +18,7 @@ public sealed class CloudTerminationSettingsTests
         Assert.Equal(.005f,(float)JObject.Parse(JsonConvert.SerializeObject(value))["StopTransmittance"]!);
     }
 
-    /// <summary>Finite selections round-trip and occupy the final spare float in the existing uniform block.</summary>
+    /// <summary>Finite selections round-trip and occupy the explicit primary-control offset in the uniform block.</summary>
     [Theory]
     [InlineData(0f)][InlineData(.00390625f)][InlineData(.005f)]
     public void ThresholdRoundTripsAndPacksWithoutChangingOtherBudgets(float threshold)
@@ -27,10 +27,10 @@ public sealed class CloudTerminationSettingsTests
         var captured=JsonConvert.DeserializeObject<CloudRenderingSettings>(JsonConvert.SerializeObject(value))!.Capture();
         captured.Validate();Assert.Equal(threshold,captured.StopTransmittance);
         using var parameters=new CloudVolumeParameters();parameters.CaptureMap(20,default,1,captured);
-        Assert.Equal(208,parameters.Bytes.Length);
+        Assert.Equal(240,parameters.Bytes.Length);
         var values=MemoryMarshal.Cast<byte,float>(parameters.Bytes);
         Assert.Equal(threshold,values[51]);Assert.Equal(384,values[12]);Assert.Equal(10,values[13]);
-        Assert.Equal(2,values[48]);Assert.Equal(50,values[49]);Assert.Equal(1500,values[50]);
+        Assert.Equal(1,values[48]);Assert.Equal(50,values[49]);Assert.Equal(1500,values[50]);
     }
 
     /// <summary>Persisted invalid inputs clamp or restore defaults while internal invalid selections reject.</summary>

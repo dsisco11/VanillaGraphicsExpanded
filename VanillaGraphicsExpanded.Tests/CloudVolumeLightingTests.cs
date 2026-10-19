@@ -52,10 +52,10 @@ public sealed class CloudVolumeLightingTests
         parameters.CaptureMap(20,placement,2,CloudVolumeSettings.Default);
         parameters.CaptureLighting(Lighting(),0,Vector4.Zero,Vector3.Zero);
         float[] before=MemoryMarshal.Cast<byte,float>(parameters.Bytes).ToArray();
-        Assert.Equal(208,parameters.SizeBytes); Assert.Equal(2,before[6]); Assert.Equal(120,before[16]);
+        Assert.Equal(240,parameters.SizeBytes); Assert.Equal(2,before[6]); Assert.Equal(120,before[16]);
         Assert.Equal(3,before[20]); Assert.Equal(16,before[39]);
         Assert.Equal(10,before[13]); Assert.Equal(1500,before[50]);
-        Assert.Equal(384,before[12]); Assert.Equal(2,before[48]); Assert.Equal(50,before[49]);
+        Assert.Equal(384,before[12]); Assert.Equal(1,before[48]); Assert.Equal(50,before[49]);
         parameters.CaptureMap(20,placement with { WindX=123,WindZ=456 },2,CloudVolumeSettings.Default);
         Assert.Equal(before[4],MemoryMarshal.Cast<byte,float>(parameters.Bytes)[4]);
         parameters.CaptureMap(20,placement with { CenterX=101 },2,CloudVolumeSettings.Default);

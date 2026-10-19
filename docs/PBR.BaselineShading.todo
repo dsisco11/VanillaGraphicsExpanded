@@ -213,10 +213,11 @@ Tasks
     - Realtime work tasklist: docs/PBR.CloudRealtime.todo; reconcile
       sampling, self-lighting, termination, reconstruction, atmosphere and acceleration costs there.
       Its Phase 8 evaluates repeated shading work and cloud-internal lighting reuse at preserved
-      initial settings. Subphases 8.1–8.3 supply segmented attenuation, depth-correct transmission
-      filtering and bounded generation allocation; measured costs, rejected area sampling and
-      contention are recorded in that checklist, with final acceptance still open. Outstanding
-      subphase 8.4 covers projection stability. Phase 9 moves perturbation octaves to
+      initial settings. Subphases 8.1–8.4 supply segmented attenuation, depth-correct transmission
+      filtering, bounded generation allocation and transported per-source projection orientation;
+      measured costs, rejected area sampling and
+      contention are recorded in that checklist, with final acceptance still open. Cache
+      projection and source validity remain same-frame. Phase 9 moves perturbation octaves to
       a static volumetric noise texture; Phase 10 improves temporal retention and evaluates LumOn
       reprojection/invalidation reuse. Phase 11 retains final qualification.
       Implementation phases use cached incremental builds, affected-contract checks and existing

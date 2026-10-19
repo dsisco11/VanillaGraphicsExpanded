@@ -19,6 +19,8 @@ layout(std140,binding=28) uniform CloudVolumeParameters
     vec4 volumeFog;
     vec4 volumeFogColor;
     vec4 volumePrimary; // minimum view count, budget distance, shadow distance, stop transmittance
+    vec4 volumeShadowSunU;
+    vec4 volumeShadowMoonU;
 };
 #define VGE_ATMOSPHERE_SCATTERING_DIRECTIONS
 #define vge_atmosphereScatteringSun volumeSun.xyz

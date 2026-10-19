@@ -9,9 +9,10 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 /// <summary>Packs one coherent borrowed map placement and completed physical illumination.</summary>
 internal sealed class CloudVolumeParameters : CpuUniformBuffer
 {
+    private CloudShadowOrientation solarOrientation,lunarOrientation;
     #region Public API
-    /// <summary>Allocates thirteen explicitly matched std140 vectors.</summary>
-    internal CloudVolumeParameters() : base(208) { }
+    /// <summary>Allocates fifteen explicitly matched std140 vectors, including independent light-space tangents.</summary>
+    internal CloudVolumeParameters() : base(240) { }
 
     /// <summary>Identifies the discrete local underwater transport branch used instead of aerial transport.</summary>
     internal bool UsesUnderwaterTransport => System.Runtime.InteropServices.MemoryMarshal.Read<float>(Bytes.Slice(152,4))>.7f;
@@ -56,7 +57,10 @@ internal sealed class CloudVolumeParameters : CpuUniformBuffer
             throw new ArgumentException("Invalid cloud volume medium.");
         WriteVector4(64, new(lighting.Solar, 0)); WriteVector4(80, new(lighting.Lunar, 0));
         WriteVector4(96, new(lighting.Environment, 0));
-        WriteVector4(112, new(Vector3.Normalize(lighting.Sun), 0)); WriteVector4(128, new(Vector3.Normalize(lighting.Moon), 0));
+        Vector3 sun=Vector3.Normalize(lighting.Sun),moon=Vector3.Normalize(lighting.Moon);
+        WriteVector4(112, new(sun, 0)); WriteVector4(128, new(moon, 0));
+        WriteVector4(208,new(solarOrientation.Capture(sun),0));
+        WriteVector4(224,new(lunarOrientation.Capture(moon),0));
         WriteVector4(144, new(lighting.Altitude, lighting.HorizonElevation, underwater, 1 / lighting.LookupStorageScale));
         WriteVector4(160, fog); WriteVector4(176, new(color, 0));
     }

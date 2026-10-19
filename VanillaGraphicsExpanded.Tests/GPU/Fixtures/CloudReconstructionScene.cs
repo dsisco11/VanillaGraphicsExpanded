@@ -252,7 +252,8 @@ internal sealed class CloudReconstructionScene : IDisposable
         Assert.True(hierarchy.TryGetCurrent(input,out var bounds));
         rootComplete?.Issue();
         int segments=(target.Height/target.Width-1)*4;
-        shadingProbe.SetHierarchy(bounds);builder.Capture(shadingProbe.Parameters,bounds!,target.Width,quadrature,source,segments);
+        // The frozen coarse diagnostic executable ignores the segment word and uses a square image.
+        shadingProbe.SetHierarchy(bounds);builder.Capture(shadingProbe.Parameters,bounds!,target.Width,quadrature,source,Math.Max(8,segments));
         builder.Map=map;builder.Target=new(target,TextureAccess.WriteOnly);
         builder.Dispatch((target.Width+7)/8,(target.Width+7)/8);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|MemoryBarrierFlags.TextureFetchBarrierBit);

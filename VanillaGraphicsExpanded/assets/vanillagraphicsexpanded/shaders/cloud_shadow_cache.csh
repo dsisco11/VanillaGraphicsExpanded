@@ -49,7 +49,7 @@ void main()
     vec3 light=shadowCache.z==0?volumeSun.xyz:volumeMoon.xyz;
     vec3 center,u,v,radius;
     vec4 record=vec4(0);
-    if(CloudShadowFrame(light,center,u,v,radius))
+    if(CloudShadowFrame(shadowCache.z,light,center,u,v,radius))
     {
         record.w=float(shadowCache.z+1);
 #if VGE_CLOUD_SHADOW_POLICY == 0

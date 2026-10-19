@@ -498,24 +498,24 @@ Phase 8.4: Stabilize cache projection and reconcile the lighting upgrades
   Depends on Phase 8.3. Outcome: continuous light/map motion has a deliberate projection policy.
   Validation: incremental affected-variant build, focused projection/lifecycle checks and one matched
     combined comparison using the retained baseline. Full reproduction/packaging is deferred to Phase 11.
-  ☐ Replace the reference-axis switch at abs(light.y)=.99 with a stable basis/orientation policy.
+  ☑ Replace the reference-axis switch at abs(light.y)=.99 with a stable basis/orientation policy.
     Handle poles, solar/lunar direction changes and dominant-source transitions explicitly. Preserve
     source validity; orientation metadata continuity must never authorize stale attenuation reuse.
-  ☐ Define grid origin/phase behavior under native-map motion, wind, recentering and support-height
+  ☑ Define grid origin/phase behavior under native-map motion, wind, recentering and support-height
     changes. Preserve off-camera occluders and finite-distance coverage; do not introduce camera-only
     coverage. Rebuild from the current committed publication rather than accumulating old shadow data.
     Ordinary continuous lighting/weather changes must not reset visible-cloud temporal history.
-  ☐ Reuse focused basis/coverage/lifecycle checks across the former axis boundary, map/source changes
+  ☑ Reuse focused basis/coverage/lifecycle checks across the former axis boundary, map/source changes
     and both PBR modes. Inspect slow light motion and map transitions manually; do not assert image
     flicker/noise thresholds or add a second temporal shadow-history system.
-  ☐ Compare the combined candidate with the frozen coarse-cache baseline at unchanged controls.
+  ☑ Compare the combined candidate with the frozen coarse-cache baseline at unchanged controls.
     Include construction, barriers, lookup/trace, temporal/resolve, CPU submission and storage; retain
     raw paired results and held-out regressions. Distinguish changed approximation from equivalent
     implementation savings, and synthetic diagnostics from native whole-frame performance.
-  ☐ Reconcile linked plans and current-state architecture only for delivered behavior. Run required
+  ☑ Reconcile linked plans and current-state architecture only for delivered behavior. Run required
     incremental builds and focused checks through subagents; record tested shader/asset identities.
     Avoid redundant GPU work; leave user-run appearance and whole-renderer qualification to Phase 11.
-  ☐ Completion: projection policy and cache upgrades have focused correctness and tested-asset evidence,
+  ☑ Completion: projection policy and cache upgrades have focused correctness and tested-asset evidence,
     second review and independent audit. Unresolved cost/appearance tradeoffs remain explicitly open.
 
 Phase 9: Precompute cloud perturbation octaves in a static volumetric noise texture
@@ -733,10 +733,15 @@ Bounded quality policy (implementation contract)
       belongs to the analytic oracle, not an additional production column-integration pass.
 
   Secondary budget and distance
-    - Default reduced tracing builds a 256x256 same-frame light-space attenuation map with 64
-      detailed-density quadrature samples per map ray for the stronger published source. Nearest
-      lookup approximates extinction as uniform between first/last occupied distances, clipped to
-      the query's ShadowDistance. This supersedes sample-local marching only for that cached source;
+    - Default reduced tracing builds a logical 256x256 same-frame attenuation map with at most 64
+      detailed-density quadrature samples per map ray for the stronger published source. Eight
+      depth segments retain the sampled extinction distribution; 2x2 lookup evaluates each ray's
+      finite ShadowDistance transmission before filtering direct and octave visibility separately.
+      Short chords use bounded occupied-arc allocation; the geometric crossing estimate above 16
+      retains uniform midpoint allocation. See PBR.Clouds.md for the full finite algorithm and
+      unavailable-coverage fallback. Transported per-source tangents define a continuous orientation
+      through light poles; current map/root extents define grid phase without old attenuation reuse.
+      This supersedes sample-local marching only for that cached source;
       both meaningful lights remain represented. Generation includes off-camera density and uses
       certified root bounds, matching map/placement/lighting and completed write/sample barriers.
       Unavailable, invalid or uncovered lookup falls back to the bounded schedule below. No previous-
@@ -2085,3 +2090,80 @@ Bounded generation and footprint receipts (2026-10-19)
     Initial whole-runtime identity was not frozen; those trials are exploratory, with exact shader
     binaries recovered separately. Second review and independent audit are clear for the selected
     policy, linked contracts and scoped evidence. Phase 8.3 is complete; later work remains unchecked.
+
+Projection and combined-cache receipts (2026-10-19)
+  Contract mapping -> Phase 8.4 and Execution and evidence -> archived volumetric proposal/checklist
+    at e87de94d, archived hierarchy proposal/checklist at f66895c6, PBR.Atmosphere.Publication.md,
+    PBR.Clouds.md and parent PBR.BaselineShading.todo -> preserve native bounds, committed publication,
+    physical source inputs, units, six OIT products, source/lifetime validity and both PBR selections.
+    Current correctness-only and incremental-validation rules supersede inherited approximation
+    gates and per-increment release packaging. Artifact root: artifacts/CloudRealtime/phase8.4/.
+  Orientation -> CloudShadowOrientation, CloudVolumeParameters and cloud_shadow_frame.glsl -> two
+    independent transported tangents replace the abs(light.y)=.99 reference-axis switch. Shortest
+    rotations cover continuous motion through both poles; a discontinuous near-antipodal jump
+    projects the prior tangent, with an exact antipode keeping it. Repeated captures are stable.
+    Generation and lookup use the same captured source tangent, light and root. Dominance changes
+    select that source's current orientation and rebuild attenuation; no geometric state grants
+    content validity. The parameter block appends two vec4s (208 -> 240 bytes), preserving old offsets.
+  Grid phase -> PBR.Clouds.md / same-frame attenuation -> use the current native-map local midpoint
+    and certified root-height midpoint, with full projected box extents and texel-center sampling.
+    No camera-only clipping, world-grid snapping, retained old extents or cross-frame shadow data is
+    introduced. Recentring follows the committed native map, wind retains material anchoring and
+    height changes immediately change the current projection. This deliberately preserves complete
+    coverage; moving inputs can still shift sample phase/footprints. Transport eliminates the axis
+    switch, not every possible source of shimmer. Visible-cloud history keeps its existing rules
+    for continuous day/night/weather motion and genuine lifecycle/medium incompatibility.
+  Focused verification -> transported-frame CPU oracle, production-frame GPU corner coverage,
+    existing production lifecycle/source recovery in both PBR modes, history continuity/recentring,
+    parameter offsets and typed bindings. The CPU oracle uses independent Rodrigues rotations;
+    GPU checks include both poles, former axis boundary, both sources, odd native width, changing
+    heights/placement/wind and withdrawn root certificates. Existing production checks now cross
+    the old boundary and change dominant source without authorizing stale attenuation or resetting
+    compatible history. No image-error, flicker/noise or approximation-quality assertions were added.
+  Combined comparison -> coarse-adapter.json, combined/*.json and combined-summary.json -> retained
+    independently built coarse cache from phase8.1/baseline-source, not the segmented phase8.3
+    baseline. Diagnostic manifest/key adaptation preserves the exact old compute/trace SPV bytes;
+    the old 208-byte block consumes the unchanged prefix of the staged 240-byte buffer. No baseline
+    shader is rebuilt and no adapter is part of runtime shading. The current typed fixtures own all
+    programs/resources/submission. This compares the combined changed approximation, not isolated
+    projection cost or an exact-output implementation optimization.
+    RTX4090, 512x256 synthetic view, native width 200, logical 256 cache, 64-sample cap, ViewMax384,
+    ViewMin1, LightMax10, ShadowDistance1500, DetailAmplitude.25, EdgeWidth8, StopTransmittance0;
+    three warmups and five alternating pairs. All cases produce 65536 valid source records and zero
+    invalid records. Generation includes dispatch and barriers after separately timed root work;
+    trace includes lookup and transport; whole is independently timestamped. Median GPU ms:
+      Case       Generation/barriers       Lookup/trace          Whole renderer
+      Day        .1096 -> .0481             1.391 -> 2.663         1.580 -> 2.794
+      Grazing    .1096 -> .2038             1.158 -> 2.109         1.363 -> 2.407
+      Layered    .1044 -> .2109             2.627 -> 4.823         3.033 -> 5.214
+      Thin       .0727 -> .1475              .539 -> 1.805          .696 -> 2.049
+      Sparse     .1044 -> .0932             1.158 -> 2.094         1.352 -> 2.282
+      Night      .1198 -> .0389             1.589 -> 2.899         2.024 -> 3.029
+    Raw paired construction/barrier, trace, temporal, resolve, independently timed whole and CPU
+    submission samples retain every regression. Nominal cache payload increases 1 -> 3 MiB at
+    quality 1 (4 -> 12 and 16 -> 48 MiB at qualities 2/3); allocator/resident memory is unmeasured.
+    The appended parameter data adds 32 bytes per parameter block; other targets remain unchanged.
+    Every combined whole median regresses against the coarse cache. Reduced short-ray generation
+    cost does not offset the upgraded representation/filter/transport cost; no speedup is claimed.
+    The six sampled cases report no running game process; no process was launched or closed. GPU
+    clocks and concurrent load are uncontrolled, and these synthetic results are not native frame
+    performance or live acceptance. Slow light/map transitions and appearance remain user-run
+    Phase 11 work, alongside full-view performance and the unresolved cost/quality tradeoff.
+  Build and tested identity -> build.log, fix-build.log, final-build.log, focused.trx and
+    focused-cpu-recheck.trx -> eleven unique focused checks pass. The initial incremental build
+    compiles seven production and nine fixture shader variants; other outputs are cached. A missing
+    namespace import in the new test required a cached C# fix build. Four pre-existing packing
+    assertions still expected minimum view samples 2 instead of the current default 1; only those
+    expectations were corrected and their four CPU cases rerun. No runtime controls were changed.
+    The final test-only build reuses all 463 production/544 fixture shader outputs with zero compiler
+    invocations. No full baseline rebuild, clean catalog build or release packaging was performed.
+    final-identity.json records changed source and current cloud shader digests. Runtime SHA256
+    A2F1CED1EFC266D7B76823AEAFD150F4972E0ABDDCA3BA5D8BC61423D9692D41 matches measured-binaries.json;
+    the final test DLL differs only corrected assertions and diagnostic qualification wording.
+    Raw JSON qualification wording was corrected to match the observed empty game process lists;
+    measured numeric data is unchanged. Second review covers the full source/document mapping,
+    finite frame arithmetic, appended offsets, current-source certificates and lean test scope.
+    Independent audit consulted the linked sources and verified final source/runtime/manifest and
+    all fifteen listed shader hashes with zero mismatches. No current increment finding remains.
+    Phase 8.4 is complete; Phases 9–11 and final acceptance remain unchecked, including live
+    appearance, whole-renderer qualification and the measured cache cost/quality tradeoff.

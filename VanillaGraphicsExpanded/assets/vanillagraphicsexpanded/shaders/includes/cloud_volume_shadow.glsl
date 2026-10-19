@@ -18,7 +18,7 @@ void CloudPrepareShadowCache()
 {
     cloudCacheSource=cloudTraversal.z-1;
     cloudCachedLight=cloudCacheSource==0?volumeSun.xyz:volumeMoon.xyz;
-    cloudCacheFrameValid=cloudTraversal.z>0 && CloudShadowFrame(cloudCachedLight,cloudCacheCenter,cloudCacheU,cloudCacheV,cloudCacheRadius);
+    cloudCacheFrameValid=cloudTraversal.z>0 && CloudShadowFrame(cloudCacheSource,cloudCachedLight,cloudCacheCenter,cloudCacheU,cloudCacheV,cloudCacheRadius);
 }
 /** Filters each ray's finite source window independently; uncertain footprint coverage falls back. */
 bool CloudCachedTransmission(vec3 point,vec3 light,out vec2 transmission)

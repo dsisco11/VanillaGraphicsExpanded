@@ -131,6 +131,12 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
             for (uint frame = 0; frame < 5; frame++)
             {
                 var input = scene.Capture(frame);
+                // Cross the former axis switch, then change dominant source while
+                // ordinary map heights evolve. History remains a visible-cloud decision.
+                float angle=frame==0?.16f:frame==1?.14f:0;
+                scene.Lighting=scene.Lighting with {Sun=new(MathF.Sin(angle),MathF.Cos(angle),0),
+                    Moon=-Vector3.UnitY,Solar=new(frame==4?1:30),Lunar=new(frame==4?30:3)};
+                if(frame==1)input=input with {Placement=input.Placement with {CenterX=1,Offset=new(50,0,-50)}};
                 Assert.True(hierarchy.TryBuild(input, () => true), hierarchy.Failure);
                 Assert.True(hierarchy.TryGetCurrent(input, out var bounds));
                 CloudHierarchy selected = frame == 3 ? unavailable : hierarchy;
@@ -146,6 +152,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
                 Assert.Equal((int)((frame+1)%3),ReadPrivate<int>(accelerated,"cursor"));
                 Assert.Equal(frame is not (2 or 3), scene.HierarchyEnabled);
                 Assert.Equal(frame is not (2 or 3), scene.ShadowCacheEnabled);
+                if(frame is not (2 or 3))Assert.Equal(frame==4?2u:1u,scene.ShadowCacheSource);
                 Assert.Equal(frame is not (0 or 2), scene.HistoryEnabled);
                 var actual = scene.ReadOutput();
                 // Cache lighting is an intentional approximation. Native optical factors and
@@ -284,7 +291,8 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
         private readonly float[] projection = [4,0,0,0,0,4,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0];
         private readonly float[] inverse = new float[16];
         private readonly float[] identity = Mat4f.Create();
-        private readonly AtmosphereLighting lighting = new(Vector3.UnitY, new(30), new(10), Vector3.Zero, Vector3.Zero, ImmutableArray<float>.Empty)
+        /// <summary>Supplies one completed mutable-by-replacement light publication to the production scheduler.</summary>
+        internal AtmosphereLighting Lighting {get;set;} = new(Vector3.UnitY, new(30), new(10), Vector3.Zero, Vector3.Zero, ImmutableArray<float>.Empty)
             { Moon = -Vector3.UnitY, Lunar = new(3), CalibrationGeneration = 1, LookupStorageScale = LightingStorage.PersistentScale };
 
         #region Public API
@@ -295,6 +303,8 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
         internal bool HierarchyEnabled => UboPacking.ReadUInt32(((ICloudTraceBindings)trace).TraversalInputs.Bytes, 0) != 0;
         /// <summary>Observes the completed same-frame attenuation binding independently of root availability.</summary>
         internal bool ShadowCacheEnabled => UboPacking.ReadUInt32(((ICloudTraceBindings)trace).TraversalInputs.Bytes, 8) != 0;
+        /// <summary>Reports the discrete source certificate staged for the current trace.</summary>
+        internal uint ShadowCacheSource=>UboPacking.ReadUInt32(((ICloudTraceBindings)trace).TraversalInputs.Bytes,8);
         /// <summary>Reads the production history-admission flag supplied to all three passes.</summary>
         internal bool HistoryEnabled => BitConverter.ToSingle(trace.Temporal.Bytes.Slice(96, 4)) == 1;
 
@@ -376,7 +386,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
         }
         /// <summary>Executes production source admission and all three passes against the existing OIT blend contract.</summary>
         internal bool Draw(CloudVolumeReconstruction reconstruction, CloudMapInput input, CloudHierarchy? hierarchy, Func<bool> current, CloudVolumeSettings? settings=null) =>
-            reconstruction.Draw(input, lighting, settings??CloudVolumeSettings.Default, output.Target, depth.TextureId, visibility.TextureId, liquid.TextureId, geometry, current, hierarchy);
+            reconstruction.Draw(input, Lighting, settings??CloudVolumeSettings.Default, output.Target, depth.TextureId, visibility.TextureId, liquid.TextureId, geometry, current, hierarchy);
         /// <summary>Clears only fixture attachments to the native neutral OIT record before a comparison draw.</summary>
         internal void Clear()
         {
