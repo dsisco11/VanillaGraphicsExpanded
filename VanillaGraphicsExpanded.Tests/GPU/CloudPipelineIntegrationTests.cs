@@ -386,7 +386,7 @@ public sealed class CloudPipelineIntegrationTests(HeadlessGLFixture fixture,ITes
         }
         /// <summary>Executes production source admission and all three passes against the existing OIT blend contract.</summary>
         internal bool Draw(CloudVolumeReconstruction reconstruction, CloudMapInput input, CloudHierarchy? hierarchy, Func<bool> current, CloudVolumeSettings? settings=null) =>
-            reconstruction.Draw(input, Lighting, settings??CloudVolumeSettings.Default, output.Target, depth.TextureId, visibility.TextureId, liquid.TextureId, geometry, current, hierarchy);
+            reconstruction.Draw(input, Lighting, settings??(CloudVolumeSettings.Default with {TraceScale=CloudTraceScale.Half}), output.Target, depth.TextureId, visibility.TextureId, liquid.TextureId, geometry, current, hierarchy);
         /// <summary>Clears only fixture attachments to the native neutral OIT record before a comparison draw.</summary>
         internal void Clear()
         {

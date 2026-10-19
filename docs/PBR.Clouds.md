@@ -331,7 +331,7 @@ and interpolation weights. Temporal sampling binds the current trace and previou
 resolve binds the newly filtered history view. Typed view bindings reject overlap with active
 framebuffer images, and active target passes borrow both their view and the shared storage owner.
 
-The optional Quarter selection traces ceil-quarter view width/height into one three-layer array,
+The default Quarter selection traces ceil-quarter view width/height into one three-layer array,
 then reconstructs ceil-half view width/height into two alternating three-layer history blocks in a
 separate six-layer array. Each frame observes one position in every 2x2 half-grid block; four frames
 complete the cycle. The representative full-view coordinates of half-grid history stay fixed.
@@ -394,7 +394,7 @@ The persisted `Clouds` config and ConfigLib expose:
 | Control | Default | Bounds/meaning |
 | --- | --- | --- |
 | `FullResolutionReference` | false | Full view, midpoint transport, no history or upsampling; overrides trace scale |
-| `TraceScale` | Half (2) | Half or Quarter (4) view dimensions; reconstruction stays half dimensions |
+| `TraceScale` | Quarter (4) | Half (2) or Quarter view dimensions; reconstruction stays half dimensions |
 | `ViewRaySampleMax` | 384 | 4..384 primary points across the complete clipped ray |
 | `ViewRaySampleMin` | 1 | 1..min(16,max) points for short positive spans |
 | `ViewBudgetDistance` | 50 | 50..10000 world units; distance at which the maximum applies |

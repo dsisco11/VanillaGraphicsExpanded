@@ -267,7 +267,7 @@
         "name": "Clouds/TraceScale",
         "ingui": "vanillagraphicsexpanded:config-cloud-trace-scale",
         "comment": "vanillagraphicsexpanded:config-cloud-trace-scale-tooltip",
-        "default": 2,
+        "default": 4,
         "weight": 25.01,
         "values": [2, 4]
       },

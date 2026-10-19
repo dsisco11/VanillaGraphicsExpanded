@@ -42,11 +42,12 @@ public sealed class CloudResolutionTests
         }
     }
 
-    /// <summary>Persisted Half remains the default; explicit Quarter and reference selection retain independent meanings.</summary>
+    /// <summary>Missing and invalid selections use Quarter; explicit Half and reference selection retain independent meanings.</summary>
     [Theory]
-    [InlineData("{}",CloudTraceScale.Half)][InlineData("{\"TraceScale\":4}",CloudTraceScale.Quarter)]
+    [InlineData("{}",CloudTraceScale.Quarter)][InlineData("{\"TraceScale\":4}",CloudTraceScale.Quarter)]
+    [InlineData("{\"TraceScale\":2}",CloudTraceScale.Half)]
     [InlineData("{\"TraceScale\":\"Quarter\"}",CloudTraceScale.Quarter)]
-    [InlineData("{\"TraceScale\":3}",CloudTraceScale.Half)]
+    [InlineData("{\"TraceScale\":3}",CloudTraceScale.Quarter)]
     public void ControlsUseCleanDefaultsAndRoundTrip(string json,CloudTraceScale expected)
     {
         var value=JsonConvert.DeserializeObject<CloudRenderingSettings>(json)!;

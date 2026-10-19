@@ -60,7 +60,8 @@ internal sealed class CloudReconstructionScene : IDisposable
     internal CloudReconstructionScene(int width,int height,ComponentShaderPrograms programs,bool mipmappedOpaque,int nativeMapWidth,bool independentStorage=false,CloudVolumeSettings? settings=null)
     {
         this.width=width;this.height=height;this.programs=programs;
-        this.settings=settings??CloudVolumeSettings.Default;
+        // Authored payload fixtures use a half-sized trace unless a test selects another layout.
+        this.settings=settings??(CloudVolumeSettings.Default with {TraceScale=CloudTraceScale.Half});
         this.settings.Validate();
         var layout=CloudResolutionLayout.Create(width,height,this.settings.TraceScale);
         (lowWidth,lowHeight)=(layout.Width,layout.Height);
