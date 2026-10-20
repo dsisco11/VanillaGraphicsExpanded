@@ -19,5 +19,8 @@ internal interface ICloudVolumeWorkBindings
     /// <summary>Writes separate direct/diffuse indirect dispatch records.</summary>
     [ShaderBinding("WorkCommands",ShaderBindingKind.StorageBlock,2,ShaderStageKind.Compute)]
     GpuStorageBufferBinding Commands { set; }
+    /// <summary>Excludes blocks with no stored density or trilinear support from transport queues.</summary>
+    [ShaderBinding("WorkOccupancy",ShaderBindingKind.StorageBlock,3,ShaderStageKind.Compute)]
+    GpuShaderStorageBuffer? Occupancy { set; }
     #endregion
 }

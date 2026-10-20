@@ -14,6 +14,7 @@ layout(std140) uniform VolumeWork
 layout(std430) buffer WorkRegions {uint regions[];};
 layout(std430) buffer WorkScratch {uint scratch[];};
 layout(std430) buffer WorkCommands {uint commands[];};
+layout(std430) readonly buffer WorkOccupancy {uint occupancy[];};
 const int DirectJobs=16384,DiffuseJobs=16448;
 const uint Invalid=0xffffffffu;
 shared uvec3 keys[256];
@@ -35,6 +36,9 @@ bool Visible(int region)
 bool Pending(int job,int kind)
 {
     int region=kind==0?job/2:job;
+    // Retain demand without spending transport jobs on certified empty space. A later
+    // density publication makes the same pending revisions eligible automatically.
+    if(occupancy[region]==0u)return false;
     if(kind==1)return workSettings.y!=0&&(regions[region*16]&4u)!=0u;
     int source=job%2;
     return (workStamps.z&(1<<source))!=0&&(regions[region*16+5+source*2]!=regions[region*16+6+source*2]||regions[region*16+6+source*2]==0u);

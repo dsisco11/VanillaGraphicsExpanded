@@ -28,6 +28,11 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
         var lighting=new AtmosphereLighting(Vector3.UnitY,Vector3.One,Vector3.One,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
             {Moon=Vector3.UnitX,Lunar=Vector3.One};
         var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();
+        Assert.True(work.Select(storage,lighting,0,planes,()=>true),work.Failure);
+        Assert.Equal(0u,Read(fields.Scratch,16,1)[0]);Assert.Equal(0u,Read(fields.Scratch,17,1)[0]);
+        Assert.Equal(0u,Read(fields.Regions,6,1)[0]);Assert.Equal(0u,Read(fields.Regions,13,1)[0]);
+        // Empty blocks keep uncompleted demand; becoming occupied must make it eligible again.
+        fields.Occupancy.UploadData(Enumerable.Repeat(1u,domain.Blocks).ToArray());
         var directSeen=new HashSet<uint>();var diffuseSeen=new HashSet<uint>();
         for(uint frame=1;frame<=5;frame++)
         {

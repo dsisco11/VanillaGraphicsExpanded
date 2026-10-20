@@ -628,7 +628,10 @@ shortened at block/domain endpoints. One hardware trilinear fetch evaluates each
 Operation caps are 2048 and 1024 respectively. Lack of progress or cap overflow fails the ray;
 consumers must reject an incomplete prefix rather than treating it as completed transport.
 
-`CloudVolumeWork` selects separate direct and diffuse lists only after density publication. It
+`CloudVolumeWork` selects separate direct and diffuse lists only after density publication. Blocks
+with certified zero density and trilinear support do not consume lighting jobs or backlog counts.
+Their pending revisions remain uncompleted and become eligible when density makes them occupied.
+It
 reserves half each 64/32-job budget for persistent round-robin service, then chooses incompatible,
 newly active, visible stale and other old pending work. Physical blocks spanning a logical window
 seam are conservatively visible. Offscreen jobs retain fair service. The direct list encodes

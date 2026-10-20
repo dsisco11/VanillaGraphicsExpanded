@@ -118,10 +118,10 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     internal void Prepare()
     {
         var caps=GpuSupport.Graphics;
-        if(caps.MaxUniformBlockSize<208||caps.MaxComputeShaderStorageBlocks<3||caps.MaxShaderStorageBufferBindings<3||
+        if(caps.MaxUniformBlockSize<208||caps.MaxComputeShaderStorageBlocks<4||caps.MaxShaderStorageBufferBindings<4||
             caps.MaxComputeWorkGroupInvocations<256||caps.MaxComputeWorkGroupSize.Length<1||caps.MaxComputeWorkGroupSize[0]<256||
             caps.MaxComputeSharedMemorySize<4112)
-            throw new NotSupportedException("Cloud work requires three storage bindings, 256 lanes and shared selection storage.");
+            throw new NotSupportedException("Cloud work requires four storage bindings, 256 lanes and shared selection storage.");
         for(int i=0;i<6;i++)
         {
             var p=programs[i]??=createProgram(i);if(!p.EnsureReady())throw new InvalidOperationException(p.PreparationLog);
@@ -161,7 +161,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     }
     /// <summary>Binds exact field metadata, existing scratch and initialized indirect ranges.</summary>
     private void Bind(int op,CloudVolumeFields fields)
-    {programs[op]!.Regions=fields.Regions;programs[op]!.Scratch=fields.Scratch;programs[op]!.Commands=new(commands,0,48);}
+    {programs[op]!.Regions=fields.Regions;programs[op]!.Scratch=fields.Scratch;programs[op]!.Commands=new(commands,0,48);programs[op]!.Occupancy=fields.Occupancy;}
     /// <summary>Submits typed work through resource authority and closes metadata/command visibility.</summary>
     private void Run(int op,int groups=1)
     {
