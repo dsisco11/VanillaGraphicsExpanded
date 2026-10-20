@@ -106,7 +106,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
     /// <summary>Withdraws sampling after failed in-place density work until explicit lifecycle recovery.</summary>
     internal void Withdraw() => available = false;
 
-    /// <summary>Copies and refines a disjoint diffuse destination, publishing only a barrier-complete texture/scale pair.</summary>
+    /// <summary>Repairs and refines a disjoint diffuse destination, publishing only a barrier-complete texture/scale pair.</summary>
     /// <remarks>The refinement owner must submit its producers through the shared submission owner, closing their visibility before returning.</remarks>
     internal bool UpdateDiffuse(CloudVolumeEncoding target, Func<bool> current, Action<CloudVolumeFields> refine,
         Func<bool>? complete = null, GpuIndirectBuffer? commands = null, bool deferPublication = false)
@@ -119,13 +119,18 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
         try
         {
             RequireCurrent(current);
-            copy!.Capture(fields.Domain, fields.Encoding, target); copy.Source = fields.Diffuse;
+            // A previous successful list covers every differing block only when both fields
+            // share the destination scale. Generic callbacks have no tracked write footprint.
+            bool repair = commands is not null && fields.DiffuseRepairTracked &&
+                fields.Encoding.Scale == target.Scale && fields.DiffuseSpareScale == target.Scale;
+            copy!.Capture(fields.Domain, fields.Encoding, target, repair); copy.Source = fields.Diffuse;
+            copy.Scratch = fields.Scratch;
             copy.Destination = new(fields.DiffuseSpare, TextureAccess.WriteOnly, Layered: true);
             // The lighting selector emits zero groups for an empty diffuse list. No CPU count decision is required.
             submission.Run(copy, () =>
             {
-                if (commands is null) copy.Dispatch((fields.Domain.Size + 3) / 4, 17, (fields.Domain.Size + 3) / 4);
-                else copy.DispatchIndirect(commands, 48);
+                if (commands is null) copy.Dispatch(fields.Domain.BlocksX, fields.Domain.BlocksY, fields.Domain.BlocksX);
+                else copy.DispatchIndirect(commands, repair ? 60 : 48);
             });
             // The gather's submission already closes image/status visibility; do not repeat its barrier.
             refine(fields);
@@ -145,7 +150,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
         if (!Ready || !ReferenceEquals(Published, fields) || !target.IsValid ||
             Vector3.Max(target.Cap, fields.Encoding.Cap) != target.Cap || target.Scale < fields.Encoding.Scale)
             throw new InvalidOperationException("Staged cloud diffuse publication lost its certificate.");
-        fields.PublishDiffuse(target);
+        fields.PublishDiffuse(target, repairTracked: true);
     }
 
     /// <summary>Revokes retained fields and executable state at explicit lifecycle boundaries.</summary>

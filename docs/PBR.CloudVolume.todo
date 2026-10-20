@@ -62,7 +62,7 @@ Phase 1 - Select the representation and numerical contract
   [x] Specify metadata granularity and alpha use only if required; initialized lighting fallback,
       stale/invalid distinctions, source/geometry change dependencies and transition policy.
   [x] Select density/direct/diffuse work limits, fairness, source revisions, bounded initialization,
-      and failure atomicity. Specify copy-before-partial-diffuse-update and its charged cost.
+      and failure atomicity. Specify spare preservation before partial diffuse updates and its charged cost.
   [x] Evaluate coarse DDA versus signed/unsigned distance bounds and hybrid maintenance requirements.
       Select an initial strategy (coarse DDA is the proposal's first candidate); identify whether a
       distance prototype is justified for Phase 8. Do not mandate two production structures.
@@ -248,7 +248,8 @@ Phase 6 - Progressively transport diffuse illumination
       separate from diffuse higher orders. Use selected finite radiance bounds/encoding.
   [x] Copy published diffuse data to the destination before partial writes; preserve untouched values,
       perform selected updates from the coherent source, then publish field and scale together.
-      Skip copy/swap for empty batches. Charge full copy traffic separately from solver work.
+      Skip copy/swap for empty batches. Charge copy traffic separately from solver work. Phase 7.6
+      supersedes the original full-copy implementation with bounded repair and scale-safe fallback.
   [x] Propagate refinement demand and retain stale illumination across ordinary atmosphere changes.
       Apply the agreed fallback/transition policy without mixing incompatible density identities.
   [x] Verify declared recurrence/units, bounds, copy preservation, scale publication and failure rules
@@ -701,22 +702,73 @@ Phase 7.6 - Avoid unnecessary whole-volume diffuse copying
     Phase 7.3 is not an implementation gate.
   Outcome: copying is proportional to justified publication/transport needs where feasible, without
     losing a coherent old diffuse source or corrupting untouched cells and encoding.
-  [ ] Reuse the captured copy dispatch and .16-.18 ms replay timing plus source-derived approximately
+  [x] Reuse the captured copy dispatch and .16-.18 ms replay timing plus source-derived approximately
       267 MiB read/write traffic per maximum-domain nonempty batch. Separate gather ping-pong copying
       from drawable snapshot publication; measure missing costs only where needed to choose or verify
       the replacement. Do not present this copy as the sole FPS cause or require live attribution first.
-  [ ] Compare bounded alternatives for retaining untouched values without a full copy every batch.
+  [x] Compare bounded alternatives for retaining untouched values without a full copy every batch.
       Account for filter-neighbor reads, immutable old-field recurrence, scale changes, memory/metadata,
       replacement and drawable isolation. Record the selected design and reconcile the proposal's
       copy-before-partial-update requirement before changing that contract.
-  [ ] Implement only the justified design, or explicitly defer replacement if total cost is worse.
+  [x] Implement only the justified design, or explicitly defer replacement if total cost is worse.
       Preserve empty-work no-copy/no-swap behavior, coherent field/encoding publication, successful-only
       completion stamps and reset/recenter/failure safety; do not add unjustified spare volume storage.
-  [ ] Extend affected existing publication/encoding/untouched-region checks only. Use subagents for
+  [x] Extend affected existing publication/encoding/untouched-region checks only. Use subagents for
       focused incremental validation, reuse evidence and avoid full matrices/packaging. Compare total
       update cost and bytes against the retained baseline, including any new maintenance overhead.
-  [ ] Completion: copying is reduced with coherent recurrence/publication, or a measured design decision
+  [x] Completion: copying is reduced with coherent recurrence/publication, or a measured design decision
       explicitly retains it; memory accounting and current architecture reflect the delivered choice.
+
+Phase 7.6 implementation and review
+  Traceability: capture copy dispatch/.16-.18ms and source bytes -> existing findings.md and
+    Phase 7.3 evidence; recurrence, coordinates, memory, failure and encoding -> proposal / Progressive
+    transport, Selected representation and numerical contract (Layout, Lighting, Metadata, Nonblocking
+    updates); integration -> PBR.Clouds.md / Stored density-volume resources and Stored-volume view and selection,
+    PBR.Atmosphere.Publication.md / Publication contract, Rendering.Enablement.md. Existing typed
+    CloudVolumeSubmission image/storage/sampler/indirect barriers retain Phase 7.4 ownership.
+  Alternatives reviewed: per-region texture selection would complicate coherent hardware filtering
+    and metadata/publication. Staging all gathered results before in-place commit could remove a
+    ping-pong field, but adds staging/commit ownership and changes the storage/publication design.
+    Selected previous-block repair retains the existing two fields, immutable gather source and
+    single hardware trilinear source. No alternative prototype or measured comparison is claimed.
+  The spare differs from the source only in blocks written by the preceding successful batch.
+    Copy those at most32physical blocks before the next gather; initialization/recenter write both
+    fields, so no filter halo is needed. The previous list/count survive empty work and solver reset.
+    Scale mismatch in either field or untracked callback forces a full copy; growing scale may need
+    two full batches. Failure withdraws working storage and cannot publish a partial destination.
+    Drawable snapshot publication remains a separate dirty-block copy, unchanged here.
+  Implementation: existing scratch38/count,39/copiedvoxels and16640..16671/list; all outside density
+    temporaries32..37, source lists and reduction ranges. Successful-only completion retains the
+    next repair list. One extra12byte indirect record makes72bytes total; no new volume/buffer and
+    fixed allowance retains780bytes. The existing fenced status map includes copy accounting with
+    no extra readback. Ordinary copy payload is at most131072bytes versus280077600bytes maximum
+    full read/write traffic. This removes copy waste, not the remaining view/transport costs.
+  Focused validation: guarded cached Release retry passed0errors/171existingwarnings in34.41s;
+    eight existing affected GPU facts passed in11.461s. Checks cover exact selected queues/indirect
+    extents, coherent recurrence/untouched prior blocks, two full scale-transition copies, bounded
+    repair including partial edge bytes, empty history/no-swap, failed completion/history retention,
+    recenter/replacement and stored-solution/view lifecycle. No new test classes or quality gates.
+    Receipts: artifacts/StoredCloudPerformance/phase76-build2.log, phase76-current-tests.log and
+    phase76-current.trx. The initial build's tool-identity hash changes caused a broad cache refresh;
+    test shader-directory publication then hit Windows accessdenied. No tests ran after that failed
+    build; cached retry succeeded without deleting files, killing processes or changing publication.
+  Matched RTX4090 authored maximum515x66x515, same source/destination: full copy median.1280ms
+    (.1260/.1280/.1321) versus32-block repair.0072ms (.0061/.0072/.0082). Fullsame-scale copy also
+    preserves stored half values directly, so this is current full-versus-repair evidence, not an
+    exact replay of the original bounded-reencoding kernel. Capture baseline.16-.18ms remains separate.
+    Traffic280077600->131072bytes. Width20 same-run transport+copy+dirtypublication.1925->.1915ms,
+    effectively flat because its full copy is already small. Both include required barriers;
+    allocations/clears are outside timing. No whole-frame speedup is inferred.
+  Existing real-update fixture, unchanged settings/budgets: before/after medians unchanged1.1377/
+    .9800ms, evolving1.6671/1.5135ms, sourcechange1.1356/.9871ms. CPU submission gaps and uncontrolled
+    running-game contention make those callback-span measurements noisy; empty/disabled cases also
+    shifted, so their differences are not attributed solely to repair. Real nonempty copy payload
+    3194400->128512-129024bytes. The retained chain remains29dispatches/1boundary/30barriers;
+    actual indexed/image binds76->77 for the added existing scratch binding. No extra pass/readback.
+    Baseline receipt: phase76-baseline.trx; no clean, full test matrix, packaging or game action.
+  Root second source review passed for field-equality induction, scale/encoding, scratch lifetimes,
+    indirect arguments, exact half preservation, barrier/ownership, failure isolation and accounting.
+    Independent completion audit passed after directly checking the controlling documents, source and current receipts. All five tasks are complete; later phases remain unchecked.
 
 Phase 7.7 - Reduce unnecessary density and lighting maintenance
   Depends on: Phase 7.2; Phase 7.4 only for changed submission ownership.

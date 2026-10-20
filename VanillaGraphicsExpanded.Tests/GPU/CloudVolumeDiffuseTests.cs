@@ -65,32 +65,56 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShad
         Assert.Equal(value,Query(probe,fields,result,selectedPoint)); // Admission leaves old compatible energy intact.
         Assert.True(solver.Update(storage,work,()=>true),solver.Failure);
         Assert.Equal(environment,fields.LightingBounds!.Environment);Assert.True(fields.Encoding.Cap.X>=18);
+        // The old ping-pong source still used the initial scale, so both transition batches
+        // require a full re-encode. Subsequent batches repair only the last successful blocks.
+        Assert.Equal(d.CopyBytes,solver.LastCopyBytes);
+        Assert.True(work.Select(storage,light,4,planes,()=>true,directEnabled:false));
+        var previous=ReadWords(fields,CloudVolumeWork.RepairListWord,32);
+        var next=ReadWords(fields,CloudVolumeWork.DiffuseListWord,32);
+        int retained=(int)previous.First(r=>!next.Contains(r));
+        int rx=retained%d.BlocksX*8+1,ry=(retained/d.BlocksX)%d.BlocksY*4+1,rz=retained/(d.BlocksX*d.BlocksY)*8+1;
+        var retainedPoint=Point(d,Math.Min(rx,d.Size-2),Math.Min(ry,64),Math.Min(rz,d.Size-2));
+        var retainedValue=Query(probe,fields,result,retainedPoint);
+        long repairBytes=previous.Sum(r=>
+        {
+            int x=(int)r%d.BlocksX*8,y=((int)r/d.BlocksX)%d.BlocksY*4,z=(int)r/(d.BlocksX*d.BlocksY)*8;
+            return 16L*Math.Min(8,d.Size-x)*Math.Min(4,66-y)*Math.Min(8,d.Size-z);
+        });
+        Assert.True(solver.Update(storage,work,()=>true),solver.Failure);
+        Assert.Equal(repairBytes,solver.LastCopyBytes);Assert.InRange(repairBytes,1,131072);
+        Assert.Equal(retainedValue,Query(probe,fields,result,retainedPoint));
         fields.Density.UploadDataImmediate(new float[d.Voxels],0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(new uint[d.Blocks]);
-        Assert.True(work.Select(storage,light with{Environment=new Vector3(1000)},4,planes,()=>true,directEnabled:false));
+        var repairHistory=ReadWords(fields,CloudVolumeWork.RepairListWord,32);
+        Assert.True(work.Select(storage,light with{Environment=new Vector3(1000)},5,planes,()=>true,directEnabled:false));
         coherent=fields.Diffuse;var encoding=fields.Encoding;
         Assert.True(work.TryBatch(storage,out var empty));
         using(var args=empty!.Commands.MapScope<uint>(48,3,MapBufferAccessMask.MapReadBit))Assert.Equal(0u,args.Span[0]);
-        // Poison the spare so publishing an uninitialized/uncopied empty destination is observable.
-        fields.DiffuseSpare.UploadDataImmediate(Enumerable.Repeat(float.NaN,d.Voxels*4).ToArray(),0,0,0,d.Size,66,d.Size);
+        // Poison a block covered by repair history: empty work must not repair or publish it.
+        int poison=(int)repairHistory[0];
+        fields.DiffuseSpare.UploadDataImmediate(new[]{float.NaN,float.NaN,float.NaN,0},
+            poison%d.BlocksX*8,(poison/d.BlocksX)%d.BlocksY*4,poison/(d.BlocksX*d.BlocksY)*8,1,1,1);
         Assert.True(solver.Update(storage,work,()=>true,deferStatus:true));
         work.SubmitCompletion(storage,()=>true);
         using(var fence=GpuFence.Insert())Assert.NotEqual(WaitSyncStatus.WaitFailed,fence.Wait(TimeSpan.FromSeconds(5)));
         Assert.True(solver.Complete(storage,work,()=>true));Assert.Equal(0,solver.LastCopyBytes);
         Assert.Same(coherent,fields.Diffuse);Assert.Equal(encoding,fields.Encoding);
+        Assert.Equal(repairHistory,ReadWords(fields,CloudVolumeWork.RepairListWord,32));
+        Assert.Equal(32u,ReadWords(fields,CloudVolumeWork.RepairCountWord,1)[0]);
         Assert.True(solver.Update(storage,work,()=>true));Assert.Same(coherent,fields.Diffuse);
         fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
         // Exercise the actual compiled cached-shadow path after real ordered direct completion.
         light=light with{Solar=Vector3.One,Lunar=Vector3.One,Moon=-Vector3.UnitX};
         using var direct=new CloudVolumeDirect(op=>CloudVolumeDirectProgram.Create(Programs.Api,op));
-        Assert.True(work.Select(storage,light,5,planes,()=>true));
+        Assert.True(work.Select(storage,light,6,planes,()=>true));
         Assert.True(direct.Update(storage,work,()=>true),direct.Failure);
         Assert.True(solver.Update(storage,work,()=>true),solver.Failure);
         Assert.True(fields.LightingBounds.DirectCap.X>0);
-        Assert.True(work.Select(storage,light,6,planes,()=>true));
+        Assert.True(work.Select(storage,light,7,planes,()=>true));
         coherent=fields.Diffuse;encoding=fields.Encoding;uint revision=fields.Revision;
         var bounds=fields.LightingBounds;var stamps=Completed(fields);
+        repairHistory=ReadWords(fields,CloudVolumeWork.RepairListWord,32);
         Assert.True(direct.Update(storage,work,()=>true,deferStatus:true),direct.Failure);
         Array.Fill(density,float.NaN);fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
         Assert.True(solver.Update(storage,work,()=>true,deferStatus:true));
@@ -99,9 +123,16 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShad
         Assert.False(solver.Complete(storage,work,()=>true));Assert.False(storage.Ready);
         Assert.Same(coherent,fields.Diffuse);Assert.Equal(encoding,fields.Encoding);Assert.Equal(revision,fields.Revision);
         Assert.Same(bounds,fields.LightingBounds);Assert.Equal(stamps,Completed(fields));
+        Assert.Equal(repairHistory,ReadWords(fields,CloudVolumeWork.RepairListWord,32));
     }
     #endregion
     #region Private
+    /// <summary>Reads a bounded existing list or counter after ordered test dispatches.</summary>
+    private static uint[] ReadWords(CloudVolumeFields fields,int offset,int count)
+    {
+        using var read=fields.Scratch.MapScope<uint>(offset*4,count,MapBufferAccessMask.MapReadBit);
+        return read.Span.ToArray();
+    }
     /// <summary>Transforms an authored physical texel centre into native-local coordinates.</summary>
     private static Vector3 Point(CloudVolumeDomain d,int x,int y,int z)
     {

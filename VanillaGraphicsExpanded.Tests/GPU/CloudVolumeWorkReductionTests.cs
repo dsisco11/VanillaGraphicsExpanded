@@ -25,12 +25,12 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
         }
         var header=new uint[(CloudVolumeDomain.ScratchBytes-4096)/4];header[18]=(uint)(d.Blocks*2-9);header[19]=(uint)(d.Blocks-7);header[^1]=0xdeadbeef;
         using var regions=GpuShaderStorageBuffer.Create();using var scratch=GpuShaderStorageBuffer.Create();using var commands=GpuShaderStorageBuffer.Create();
-        regions.UploadData(data);scratch.UploadData(header);commands.UploadData(new uint[15]);
+        regions.UploadData(data);scratch.UploadData(header);commands.UploadData(new uint[18]);
         using var occupancy=GpuShaderStorageBuffer.Create();occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
         var programs=Enumerable.Range(0,6).Select(op=>CloudVolumeWorkProgram.Create(Programs.Api,op)).ToArray();
         try
         {
-            foreach(var p in programs){p.Regions=regions;p.Scratch=scratch;p.Commands=new(commands,0,60);p.Occupancy=occupancy;}
+            foreach(var p in programs){p.Regions=regions;p.Scratch=scratch;p.Commands=new(commands,0,72);p.Occupancy=occupancy;}
             var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();planes[0]=new(1,0,0,-2500);
             using var timer=GpuTimerQuery.Create("Tests.Cloud.Work.Maximum");var times=new List<double>();
             for(int sample=0;sample<4;sample++)
@@ -76,9 +76,9 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
             Assert.Equal(0xdeadbeefu,Read(scratch,header.Length-1,1)[0]);
             var retained=Read(regions,0,data.Length);
             for(int b=0;b<data.Length;b+=16){Assert.Equal(data[b+6],retained[b+6]);Assert.Equal(data[b+8],retained[b+8]);Assert.Equal(data[b+13],retained[b+13]);}
-            var args=Read(commands,0,15);Assert.Equal(new uint[]{64,1,1,32,CloudVolumeDiffuseProgram.DefaultSlices,1},args.Take(6));
+            var args=Read(commands,0,18);Assert.Equal(new uint[]{64,1,1,32,CloudVolumeDiffuseProgram.DefaultSlices,1},args.Take(6));
             Assert.Equal(64u,args[6]+args[9]);Assert.Equal(8u/CloudVolumeDirectProgram.DefaultWidth,args[7]);Assert.Equal(args[7],args[10]);
-            Assert.Equal(new uint[]{(uint)((d.Size+3)/4),17,(uint)((d.Size+3)/4)},args.Skip(12));
+            Assert.Equal(new uint[]{(uint)d.BlocksX,17,(uint)d.BlocksX,0,1,1},args.Skip(12));
             times.Sort();output.WriteLine($"Maximum-domain scheduler: {d.Blocks} blocks, median {times[1]:F4} ms GPU; warm samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. Metadata-only standalone measurement; no live frame-time claim.");
         }
         finally{foreach(var p in programs)p.Dispose();}

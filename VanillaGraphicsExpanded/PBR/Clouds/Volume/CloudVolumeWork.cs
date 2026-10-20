@@ -14,6 +14,8 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     /// <summary>Exposes prepared executable footprints to the enclosing update boundary.</summary>
     internal System.Collections.Generic.IEnumerable<GpuComputeProgram> SubmissionPrograms=>System.Linq.Enumerable.OfType<GpuComputeProgram>(programs);
     internal const int DirectListWord=16384,DiffuseListWord=16448,SummaryA=32768,SummaryB=196608;
+    /// <summary>Reserves retained repair history outside density selector temporaries and light lists.</summary>
+    internal const int RepairCountWord=38,CopyVoxelsWord=39,RepairListWord=16640;
     private readonly CloudVolumeWorkProgram?[] programs=new CloudVolumeWorkProgram?[6];
     private readonly ulong[] executable=new ulong[6];
     private readonly Vector4[] planes=new Vector4[6];
@@ -24,6 +26,8 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     private bool failed,disposed;
     internal bool Ready {get;private set;}
     internal string? Failure {get;private set;}
+    /// <summary>Reports actual copied texel traffic from the existing fenced status read.</summary>
+    internal long LastDiffuseCopyBytes {get;private set;}
     /// <summary>Reports ordered direct submission; GPU barriers, rather than a CPU wait, precede diffuse reads.</summary>
     internal bool DirectOrdered=>batch is not null&&(completed&batch.ActiveSources)==batch.ActiveSources;
 
@@ -102,9 +106,12 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     internal int VerifyStatus(CloudVolumeFields fields,int channels=7)
     {
         Check(()=>true);
-        using var status=fields.Scratch.MapScope<uint>(17*4,9,MapBufferAccessMask.MapReadBit);
+        using var status=fields.Scratch.MapScope<uint>(17*4,23,MapBufferAccessMask.MapReadBit);
         if((status.Span[8]&((uint)channels|8u))!=0)throw new InvalidOperationException("Cloud density or lighting arithmetic failed.");
         if(status.Span[0]>32)throw new InvalidOperationException("Diffuse list exceeds its admitted budget.");
+        if(status.Span[21]>32||status.Span[22]>fields.Domain.Voxels)
+            throw new InvalidOperationException("Diffuse repair history or copy extent exceeds its admitted bound.");
+        LastDiffuseCopyBytes=16L*status.Span[22];
         return (int)status.Span[0];
     }
     #endregion
@@ -113,7 +120,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     /// <summary>Revokes queued certificates and programs while leaving field ownership with storage.</summary>
     internal void Reset()
     {
-        Ready=failed=false;Failure=null;batch=null;revision=0;completed=pendingCompletion=0;
+        Ready=failed=false;Failure=null;batch=null;revision=0;completed=pendingCompletion=0;LastDiffuseCopyBytes=0;
         Action[] release=new Action[7];
         for(int i=0;i<6;i++){int slot=i;release[i]=()=>{programs[slot]?.Dispose();programs[slot]=null;};}
         release[6]=()=>{commands?.Dispose();commands=null;};RenderingCleanup.Run(release);
@@ -139,7 +146,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
             if(batch is not null&&executable[i]!=next)throw new InvalidOperationException("Cloud work executable changed; reset required.");
             executable[i]=next;
         }
-        if(commands is null){commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{0,1,1,0,1,1,0,1,1,0,1,1,0,1,1});}
+        if(commands is null){commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1});}
     }
     #endregion
     #region Private
@@ -179,7 +186,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     }
     /// <summary>Binds exact field metadata, existing scratch and initialized indirect ranges.</summary>
     private void Bind(int op,CloudVolumeFields fields)
-    {programs[op]!.Regions=fields.Regions;programs[op]!.Scratch=fields.Scratch;programs[op]!.Commands=new(commands,0,60);programs[op]!.Occupancy=fields.Occupancy;}
+    {programs[op]!.Regions=fields.Regions;programs[op]!.Scratch=fields.Scratch;programs[op]!.Commands=new(commands,0,72);programs[op]!.Occupancy=fields.Occupancy;}
     /// <summary>Submits typed work through resource authority and closes metadata/command visibility.</summary>
     private void Run(int op,int groups=1)
     {

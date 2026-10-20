@@ -159,9 +159,10 @@ void Emit(int kind,int groups)
     commands[kind*3]=uint(count);commands[kind*3+1]=kind==0?1u:uint(workSettings.w);commands[kind*3+2]=1u;
     if(kind==1)
     {
-        // A coherent full-field copy is needed only when at least one block will be refined.
-        uint width=uint((workSlots.z+3)/4);
+        // Keep full re-encoding and bounded previous-block repair independently indirect.
+        uint width=uint(workExtent.x);
         commands[12]=count!=0?width:0u;commands[13]=17u;commands[14]=width;
+        commands[15]=count!=0?scratch[38]:0u;commands[16]=1u;commands[17]=1u;
     }
     if(kind==0)
     {
@@ -185,7 +186,7 @@ void main()
     if(id!=0u)return;
     int dirty=workStamps.w;if(scratch[6]!=0u)dirty|=7;if(scratch[27]!=0u)dirty|=4;
     scratch[28]=uint(dirty);scratch[6]=0u;scratch[27]=0u;
-    scratch[25]=workCell.w!=0? scratch[31]:0u;scratch[26]=0u;
+    scratch[25]=workCell.w!=0? scratch[31]:0u;scratch[26]=0u;scratch[39]=0u;
     #elif VGE_VOLUME_WORK_OPERATION==1
     if(id>=uint(workExtent.w))return;
     int dirty=int(scratch[28]),b=int(id)*16;uint flags=regions[b]&~(512u|1024u|2048u);
@@ -220,10 +221,16 @@ void main()
         if(regions[b+5]==regions[b+6]&&regions[b+7]==regions[b+8])regions[b]&=~2u;
         scratch[27]=1u;
     }
-    if((mask&4u)!=0u)for(uint i=0u;i<scratch[17];i++)
+    if((mask&4u)!=0u&&scratch[17]!=0u)
     {
-        int b=int(scratch[DiffuseJobs+int(i)])*16;
-        regions[b+13]=regions[b+12];regions[b+15]=uint(workStamps.x);regions[b]&=~(4u|2048u);regions[b]|=16384u;scratch[27]=1u;
+        // Only successful nonempty work replaces the history needed to repair the next spare.
+        scratch[38]=scratch[17];
+        for(uint i=0u;i<scratch[17];i++)
+        {
+            uint region=scratch[DiffuseJobs+int(i)];scratch[16640u+i]=region;
+            int b=int(region)*16;
+            regions[b+13]=regions[b+12];regions[b+15]=uint(workStamps.x);regions[b]&=~(4u|2048u);regions[b]|=16384u;scratch[27]=1u;
+        }
     }
     #endif
 }

@@ -22,7 +22,7 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
     internal long LastCopyBytes {get;private set;}
     #region Public API
     #region Transport and publication
-    /// <summary>Copies once for a nonempty batch, gathers into the spare, then commits metadata before the atomic field publication.</summary>
+    /// <summary>Repairs a nonempty destination, gathers from coherent history, then commits before atomic publication.</summary>
     internal bool Update(CloudVolumeStorage storage,CloudVolumeWork work,Func<bool> current,bool deferStatus=false)
     {
         ObjectDisposedException.ThrowIf(disposed,this);
@@ -75,7 +75,7 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
             if(jobs!=0)
             {
                 storage.CommitDiffuse(pending.Fields,bounds.Encoding,current);
-                pending.Fields.LightingBounds=bounds;LastCopyBytes=pending.Fields.Domain.CopyBytes;
+                pending.Fields.LightingBounds=bounds;LastCopyBytes=work.LastDiffuseCopyBytes;
             }
             finished=pending;pending=null;pendingBounds=null;return true;
         }

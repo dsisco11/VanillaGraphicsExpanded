@@ -21,6 +21,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         EnsureShaderTestAvailable();
         output.WriteLine($"GPU: {fixture.GLRenderer}. Standalone headless context; the game remains running and GPU contention is uncontrolled. Registers, spills, occupancy, eligible warps and stall counters unavailable through this timer fixture.");
         MeasureDensitySelection();
+        MeasureDiffuseRepair();
         var domain=new CloudVolumeDomain(20,default,-100,100);
         using var fields=new CloudVolumeFields(domain,new(Vector3.One));
         fields.Density.UploadDataImmediate(Enumerable.Repeat(.005f,domain.Voxels).ToArray(),0,0,0,domain.Size,66,domain.Size);
@@ -32,7 +33,8 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
             r/(domain.BlocksX*domain.BlocksY)>0&&r/(domain.BlocksX*domain.BlocksY)<domain.BlocksX-1&&
             (r/domain.BlocksX)%domain.BlocksY>=4&&(r/domain.BlocksX)%domain.BlocksY<12).Take(32).ToArray();
         Assert.Equal(32,regions.Length);
-        for(int i=0;i<32;i++){header[16384+i*2]=(uint)(regions[i]*2);header[16385+i*2]=(uint)(regions[i]*2+1);header[16448+i]=(uint)regions[i];header[16512+i]=header[16576+i]=(uint)regions[i];}
+        for(int i=0;i<32;i++){header[16384+i*2]=(uint)(regions[i]*2);header[16385+i*2]=(uint)(regions[i]*2+1);header[16448+i]=(uint)regions[i];header[16512+i]=header[16576+i]=(uint)regions[i];header[16640+i]=(uint)regions[i];}
+        header[38]=32;
         header[16]=64;header[17]=32;fields.Scratch.UploadData(header);
         using var commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{64,1,1,32,8,1,32,1,1,32,1,1});
         var light=new AtmosphereLighting(Vector3.UnitY,Vector3.One,Vector3.One,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
@@ -48,9 +50,9 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         Measure("Direct transport (256 lanes, 64 source-matched groups)",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);});
         Measure("Diffuse transport (256 lanes, 256 cooperative groups)",()=>diffuse.DispatchIndirect(commands,12));
         using var copy=CloudVolumeCopyProgram.Create(Programs.Api);copy.Capture(domain,fields.Encoding,fields.Encoding);
-        copy.Source=fields.Diffuse;copy.Destination=new(fields.DiffuseSpare,TextureAccess.WriteOnly,Layered:true);
-        Measure("Diffuse full-field copy",()=>copy.Dispatch((domain.Size+3)/4,17,(domain.Size+3)/4));
-        Measure("Combined selected transport and coherent copy",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);Barrier();copy.Dispatch((domain.Size+3)/4,17,(domain.Size+3)/4);Barrier();diffuse.DispatchIndirect(commands,12);});
+        copy.Scratch=fields.Scratch;copy.Source=fields.Diffuse;copy.Destination=new(fields.DiffuseSpare,TextureAccess.WriteOnly,Layered:true);
+        Measure("Diffuse full-field copy",()=>copy.Dispatch(domain.BlocksX,domain.BlocksY,domain.BlocksX));
+        Measure("Combined selected transport and coherent copy",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);Barrier();copy.Dispatch(domain.BlocksX,domain.BlocksY,domain.BlocksX);Barrier();diffuse.DispatchIndirect(commands,12);});
         // Keep resources, shader inputs and work identical while changing only boundary ownership.
         var submission=new CloudVolumeSubmission();
         /// <summary>Submits identical transport and copy producers through the selected boundary policy.</summary>
@@ -58,7 +60,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         {
             submission.Run(solar,()=>solar.DispatchIndirect(commands,24));
             submission.Run(lunar,()=>lunar.DispatchIndirect(commands,36));
-            submission.Run(copy,()=>copy.Dispatch((domain.Size+3)/4,17,(domain.Size+3)/4));
+            submission.Run(copy,()=>copy.Dispatch(domain.BlocksX,domain.BlocksY,domain.BlocksX));
             submission.Run(diffuse,()=>diffuse.DispatchIndirect(commands,12));
         }
         foreach(bool batched in new[]{false,true})
@@ -75,13 +77,33 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         var dirty=new uint[domain.Blocks*16];foreach(int r in regions)dirty[r*16]=8192|16384;
         using var publication=new CloudVolumePublication(()=>CloudVolumePublishProgram.Create(Programs.Api));publication.Publish(fields,0,domain.Bytes);
         Measure("Dirty publication (32 direct/diffuse blocks)",()=>publication.Publish(fields,0,domain.Bytes),()=>fields.Regions.UploadData(dirty));
-        Measure("Combined transport, coherent copy and dirty publication",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);Barrier();copy.Dispatch((domain.Size+3)/4,17,(domain.Size+3)/4);Barrier();diffuse.DispatchIndirect(commands,12);Barrier();publication.Publish(fields,0,domain.Bytes);},()=>fields.Regions.UploadData(dirty));
+        Measure("Combined transport, coherent copy and dirty publication",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);Barrier();copy.Dispatch(domain.BlocksX,domain.BlocksY,domain.BlocksX);Barrier();diffuse.DispatchIndirect(commands,12);Barrier();publication.Publish(fields,0,domain.Bytes);},()=>fields.Regions.UploadData(dirty));
+        copy.Capture(domain,fields.Encoding,fields.Encoding,repair:true);
+        Measure("Bounded prior-block repair (32 complete blocks)",()=>copy.Dispatch(32));
+        Measure("Combined transport, bounded repair and dirty publication",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);Barrier();copy.Dispatch(32);Barrier();diffuse.DispatchIndirect(commands,12);Barrier();publication.Publish(fields,0,domain.Bytes);},()=>fields.Regions.UploadData(dirty));
         output.WriteLine($"Scene: width=20, guarded {domain.Size}x66x{domain.Size}, extinction=.005, all occupancy set, old diffuse=0, unit sources/environment. Direct 64 block-source jobs, 32 per source, no source-mismatched groups, 16384 live occupied voxel integrals. Diffuse 32 blocks, 8192 occupied interior voxels, 65536 gather rays. Density budget=4096, direct=64, diffuse=32. Authored selected blocks have no guard, zero-density or edge lane exits. Publication bracket is a separate unchanged-path cost; baseline excluded it.");
         using var status=fields.Scratch.MapScope<uint>(25*4,1,MapBufferAccessMask.MapReadBit);Assert.Equal(0u,status.Span[0]);
         MeasureCompleteUpdates();
     }
     #endregion
     #region Private
+    /// <summary>Compares maximum-domain bandwidth with bounded repair using the same source, destination and timer bracket.</summary>
+    private void MeasureDiffuseRepair()
+    {
+        var domain=new CloudVolumeDomain(200,default,-100,100);var encoding=new CloudVolumeEncoding(Vector3.One);
+        using var source=DynamicTexture3D.Create(domain.Size,66,domain.Size,PixelInternalFormat.Rgba16f,textureTarget:TextureTarget.Texture3D);
+        using var target=DynamicTexture3D.Create(domain.Size,66,domain.Size,PixelInternalFormat.Rgba16f,textureTarget:TextureTarget.Texture3D);
+        source.Clear(.25f,.5f,.75f);target.Clear();
+        using var scratch=GpuShaderStorageBuffer.Create();var header=new uint[16672];
+        header[38]=32;for(int i=0;i<32;i++)header[16640+i]=(uint)(1+i+domain.BlocksX*(4+domain.BlocksY));
+        scratch.UploadData(header);
+        using var copy=CloudVolumeCopyProgram.Create(Programs.Api);copy.Scratch=scratch;copy.Source=source;
+        copy.Destination=new(target,TextureAccess.WriteOnly,Layered:true);copy.Capture(domain,encoding,encoding);
+        Measure("Maximum-domain full diffuse copy",()=>copy.Dispatch(domain.BlocksX,domain.BlocksY,domain.BlocksX));
+        copy.Capture(domain,encoding,encoding,repair:true);
+        Measure("Maximum-domain bounded repair (32 complete interior blocks)",()=>copy.Dispatch(32));
+        output.WriteLine($"Matched copy scene: {domain.Size}x66x{domain.Size}, same-scale RGBA16F fields; full read/write payload={domain.CopyBytes} bytes; repair payload={32L*256*16} bytes plus bounded list/counter traffic. Includes dispatch and required visibility barriers; allocation/clears outside timing. Retained-list GPU completion and drawable publication are included in the separate complete-update sequence, not this isolated bandwidth bracket.");
+    }
     /// <summary>Times every real deferred update callback through publication, excluding view draws and simulated frame waits.</summary>
     private void MeasureCompleteUpdates()
     {

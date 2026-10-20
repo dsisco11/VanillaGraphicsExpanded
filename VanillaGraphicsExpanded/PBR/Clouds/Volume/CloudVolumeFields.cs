@@ -10,6 +10,10 @@ internal sealed class CloudVolumeFields : IDisposable
     private readonly GpuResourceCollection resources = new();
     internal CloudVolumeDomain Domain { get; set; }
     internal CloudVolumeEncoding Encoding { get; set; }
+    /// <summary>Tracks the spare's storage scale independently of the published field.</summary>
+    internal float DiffuseSpareScale { get; private set; }
+    /// <summary>Certifies that the retained successful block list covers every difference between fields.</summary>
+    internal bool DiffuseRepairTracked { get; private set; } = true;
     internal CloudVolumeLightingBounds? LightingBounds { get; set; }
     internal DynamicTexture3D Density { get; }
     internal DynamicTexture3D Direct { get; }
@@ -30,7 +34,7 @@ internal sealed class CloudVolumeFields : IDisposable
     /// <summary>Allocates only the admitted field set, adopting each allocation immediately for failure cleanup.</summary>
     internal CloudVolumeFields(CloudVolumeDomain domain, CloudVolumeEncoding encoding)
     {
-        Domain = domain; Encoding = encoding;
+        Domain = domain; Encoding = encoding; DiffuseSpareScale = encoding.Scale;
         try
         {
             Density = Volume(PixelInternalFormat.R16f); Direct = Volume(PixelInternalFormat.Rg16f);
@@ -47,8 +51,12 @@ internal sealed class CloudVolumeFields : IDisposable
     }
 
     /// <summary>Publishes a complete destination and its encoding only after the owner's barriers and checks.</summary>
-    internal void PublishDiffuse(CloudVolumeEncoding encoding)
-    { uint next = checked(Revision + 1); (Diffuse, DiffuseSpare) = (DiffuseSpare, Diffuse); Encoding = encoding; Revision = next; }
+    internal void PublishDiffuse(CloudVolumeEncoding encoding, bool repairTracked = false)
+    {
+        uint next = checked(Revision + 1);
+        DiffuseSpareScale = Encoding.Scale; DiffuseRepairTracked = repairTracked;
+        (Diffuse, DiffuseSpare) = (DiffuseSpare, Diffuse); Encoding = encoding; Revision = next;
+    }
 
     /// <summary>Retires images and buffers, including allocations acquired before a later failure.</summary>
     public void Dispose() => resources.Dispose();

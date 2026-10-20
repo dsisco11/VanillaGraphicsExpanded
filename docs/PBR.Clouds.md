@@ -528,10 +528,10 @@ state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB pa
 allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
 128 bytes. Density operations use five independent 128-byte UBOs plus one shared 128-byte selector
 UBO, a 32-byte validation/completion summary and 12-byte indirect arguments. Lighting work uses six
-208-byte UBOs and 60-byte indirect arguments.
+208-byte UBOs and 72-byte indirect arguments.
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
-addition is 2920 bytes. The view owns one 240-byte UBO across its variants and block publication
-owns a 16-byte UBO, leaving 792 bytes reserved inside that allowance. Reconstruction borrows the
+addition is 2932 bytes. The view owns one 240-byte UBO across its variants and block publication
+owns a 16-byte UBO, leaving 780 bytes reserved inside that allowance. Reconstruction borrows the
 shared frame UBO without owning a separate parameter buffer.
 Screen-sized view targets are charged separately below; there is no screen-space history.
 A separate drawable snapshot owns R16F density, RG16F direct,
@@ -645,8 +645,9 @@ direct and diffuse dispatch; no CPU readback selects work.
 Lighting scratch header words 16/17 hold selected counts, 18/19 fair cursors and 22/23 backlog.
 Words 29/30 hold solar/lunar counts. The common selected block-source list retains global selection
 and completion semantics; solar and lunar region lists at 16512..16575 and 16576..16639 partition it
-without changing the combined 64-job budget. The five three-uint indirect records hold the common
-direct count, diffuse dispatch, solar dispatch, lunar dispatch and conditional diffuse copy. Each source launches only its
+without changing the combined 64-job budget. The six three-uint indirect records hold the common
+direct count, diffuse dispatch, solar dispatch, lunar dispatch, conditional full diffuse copy and
+bounded previous-block repair. Each source launches only its
 own groups; inactive sources are skipped and empty source counts launch zero invocations.
 Word 25 is the accumulated failure mask (bits 1/2/4 for lighting, 8 for chained density), 26 completion status and 27 deferred diffuse
 dependency demand. Word 31 carries density failure across scratch reuse. Direct jobs occupy 16384..16447 and diffuse jobs 16448..16479. Bounded
@@ -716,15 +717,28 @@ angular average. Environment enters once at the closure; outgoing directional fi
 remains a separate view operation. Zero-density/guard nodes skip gathers and receive the
 finite .9*Environment fallback. Alpha remains zero.
 
-A nonempty batch first copies the full published diffuse field to the existing spare, re-encoding
-untouched values if scale grows. The gather samples only the coherent old texture, including one
+A same-scale nonempty batch repairs the existing spare from the preceding successful batch's
+physical block list. Initialization and recenter maintenance write both fields; outside that list
+the fields already match. At most 32 complete blocks need copying, including partial edges, with
+no neighbor halo: the gather samples only the coherent old texture, including one
 hardware trilinear fetch each for density, old diffuse and optional cached direct visibility at
 an occupied midpoint. Self-shadowing selects actual compiled variants; disabling it removes the
 direct sampler. Disabled diffuse creates no solver and does no copy. GPU-selected indirect arguments
 skip copy/gather groups for an empty list. Final fenced status/count inspection accepts only a
-successful nonempty destination; empty work retains the old scale/texture. `LastCopyBytes` charges the
-complete source/destination copy separately from `LastJobs`; maximum copy traffic remains
-280,077,600 bytes per batch. These counts do not establish GPU execution time.
+successful nonempty destination; empty work retains the old scale/texture and repair history.
+Scratch word38 retains the previous count and words16640..16671 retain its list, after the two
+source-specific lists and outside density selector temporaries32..37. Successful-only completion
+replaces that history; solver reset retains it with its owning fields. Copy word39 counts actual
+texels in the existing deferred status read; no additional readback is introduced. Separate indirect
+records select full copying or bounded repair without reading job counts on the CPU.
+Each field tracks its own scale. If either differs from the target scale, or an untracked callback
+invalidated repair history, copy/re-encode the entire source before gathering. A scale transition
+can require two consecutive full copies to bring both fields to the new scale. Same-scale repair
+preserves stored half values exactly. `LastCopyBytes` charges texture read/write traffic separately
+from `LastJobs`: zero for initial equal fields, at most131,072 bytes for bounded repair, or
+280,077,600 bytes for a maximum-domain full copy. Metadata/dispatch overhead is separate; no extra
+texture or buffer is allocated. Drawable snapshot copying remains independent. These counts do not
+establish GPU execution time.
 
 Componentwise solar/lunar/environment envelopes remain with the field publication. Double-precision
 admission derives conservative Qcap/Dcap, retains older larger caps, and rejects unsupported

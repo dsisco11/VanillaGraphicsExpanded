@@ -16,5 +16,8 @@ internal interface ICloudVolumeCopyBindings
     /// <summary>Writes only the unpublished spare.</summary>
     [ShaderBinding("newDiffuse", ShaderBindingKind.Image, 0, ShaderStageKind.Compute, TextureTarget=ShaderTextureTarget.Texture3D)]
     GpuTextureBinding Destination { set; }
+    /// <summary>Retains previous successful block indices and records copied texels in the existing deferred status.</summary>
+    [ShaderBinding("CopyScratch", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
+    GpuShaderStorageBuffer? Scratch { set; }
     #endregion
 }
