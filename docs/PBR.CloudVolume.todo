@@ -1323,31 +1323,60 @@ Phase 7.13 implementation and review
   Independent completion audit directly reviewed controlling sources, implementation and final
     receipts with no required findings. All six tasks are complete; later phases remain unchecked.
 
-Phase 8 - Evaluate voxel integration, acceleration and update cost
+Phase 8 - Review the voxel integration and acceleration baseline
   Depends on: Phases 7.4-7.13; Phase 1 initial acceleration decision.
-  Execution: reuse baseline evidence first, complete subphases 8.1 and 8.2, then close the comparison.
-  Outcome: selected voxel integration and acceleration account for maintenance and traversal cost.
-  [ ] Reuse the focused attribution and optimization evidence from Phases 7.3-7.13 for density,
+  Scope: baseline review only, as selected by the user. Execute 8.1, 8.2 and 8.3 separately afterward.
+  Outcome: reusable evidence, memory constraints and missing measurements guide later implementation.
+  [x] Reuse the focused attribution and optimization evidence from Phases 7.3-7.13 for density,
       occupancy, direct, diffuse, copies and view costs, traversal/work counts and memory. Refresh only
       stale or missing cases needed for acceleration decisions; separate steady and changing content.
-  [ ] Carry out piecewise-constant voxel and unsigned distance-field work in subphases 8.1/8.2.
-      Compare USDF-assisted traversal with voxel DDA; an interior signed field is not required.
-  [ ] Establish conservative distances to all potentially nonzero density support under the selected
-      representation, accounting for anisotropic cells, quantization and reconstruction error. Do not use a
-      visible isosurface threshold or assume hardware-interpolated distances are automatically safe.
-  [ ] For any prototype, repair/revoke nonlocal certificates on density additions before publication;
-      retain safe smaller bounds on removals. Fall back to safe DDA/no skipping during repair. Include
-      recenter/domain changes, guards and all three ray consumers in the safety contract.
-  [ ] Compare implemented alternatives including construction/update time, memory and weather backlog;
-      preserve the occupied integration contract selected in 8.1. Keep the justified strategy and remove
-      rejected experimental paths/resources. Do not require both structures in ordinary rendering.
-  [ ] Carry forward Phase 7.6's diffuse-copy decision and costs. Reopen that design only if acceleration
+  [x] Review the current representation, sample/operation bounds, resident/peak storage and distance
+      field headroom against the proposal. Distinguish analytical bounds from actual ray counts.
+  [x] Carry forward Phase 7.6's diffuse-copy decision and costs. Reopen that design only if acceleration
       changes its hazards or measured cost; do not duplicate the completed comparison or silently
       introduce another publication scheme here.
-  [ ] Verify affected conservative traversal/publication contracts with incremental checks; document
-      the selected algorithm and distinguish analysis from measured results. No quality thresholds.
-  [ ] Completion: selected acceleration has honest total-cost evidence and safe density-update semantics;
-      all unimplemented alternatives are explicitly deferred, with no misleading comparison claim.
+  [x] Record missing counters/comparisons for 8.1/8.2 and reuse existing receipts where suitable.
+      Do not add speculative instrumentation, repeat broad baselines or claim absent solver timings.
+  [x] Completion: source-linked baseline review and independent audit pass; implementation, final
+      strategy comparison and user appearance acceptance remain explicit later work.
+
+Phase 8 baseline review
+  Traceability: evidence reuse -> proposal / Evaluation and acceptance, Layout and memory limits,
+    Traversal bounds and Shared rendering obligations; this plan /7.6 and7.9-7.13; current architecture
+    -> PBR.Clouds.md / Stored-volume view and selection. Rendering.Enablement.md / Render boundaries
+    and PBR.Atmosphere.Publication.md / Publication contract continue to govern resource identities.
+  Reuse artifacts/StoredCloudLatest/findings.md: captured quarter trace860x345 at3440x1377,
+    integration.50-.52ms, reconstruction.23-.24ms, publication.11-.12ms and validation.01ms. Those
+    are earlier Debug replay events; no selector/direct/diffuse batch exists in that frame. Do not
+    use its publication timing for the newer sparse publisher or treat it as a current liveFPS result.
+  Current authored reference:7.12 retained capture-sized extent/quarter view, occupied1.0076ms,
+    empty.0942ms for combined trace/clears/reconstruction, not the captured weather distribution.
+    Reuse phase712-capture-baseline.trx. Fixed width20 transport from phase710-current.trx is
+    direct.1065ms,diffuse.0768ms; use a fresh matched pair only when the integration algorithm changes.
+    Density selection and complete update costs are already in phase713-current.trx. Complete update
+    medians range.5243-2.7802ms across its labelled scenarios, with CPU submission gaps included.
+    Evolving eligible jobs64/32,backlogs490/245,ages2..8direct/27..33diffuse; no latency guarantee.
+  Selector reference phase713-final.trx: maximum71825blocks, dense.2652ms,sparse19occupied.1894ms,
+    empty.0317ms. Exact job/cursor/age results are established; these isolated costs are not view cost.
+    Carry forward7.6's previous32block diffuse repair, at most131072bytes per ordinary batch, versus
+    full re-encoding280077600bytes. Scale mismatch/history failure still requires the full operation.
+    Sparse drawable publication remains separate;7.9 dirty32.0399ms,metadata-only.1065ms,
+    requiredfull.2949ms are its authored maximum-domain reference, not an updated capture replay.
+  Current stored shape is trilinear R16F, with half-voxel view/gather and one-voxel direct spacing.
+    Source bounds cap view/gather2048/direct1024operations; actual captured occupied interval counts
+    are not measured. Do not turn source bounds or hypothetical50sample rays into measured counts.
+    Add only counters needed for the matched voxel/USDF comparison during8.1/8.2, using existing
+    fixtures; do not rerun every earlier baseline or conflate resolution and representation changes.
+  Maximum working payload391679376bytes, working/drawable/raw642271376, replacement peak1033950752.
+    Against1GiB, replacement headroom is39791072bytes. One full-resolution R16F USDF costs35009700,
+    leaving4781372before scratch; two such fields already exceed peak headroom. Select coarser storage,
+    lifetime reuse or another explicitly budgeted design before allocating. No distance texture exists.
+  Baseline source/evidence review adds no runtime change, build, test, packaging or game action.
+    The subphase representation, distance safety, construction/maintenance and appearance decisions
+    remain outstanding; this review does not complete either implementation subphase or8.3.
+  Root second review and independent completion audit passed for the user-selected baseline-only
+    scope. All five Phase 8 tasks are complete. The comparison obligations move to8.3 after8.1/8.2;
+    those implementation/comparison phases and final qualification remain unchecked.
 
 Phase 8.1 - Integrate piecewise-constant voxels along exact ray-cell intersections
   Depends on: Phases 7.4-7.13; Phase 8 baseline review.
@@ -1430,8 +1459,28 @@ Phase 8.2 - Accelerate empty-space traversal with an unsigned distance field
       update/publication behavior; otherwise remove the prototype and record the decision. Obtain
       user-run appearance confirmation without inventing acceptance or an FPS guarantee.
 
+Phase 8.3 - Compare voxel integration and acceleration total cost
+  Depends on: Phases 8.1 and 8.2, including their selected implementation or explicit rejected-prototype result.
+  Outcome: a justified integration/acceleration choice accounts for maintenance and traversal savings.
+  [ ] Reconcile completed 8.1/8.2 results against the Phase 8 baseline at matched settings. Compare
+      voxel DDA alone and the implemented USDF alternative; an interior signed field is not required.
+  [ ] Verify conservative bounds to all nonzero support under the selected representation, including
+      anisotropy, quantization and reconstruction allowances. Verify density additions revoke unsafe
+      distances before publication; removals retain only safe bounds. Include all three consumers,
+      recenter/replacement, guards and fallback during repair; no visible-density thresholds.
+  [ ] Compare total construction/update, traversal, copy/publication cost, memory and weather backlog.
+      Preserve 8.1's selected occupied integration semantics and carry forward 7.6's repair decision
+      unless its hazards changed. Distinguish authored tests, capture evidence and live performance.
+  [ ] Retain only justified implementation/resources and remove rejected experimental alternatives.
+      Do not require two production acceleration structures. Reconcile proposal/current docs and
+      resource lifetimes; no silent sampling, source-relevance or update-budget changes.
+  [ ] Reuse affected conservative traversal/publication receipts. Run only missing focused checks
+      through subagents with cached incremental builds; no quality thresholds, broad matrix or packaging.
+  [ ] Completion: selected integration/acceleration has honest total-cost and safe-update evidence;
+      rejected/deferred alternatives and outstanding appearance review are explicit.
+
 Phase 9 - Qualify the frozen candidate and reconcile documentation
-  Depends on: Phase 8.
+  Depends on: Phase 8.3.
   Outcome: measured total cost, memory and user appearance determine candidate acceptance.
   [ ] Freeze the candidate and run canonical packaging/required final checks once. Verify delivered
       assets, selectable settings and cleanup; do not treat older candidate receipts as qualification.
