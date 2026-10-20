@@ -1077,17 +1077,76 @@ Phase 7.10 implementation and review
 Phase 7.11 - Reduce repeated transparency-bucket evaluation during integration
   Depends on: Phase 7.5; incorporate Phase 7.10 if it changes the same view loop.
   Outcome: reduce per-interval bucket math while preserving all three native bucket contributions.
-  [ ] Analyze log/exp evaluation in StoredViewBins separately from density attenuation. Investigate
+  [x] Analyze log/exp evaluation in StoredViewBins separately from density attenuation. Investigate
       reusable terms, algebraic reductions and recurrences, including irregular clipped intervals.
-  [ ] Implement only justified reductions that preserve the declared per-interval bucket integration.
+  [x] Implement only justified reductions that preserve the declared per-interval bucket integration.
       Do not silently replace it with representative-depth weights, a lookup approximation, omitted
       buckets or a different integration schedule. Present any such alternative for a separate
       user decision and proposal update before implementation; retain current math if none qualifies.
-  [ ] Use subagents for cached incremental builds and affected existing OIT/math checks only. Compare
+  [x] Use subagents for cached incremental builds and affected existing OIT/math checks only. Compare
       total view cost at unchanged settings, not just instruction estimates. No approximation-error
       thresholds, full matrices or packaging; reuse unchanged traversal/reconstruction evidence.
-  [ ] Completion: selected reductions or explicit evidence-backed deferral are documented, with
+  [x] Completion: selected reductions or explicit evidence-backed deferral are documented, with
       measured results distinguished from hypothetical gains and native composition preserved.
+
+Phase 7.11 evaluation and review
+  Traceability: bucket analysis/allowed reductions -> proposal / Rendering the published volume,
+    Selected representation / Traversal bounds, Shared rendering obligations; PBR.Clouds.md /
+    Density, lighting and scene composition and Stored-volume view and selection. Physical-source/
+    depth/lifetime constraints ->
+    PBR.Atmosphere.Publication.md / Publication contract and Rendering.Enablement.md / Render
+    boundaries and resource lifetime. Dependencies7.5/7.10 preserve compact reconstruction, shared
+    resolution controls, affine texture coordinates and exact occupied interval endpoints. Evidence ->
+    existing CloudStoredVolumeViewTests, current view.fsh/oit.glsl and phase711 receipts below.
+  At source level, StoredViewBins already shares one adjusted-depth logarithm per contributing
+    interval: three Gaussian exponentials for bin<=2 and two for bin>2, whose third weight is exactly
+    one. The transition is approximately440.895metres, derived from the existing adjusted-depth
+    formula. Density's separate exp(-sigma*length) has an unrelated argument and cannot be reused
+    as a Gaussian. Alpha<=0 already avoids all bucket evaluation. Bucket-product updates remain
+    per interval, including all three native contributions; neither far bucket nor small weights
+    may be omitted without a separately approved numerical contract.
+  An experimental algebraic reduction evaluated w0,w1 normally and used
+    w2=(w1*w1/w0)*exp(-2/.832^2) for bin<=2. The multiplier is constant .05561856860967774;
+    w0>=.003093425 in this branch prevents a zero denominator. This is the same real-arithmetic
+    Gaussian, with reassociated float32 rounding; no approximation tolerance was introduced.
+    It trades one near-depth exponential for division/multiplication and saves nothing beyond
+    the third-bucket saturation distance. A fixed across-interval recurrence does not apply:
+    bin=log(1+adjustedDepth/30) is nonlinear, while clipped DDA intervals have variable lengths.
+    A varying recurrence still needs changing log/exp terms and adds retained state. Vectorizing
+    the three Gaussian expressions alone does not remove their scalar transcendental evaluations.
+    Representative-depth weights, lookup tables, omitted buckets and schedule changes were not tried.
+  Experimental canonical incremental Release98.22s,0errors/192existingwarnings; production reused
+    540variants/compiled24, fixture625/24. All3existing stored-view facts passed7.9713s. Receipts:
+    artifacts/StoredCloudLatest/phase711-current-build.log, phase711-current-tests.log and
+    phase711-current.trx. Existing-binary baseline ran only RecordStoredViewCost,1/1passed3.9266s:
+    phase711-baseline.log/.trx. Its CPU allocation differed from the current-source build, so this
+    initial bracket is not a frozen CPU baseline and no allocation/CPU gain is attributed to shader math.
+    Initial occupied GPU medians original/experiment.0614/.0604ms; empty.0215/.0215ms, only about
+    one timer quantum apart. The experiment was removed; no alternative shader/resource/setting remains.
+  Final retained-source canonical cached Release17.48s,0warnings/0errors;564production+649fixture
+    cache hits and zero compiler invocations. Only the existing OIT arithmetic fact and view-cost
+    fact reran,2/2passed5.2966s; unchanged lifecycle/traversal/transport/reconstruction evidence is
+    reused. Receipts: phase711-retained-build.log, phase711-retained-tests.log, phase711-retained.trx.
+    Retained occupied samples.0604/.0604/.0604ms match experimental median.0604ms (experimental
+    samples.0594/.0604/.0614); empty retained/experimental medians.0215/.0215ms. Both measure the
+    complete actual512x256half trace plus full-size reconstruction, unchanged half-voxel spacing,
+    uniform sigma.0078125 or zero, depth100, fixed direct/diffuse inputs and disabled detail. This
+    near-depth workload exercises the only branch with a proposed exponential reduction. One warmup
+    plus3samples, external preparation/clears/readbacks excluded; internal clears and both draws
+    included. Game untouched, contention uncontrolled. These small authored timings establish no
+    useful saving, liveFPS result, per-instruction cost or broad scene-performance guarantee.
+    Retained allocation returned to168608B versus experimental158368B; its cause is unestablished,
+    so a stale-binary explanation and allocation/CPU benefit are not claimed.
+  Root second review reconciled the real-arithmetic identity, its branch/domain bound, irregular
+    intervals, all native bucket products and the unchanged density attenuation/termination path.
+    Current source is restored byte-for-byte relative to the committed shader; only this planning
+    record changes. Explicit evidence-backed deferral is selected: retain the current math because
+    the tested algebra did not demonstrate a useful total-view gain. Proposal/current architecture
+    already describe the retained per-interval implementation and require no historical edits.
+    No new tests/classes, approximation-quality gates, full matrix, package or game action.
+  Independent completion audit directly consulted controlling sources and receipts and found no
+    required gaps. All four tasks are complete through the expressly permitted deferral; later work
+    remains unchecked.
 
 Phase 7.12 - Reduce spatial reconstruction depth and empty-region work
   Depends on: Phase 7.5; Phase 7.8 where view/pass lifetime changes are shared.
