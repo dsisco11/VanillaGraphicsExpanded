@@ -879,19 +879,60 @@ Remaining performance work: shared evidence for Phases 7.8-7.13
 Phase 7.8 - Reduce recurring view preparation and submission overhead
   Depends on: Phases 7.4 and 7.5.
   Outcome: stable view resources avoid repeated preparation while existing ownership checks hold.
-  [ ] Trace repeated render-pass/signature/pipeline-description construction and binding preparation
+  [x] Trace repeated render-pass/signature/pipeline-description construction and binding preparation
       in view submission. Separate actual application work from capture inter-call overhead; add
       narrow CPU instrumentation only where needed to identify or verify a removable cost.
-  [ ] Cache immutable descriptions and other stable preparation by target, executable and context
+  [x] Cache immutable descriptions and other stable preparation by target, executable and context
       lifetime. Refresh on resize, resolution/options change, shader reload and resource replacement.
-  [ ] Remove redundant clear/rebind/validation work where ownership permits. Preserve per-draw scene
+  [x] Remove redundant clear/rebind/validation work where ownership permits. Preserve per-draw scene
       borrows, source certificates, failure cleanup and engine-state restoration; do not retain stale
       resource references or broaden shared rendering infrastructure merely to bypass checks.
-  [ ] Use subagents for cached incremental builds and affected existing lifecycle/submission checks
+  [x] Use subagents for cached incremental builds and affected existing lifecycle/submission checks
       only. Compare preparation/allocation/binding counts and focused CPU cost; reuse GPU evidence.
       No full matrix, packaging, new redundant tests or approximation-quality thresholds.
-  [ ] Completion: remaining recurring work is justified, measured savings are distinguished from
+  [x] Completion: remaining recurring work is justified, measured savings are distinguished from
       capture gaps, and lifecycle/ownership changes are reconciled with proposal/current docs.
+
+Phase 7.8 implementation and review
+  Traceability: preparation/cache -> proposal / Ownership and integration, Rendering the published
+    volume; PBR.Clouds.md / Stored-volume view and selection; CloudVolumeViewRenderer/ViewPass and
+    existing RenderPassDesc/RenderPassTargets/GraphicsPipeline contracts. Transient source/target
+    authority -> proposal / Nonblocking updates and drawable publication, Shared rendering obligations;
+    Rendering.Enablement.md / Render boundaries and resource lifetime; PBR.Atmosphere.Publication.md /
+    Publication contract. CPU evidence -> artifacts/StoredCloudLatest/findings.md and phase78 receipts.
+  Root second review: cached pass descriptions/signatures/pipelines are keyed by target identity,
+    attachment revision, dimensions, blending mode and actual shader identity/revision/context.
+    RenderPassTargets is never retained. Current camera/atmosphere/field/executable gates remain;
+    BeginPass still validates and acquires immediate attachment borrows. Target retirement clears
+    descriptions and the pipeline list before disposing reduced images; option/reload/replacement
+    changes refresh preparation. Stable draws reuse the pipeline array and submission callback.
+  Borrow cleanup remains intentional: generated input setters call the managed RequireMutation guard,
+    not native binding commands. Clearing those references prevents stale scene/camera/resource borrows;
+    ordinary per-pass input publication and native restoration remain required. No shared rendering
+    abstraction, shader code, settings, sampling, target format or volume resource has changed.
+  Work-count evidence: stable reduced draws construct0pass descriptions/signatures/pipeline descriptions
+    instead of2each and acquire0temporary preparation borrows instead of2. The2required immediate
+    pass borrows and all native draw/binding/restoration work remain. The existing cost fact reports
+    only2initial preparations across8draws, including an occupied-to-empty content change.
+    No extra GPU work, global cache, resource lifetime or raw GL fixture was introduced.
+  Focused validation: canonical cached Release build49.60s,0errors/191existingwarnings; production562
+    andfixture647shader variants reused, zero compiler invocations. All3existing stored-view facts
+    passed9.0269s total. Added stable-cache, same-framebuffer attachment-revision and explicit target
+    retirement assertions inside the existing math/lifecycle fact; existing feature/divisor/depth,
+    empty/failed-ray, encoding and full-solution lifecycle coverage passed. No new test class/matrix.
+    Receipts: artifacts/StoredCloudLatest/phase78-current-build.log, phase78-current-tests.log and
+    phase78-current.trx. Baseline phase78-baseline*. First baseline build2m18.08s refreshed tooling
+    fingerprints/catalogs but reused all1209shader binaries with zero compiler invocations; no clean.
+  Authored512x256 half-resolution DrawOnly, same fixture/settings,1warmup+3samples: thread allocations
+    174280->168608bytes/draw,5672bytes(3.25%)saved. CPU submission median occupied1.0716->1.7183ms,
+    empty.8530->1.4629ms; current samples1.1691/1.7183/2.1124 and1.3626/1.4629/1.9470ms versus baseline
+    .9059/1.0716/6.3803 and.8241/.8530/.8557ms. The observed CPU times are slower and do not establish
+    a CPU speedup. GPU medians occupied.0604->.0563ms, empty.0215->.0205ms; shader work is unchanged.
+    CPU brackets exclude fixture preparation, native clears, timer reads and test assertions; GPU
+    brackets include both actual passes and intermediate clears. Contention remains uncontrolled.
+    No reliable latency/FPS gain, captured6.494ms recovery or live appearance claim is inferred.
+  Independent completion audit directly reviewed controlling sources, current implementation and final receipts;
+    no unresolved issues remain. All five tasks are complete; later phases remain unchecked.
 
 Phase 7.9 - Publish changed volume blocks without a full-domain image dispatch
   Depends on: Phases 7.2, 7.6 and 7.7.

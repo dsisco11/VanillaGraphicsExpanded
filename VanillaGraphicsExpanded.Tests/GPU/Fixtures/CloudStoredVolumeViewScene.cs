@@ -29,6 +29,8 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     private CloudVolumeViewScene preparedScene=null!;
     /// <summary>Reports only the view owner's allocated trace products and reconstruction metadata.</summary>
     internal long ViewTargetBytes=>renderer.TargetBytes;
+    /// <summary>Counts immutable pass preparation independently of immediate draw validation.</summary>
+    internal int ViewPassPreparations=>renderer.PassPreparations;
     /// <summary>Exposes retained density identity so view-only changes cannot silently replace the cloud fields.</summary>
     internal DynamicTexture3D StoredDensity=>storage.Published.Density;
     /// <summary>Authors the view-specific medium selector while fog remains owned by the shared frame snapshot.</summary>
@@ -130,6 +132,19 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     }
     /// <summary>Submits only the actual typed view draw, without preparation, clearing or readback.</summary>
     internal bool DrawOnly()=>renderer.Draw(storage,input,preparedScene,output.Target,()=>true);
+    /// <summary>Replaces attachment metadata on the same native target to exercise revision-based invalidation.</summary>
+    internal void RefreshOutputMetadata()
+    {
+        var old=output.Target.GetAttachment(FramebufferAttachment.ColorAttachment0)!;
+        var replacement=Own(GpuFramebufferAttachment.FromTexture(output.Images[0]));
+        output.Target.SetAttachment(FramebufferAttachment.ColorAttachment0,replacement);
+        old.Dispose();
+    }
+    /// <summary>Exercises the same screen-resource retirement boundary used by client resize and reload.</summary>
+    internal void ReleaseViewTargets()
+    {
+        renderer.ReleaseTargets();Assert.Equal(0,renderer.TargetBytes);
+    }
     /// <summary>Leaves a real update pending, optionally retiring and resubmitting in the same simulated render callback.</summary>
     internal void QueueUpdate(CloudVolumeSolution solution,CloudVolumeViewSettings settings,bool retireAndResubmit=false)
     {

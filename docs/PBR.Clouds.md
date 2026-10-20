@@ -862,6 +862,15 @@ allocates none. Resize and renderer release retire reduced targets
 without clearing retained cloud lighting. The debug panel reports allocation. Native composition
 requires six draw buffers/attachments; view lighting uses nine fragment samplers.
 
+`CloudVolumeViewPass` retains immutable pass descriptions and graphics-pipeline preparation for each
+view pass. Its key includes framebuffer identity, attachment revision, extent, blending mode and
+shader executable/context. Stable draws reuse this preparation and the renderer's pipeline list and
+submission callback. Each `BeginPass` still validates and borrows current images; cached metadata
+holds no active pass reference. Resize, resolution changes and renderer retirement release cached
+target references before screen resources, while executable changes refresh preparation. Current
+camera, atmosphere, field and shader certificates remain draw-boundary checks. All sampled-resource
+and frame references are cleared after synchronous submission, including failed draws.
+
 Tracing and reconstruction bind the same `VgeFrameUBO`. Full-view dimensions, the derived ceil-divided
 extent, shaft coordinate scaling and fog colour/density/minimum come from that immutable frame.
 Fog headroom admission reads the same CPU snapshot. The shared frame owner captures current render

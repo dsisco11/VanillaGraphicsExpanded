@@ -126,6 +126,8 @@ Apply current directional phase functions to cached transmission, add the retain
 
 Bind the existing shared frame publication in both tracing and reconstruction. Derive view extents and shaft coordinates from its full-resolution screen size and compiled divisor; consume its fog colour, density and minimum directly, including for CPU fog-headroom admission. Do not republish those frame values in private cloud UBOs. Flat-fog geometry and underwater state remain private because the shared frame does not publish them. The private view block owns volume/material parameters and atmospheric source values absent from existing shared blocks; reconstruction owns no parameter UBO.
 
+Retain immutable view-pass descriptions and pipeline preparation by framebuffer identity, attachment revision, extent, compiled executable and context. Refresh them when those dependencies change, and release cached target references with screen-resource retirement. Cached preparation never retains an active attachment borrow: each immediate pass validates and borrows its current images, then releases them through the existing graphics boundary. Scene, camera and sampled-resource references remain synchronous borrows cleared after submission, including failure; cache reuse does not waive current publication or executable certificates.
+
 ## Resolution and memory are design constraints
 
 Cuboid styling makes axis-aligned structure plausible, but coarse voxels still round silhouettes under filtering, erase thin layers and leak light. Full-domain resolution is therefore a central decision rather than an incidental setting.

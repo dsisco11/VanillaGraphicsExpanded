@@ -18,6 +18,14 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs);
         var settings=CloudVolumeViewSettings.Default with{Detail=false,Stop=0,TraceDivisor=2};
         var baseline=scene.Draw(settings);
+        int prepared=scene.ViewPassPreparations;
+        Assert.Equal(baseline[1],scene.Draw(settings)[1]);
+        Assert.Equal(prepared,scene.ViewPassPreparations);
+        // Replacing an attachment on the same framebuffer must refresh only its native pass.
+        scene.RefreshOutputMetadata();Assert.Equal(baseline[1],scene.Draw(settings)[1]);
+        Assert.Equal(prepared+1,scene.ViewPassPreparations);
+        scene.ReleaseViewTargets();Assert.Equal(baseline[1],scene.Draw(settings)[1]);
+        Assert.Equal(prepared+3,scene.ViewPassPreparations);
         Assert.InRange(Math.Abs(baseline[1][0]-MathF.Exp(-.0078125f*100)),0,2e-5f);
         float phase0=.64f/(4*MathF.PI*MathF.Pow(1.36f,1.5f));float phase1=1.6f/(4*MathF.PI*.4f*.4f);
         float source=.9f*(30*.25f*phase1+3*.75f*phase0)+12;
@@ -79,16 +87,20 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         using var timer=GpuTimerQuery.Create("Tests.Cloud.StoredVolume.ViewCost");
         foreach(float sigma in new[]{.0078125f,0f})
         {
-            scene.SeedDensity(sigma);var times=new List<double>();
+            scene.SeedDensity(sigma);var times=new List<double>();var cpuTimes=new List<double>();var allocations=new List<long>();
             // Preparation and clear precede each query; synchronous test query reads follow it.
             for(int i=0;i<4;i++)
             {
                 scene.PrepareDraw(CloudVolumeViewSettings.Default with{Detail=false,TraceDivisor=2});
-                timer.Begin();bool drawn=scene.DrawOnly();timer.End();Assert.True(drawn);
-                double milliseconds=timer.GetResultNanoseconds()/1e6;if(i>0)times.Add(milliseconds);
+                timer.Begin();long allocatedBefore=GC.GetAllocatedBytesForCurrentThread();long started=System.Diagnostics.Stopwatch.GetTimestamp();
+                bool drawn=scene.DrawOnly();
+                double cpuMilliseconds=System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;long allocated=GC.GetAllocatedBytesForCurrentThread()-allocatedBefore;
+                timer.End();Assert.True(drawn);
+                double milliseconds=timer.GetResultNanoseconds()/1e6;
+                if(i>0){times.Add(milliseconds);cpuTimes.Add(cpuMilliseconds);allocations.Add(allocated);}
             }
-            times.Sort();
-            output.WriteLine($"Stored view 512x256 sigma={sigma}: median {times[1]:F4} ms; samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. GPU: {gpu}.");
+            times.Sort();cpuTimes.Sort();allocations.Sort();
+            output.WriteLine($"Stored view 512x256 sigma={sigma}: median {times[1]:F4} ms; samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. CPU submission median {cpuTimes[1]:F4} ms; samples {string.Join(", ",cpuTimes.Select(t=>t.ToString("F4")))} ms; allocated median {allocations[1]} bytes; samples {string.Join(", ",allocations)} bytes. Pass preparations {scene.ViewPassPreparations}. GPU: {gpu}.");
         }
         output.WriteLine("Actual typed compact half-resolution trace plus full-resolution spatial reconstruction, 36 bytes per trace pixel, half-voxel occupied spacing, authored uniform extinction .0078125/empty0, direct .25/.75 and diffuse12, depths100, detail disabled, default shadows/diffuse/stop. One warmup and three samples. External preparation, clears and readbacks excluded; internal intermediate clears and both draws included; no live FPS or appearance qualification; contention uncontrolled.");
     }
