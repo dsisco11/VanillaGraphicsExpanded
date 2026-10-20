@@ -16,11 +16,66 @@ internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityProgram> cre
     private CloudVolumeIdentity? identity;
     private uint frame;
     private bool observed,failed,disposed;
+    private GpuFence? fence;
+    private DynamicTexture2D? nativeSnapshot;
+    private CloudMapInput frozenInput;
+    private (float Minimum,float Maximum)? validatedBounds;
+    private CloudVolumeFields? generated;
+    private uint generatedFrame;
+    private bool validating,deferred;
+    internal bool Busy=>fence is not null;
+    internal bool UpdateCompleted {get;private set;}
     internal bool Ready { get; private set; }
     internal string? Failure { get; private set; }
 
     #region Public API
     #region Preparation and generation
+    /// <summary>Submits one bounded density step, freezing native input before deferred validation.</summary>
+    internal void Submit(CloudVolumeStorage storage,CloudMapInput input,GpuTexture map,CloudVolumeEncoding encoding,
+        Vector3 fallback,Func<bool> current)
+    {
+        if(Busy)throw new InvalidOperationException("Density work is already pending.");
+        if(failed)throw new InvalidOperationException(Failure);
+        if(!current()||!input.Storage.IsSupported||map.TextureId!=input.Storage.Map||map.Width!=input.Storage.Width||
+            map.Height!=input.Storage.Width||map.InternalFormat!=PixelInternalFormat.Rgba32f||!input.Placement.IsFinite)
+            throw new InvalidOperationException("Native cloud input is unavailable for submission.");
+        UpdateCompleted=false;Prepare();
+        if(validatedBounds is null&&NeedsObservation(storage,input))
+        {
+            EnsureSnapshot(input.Storage.Width);frozenInput=input;
+            BeginValidation(input,map,current);validating=true;fence=GpuFence.Insert();return;
+        }
+        deferred=true;generated=null;
+        try
+        {
+            // A validated owned snapshot outlives the native borrow. Its source stamps remain the original observation's.
+            var selected=validatedBounds is not null?frozenInput:input;
+            var snapshot=validatedBounds is not null?nativeSnapshot!:map;
+            if(validatedBounds is not null)selected=selected with{Storage=selected.Storage with{Map=snapshot.TextureId}};
+            Update(storage,selected,snapshot,encoding,fallback,current);
+            if(Failure is not null)throw new InvalidOperationException(Failure);
+            fence=GpuFence.Insert();
+        }
+        finally{deferred=false;}
+    }
+    /// <summary>Polls without waiting; reads status only after all producing commands have completed.</summary>
+    internal bool Poll(CloudVolumeStorage storage)
+    {
+        if(fence is null)return true;
+        Check(()=>true);
+        var status=fence.Poll();if(status==WaitSyncStatus.TimeoutExpired)return false;
+        if(status==WaitSyncStatus.WaitFailed)throw new InvalidOperationException("Cloud density fence failed.");
+        fence.Dispose();fence=null;Check(()=>true);
+        if(validating){validatedBounds=ReadBounds();validating=false;return true;}
+        if(generated is {} fields)
+        {
+            ReadGeneration(fields,generatedFrame);
+            if(ReferenceEquals(fields,storage.Pending)&&fields.DensityState.InitialComplete)
+                storage.PublishPending(()=>fields.DensityState.InitialComplete,()=>true);
+            generated=null;
+        }
+        Ready=storage.Ready;UpdateCompleted=true;return true;
+    }
     /// <summary>Admits structural executables and bounded parameter/status/indirect storage within the fixed allowance.</summary>
     internal void Prepare()
     {
@@ -104,6 +159,8 @@ internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityProgram> cre
     /// <summary>Releases executable/status resources at explicit recovery boundaries without owning volume fields.</summary>
     internal void Reset()
     {
+        fence?.Dispose();fence=null;nativeSnapshot?.Dispose();nativeSnapshot=null;
+        validating=deferred=UpdateCompleted=false;validatedBounds=null;generated=null;frozenInput=default;
         Ready=observed=failed=false;Failure=null;identity=null;frame=0;
         Action[] release=new Action[8];
         for(int i=0;i<6;i++){int slot=i;release[i]=()=>{programs[slot]?.Dispose();programs[slot]=null;executable[slot]=0;};}
@@ -120,11 +177,29 @@ internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityProgram> cre
     /// <summary>Reduces only validation and height metadata before choosing or replacing the finite density band.</summary>
     private (float Minimum,float Maximum) ValidateInput(CloudMapInput input,GpuTexture map,Func<bool> current)
     {
+        if(validatedBounds is {} cached){validatedBounds=null;return cached;}
+        EnsureSnapshot(input.Storage.Width);BeginValidation(input,map,current);return ReadBounds();
+    }
+    /// <summary>Allocates a small owned raw descriptor snapshot independently of the borrowed native map.</summary>
+    private void EnsureSnapshot(int width)
+    {
+        if(nativeSnapshot?.Width==width)return;
+        nativeSnapshot?.Dispose();nativeSnapshot=DynamicTexture2D.Create(width,width,PixelInternalFormat.Rgba32f);
+    }
+    /// <summary>Validates and freezes the same native observation in one ordered dispatch.</summary>
+    private void BeginValidation(CloudMapInput input,GpuTexture map,Func<bool> current)
+    {
         summary!.UploadData(new uint[]{0,uint.MaxValue,0,0,0,0,0,0});
         var domain=new CloudVolumeDomain(input.Storage.Width,input.Placement,0,0);
         programs[0]!.Capture(domain,0,0,new CloudVolumeDensityState(),input.Frame,false);
         programs[0]!.Map=map;programs[0]!.Summary=summary;
+        programs[0]!.Descriptors=new(nativeSnapshot,TextureAccess.WriteOnly);
         Check(current);Run(0,()=>programs[0]!.Dispatch((input.Storage.Width*input.Storage.Width+63)/64));Check(current);
+        programs[0]!.Map=null;
+    }
+    /// <summary>Consumes a completed height/error reduction without rereading native storage.</summary>
+    private (float Minimum,float Maximum) ReadBounds()
+    {
         using var read=summary.MapScope<uint>(0,4,MapBufferAccessMask.MapReadBit);
         if(read.Span[0]!=0)throw new InvalidOperationException("Native cloud extinction or height data is invalid.");
         return read.Span[3]==0?(0,0):(Unordered(read.Span[1]),Unordered(read.Span[2]));
@@ -153,6 +228,13 @@ internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityProgram> cre
         Run(3,()=>programs[3]!.DispatchIndirect(commands!));
         Run(4,()=>programs[4]!.Dispatch((fields.Domain.Blocks+63)/64));
         Run(5,()=>programs[5]!.Dispatch((fields.Domain.Blocks+63)/64));Check(current);
+        if(deferred){generated=fields;generatedFrame=completedFrame;return;}
+        ReadGeneration(fields,completedFrame);
+    }
+    /// <summary>Commits density counters only once the producer fence has signaled.</summary>
+    private void ReadGeneration(CloudVolumeFields fields,uint completedFrame)
+    {
+        var state=fields.DensityState;
         using var read=summary!.MapScope<uint>(0,8,MapBufferAccessMask.MapReadBit);
         if(read.Span[0]!=0)throw new InvalidOperationException("Generated cloud density cannot be represented as finite R16F.");
         state.Selected=checked((int)read.Span[5]);state.Remaining=checked((int)read.Span[4]);
@@ -162,6 +244,17 @@ internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityProgram> cre
     #endregion
 
     #region Submission and identity
+    /// <summary>Tests snapshot stamps without issuing GPU reads or retaining a native texture wrapper.</summary>
+    private bool NeedsObservation(CloudVolumeStorage storage,CloudMapInput input)
+    {
+        if(identity is not null&&!identity.Matches(new(input.Owner,input.World,input.Shader))||observed&&input.Frame<frame)return true;
+        if(storage.Pending is {} pending)return !pending.DensityState.SnapshotValid;
+        if(!storage.Ready)return true;
+        var stamp=storage.Published.DensityState;
+        return !stamp.SnapshotValid||stamp.NativeGeneration!=input.Generation||stamp.NativeUpload!=input.Upload||
+            stamp.NativeAllocation!=input.Allocation||stamp.WindowX!=(long)input.Placement.CenterX-input.Placement.WindTileX||
+            stamp.WindowZ!=(long)input.Placement.CenterZ-input.Placement.WindTileZ;
+    }
     /// <summary>Captures all resources through the selected typed operation; unused bindings are compiled away.</summary>
     private void Configure(int op,CloudVolumeFields fields,long x,long z,uint completedFrame,bool initial)
     {

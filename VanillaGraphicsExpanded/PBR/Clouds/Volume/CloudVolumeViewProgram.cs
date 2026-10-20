@@ -38,7 +38,7 @@ internal sealed partial class CloudVolumeViewProgram:GpuProgram,ICloudVolumeView
         ProgramLayout.RegisterContract(Contract.Stages[0].Bindings);ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Captures the published geometry/scale independently of native procedural controls.</summary>
-    internal void Capture(CloudVolumeFields fields,CloudMapInput input,CloudVolumeViewSettings settings,CloudVolumeViewScene scene,int debugMode)
+    internal void Capture(CloudVolumeViewFields fields,CloudMapInput input,CloudVolumeViewSettings settings,CloudVolumeViewScene scene,int debugMode)
     {
         RequireInputMutation();settings.Validate();var d=fields.Domain;var light=scene.Atmosphere;
         if(!float.IsFinite(scene.Underwater)||!Finite(scene.Fog)||scene.Fog.X<0||!LightingCalibration.FiniteNonnegative(scene.FogColor)||

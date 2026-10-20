@@ -23,6 +23,9 @@ internal sealed partial class CloudVolumeProbeProgram : GpuComputeProgram, IClou
     }
     /// <summary>Captures one bounded lookup transformed by the actual material domain.</summary>
     internal void Capture(CloudVolumeFields fields, Vector3 native)
+        =>Capture(fields.View,native);
+    /// <summary>Captures the same lookup against an isolated drawable publication.</summary>
+    internal void Capture(CloudVolumeViewFields fields, Vector3 native)
     {
         RequireInputMutation(); var uv = fields.Domain.TexturePosition(native); Span<byte> data = stackalloc byte[16];
         UboPacking.WriteVec4(data, 0, uv.X, uv.Y, uv.Z, fields.Encoding.Scale); inputs.SetBytes(data);

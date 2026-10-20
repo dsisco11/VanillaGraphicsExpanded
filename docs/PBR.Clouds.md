@@ -529,8 +529,14 @@ allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance
 128 bytes. Density operations use six 128-byte UBOs, a 32-byte validation/completion summary and
 12-byte indirect arguments. Lighting work uses six 208-byte UBOs and 24-byte indirect arguments.
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
-addition is 2884 bytes. The view owns one 256-byte UBO across its variants, leaving 828 bytes
-reserved inside that allowance; it allocates no private view targets or history.
+addition is 2884 bytes. The view owns one 256-byte UBO across its variants and block publication
+owns a 16-byte UBO, leaving 812 bytes reserved inside that allowance. There are no private view
+targets or screen-space history. A separate drawable snapshot owns R16F density, RG16F direct,
+RGBA16F diffuse and exact region/occupancy buffers: 249,952,000 bytes (238.373 MiB) at maximum extent.
+A raw RGBA32F native observation snapshot adds at most 640,000 bytes. Maximum working plus drawable
+payload is 612.518 MiB; two working domains plus drawable/raw snapshots total 986.052 MiB. The
+512 MiB ceiling applies to each working field set; the combined owned payload fits the 1 GiB peak
+ceiling. Driver allocation overhead is additional and remains a measurement concern.
 
 `CloudVolumeStorage` admits format/dispatch/device limits before allocation. Incoming fields
 initialize at most 4096 physical blocks per call. They contain zero density, unit direct visibility
@@ -558,12 +564,12 @@ quantized downward to representable half values during encoding/rescaling, retai
 radiance bound. The caller skips this operation when no diffuse work is selected. This storage
 foundation has separate direct/diffuse transport owners and a stored-field view consumer.
 
-`CloudVolumeDensity` consumes a synchronous certified native-map borrow and generates density
-through private `cloud_volume/density` compute operations. It validates native extinction/heights,
-reduces a GPU height envelope, and selects a fully containing band before changing a descriptor
-snapshot. Only the 16-byte envelope/status summary returns to the CPU for band admission; native
-column descriptors remain on the GPU. A 32-byte completion/work summary is read after a density
-batch. These synchronous summary reads are a cost to measure, not CPU selection of individual jobs.
+`CloudVolumeDensity` submits private `cloud_volume/density` operations during a certified native-map
+borrow. Validation freezes the same raw observation into an owned RGBA32F texture and reduces its
+height envelope. A later zero-timeout fence poll admits the 16-byte envelope/status read and selects
+a fully containing band before changing the canonical descriptor snapshot. Generation consumes the
+owned observation; no native texture wrapper survives the callback. The 32-byte density completion
+summary is likewise read only after its producer fence signals. No CPU readback selects individual jobs.
 
 The latest RGBA32F snapshot holds extinction in inverse metres, lower/upper heights in metres and
 an exact valid marker. Finite zero-extinction columns canonicalize to valid empty support; occupied
@@ -724,7 +730,24 @@ frozen photometric publication. Atmospheric and engine-light calibration generat
 equal. Missing transient inputs omit the contribution. Initial density fill is bounded and neutral;
 replacement retains the old complete domain and its initialized lighting while new density fills.
 
-`CloudVolumeSolution` orders density/occupancy, direct and diffuse work once per eligible frame.
+`CloudVolumeSolution` coordinates `CloudVolumeUpdates` and an isolated `CloudVolumePublication`.
+Before drawing, zero-timeout fence polls advance completed density/occupancy, direct and diffuse
+steps. Status/count buffers are mapped only after their producing commands have completed. Timeout
+retains the previous drawable publication and submits no additional update. After drawing, at most
+one bounded update step is submitted; later native observations and lighting changes coalesce behind
+the frozen pending step. A completed lighting batch copies changed whole blocks into the drawable
+snapshot through typed `cloud_volume/publish` compute authority and barriers. Density/direct/diffuse
+dirty bits are 4096/8192/16384 in working region flags. Metadata and occupancy are copied coherently
+for all blocks; no CPU reads job lists. First publication, changed domains or replaced working fields
+copy all channels; source activation copies direct, and an encoding change copies diffuse in full.
+Ordinary publication copies only flagged channels/blocks. Working fields can then change without
+altering the drawable snapshot. Initial activation remains neutral until a completed snapshot exists.
+
+OpenGL submissions remain in the engine command stream. Fences remove immediate CPU waits and
+same-callback completion requirements; they do not provide an explicit asynchronous compute queue,
+guarantee graphics/compute overlap, or remove the update's GPU cost. Update service bounds count
+eligible batches, which can span multiple rendered frames. Diagnostics skip unfinished updates.
+
 `CloudVolumeCoordinates` converts the current camera/native placement into the published domain's
 material coordinates, including during replacement; native wind translation enters once. View
 settings retain density and lighting. Detail changes replace geometry; lighting feature changes

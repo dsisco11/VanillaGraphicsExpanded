@@ -1,5 +1,4 @@
 using System;
-using System.Numerics;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -14,11 +13,17 @@ internal sealed class CloudVolumeSolution:IDisposable
     private readonly CloudVolumeWork work;
     private readonly CloudVolumeDirect direct;
     private readonly CloudVolumeDiffuse diffuse;
-    private readonly Vector4[] planes=new Vector4[6];
-    private uint? frame;
+    private readonly CloudVolumePublication publication;
+    private readonly CloudVolumeUpdates updates;
+    private uint? submittedFrame;
+    private CloudVolumeIdentity? asyncIdentity;
+    private uint asyncFrame;
     internal CloudVolumeStorage Storage {get;}
     internal CloudVolumeAdmission Admission {get;}=new();
     internal CloudVolumeDiffuse Diffuse=>diffuse;
+    internal CloudVolumeViewFields? Drawable=>publication.Published;
+    internal bool UpdatePending=>updates.Pending;
+    internal long PublicationBytes=>publication.Bytes;
     internal string? Failure {get;private set;}
     #region Public API
     /// <summary>Creates independently owned algorithm components and typed executable factories.</summary>
@@ -27,43 +32,43 @@ internal sealed class CloudVolumeSolution:IDisposable
         Storage=new(()=>CloudVolumeMaintenanceProgram.Create(api),()=>CloudVolumeCopyProgram.Create(api));
         density=new(op=>CloudVolumeDensityProgram.Create(api,op,detail));work=new(op=>CloudVolumeWorkProgram.Create(api,op));
         direct=new(op=>CloudVolumeDirectProgram.Create(api,op));diffuse=new(shadows=>CloudVolumeDiffuseProgram.Create(api,shadows));
+        publication=new(()=>CloudVolumePublishProgram.Create(api));updates=new(Storage,density,work,direct,diffuse,publication);
     }
     /// <summary>Prepares only selected solvers before consumer ownership transfers.</summary>
     internal void Prepare(CloudVolumeViewSettings settings)
     {
         Storage.Prepare();density.Prepare();work.Prepare();
+        publication.Prepare();
         if(settings.SelfShadowing)for(int op=0;op<3;op++)direct.Prepare(op);
         if(settings.Diffuse)diffuse.Prepare(settings.SelfShadowing);
     }
-    /// <summary>Advances one shared frame budget, keeping startup neutral and the old domain drawable during replacement.</summary>
-    internal bool Update(CloudMapInput input,GpuTexture map,AtmosphereLighting light,VgeFrameUniformBuffer camera,
-        CloudVolumeViewSettings settings,Func<bool> current)
+    /// <summary>Checks completion before drawing, retaining the previous isolated publication while work is pending.</summary>
+    internal void Poll(CloudMapInput input)
     {
-        if(Failure is not null||!current())return false;
-        if(frame==input.Frame)return Storage.Ready;
+        if(Failure is not null)return;
         try
         {
-            // Admission also covers pending fields; it survives replacement and keeps older source envelopes conservatively.
-            Admission.Observe(light);
-            bool ready=density.Update(Storage,input,map,Admission.Encoding,.9f*light.Environment,current);
-            if(density.Failure is not null)throw new InvalidOperationException(density.Failure);
-            frame=input.Frame;
-            if(!ready)return false; // Bounded initial fill is an expected neutral contribution, not a latched draw failure.
-            CloudVolumeCoordinates.Frustum(camera,CloudVolumeCoordinates.Origin(Storage.Published.Domain,input),planes);
-            if(!work.Select(Storage,light,input.Frame,planes,current,settings.SelfShadowing,settings.Diffuse)||
-                !direct.Update(Storage,work,current)||!diffuse.Update(Storage,work,current))
-                throw new InvalidOperationException(work.Failure??direct.Failure??diffuse.Failure??"Stored cloud transport rejected.");
-            return true;
+            var next=new CloudVolumeIdentity(input.Owner,input.World,input.Shader);
+            if(asyncIdentity is not null&&(!asyncIdentity.Matches(next)||input.Frame<asyncFrame))
+                {RenderingCleanup.Run(updates.Dispose,publication.Dispose,density.Reset,diffuse.Reset,direct.Reset,work.Reset,Storage.Reset);submittedFrame=null;}
+            asyncIdentity=next;asyncFrame=input.Frame;updates.Poll();
         }
-        catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
-        {Failure=error.Message;Storage.Withdraw();return false;}
+        catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error)){Failure=error.Message;Storage.Withdraw();}
+    }
+    /// <summary>Advances at most one update step after the current view has consumed its published snapshot.</summary>
+    internal void Submit(CloudMapInput input,GpuTexture map,AtmosphereLighting lighting,VgeFrameUniformBuffer camera,
+        CloudVolumeViewSettings settings,Func<bool> current)
+    {
+        if(Failure is not null||!current()||submittedFrame==input.Frame)return;
+        try{submittedFrame=input.Frame;Admission.Observe(lighting);updates.Submit(input,map,lighting,camera,settings,Admission,current);}
+        catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error)){Failure=error.Message;Storage.Withdraw();}
     }
     /// <summary>Revokes lighting certificates after feature changes while preserving compatible density and source envelopes.</summary>
     internal void ReconfigureLighting()
     {
-        RenderingCleanup.Run(diffuse.Reset,direct.Reset,work.Reset);frame=null;
+        RenderingCleanup.Run(updates.Dispose,density.Reset,diffuse.Reset,direct.Reset,work.Reset,publication.Dispose);submittedFrame=null;asyncIdentity=null;
     }
     /// <summary>Retires every candidate-owned resource while native publications remain borrowed.</summary>
-    public void Dispose()=>RenderingCleanup.Run(diffuse.Dispose,direct.Dispose,work.Dispose,density.Dispose,Storage.Dispose);
+    public void Dispose()=>RenderingCleanup.Run(updates.Dispose,publication.Dispose,diffuse.Dispose,direct.Dispose,work.Dispose,density.Dispose,Storage.Dispose);
     #endregion
 }

@@ -25,6 +25,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     private readonly CloudVolumeViewRenderer renderer;
     private readonly CloudOitSurface output;
     private readonly CloudMapInput input;
+    private uint updateFrame;
     internal AtmosphereLighting Atmosphere {get;set;}=new(Vector3.UnitZ,new Vector3(30),new Vector3(10),Vector3.Zero,Vector3.Zero,
         ImmutableArray<float>.Empty){Moon=-Vector3.UnitY,Lunar=new Vector3(3),CalibrationGeneration=7,LookupStorageScale=1f/16};
     #region Public API
@@ -74,7 +75,20 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         if(solution is not null)
         {
             solution.Prepare(settings);solution.Admission.Observe(Atmosphere);
-            Assert.True(solution.Update(input,map,Atmosphere,camera,settings,()=>true),solution.Failure);
+            // The fixture explicitly waits between simulated frames; production only polls zero-timeout fences.
+            uint before=solution.Drawable?.Revision??0;
+            for(int attempt=0;attempt<64;attempt++)
+            {
+                var observation=input with{Frame=++updateFrame};solution.Poll(observation);
+                Assert.Null(solution.Failure);
+                if(solution.Drawable is {} publication&&publication.Revision>before)break;
+                var retained=solution.Drawable;
+                solution.Submit(observation,map,Atmosphere,camera,settings,()=>true);Assert.Null(solution.Failure);
+                Assert.Same(retained,solution.Drawable); // Submission alone cannot publish unfinished writes.
+                using var completed=GpuFence.Insert();
+                Assert.Contains(completed.Wait(TimeSpan.FromSeconds(1)),new[]{WaitSyncStatus.AlreadySignaled,WaitSyncStatus.ConditionSatisfied});
+            }
+            Assert.NotNull(solution.Drawable);Assert.True(solution.Drawable.Revision>before);
         }
         lighting.Capture(scale);Assert.True(renderer.Prepare(settings),renderer.Failure);
         RenderPassColor[] colors=Enumerable.Range(0,6).Select(i=>new RenderPassColor(i,AttachmentLoad.Clear,
@@ -82,9 +96,17 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.StoredVolume.Clear",[],true,commands=>
             {commands.BeginPass(new RenderPassDesc(output.Target,colors));commands.EndPass();}));
         var scene=new CloudVolumeViewScene(camera,lighting.Buffer,Atmosphere,material,visibility,liquid,aerial,attenuation,shafts);
-        bool drawn=renderer.Draw(solution?.Storage??storage,input,scene,output.Target,()=>true);
+        bool drawn=solution is null?renderer.Draw(storage,input,scene,output.Target,()=>true):
+            renderer.Draw(solution.Drawable!,input,scene,output.Target,()=>true);
         if(succeeds)Assert.True(drawn,renderer.Failure);else{Assert.False(drawn);Assert.NotNull(renderer.Failure);}
         return output.Images.Select(texture=>texture.ReadPixels()).ToArray();
+    }
+    /// <summary>Leaves one real update pending so lifecycle checks exercise cancellation with a retained drawable snapshot.</summary>
+    internal void QueueUpdate(CloudVolumeSolution solution,CloudVolumeViewSettings settings)
+    {
+        var observation=input with{Frame=++updateFrame};solution.Poll(observation);
+        var retained=solution.Drawable;solution.Submit(observation,map,Atmosphere,camera,settings,()=>true);
+        Assert.Null(solution.Failure);Assert.True(solution.UpdatePending);Assert.Same(retained,solution.Drawable);
     }
     /// <summary>Releases acquisitions in reverse order through existing cleanup semantics.</summary>
     public void Dispose(){RenderingCleanup.Run(resources.AsEnumerable().Reverse().Select(value=>(Action)value.Dispose).ToArray());resources.Clear();}

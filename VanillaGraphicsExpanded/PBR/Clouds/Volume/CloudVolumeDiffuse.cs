@@ -18,7 +18,7 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
     #region Public API
     #region Transport and publication
     /// <summary>Copies once for a nonempty batch, gathers into the spare, then commits metadata before the atomic field publication.</summary>
-    internal bool Update(CloudVolumeStorage storage,CloudVolumeWork work,Func<bool> current)
+    internal bool Update(CloudVolumeStorage storage,CloudVolumeWork work,Func<bool> current,bool deferStatus=false)
     {
         ObjectDisposedException.ThrowIf(disposed,this);
         bool valid=work.TryBatch(storage,out var selected);
@@ -48,7 +48,7 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
                 {
                     LastCopyBytes=fields.Domain.CopyBytes;
                     Run(p,batch,current);
-                },()=>work.Complete(storage,batch.Frame,4,()=>work.TryBatch(storage,out var live)&&ReferenceEquals(live,batch),current)))
+                },()=>work.Complete(storage,batch.Frame,4,()=>work.TryBatch(storage,out var live)&&ReferenceEquals(live,batch),current,deferStatus)))
                 throw new InvalidOperationException(work.Failure??"Diffuse destination publication failed.");
             fields.LightingBounds=bounds;finished=batch;return true;
         }

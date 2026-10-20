@@ -16,7 +16,7 @@ internal static class CloudStoredVolumeDiagnostics
     /// <summary>Reads exact scheduler/age data at most once per second, without allocating diagnostic GPU storage.</summary>
     internal static void Observe(CloudVolumeSolution solution,uint frame)
     {
-        if(Mode==0||!solution.Storage.Ready)return;
+        if(Mode==0||!solution.Storage.Ready||solution.UpdatePending)return;
         long now=Stopwatch.GetTimestamp();
         if(source is not null&&source.TryGetTarget(out var prior)&&ReferenceEquals(prior,solution)&&now-lastRead<Stopwatch.Frequency)return;
         var fields=solution.Storage.Published;var d=fields.Domain;
@@ -33,7 +33,7 @@ internal static class CloudStoredVolumeDiagnostics
                 if(r[15]==frame)diffuseCompleted++;
             }
         snapshot=$"Grid {d.Size} x 66 x {d.Size}; spacing {CloudVolumeDomain.HorizontalCell:G5} x {d.VerticalCell:G5} x {CloudVolumeDomain.HorizontalCell:G5}\n"+
-            $"Owned resident/replacement payload: {solution.Storage.StorageBytes:N0} bytes; field blocks: {d.Blocks}\n"+
+            $"Owned working/replacement/drawable payload: {solution.Storage.StorageBytes+solution.PublicationBytes:N0} bytes; field blocks: {d.Blocks}\n"+
             $"Density selected/remaining: {fields.DensityState.Selected} / {fields.DensityState.Remaining}\n"+
             $"Direct selected/actual: {header.Span[16]} / {directCompleted}; diffuse: {header.Span[17]} / {diffuseCompleted}\n"+
             $"Lighting backlog direct/diffuse: {header.Span[22]} / {header.Span[23]}\n"+

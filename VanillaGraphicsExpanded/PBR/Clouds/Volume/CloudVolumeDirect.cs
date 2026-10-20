@@ -16,7 +16,7 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
     #region Public API
     #region Transport
     /// <summary>Initializes incompatible source channels, submits ordered integrals and commits only barrier-complete work.</summary>
-    internal bool Update(CloudVolumeStorage storage,CloudVolumeWork work,Func<bool> current)
+    internal bool Update(CloudVolumeStorage storage,CloudVolumeWork work,Func<bool> current,bool deferStatus=false)
     {
         ObjectDisposedException.ThrowIf(disposed,this);
         if(failed||!work.TryBatch(storage,out var batch)||!current())return false;
@@ -38,7 +38,7 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
                 // Separate submissions and image barriers serialize read-modify-write access to shared RG texels.
                 Run(p,()=>p.DispatchIndirect(selected.Commands),current);
             }
-            if(!work.Complete(storage,selected.Frame,active,()=>work.TryBatch(storage,out var live)&&ReferenceEquals(live,selected),current))
+            if(!work.Complete(storage,selected.Frame,active,()=>work.TryBatch(storage,out var live)&&ReferenceEquals(live,selected),current,deferStatus))
                 throw new InvalidOperationException(work.Failure??"Direct transport completion certificate changed.");
             finished=selected;return true;
         }

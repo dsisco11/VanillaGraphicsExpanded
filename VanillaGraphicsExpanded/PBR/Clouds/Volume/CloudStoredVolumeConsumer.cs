@@ -72,7 +72,7 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     }
     #endregion
     #region Submission
-    /// <summary>Refines certified cloud-space lighting then draws the independent full-resolution view into native OIT.</summary>
+    /// <summary>Draws the completed snapshot, then submits one bounded future update without waiting for its completion.</summary>
     public void OnRenderFrame(float deltaTime,EnumRenderStage stage)
     {
         runtime.Update();
@@ -94,8 +94,10 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
             bool Current()=>runtime.TryGetMap(out var current) && current==input && ReferenceEquals(lighting,AtmosphereModSystem.Lighting);
             // Borrow only for synchronous submissions. No native map wrapper survives this callback.
             using var map=new BorrowedTexture(input.Storage.Map);
-            if(!solution!.Update(input,map,lighting,VgeFrameRenderer.Current,settings,Current))
-            {if(solution.Failure is not null)throw new InvalidOperationException(solution.Failure);return;}
+            solution!.Poll(input);
+            if(solution.Failure is not null)throw new InvalidOperationException(solution.Failure);
+            if(solution.Drawable is {} publication)
+            {
             using var material=new BorrowedTexture(depth.TextureId);
             using var visibility=new BorrowedTexture(primary.DepthTextureId);
             using var liquidDepth=new BorrowedTexture(liquid.DepthTextureId);
@@ -110,11 +112,14 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
                 RetireTarget();target=DynamicGpuFramebuffer.Wrap(transparent.FboId,"Cloud.Volume.Transparent",transparent.Width,transparent.Height);
                 target.PublishRenderPassMetadata();
             }
-            if(!view!.Draw(solution.Storage,input,scene,target,Current,CloudStoredVolumeDiagnostics.Mode)) throw new InvalidOperationException(view.Failure??"Candidate view rejected.");
-            // Optional diagnostic readback must not withdraw an otherwise completed draw.
+            if(!view!.Draw(publication,input,scene,target,Current,CloudStoredVolumeDiagnostics.Mode)) throw new InvalidOperationException(view.Failure??"Candidate view rejected.");
+            }
+            // Optional diagnostics inspect completed working data before another update is submitted.
             try {CloudStoredVolumeDiagnostics.Observe(solution,input.Frame);}
             catch(Exception error) when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
             {api.Logger.Warning("[VGE] Cloud lighting diagnostics unavailable: {0}",error.Message);}
+            solution.Submit(input,map,lighting,VgeFrameRenderer.Current,settings,Current);
+            if(solution.Failure is not null)throw new InvalidOperationException(solution.Failure);
         }
         catch(Exception error) when(!EngineBoundaryRestoreException.IsRestorationFailure(error)) {Fail(error);}
     }

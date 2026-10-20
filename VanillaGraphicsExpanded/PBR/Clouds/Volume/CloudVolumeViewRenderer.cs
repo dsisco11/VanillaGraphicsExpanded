@@ -44,12 +44,19 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program):ID
     /// <summary>Validates independent publications and submits exactly one native six-attachment contribution.</summary>
     internal bool Draw(CloudVolumeStorage storage,CloudMapInput input,CloudVolumeViewScene scene,GpuFramebuffer target,Func<bool> current,int debugMode=0)
     {
+        if(!storage.Ready)return Reject("Stored cloud publication unavailable.");
+        var fields=storage.Published;uint stamp=fields.Revision;
+        return Draw(fields.View,input,scene,target,()=>current()&&storage.Ready&&
+            ReferenceEquals(fields,storage.Published)&&fields.Revision==stamp,debugMode);
+    }
+    /// <summary>Draws an immutable publication independently of unfinished solver storage.</summary>
+    internal bool Draw(CloudVolumeViewFields fields,CloudMapInput input,CloudVolumeViewScene scene,GpuFramebuffer target,Func<bool> current,int debugMode=0)
+    {
         ObjectDisposedException.ThrowIf(disposed,this);Failure=null;
-        if(!prepared||failed||!storage.Ready||!current())return Reject("Stored cloud publication unavailable.");
+        if(!prepared||failed||!current())return Reject("Stored cloud publication unavailable.");
         if(scene.Camera.FrameIndex!=input.Frame||scene.Atmosphere.CalibrationGeneration==0)return Reject("Stored cloud camera or atmosphere publication unavailable.");
         Vector2 extent=MemoryMarshal.Read<Vector2>(scene.Camera.Bytes.Slice(384,8));
         if(extent.X!=target.Width||extent.Y!=target.Height)return Reject("Stored cloud camera/OIT extent mismatch.");
-        var fields=storage.Published;uint fieldRevision=fields.Revision;
         try
         {
             Check(current);program.Capture(fields,input,settings,scene,debugMode);
@@ -68,12 +75,10 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program):ID
                 {commands.BeginPass(pass);commands.SetPipeline(pipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
                     commands.Draw(geometry!,new(0,3));commands.EndPass();}))throw new InvalidOperationException("Stored cloud view boundary rejected.");
             Check(current);
-            if(!storage.Ready||!ReferenceEquals(fields,storage.Published)||fields.Revision!=fieldRevision)
-                throw new InvalidOperationException("Stored cloud fields changed during view submission.");
             return true;
         }
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
-        {failed=true;Failure=error.Message;storage.Withdraw();return false;}
+        {failed=true;Failure=error.Message;return false;}
         finally{ReleaseBorrows();}
     }
     /// <summary>Releases owned pipelines and geometry while retaining external shader-library ownership.</summary>

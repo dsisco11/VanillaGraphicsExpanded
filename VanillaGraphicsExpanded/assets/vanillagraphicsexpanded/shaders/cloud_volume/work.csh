@@ -189,6 +189,7 @@ void main()
         int job=int(scratch[DirectJobs+int(i)]),r=job/2,s=job%2,b=r*16;
         if((mask&(1u<<uint(s)))==0u)continue;
         regions[b+6+s*2]=regions[b+5+s*2];regions[b+10+s]=uint(workStamps.x);
+        regions[b]|=8192u;
         regions[b]&=~uint(512<<s);
         if(regions[b+5]==regions[b+6]&&regions[b+7]==regions[b+8])regions[b]&=~2u;
         scratch[27]=1u;
@@ -196,7 +197,7 @@ void main()
     if((mask&4u)!=0u)for(uint i=0u;i<scratch[17];i++)
     {
         int b=int(scratch[DiffuseJobs+int(i)])*16;
-        regions[b+13]=regions[b+12];regions[b+15]=uint(workStamps.x);regions[b]&=~(4u|2048u);scratch[27]=1u;
+        regions[b+13]=regions[b+12];regions[b+15]=uint(workStamps.x);regions[b]&=~(4u|2048u);regions[b]|=16384u;scratch[27]=1u;
     }
     #endif
 }

@@ -73,7 +73,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     }
 
     /// <summary>Commits explicitly completed channels after solvers and barriers; failed work cannot become fresh.</summary>
-    internal bool Complete(CloudVolumeStorage storage,uint frame,int channels,Func<bool> succeeded,Func<bool> current)
+    internal bool Complete(CloudVolumeStorage storage,uint frame,int channels,Func<bool> succeeded,Func<bool> current,bool deferStatus=false)
     {
         ObjectDisposedException.ThrowIf(disposed,this);
         if(!TryBatch(storage,out var selected)||selected!.Frame!=frame||channels is <1 or >7||
@@ -84,12 +84,18 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
             var fields=selected.Fields;
             programs[5]!.Capture(fields.Domain,frame,selected.Revision,selected.ActiveSources,0,selected.NewlyActive,selected.Diffuse,channels,planes);
             Bind(5,fields);Run(5);Check(current);
-            using var status=fields.Scratch.MapScope<uint>(26*4,1,MapBufferAccessMask.MapReadBit);
-            if(status.Span[0]!=0)throw new InvalidOperationException("Cloud lighting arithmetic failed.");
+            if(!deferStatus)VerifyStatus(fields,channels);
             completed|=channels;return true;
         }
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {failed=true;Ready=false;Failure=error.Message;storage.Withdraw();return false;}
+    }
+    /// <summary>Validates accumulated arithmetic failures after the caller's GPU completion fence has signaled.</summary>
+    internal void VerifyStatus(CloudVolumeFields fields,int channels=7)
+    {
+        Check(()=>true);
+        using var status=fields.Scratch.MapScope<uint>(25*4,1,MapBufferAccessMask.MapReadBit);
+        if((status.Span[0]&(uint)channels)!=0)throw new InvalidOperationException("Cloud lighting arithmetic failed.");
     }
     #endregion
 

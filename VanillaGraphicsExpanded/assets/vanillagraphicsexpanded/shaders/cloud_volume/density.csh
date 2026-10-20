@@ -100,7 +100,9 @@ void main()
     uint id=gl_GlobalInvocationID.x;
     #if VGE_VOLUME_DENSITY_OPERATION==0
     if(id>=uint(volumeExtent.z*volumeExtent.z))return;
-    vec4 v=NativeColumn(ivec2(int(id)%volumeExtent.z,int(id)/volumeExtent.z));
+    ivec2 cell=ivec2(int(id)%volumeExtent.z,int(id)/volumeExtent.z);
+    imageStore(descriptors,cell,texelFetch(nativeMap,cell,0));
+    vec4 v=NativeColumn(cell);
     if(v.x>0&&v.w>0){atomicMin(summary[1],Ordered(v.y));atomicMax(summary[2],Ordered(v.z));atomicAdd(summary[3],1u);}
     #elif VGE_VOLUME_DENSITY_OPERATION==1
     if(id>=uint(volumeExtent.z*volumeExtent.z))return;
@@ -148,6 +150,7 @@ void main()
     ivec3 block=ivec3(region%volumeExtent.w,(region/volumeExtent.w)%volumeSettings.y,region/(volumeExtent.w*volumeSettings.y));
     if(gl_LocalInvocationIndex==0u)
     {
+        atomicOr(regions[region*16],4096u);
         for(int z=-1;z<=1;z++)for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)
         {
             ivec3 b=block+ivec3(x,y,z);if(b.y<0||b.y>=volumeSettings.y)continue;
