@@ -31,7 +31,16 @@ public sealed class CloudVolumeSelectionTests
         ownership.Update(true,1);Assert.True(ownership.Owns(CloudMode.Volumetric));
         config.LightingVolume.ViewMaximum=12;selection.Request(config);selection.Apply(()=>throw new Exception("View-only change retired ownership."));
         Assert.Equal(12,selection.Settings.Maximum);Assert.Equal(0,candidate.Disposals);
+        config.VolumeRenderer=CloudVolumeRendererKind.StoredVolumeCandidate;
+        config.StoredVolume.Detail=false;selection.Request(config);
+        Assert.Equal(CloudVolumeRendererKind.LightingVolumeCandidate,selection.Renderer);
+        selection.Apply(ownership.Dispose);Assert.Equal(1,candidate.Disposals);
+        ownership.Update(true,1);var stored=new Consumer();Assert.True(ownership.TryActivate(CloudMode.Volumetric,stored,true));
+        Assert.False(selection.StoredSettings.Detail);
+        config.StoredVolume.StopTransmittance=0;selection.Request(config);selection.Apply(()=>throw new Exception("Stored view-only change retired ownership."));
+        Assert.Equal(0,selection.StoredSettings.Stop);
         config.VolumeRenderer=CloudVolumeRendererKind.Existing;selection.Request(config);selection.Apply(ownership.Dispose);
+        Assert.Equal(1,stored.Disposals);
         Assert.Equal(1,candidate.Disposals);Assert.Equal(CloudVolumeRendererKind.Existing,selection.Renderer);
     }
     /// <summary>Candidate fields sanitize and serialize separately while current defaults and ConfigLib controls stay consistent.</summary>
@@ -47,9 +56,14 @@ public sealed class CloudVolumeSelectionTests
         Assert.Equal(new LightingVolumeViewSettings(96,10000,0,true,true,false),config.LightingVolume.Capture());
         var roundtrip=JsonConvert.DeserializeObject<CloudRenderingSettings>(JsonConvert.SerializeObject(config))!;
         Assert.Equal(config.LightingVolume.Capture(),roundtrip.LightingVolume.Capture());
+        Assert.Equal(VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default,config.StoredVolume.Capture());
+        config.StoredVolume.StopTransmittance=float.NaN;config.StoredVolume.Sanitize();Assert.Equal(.005f,config.StoredVolume.StopTransmittance);
         var document=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
         var controls=document["settings"]!.Children<JProperty>().SelectMany(p=>p.Value.Children<JProperty>()).Select(p=>p.Value).ToArray();
         Assert.Equal(0,controls.Single(p=>(string?)p["code"]=="Clouds.VolumeRenderer")["default"]!.Value<int>());
+        Assert.Contains(2,controls.Single(p=>(string?)p["code"]=="Clouds.VolumeRenderer")["values"]!.Values<int>());
+        foreach(string field in new[]{"Detail","SelfShadowing","Diffuse","StopTransmittance"})
+            Assert.Single(controls,p=>(string?)p["code"]=="Clouds.StoredVolume."+field);
         foreach(string field in new[]{"ViewMaximum","ViewBudgetDistance","StopTransmittance","Detail","SelfShadowing","Diffuse"})
             Assert.Single(controls,p=>(string?)p["code"]=="Clouds.LightingVolume."+field);
     }

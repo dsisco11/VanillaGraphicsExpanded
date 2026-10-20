@@ -277,25 +277,47 @@ Phase 6 verification
 Phase 7 - Draw and select the independent stored-volume candidate
   Depends on: Phase 6.
   Outcome: the user can select and inspect actual stored volumetric clouds in game.
-  [ ] Implement full-resolution view integration from published density, visibility and diffuse
+  [x] Implement full-resolution view integration from published density, visibility and diffuse
       textures only. Clip domain/material/particle/liquid intervals; use voxel-relative steps and
       actual clipped lengths with conservative empty skipping. No procedural fallback or old cap.
-  [ ] Evaluate current directional phase response plus diffuse once; apply atmosphere/local-medium
+  [x] Evaluate current directional phase response plus diffuse once; apply atmosphere/local-medium
       and scene encoding once. Preserve both PBR modes and six native OIT products.
-  [ ] Admit retained-energy bounds and independent camera/atmosphere calibration identities through
+  [x] Admit retained-energy bounds and independent camera/atmosphere calibration identities through
       established scene contracts. Do not reserve radiance from current sources alone.
-  [ ] Wire shader discovery/typed variants and one thin consumer into existing lifecycle/selection.
+  [x] Wire shader discovery/typed variants and one thin consumer into existing lifecycle/selection.
       Retire old consumers before activation; preserve Existing and lighting-only selections, native
       Off/Simple meanings, and recovery policy. No migration or hidden background candidate work.
-  [ ] Expose selected settings through existing configuration, with disabled paths compiled out.
+  [x] Expose selected settings through existing configuration, with disabled paths compiled out.
       Add focused diagnostics to the existing debug menu: density, region identity/age, fallback,
       pending/actual work and resident memory. Avoid ordinary-play synchronous readback.
-  [ ] Document exact in-game selection/reload instructions. Verify focused OIT/clipping, lifecycle,
+  [x] Document exact in-game selection/reload instructions. Verify focused OIT/clipping, lifecycle,
       publication/binding and compiled-path contracts; reuse passing storage/solver evidence.
-  [ ] Completion: independent consumer is usable in game, shader registration/configuration are covered,
+  [x] Completion: independent consumer is usable in game, shader registration/configuration are covered,
       and no screen-space temporal history or procedural view-density path is required. Appearance
       remains user acceptance, not established by these incremental checks.
 
+Phase 7 verification
+  Source mapping: stored view/DDA/clipping -> proposal / Rendering the published volume and Traversal
+    bounds; Q+D/medium/OIT/retained headroom/calibration -> Lighting, recurrence and encoding, Shared
+    rendering obligations, PBR.Clouds.md and PBR.Atmosphere.Publication.md; selection/lifecycle/compiled
+    controls/debug -> Ownership and integration, Initial controls and Rendering.Enablement.md.
+  Independent Volume view/consumer/solution use stored density and lighting, finite material-space
+    DDA and half-voxel spacing, independent material/particle/liquid clips, physical Q+D and one medium/
+    scene encoding. Full-resolution native OIT has no temporal history or procedural density fallback.
+    Pre-Opaque admission covers retained energy and the exact atmosphere snapshot; camera and atmosphere
+    calibrations remain independent. Replacement draws the old domain with its own material transform.
+  Renderer selection 2 and independent Clouds.StoredVolume controls preserve selections 0/1 and native
+    Off/Simple. Early-boundary retirement, reset/context/world cleanup, neutral bounded startup, compiled
+    disabled paths and developer-only diagnostics are delivered. Exact ConfigLib/recovery instructions
+    and current architecture/accounting are in PBR.Clouds.md / Stored-volume view and selection.
+  Second review and independent completion audit passed. Final cached Release build 37.75s, 0 errors
+    (185 existing warnings), all 524 production/609 fixture binaries reused. Four focused tests passed,
+    none skipped, 3s test execution: two actual GPU OIT/update-chain facts and two extended selection/
+    configuration facts. Existing solver/storage receipts remain applicable; no full matrix or package.
+  Receipts: artifacts/cloud-volume-view-fixture-build.log, artifacts/cloud-volume-view-tests.log,
+    artifacts/test-results/cloud-volume-view.trx. Focused checks corrected combined sampler declarations
+    and an undersized authored native-map fixture. No game action or approximation-quality gate.
+    Live appearance, measured GPU/copy/memory cost and canonical packaging remain later qualification.
 Phase 8 - Evaluate acceleration and update cost
   Depends on: Phase 7; Phase 1 initial acceleration decision.
   Outcome: a justified acceleration choice accounts for maintenance as well as traversal savings.

@@ -60,7 +60,7 @@ perception effects. Negative/nonfinite inputs are rejected. The finite native gr
 supported domain; no border stretching or invented weather extends it. Live consumers do not read
 worker `Tiles`, read native map texels back to the CPU or copy the map for their immediate draw.
 The independent stored-volume generation API described below retains candidate-owned descriptors
-and density; it has no selectable live consumer. Native `TextureCol` remains allocated/generated but is not a VGE
+and density; the stored-volume consumer uses these owned fields. Native `TextureCol` remains allocated/generated but is not a VGE
 physical-lighting input. Native owners alone dispose their resources.
 
 ## Cloud height summaries
@@ -512,7 +512,7 @@ linked checklist.
 ## Stored density-volume resources
 
 `PBR/Clouds/Volume/` owns an independent storage foundation for persistent cloud density and
-illumination. It is not registered as a selectable visible renderer. Its storage contract is
+illumination. `Clouds.VolumeRenderer=2` selects its independent full-resolution view. Its storage contract is
 specified in [the density-volume proposal](PBR.CloudVolume.Proposal.md).
 
 `CloudVolumeDomain` uses fixed 19.53125-unit horizontal cells, 64 vertical interior cells and
@@ -529,7 +529,8 @@ allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance
 128 bytes. Density operations use six 128-byte UBOs, a 32-byte validation/completion summary and
 12-byte indirect arguments. Lighting work uses two 208-byte UBOs and 24-byte indirect arguments.
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
-addition is 2052 bytes, leaving 1916 bytes reserved inside that allowance.
+addition is 2052 bytes. The view owns one 256-byte UBO across its variants, leaving 1660 bytes
+reserved inside that allowance; it allocates no private view targets or history.
 
 `CloudVolumeStorage` admits format/dispatch/device limits before allocation. Incoming fields
 initialize at most 4096 physical blocks per call. They contain zero density, unit direct visibility
@@ -555,7 +556,7 @@ callback writes the spare, and completion/certificate checks precede the texture
 Barriers cover image writes, texture sampling and integer metadata. Physical RGB is capped and
 quantized downward to representable half values during encoding/rescaling, retaining the declared
 radiance bound. The caller skips this operation when no diffuse work is selected. This storage
-foundation has separate direct/diffuse transport owners and no live view consumer.
+foundation has separate direct/diffuse transport owners and a stored-field view consumer.
 
 `CloudVolumeDensity` consumes a synchronous certified native-map borrow and generates density
 through private `cloud_volume/density` compute operations. It validates native extinction/heights,
@@ -637,7 +638,7 @@ to the solver, and total refresh latency remains a measurement concern.
 Solvers report successful channels through `Complete` against the unchanged selected batch.
 GPU failure bits suppress completion writes; a one-word status read verifies rejection without
 reading lists. Repeated completion or changed field/density certificates cannot advance stamps.
-Failures withdraw sampling until reset. No live view consumer is registered by this foundation.
+Failures withdraw sampling until reset; the view consumes only successful published fields.
 
 `CloudVolumeDirect` consumes the frozen work batch and authoritative stored density only. Each
 occupied node traces toward its relevant source through the retained coarse DDA to the finite
@@ -654,8 +655,7 @@ direct transmission; future consumers apply current illuminance and phase separa
 direct work creates no transport program and dispatches no integrals. Solar/lunar variants compile
 source selection independently and execute with image barriers between them, preserving companion
 channels without RG read-modify-write races. Reset/context/executable changes revoke the solver's
-certificates; storage retains ownership of all fields. Live drawing is not registered by this
-stored-volume foundation.
+certificates; storage retains ownership of all fields.
 
 `CloudVolumeDiffuse` refines at most 32 selected blocks after ordered direct completion. Every
 occupied node gathers eight normalized cube-corner rays, equally weighted, through stored density
@@ -665,7 +665,7 @@ or the explicit 400-metre transport closure. The incoming sum is
 `alpha=1-exp(-sigma*actualSegmentMetres)`, albedo .9, HG g=.6 and
 `Q=.9*sum(currentIlluminance*cachedTransmission*HG)`. The new isotropic source is .9 times the
 angular average. Environment enters once at the closure; outgoing directional first scattering
-remains a separate future view operation. Zero-density/guard nodes skip gathers and receive the
+remains a separate view operation. Zero-density/guard nodes skip gathers and receive the
 finite .9*Environment fallback. Alpha remains zero.
 
 A nonempty batch first copies the full published diffuse field to the existing spare, re-encoding
@@ -687,6 +687,58 @@ which advances its field revision. Successful updates request further refinement
 pending ages. Resetting the solver releases executables while field-owned envelopes persist;
 retiring the field retires its envelopes. Live appearance, copy cost and refresh latency remain
 unqualified.
+
+### Stored-volume view and selection
+
+In ConfigLib, set native cloud mode to **Volumetric**, then select **Volumetric renderer = 2
+(stored-volume)**. `0` retains the existing renderer and `1` retains the lighting-only candidate.
+The persisted equivalent is `Clouds.VolumeRenderer=2`, with controls under `Clouds.StoredVolume`:
+`Detail`, `SelfShadowing`, `Diffuse` (all true by default) and `StopTransmittance` (.005 by default).
+Apply ConfigLib changes normally; selection commits at the next Before preparation boundary.
+If editing the JSON outside ConfigLib, restart the client to load it. To recover a latched GPU or
+shader failure, switch **Volumetric renderer** to **0**, apply, then **2**, apply. The normal client shader-reload action also resets it.
+No migration or automatic promotion is involved. Native Off and Simple keep their meanings.
+
+`CloudStoredVolumeConsumer` uses the existing native consumer boundary at OIT .31. The previous
+consumer retires before the new one prepares; inactive candidates do no generation or lighting.
+Before Opaque, `CloudVolumeAdmission` retains source envelopes and admits Qcap+Dcap, aerial/local
+medium headroom and the 2048-operation float accumulation allowance. Draws require that admitted
+atmosphere snapshot, a valid atmosphere calibration identity, and the independent current camera /
+frozen photometric publication. Atmospheric and engine-light calibration generations need not be
+equal. Missing transient inputs omit the contribution. Initial density fill is bounded and neutral;
+replacement retains the old complete domain and its initialized lighting while new density fills.
+
+`CloudVolumeSolution` orders density/occupancy, direct and diffuse work once per eligible frame.
+`CloudVolumeCoordinates` converts the current camera/native placement into the published domain's
+material coordinates, including during replacement; native wind translation enters once. View
+settings retain density and lighting. Detail changes replace geometry; lighting feature changes
+revoke queue/executable certificates and request refresh while compatible density/source envelopes
+remain. Resize releases framebuffer metadata without clearing material-space history. Reload,
+selection release and world/context teardown retire all candidate resources.
+
+`CloudVolumeViewRenderer` draws one procedural full-resolution triangle through existing graphics
+pipelines into the six native Transparent attachments. It clips against finite stored coverage,
+material depth, particle visibility and liquid depth at mip zero. Coarse DDA retains traversal
+state and skips only certified empty support. Occupied intervals use half-voxel axis spacing,
+actual clipped metre lengths, hardware-filtered R16F density, RG16F transmission and scaled diffuse
+RGB. There is no native descriptor/noise lookup, low layer sample cap, jitter or screen-space history.
+Operation-limit failure discards the whole pixel prefix. Optional optical termination occurs only
+after a completed segment and compiles out when StopTransmittance is zero.
+
+The outgoing phase direction is sample-to-camera. Current directional first scattering and cached
+diffuse enter once; disabled self-shadowing uses unit transmission, and disabled diffuse uses
+.9*current Environment. Those user-disabled sampling paths compile out. After physical front-to-back
+integration, the shared affine atmosphere/local-medium treatment and frozen scene encoding apply
+once. Bucket transmissions use each interval's near depth; overall transmission, glow metadata and
+three weighted accumulations preserve the native OIT convention in both PBR selections.
+
+The existing **VGE debug visualizers** menu includes **Cloud Stored Volume** with stored density,
+region identity, completed-age and initialized-fallback overlays. Its panel reports dimensions,
+spacing, resident/replacement payload, density and lighting work/backlog, completed work, fallback
+blocks and diffuse copy bytes. Diagnostic metadata reads occur only while this view is active,
+at most once per second. Existing bounded generation/completion status reads remain separate
+algorithm costs. Full-resolution view cost, copy bandwidth, shape and lighting latency still
+require measured performance and user appearance review.
 
 ## Independent lighting-volume candidate
 

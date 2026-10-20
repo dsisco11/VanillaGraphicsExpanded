@@ -11,6 +11,8 @@ public sealed class CloudRenderingSettings
     [JsonProperty] public CloudVolumeRendererKind VolumeRenderer { get; set; }=CloudVolumeRendererKind.Existing;
     /// <summary>Owns candidate controls separately from existing quality.</summary>
     [JsonProperty] public LightingVolume.LightingVolumeSettings LightingVolume { get; set; }=new();
+    /// <summary>Owns stored-density candidate controls independently of other renderers.</summary>
+    [JsonProperty] public Volume.StoredVolumeSettings StoredVolume {get;set;}=new();
     /// <summary>Bounds complete-ray primary evaluations independently of native grid crossings.</summary>
     [JsonProperty] public int ViewRaySampleMax { get; set; } = 384;
     /// <summary>Retains a small bounded minimum on short positive-length primary spans.</summary>
@@ -44,6 +46,7 @@ public sealed class CloudRenderingSettings
     {
         if(!Enum.IsDefined(VolumeRenderer)) VolumeRenderer=CloudVolumeRendererKind.Existing;
         LightingVolume ??= new();LightingVolume.Sanitize();
+        StoredVolume ??=new();StoredVolume.Sanitize();
         if(TraceScale is not (CloudTraceScale.Half or CloudTraceScale.Quarter)) TraceScale=CloudTraceScale.Quarter;
         ViewRaySampleMax=Math.Clamp(ViewRaySampleMax,4,384);
         ViewRaySampleMin=Math.Clamp(ViewRaySampleMin,1,Math.Min(16,ViewRaySampleMax));

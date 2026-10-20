@@ -59,9 +59,9 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
     public void Dispose(){if(disposed)return;disposed=true;Reset();}
     #endregion
     #endregion
-    #region Private
+    #region Public API
     /// <summary>Admits transport capabilities and retains one stable executable per used structural operation.</summary>
-    private CloudVolumeDirectProgram Prepare(int operation)
+    internal CloudVolumeDirectProgram Prepare(int operation)
     {
         var caps=GpuSupport.Graphics;
         if(caps.MaxUniformBlockSize<128||caps.MaxComputeShaderStorageBlocks<2||caps.MaxShaderStorageBufferBindings<2||
@@ -74,6 +74,9 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
         if(executable[operation]!=0&&executable[operation]!=next)throw new InvalidOperationException("Direct executable changed; reset required.");
         executable[operation]=next;return p;
     }
+    #endregion
+    #region Private
+
     /// <summary>Binds only candidate-owned density, visibility, occupancy and existing queue scratch.</summary>
     private static void Bind(CloudVolumeDirectProgram p,CloudVolumeFields fields)
     {p.Density=fields.Density;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Direct=new(fields.Direct,TextureAccess.ReadWrite,Layered:true);}

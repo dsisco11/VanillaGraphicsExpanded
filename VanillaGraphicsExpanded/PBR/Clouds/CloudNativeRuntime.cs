@@ -106,8 +106,12 @@ internal sealed class CloudNativeRuntime : IDisposable
         });
         if (!worldReady || disposed || context == default || api.Settings.Int.Get("cloudRenderMode", 0) != 1) return;
         if (Ownership.Owns(CloudMode.Volumetric)) { volume?.Prepare(); return; }
-        ICloudVolumeConsumer candidate = selection.Renderer==CloudVolumeRendererKind.LightingVolumeCandidate
-            ? new LightingVolumeConsumer(api,this,()=>selection.Settings) : new CloudVolumeRenderer(api,this);
+        ICloudVolumeConsumer candidate = selection.Renderer switch
+        {
+            CloudVolumeRendererKind.LightingVolumeCandidate=>new LightingVolumeConsumer(api,this,()=>selection.Settings),
+            CloudVolumeRendererKind.StoredVolumeCandidate=>new Volume.CloudStoredVolumeConsumer(api,this,()=>selection.StoredSettings),
+            _=>new CloudVolumeRenderer(api,this)
+        };
         try
         {
             if (candidate.Prepare() && Ownership.TryActivate(CloudMode.Volumetric, candidate, true))
@@ -149,6 +153,10 @@ internal sealed class CloudNativeRuntime : IDisposable
     /// <summary>Exposes selected candidate diagnostics without making scene admission candidate-aware.</summary>
     internal static string VolumeDiagnosticText=>Active?.volume is LightingVolumeConsumer candidate
         ? candidate.DiagnosticText : "Lighting-volume candidate is not the admitted volumetric renderer.";
+
+    /// <summary>Describes the admitted stored-volume consumer independently of its selection request.</summary>
+    internal static string StoredVolumeDiagnosticText=>Active?.volume is Volume.CloudStoredVolumeConsumer candidate
+        ?candidate.DiagnosticText:"Stored-volume candidate is not the admitted volumetric renderer.";
 
     /// <summary>Removes VGE subscriptions and consumers; native callbacks automatically resume through their draw gates.</summary>
     public void Dispose()

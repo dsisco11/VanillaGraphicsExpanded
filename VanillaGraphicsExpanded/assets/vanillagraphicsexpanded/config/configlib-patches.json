@@ -3,6 +3,9 @@
   "file": "VanillaGraphicsExpanded.json",
   "settings": {
     "boolean": {
+      "STORED_DETAIL": { "code": "Clouds.StoredVolume.Detail", "clientSide": true, "name": "Clouds/StoredVolume/Detail", "ingui": "vanillagraphicsexpanded:config-stored-detail", "default": true, "weight": 25.81 },
+      "STORED_SHADOWS": { "code": "Clouds.StoredVolume.SelfShadowing", "clientSide": true, "name": "Clouds/StoredVolume/SelfShadowing", "ingui": "vanillagraphicsexpanded:config-stored-shadows", "default": true, "weight": 25.82 },
+      "STORED_DIFFUSE": { "code": "Clouds.StoredVolume.Diffuse", "clientSide": true, "name": "Clouds/StoredVolume/Diffuse", "ingui": "vanillagraphicsexpanded:config-stored-diffuse", "default": true, "weight": 25.83 },
       "CANDIDATE_DETAIL": { "code": "Clouds.LightingVolume.Detail", "clientSide": true, "name": "Clouds/LightingVolume/Detail", "ingui": "vanillagraphicsexpanded:config-candidate-detail", "default": true, "weight": 25.71 },
       "CANDIDATE_SHADOWS": { "code": "Clouds.LightingVolume.SelfShadowing", "clientSide": true, "name": "Clouds/LightingVolume/SelfShadowing", "ingui": "vanillagraphicsexpanded:config-candidate-shadows", "default": true, "weight": 25.72 },
       "CANDIDATE_DIFFUSE": { "code": "Clouds.LightingVolume.Diffuse", "clientSide": true, "name": "Clouds/LightingVolume/Diffuse", "ingui": "vanillagraphicsexpanded:config-candidate-diffuse", "default": true, "weight": 25.73 },
@@ -206,7 +209,7 @@
       }
     },
     "integer": {
-      "CLOUD_RENDERER": { "code": "Clouds.VolumeRenderer", "clientSide": true, "name": "Clouds/VolumeRenderer", "ingui": "vanillagraphicsexpanded:config-cloud-renderer", "default": 0, "values": [0,1], "weight": 25.69 },
+      "CLOUD_RENDERER": { "code": "Clouds.VolumeRenderer", "clientSide": true, "name": "Clouds/VolumeRenderer", "ingui": "vanillagraphicsexpanded:config-cloud-renderer", "default": 0, "values": [0,1,2], "weight": 25.69 },
       "CANDIDATE_SAMPLES": { "code": "Clouds.LightingVolume.ViewMaximum", "clientSide": true, "name": "Clouds/LightingVolume/ViewMaximum", "ingui": "vanillagraphicsexpanded:config-candidate-samples", "default": 96, "range": { "min": 4, "max": 96, "step": 1 }, "weight": 25.74 },
       "CLOUD_VIEW_SAMPLES": {
         "code": "Clouds.ViewRaySampleMax",
@@ -560,6 +563,7 @@
     },
     "float": {
       "CANDIDATE_DISTANCE": { "code": "Clouds.LightingVolume.ViewBudgetDistance", "clientSide": true, "name": "Clouds/LightingVolume/ViewBudgetDistance", "ingui": "vanillagraphicsexpanded:config-candidate-distance", "default": 10000, "range": { "min": 50, "max": 10000, "step": 50 }, "weight": 25.75 },
+      "STORED_STOP": { "code": "Clouds.StoredVolume.StopTransmittance", "clientSide": true, "name": "Clouds/StoredVolume/StopTransmittance", "ingui": "vanillagraphicsexpanded:config-stored-stop", "default": 0.005, "range": { "min": 0, "max": 0.005, "step": 0.001 }, "weight": 25.84 },
       "CANDIDATE_STOP": { "code": "Clouds.LightingVolume.StopTransmittance", "clientSide": true, "name": "Clouds/LightingVolume/StopTransmittance", "ingui": "vanillagraphicsexpanded:config-candidate-stop", "default": 0.005, "range": { "min": 0, "max": 0.005, "step": 0.001 }, "weight": 25.76 },
       "CLOUD_STOP_TRANSMITTANCE": {
         "code": "Clouds.StopTransmittance",

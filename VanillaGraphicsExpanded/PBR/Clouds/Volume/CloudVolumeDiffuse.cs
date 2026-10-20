@@ -68,9 +68,9 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
     public void Dispose(){if(disposed)return;disposed=true;Reset();}
     #endregion
     #endregion
-    #region Private
+    #region Public API
     /// <summary>Admits the gather shape and lazily creates only the selected compiled shadow path.</summary>
-    private CloudVolumeDiffuseProgram Prepare(bool shadows)
+    internal CloudVolumeDiffuseProgram Prepare(bool shadows)
     {
         var caps=GpuSupport.Graphics;
         if(caps.MaxUniformBlockSize<208||caps.MaxComputeTextureImageUnits<(shadows?3:2)||
@@ -84,6 +84,9 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
         if(executable[index]!=0&&executable[index]!=next)throw new InvalidOperationException("Diffuse executable changed; reset required.");
         executable[index]=next;return p;
     }
+    #endregion
+    #region Private
+
     /// <summary>Orders coherent sampled inputs and spare writes through the existing graphics boundary.</summary>
     private void Run(CloudVolumeDiffuseProgram p,CloudVolumeWorkBatch batch,Func<bool> current)
     {

@@ -107,10 +107,9 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     #endregion
     #endregion
 
-    #region Private
-    #region Program preparation and execution
+    #region Public API
     /// <summary>Admits fixed work-list capabilities and rejects executable changes while retaining queue history.</summary>
-    private void Prepare()
+    internal void Prepare()
     {
         var caps=GpuSupport.Graphics;
         if(caps.MaxUniformBlockSize<208||caps.MaxComputeShaderStorageBlocks<3||caps.MaxShaderStorageBufferBindings<3)
@@ -124,6 +123,10 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
         }
         if(commands is null){commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{0,1,1,0,1,1});}
     }
+    #endregion
+    #region Private
+    #region Program preparation and execution
+
     /// <summary>Binds exact field metadata, existing scratch and initialized indirect ranges.</summary>
     private void Bind(int op,CloudVolumeFields fields)
     {programs[op]!.Regions=fields.Regions;programs[op]!.Scratch=fields.Scratch;programs[op]!.Commands=new(commands,0,24);}
