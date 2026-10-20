@@ -130,6 +130,7 @@ void main()
     }
     occupancy[id]=occupied?1u:0u;
     #elif VGE_VOLUME_DENSITY_OPERATION==5
+    if(id==0u)scratch[31]=summary[0]!=0u?8u:0u;
     if(id>=uint(volumeStamps.z)||summary[0]!=0u)return;
     uint base=id*16u,flags=regions[base];
     if((flags&256u)!=0u){flags&=~(1u|256u);regions[base+2u]=uint(volumeStamps.y);regions[base+4u]=uint(volumeStamps.x);}

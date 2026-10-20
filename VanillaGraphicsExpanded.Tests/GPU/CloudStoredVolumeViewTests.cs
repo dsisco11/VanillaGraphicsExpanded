@@ -52,6 +52,12 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture):LumOnS
             var first=solution.Drawable!;
             scene.Draw(CloudVolumeViewSettings.Default with{Detail=false},solution:solution);
             Assert.True(solution.Drawable!.Revision>first.Revision);Assert.Same(first.Density,solution.Drawable.Density);
+            scene.QueueUpdate(solution,CloudVolumeViewSettings.Default with{Detail=false},retireAndResubmit:true);
+            var coherent=solution.Storage.Published.Diffuse;var encoding=solution.Storage.Published.Encoding;
+            solution.ReconfigureLighting();
+            Assert.False(solution.UpdatePending);Assert.Null(solution.Drawable);
+            Assert.Same(coherent,solution.Storage.Published.Diffuse);Assert.Equal(encoding,solution.Storage.Published.Encoding);
+            scene.Draw(CloudVolumeViewSettings.Default with{Detail=false},solution:solution);
             scene.QueueUpdate(solution,CloudVolumeViewSettings.Default with{Detail=false});
             var cap=solution.Admission.Encoding.Cap;
             solution.Admission.Observe(scene.Atmosphere with{Solar=Vector3.Zero,Lunar=Vector3.Zero,Environment=Vector3.Zero});

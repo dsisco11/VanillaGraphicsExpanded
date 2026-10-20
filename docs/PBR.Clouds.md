@@ -528,10 +528,10 @@ state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB pa
 allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
 128 bytes. Density operations use five independent 128-byte UBOs plus one shared 128-byte selector
 UBO, a 32-byte validation/completion summary and 12-byte indirect arguments. Lighting work uses six
-208-byte UBOs and 48-byte indirect arguments.
+208-byte UBOs and 60-byte indirect arguments.
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
-addition is 2908 bytes. The view owns one 256-byte UBO across its variants and block publication
-owns a 16-byte UBO, leaving 788 bytes reserved inside that allowance. There are no private view
+addition is 2920 bytes. The view owns one 256-byte UBO across its variants and block publication
+owns a 16-byte UBO, leaving 776 bytes reserved inside that allowance. There are no private view
 targets or screen-space history. A separate drawable snapshot owns R16F density, RG16F direct,
 RGBA16F diffuse and exact region/occupancy buffers: 249,952,000 bytes (238.373 MiB) at maximum extent.
 A raw RGBA32F native observation snapshot adds at most 640,000 bytes. Maximum working plus drawable
@@ -598,7 +598,7 @@ cyclic order; the priority suffix emits the exact selected set in physical-index
 
 Temporary words 32..37 hold the frozen cursor, quota and radix state. At maximum extent the
 281 by 256-bin histograms occupy 32768..104703; chunk counts occupy 245760..246040 and
-246272..246552. Density selection and lighting selection execute in separate, fence-ordered steps,
+246272..246552. Density selection and lighting selection execute in separate, barrier-ordered passes,
 so their overlapping histogram/summary area is reused safely. No candidate-sized allocation is
 added. Selector variants share one immutable-on-submission UBO through the existing uniform
 publication allocator. GPU indirect arguments submit selected jobs without CPU list readback.
@@ -630,7 +630,7 @@ shortened at block/domain endpoints. One hardware trilinear fetch evaluates each
 Operation caps are 2048 and 1024 respectively. Lack of progress or cap overflow fails the ray;
 consumers must reject an incomplete prefix rather than treating it as completed transport.
 
-`CloudVolumeWork` selects separate direct and diffuse lists only after density publication. Blocks
+`CloudVolumeWork` selects separate direct and diffuse lists after ordered density/occupancy writes. Blocks
 with certified zero density and trilinear support do not consume lighting jobs or backlog counts.
 Their pending revisions remain uncompleted and become eligible when density makes them occupied.
 It reserves half each 64/32-job budget for persistent round-robin service, then chooses incompatible,
@@ -643,11 +643,11 @@ direct and diffuse dispatch; no CPU readback selects work.
 Lighting scratch header words 16/17 hold selected counts, 18/19 fair cursors and 22/23 backlog.
 Words 29/30 hold solar/lunar counts. The common selected block-source list retains global selection
 and completion semantics; solar and lunar region lists at 16512..16575 and 16576..16639 partition it
-without changing the combined 64-job budget. The four three-uint indirect records hold the common
-direct count, diffuse dispatch, solar dispatch and lunar dispatch. Each source launches only its
+without changing the combined 64-job budget. The five three-uint indirect records hold the common
+direct count, diffuse dispatch, solar dispatch, lunar dispatch and conditional diffuse copy. Each source launches only its
 own groups; inactive sources are skipped and empty source counts launch zero invocations.
-Word 25 is the solver arithmetic-failure channel mask, 26 completion status and 27 deferred diffuse
-dependency demand. Direct jobs occupy 16384..16447 and diffuse jobs 16448..16479. Bounded
+Word 25 is the accumulated failure mask (bits 1/2/4 for lighting, 8 for chained density), 26 completion status and 27 deferred diffuse
+dependency demand. Word 31 carries density failure across scratch reuse. Direct jobs occupy 16384..16447 and diffuse jobs 16448..16479. Bounded
 selection summaries begin at words 32768 and 196608. These ranges do not overlap density work. Density demand in word 6
 coalesces until the lighting selector consumes it; density and lighting use separate revision
 namespaces. Selection preserves completed stamps and pending ages, and never certifies work as fresh.
@@ -678,7 +678,7 @@ no full per-job array or extra GPU allocation is needed. The source-domain exten
 reduction dispatch sizes; no CPU job readback or queue selection is introduced.
 
 Solvers report successful channels through `Complete` against the unchanged selected batch.
-GPU failure bits suppress completion writes; a one-word status read verifies rejection without
+GPU failure bits suppress combined completion writes; a final status/count read verifies rejection without
 reading lists. Repeated completion or changed field/density certificates cannot advance stamps.
 Failures withdraw sampling until reset; the view consumes only successful published fields.
 
@@ -718,8 +718,9 @@ A nonempty batch first copies the full published diffuse field to the existing s
 untouched values if scale grows. The gather samples only the coherent old texture, including one
 hardware trilinear fetch each for density, old diffuse and optional cached direct visibility at
 an occupied midpoint. Self-shadowing selects actual compiled variants; disabling it removes the
-direct sampler. Disabled diffuse creates no solver and does no copy. A one-word selected-count
-read skips copy/scale/swap for an empty list, without reading jobs. `LastCopyBytes` charges the
+direct sampler. Disabled diffuse creates no solver and does no copy. GPU-selected indirect arguments
+skip copy/gather groups for an empty list. Final fenced status/count inspection accepts only a
+successful nonempty destination; empty work retains the old scale/texture. `LastCopyBytes` charges the
 complete source/destination copy separately from `LastJobs`; maximum copy traffic remains
 280,077,600 bytes per batch. These counts do not establish GPU execution time.
 
@@ -755,11 +756,18 @@ equal. Missing transient inputs omit the contribution. Initial density fill is b
 replacement retains the old complete domain and its initialized lighting while new density fills.
 
 `CloudVolumeSolution` coordinates `CloudVolumeUpdates` and an isolated `CloudVolumePublication`.
-Before drawing, zero-timeout fence polls advance completed density/occupancy, direct and diffuse
-steps. Status/count buffers are mapped only after their producing commands have completed. Timeout
-retains the previous drawable publication and submits no additional update. After drawing, at most
-one bounded update step is submitted; later native observations and lighting changes coalesce behind
-the frozen pending step. A completed lighting batch copies changed whole blocks into the drawable
+Before drawing, zero-timeout fence polls retire a completed chain or a CPU domain-admission step.
+Native validation retains its envelope fence, and initial/replacement density completion retains a
+summary fence before storage admission. For an admitted active domain, density generation, occupancy
+repair, selection, direct tracing, conditional diffuse copy/gather and combined completion submit
+after the draw as one chain with explicit image/sampler/storage/indirect barriers. Shared scratch
+is reused only after preceding GPU consumers. No intermediate lighting fence or CPU diffuse-count
+decision separates these passes. Final fenced lighting status/count and density-summary reads
+validate the result before texture/encoding/bounds and drawable publication. Failed density suppresses
+lighting completion; any solver failure prevents publication. Empty diffuse lists never swap an
+uncopied spare. Timeout retains the previous drawable and submits no additional update; later weather
+coalesces behind the frozen chain. A retiring publication can submit its next eligible bounded chain
+after the draw in that same callback. A completed lighting batch copies changed whole blocks into the drawable
 snapshot through typed `cloud_volume/publish` compute authority and barriers. Density/direct/diffuse
 dirty bits are 4096/8192/16384 in working region flags. Metadata and occupancy are copied coherently
 for all blocks; no CPU reads job lists. First publication, changed domains or replaced working fields

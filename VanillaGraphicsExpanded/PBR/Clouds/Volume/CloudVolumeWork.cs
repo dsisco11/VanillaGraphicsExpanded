@@ -17,18 +17,18 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     private GpuIndirectBuffer? commands;
     private CloudVolumeWorkBatch? batch;
     private uint revision;
-    private int completed;
+    private int completed,pendingCompletion;
     private bool failed,disposed;
     internal bool Ready {get;private set;}
     internal string? Failure {get;private set;}
-    /// <summary>Reports whether every relevant direct channel finished before a diffuse gather can read it.</summary>
-    internal bool DirectCompleted=>batch is not null&&(completed&batch.ActiveSources)==batch.ActiveSources;
+    /// <summary>Reports ordered direct submission; GPU barriers, rather than a CPU wait, precede diffuse reads.</summary>
+    internal bool DirectOrdered=>batch is not null&&(completed&batch.ActiveSources)==batch.ActiveSources;
 
     #region Public API
     #region Selection and completion
     /// <summary>Admits source changes and emits bounded GPU work without modifying actual-completion stamps.</summary>
     internal bool Select(CloudVolumeStorage storage,AtmosphereLighting lighting,uint frame,ReadOnlySpan<Vector4> frustum,
-        Func<bool> current,bool directEnabled=true,bool diffuseEnabled=true)
+        Func<bool> current,bool directEnabled=true,bool diffuseEnabled=true,bool densityPending=false)
     {
         ObjectDisposedException.ThrowIf(disposed,this);
         if(failed||!storage.Ready||!current()){Ready=false;return false;}
@@ -54,10 +54,10 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
             }
             dirty|=newly;
             frustum.CopyTo(planes);
-            SelectLists(fields,frame,active,dirty,newly,diffuseEnabled,current);
+            SelectLists(fields,frame,active,dirty,newly,diffuseEnabled,current,densityPending);
             batch=new(fields,lighting,frame,revision,fields.Revision,fields.DensityState.Revision,
                 fields.DensityState.CompletedFrame,active,newly,directEnabled,diffuseEnabled,commands!);
-            completed=0;Ready=true;return true;
+            completed=pendingCompletion=0;Ready=true;return true;
         }
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {failed=true;Failure=error.Message;storage.Withdraw();return false;}
@@ -81,21 +81,28 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
         try
         {
             Check(current);if(!succeeded())throw new InvalidOperationException("Cloud lighting work did not complete successfully.");
-            var fields=selected.Fields;
-            programs[5]!.Capture(fields.Domain,frame,selected.Revision,selected.ActiveSources,0,selected.NewlyActive,selected.Diffuse,channels,planes);
-            Bind(5,fields);Run(5);Check(current);
-            if(!deferStatus)VerifyStatus(fields,channels);
+            if(deferStatus)pendingCompletion|=channels;
+            else {CommitChannels(selected,channels,current);VerifyStatus(selected.Fields,channels);}
             completed|=channels;return true;
         }
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {failed=true;Ready=false;Failure=error.Message;storage.Withdraw();return false;}
     }
-    /// <summary>Validates accumulated arithmetic failures after the caller's GPU completion fence has signaled.</summary>
-    internal void VerifyStatus(CloudVolumeFields fields,int channels=7)
+    /// <summary>Submits one successful-only GPU completion after all dependent transport passes, without CPU inspection.</summary>
+    internal void SubmitCompletion(CloudVolumeStorage storage,Func<bool> current)
+    {
+        if(!TryBatch(storage,out var selected))throw new InvalidOperationException("Cloud completion batch changed.");
+        if(pendingCompletion==0)return;
+        CommitChannels(selected!,pendingCompletion,current);pendingCompletion=0;
+    }
+    /// <summary>Reads accumulated failures and the diffuse count together after the final producer fence has signaled.</summary>
+    internal int VerifyStatus(CloudVolumeFields fields,int channels=7)
     {
         Check(()=>true);
-        using var status=fields.Scratch.MapScope<uint>(25*4,1,MapBufferAccessMask.MapReadBit);
-        if((status.Span[0]&(uint)channels)!=0)throw new InvalidOperationException("Cloud lighting arithmetic failed.");
+        using var status=fields.Scratch.MapScope<uint>(17*4,9,MapBufferAccessMask.MapReadBit);
+        if((status.Span[8]&((uint)channels|8u))!=0)throw new InvalidOperationException("Cloud density or lighting arithmetic failed.");
+        if(status.Span[0]>32)throw new InvalidOperationException("Diffuse list exceeds its admitted budget.");
+        return (int)status.Span[0];
     }
     #endregion
 
@@ -103,7 +110,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     /// <summary>Revokes queued certificates and programs while leaving field ownership with storage.</summary>
     internal void Reset()
     {
-        Ready=failed=false;Failure=null;batch=null;revision=0;completed=0;
+        Ready=failed=false;Failure=null;batch=null;revision=0;completed=pendingCompletion=0;
         Action[] release=new Action[7];
         for(int i=0;i<6;i++){int slot=i;release[i]=()=>{programs[slot]?.Dispose();programs[slot]=null;};}
         release[6]=()=>{commands?.Dispose();commands=null;};RenderingCleanup.Run(release);
@@ -129,14 +136,14 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
             if(batch is not null&&executable[i]!=next)throw new InvalidOperationException("Cloud work executable changed; reset required.");
             executable[i]=next;
         }
-        if(commands is null){commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{0,1,1,0,1,1,0,1,1,0,1,1});}
+        if(commands is null){commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{0,1,1,0,1,1,0,1,1,0,1,1,0,1,1});}
     }
     #endregion
     #region Private
     #region Program preparation and execution
 
     /// <summary>Classifies in parallel and reduces disjoint top-K summaries without full-domain serial scans.</summary>
-    private void SelectLists(CloudVolumeFields fields,uint frame,int active,int dirty,int newly,bool diffuse,Func<bool> current)
+    private void SelectLists(CloudVolumeFields fields,uint frame,int active,int dirty,int newly,bool diffuse,Func<bool> current,bool densityPending)
     {
         var d=fields.Domain;
         int direct=active==0?0:(d.Blocks*2+255)/256,indirect=diffuse?(d.Blocks+255)/256:0;
@@ -146,7 +153,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
             (CloudVolumeDomain.ScratchBytes-4096)/4)throw new NotSupportedException("Cloud work summaries exceed fixed scratch.");
         void Submit(int op,int count,int source=0,int destination=0,int dg=0,int ig=0)
         {
-            programs[op]!.Capture(d,frame,revision,active,dirty,newly,diffuse,0,planes,source,destination,dg,ig);
+            programs[op]!.Capture(d,frame,revision,active,dirty,newly,diffuse,0,planes,source,destination,dg,ig,densityPending);
             Bind(op,fields);Run(op,count);
         }
         Check(current);Submit(0,1);Submit(1,(d.Blocks+255)/256);
@@ -159,9 +166,17 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
         }
         Submit(4,1,source,0,direct,indirect);Check(current);
     }
+    /// <summary>Commits frozen channels only after all earlier producer writes and accumulated failure bits are visible.</summary>
+    private void CommitChannels(CloudVolumeWorkBatch selected,int channels,Func<bool> current)
+    {
+        Check(current);
+        programs[5]!.Capture(selected.Fields.Domain,selected.Frame,selected.Revision,selected.ActiveSources,0,
+            selected.NewlyActive,selected.Diffuse,channels,planes);
+        Bind(5,selected.Fields);Run(5);Check(current);
+    }
     /// <summary>Binds exact field metadata, existing scratch and initialized indirect ranges.</summary>
     private void Bind(int op,CloudVolumeFields fields)
-    {programs[op]!.Regions=fields.Regions;programs[op]!.Scratch=fields.Scratch;programs[op]!.Commands=new(commands,0,48);programs[op]!.Occupancy=fields.Occupancy;}
+    {programs[op]!.Regions=fields.Regions;programs[op]!.Scratch=fields.Scratch;programs[op]!.Commands=new(commands,0,60);programs[op]!.Occupancy=fields.Occupancy;}
     /// <summary>Submits typed work through resource authority and closes metadata/command visibility.</summary>
     private void Run(int op,int groups=1)
     {

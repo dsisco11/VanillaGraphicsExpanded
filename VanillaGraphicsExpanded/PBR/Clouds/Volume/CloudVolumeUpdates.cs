@@ -11,7 +11,8 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeDensity density,CloudVolumeWork work,
     CloudVolumeDirect direct,CloudVolumeDiffuse diffuse,CloudVolumePublication publication):IDisposable
 {
-    private enum Step { Idle,Density,Lighting,Direct,DiffuseReady,Diffuse }
+    /// <summary>Separates CPU domain admission from the single dependent lighting chain.</summary>
+    private enum Step { Idle,Density,Lighting,Pending }
     private Step step;
     private GpuFence? fence;
     private CloudVolumeWorkBatch? batch;
@@ -34,9 +35,12 @@ internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeD
         if(status==WaitSyncStatus.WaitFailed)throw new InvalidOperationException("Cloud lighting fence failed.");
         fence.Dispose();fence=null;
         var selected=batch??throw new InvalidOperationException("Cloud completion batch missing.");
-        work.VerifyStatus(selected.Fields);
-        if(step==Step.Direct){step=Step.DiffuseReady;return;}
-        if(step!=Step.Diffuse)throw new InvalidOperationException("Cloud completion state invalid.");
+        if(step!=Step.Pending)throw new InvalidOperationException("Cloud completion state invalid.");
+        direct.VerifyCompletion();
+        if(!diffuse.Complete(storage,work,()=>true))throw new InvalidOperationException(diffuse.Failure);
+        // Lighting used the ordered GPU density writes, retaining the CPU batch certificate
+        // until its solvers finished. Accept density's summary only after that certificate retires.
+        if(density.Chained)density.CompletePending(storage);
         publication.Publish(selected.Fields,selected.NewlyActive,storage.StorageBytes);
         batch=null;step=Step.Idle;
     }
@@ -45,25 +49,21 @@ internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeD
         CloudVolumeViewSettings settings,CloudVolumeAdmission admission,Func<bool> current)
     {
         if(fence is not null||density.Busy)return;
-        switch(step)
+        if(step is Step.Idle or Step.Density)
         {
-            case Step.Idle:
-            case Step.Density:
-                density.Submit(storage,input,map,admission.Encoding,.9f*lighting.Environment,current);step=Step.Density;
-                break;
-            case Step.Lighting:
-                CloudVolumeCoordinates.Frustum(camera,CloudVolumeCoordinates.Origin(storage.Published.Domain,input),planes);
-                if(!work.Select(storage,lighting,input.Frame,planes,current,settings.SelfShadowing,settings.Diffuse)||
-                    !work.TryBatch(storage,out batch)||!direct.Update(storage,work,current,deferStatus:true))
-                    throw new InvalidOperationException(work.Failure??direct.Failure??"Cloud direct submission failed.");
-                step=Step.Direct;context=RenderContextRegistry.Current();fence=GpuFence.Insert();
-                break;
-            case Step.DiffuseReady:
-                if(!diffuse.Update(storage,work,current,deferStatus:true))
-                    throw new InvalidOperationException(diffuse.Failure??"Cloud diffuse submission failed.");
-                step=Step.Diffuse;context=RenderContextRegistry.Current();fence=GpuFence.Insert();
-                break;
+            density.Submit(storage,input,map,admission.Encoding,.9f*lighting.Environment,current,chainRetained:true);
+            step=Step.Density;
+            if(!density.Chained)return;
+            step=Step.Lighting;
         }
+        if(step!=Step.Lighting)return;
+        CloudVolumeCoordinates.Frustum(camera,CloudVolumeCoordinates.Origin(storage.Published.Domain,input),planes);
+        if(!work.Select(storage,lighting,input.Frame,planes,current,settings.SelfShadowing,settings.Diffuse,density.Chained)||
+            !work.TryBatch(storage,out batch)||!direct.Update(storage,work,current,deferStatus:true)||
+            !diffuse.Update(storage,work,current,deferStatus:true))
+            throw new InvalidOperationException(work.Failure??direct.Failure??diffuse.Failure??"Cloud lighting submission failed.");
+        work.SubmitCompletion(storage,current);
+        step=Step.Pending;context=RenderContextRegistry.Current();fence=GpuFence.Insert();
     }
     /// <summary>Revokes queued publication and retires fences without waiting for the GPU.</summary>
     public void Dispose(){fence?.Dispose();fence=null;batch=null;step=Step.Idle;}

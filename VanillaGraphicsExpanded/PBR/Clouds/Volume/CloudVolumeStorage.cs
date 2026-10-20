@@ -105,7 +105,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
 
     /// <summary>Copies and refines a disjoint diffuse destination, publishing only a barrier-complete texture/scale pair.</summary>
     internal bool UpdateDiffuse(CloudVolumeEncoding target, Func<bool> current, Action<CloudVolumeFields> refine,
-        Func<bool>? complete = null)
+        Func<bool>? complete = null, GpuIndirectBuffer? commands = null, bool deferPublication = false)
     {
         ObjectDisposedException.ThrowIf(disposed, this);
         var fields = Published;
@@ -117,14 +117,30 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
             RequireCurrent(current);
             copy!.Capture(fields.Domain, fields.Encoding, target); copy.Source = fields.Diffuse;
             copy.Destination = new(fields.DiffuseSpare, TextureAccess.WriteOnly, Layered: true);
-            Submit(copy, () => copy.Dispatch((fields.Domain.Size + 3) / 4, 17, (fields.Domain.Size + 3) / 4));
+            // The lighting selector emits zero groups for an empty diffuse list. No CPU count decision is required.
+            Submit(copy, () =>
+            {
+                if (commands is null) copy.Dispatch((fields.Domain.Size + 3) / 4, 17, (fields.Domain.Size + 3) / 4);
+                else copy.DispatchIndirect(commands, 48);
+            });
             refine(fields); Barrier();
             RequireCurrent(current);
             if (complete is not null && !complete()) throw new InvalidOperationException("Cloud diffuse completion rejected.");
-            fields.PublishDiffuse(target); return true;
+            if (!deferPublication) fields.PublishDiffuse(target);
+            return true;
         }
         catch (Exception error) when (!EngineBoundaryRestoreException.IsRestorationFailure(error))
         { available = false; return false; }
+    }
+
+    /// <summary>Commits a staged nonempty diffuse destination only after its final fence and status validation.</summary>
+    internal void CommitDiffuse(CloudVolumeFields fields, CloudVolumeEncoding target, Func<bool> current)
+    {
+        RequireCurrent(current);
+        if (!Ready || !ReferenceEquals(Published, fields) || !target.IsValid ||
+            Vector3.Max(target.Cap, fields.Encoding.Cap) != target.Cap || target.Scale < fields.Encoding.Scale)
+            throw new InvalidOperationException("Staged cloud diffuse publication lost its certificate.");
+        fields.PublishDiffuse(target);
     }
 
     /// <summary>Revokes retained fields and executable state at explicit lifecycle boundaries.</summary>
@@ -200,7 +216,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
     /// <summary>Completes image, sampler, metadata and upload visibility between ordered passes.</summary>
     private static void Barrier() => GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit |
         MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit |
-        MemoryBarrierFlags.BufferUpdateBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit);
+        MemoryBarrierFlags.BufferUpdateBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.CommandBarrierBit);
     #endregion
 
     #region Admission and cleanup

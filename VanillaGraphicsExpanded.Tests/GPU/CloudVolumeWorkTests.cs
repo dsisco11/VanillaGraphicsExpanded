@@ -69,11 +69,13 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
         Assert.True(work.Select(storage,lighting,11,planes,()=>true),work.Failure);
         Assert.All(Read(fields.Scratch,CloudVolumeWork.DirectListWord,(int)Read(fields.Scratch,16,1)[0]),job=>Assert.Equal(0u,job%2));
         lighting=lighting with{Lunar=Vector3.One};
-        Assert.True(work.Select(storage,lighting,12,planes,()=>true),work.Failure);
+        // Carry density failure across ordered scratch reuse; finite substituted density
+        // must not allow later lighting consumers to certify failed geometry as successful.
+        using(var densityFailure=fields.Scratch.MapScope<uint>(31*4,1,MapBufferAccessMask.MapWriteBit))densityFailure.Span[0]=8;
+        Assert.True(work.Select(storage,lighting,12,planes,()=>true,densityPending:true),work.Failure);
         Assert.True(work.TryBatch(storage,out var batch));Assert.Equal(2,batch!.NewlyActive);
         Assert.Equal(0u,Read(fields.Regions,8,1)[0]);
         uint stamp=Read(fields.Regions,10,1)[0];
-        using(var failure=fields.Scratch.MapScope<uint>(25*4,1,MapBufferAccessMask.MapWriteBit))failure.Span[0]=1;
         Assert.False(work.Complete(storage,12,1,()=>true,()=>true));
         Assert.False(storage.Ready);Assert.Equal(stamp,Read(fields.Regions,10,1)[0]);
     }

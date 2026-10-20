@@ -101,11 +101,21 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         if(succeeds)Assert.True(drawn,renderer.Failure);else{Assert.False(drawn);Assert.NotNull(renderer.Failure);}
         return output.Images.Select(texture=>texture.ReadPixels()).ToArray();
     }
-    /// <summary>Leaves one real update pending so lifecycle checks exercise cancellation with a retained drawable snapshot.</summary>
-    internal void QueueUpdate(CloudVolumeSolution solution,CloudVolumeViewSettings settings)
+    /// <summary>Leaves a real update pending, optionally retiring and resubmitting in the same simulated render callback.</summary>
+    internal void QueueUpdate(CloudVolumeSolution solution,CloudVolumeViewSettings settings,bool retireAndResubmit=false)
     {
         var observation=input with{Frame=++updateFrame};solution.Poll(observation);
         var retained=solution.Drawable;solution.Submit(observation,map,Atmosphere,camera,settings,()=>true);
+        Assert.Null(solution.Failure);Assert.True(solution.UpdatePending);Assert.Same(retained,solution.Drawable);
+        if(!retireAndResubmit)return;
+        using var completed=GpuFence.Insert();
+        Assert.Contains(completed.Wait(TimeSpan.FromSeconds(5)),new[]{WaitSyncStatus.AlreadySignaled,WaitSyncStatus.ConditionSatisfied});
+        observation=observation with{Frame=++updateFrame};solution.Poll(observation);
+        Assert.Null(solution.Failure);Assert.False(solution.UpdatePending);
+        Assert.True(solution.Drawable!.Revision>retained!.Revision);
+        retained=solution.Drawable;
+        // This is the ordinary Poll/draw/Submit ordering: retiring a chain must not insert an idle callback.
+        solution.Submit(observation,map,Atmosphere,camera,settings,()=>true);
         Assert.Null(solution.Failure);Assert.True(solution.UpdatePending);Assert.Same(retained,solution.Drawable);
     }
     /// <summary>Releases acquisitions in reverse order through existing cleanup semantics.</summary>

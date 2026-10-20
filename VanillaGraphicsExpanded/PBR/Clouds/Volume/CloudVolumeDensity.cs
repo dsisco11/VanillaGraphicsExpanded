@@ -25,6 +25,8 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     private uint generatedFrame;
     private bool validating,deferred;
     internal bool Busy=>fence is not null;
+    /// <summary>Identifies retained-domain generation ordered into the caller's final lighting fence.</summary>
+    internal bool Chained=>generated is not null&&fence is null;
     internal bool UpdateCompleted {get;private set;}
     internal bool Ready { get; private set; }
     internal string? Failure { get; private set; }
@@ -33,9 +35,9 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     #region Preparation and generation
     /// <summary>Submits one bounded density step, freezing native input before deferred validation.</summary>
     internal void Submit(CloudVolumeStorage storage,CloudMapInput input,GpuTexture map,CloudVolumeEncoding encoding,
-        Vector3 fallback,Func<bool> current)
+        Vector3 fallback,Func<bool> current,bool chainRetained=false)
     {
-        if(Busy)throw new InvalidOperationException("Density work is already pending.");
+        if(Busy||Chained)throw new InvalidOperationException("Density work is already pending.");
         if(failed)throw new InvalidOperationException(Failure);
         if(!current()||!input.Storage.IsSupported||map.TextureId!=input.Storage.Map||map.Width!=input.Storage.Width||
             map.Height!=input.Storage.Width||map.InternalFormat!=PixelInternalFormat.Rgba32f||!input.Placement.IsFinite)
@@ -55,7 +57,10 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
             if(validatedBounds is not null)selected=selected with{Storage=selected.Storage with{Map=snapshot.TextureId}};
             Update(storage,selected,snapshot,encoding,fallback,current);
             if(Failure is not null)throw new InvalidOperationException(Failure);
-            fence=GpuFence.Insert();
+            // New-domain initialization needs its summary before CPU storage admission. Retained
+            // fields already have an admitted domain and can feed lighting through GPU barriers.
+            if(!chainRetained||generated is null||!storage.Ready||!ReferenceEquals(generated,storage.Published))
+                fence=GpuFence.Insert();
         }
         finally{deferred=false;}
     }
@@ -68,6 +73,12 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
         if(status==WaitSyncStatus.WaitFailed)throw new InvalidOperationException("Cloud density fence failed.");
         fence.Dispose();fence=null;Check(()=>true);
         if(validating){validatedBounds=ReadBounds();validating=false;return true;}
+        CompletePending(storage);return true;
+    }
+    /// <summary>Accepts generation status after its own admission fence or the caller's final chained fence.</summary>
+    internal void CompletePending(CloudVolumeStorage storage)
+    {
+        Check(()=>true);
         if(generated is {} fields)
         {
             ReadGeneration(fields,generatedFrame);
@@ -75,7 +86,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
                 storage.PublishPending(()=>fields.DensityState.InitialComplete,()=>true);
             generated=null;
         }
-        Ready=storage.Ready;UpdateCompleted=true;return true;
+        Ready=storage.Ready;UpdateCompleted=true;
     }
     /// <summary>Admits structural executables and bounded parameter/status/indirect storage within the fixed allowance.</summary>
     internal void Prepare()
@@ -239,7 +250,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     {
         var state=fields.DensityState;bool initial=!state.InitialComplete;
         int groups=(fields.Domain.Blocks+255)/256;
-        // Histograms overlap lighting summaries only after the density completion fence; count ranges remain disjoint.
+        // Density consumers finish before lighting reuses these summaries through command-stream barriers.
         if(32768+groups*256>245760||246272+groups>(CloudVolumeDomain.ScratchBytes-4096)/4)
             throw new NotSupportedException("Density selection exceeds fixed scratch.");
         void Stage(int operation,int count,int shift=0)

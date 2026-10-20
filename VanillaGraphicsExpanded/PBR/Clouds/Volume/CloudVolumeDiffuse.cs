@@ -11,6 +11,8 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
     private readonly CloudVolumeDiffuseProgram?[] programs=new CloudVolumeDiffuseProgram?[2];
     private readonly ulong[] executable=new ulong[2];
     private CloudVolumeWorkBatch? finished;
+    private CloudVolumeWorkBatch? pending;
+    private CloudVolumeLightingBounds? pendingBounds;
     private bool failed,disposed;
     internal string? Failure {get;private set;}
     internal int LastJobs {get;private set;}
@@ -25,7 +27,7 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
         if(failed||!storage.Ready||!current())return false;
         // A successful swap advances field revision, intentionally retiring the old queue certificate.
         if(ReferenceEquals(finished,selected)&&finished is not null&&ReferenceEquals(storage.Published,finished.Fields)&&
-            finished.Fields.Revision==(ulong)finished.FieldRevision+1&&
+            (finished.Fields.Revision==finished.FieldRevision||finished.Fields.Revision==(ulong)finished.FieldRevision+1)&&
             finished.Fields.DensityState.Revision==finished.DensityRevision&&
             finished.Fields.DensityState.CompletedFrame==finished.DensityFrame)return true;
         if(!valid)return false;
@@ -34,11 +36,9 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
         {
             var batch=selected!;var fields=batch.Fields;
             if(!batch.Diffuse){finished=batch;return true;}
-            if(!work.DirectCompleted)throw new InvalidOperationException("Diffuse work requires ordered direct completion.");
-            // One scalar count avoids a full-field copy for an empty GPU-selected list; no jobs are read back or CPU-selected.
-            using(var count=fields.Scratch.MapScope<uint>(17*4,1,MapBufferAccessMask.MapReadBit))LastJobs=checked((int)count.Span[0]);
-            if(LastJobs is <0 or >32)throw new InvalidOperationException("Diffuse list exceeds its admitted budget.");
-            if(LastJobs==0){finished=batch;return true;}
+            if(ReferenceEquals(pending,batch))return true;
+            if(pending is not null)throw new InvalidOperationException("A diffuse publication is already pending.");
+            if(!work.DirectOrdered)throw new InvalidOperationException("Diffuse work requires ordered direct submission.");
             var bounds=CloudVolumeLightingBounds.Admit(batch.Lighting,fields.LightingBounds,fields.Encoding);
             var p=Prepare(batch.Direct);p.Capture(batch,bounds.Encoding);
             p.Density=fields.Density;p.Direct=batch.Direct?fields.Direct:null;p.Source=fields.Diffuse;
@@ -46,11 +46,35 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
             p.Destination=new(fields.DiffuseSpare,TextureAccess.WriteOnly,Layered:true);
             if(!storage.UpdateDiffuse(bounds.Encoding,current,_=>
                 {
-                    LastCopyBytes=fields.Domain.CopyBytes;
                     Run(p,batch,current);
-                },()=>work.Complete(storage,batch.Frame,4,()=>work.TryBatch(storage,out var live)&&ReferenceEquals(live,batch),current,deferStatus)))
+                },()=>work.Complete(storage,batch.Frame,4,()=>work.TryBatch(storage,out var live)&&ReferenceEquals(live,batch),current,deferStatus),
+                batch.Commands,deferPublication:true))
                 throw new InvalidOperationException(work.Failure??"Diffuse destination publication failed.");
-            fields.LightingBounds=bounds;finished=batch;return true;
+            pending=batch;pendingBounds=bounds;
+            return deferStatus||Complete(storage,work,current);
+        }
+        catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
+        {failed=true;Failure=error.Message;storage.Withdraw();return false;}
+    }
+    /// <summary>Reads final status/count and swaps only a successful nonempty staged destination.</summary>
+    internal bool Complete(CloudVolumeStorage storage,CloudVolumeWork work,Func<bool> current)
+    {
+        try
+        {
+            if(!work.TryBatch(storage,out var selected)||!current())throw new InvalidOperationException("Diffuse completion batch changed.");
+            int jobs=work.VerifyStatus(selected!.Fields);
+            if(pending is null)return true;
+            if(!ReferenceEquals(selected,pending))throw new InvalidOperationException("Staged diffuse certificate changed.");
+            Check(programs[pending.Direct?1:0]!,current);
+            var bounds=pendingBounds!;LastJobs=jobs;
+            // Zero indirect copy/gather groups leave the spare untouched. In particular, never
+            // publish that spare or a larger encoding for an empty selection.
+            if(jobs!=0)
+            {
+                storage.CommitDiffuse(pending.Fields,bounds.Encoding,current);
+                pending.Fields.LightingBounds=bounds;LastCopyBytes=pending.Fields.Domain.CopyBytes;
+            }
+            finished=pending;pending=null;pendingBounds=null;return true;
         }
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {failed=true;Failure=error.Message;storage.Withdraw();return false;}
@@ -60,7 +84,7 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
     /// <summary>Releases solver executables without discarding bounds owned by retained field publications.</summary>
     internal void Reset()
     {
-        failed=false;Failure=null;finished=null;LastJobs=0;LastCopyBytes=0;
+        failed=false;Failure=null;finished=pending=null;pendingBounds=null;LastJobs=0;LastCopyBytes=0;
         RenderingCleanup.Run(()=>{programs[0]?.Dispose();programs[0]=null;executable[0]=0;},
             ()=>{programs[1]?.Dispose();programs[1]=null;executable[1]=0;});
     }

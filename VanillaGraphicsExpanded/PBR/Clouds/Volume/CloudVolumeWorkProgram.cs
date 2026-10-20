@@ -27,7 +27,8 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
     }
     /// <summary>Stages one immutable list identity and region bounds; completion uses the same snapshot.</summary>
     internal void Capture(CloudVolumeDomain domain,uint frame,uint revision,int active,int dirty,int newlyActive,
-        bool diffuse,int completed,ReadOnlySpan<Vector4> planes,int source=0,int destination=0,int directGroups=0,int diffuseGroups=0)
+        bool diffuse,int completed,ReadOnlySpan<Vector4> planes,int source=0,int destination=0,int directGroups=0,int diffuseGroups=0,
+        bool densityPending=false)
     {
         RequireInputMutation();Span<byte> data=stackalloc byte[208];data.Clear();
         UboPacking.WriteIVec4(data,0,domain.BlocksX,domain.BlocksY,domain.BlocksX,domain.Blocks);
@@ -35,7 +36,7 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
         UboPacking.WriteIVec4(data,32,domain.SlotX,domain.SlotZ,domain.Size,completed);
         UboPacking.WriteVec4(data,48,(float)(domain.FirstX*CloudVolumeDomain.HorizontalCell-domain.AnchorX),
             (float)(domain.Bottom-domain.VerticalCell),(float)(domain.FirstZ*CloudVolumeDomain.HorizontalCell-domain.AnchorZ),0);
-        UboPacking.WriteVec4(data,64,(float)CloudVolumeDomain.HorizontalCell,domain.VerticalCell,(float)CloudVolumeDomain.HorizontalCell,0);
+        UboPacking.WriteVec4(data,64,(float)CloudVolumeDomain.HorizontalCell,domain.VerticalCell,(float)CloudVolumeDomain.HorizontalCell,densityPending?1:0);
         UboPacking.WriteIVec4(data,80,newlyActive,diffuse?1:0,1,CloudVolumeDiffuseProgram.DefaultSlices);
         UboPacking.WriteIVec4(data,96,source,destination,directGroups,diffuseGroups);
         for(int i=0;i<6;i++)UboPacking.WriteVec4(data,112+16*i,planes[i].X,planes[i].Y,planes[i].Z,planes[i].W);

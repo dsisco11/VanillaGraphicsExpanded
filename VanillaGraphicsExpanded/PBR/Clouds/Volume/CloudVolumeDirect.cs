@@ -45,6 +45,11 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
         {failed=true;Failure=error.Message;storage.Withdraw();return false;}
     }
+    /// <summary>Rechecks retained executable identities before accepting a later fenced publication.</summary>
+    internal void VerifyCompletion()
+    {
+        foreach(var program in programs)if(program is not null)Check(program,()=>true);
+    }
     #endregion
     #region Lifetime
     /// <summary>Releases executables at explicit recovery boundaries without owning shared fields.</summary>

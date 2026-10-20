@@ -42,7 +42,11 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShad
         using var result=GpuShaderStorageBuffer.Create();result.UploadData(new Vector4[2]);
         var selectedPoint=Point(d,3,2,3);var untouchedPoint=Point(d,9,64,9);
         Assert.True(work.Select(storage,light,2,planes,()=>true,directEnabled:false));
-        Assert.True(solver.Update(storage,work,()=>true),solver.Failure);
+        Assert.True(solver.Update(storage,work,()=>true,deferStatus:true),solver.Failure);
+        Assert.Same(unchanged,fields.Diffuse);Assert.Equal(initial,fields.Encoding);Assert.Null(fields.LightingBounds);
+        work.SubmitCompletion(storage,()=>true);
+        using(var fence=GpuFence.Insert())Assert.NotEqual(WaitSyncStatus.WaitFailed,fence.Wait(TimeSpan.FromSeconds(5)));
+        Assert.True(solver.Complete(storage,work,()=>true),solver.Failure);
         Assert.Equal(32,solver.LastJobs);Assert.Equal(d.CopyBytes,solver.LastCopyBytes);
         Assert.NotSame(unchanged,fields.Diffuse);Assert.True(fields.Encoding.Scale>initial.Scale);
         // For Q=0 and D_read=Environment=C, each ray is C*(1-T)+T*C. The declared update is exactly a*C.
@@ -61,11 +65,22 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShad
         Assert.Equal(value,Query(probe,fields,result,selectedPoint)); // Admission leaves old compatible energy intact.
         Assert.True(solver.Update(storage,work,()=>true),solver.Failure);
         Assert.Equal(environment,fields.LightingBounds!.Environment);Assert.True(fields.Encoding.Cap.X>=18);
+        fields.Density.UploadDataImmediate(new float[d.Voxels],0,0,0,d.Size,66,d.Size);
+        fields.Occupancy.UploadData(new uint[d.Blocks]);
         Assert.True(work.Select(storage,light with{Environment=new Vector3(1000)},4,planes,()=>true,directEnabled:false));
-        using(var count=fields.Scratch.MapScope<uint>(17*4,1,MapBufferAccessMask.MapWriteBit))count.Span[0]=0;
         coherent=fields.Diffuse;var encoding=fields.Encoding;
-        Assert.True(solver.Update(storage,work,()=>true));Assert.Equal(0,solver.LastCopyBytes);
+        Assert.True(work.TryBatch(storage,out var empty));
+        using(var args=empty!.Commands.MapScope<uint>(48,3,MapBufferAccessMask.MapReadBit))Assert.Equal(0u,args.Span[0]);
+        // Poison the spare so publishing an uninitialized/uncopied empty destination is observable.
+        fields.DiffuseSpare.UploadDataImmediate(Enumerable.Repeat(float.NaN,d.Voxels*4).ToArray(),0,0,0,d.Size,66,d.Size);
+        Assert.True(solver.Update(storage,work,()=>true,deferStatus:true));
+        work.SubmitCompletion(storage,()=>true);
+        using(var fence=GpuFence.Insert())Assert.NotEqual(WaitSyncStatus.WaitFailed,fence.Wait(TimeSpan.FromSeconds(5)));
+        Assert.True(solver.Complete(storage,work,()=>true));Assert.Equal(0,solver.LastCopyBytes);
         Assert.Same(coherent,fields.Diffuse);Assert.Equal(encoding,fields.Encoding);
+        Assert.True(solver.Update(storage,work,()=>true));Assert.Same(coherent,fields.Diffuse);
+        fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
+        fields.Occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
         // Exercise the actual compiled cached-shadow path after real ordered direct completion.
         light=light with{Solar=Vector3.One,Lunar=Vector3.One,Moon=-Vector3.UnitX};
         using var direct=new CloudVolumeDirect(op=>CloudVolumeDirectProgram.Create(Programs.Api,op));
@@ -74,11 +89,14 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShad
         Assert.True(solver.Update(storage,work,()=>true),solver.Failure);
         Assert.True(fields.LightingBounds.DirectCap.X>0);
         Assert.True(work.Select(storage,light,6,planes,()=>true));
-        Assert.True(direct.Update(storage,work,()=>true),direct.Failure);
         coherent=fields.Diffuse;encoding=fields.Encoding;uint revision=fields.Revision;
         var bounds=fields.LightingBounds;var stamps=Completed(fields);
+        Assert.True(direct.Update(storage,work,()=>true,deferStatus:true),direct.Failure);
         Array.Fill(density,float.NaN);fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
-        Assert.False(solver.Update(storage,work,()=>true));Assert.False(storage.Ready);
+        Assert.True(solver.Update(storage,work,()=>true,deferStatus:true));
+        work.SubmitCompletion(storage,()=>true);
+        using(var fence=GpuFence.Insert())Assert.NotEqual(WaitSyncStatus.WaitFailed,fence.Wait(TimeSpan.FromSeconds(5)));
+        Assert.False(solver.Complete(storage,work,()=>true));Assert.False(storage.Ready);
         Assert.Same(coherent,fields.Diffuse);Assert.Equal(encoding,fields.Encoding);Assert.Equal(revision,fields.Revision);
         Assert.Same(bounds,fields.LightingBounds);Assert.Equal(stamps,Completed(fields));
     }
@@ -102,7 +120,10 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShad
     private static uint[] Completed(CloudVolumeFields fields)
     {
         using var read=fields.Regions.MapScope<uint>(0,fields.Domain.Blocks*16,MapBufferAccessMask.MapReadBit);
-        var values=new uint[fields.Domain.Blocks];for(int i=0;i<values.Length;i++)values[i]=read.Span[i*16+15];return values;
+        var values=new uint[fields.Domain.Blocks*3];
+        for(int i=0;i<fields.Domain.Blocks;i++)
+        {values[i*3]=read.Span[i*16+10];values[i*3+1]=read.Span[i*16+11];values[i*3+2]=read.Span[i*16+15];}
+        return values;
     }
     #endregion
 }

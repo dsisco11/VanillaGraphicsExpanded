@@ -157,6 +157,12 @@ void Emit(int kind,int groups)
     }
     scratch[16+kind]=uint(count);scratch[22+kind]=backlog;
     commands[kind*3]=uint(count);commands[kind*3+1]=kind==0?1u:uint(workSettings.w);commands[kind*3+2]=1u;
+    if(kind==1)
+    {
+        // A coherent full-field copy is needed only when at least one block will be refined.
+        uint width=uint((workSlots.z+3)/4);
+        commands[12]=count!=0?width:0u;commands[13]=17u;commands[14]=width;
+    }
     if(kind==0)
     {
         uint solar=0u,lunar=0u;
@@ -178,7 +184,8 @@ void main()
     #if VGE_VOLUME_WORK_OPERATION==0
     if(id!=0u)return;
     int dirty=workStamps.w;if(scratch[6]!=0u)dirty|=7;if(scratch[27]!=0u)dirty|=4;
-    scratch[28]=uint(dirty);scratch[6]=0u;scratch[27]=0u;scratch[25]=0u;scratch[26]=0u;
+    scratch[28]=uint(dirty);scratch[6]=0u;scratch[27]=0u;
+    scratch[25]=workCell.w!=0? scratch[31]:0u;scratch[26]=0u;
     #elif VGE_VOLUME_WORK_OPERATION==1
     if(id>=uint(workExtent.w))return;
     int dirty=int(scratch[28]),b=int(id)*16;uint flags=regions[b]&~(512u|1024u|2048u);
@@ -200,7 +207,9 @@ void main()
     #else
     if(id!=0u)return;
     uint mask=uint(workSlots.w);
-    scratch[26]=scratch[25]&mask;if(scratch[26]!=0u)return;
+    // A chained batch commits all channels together after every solver. A density failure
+    // must reject lighting stamps too, even if a substituted zero density made those rays finite.
+    scratch[26]=scratch[25];if(scratch[26]!=0u)return;
     if((mask&3u)!=0u)for(uint i=0u;i<scratch[16];i++)
     {
         int job=int(scratch[DirectJobs+int(i)]),r=job/2,s=job%2,b=r*16;
