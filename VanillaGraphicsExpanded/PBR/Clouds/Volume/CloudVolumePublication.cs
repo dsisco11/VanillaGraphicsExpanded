@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -6,30 +7,53 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Owns an isolated drawable snapshot, updated only from fenced and validated solver results.</summary>
-internal sealed class CloudVolumePublication(Func<CloudVolumePublishProgram> createProgram):IDisposable
+internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudVolumePublishProgram> createProgram):IDisposable
 {
+    private PackedUniformBuffer? inputs;
+    private readonly CloudVolumePublishProgram?[] programs=new CloudVolumePublishProgram?[3];
+    private GpuIndirectBuffer? commands;
     private GpuResourceCollection? resources;
     private DynamicTexture3D? density,direct,diffuse;
     private GpuShaderStorageBuffer? regions,occupancy;
-    private CloudVolumePublishProgram? program;
     private CloudVolumeFields? source;
     internal CloudVolumeViewFields? Published {get;private set;}
     internal long Bytes=>Published is {} p?Payload(p.Domain):0;
+    /// <summary>Exposes GPU-produced counts for deferred diagnostics without reading them during publication.</summary>
+    internal GpuIndirectBuffer Arguments=>commands??throw new InvalidOperationException("Cloud publication is not prepared.");
+    /// <summary>Reports exceptional channel copies separately from the compact dirty-block list.</summary>
+    internal int FullChannels {get;private set;}
     #region Public API
     /// <summary>Counts all drawable images and metadata separately from working/replacement storage.</summary>
     internal static long Payload(CloudVolumeDomain domain)=>checked(14L*domain.Voxels+68L*domain.Blocks);
     /// <summary>Admits the typed publication executable before candidate activation.</summary>
     internal void Prepare()
     {
-        program??=createProgram();
-        if(!program.EnsureReady())throw new InvalidOperationException(program.PreparationLog);
-        if(GpuSupport.Graphics.MaxComputeShaderStorageBlocks<4||GpuSupport.Graphics.MaxShaderStorageBufferBindings<4||
-            GpuSupport.Graphics.MaxComputeTextureImageUnits<3)throw new NotSupportedException("Cloud publication bindings unavailable.");
+        var caps=GpuSupport.Graphics;
+        if(caps.MaxComputeShaderStorageBlocks<6||caps.MaxShaderStorageBufferBindings<6||caps.MaxComputeTextureImageUnits<3||
+            caps.MaxComputeWorkGroupInvocations<256||caps.MaxComputeWorkGroupSize.Length<3||caps.MaxComputeWorkGroupCount.Length<3||
+            caps.MaxComputeWorkGroupSize[0]<256||
+            caps.MaxComputeWorkGroupCount[0]<281||caps.MaxComputeWorkGroupCount[1]<1123||caps.MaxComputeWorkGroupCount[2]<65)
+            throw new NotSupportedException("Cloud publication bindings unavailable.");
+        var shared=inputs??=new PackedUniformBuffer(16);
+        for(int i=0;i<programs.Length;i++)
+        {
+            programs[i]??=createProgram(i,shared);
+            if(!programs[i]!.EnsureReady())throw new InvalidOperationException(programs[i]!.PreparationLog);
+        }
+        if(commands is null)
+        {
+            commands=GpuIndirectBuffer.Create(debugName:"Cloud.Volume.Publication.Arguments");
+            commands.UploadData(new uint[4]);
+        }
     }
     /// <summary>Copies changed blocks after completion, using full channels only for new domains, activation or encoding changes.</summary>
     internal void Publish(CloudVolumeFields fields,int newlyActive,long workingBytes)
     {
         Prepare();var d=fields.Domain;
+        // Selection summaries have retired behind the update fence. Reuse only this bounded range,
+        // preserving density/light cursors, status and retained diffuse repair history elsewhere.
+        if(CloudVolumeWork.SummaryA+d.Blocks>CloudVolumeWork.SummaryB)
+            throw new NotSupportedException("Cloud publication list exceeds reusable scratch.");
         if(workingBytes+Payload(d)+640000>CloudVolumeDomain.PeakLimit)throw new NotSupportedException("Cloud publication exceeds peak storage allowance.");
         int full=Published is null||!ReferenceEquals(source,fields)||Published.Domain!=d?7:0;
         if(newlyActive!=0)full|=2;
@@ -45,26 +69,48 @@ internal sealed class CloudVolumePublication(Func<CloudVolumePublishProgram> cre
             catch{ResetImages();throw;}
             full=7;
         }
-        program!.Capture(d,full);program.Density=fields.Density;program.Direct=fields.Direct;program.Diffuse=fields.Diffuse;
-        program.TargetDensity=new(density,TextureAccess.WriteOnly,Layered:true);
-        program.TargetDirect=new(direct,TextureAccess.WriteOnly,Layered:true);
-        program.TargetDiffuse=new(diffuse,TextureAccess.WriteOnly,Layered:true);
-        program.Regions=fields.Regions;program.Occupancy=fields.Occupancy;program.TargetRegions=regions;program.TargetOccupancy=occupancy;
-        var bindings=program.ProgramLayout.BinaryInterface?.PreparedBindings??throw new InvalidOperationException("Cloud publication bindings unavailable.");
-        if(!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Cloud.Volume.Publish"),EngineBoundaryResources.From(bindings),_=>
-            {Barrier();program.Dispatch(d.BlocksX,d.BlocksY,d.BlocksX);Barrier();}))
+        programs[0]!.Capture(d,full);
+        var boundaryResources=new EngineBoundaryResources();
+        foreach(var program in programs)
+        {
+            program!.Density=fields.Density;program.Direct=fields.Direct;program.Diffuse=fields.Diffuse;
+            program.TargetDensity=new(density,TextureAccess.WriteOnly,Layered:true);
+            program.TargetDirect=new(direct,TextureAccess.WriteOnly,Layered:true);
+            program.TargetDiffuse=new(diffuse,TextureAccess.WriteOnly,Layered:true);
+            program.Regions=fields.Regions;program.Occupancy=fields.Occupancy;program.TargetRegions=regions;program.TargetOccupancy=occupancy;
+            program.Scratch=fields.Scratch;program.Commands=new(commands!,0,16);
+            var bindings=program.ProgramLayout.BinaryInterface?.PreparedBindings??throw new InvalidOperationException("Cloud publication bindings unavailable.");
+            boundaryResources=boundaryResources.Union(EngineBoundaryResources.From(bindings));
+        }
+        if(!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Cloud.Volume.Publish"),boundaryResources,_=>
+            {
+                Barrier();programs[0]!.Dispatch(1);Barrier();
+                programs[1]!.Dispatch((d.Blocks+255)/256);Barrier();
+                if(full!=0)programs[2]!.Dispatch(d.BlocksX,d.BlocksY,d.BlocksX);
+                else programs[2]!.DispatchIndirect(commands!);
+                Barrier();
+            }))
             throw new InvalidOperationException("Cloud publication boundary rejected.");
         GlDebug.ThrowIfErrors("Cloud volume publication");
         Published=new(d,fields.Encoding,fields.LightingBounds,checked((Published?.Revision??0)+1),density!,direct!,diffuse!,regions!,occupancy!);
         source=fields;
+        FullChannels=full;
     }
     /// <summary>Withdraws drawable bindings and retires owned GPU state without waiting on the CPU.</summary>
-    public void Dispose()=>RenderingCleanup.Run(ResetImages,()=>{program?.Dispose();program=null;});
+    public void Dispose()
+    {
+        // Lighting reconfiguration reuses this owner after retiring its current publication.
+        // Detach every executable before cleanup so a later Prepare gets a fresh shared record.
+        var retained=programs.ToArray();Array.Clear(programs);
+        RenderingCleanup.Run(ResetImages,()=>RenderingCleanup.Run(retained.Select(p=>(Action)(()=>p?.Dispose())).ToArray()),
+            ()=>{commands?.Dispose();commands=null;},()=>{inputs?.Dispose();inputs=null;});
+    }
     #endregion
     #region Private
     /// <summary>Orders prior drawable reads before overwriting images and exposes completed copies to subsequent draws.</summary>
     private static void Barrier()=>GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|
-        MemoryBarrierFlags.TextureFetchBarrierBit|MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
+        MemoryBarrierFlags.TextureFetchBarrierBit|MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit|
+        MemoryBarrierFlags.TextureUpdateBarrierBit|MemoryBarrierFlags.CommandBarrierBit);
     /// <summary>Allocates hardware-filtered volume storage matching solver addressing.</summary>
     private DynamicTexture3D Volume(CloudVolumeDomain d,PixelInternalFormat format)
     {

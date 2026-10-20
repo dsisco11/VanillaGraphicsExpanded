@@ -40,5 +40,11 @@ internal interface ICloudVolumePublishBindings
     /// <summary>Writes isolated drawable occupancy.</summary>
     [ShaderBinding("PublishedOccupancy",ShaderBindingKind.StorageBlock,3,ShaderStageKind.Compute)]
     GpuShaderStorageBuffer? TargetOccupancy {set;}
+    /// <summary>Reuses retired selection summaries for a bounded unique dirty-block list.</summary>
+    [ShaderBinding("PublishScratch",ShaderBindingKind.StorageBlock,4,ShaderStageKind.Compute)]
+    GpuShaderStorageBuffer? Scratch {set;}
+    /// <summary>Produces dispatch XYZ plus the exact list count without a CPU readback.</summary>
+    [ShaderBinding("PublishCommands",ShaderBindingKind.StorageBlock,5,ShaderStageKind.Compute)]
+    GpuStorageBufferBinding Commands {set;}
     #endregion
 }

@@ -75,7 +75,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
             output.WriteLine($"Matched four-dispatch submission ({(batched?"batched":"standalone")}): boundaries={(submission.Boundaries-boundaries)/4}, barriers={(submission.Barriers-barriers)/4}, image/indexed binds={(StateCache.Current.ResourceSlotBindCount-binds)/4.0}, texture binds={(StateCache.Current.TextureBindCount-textures)/4.0} per sample; program dispatch scopes unchanged.");
         }
         var dirty=new uint[domain.Blocks*16];foreach(int r in regions)dirty[r*16]=8192|16384;
-        using var publication=new CloudVolumePublication(()=>CloudVolumePublishProgram.Create(Programs.Api));publication.Publish(fields,0,domain.Bytes);
+        using var publication=new CloudVolumePublication((op,shared)=>CloudVolumePublishProgram.Create(Programs.Api,op,shared));publication.Publish(fields,0,domain.Bytes);
         Measure("Dirty publication (32 direct/diffuse blocks)",()=>publication.Publish(fields,0,domain.Bytes),()=>fields.Regions.UploadData(dirty));
         Measure("Combined transport, coherent copy and dirty publication",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);Barrier();copy.Dispatch(domain.BlocksX,domain.BlocksY,domain.BlocksX);Barrier();diffuse.DispatchIndirect(commands,12);Barrier();publication.Publish(fields,0,domain.Bytes);},()=>fields.Regions.UploadData(dirty));
         copy.Capture(domain,fields.Encoding,fields.Encoding,repair:true);

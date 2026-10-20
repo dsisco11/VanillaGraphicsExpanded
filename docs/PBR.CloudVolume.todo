@@ -937,21 +937,77 @@ Phase 7.8 implementation and review
 Phase 7.9 - Publish changed volume blocks without a full-domain image dispatch
   Depends on: Phases 7.2, 7.6 and 7.7.
   Outcome: ordinary drawable image publication scales with changed blocks rather than domain size.
-  [ ] Use event6941 as baseline: full-channel mask0 still dispatches65x17x65 groups of256 lanes,
+  [x] Use event6941 as baseline: full-channel mask0 still dispatches65x17x65 groups of256 lanes,
       or18387200 invocations. Distinguish dirty image copies from metadata that must remain coherent.
-  [ ] Build bounded unique dirty-block work and indirect image-copy arguments through existing GPU
+  [x] Build bounded unique dirty-block work and indirect image-copy arguments through existing GPU
       abstractions. Reuse producer lists/flags where safe; account for compaction, barriers, storage,
       overflow handling and total cost rather than adding an unmeasured full-domain preparation pass.
-  [ ] Update required metadata separately with appropriately sized work or explicit deltas. Preserve
+  [x] Update required metadata separately with appropriately sized work or explicit deltas. Preserve
       density/direct/diffuse channel dirtiness, occupancy, ages, revisions and debug metadata even
       where no texel changed. Clear dirty state only after its required publication is submitted.
-  [ ] Retain correct full-channel publication for initialization, domain/recenter, activation and
+  [x] Retain correct full-channel publication for initialization, domain/recenter, activation and
       encoding changes. Preserve fenced validation, drawable isolation and failed-batch behavior.
-  [ ] Use subagents for focused incremental builds and existing publication/lifecycle checks only;
+  [x] Use subagents for focused incremental builds and existing publication/lifecycle checks only;
       measure total compaction/copy/metadata cost and bytes for sparse and required full publication.
       No full matrix, packaging or approximation thresholds; reuse unaffected receipts.
-  [ ] Completion: ordinary publication work is bounded by actual changes where beneficial, full-copy
+  [x] Completion: ordinary publication work is bounded by actual changes where beneficial, full-copy
       cases remain correct, and measured benefit is reported against the approximately0.11ms baseline.
+
+Phase 7.9 implementation and review
+  Traceability: captured ordinary dispatch -> artifacts/StoredCloudLatest/findings.md,event6941;
+    list capacity/allowance -> proposal / Layout and memory limits, Metadata, budgets and source
+    changes; ordering/safety/full masks -> Generation, initialization and geometry publication,
+    Nonblocking updates and drawable publication. Current architecture -> PBR.Clouds.md / Stored
+    density-volume resources, Stored-volume view and selection. Shared lifecycle/physical identities
+    -> proposal / Shared rendering obligations, Rendering.Enablement.md / Render boundaries and
+    resource lifetime, PBR.Atmosphere.Publication.md / Publication contract. Implementation/evidence
+    -> CloudVolumePublication/PublishProgram/bindings/publish.csh and existing publication/view/
+    storage/diffuse fixtures. Dependencies7.2/7.6/7.7 retain their fenced ordering and scratch contracts.
+  Implemented3compiled operations under one existing engine boundary: initialize16-byteXYZ/count,
+    copy coherent16-word records plus occupancy with one invocation per block while appending unique
+    dirty IDs, then dispatch image copying indirectly. The metadata pass is already required; no
+    separate full-domain compaction scan is added. No-list publication emits zero image groups.
+    Copy flags clear only after valid lanes submit their writes; short edge lanes reach both barriers.
+    Full masks retain original first/domain/working-owner/activation/encoding semantics and copy any
+    other dirty channels as well. Required full masks need no list and use the original3Dgroupgrid.
+  SummaryAwords32768..104592 cover maximum71825dirtyIDs, below SummaryB196608. Existing fence status
+    consumers retire before this range is reused; following update commands cannot overwrite it before
+    ordered copying. Persistent5/18/19,repair38/39 and list16640..16671 remain intact. Argument columns
+    at most64 and rows at most1123 avoid a71825-wide indirect dispatch; padded groups exit uniformly.
+    CPU capability checks admit281metadata groups,1123rows and65full-grid depth groups. Existing
+    storage/command/image/texture barriers close each producer; no CPU count read or new fence.
+    Shared publicationUBO remains16bytes across3variants; args add16bytes inside the1MiBallowance,
+    leaving764reserved. No new list buffer/volume or change to payload ceilings, sampling or settings.
+  Work counts at maximum extent with32dirtyblocks: image groups71825->32; total invocation count
+    18387200->80384 including256initialization and71936metadata lanes. Metadata-only total72192lanes
+    with zero image groups. Dirty32all-channel read/write remains229376bytes; required full copy
+    remains490135800bytes. Nominal all-block metadata input/output9768200bytes remains necessary,
+    plus bounded list/argument traffic. No texture-byte reduction is attributed to avoiding idle lanes.
+  Root second review checked bounded uniqueness, command visibility, padded/partial lanes, full-mask
+    mixed channels, unchanged metadata, scratch sharing, failure gating and ownership cleanup. The
+    existing lifecycle check caught an introduced terminal-disposal guard; corrected owner reset
+    disposes/nulls variants, arguments and shared inputs, allowing lighting reconfiguration to prepare
+    fresh resources as required. Failed solvers still prevent publication through unchanged Poll gates.
+  Final canonical cached Release31.89s,0errors/192existingwarnings;564production+649fixture variants
+    reused, zero compiler invocations. All6affected existing facts passed8.0263s: publication, stored
+    view3, storage and diffuse. Extended the existing publication fact for metadata-only/zero args,
+    dirty single/multiple rows, partial corner, maximum71825list, activation/encoding/domain/new-owner
+    full copies and persistent scratch preservation. No new test classes/facts, quality thresholds,
+    full matrix, package or game action. Receipts: artifacts/StoredCloudLatest/phase79-final-build.log,
+    phase79-final-tests.log and phase79-final.trx. Initial5/6receipt is superseded by the passing rerun.
+  Matched maximum515x66x515 owner.Publish,1warmup+3samples per case: baseline/current GPU medians
+    dirty32blocks.0932/.0399ms, metadata-only.0911/.1065ms, required full-domain change.2970/.2949ms.
+    Current CPU medians.1617/.2362/.1405ms versus baseline.6292/.9703/.8188ms. Metadata-only timing
+    regressed in this run despite zero image groups; retain that cost rather than claiming every case
+    improves. Full-copy cost is essentially flat. All3operations, metadata and required barriers are
+    inside current timing; allocation/initialization/uploads/domain changes and test waits are outside.
+    GPU brackets include CPU submission gaps and game contention is uncontrolled; these short authored
+    samples do not establish reliable CPU latency, liveFPS or a matched rerun of captureevent6941.
+    Baseline receipts: phase79-baseline-build.log, phase79-baseline-tests.log, phase79-baseline.trx.
+    Baseline catalog identity refresh reused cached binaries without a clean; candidate changed only
+    the3publication variants, and the final retry used all cached variants.
+  Independent final completion audit directly checked source, controlling documents and final receipts;
+    no unresolved required items or evidence gaps remain. All six tasks are complete; later phases remain open.
 
 Phase 7.10 - Simplify traversal and texture-address arithmetic
   Depends on: Phases 7.5 and 7.7.

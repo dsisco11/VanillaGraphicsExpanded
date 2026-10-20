@@ -35,7 +35,7 @@ internal sealed class CloudVolumeSolution:IDisposable
         Storage=new(()=>CloudVolumeMaintenanceProgram.Create(api),()=>CloudVolumeCopyProgram.Create(api),submission);
         density=new((op,shared)=>CloudVolumeDensityProgram.Create(api,op,detail,shared),submission);work=new(op=>CloudVolumeWorkProgram.Create(api,op),submission);
         direct=new(op=>CloudVolumeDirectProgram.Create(api,op),submission);diffuse=new(shadows=>CloudVolumeDiffuseProgram.Create(api,shadows),submission);
-        publication=new(()=>CloudVolumePublishProgram.Create(api));updates=new(Storage,density,work,direct,diffuse,publication,submission);
+        publication=new((op,shared)=>CloudVolumePublishProgram.Create(api,op,shared));updates=new(Storage,density,work,direct,diffuse,publication,submission);
     }
     /// <summary>Prepares only selected solvers before consumer ownership transfers.</summary>
     internal void Prepare(CloudVolumeViewSettings settings)

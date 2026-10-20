@@ -531,7 +531,8 @@ UBO, a 32-byte validation/completion summary and 12-byte indirect arguments. Lig
 208-byte UBOs and 72-byte indirect arguments.
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
 addition is 2932 bytes. The view owns one 240-byte UBO across its variants and block publication
-owns a 16-byte UBO, leaving 780 bytes reserved inside that allowance. Reconstruction borrows the
+shares a 16-byte UBO across its three compiled operations and owns a 16-byte argument record,
+leaving 764 bytes reserved inside that allowance. Reconstruction borrows the
 shared frame UBO without owning a separate parameter buffer.
 Screen-sized view targets are charged separately below; there is no screen-space history.
 A separate drawable snapshot owns R16F density, RG16F direct,
@@ -812,6 +813,16 @@ snapshot through typed `cloud_volume/publish` compute authority and barriers. De
 dirty bits are 4096/8192/16384 in working region flags. Metadata and occupancy are copied coherently
 for all blocks; no CPU reads job lists. First publication, changed domains or replaced working fields
 copy all channels; source activation copies direct, and an encoding change copies diffuse in full.
+Publication uses three compiled operations under one engine boundary: initialize a 16-byte
+argument record, copy metadata with one invocation per physical block while compacting dirty IDs,
+then copy images indirectly with one 256-lane group per selected block. Selection-summary scratch
+starting at word32768 is reused only after its fenced consumers retire; the maximum71825-word list
+ends before the second summary range. Persistent cursors, completion status and diffuse repair
+history remain intact. Indirect groups use64 columns and up to1123 rows, with uniform padded exits;
+an empty list dispatches zero image groups. Full-channel cases skip compaction and copy the complete
+physical grid, including other dirty channels. Dirty bits clear after the block's valid lanes submit
+their writes; partial-edge lanes still reach the completion barrier. Storage, command, image and
+texture barriers order all operations and later readers; no new fence or CPU count read is added.
 Ordinary publication copies only flagged channels/blocks. Working fields can then change without
 altering the drawable snapshot. Initial activation remains neutral until a completed snapshot exists.
 
