@@ -21,6 +21,7 @@ internal sealed class CloudVolumeFields : IDisposable
     internal int InitializedBlocks { get; set; }
     internal uint Revision { get; set; }
     internal bool Initialized => InitializedBlocks == Domain.Blocks;
+    internal CloudVolumeDensityState DensityState { get; } = new();
 
     #region Public API
     /// <summary>Allocates only the admitted field set, adopting each allocation immediately for failure cleanup.</summary>

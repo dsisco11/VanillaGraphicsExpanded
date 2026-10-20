@@ -100,6 +100,9 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
     #endregion
 
     #region Publication and lifetime
+    /// <summary>Withdraws sampling after failed in-place density work until explicit lifecycle recovery.</summary>
+    internal void Withdraw() => available = false;
+
     /// <summary>Copies and refines a disjoint diffuse destination, publishing only a barrier-complete texture/scale pair.</summary>
     internal bool UpdateDiffuse(CloudVolumeEncoding target, Func<bool> current, Action<CloudVolumeFields> refine,
         Func<bool>? complete = null)

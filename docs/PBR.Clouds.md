@@ -57,9 +57,10 @@ T = exp(-sigmaT * segmentLengthMetres)
 
 Red may exceed one and is never converted from alpha. It already includes native fading and
 perception effects. Negative/nonfinite inputs are rejected. The finite native grid bounds the
-supported domain; no border stretching or invented weather extends it. VGE never reads worker
-`Tiles`, reads map texels back to the CPU, copies the map for its immediate draw, or generates
-a complete density volume. Native `TextureCol` remains allocated/generated but is not a VGE
+supported domain; no border stretching or invented weather extends it. Live consumers do not read
+worker `Tiles`, read native map texels back to the CPU or copy the map for their immediate draw.
+The independent stored-volume generation API described below retains candidate-owned descriptors
+and density; it has no selectable live consumer. Native `TextureCol` remains allocated/generated but is not a VGE
 physical-lighting input. Native owners alone dispose their resources.
 
 ## Cloud height summaries
@@ -525,7 +526,8 @@ zero alpha, one latest native-descriptor snapshot and exact block metadata/occup
 Textures use hardware trilinear filtering; no shared sampler override replaces their mixed wrap
 state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB parameter/scratch
 allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
-128 bytes; the remaining 3968 bytes are reserved for additional candidate parameters/work state.
+128 bytes. Density operations use six 128-byte UBOs, a 32-byte validation/completion summary and
+12-byte indirect arguments. These add 812 bytes, leaving 3156 bytes reserved inside that allowance.
 
 `CloudVolumeStorage` admits format/dispatch/device limits before allocation. Incoming fields
 initialize at most 4096 physical blocks per call. They contain zero density, unit direct visibility
@@ -551,7 +553,50 @@ callback writes the spare, and completion/certificate checks precede the texture
 Barriers cover image writes, texture sampling and integer metadata. Physical RGB is capped and
 quantized downward to representable half values during encoding/rescaling, retaining the declared
 radiance bound. The caller skips this operation when no diffuse work is selected. This storage
-foundation has no weather-density generator, transport solver or live view consumer.
+foundation has no transport solver or live view consumer.
+
+`CloudVolumeDensity` consumes a synchronous certified native-map borrow and generates density
+through private `cloud_volume/density` compute operations. It validates native extinction/heights,
+reduces a GPU height envelope, and selects a fully containing band before changing a descriptor
+snapshot. Only the 16-byte envelope/status summary returns to the CPU for band admission; native
+column descriptors remain on the GPU. A 32-byte completion/work summary is read after a density
+batch. These synchronous summary reads are a cost to measure, not CPU selection of individual jobs.
+
+The latest RGBA32F snapshot holds extinction in inverse metres, lower/upper heights in metres and
+an exact valid marker. Finite zero-extinction columns canonicalize to valid empty support; occupied
+columns require ordered finite heights. Its circular slots use native material-column keys and
+explicit previous-window membership, so departed keys cannot masquerade as entering content.
+Observation compares exact content, independent of publication generation. A matching native
+generation/upload/allocation/window skips redundant observation. Wind-only placement changes retain
+material data. Changed and departed columns enqueue their footprint plus connected-face neighbors;
+the snapshot advances after barriers and certificate checks without retaining a native texture.
+
+Generation intersects each voxel with native cuboids. Detail-off stores summed exact overlap-volume
+fractions times native extinction. Detail-on averages eight stratified points inside each nonempty
+overlap using bounded stationary noise and connected-face erosion. Half-float overflow fails the
+batch instead of clamping extinction. Noise and descriptor evaluation occur only in this generator;
+subsequent ray consumers can read stored density alone.
+
+Density work uses the existing scratch buffer: words 0..63 are header/reserved, jobs occupy
+64..4159 and the bounded priority heap occupies 8192..12287. The rest remains reserved. Initial
+fills use up to 4096 pending physical blocks per eligible call; subsequent batches reserve half
+for round-robin fairness and half for oldest pending work. Repeated observations update demand
+without resetting first-pending age. GPU-produced indirect arguments submit selected jobs without
+CPU list readback. Same-frame repeats consume no additional budget.
+
+Incoming domains freeze their descriptor snapshot during bounded storage initialization and density
+fill. The previous domain remains usable until all initial density jobs finish; newer observations
+are deferred until publication. A later out-of-band observation requests another replacement and
+does not write cropped density into the active domain. Block records expose pending/completed
+revisions and frame ages; `DensityState` exposes snapshot frame and last actual batch completion.
+
+Every generated block marks neighboring occupancy records conservatively before writes. A separate
+barrier-separated pass repairs them from stored density including one texel around each block and
+circular seams, covering trilinear filter support. Completion stamps advance only after repair and
+successful arithmetic/certificate checks. Density changes mark direct/diffuse dependents stale
+without clearing compatible illumination. Failure withdraws sampling and latches the generator;
+explicit recovery resets both the generator and its storage. Context/executable identity is checked
+on both sides of work. Driver execution time, summary-read stalls and live appearance are unqualified.
 
 ## Independent lighting-volume candidate
 

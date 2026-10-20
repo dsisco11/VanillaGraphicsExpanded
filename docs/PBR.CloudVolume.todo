@@ -139,20 +139,39 @@ Phase 2 verification
 Phase 3 - Generate persistent volumetric density
   Depends on: Phase 2.
   Outcome: native weather produces stored 3D shape that all later ray consumers can share.
-  [ ] Capture certified native descriptors synchronously; retain no borrowed native texture across
+  [x] Capture certified native descriptors synchronously; retain no borrowed native texture across
       callbacks. Observe content changes without treating publication generation alone as a reset.
-  [ ] Implement generation-only native cuboid overlap/coverage, connected faces and perturbation.
+  [x] Implement generation-only native cuboid overlap/coverage, connected faces and perturbation.
       Store cell-average extinction; thin cell intersections contribute under the selected contract.
-  [ ] Implement bounded density jobs and content revisions; coalesce observations without resetting
+  [x] Implement bounded density jobs and content revisions; coalesce observations without resetting
       pending age. Update neighbor influence; pure wind translation retains unchanged material data.
-  [ ] Publish complete regions/boundaries after barriers, preserve unaffected data and expose spatial
+  [x] Publish complete regions/boundaries after barriers, preserve unaffected data and expose spatial
       age differences. Handle out-of-band changes using the selected replacement policy.
-  [ ] Update conservative occupancy with each density publication, including the hardware-filtering
+  [x] Update conservative occupancy with each density publication, including the hardware-filtering
       footprint. Revoke unsafe old empty certificates before new occupied density becomes readable.
-  [ ] Verify declared coverage math, finite stored units, publication ordering and change retention
+  [x] Verify declared coverage math, finite stored units, publication ordering and change retention
       with focused fixtures; no procedural approximation/image gate. Update density documentation.
-  [ ] Completion: density and safe occupancy are persistent and inspectable; no ray shader needs
+  [x] Completion: density and safe occupancy are persistent and inspectable; no ray shader needs
       native geometry or procedural detail to determine visible/transport density.
+
+Phase 3 verification
+  Source mapping: generation/observation/work/occupancy tasks -> proposal / Selected representation
+    (Native inputs, Generation/publication, Metadata/budgets, Acceleration); inherited native borrowing
+    -> PBR.Clouds.md / Borrowed map and Ownership; source/enablement boundaries -> atmosphere publication
+    and Rendering.Enablement.md. Current generation documented under Stored density-volume resources.
+  Private typed density operations implement certified validation, one owned circular snapshot,
+    overlap/detail generation, bounded fair/oldest jobs, indirect submission, filtered occupancy repair
+    and successful-only completion. Native borrows are cleared after synchronous work; initial snapshots
+    freeze until their full density publication. Unchanged content/wind retains density and ages.
+  Second review and independent completion audit passed. Final cached Release build 11.03s, 0 errors
+    (169 existing warnings), all 508 production/592 fixture binaries reused. Two density GPU facts passed,
+    none skipped, 770ms. Three unchanged domain/storage facts passed in the prior focused run: five total.
+  Receipts: artifacts/cloud-volume-density-final-build.log, artifacts/cloud-volume-density-final-tests.log,
+    artifacts/test-results/cloud-volume-density-final.trx; retained prior tests in cloud-volume-density.trx.
+  The analytic-overlap check permits only enclosing half-representation endpoints; no approximation,
+    image or convergence threshold. No packaging/game run, GPU timing or appearance qualification.
+  Tiny synchronous envelope/completion-summary reads and occupancy-repair costs remain to measure.
+    Transport, final traversal and live selection/view rendering remain later work.
 
 Phase 4 - Traverse stored density and schedule retained work
   Depends on: Phase 3.
