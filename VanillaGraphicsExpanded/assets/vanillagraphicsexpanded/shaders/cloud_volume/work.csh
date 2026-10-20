@@ -1,20 +1,23 @@
 #version 430 core
-layout(local_size_x=1) in;
+layout(local_size_x=256) in;
 layout(std140) uniform VolumeWork
 {
     ivec4 workExtent;
-    ivec4 workStamps; // frame, revision, active sources, dirty sources/diffuse
+    ivec4 workStamps;
     ivec4 workSlots;
     vec4 workFirst;
     vec4 workCell;
-    ivec4 workSettings; // newly active, diffuse enabled
-    ivec4 workReserved;
+    ivec4 workSettings;
+    ivec4 workReduction; // source base, destination base, source direct groups, source diffuse groups
     vec4 workPlanes[6];
 };
 layout(std430) buffer WorkRegions {uint regions[];};
 layout(std430) buffer WorkScratch {uint scratch[];};
 layout(std430) buffer WorkCommands {uint commands[];};
-const int DirectJobs=16384,DiffuseJobs=16448,Heap=16512;
+const int DirectJobs=16384,DiffuseJobs=16448;
+const uint Invalid=0xffffffffu;
+shared uvec3 keys[256];
+shared uint pendingCount;
 
 /** Uses a conservative native-local AABB, treating a block spanning the logical seam as visible. */
 bool Visible(int region)
@@ -28,101 +31,157 @@ bool Visible(int region)
     for(int i=0;i<6;i++)if(dot(workPlanes[i].xyz,mix(lo,hi,greaterThanEqual(workPlanes[i].xyz,vec3(0))))+workPlanes[i].w<0)return false;
     return true;
 }
-/** Tests per-source targets independently; one completed light never consumes another light's pending work. */
+/** Tests per-source targets independently, without consuming another channel's pending work. */
 bool Pending(int job,int kind)
 {
     int region=kind==0?job/2:job;
     if(kind==1)return workSettings.y!=0&&(regions[region*16]&4u)!=0u;
     int source=job%2;
-    return (workStamps.z&(1<<source))!=0 && (regions[region*16+5+source*2]!=regions[region*16+6+source*2]||regions[region*16+6+source*2]==0u);
+    return (workStamps.z&(1<<source))!=0&&(regions[region*16+5+source*2]!=regions[region*16+6+source*2]||regions[region*16+6+source*2]==0u);
 }
-/** Separates incompatible/new coverage, activation, visible stale work and background work. */
-int Priority(int job,int kind)
+/** Calculates each candidate's priority and persistent age once, before hierarchical reduction. */
+uvec3 PriorityKey(uint job,int kind)
 {
-    int region=kind==0?job/2:job;
-    uint complete=regions[region*16+(kind==0?6+(job%2)*2:13)];
-    if(complete==0u)return 0;
-    if(kind==0&&(workSettings.x&(1<<(job%2)))!=0)return 1;
-    return Visible(region)?2:3;
+    int region=kind==0?int(job)/2:int(job),source=int(job)%2;
+    uint complete=regions[region*16+(kind==0?6+source*2:13)];
+    uint priority=complete==0u?0u:(kind==0&&(workSettings.x&(1<<source))!=0?1u:(Visible(region)?2u:3u));
+    uint age=uint(workStamps.x)-regions[region*16+(kind==0?9:14)];
+    return uvec3(priority,Invalid-age,job);
 }
-/** Compares priority, then persistent waiting age, then stable job index. */
-bool Better(uint a,uint b,int kind)
+/** Orders pending jobs by cyclic distance from the persistent fair cursor. */
+uvec3 FairKey(uint job,int kind)
 {
-    int pa=Priority(int(a),kind),pb=Priority(int(b),kind);if(pa!=pb)return pa<pb;
-    int ra=kind==0?int(a)/2:int(a),rb=kind==0?int(b)/2:int(b),word=kind==0?9:14;
-    uint aa=uint(workStamps.x)-regions[ra*16+word],bb=uint(workStamps.x)-regions[rb*16+word];
-    return aa>bb||(aa==bb&&a<b);
+    if(job==Invalid)return uvec3(Invalid);
+    uint total=uint(workExtent.w*(kind==0?2:1)),cursor=scratch[18+kind]%total;
+    return uvec3((job+total-cursor)%total,0u,job);
 }
-/** Maintains a small worst-first priority heap in existing scratch rather than rescanning per emitted job. */
-void Offer(uint job,inout int count,int limit,int kind)
+/** Compares fixed integer keys without SSBO lookups or repeated frustum tests. */
+bool Less(uvec3 a,uvec3 b){return a.x<b.x||(a.x==b.x&&(a.y<b.y||(a.y==b.y&&a.z<b.z)));}
+/** Cooperatively sorts 256 shared keys, padding absent candidates with the largest key. */
+void Sort()
 {
-    if(count<limit)
+    uint lane=gl_LocalInvocationIndex;
+    barrier();
+    for(uint width=2u;width<=256u;width*=2u)for(uint stride=width/2u;stride>0u;stride/=2u)
     {
-        int i=count++;scratch[Heap+i]=job;
-        while(i>0){int p=(i-1)/2;if(!Better(scratch[Heap+p],scratch[Heap+i],kind))break;
-            uint t=scratch[Heap+p];scratch[Heap+p]=scratch[Heap+i];scratch[Heap+i]=t;i=p;}
+        uvec3 own=keys[lane],other=keys[lane^stride];
+        bool minimum=((lane&stride)==0u)==((lane&width)==0u);
+        uvec3 chosen=minimum?(Less(other,own)?other:own):(Less(own,other)?other:own);
+        barrier();keys[lane]=chosen;barrier();
     }
-    else if(Better(job,scratch[Heap],kind))
+}
+/** Locates packed fair indices, cached priority keys and one backlog count within existing scratch. */
+int Summary(int base,int kind,int group,int directGroups)
+{return base+(kind==0?group*225:directGroups*225+group*113);}
+/** Stores only enough local winners to preserve the exact global fair/priority result. */
+void StoreTop(int targetOffset,int quota,bool fair)
+{
+    int lane=int(gl_LocalInvocationIndex);
+    if(lane<quota)
     {
-        scratch[Heap]=job;int i=0;
-        while(i*2+1<count)
+        if(fair)scratch[targetOffset+lane]=keys[lane].z;
+        else {int p=targetOffset+lane*3;scratch[p]=keys[lane].x;scratch[p+1]=keys[lane].y;scratch[p+2]=keys[lane].z;}
+    }
+    barrier();
+}
+/** Reduces disjoint candidate sets; a global top-K candidate must belong to its child's top K. */
+void Candidates(bool initial)
+{
+    int lane=int(gl_LocalInvocationIndex);
+    int oldDirect=workReduction.z,oldDiffuse=workReduction.w;
+    int nextDirect=initial?oldDirect:(oldDirect+3)/4,nextDiffuse=initial?oldDiffuse:(oldDiffuse+3)/4;
+    int kind=int(gl_WorkGroupID.x)<nextDirect?0:1;
+    int group=int(gl_WorkGroupID.x)-(kind==0?0:nextDirect);
+    int fairQuota=kind==0?32:16,priorityQuota=kind==0?64:32,stride=kind==0?225:113;
+    int targetOffset=Summary(workReduction.y,kind,group,nextDirect);
+    if(lane==0)pendingCount=0u;barrier();
+    uint job=Invalid;uvec3 priority=uvec3(Invalid);
+    if(initial)
+    {
+        int candidate=group*256+lane,total=workExtent.w*(kind==0?2:1);
+        if(candidate<total&&Pending(candidate,kind)){job=uint(candidate);priority=PriorityKey(job,kind);atomicAdd(pendingCount,1u);}
+    }
+    else if(lane<4)
+    {
+        int child=group*4+lane,count=kind==0?oldDirect:oldDiffuse;
+        if(child<count)atomicAdd(pendingCount,scratch[Summary(workReduction.x,kind,child,oldDirect)+stride-1]);
+    }
+    if(initial)keys[lane]=FairKey(job,kind);
+    else
+    {
+        int child=group*4+lane/fairQuota,count=kind==0?oldDirect:oldDiffuse;
+        keys[lane]=lane<4*fairQuota&&child<count?
+            FairKey(scratch[Summary(workReduction.x,kind,child,oldDirect)+lane%fairQuota],kind):uvec3(Invalid);
+    }
+    Sort();StoreTop(targetOffset,fairQuota,true);
+    if(initial)keys[lane]=priority;
+    else
+    {
+        int child=group*4+lane/priorityQuota,count=kind==0?oldDirect:oldDiffuse;
+        if(lane<4*priorityQuota&&child<count)
+        {int p=Summary(workReduction.x,kind,child,oldDirect)+fairQuota+(lane%priorityQuota)*3;keys[lane]=uvec3(scratch[p],scratch[p+1],scratch[p+2]);}
+        else keys[lane]=uvec3(Invalid);
+    }
+    Sort();StoreTop(targetOffset+fairQuota,priorityQuota,false);
+    if(lane==0)scratch[targetOffset+stride-1]=pendingCount;
+}
+/** Emits bounded unique lists from global winners, retaining exactly half-budget round-robin service. */
+void Emit(int kind,int groups)
+{
+    int list=kind==0?DirectJobs:DiffuseJobs,budget=kind==0?64:32,quota=budget/2,count=0;
+    uint backlog=0u;
+    if(groups!=0)
+    {
+        int sourceOffset=Summary(workReduction.x,kind,0,workReduction.z);
+        backlog=scratch[sourceOffset+(kind==0?224:112)];
+        for(int i=0;i<quota;i++)
         {
-            int c=i*2+1;if(c+1<count&&Better(scratch[Heap+c],scratch[Heap+c+1],kind))c++;
-            if(!Better(scratch[Heap+i],scratch[Heap+c],kind))break;
-            uint t=scratch[Heap+i];scratch[Heap+i]=scratch[Heap+c];scratch[Heap+c]=t;i=c;
+            uint job=scratch[sourceOffset+i];if(job==Invalid)break;
+            scratch[list+count++]=job;scratch[18+kind]=(job+1u)%uint(workExtent.w*(kind==0?2:1));
+        }
+        for(int i=0;i<budget&&count<budget;i++)
+        {
+            uint job=scratch[sourceOffset+quota+i*3+2];if(job==Invalid)break;
+            bool duplicate=false;for(int n=0;n<count;n++)duplicate=duplicate||scratch[list+n]==job;
+            if(!duplicate)scratch[list+count++]=job;
+        }
+        for(int i=0;i<count;i++)
+        {
+            int job=int(scratch[list+i]),region=kind==0?job/2:job;
+            regions[region*16]|=uint(kind==0?512<<(job%2):2048);
         }
     }
-}
-/** Emits separate lists with half guaranteed round-robin service and half oldest priority service. */
-void Select(int kind,int budget,int list,int countWord,int cursorWord)
-{
-    int total=workExtent.w*(kind==0?2:1),count=0,cursor=int(scratch[cursorWord]%uint(total)),backlog=0;
-    for(int n=0;n<total&&count<budget/2;n++)
-    {
-        int job=(cursor+n)%total;if(!Pending(job,kind))continue;
-        scratch[list+count++]=uint(job);scratch[cursorWord]=uint((job+1)%total);
-        int region=kind==0?job/2:job;regions[region*16]|=uint(kind==0?512<<(job%2):2048);
-    }
-    int heapCount=0;
-    for(int job=0;job<total;job++)if(Pending(job,kind))
-    {
-        backlog++;int region=kind==0?job/2:job;uint marker=uint(kind==0?512<<(job%2):2048);
-        if((regions[region*16]&marker)==0u)Offer(uint(job),heapCount,budget-count,kind);
-    }
-    for(int i=0;i<heapCount;i++){uint job=scratch[Heap+i];scratch[list+count++]=job;
-        int region=kind==0?int(job)/2:int(job);regions[region*16]|=uint(kind==0?512<<(int(job)%2):2048);}
-    scratch[countWord]=uint(count);scratch[22+kind]=uint(backlog);
+    scratch[16+kind]=uint(count);scratch[22+kind]=backlog;
     commands[kind*3]=uint(count);commands[kind*3+1]=1u;commands[kind*3+2]=1u;
 }
-/** Selects work without claiming completion, or commits only explicitly successful channels. */
+/** Runs barrier-separated initialization, parallel merge, hierarchical selection or successful-only completion. */
 void main()
 {
+    uint id=gl_GlobalInvocationID.x;
     #if VGE_VOLUME_WORK_OPERATION==0
-    int dirty=workStamps.w;
-    if(scratch[6]!=0u)dirty|=7;
-    if(scratch[27]!=0u)dirty|=4;
-    for(int r=0;r<workExtent.w;r++)
+    if(id!=0u)return;
+    int dirty=workStamps.w;if(scratch[6]!=0u)dirty|=7;if(scratch[27]!=0u)dirty|=4;
+    scratch[28]=uint(dirty);scratch[6]=0u;scratch[27]=0u;scratch[25]=0u;scratch[26]=0u;
+    #elif VGE_VOLUME_WORK_OPERATION==1
+    if(id>=uint(workExtent.w))return;
+    int dirty=int(scratch[28]),b=int(id)*16;uint flags=regions[b]&~(512u|1024u|2048u);
+    for(int s=0;s<2;s++)
     {
-        int b=r*16;uint flags=regions[b]&~(512u|1024u|2048u);
-        for(int s=0;s<2;s++)
-        {
-            if((dirty&(1<<s))!=0 || ((workStamps.z&(1<<s))!=0&&regions[b+6+s*2]==0u))
-            {
-                if((flags&2u)==0u)regions[b+9]=uint(workStamps.x);
-                regions[b+5+s*2]=uint(workStamps.y);flags|=2u;
-            }
-            if((workSettings.x&(1<<s))!=0)regions[b+6+s*2]=0u;
-        }
-        if(workSettings.y!=0&&((dirty&4)!=0||(flags&4u)==0u||regions[b+13]==0u))
-        {
-            if((flags&4u)==0u)regions[b+14]=uint(workStamps.x);
-            regions[b+12]=uint(workStamps.y);flags|=4u;
-        }
-        regions[b]=flags;
+        if((dirty&(1<<s))!=0||((workStamps.z&(1<<s))!=0&&regions[b+6+s*2]==0u))
+        {if((flags&2u)==0u)regions[b+9]=uint(workStamps.x);regions[b+5+s*2]=uint(workStamps.y);flags|=2u;}
+        if((workSettings.x&(1<<s))!=0)regions[b+6+s*2]=0u;
     }
-    scratch[6]=0u;scratch[27]=0u;scratch[25]=0u;scratch[26]=0u;
-    Select(0,64,DirectJobs,16,18);Select(1,32,DiffuseJobs,17,19);
+    if(workSettings.y!=0&&((dirty&4)!=0||(flags&4u)==0u||regions[b+13]==0u))
+    {if((flags&4u)==0u)regions[b+14]=uint(workStamps.x);regions[b+12]=uint(workStamps.y);flags|=4u;}
+    regions[b]=flags;
+    #elif VGE_VOLUME_WORK_OPERATION==2
+    Candidates(true);
+    #elif VGE_VOLUME_WORK_OPERATION==3
+    Candidates(false);
+    #elif VGE_VOLUME_WORK_OPERATION==4
+    if(id!=0u)return;Emit(0,workReduction.z);Emit(1,workReduction.w);
     #else
+    if(id!=0u)return;
     uint mask=uint(workSlots.w);
     scratch[26]=scratch[25]&mask;if(scratch[26]!=0u)return;
     if((mask&3u)!=0u)for(uint i=0u;i<scratch[16];i++)
@@ -137,8 +196,7 @@ void main()
     if((mask&4u)!=0u)for(uint i=0u;i<scratch[17];i++)
     {
         int b=int(scratch[DiffuseJobs+int(i)])*16;
-        regions[b+13]=regions[b+12];regions[b+15]=uint(workStamps.x);regions[b]&=~(4u|2048u);
-        scratch[27]=1u;
+        regions[b+13]=regions[b+12];regions[b+15]=uint(workStamps.x);regions[b]&=~(4u|2048u);scratch[27]=1u;
     }
     #endif
 }

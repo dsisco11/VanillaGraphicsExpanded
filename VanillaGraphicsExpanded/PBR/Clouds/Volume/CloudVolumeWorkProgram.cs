@@ -7,7 +7,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Selects or completes bounded lighting work through independently compiled structural operations.</summary>
-[ShaderProgram("Contract","cloud_volume/work",2)]
+[ShaderProgram("Contract","cloud_volume/work",6)]
 [ShaderStage("Contract",ShaderStageKind.Compute,"cloud_volume/work.csh")]
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(Operation))]
 internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudVolumeWorkBindings
@@ -15,7 +15,7 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
     private readonly PackedUniformBuffer inputs=new(208);
     #region Public API
     /// <summary>Selects list production or successful-only completion metadata writes.</summary>
-    [ShaderOption("VGE_VOLUME_WORK_OPERATION",0,Domain=new object[]{0,1})]
+    [ShaderOption("VGE_VOLUME_WORK_OPERATION",0,Domain=new object[]{0,1,2,3,4,5})]
     internal static partial ShaderOption<int> Operation { get; }
     /// <summary>Loads only the selected work executable.</summary>
     internal static CloudVolumeWorkProgram Create(ICoreAPI api,int operation)
@@ -27,7 +27,7 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
     }
     /// <summary>Stages one immutable list identity and region bounds; completion uses the same snapshot.</summary>
     internal void Capture(CloudVolumeDomain domain,uint frame,uint revision,int active,int dirty,int newlyActive,
-        bool diffuse,int completed,ReadOnlySpan<Vector4> planes)
+        bool diffuse,int completed,ReadOnlySpan<Vector4> planes,int source=0,int destination=0,int directGroups=0,int diffuseGroups=0)
     {
         RequireInputMutation();Span<byte> data=stackalloc byte[208];data.Clear();
         UboPacking.WriteIVec4(data,0,domain.BlocksX,domain.BlocksY,domain.BlocksX,domain.Blocks);
@@ -37,6 +37,7 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
             (float)(domain.Bottom-domain.VerticalCell),(float)(domain.FirstZ*CloudVolumeDomain.HorizontalCell-domain.AnchorZ),0);
         UboPacking.WriteVec4(data,64,(float)CloudVolumeDomain.HorizontalCell,domain.VerticalCell,(float)CloudVolumeDomain.HorizontalCell,0);
         UboPacking.WriteIVec4(data,80,newlyActive,diffuse?1:0,0,0);
+        UboPacking.WriteIVec4(data,96,source,destination,directGroups,diffuseGroups);
         for(int i=0;i<6;i++)UboPacking.WriteVec4(data,112+16*i,planes[i].X,planes[i].Y,planes[i].Z,planes[i].W);
         inputs.SetBytes(data);
     }

@@ -527,9 +527,9 @@ Textures use hardware trilinear filtering; no shared sampler override replaces t
 state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB parameter/scratch
 allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
 128 bytes. Density operations use six 128-byte UBOs, a 32-byte validation/completion summary and
-12-byte indirect arguments. Lighting work uses two 208-byte UBOs and 24-byte indirect arguments.
+12-byte indirect arguments. Lighting work uses six 208-byte UBOs and 24-byte indirect arguments.
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
-addition is 2052 bytes. The view owns one 256-byte UBO across its variants, leaving 1660 bytes
+addition is 2884 bytes. The view owns one 256-byte UBO across its variants, leaving 828 bytes
 reserved inside that allowance; it allocates no private view targets or history.
 
 `CloudVolumeStorage` admits format/dispatch/device limits before allocation. Incoming fields
@@ -621,8 +621,8 @@ direct and diffuse dispatch; no CPU readback selects work.
 
 Lighting scratch header words 16/17 hold selected counts, 18/19 fair cursors and 22/23 backlog.
 Word 25 is the solver arithmetic-failure channel mask, 26 completion status and 27 deferred diffuse
-dependency demand. Direct jobs occupy 16384..16447, diffuse jobs 16448..16479 and their shared bounded
-priority heap 16512..16575. These ranges do not overlap density work. Density demand in word 6
+dependency demand. Direct jobs occupy 16384..16447 and diffuse jobs 16448..16479. Bounded
+selection summaries begin at words 32768 and 196608. These ranges do not overlap density work. Density demand in word 6
 coalesces until the lighting selector consumes it; density and lighting use separate revision
 namespaces. Selection preserves completed stamps and pending ages, and never certifies work as fresh.
 
@@ -634,6 +634,22 @@ until the new channel is solved. Camera/frustum, fog and exposure changes retain
 Successful direct/diffuse publication requests later diffuse refinement without restarting pending
 ages. The selector admits all physical blocks conservatively; empty-node work reduction belongs
 to the solver, and total refresh latency remains a measurement concern.
+
+Work selection uses barrier-separated initialization, a 256-lane parallel region merge, local
+classification and hierarchical top-K reduction, then bounded final list emission. Each pending
+candidate's priority/frustum and waiting age are calculated once. Shared-memory sorting retains
+the first 32/16 fair candidates and 64/32 priority candidates per disjoint chunk. Four-child
+reductions preserve those exact global winners; the final emitter removes fair/priority overlap.
+The priority oversupply ensures that excluding fair winners still fills the remaining budget.
+Stable job-index ties and cyclic cursors define deterministic priority ordering and fair-service bounds.
+Only the bounded final emitter and completion loops use a single lane; there is no whole-domain
+serial scan or repeated visibility calculation inside a heap comparator.
+
+At maximum extent, the first summary level contains 562 direct and 281 diffuse chunks. Its
+packed indices/priority keys/counts occupy words 32768..190970; the quarter-sized reduction spare
+occupies at most 196608..236355, alternating levels after SSBO barriers. Both fit existing scratch;
+no full per-job array or extra GPU allocation is needed. The source-domain extent determines
+reduction dispatch sizes; no CPU job readback or queue selection is introduced.
 
 Solvers report successful channels through `Complete` against the unchanged selected batch.
 GPU failure bits suppress completion writes; a one-word status read verifies rejection without
