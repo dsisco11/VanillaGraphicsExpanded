@@ -183,7 +183,9 @@ void main()
     {
         if((flags&2u)==0u)regions[base+9u]=uint(volumeStamps.x);
         if((flags&4u)==0u)regions[base+14u]=uint(volumeStamps.x);
-        flags|=6u;regions[base+5u]=uint(volumeStamps.y);regions[base+7u]=uint(volumeStamps.y);regions[base+12u]=uint(volumeStamps.y);
+        // Lighting has its own revision namespace. Queue demand here, never stamp its
+        // targets with density revisions that could equal unrelated completed light work.
+        flags|=6u;if(id==0u)atomicOr(scratch[6],1u);
     }
     regions[base]=flags;if((flags&1u)!=0u)atomicAdd(summary[4],1u);
     #endif

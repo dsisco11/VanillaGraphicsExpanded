@@ -527,7 +527,8 @@ Textures use hardware trilinear filtering; no shared sampler override replaces t
 state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB parameter/scratch
 allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
 128 bytes. Density operations use six 128-byte UBOs, a 32-byte validation/completion summary and
-12-byte indirect arguments. These add 812 bytes, leaving 3156 bytes reserved inside that allowance.
+12-byte indirect arguments. Lighting work uses two 208-byte UBOs and 24-byte indirect arguments.
+The combined addition is 1252 bytes, leaving 2716 bytes reserved inside that allowance.
 
 `CloudVolumeStorage` admits format/dispatch/device limits before allocation. Incoming fields
 initialize at most 4096 physical blocks per call. They contain zero density, unit direct visibility
@@ -597,6 +598,46 @@ successful arithmetic/certificate checks. Density changes mark direct/diffuse de
 without clearing compatible illumination. Failure withdraws sampling and latches the generator;
 explicit recovery resets both the generator and its storage. Context/executable identity is checked
 on both sides of work. Driver execution time, summary-read stalls and live appearance are unqualified.
+
+`cloud_volume/traversal.glsl` provides the stored-density DDA used by candidate ray consumers.
+It clips rays to the finite native rectangle and admitted vertical band, handles zero direction
+components without division, and retains the current physical block and next unwrapped planes.
+Crossings advance all tied axes, including the short physical edge block at the circular seam.
+Only an occupancy value of zero skips a block; pending repair values remain conservatively occupied.
+Occupied steps use nominal half-voxel spacing for view/diffuse or one-voxel spacing for direct rays,
+shortened at block/domain endpoints. One hardware trilinear fetch evaluates each midpoint density.
+Operation caps are 2048 and 1024 respectively. Lack of progress or cap overflow fails the ray;
+consumers must reject an incomplete prefix rather than treating it as completed transport.
+
+`CloudVolumeWork` selects separate direct and diffuse lists only after density publication. It
+reserves half each 64/32-job budget for persistent round-robin service, then chooses incompatible,
+newly active, visible stale and other old pending work. Physical blocks spanning a logical window
+seam are conservatively visible. Offscreen jobs retain fair service. The direct list encodes
+`block*2+source`; solar/lunar RG writes must be ordered by future solver ownership to avoid channel
+read-modify-write races. GPU-selected indirect arguments contain separate three-word records for
+direct and diffuse dispatch; no CPU readback selects work.
+
+Lighting scratch header words 16/17 hold selected counts, 18/19 fair cursors and 22/23 backlog.
+Word 25 is the solver arithmetic-failure channel mask, 26 completion status and 27 deferred diffuse
+dependency demand. Direct jobs occupy 16384..16447, diffuse jobs 16448..16479 and their shared bounded
+priority heap 16512..16575. These ranges do not overlap density work. Density demand in word 6
+coalesces until the lighting selector consumes it; density and lighting use separate revision
+namespaces. Selection preserves completed stamps and pending ages, and never certifies work as fresh.
+
+Each batch freezes the exact field/window revision, density snapshot/completion and immutable
+physical atmosphere snapshot. Source direction changes dirty the matching direct channel and
+diffuse transport; intensity/environment changes dirty diffuse only. Inactive direct sources
+receive no jobs. Activation revokes their completed-channel identity, requiring initialized fallback
+until the new channel is solved. Camera/frustum, fog and exposure changes retain compatible fields.
+Successful direct/diffuse publication requests later diffuse refinement without restarting pending
+ages. The selector admits all physical blocks conservatively; empty-node work reduction belongs
+to the solver, and total refresh latency remains a measurement concern.
+
+Solvers report successful channels through `Complete` against the unchanged selected batch.
+GPU failure bits suppress completion writes; a one-word status read verifies rejection without
+reading lists. Repeated completion or changed field/density certificates cannot advance stamps.
+Failures withdraw sampling until reset. No lighting solver or live view consumer is registered
+by this queue/traversal foundation.
 
 ## Independent lighting-volume candidate
 

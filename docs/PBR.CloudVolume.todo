@@ -176,22 +176,36 @@ Phase 3 verification
 Phase 4 - Traverse stored density and schedule retained work
   Depends on: Phase 3.
   Outcome: bounded ray traversal and fair lighting jobs are ready for both transport solvers.
-  [ ] Implement the selected initial traversal (coarse DDA unless Phase 1 explicitly revised it),
+  [x] Implement the selected initial traversal (coarse DDA unless Phase 1 explicitly revised it),
       retaining state across block boundaries. Support zero direction components, anisotropic cells,
       negative rays, finite edges and circular addressing with forward progress.
-  [ ] Skip only certified empty support; preserve actual integration lengths and the selected occupied
+  [x] Skip only certified empty support; preserve actual integration lengths and the selected occupied
       sampling rule. Avoid root restarts and silent work-limit truncation of admitted rays.
-  [ ] Implement separate bounded direct/diffuse queues after density publication. Prioritize new/
+  [x] Implement separate bounded direct/diffuse queues after density publication. Prioritize new/
       changed content and active/visible stale work, with fair offscreen service and persistent ages.
-  [ ] Propagate nonlocal density demand conservatively, initially domain-wide if selected. Coalesce
+  [x] Propagate nonlocal density demand conservatively, initially domain-wide if selected. Coalesce
       once per update; retain dirty state and actual completed revisions until successful work.
-  [ ] Handle light direction, intensity/environment, activation and refinement demand independently.
+  [x] Handle light direction, intensity/environment, activation and refinement demand independently.
       Fog/exposure/camera motion must not clear compatible volume history.
-  [ ] Verify traversal coverage/progress, filter-support safety, fairness/work limits and failed-work
+  [x] Verify traversal coverage/progress, filter-support safety, fairness/work limits and failed-work
       stamps with focused contract checks. Document behavior; no full performance matrix here.
-  [ ] Completion: traversal is bounded and conservative, and queued work cannot become falsely fresh
+  [x] Completion: traversal is bounded and conservative, and queued work cannot become falsely fresh
       through selection alone or indefinitely starve due to repeated content changes.
 
+Phase 4 verification
+  Source mapping: traversal tasks -> proposal / Initial acceleration and Traversal bounds; queues,
+    source demand and completion -> Metadata/budgets and Generation/publication; inherited ownership,
+    borrowing and depth -> PBR.Clouds.md, PBR.Atmosphere.Publication.md and Rendering.Enablement.md.
+  Retained coarse DDA handles finite/circular boundaries, certified empty support and explicit failure
+    at operation limits. Separate 64-job direct and 32-job diffuse queues retain ages, fair service,
+    source-specific demand and successful-only completion. Density and lighting revisions are separate.
+  Second review and independent completion audit passed. Cached Release build 2m11.69s, 0 errors
+    (185 existing warnings); 496 production/580 fixture binaries reused, 14/15 affected binaries compiled.
+    Four focused traversal/work/density GPU facts passed, none skipped, approximately 1s test execution.
+  Receipts: artifacts/cloud-volume-work-retry-build.log, artifacts/cloud-volume-work-tests.log,
+    artifacts/test-results/cloud-volume-work.trx. Current architecture is documented in PBR.Clouds.md.
+    No approximation-quality gate, package or game action. Transport solvers, live performance and
+    appearance remain later work.
 Phase 5 - Retain direct illumination through stored density
   Depends on: Phase 4.
   Outcome: published direct transmission is reused across views and frames.
