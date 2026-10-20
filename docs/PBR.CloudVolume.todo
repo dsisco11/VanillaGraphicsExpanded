@@ -325,8 +325,50 @@ Phase 7 verification
     warnings, all 524/609 production/fixture shader binaries reused. Both focused facts passed,
     none skipped, 3s. Receipts: artifacts/BlackClouds/registration-build.log, registration-tests.log,
     registration-tests.trx. Capture replay is evidence of the activation bug, not candidate performance.
+Phase 7.1 - Improve compute tracing parallelism and eliminate serial density selection
+  Depends on: Phase 7.
+  Outcome: bounded density and lighting work exposes useful GPU parallelism without increasing
+    ray counts, work budgets or changing the declared transport/integration model.
+  [ ] Record a narrow matched baseline for density selection, direct and diffuse tracing. Capture
+      dispatch/group counts, occupied versus early-exit lanes, registers/spills, achieved occupancy,
+      eligible warps and texture/memory stalls where tooling supports them. State GPU, settings,
+      coverage, scene state and contention; distinguish measured limits from source-based suspicions.
+  [ ] Replace the single-invocation density queue merge/heap scan with parallel classification and
+      bounded hierarchical selection. Reuse the lighting selector's established approach where useful
+      without coupling the independent queue policies. Preserve initial-fill behavior, pending ages,
+      persistent fair cursors, stable ties, exact selected sets, backlog and indirect arguments.
+      Account for simultaneous scratch users and barriers; do not add CPU job-list readback.
+  [ ] Parallelize the eight independent diffuse gather directions per occupied voxel and combine their
+      contributions through a bounded reduction. Preserve all eight directions, weights, recurrence,
+      coherent old-field reads, finite checks and successful-only completion. Evaluate ray-to-lane
+      mapping and reduction/register/shared-memory cost rather than merely increasing group size.
+  [ ] Emit separate solar/lunar direct lists and indirect counts so each compiled source dispatch
+      contains only its own jobs. Preserve the shared 64 block-source budget and global fairness/
+      priority selection, active-source handling, channel isolation and completion stamps. Empty or
+      inactive source lists submit no tracing work; retain required ordering for shared RG texels.
+  [ ] Compare smaller workgroup shapes against the existing 256-thread tracing groups at identical
+      selected voxel/ray counts. Adjust group-to-block indexing and indirect dimensions explicitly;
+      measure occupancy, load balance, divergence and register pressure. Keep only measured useful
+      layouts; neither maximum local size nor maximum occupancy alone establishes better performance.
+  [ ] Preserve deferred fence-gated status reads, drawing from isolated completed snapshots, bounded
+      in-flight updates and dirty-block publication. Account for added reductions, dispatches, barriers,
+      scratch and memory inside existing admission limits; do not restore render-thread GPU waits.
+  [ ] Use subagents for cached incremental builds and narrowly affected existing contract checks.
+      Cover selection/fairness, unique source lists, reduction math, edge blocks and failure/publication
+      only where changed; avoid redundant fixtures and approximation-quality/image/convergence gates.
+      Reuse passing evidence; no routine clean build, full matrix or packaging. Final qualification
+      remains Phase 9.
+  [ ] Repeat the same narrow measurements after each candidate, including total update cost and
+      publication overhead. Record retained improvements and rejected variants honestly; update the
+      proposal/current architecture for delivered scheduling and resource changes. Do not raise
+      sampling budgets to hide poor utilization or claim hardware saturation from invocation counts.
+  [ ] Completion: serial density selection is removed, source-mismatched direct groups are eliminated,
+      and diffuse-direction/workgroup choices have recorded cost evidence or explicit deferral with
+      rationale. Queue, numerical and deferred-publication contracts remain intact; live frame-time
+      and appearance acceptance remain separate qualification work.
+
 Phase 8 - Evaluate acceleration and update cost
-  Depends on: Phase 7; Phase 1 initial acceleration decision.
+  Depends on: Phase 7.1; Phase 1 initial acceleration decision.
   Outcome: a justified acceleration choice accounts for maintenance as well as traversal savings.
   [ ] Measure the selected baseline narrowly: density, occupancy, direct, diffuse, full-field copy and
       view costs, plus actual traversal/work counts and memory. Separate steady and changing content.
