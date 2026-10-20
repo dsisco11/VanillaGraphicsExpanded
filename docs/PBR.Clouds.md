@@ -528,7 +528,8 @@ state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB pa
 allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
 128 bytes. Density operations use six 128-byte UBOs, a 32-byte validation/completion summary and
 12-byte indirect arguments. Lighting work uses two 208-byte UBOs and 24-byte indirect arguments.
-The combined addition is 1252 bytes, leaving 2716 bytes reserved inside that allowance.
+Direct transport uses three 128-byte UBOs. The combined addition is 1636 bytes, leaving 2332 bytes
+reserved inside that allowance.
 
 `CloudVolumeStorage` admits format/dispatch/device limits before allocation. Incoming fields
 initialize at most 4096 physical blocks per call. They contain zero density, unit direct visibility
@@ -554,7 +555,7 @@ callback writes the spare, and completion/certificate checks precede the texture
 Barriers cover image writes, texture sampling and integer metadata. Physical RGB is capped and
 quantized downward to representable half values during encoding/rescaling, retaining the declared
 radiance bound. The caller skips this operation when no diffuse work is selected. This storage
-foundation has no transport solver or live view consumer.
+foundation has a separate direct transport owner and no diffuse solver or live view consumer.
 
 `CloudVolumeDensity` consumes a synchronous certified native-map borrow and generates density
 through private `cloud_volume/density` compute operations. It validates native extinction/heights,
@@ -613,7 +614,7 @@ consumers must reject an incomplete prefix rather than treating it as completed 
 reserves half each 64/32-job budget for persistent round-robin service, then chooses incompatible,
 newly active, visible stale and other old pending work. Physical blocks spanning a logical window
 seam are conservatively visible. Offscreen jobs retain fair service. The direct list encodes
-`block*2+source`; solar/lunar RG writes must be ordered by future solver ownership to avoid channel
+`block*2+source`; the direct owner orders solar/lunar RG writes to avoid channel
 read-modify-write races. GPU-selected indirect arguments contain separate three-word records for
 direct and diffuse dispatch; no CPU readback selects work.
 
@@ -636,8 +637,25 @@ to the solver, and total refresh latency remains a measurement concern.
 Solvers report successful channels through `Complete` against the unchanged selected batch.
 GPU failure bits suppress completion writes; a one-word status read verifies rejection without
 reading lists. Repeated completion or changed field/density certificates cannot advance stamps.
-Failures withdraw sampling until reset. No lighting solver or live view consumer is registered
-by this queue/traversal foundation.
+Failures withdraw sampling until reset. No live view consumer is registered by this foundation.
+
+`CloudVolumeDirect` consumes the frozen work batch and authoritative stored density only. Each
+occupied node traces toward its relevant source through the retained coarse DDA to the finite
+domain exit, at one-voxel nominal spacing. It accumulates actual segment lengths in metres,
+saturates optical depth at 80 without early termination, and stores dimensionless exp(-tau) in
+RG16F. Empty nodes skip integration. Incomplete rays and nonfinite arithmetic set the channel's
+failure bit; no failed batch advances completion, and partial in-place writes withdraw sampling.
+
+Activation initializes each newly relevant channel to unshadowed across the bounded allocation
+before selected updates. This full-field image pass has no ray integrals; its read/write traffic
+and GPU cost are separate from the 64-job transport allowance and remain unqualified. Compatible
+direction-stale values survive ordinary direction changes. Brightness/environment changes reuse
+direct transmission; future consumers apply current illuminance and phase separately. Disabled
+direct work creates no transport program and dispatches no integrals. Solar/lunar variants compile
+source selection independently and execute with image barriers between them, preserving companion
+channels without RG read-modify-write races. Reset/context/executable changes revoke the solver's
+certificates; storage retains ownership of all fields. Diffuse transport and live drawing are
+separate consumers still absent from this stored-volume foundation.
 
 ## Independent lighting-volume candidate
 

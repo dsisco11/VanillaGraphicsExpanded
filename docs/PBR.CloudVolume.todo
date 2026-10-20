@@ -209,17 +209,35 @@ Phase 4 verification
 Phase 5 - Retain direct illumination through stored density
   Depends on: Phase 4.
   Outcome: published direct transmission is reused across views and frames.
-  [ ] Implement selected direct integrals using density textures and traversal exclusively. Store solar/
+  [x] Implement selected direct integrals using density textures and traversal exclusively. Store solar/
       lunar transmission; honor the finite domain and label any selected transport-distance truncation.
-  [ ] Dispatch only relevant-source work; prioritize activation, retain compatible direction-stale
+  [x] Dispatch only relevant-source work; prioritize activation, retain compatible direction-stale
       results and apply current source intensity later without recomputing unchanged transmission.
-  [ ] Publish successful region results/revisions after barriers; missing illumination uses the selected
+  [x] Publish successful region results/revisions after barriers; missing illumination uses the selected
       finite fallback without hiding occupied clouds. Failure cannot certify partial output as current.
-  [ ] Verify physical integration arithmetic, finite values, source activation/intensity behavior,
+  [x] Verify physical integration arithmetic, finite values, source activation/intensity behavior,
       disabled compiled paths and publication through focused existing abstractions. Update docs.
-  [ ] Completion: direct lighting consumes published density only and remains reusable under compatible
+  [x] Completion: direct lighting consumes published density only and remains reusable under compatible
       source changes with honest age/dependency metadata. Incremental validation receipts are recorded.
 
+Phase 5 verification
+  Source mapping: transport/source reuse -> proposal / Direct light and Lighting, recurrence and
+    encoding; activation/revisions/failure -> Metadata, budgets and source changes and Generation,
+    initialization and geometry publication; inherited ownership/physical-source boundaries ->
+    PBR.Clouds.md, PBR.Atmosphere.Publication.md and Rendering.Enablement.md.
+  Private direct programs integrate stored density through retained DDA to the finite domain exit,
+    with actual metre lengths, one-voxel spacing and optical-depth saturation at 80. Ordered source
+    passes preserve RG channels. Activation resets incompatible transmission to unshadowed; that
+    full-field memory pass is separate from bounded ray jobs. Compatible stale transmission remains
+    usable; intensity changes do not dirty it. Failed transport withdraws partial writes and cannot
+    advance completion. Current architecture and fixed-allocation accounting are in PBR.Clouds.md.
+  Second review and independent completion audit passed. Cached Release build 2m15.61s, 0 errors
+    (185 existing warnings); 510 production/595 fixture binaries reused and only three new variants
+    compiled in each catalog. Three focused direct/work/traversal GPU facts passed, none skipped,
+    approximately 1s test execution. No approximation-quality gate, packaging or game action.
+  Receipts: artifacts/cloud-volume-direct-build.log, artifacts/cloud-volume-direct-tests.log,
+    artifacts/test-results/cloud-volume-direct.trx. Diffuse transport and live view integration remain
+    later work; activation bandwidth, total GPU cost and appearance are not qualified by these checks.
 Phase 6 - Progressively transport diffuse illumination
   Depends on: Phase 5.
   Outcome: retained higher-order/environment source is refined under a fixed budget.
