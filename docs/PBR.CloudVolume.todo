@@ -1012,17 +1012,67 @@ Phase 7.9 implementation and review
 Phase 7.10 - Simplify traversal and texture-address arithmetic
   Depends on: Phases 7.5 and 7.7.
   Outcome: view and compute rays spend less arithmetic on unchanged traversal semantics.
-  [ ] Review DDA boundary increments, integer wrapping and division; replace repeated work with
+  [x] Review DDA boundary increments, integer wrapping and division; replace repeated work with
       retained increments or explicit wrap branches where circular seams and short edge blocks allow.
-  [ ] Apply affine texture-coordinate evaluation to direct and diffuse consumers where it removes
+  [x] Apply affine texture-coordinate evaluation to direct and diffuse consumers where it removes
       repeated position reconstruction/division, following the existing view approach.
-  [ ] Preserve occupied spacing, clipped interval lengths, tied-axis crossings, anisotropic cells,
+  [x] Preserve occupied spacing, clipped interval lengths, tied-axis crossings, anisotropic cells,
       finite exits, conservative filtered-density support, operation bounds and failed-ray handling.
-  [ ] Use subagents for incremental builds and affected existing traversal/transport checks only.
+  [x] Use subagents for incremental builds and affected existing traversal/transport checks only.
       Compare view and relevant compute cost separately; this latest capture has no solver timing.
       Reuse suitable earlier fixtures rather than repeating a broad baseline matrix or packaging.
-  [ ] Completion: retained arithmetic changes have focused correctness and cost evidence, with no
+  [x] Completion: retained arithmetic changes have focused correctness and cost evidence, with no
       sampling-policy change or approximation-quality gate; reconcile selected numerical details.
+
+Phase 7.10 implementation and review
+  Traceability: wrap/planes/caps -> proposal / Native inputs and coordinate identity, Initial
+    acceleration selection, Traversal bounds to instantiate with the layout; affine texture lookup
+    -> Rendering the published volume, Direct light, Multiple scattering, Lighting, recurrence and
+    encoding. Current architecture -> PBR.Clouds.md / Stored-volume view and selection. Inherited
+    Shared rendering obligations -> Rendering.Enablement.md / Render boundaries and resource lifetime,
+    PBR.Atmosphere.Publication.md / Publication contract. Dependencies7.5/7.7 retain occupied spacing,
+    view settings and density/occupancy semantics. Evidence -> existing traversal/direct/diffuse/view
+    and compute-work fixtures; artifacts/StoredCloudLatest/phase710 receipts.
+  Root second source review: entry normalization uses one signed modulo plus negative adjustment
+    instead of two modulos per horizontal axis. Advance wraps by explicit branches for a single
+    +/-one block move; short edge widths, plane coordinates, crossing division and tied-axis tests
+    remain unchanged. Physical-to-logical direct/diffuse node addressing uses a negative adjustment
+    because both physical texel and slot are in range. Retained distance increments/reciprocal
+    multiplication were not selected: accumulated/reassociated crossing rounding could alter ties,
+    clipping or forward-progress rejection. Keeping the original plane-based recomputation preserves
+    those boundary decisions while removing modulo work.
+  Direct/diffuse loops evaluate coordOrigin+coordVelocity*midpoint, transformed once from Begin's grid
+    origin/velocity, matching the view. Six scalar coordinate divisions per occupied sample become
+    six per ray at source level, and repeated native-position reconstruction leaves the loop. Compiler
+    instruction counts/register pressure are not measured by this fixture. Coordinates are not
+    incrementally accumulated; all consumers retain hardware trilinear filtering and mixed wrapping.
+    Ordinary float32 reassociation may round sample coordinates differently; bitwise sample equality
+    is not claimed. Actual interval endpoints/lengths, one-voxel direct and half-voxel gather/view
+    spacing, 400m diffuse range, source quadrature, limits, saturation and failure checks are intact.
+    No texture, UBO, resource owner, shader option, work budget or user-setting change is introduced.
+  Existing traversal probe uses the same affine lookup. Its existing fact additionally exercises
+    shifted native keys with19horizontal texels, short3-texel physical edges and positive/negative
+    X/Z seam crossings at both spacings. Original diagonal ties, anisotropy, zero components, empty
+    skipping, miss and failed-prefix cases remain. No new test class/fact or approximation threshold.
+  Focused validation: canonical incremental Release89.65s,0errors/192existingwarnings; production
+    reused535variants and compiled29affected variants, fixture reused619 and compiled30affected
+    variants. Dependency-triggered catalog emission did not constitute a clean build or new matrix.
+    All7existing facts passed11.8036s: traversal, direct, diffuse, stored view3 and compute work.
+    Receipts: artifacts/StoredCloudLatest/phase710-current-build.log, phase710-current-tests.log,
+    phase710-current.trx. Baseline used current binaries and only2existing performance facts, with
+    no rebuild: phase710-baseline.log/.trx. No package, new fixture class or game action.
+  Authored matched GPU baseline/current medians: direct64source-matched groups.1126/.1065ms,
+    diffuse256cooperative groups.0788/.0768ms, combined transport/coherent copy.1976/.1833ms.
+    Direct current samples.1055/.1065/.1065ms, diffuse.0768/.0768/.0788ms. Same width20 domain,
+    stored fields, sources,32blocks/64sourcejobs/8gatherdirections, ray distances and quadrature.
+    View512x256half including spatial reconstruction occupied.0594/.0604ms and empty.0215/.0215ms:
+    view cost is effectively unchanged, not a claimed improvement. Both use unchanged settings and
+    one warmup plus3samples; allocations, uploads and query reads outside transport timing. The
+    latestcapture contains no direct/diffuse dispatch and provides no solver comparison. Headless
+    timer brackets and uncontrolled running-game contention do not establish liveFPS, reliable
+    percentage savings, register/spill behavior or performance across supported scenes.
+  Independent final completion audit directly reviewed controlling sources, implementation and final
+    receipts with no unresolved findings or evidence gaps. All five tasks are complete; later phases remain open.
 
 Phase 7.11 - Reduce repeated transparency-bucket evaluation during integration
   Depends on: Phase 7.5; incorporate Phase 7.10 if it changes the same view loop.

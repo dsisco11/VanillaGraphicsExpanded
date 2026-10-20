@@ -53,6 +53,23 @@ public sealed class CloudVolumeTraversalTests(HeadlessGLFixture fixture):LumOnSh
         Assert.True(empty[1].Z>0);Assert.Equal(0,empty[0].Z);
         var miss=Trace(probe,fields,output,new(-1,0,125),-Vector3.UnitX,250,1);
         Assert.Equal(1,miss[1].X);Assert.Equal(0,miss[0].X);
+        // An odd horizontal allocation has short edge blocks; shifted native keys place both
+        // circular seams inside these rays, unlike the complete 8-texel blocks above.
+        var shifted=new CloudVolumeDomain(6,default(VanillaGraphicsExpanded.PBR.Clouds.CloudPlacement) with{CenterX=-1,CenterZ=1},-100,100);
+        storage.Request(shifted,new(new object(),1,1),new(Vector3.One),Vector3.Zero,()=>true);
+        while(!storage.InitializeNext(()=>true)){}
+        Assert.True(storage.PublishPending(()=>true,()=>true));fields=storage.Published;
+        fields.Density.Clear(1);fields.Occupancy.UploadData(Enumerable.Repeat(1u,shifted.Blocks).ToArray());
+        foreach(var (origin,direction) in new[]{(new Vector3(0,0,150),Vector3.UnitX),
+            (new Vector3(300,0,150),-Vector3.UnitX),(new Vector3(150,0,0),Vector3.UnitZ),
+            (new Vector3(150,0,300),-Vector3.UnitZ)})
+        foreach(float fraction in new[]{.5f,1f})
+        {
+            var traced=Trace(probe,fields,output,origin,direction,300,fraction);
+            Assert.Equal(1,traced[1].X);Assert.Equal(0,traced[1].Y);
+            Assert.InRange(traced[0].X,300*(1-32f/8388608),300*(1+32f/8388608));
+            Assert.Equal(traced[0].X,traced[0].Z);
+        }
     }
     #endregion
     #region Private

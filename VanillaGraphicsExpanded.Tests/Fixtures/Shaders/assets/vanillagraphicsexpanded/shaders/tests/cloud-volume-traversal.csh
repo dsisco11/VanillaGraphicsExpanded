@@ -20,6 +20,8 @@ void main()
     grid.slot=probeSlots.xy;grid.first=probeFirst.xyz;grid.cell=probeCell.xyz;
     grid.minimum=probeMinimum.xyz;grid.maximum=probeMaximum.xyz;
     CloudVolumeRay ray=CloudVolumeBegin(grid,probeOrigin.xyz,probeDirection.xyz,probeOrigin.w,probeDirection.w);
+    vec3 coordOrigin=(ray.origin+vec3(grid.slot.x,0,grid.slot.y))/vec3(grid.size);
+    vec3 coordVelocity=ray.velocity/vec3(grid.size);
     if(probeSize.w>0)ray.limit=probeSize.w;
     float coverage=0,occupiedLength=0,tau=0,maxSpan=0;int emptyCount=0,samples=0;
     for(int i=0;i<2048;i++)
@@ -27,7 +29,8 @@ void main()
         vec2 span;bool occupied;if(!CloudVolumeNext(grid,ray,span,occupied))break;
         float length=span.y-span.x;coverage+=length;
         if(occupied)
-        {maxSpan=max(maxSpan,length);occupiedLength+=length;samples++;tau+=CloudVolumeSample(grid,probeOrigin.xyz+probeDirection.xyz*((span.x+span.y)*.5))*length;}
+        {maxSpan=max(maxSpan,length);occupiedLength+=length;samples++;
+            tau+=textureLod(volumeDensity,coordOrigin+coordVelocity*((span.x+span.y)*.5),0).r*length;}
         else emptyCount++;
     }
     result[0]=vec4(coverage,occupiedLength,tau,float(ray.operations));

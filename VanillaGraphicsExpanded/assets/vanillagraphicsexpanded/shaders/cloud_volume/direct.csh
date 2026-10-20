@@ -31,8 +31,10 @@ void main()
     ivec3 block=ivec3(region%blocks.x,(region/blocks.x)%blocks.y,region/(blocks.x*blocks.y));
     ivec3 p=block*ivec3(8,4,8)+ivec3(gl_LocalInvocationID);
     if(any(greaterThanEqual(p,directSize.xyz)))return;
-    ivec3 logical=ivec3((p.x-directSlots.x+directSize.x)%directSize.x,p.y,
-        (p.z-directSlots.y+directSize.z)%directSize.z);
+    // Both the physical texel and circular slot are in range, so one negative wrap suffices.
+    ivec3 logical=ivec3(p.x-directSlots.x,p.y,p.z-directSlots.y);
+    if(logical.x<0)logical.x+=directSize.x;
+    if(logical.z<0)logical.z+=directSize.z;
     vec3 position=directFirst.xyz+(vec3(logical)+.5)*directCell.xyz;
     float transmission=1;
     // Empty/guard nodes have no scattering source and need no lighting integral.
@@ -43,13 +45,18 @@ void main()
         CloudVolumeGrid grid;grid.size=directSize.xyz;grid.blocks=blocks;grid.slot=directSlots.xy;
         grid.first=directFirst.xyz;grid.cell=directCell.xyz;grid.minimum=directMinimum.xyz;grid.maximum=directMaximum.xyz;
         CloudVolumeRay ray=CloudVolumeBegin(grid,position,directDirection.xyz,3.402823e38,1);
+        // Texture addressing is affine along the ray. Evaluate from each midpoint rather than
+        // accumulating coordinates, preserving arbitrary clipped lengths and hardware Repeat.
+        vec3 coordOrigin=(ray.origin+vec3(grid.slot.x,0,grid.slot.y))/vec3(grid.size);
+        vec3 coordVelocity=ray.velocity/vec3(grid.size);
         float tau=0;
         for(int i=0;i<1024;i++)
         {
             vec2 interval;bool occupied;if(!CloudVolumeNext(grid,ray,interval,occupied))break;
             if(occupied)
             {
-                float sigma=CloudVolumeSample(grid,position+directDirection.xyz*((interval.x+interval.y)*.5));
+                vec3 coord=coordOrigin+coordVelocity*((interval.x+interval.y)*.5);
+                float sigma=textureLod(volumeDensity,coord,0).r;
                 if(isnan(sigma)||isinf(sigma)||sigma<0){ray.failed=true;break;}
                 tau=min(80.0,tau+sigma*(interval.y-interval.x));
             }

@@ -57,8 +57,11 @@ CloudVolumeRay CloudVolumeBegin(CloudVolumeGrid grid,vec3 origin,vec3 direction,
     vec3 start=ray.origin+ray.velocity*ray.t;
     ivec3 voxel=ivec3(floor(start));
     for(int a=0;a<3;a++)if(ray.direction[a]<0&&start[a]==floor(start[a]))voxel[a]--;
-    ivec3 physical=ivec3(((voxel.x+grid.slot.x)%grid.size.x+grid.size.x)%grid.size.x,
-        clamp(voxel.y,0,grid.size.y-1),((voxel.z+grid.slot.y)%grid.size.z+grid.size.z)%grid.size.z);
+    // Normalize each signed remainder once, without a second integer division/modulo.
+    ivec2 horizontal=ivec2((voxel.x+grid.slot.x)%grid.size.x,(voxel.z+grid.slot.y)%grid.size.z);
+    if(horizontal.x<0)horizontal.x+=grid.size.x;
+    if(horizontal.y<0)horizontal.y+=grid.size.z;
+    ivec3 physical=ivec3(horizontal.x,clamp(voxel.y,0,grid.size.y-1),horizontal.y);
     ray.block=physical/ivec3(8,4,8);
     for(int a=0;a<3;a++)if(ray.direction[a]!=0)
     {
@@ -74,7 +77,12 @@ void CloudVolumeAdvance(CloudVolumeGrid grid,inout CloudVolumeRay ray)
 {
     for(int a=0;a<3;a++)if(ray.direction[a]!=0&&ray.next[a]<=ray.t)
     {
-        ray.block[a]=(ray.block[a]+ray.direction[a]+grid.blocks[a])%grid.blocks[a];
+        // A valid block moves by exactly one. Explicit seam branches avoid integer remainder
+        // while retaining the same short edge block and tied-axis decisions.
+        int block=ray.block[a]+ray.direction[a];
+        if(block<0)block=grid.blocks[a]-1;
+        else if(block==grid.blocks[a])block=0;
+        ray.block[a]=block;
         int side=a==1?4:8;
         int width=min(side,grid.size[a]-ray.block[a]*side);
         ray.plane[a]+=float(ray.direction[a]*width);
@@ -102,12 +110,6 @@ bool CloudVolumeNext(CloudVolumeGrid grid,inout CloudVolumeRay ray,out vec2 inte
     if(ray.t<ray.end&&ray.t==boundary)CloudVolumeAdvance(grid,ray);
     if(ray.operations>ray.limit){ray.failed=true;return false;}
     return !ray.failed;
-}
-/** Samples stored extinction with one hardware trilinear fetch. */
-float CloudVolumeSample(CloudVolumeGrid grid,vec3 native)
-{
-    vec3 uv=((native-grid.first)/grid.cell+vec3(grid.slot.x,0,grid.slot.y))/vec3(grid.size);
-    return textureLod(volumeDensity,uv,0).r;
 }
 /** Distinguishes a fully traversed ray from a failed or truncated prefix. */
 bool CloudVolumeComplete(CloudVolumeRay ray){return !ray.failed&&ray.t>=ray.end;}

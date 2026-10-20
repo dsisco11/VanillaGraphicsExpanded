@@ -847,6 +847,16 @@ RGB. There is no native descriptor/noise lookup, low layer sample cap, jitter or
 Operation-limit failure discards the whole pixel prefix. Optional optical termination occurs only
 after a completed segment and compiles out when StopTransmittance is zero.
 
+DDA entry normalizes each horizontal signed remainder once. One-block advances use explicit seam
+branches, including short physical edge blocks, while crossing distances still derive from retained
+planes and the original grid ray. Tied axes, clipping and progress checks use those same distances;
+no accumulated crossing increment changes their rounding. Direct and diffuse rays use the same
+per-ray affine texture addressing as the view: evaluate original coordinate origin plus velocity
+times the current interval midpoint, avoiding repeated native reconstruction and coordinate division.
+Physical-to-logical texel lookup uses one negative wrap adjustment per horizontal axis. Filtering
+remains hardware trilinear, and coordinates are never accumulated between intervals. Float32
+reassociation affects rounding but leaves the declared integration schedule and physical units intact.
+
 The outgoing phase direction is sample-to-camera. Current directional first scattering and cached
 diffuse enter once; disabled self-shadowing uses unit transmission, and disabled diffuse uses
 .9*current Environment. Those user-disabled sampling paths compile out. After physical front-to-back

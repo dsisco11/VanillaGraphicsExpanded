@@ -38,6 +38,10 @@ float VolumeDiffusePhase(float cosine)
 bool VolumeDiffuseGather(CloudVolumeGrid grid,vec3 origin,vec3 direction,out vec3 incoming)
 {
     CloudVolumeRay ray=CloudVolumeBegin(grid,origin,direction,400,.5);
+    // Share one affine coordinate across density, direct and diffuse fetches. The midpoint is
+    // evaluated independently each interval, avoiding accumulated texture-coordinate drift.
+    vec3 coordOrigin=(ray.origin+vec3(grid.slot.x,0,grid.slot.y))/vec3(grid.size);
+    vec3 coordVelocity=ray.velocity/vec3(grid.size);
     vec3 solar=.9*diffuseSolar.rgb*VolumeDiffusePhase(dot(-direction,diffuseSun.xyz));
     vec3 lunar=.9*diffuseLunar.rgb*VolumeDiffusePhase(dot(-direction,diffuseMoon.xyz));
     float transmission=1;incoming=vec3(0);
@@ -45,8 +49,7 @@ bool VolumeDiffuseGather(CloudVolumeGrid grid,vec3 origin,vec3 direction,out vec
     {
         vec2 interval;bool occupied;if(!CloudVolumeNext(grid,ray,interval,occupied))break;
         if(!occupied)continue; // Empty gaps do not attenuate or terminate transport.
-        vec3 position=origin+direction*((interval.x+interval.y)*.5);
-        vec3 uv=((position-grid.first)/grid.cell+vec3(grid.slot.x,0,grid.slot.y))/vec3(grid.size);
+        vec3 uv=coordOrigin+coordVelocity*((interval.x+interval.y)*.5);
         float sigma=textureLod(volumeDensity,uv,0).r;
         if(isnan(sigma)||isinf(sigma)||sigma<0)return false;
         if(sigma==0)continue;
@@ -81,7 +84,9 @@ void main()
         float kind=0;vec3 origin=vec3(0);
         if(all(lessThan(p,diffuseSize.xyz)))
         {
-            ivec3 logical=ivec3((p.x-diffuseSlots.x+diffuseSize.x)%diffuseSize.x,p.y,(p.z-diffuseSlots.y+diffuseSize.z)%diffuseSize.z);
+            ivec3 logical=ivec3(p.x-diffuseSlots.x,p.y,p.z-diffuseSlots.y);
+            if(logical.x<0)logical.x+=diffuseSize.x;
+            if(logical.z<0)logical.z+=diffuseSize.z;
             origin=grid.first+(vec3(logical)+.5)*grid.cell;
             float density=texelFetch(volumeDensity,p,0).r;
             kind=isnan(density)||isinf(density)||density<0?-1.0:
