@@ -28,8 +28,7 @@ struct CloudVolumeRay
     int operations;
     int limit;
     bool failed;
-    bool known;
-    bool occupied;
+    uint occupancyState; // One decision encodes unknown (0), certified empty (1), or occupied (2).
 };
 /** Clips an axis without dividing by a zero direction component. */
 bool CloudVolumeSlab(float origin,float direction,float lo,float hi,inout vec2 span)
@@ -49,7 +48,7 @@ CloudVolumeRay CloudVolumeBegin(CloudVolumeGrid grid,vec3 origin,vec3 direction,
     ray.failed=any(isnan(origin))||any(isinf(origin))||any(isnan(direction))||any(isinf(direction))||
         isnan(distance)||isinf(distance)||distance<0||abs(dot(direction,direction)-1.0)>.00001||
         (fraction!=.5&&fraction!=1.0);
-    ray.known=false;ray.occupied=false;ray.stepLength=1;
+    ray.occupancyState=0u;ray.stepLength=1;
     if(ray.failed||distance==0)return ray;
     vec2 span=vec2(0,distance);
     for(int a=0;a<3;a++)if(!CloudVolumeSlab(origin[a],direction[a],grid.minimum[a],grid.maximum[a],span))return ray;
@@ -82,22 +81,24 @@ void CloudVolumeAdvance(CloudVolumeGrid grid,inout CloudVolumeRay ray)
         ray.next[a]=(ray.plane[a]-ray.origin[a])/ray.velocity[a];
         if(ray.next[a]<=ray.t)ray.failed=true;
     }
-    ray.operations++;ray.known=false;
+    ray.operations++;ray.occupancyState=0u;
 }
 /** Returns an exact clipped interval, skipping only zero-certified blocks; cap breaches invalidate the whole ray. */
 bool CloudVolumeNext(CloudVolumeGrid grid,inout CloudVolumeRay ray,out vec2 interval,out bool occupied)
 {
     interval=vec2(ray.t);occupied=false;
     if(ray.failed||ray.t>=ray.end)return false;
-    if(!ray.known)
+    if(ray.occupancyState==0u)
     {
         int id=(ray.block.z*grid.blocks.y+ray.block.y)*grid.blocks.x+ray.block.x;
-        ray.occupied=volumeOccupancy[id]!=0u;ray.known=true;
+        ray.occupancyState=volumeOccupancy[id]==0u?1u:2u;
     }
     float boundary=min(ray.end,min(ray.next.x,min(ray.next.y,ray.next.z)));
-    float finish=ray.occupied?min(ray.t+ray.stepLength,boundary):boundary;
+    // Use the same decoded state for interval construction and its returned classification.
+    occupied=ray.occupancyState==2u;
+    float finish=occupied?min(ray.t+ray.stepLength,boundary):boundary;
     if(finish<=ray.t){ray.failed=true;return false;}
-    interval=vec2(ray.t,finish);occupied=ray.occupied;ray.t=finish;ray.operations++;
+    interval=vec2(ray.t,finish);ray.t=finish;ray.operations++;
     if(ray.t<ray.end&&ray.t==boundary)CloudVolumeAdvance(grid,ray);
     if(ray.operations>ray.limit){ray.failed=true;return false;}
     return !ray.failed;

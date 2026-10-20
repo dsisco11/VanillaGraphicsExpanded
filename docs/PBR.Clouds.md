@@ -623,6 +623,8 @@ It clips rays to the finite native rectangle and admitted vertical band, handles
 components without division, and retains the current physical block and next unwrapped planes.
 Crossings advance all tied axes, including the short physical edge block at the circular seam.
 Only an occupancy value of zero skips a block; pending repair values remain conservatively occupied.
+The ray caches unknown, empty and occupied classifications in one integer state. The decoded
+classification controls both interval length and whether the consumer integrates that interval.
 Occupied steps use nominal half-voxel spacing for view/diffuse or one-voxel spacing for direct rays,
 shortened at block/domain endpoints. One hardware trilinear fetch evaluates each midpoint density.
 Operation caps are 2048 and 1024 respectively. Lack of progress or cap overflow fails the ray;
@@ -631,8 +633,7 @@ consumers must reject an incomplete prefix rather than treating it as completed 
 `CloudVolumeWork` selects separate direct and diffuse lists only after density publication. Blocks
 with certified zero density and trilinear support do not consume lighting jobs or backlog counts.
 Their pending revisions remain uncompleted and become eligible when density makes them occupied.
-It
-reserves half each 64/32-job budget for persistent round-robin service, then chooses incompatible,
+It reserves half each 64/32-job budget for persistent round-robin service, then chooses incompatible,
 newly active, visible stale and other old pending work. Physical blocks spanning a logical window
 seam are conservatively visible. Offscreen jobs retain fair service. The direct list encodes
 `block*2+source`; the direct owner orders solar/lunar RG writes to avoid channel

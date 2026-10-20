@@ -26,10 +26,11 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
         var header=new uint[(CloudVolumeDomain.ScratchBytes-4096)/4];header[18]=(uint)(d.Blocks*2-9);header[19]=(uint)(d.Blocks-7);header[^1]=0xdeadbeef;
         using var regions=GpuShaderStorageBuffer.Create();using var scratch=GpuShaderStorageBuffer.Create();using var commands=GpuShaderStorageBuffer.Create();
         regions.UploadData(data);scratch.UploadData(header);commands.UploadData(new uint[12]);
+        using var occupancy=GpuShaderStorageBuffer.Create();occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
         var programs=Enumerable.Range(0,6).Select(op=>CloudVolumeWorkProgram.Create(Programs.Api,op)).ToArray();
         try
         {
-            foreach(var p in programs){p.Regions=regions;p.Scratch=scratch;p.Commands=new(commands,0,48);}
+            foreach(var p in programs){p.Regions=regions;p.Scratch=scratch;p.Commands=new(commands,0,48);p.Occupancy=occupancy;}
             var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();planes[0]=new(1,0,0,-2500);
             using var timer=GpuTimerQuery.Create("Tests.Cloud.Work.Maximum");var times=new List<double>();
             for(int sample=0;sample<4;sample++)

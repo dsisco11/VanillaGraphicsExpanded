@@ -21,15 +21,16 @@ void main()
     grid.minimum=probeMinimum.xyz;grid.maximum=probeMaximum.xyz;
     CloudVolumeRay ray=CloudVolumeBegin(grid,probeOrigin.xyz,probeDirection.xyz,probeOrigin.w,probeDirection.w);
     if(probeSize.w>0)ray.limit=probeSize.w;
-    float coverage=0,occupiedLength=0,tau=0;int emptyCount=0,samples=0;
+    float coverage=0,occupiedLength=0,tau=0,maxSpan=0;int emptyCount=0,samples=0;
     for(int i=0;i<2048;i++)
     {
         vec2 span;bool occupied;if(!CloudVolumeNext(grid,ray,span,occupied))break;
         float length=span.y-span.x;coverage+=length;
         if(occupied)
-        {occupiedLength+=length;samples++;tau+=CloudVolumeSample(grid,probeOrigin.xyz+probeDirection.xyz*((span.x+span.y)*.5))*length;}
+        {maxSpan=max(maxSpan,length);occupiedLength+=length;samples++;tau+=CloudVolumeSample(grid,probeOrigin.xyz+probeDirection.xyz*((span.x+span.y)*.5))*length;}
         else emptyCount++;
     }
     result[0]=vec4(coverage,occupiedLength,tau,float(ray.operations));
     result[1]=vec4(CloudVolumeComplete(ray)?1:0,ray.failed?1:0,float(emptyCount),float(samples));
+    result[2]=vec4(maxSpan,ray.stepLength,0,0);
 }
