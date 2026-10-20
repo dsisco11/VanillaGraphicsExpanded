@@ -502,26 +502,50 @@ Phase 7.3 - Reuse capture evidence and resolve specific measurement gaps
   Depends on: Phase 7.2.
   Outcome: the supplied capture and source audit support immediate waste removal. Additional profiling
     answers named unresolved questions or measures a change; it is not a prerequisite for Phases 7.4-7.7.
-  [ ] Reuse artifacts/StoredCloudPerformance/findings.md and its raw capture receipts as the existing
+  [x] Reuse artifacts/StoredCloudPerformance/findings.md and its raw capture receipts as the existing
       workload/replay baseline. Retain viewport, renderer/settings, dispatch/binding/barrier counts,
       copied bytes and per-pass GPU results; do not ask for a replacement capture or reproduce the
       baseline merely to start the identified fixes. Source-check findings against changed code.
-  [ ] Distinguish established workload facts from unresolved live timing: full-resolution integration,
+  [x] Distinguish established workload facts from unresolved live timing: full-resolution integration,
       repeated internal handoffs and full-field copying are evidenced. The approximately 5.3 ms cloud
       GPU replay result does not explain all reported 20-30 FPS; unstable terrain replay durations
       and capture API elapsed time must not be presented as ordinary frame cost.
-  [ ] For a specific optimization, collect only the missing before/after evidence needed to evaluate
+  [x] For a specific optimization, collect only the missing before/after evidence needed to evaluate
       it. Reuse existing profiling hooks first; count eliminated work and use narrow matched GPU
       measurements where applicable. Label source-derived savings and unmeasured CPU effects honestly.
-  [ ] If live CPU/GPU attribution remains necessary to resolve a named question, state that question
+  [x] If live CPU/GPU attribution remains necessary to resolve a named question, state that question
       and the required measurement before adding diagnostics or requesting user profiling. Separate
       CPU submission, driver waits and GPU execution; no synchronous timing reads in normal play.
       Leave unavailable live evidence open without blocking independent capture-backed fixes.
-  [ ] Use subagents for any affected incremental build/test, reuse passing evidence and avoid full
+  [x] Use subagents for any affected incremental build/test, reuse passing evidence and avoid full
       matrices, clean rebuilds or packaging. Never launch/close the game. Comprehensive live acceptance
       remains Phase 9; no broad profiling exercise is required to complete this evidence review.
-  [ ] Completion: existing evidence is mapped to actionable fixes, uncertainty is explicit, and any
+  [x] Completion: existing evidence is mapped to actionable fixes, uncertainty is explicit, and any
       additional measurement has a specific purpose rather than acting as a general implementation gate.
+
+Phase 7.3 verification
+  Traceability: capture reuse and timing distinctions -> artifacts/StoredCloudPerformance/findings.md,
+    GPU evidence and Confirmed remaining costs, with actions/states/timings1-2/cpu-calls raw receipts.
+    Targeted follow-up and profiling conditions -> findings.md / Recommended order and Focused follow-up
+    evidence. View/copy/source constraints -> proposal / Rendering the published volume, Layout and
+    memory limits, Metadata/budgets and Nonblocking updates; inherited ownership/physical publication
+    -> PBR.Clouds.md / Stored-volume view and selection, PBR.Atmosphere.Publication.md / Publication
+    contract and Rendering.Enablement.md. No implementation or contract change is required here.
+  Recomputed from saved data without replay: 3440x1377 view, 515x66x515 stored density, 33 dispatches,
+    67 barriers, 68 program switches and 153 indexed buffer binds. Warm replay runs retain cloud GPU
+    5.410816/5.250048 ms and view4.077568/3.9424 ms. Full diffuse read/write payload267.103 MiB is
+    source arithmetic, not measured bus traffic. Current view, density/work boundaries, diffuse copy,
+    drawable publication and observation/source-demand owners were source-checked against the findings.
+  Existing findings now map Phases7.4-7.7 to removable work, retained baseline and only the additional
+    evidence relevant to each change. No new measurement is needed to begin those fixes. Live whole-
+    frame CPU/driver/GPU attribution and the cause of all reported20-30 FPS remain unresolved; the
+    named question and existing CPU/GPU profiling approach are recorded if later decisions need them.
+    A selected density batch alone does not establish regeneration redundancy; visual design changes
+    and reduced-resolution comparisons retain their separate decision and user-review requirements.
+  Documentation/evidence review only: no runtime changes, diagnostics, build/test, replay rerun,
+    packaging or game action. Focused data checks reuse existing receipts; no approximation gate or
+    full baseline matrix. Second review and independent audit-stage-completion passed; diff whitespace
+    check passed. Later implementation and final live acceptance remain unchecked.
 
 Phase 7.4 - Batch retained update submission under one engine boundary
   Depends on: Phase 7.2. Use existing capture evidence; Phase 7.3 is not an implementation gate.
