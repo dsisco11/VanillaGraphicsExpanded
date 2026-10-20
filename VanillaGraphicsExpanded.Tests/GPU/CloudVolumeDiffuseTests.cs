@@ -1,0 +1,108 @@
+using System.Collections.Immutable;
+using System.Numerics;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.PBR.Atmosphere;
+using VanillaGraphicsExpanded.PBR.Clouds.Volume;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+using VolumeStorage=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeStorage;
+
+namespace VanillaGraphicsExpanded.Tests.GPU;
+
+/// <summary>Checks the declared diffuse recurrence and coherent partial publication without convergence/image gates.</summary>
+[Collection("GPU")][Trait("Category","GPU")]
+public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShaderFunctionalTestBase(fixture)
+{
+    #region Public API
+    /// <summary>Gathers a constant physical source, preserves untouched cells through rescaling, and rejects failed destinations.</summary>
+    [Fact]
+    public void DiffuseTransportPreservesCoherentHistoryAndCommitsOnlySuccessfulBatches()
+    {
+        EnsureShaderTestAvailable();
+        using var storage=new VolumeStorage(()=>CloudVolumeMaintenanceProgram.Create(Programs.Api),()=>CloudVolumeCopyProgram.Create(Programs.Api));
+        var d=new CloudVolumeDomain(5,default,-100,100);var initial=new CloudVolumeEncoding(new Vector3(4));
+        var environment=new Vector3(2,3,4);
+        storage.Request(d,new(new object(),1,1),initial,environment,()=>true);
+        while(!storage.InitializeNext(()=>true)){}
+        Assert.True(storage.PublishPending(()=>true,()=>true));var fields=storage.Published;
+        var density=Enumerable.Repeat(.0078125f,d.Voxels).ToArray();
+        fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
+        fields.Occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
+        fields.Direct.UploadDataImmediate(Enumerable.Repeat(float.NaN,d.Voxels*2).ToArray(),0,0,0,d.Size,66,d.Size);
+        using var work=new CloudVolumeWork(op=>CloudVolumeWorkProgram.Create(Programs.Api,op));
+        using var solver=new CloudVolumeDiffuse(shadows=>CloudVolumeDiffuseProgram.Create(Programs.Api,shadows));
+        var light=new AtmosphereLighting(Vector3.UnitY,Vector3.Zero,environment,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty);
+        var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();
+        Assert.True(work.Select(storage,light,1,planes,()=>true,directEnabled:false,diffuseEnabled:false));
+        var unchanged=fields.Diffuse;
+        using(var disabled=new CloudVolumeDiffuse(_=>throw new InvalidOperationException("Disabled diffuse compiled a program.")))
+        {Assert.True(disabled.Update(storage,work,()=>true));Assert.Equal(0,disabled.LastCopyBytes);}
+        Assert.Same(unchanged,fields.Diffuse);
+        using var probe=CloudVolumeProbeProgram.Create(Programs.Api);
+        using var result=GpuShaderStorageBuffer.Create();result.UploadData(new Vector4[2]);
+        var selectedPoint=Point(d,3,2,3);var untouchedPoint=Point(d,9,64,9);
+        Assert.True(work.Select(storage,light,2,planes,()=>true,directEnabled:false));
+        Assert.True(solver.Update(storage,work,()=>true),solver.Failure);
+        Assert.Equal(32,solver.LastJobs);Assert.Equal(d.CopyBytes,solver.LastCopyBytes);
+        Assert.NotSame(unchanged,fields.Diffuse);Assert.True(fields.Encoding.Scale>initial.Scale);
+        // For Q=0 and D_read=Environment=C, each ray is C*(1-T)+T*C. The declared update is exactly a*C.
+        var value=Query(probe,fields,result,selectedPoint);var encoded=fields.Encoding.Encode(.9f*environment);
+        for(int i=0;i<3;i++)
+        {
+            float actual=value[i]/fields.Encoding.Scale;
+            int expectedBits=BitConverter.HalfToUInt16Bits((Half)encoded[i]);
+            Assert.InRange(Math.Abs((int)BitConverter.HalfToUInt16Bits((Half)actual)-expectedBits),0,2);
+        }
+        Assert.Equal(0,value.W);Assert.Equal(new Vector4(environment,0),Query(probe,fields,result,untouchedPoint));
+        var coherent=fields.Diffuse;
+        Assert.True(solver.Update(storage,work,()=>true));Assert.Same(coherent,fields.Diffuse);
+        light=light with{Environment=Vector3.One,Extinction=new Vector3(.2f),Horizon=new Vector3(5)};
+        Assert.True(work.Select(storage,light,3,planes,()=>true,directEnabled:false));
+        Assert.Equal(value,Query(probe,fields,result,selectedPoint)); // Admission leaves old compatible energy intact.
+        Assert.True(solver.Update(storage,work,()=>true),solver.Failure);
+        Assert.Equal(environment,fields.LightingBounds!.Environment);Assert.True(fields.Encoding.Cap.X>=18);
+        Assert.True(work.Select(storage,light with{Environment=new Vector3(1000)},4,planes,()=>true,directEnabled:false));
+        using(var count=fields.Scratch.MapScope<uint>(17*4,1,MapBufferAccessMask.MapWriteBit))count.Span[0]=0;
+        coherent=fields.Diffuse;var encoding=fields.Encoding;
+        Assert.True(solver.Update(storage,work,()=>true));Assert.Equal(0,solver.LastCopyBytes);
+        Assert.Same(coherent,fields.Diffuse);Assert.Equal(encoding,fields.Encoding);
+        // Exercise the actual compiled cached-shadow path after real ordered direct completion.
+        light=light with{Solar=Vector3.One,Lunar=Vector3.One,Moon=-Vector3.UnitX};
+        using var direct=new CloudVolumeDirect(op=>CloudVolumeDirectProgram.Create(Programs.Api,op));
+        Assert.True(work.Select(storage,light,5,planes,()=>true));
+        Assert.True(direct.Update(storage,work,()=>true),direct.Failure);
+        Assert.True(solver.Update(storage,work,()=>true),solver.Failure);
+        Assert.True(fields.LightingBounds.DirectCap.X>0);
+        Assert.True(work.Select(storage,light,6,planes,()=>true));
+        Assert.True(direct.Update(storage,work,()=>true),direct.Failure);
+        coherent=fields.Diffuse;encoding=fields.Encoding;uint revision=fields.Revision;
+        var bounds=fields.LightingBounds;var stamps=Completed(fields);
+        Array.Fill(density,float.NaN);fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
+        Assert.False(solver.Update(storage,work,()=>true));Assert.False(storage.Ready);
+        Assert.Same(coherent,fields.Diffuse);Assert.Equal(encoding,fields.Encoding);Assert.Equal(revision,fields.Revision);
+        Assert.Same(bounds,fields.LightingBounds);Assert.Equal(stamps,Completed(fields));
+    }
+    #endregion
+    #region Private
+    /// <summary>Transforms an authored physical texel centre into native-local coordinates.</summary>
+    private static Vector3 Point(CloudVolumeDomain d,int x,int y,int z)
+    {
+        int lx=(x-d.SlotX+d.Size)%d.Size,lz=(z-d.SlotZ+d.Size)%d.Size;
+        return new((float)((d.FirstX+lx+.5)*CloudVolumeDomain.HorizontalCell-d.AnchorX),
+            (float)(d.Bottom+(y-.5)*d.VerticalCell),(float)((d.FirstZ+lz+.5)*CloudVolumeDomain.HorizontalCell-d.AnchorZ));
+    }
+    /// <summary>Reads one hardware-filtered physical diffuse value through the existing diagnostic program.</summary>
+    private static Vector4 Query(CloudVolumeProbeProgram p,CloudVolumeFields fields,GpuShaderStorageBuffer result,Vector3 point)
+    {
+        p.Capture(fields,point);p.Density=fields.Density;p.Direct=fields.Direct;p.Diffuse=fields.Diffuse;p.Result=result;p.Dispatch(1);
+        GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
+        using var read=result.MapScope<Vector4>(0,2,MapBufferAccessMask.MapReadBit);return read.Span[1];
+    }
+    /// <summary>Inspects exact completed frames to detect any publication of a failed prefix.</summary>
+    private static uint[] Completed(CloudVolumeFields fields)
+    {
+        using var read=fields.Regions.MapScope<uint>(0,fields.Domain.Blocks*16,MapBufferAccessMask.MapReadBit);
+        var values=new uint[fields.Domain.Blocks];for(int i=0;i<values.Length;i++)values[i]=read.Span[i*16+15];return values;
+    }
+    #endregion
+}

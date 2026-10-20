@@ -241,20 +241,39 @@ Phase 5 verification
 Phase 6 - Progressively transport diffuse illumination
   Depends on: Phase 5.
   Outcome: retained higher-order/environment source is refined under a fixed budget.
-  [ ] Implement the specified recurrence using stored density/direct visibility and previous diffuse
+  [x] Implement the specified recurrence using stored density/direct visibility and previous diffuse
       source; physical segment extinction/albedo and normalized direction weights govern transport.
-  [ ] Include incoming environment once, traverse empty gaps, and keep outgoing first scattering
+  [x] Include incoming environment once, traverse empty gaps, and keep outgoing first scattering
       separate from diffuse higher orders. Use selected finite radiance bounds/encoding.
-  [ ] Copy published diffuse data to the destination before partial writes; preserve untouched values,
+  [x] Copy published diffuse data to the destination before partial writes; preserve untouched values,
       perform selected updates from the coherent source, then publish field and scale together.
       Skip copy/swap for empty batches. Charge full copy traffic separately from solver work.
-  [ ] Propagate refinement demand and retain stale illumination across ordinary atmosphere changes.
+  [x] Propagate refinement demand and retain stale illumination across ordinary atmosphere changes.
       Apply the agreed fallback/transition policy without mixing incompatible density identities.
-  [ ] Verify declared recurrence/units, bounds, copy preservation, scale publication and failure rules
+  [x] Verify declared recurrence/units, bounds, copy preservation, scale publication and failure rules
       with focused tests only; no convergence or reference-image threshold. Update current docs.
-  [ ] Completion: bounded successful batches refine a coherent persistent source without double
+  [x] Completion: bounded successful batches refine a coherent persistent source without double
       counting environment/first scattering or losing untouched regions.
 
+Phase 6 verification
+  Source mapping: recurrence, units, first-scattering separation and half encoding -> proposal /
+    Lighting, recurrence and encoding; copy/publication/failure -> same and Generation, initialization
+    and geometry publication; high-water sources/refinement -> Metadata, budgets and source changes;
+    inherited ownership/physical publication -> PBR.Clouds.md, PBR.Atmosphere.Publication.md and
+    Rendering.Enablement.md. Current diffuse behavior and fixed allowance are documented in PBR.Clouds.md.
+  Private diffuse programs gather eight cube-corner directions through stored density/direct and the
+    coherent old diffuse field. Actual half-voxel intervals, 400-metre closure, one environment boundary,
+    albedo/HG and bounded downward half encoding implement the selected recurrence. Full copy precedes
+    partial writes; untouched physical values survive rescaling. Empty/disabled batches skip copy/swap;
+    source envelopes remain field-owned and compatible energy is retained. Failure cannot publish its
+    destination, encoding, bounds or completed stamps. Copy bytes are charged separately from job count.
+  Second review and independent completion audit passed. Cached Release build 1m36.29s, 0 errors
+    (185 existing warnings); 513 production/598 fixture binaries reused and only two new diffuse
+    variants compiled in each catalog. Four focused diffuse/direct/work/storage GPU facts passed,
+    none skipped, 2s test execution. No approximation-quality gate, packaging or game action.
+  Receipts: artifacts/cloud-volume-diffuse-build.log, artifacts/cloud-volume-diffuse-tests.log,
+    artifacts/test-results/cloud-volume-diffuse.trx. Live view/scene admission, measured copy/transport
+    cost and appearance remain later work; focused checks do not establish performance or convergence.
 Phase 7 - Draw and select the independent stored-volume candidate
   Depends on: Phase 6.
   Outcome: the user can select and inspect actual stored volumetric clouds in game.

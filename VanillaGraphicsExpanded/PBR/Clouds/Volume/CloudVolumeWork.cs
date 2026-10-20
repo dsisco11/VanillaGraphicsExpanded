@@ -21,6 +21,8 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     private bool failed,disposed;
     internal bool Ready {get;private set;}
     internal string? Failure {get;private set;}
+    /// <summary>Reports whether every relevant direct channel finished before a diffuse gather can read it.</summary>
+    internal bool DirectCompleted=>batch is not null&&(completed&batch.ActiveSources)==batch.ActiveSources;
 
     #region Public API
     #region Selection and completion
@@ -48,14 +50,14 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
                 if(lighting.Sun!=prior.Lighting.Sun)dirty|=5;
                 if(lighting.Moon!=prior.Lighting.Moon)dirty|=6;
                 if(lighting.Solar!=prior.Lighting.Solar||lighting.Lunar!=prior.Lighting.Lunar||
-                    lighting.Environment!=prior.Lighting.Environment||diffuseEnabled!=prior.Diffuse)dirty|=4;
+                    lighting.Environment!=prior.Lighting.Environment||directEnabled!=prior.Direct||diffuseEnabled!=prior.Diffuse)dirty|=4;
             }
             dirty|=newly;
             frustum.CopyTo(planes);
             programs[0]!.Capture(fields.Domain,frame,revision,active,dirty,newly,diffuseEnabled,0,planes);
             Bind(0,fields);Check(current);Run(0);Check(current);
             batch=new(fields,lighting,frame,revision,fields.Revision,fields.DensityState.Revision,
-                fields.DensityState.CompletedFrame,active,newly,diffuseEnabled,commands!);
+                fields.DensityState.CompletedFrame,active,newly,directEnabled,diffuseEnabled,commands!);
             completed=0;Ready=true;return true;
         }
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error))

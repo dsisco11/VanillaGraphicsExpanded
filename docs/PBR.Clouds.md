@@ -528,8 +528,8 @@ state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB pa
 allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
 128 bytes. Density operations use six 128-byte UBOs, a 32-byte validation/completion summary and
 12-byte indirect arguments. Lighting work uses two 208-byte UBOs and 24-byte indirect arguments.
-Direct transport uses three 128-byte UBOs. The combined addition is 1636 bytes, leaving 2332 bytes
-reserved inside that allowance.
+Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
+addition is 2052 bytes, leaving 1916 bytes reserved inside that allowance.
 
 `CloudVolumeStorage` admits format/dispatch/device limits before allocation. Incoming fields
 initialize at most 4096 physical blocks per call. They contain zero density, unit direct visibility
@@ -555,7 +555,7 @@ callback writes the spare, and completion/certificate checks precede the texture
 Barriers cover image writes, texture sampling and integer metadata. Physical RGB is capped and
 quantized downward to representable half values during encoding/rescaling, retaining the declared
 radiance bound. The caller skips this operation when no diffuse work is selected. This storage
-foundation has a separate direct transport owner and no diffuse solver or live view consumer.
+foundation has separate direct/diffuse transport owners and no live view consumer.
 
 `CloudVolumeDensity` consumes a synchronous certified native-map borrow and generates density
 through private `cloud_volume/density` compute operations. It validates native extinction/heights,
@@ -654,8 +654,39 @@ direct transmission; future consumers apply current illuminance and phase separa
 direct work creates no transport program and dispatches no integrals. Solar/lunar variants compile
 source selection independently and execute with image barriers between them, preserving companion
 channels without RG read-modify-write races. Reset/context/executable changes revoke the solver's
-certificates; storage retains ownership of all fields. Diffuse transport and live drawing are
-separate consumers still absent from this stored-volume foundation.
+certificates; storage retains ownership of all fields. Live drawing is not registered by this
+stored-volume foundation.
+
+`CloudVolumeDiffuse` refines at most 32 selected blocks after ordered direct completion. Every
+occupied node gathers eight normalized cube-corner rays, equally weighted, through stored density
+at half-voxel nominal spacing. Each ray continues through empty gaps until the finite domain exit
+or the explicit 400-metre transport closure. The incoming sum is
+`sum(T_before*alpha*(Q(sample,-rayDirection)+D_read(sample)))+T_end*Environment`, with
+`alpha=1-exp(-sigma*actualSegmentMetres)`, albedo .9, HG g=.6 and
+`Q=.9*sum(currentIlluminance*cachedTransmission*HG)`. The new isotropic source is .9 times the
+angular average. Environment enters once at the closure; outgoing directional first scattering
+remains a separate future view operation. Zero-density/guard nodes skip gathers and receive the
+finite .9*Environment fallback. Alpha remains zero.
+
+A nonempty batch first copies the full published diffuse field to the existing spare, re-encoding
+untouched values if scale grows. The gather samples only the coherent old texture, including one
+hardware trilinear fetch each for density, old diffuse and optional cached direct visibility at
+an occupied midpoint. Self-shadowing selects actual compiled variants; disabling it removes the
+direct sampler. Disabled diffuse creates no solver and does no copy. A one-word selected-count
+read skips copy/scale/swap for an empty list, without reading jobs. `LastCopyBytes` charges the
+complete source/destination copy separately from `LastJobs`; maximum copy traffic remains
+280,077,600 bytes per batch. These counts do not establish GPU execution time.
+
+Componentwise solar/lunar/environment envelopes remain with the field publication. Double-precision
+admission derives conservative Qcap/Dcap, retains older larger caps, and rejects unsupported
+float32 transport bounds. Fog, exposure and camera changes do not clear them. Successful gathers
+clamp to Dcap and encode downward to representable half values in the destination scale. Failure
+bits suppress completion; a failed destination never swaps or changes published encoding/bounds.
+Completion occurs against the unchanged work certificate before the texture/scale publication,
+which advances its field revision. Successful updates request further refinement without resetting
+pending ages. Resetting the solver releases executables while field-owned envelopes persist;
+retiring the field retires its envelopes. Live appearance, copy cost and refresh latency remain
+unqualified.
 
 ## Independent lighting-volume candidate
 

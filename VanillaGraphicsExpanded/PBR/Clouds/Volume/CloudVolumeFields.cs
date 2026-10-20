@@ -10,6 +10,7 @@ internal sealed class CloudVolumeFields : IDisposable
     private readonly GpuResourceCollection resources = new();
     internal CloudVolumeDomain Domain { get; set; }
     internal CloudVolumeEncoding Encoding { get; set; }
+    internal CloudVolumeLightingBounds? LightingBounds { get; set; }
     internal DynamicTexture3D Density { get; }
     internal DynamicTexture3D Direct { get; }
     internal DynamicTexture3D Diffuse { get; private set; }
