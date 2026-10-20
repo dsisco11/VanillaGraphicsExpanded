@@ -7,15 +7,16 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Owns certified descriptor observation, bounded density jobs and barrier-complete occupancy publication.</summary>
-internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityProgram> createProgram) : IDisposable
+internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolumeDensityProgram> createProgram) : IDisposable
 {
-    private readonly CloudVolumeDensityProgram?[] programs=new CloudVolumeDensityProgram?[6];
-    private readonly ulong[] executable=new ulong[6];
+    private readonly CloudVolumeDensityProgram?[] programs=new CloudVolumeDensityProgram?[14];
+    private readonly ulong[] executable=new ulong[14];
     private GpuShaderStorageBuffer? summary;
     private GpuIndirectBuffer? commands;
     private CloudVolumeIdentity? identity;
     private uint frame;
     private bool observed,failed,disposed;
+    private PackedUniformBuffer? selectionInputs;
     private GpuFence? fence;
     private DynamicTexture2D? nativeSnapshot;
     private CloudMapInput frozenInput;
@@ -84,11 +85,12 @@ internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityProgram> cre
         var caps=GpuSupport.Graphics;
         if(caps.MaxComputeShaderStorageBlocks<5||caps.MaxShaderStorageBufferBindings<5||caps.MaxUniformBlockSize<128||
             caps.MaxComputeWorkGroupInvocations<256||caps.MaxComputeWorkGroupSize.Length<3||
-            caps.MaxComputeWorkGroupSize[0]<64||caps.MaxComputeWorkGroupCount.Length<3||caps.MaxComputeWorkGroupCount[0]<4096)
+            caps.MaxComputeWorkGroupSize[0]<256||caps.MaxComputeSharedMemorySize<1040||caps.MaxComputeWorkGroupCount.Length<3||caps.MaxComputeWorkGroupCount[0]<4096)
             throw new NotSupportedException("Cloud density generation exceeds context capabilities.");
+        selectionInputs??=new PackedUniformBuffer(128);
         for(int i=0;i<programs.Length;i++)
         {
-            var p=programs[i]??=createProgram(i);
+            var p=programs[i]??=createProgram(i,i==2||i>=6?selectionInputs:null);
             if(!p.EnsureReady())throw new InvalidOperationException(p.PreparationLog);
             ulong next=((IGpuProgram)p).ExecutableRevision;
             if(observed&&executable[i]!=next)throw new InvalidOperationException("Cloud density executable changed; reset is required.");
@@ -162,9 +164,10 @@ internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityProgram> cre
         fence?.Dispose();fence=null;nativeSnapshot?.Dispose();nativeSnapshot=null;
         validating=deferred=UpdateCompleted=false;validatedBounds=null;generated=null;frozenInput=default;
         Ready=observed=failed=false;Failure=null;identity=null;frame=0;
-        Action[] release=new Action[8];
-        for(int i=0;i<6;i++){int slot=i;release[i]=()=>{programs[slot]?.Dispose();programs[slot]=null;executable[slot]=0;};}
-        release[6]=()=>{summary?.Dispose();summary=null;};release[7]=()=>{commands?.Dispose();commands=null;};
+        Action[] release=new Action[17];
+        for(int i=0;i<14;i++){int slot=i;release[i]=()=>{programs[slot]?.Dispose();programs[slot]=null;executable[slot]=0;};}
+        release[14]=()=>{summary?.Dispose();summary=null;};release[15]=()=>{commands?.Dispose();commands=null;};
+        release[16]=()=>{selectionInputs?.Dispose();selectionInputs=null;};
         RenderingCleanup.Run(release);
     }
     /// <summary>Retires the coordinator once; native textures remain with their producer.</summary>
@@ -224,12 +227,33 @@ internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityProgram> cre
     {
         var state=fields.DensityState;
         for(int op=2;op<6;op++)Configure(op,fields,state.WindowX,state.WindowZ,completedFrame,!state.InitialComplete);
-        Check(current);Run(2,()=>programs[2]!.Dispatch(1));
+        Check(current);Select(fields,completedFrame,current);
         Run(3,()=>programs[3]!.DispatchIndirect(commands!));
         Run(4,()=>programs[4]!.Dispatch((fields.Domain.Blocks+63)/64));
         Run(5,()=>programs[5]!.Dispatch((fields.Domain.Blocks+63)/64));Check(current);
         if(deferred){generated=fields;generatedFrame=completedFrame;return;}
         ReadGeneration(fields,completedFrame);
+    }
+    /// <summary>Uses parallel prefixes and a four-byte age threshold, with exact stable ties and no serial domain scan.</summary>
+    private void Select(CloudVolumeFields fields,uint completedFrame,Func<bool> current)
+    {
+        var state=fields.DensityState;bool initial=!state.InitialComplete;
+        int groups=(fields.Domain.Blocks+255)/256;
+        // Histograms overlap lighting summaries only after the density completion fence; count ranges remain disjoint.
+        if(32768+groups*256>245760||246272+groups>(CloudVolumeDomain.ScratchBytes-4096)/4)
+            throw new NotSupportedException("Density selection exceeds fixed scratch.");
+        void Stage(int operation,int count,int shift=0)
+        {
+            Configure(operation,fields,state.WindowX,state.WindowZ,completedFrame,initial,shift);
+            Run(operation,()=>programs[operation]!.Dispatch(count));
+        }
+        Stage(2,groups);Stage(6,groups);Stage(8,1);Stage(7,groups);
+        if(!initial)
+        {
+            for(int shift=24;shift>=0;shift-=8){Stage(9,groups,shift);Stage(10,1,shift);}
+            Stage(11,groups);Stage(12,groups);
+        }
+        Stage(13,1);Check(current);
     }
     /// <summary>Commits density counters only once the producer fence has signaled.</summary>
     private void ReadGeneration(CloudVolumeFields fields,uint completedFrame)
@@ -256,9 +280,9 @@ internal sealed class CloudVolumeDensity(Func<int,CloudVolumeDensityProgram> cre
             stamp.WindowZ!=(long)input.Placement.CenterZ-input.Placement.WindTileZ;
     }
     /// <summary>Captures all resources through the selected typed operation; unused bindings are compiled away.</summary>
-    private void Configure(int op,CloudVolumeFields fields,long x,long z,uint completedFrame,bool initial)
+    private void Configure(int op,CloudVolumeFields fields,long x,long z,uint completedFrame,bool initial,int shift=0)
     {
-        var p=programs[op]!;p.Capture(fields.Domain,x,z,fields.DensityState,completedFrame,initial);
+        var p=programs[op]!;p.Capture(fields.Domain,x,z,fields.DensityState,completedFrame,initial,shift);
         p.Descriptors=new(fields.Descriptors,op==1?TextureAccess.ReadWrite:TextureAccess.ReadOnly);
         p.Density=new(fields.Density,TextureAccess.WriteOnly,Layered:true);p.StoredDensity=fields.Density;
         p.Regions=fields.Regions;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Summary=summary;

@@ -1,6 +1,8 @@
 #version 430 core
 #if VGE_VOLUME_DENSITY_OPERATION==3
 layout(local_size_x=8,local_size_y=4,local_size_z=8) in;
+#elif VGE_VOLUME_DENSITY_OPERATION==2 || VGE_VOLUME_DENSITY_OPERATION>=6
+layout(local_size_x=256) in;
 #else
 layout(local_size_x=64) in;
 #endif
@@ -59,36 +61,8 @@ void DirtyColumn(ivec2 cell)
     atomicOr(scratch[6],1u);
 }
 
-#if VGE_VOLUME_DENSITY_OPERATION==2
-/** Orders oldest pending work first; fair selection below prevents starvation under continuous edits. */
-bool Better(uint a,uint b)
-{
-    uint aa=uint(volumeStamps.x)-regions[a*16u+3u],bb=uint(volumeStamps.x)-regions[b*16u+3u];
-    return aa>bb||(aa==bb&&a<b);
-}
-/** Keeps a bounded worst-first heap rather than scanning the full domain once for each output job. */
-void Offer(uint item,inout int count,int limit)
-{
-    if(count<limit)
-    {
-        int i=count++;scratch[8192+i]=item;
-        while(i>0)
-        {
-            int p=(i-1)/2;if(!Better(scratch[8192+p],scratch[8192+i]))break;
-            uint t=scratch[8192+p];scratch[8192+p]=scratch[8192+i];scratch[8192+i]=t;i=p;
-        }
-    }
-    else if(Better(item,scratch[8192]))
-    {
-        scratch[8192]=item;int i=0;
-        while(i*2+1<count)
-        {
-            int child=i*2+1;if(child+1<count&&Better(scratch[8192+child],scratch[8192+child+1]))child++;
-            if(!Better(scratch[8192+i],scratch[8192+child]))break;
-            uint t=scratch[8192+i];scratch[8192+i]=scratch[8192+child];scratch[8192+child]=t;i=child;
-        }
-    }
-}
+#if VGE_VOLUME_DENSITY_OPERATION==2 || VGE_VOLUME_DENSITY_OPERATION>=6
+@import "density_selection.glsl"
 #endif
 #if VGE_VOLUME_DENSITY_OPERATION==3
 @import "density_shape.glsl"
@@ -119,31 +93,8 @@ void main()
         if(any(lessThan(departed,ivec2(0)))||any(greaterThanEqual(departed,ivec2(volumeExtent.z))))DirtyColumn(departed);
     }
     imageStore(descriptors,slot,now);
-    #elif VGE_VOLUME_DENSITY_OPERATION==2
-    if(id!=0u)return;
-    int total=volumeStamps.z,budget=volumeSettings.x,count=0,backlog=0;
-    for(int i=0;i<total;i++)
-    {
-        uint flags=regions[i*16];bool pending=(flags&1u)!=0u;
-        if((flags&16u)!=0u|| (pending&&regions[i*16+1]==0u))
-        {
-            if(!pending||regions[i*16+1]==0u)regions[i*16+3]=uint(volumeStamps.w!=0?volumeSettings.z:volumeStamps.x);
-            regions[i*16+1]=uint(volumeStamps.y);flags|=1u;
-        }
-        flags&=~(16u|256u);regions[i*16]=flags;
-        if((flags&1u)!=0u)backlog++;
-    }
-    int fair=volumeStamps.w!=0?budget:budget/2,cursor=int(scratch[5]%uint(total));
-    for(int n=0;n<total&&count<fair;n++)
-    {
-        int i=(cursor+n)%total;
-        if((regions[i*16]&1u)!=0u){scratch[64+count++]=uint(i);regions[i*16]|=256u;scratch[5]=uint((i+1)%total);}
-    }
-    int heapCount=0,limit=budget-count;
-    if(limit>0)for(int i=0;i<total;i++)if((regions[i*16]&(1u|256u))==1u)Offer(uint(i),heapCount,limit);
-    for(int i=0;i<heapCount;i++){uint job=scratch[8192+i];scratch[64+count++]=job;regions[job*16u]|=256u;}
-    scratch[4]=uint(count);summary[4]=0u;summary[5]=uint(count);summary[6]=uint(backlog);
-    commands[0]=uint(count);commands[1]=1u;commands[2]=1u;
+    #elif VGE_VOLUME_DENSITY_OPERATION==2 || VGE_VOLUME_DENSITY_OPERATION>=6
+    DensitySelect();
     #elif VGE_VOLUME_DENSITY_OPERATION==3
     uint job=gl_WorkGroupID.x;if(job>=scratch[4])return;
     int region=int(scratch[64+job]);

@@ -11,6 +11,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(SelfShadow))]
 internal sealed partial class CloudVolumeDiffuseProgram:GpuComputeProgram,ICloudVolumeDiffuseBindings
 {
+    internal const int DefaultSlices=8;
     private readonly PackedUniformBuffer inputs=new(208);
     #region Public API
     /// <summary>Removes the direct-visibility sampler and lookup when self-shadowing is disabled.</summary>

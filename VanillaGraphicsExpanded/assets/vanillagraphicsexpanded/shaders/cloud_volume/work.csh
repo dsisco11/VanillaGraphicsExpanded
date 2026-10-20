@@ -152,7 +152,20 @@ void Emit(int kind,int groups)
         }
     }
     scratch[16+kind]=uint(count);scratch[22+kind]=backlog;
-    commands[kind*3]=uint(count);commands[kind*3+1]=1u;commands[kind*3+2]=1u;
+    commands[kind*3]=uint(count);commands[kind*3+1]=kind==0?1u:uint(workSettings.w);commands[kind*3+2]=1u;
+    if(kind==0)
+    {
+        uint solar=0u,lunar=0u;
+        for(int i=0;i<count;i++)
+        {
+            uint job=scratch[DirectJobs+i];
+            if((job&1u)==0u)scratch[16512u+solar++]=job/2u;
+            else scratch[16576u+lunar++]=job/2u;
+        }
+        scratch[29]=solar;scratch[30]=lunar;
+        commands[6]=solar;commands[7]=uint(workSettings.z);commands[8]=1u;
+        commands[9]=lunar;commands[10]=uint(workSettings.z);commands[11]=1u;
+    }
 }
 /** Runs barrier-separated initialization, parallel merge, hierarchical selection or successful-only completion. */
 void main()

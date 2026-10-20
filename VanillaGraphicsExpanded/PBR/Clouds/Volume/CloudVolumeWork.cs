@@ -129,7 +129,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
             if(batch is not null&&executable[i]!=next)throw new InvalidOperationException("Cloud work executable changed; reset required.");
             executable[i]=next;
         }
-        if(commands is null){commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{0,1,1,0,1,1});}
+        if(commands is null){commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{0,1,1,0,1,1,0,1,1,0,1,1});}
     }
     #endregion
     #region Private
@@ -161,7 +161,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     }
     /// <summary>Binds exact field metadata, existing scratch and initialized indirect ranges.</summary>
     private void Bind(int op,CloudVolumeFields fields)
-    {programs[op]!.Regions=fields.Regions;programs[op]!.Scratch=fields.Scratch;programs[op]!.Commands=new(commands,0,24);}
+    {programs[op]!.Regions=fields.Regions;programs[op]!.Scratch=fields.Scratch;programs[op]!.Commands=new(commands,0,48);}
     /// <summary>Submits typed work through resource authority and closes metadata/command visibility.</summary>
     private void Run(int op,int groups=1)
     {

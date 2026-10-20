@@ -12,6 +12,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(Operation))]
 internal sealed partial class CloudVolumeDirectProgram:GpuComputeProgram,ICloudVolumeDirectBindings
 {
+    internal const int DefaultWidth=8;
     private readonly PackedUniformBuffer inputs=new(128);
     #region Public API
     /// <summary>Selects initialization, solar or lunar transport as actual shader variants.</summary>

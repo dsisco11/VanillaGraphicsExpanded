@@ -25,11 +25,11 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
         }
         var header=new uint[(CloudVolumeDomain.ScratchBytes-4096)/4];header[18]=(uint)(d.Blocks*2-9);header[19]=(uint)(d.Blocks-7);header[^1]=0xdeadbeef;
         using var regions=GpuShaderStorageBuffer.Create();using var scratch=GpuShaderStorageBuffer.Create();using var commands=GpuShaderStorageBuffer.Create();
-        regions.UploadData(data);scratch.UploadData(header);commands.UploadData(new uint[6]);
+        regions.UploadData(data);scratch.UploadData(header);commands.UploadData(new uint[12]);
         var programs=Enumerable.Range(0,6).Select(op=>CloudVolumeWorkProgram.Create(Programs.Api,op)).ToArray();
         try
         {
-            foreach(var p in programs){p.Regions=regions;p.Scratch=scratch;p.Commands=new(commands,0,24);}
+            foreach(var p in programs){p.Regions=regions;p.Scratch=scratch;p.Commands=new(commands,0,48);}
             var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();planes[0]=new(1,0,0,-2500);
             using var timer=GpuTimerQuery.Create("Tests.Cloud.Work.Maximum");var times=new List<double>();
             for(int sample=0;sample<4;sample++)
@@ -65,11 +65,18 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
                 Assert.Equal((uint)expected.Length,actual[16+kind]);Assert.Equal((uint)pending.Length,actual[22+kind]);
                 Assert.Equal(expected,Read(scratch,kind==0?CloudVolumeWork.DirectListWord:CloudVolumeWork.DiffuseListWord,expected.Length));
                 Assert.Equal((uint)((fair[^1]+1)%total),actual[18+kind]);
+                if(kind==0)for(int sourceIndex=0;sourceIndex<2;sourceIndex++)
+                {
+                    var source=expected.Where(job=>job%2==sourceIndex).Select(job=>job/2).ToArray();
+                    Assert.Equal((uint)source.Length,actual[29+sourceIndex]);
+                    Assert.Equal(source,Read(scratch,16512+sourceIndex*64,source.Length));
+                }
             }
             Assert.Equal(0xdeadbeefu,Read(scratch,header.Length-1,1)[0]);
             var retained=Read(regions,0,data.Length);
             for(int b=0;b<data.Length;b+=16){Assert.Equal(data[b+6],retained[b+6]);Assert.Equal(data[b+8],retained[b+8]);Assert.Equal(data[b+13],retained[b+13]);}
-            var args=Read(commands,0,6);Assert.Equal(new uint[]{64,1,1,32,1,1},args);
+            var args=Read(commands,0,12);Assert.Equal(new uint[]{64,1,1,32,CloudVolumeDiffuseProgram.DefaultSlices,1},args.Take(6));
+            Assert.Equal(64u,args[6]+args[9]);Assert.Equal(8u/CloudVolumeDirectProgram.DefaultWidth,args[7]);Assert.Equal(args[7],args[10]);
             times.Sort();output.WriteLine($"Maximum-domain scheduler: {d.Blocks} blocks, median {times[1]:F4} ms GPU; warm samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. Metadata-only standalone measurement; no live frame-time claim.");
         }
         finally{foreach(var p in programs)p.Dispose();}

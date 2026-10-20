@@ -526,11 +526,12 @@ zero alpha, one latest native-descriptor snapshot and exact block metadata/occup
 Textures use hardware trilinear filtering; no shared sampler override replaces their mixed wrap
 state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB parameter/scratch
 allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
-128 bytes. Density operations use six 128-byte UBOs, a 32-byte validation/completion summary and
-12-byte indirect arguments. Lighting work uses six 208-byte UBOs and 24-byte indirect arguments.
+128 bytes. Density operations use five independent 128-byte UBOs plus one shared 128-byte selector
+UBO, a 32-byte validation/completion summary and 12-byte indirect arguments. Lighting work uses six
+208-byte UBOs and 48-byte indirect arguments.
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
-addition is 2884 bytes. The view owns one 256-byte UBO across its variants and block publication
-owns a 16-byte UBO, leaving 812 bytes reserved inside that allowance. There are no private view
+addition is 2908 bytes. The view owns one 256-byte UBO across its variants and block publication
+owns a 16-byte UBO, leaving 788 bytes reserved inside that allowance. There are no private view
 targets or screen-space history. A separate drawable snapshot owns R16F density, RG16F direct,
 RGBA16F diffuse and exact region/occupancy buffers: 249,952,000 bytes (238.373 MiB) at maximum extent.
 A raw RGBA32F native observation snapshot adds at most 640,000 bytes. Maximum working plus drawable
@@ -586,12 +587,22 @@ overlap using bounded stationary noise and connected-face erosion. Half-float ov
 batch instead of clamping extinction. Noise and descriptor evaluation occur only in this generator;
 subsequent ray consumers can read stored density alone.
 
-Density work uses the existing scratch buffer: words 0..63 are header/reserved, jobs occupy
-64..4159 and the bounded priority heap occupies 8192..12287. The rest remains reserved. Initial
-fills use up to 4096 pending physical blocks per eligible call; subsequent batches reserve half
-for round-robin fairness and half for oldest pending work. Repeated observations update demand
-without resetting first-pending age. GPU-produced indirect arguments submit selected jobs without
-CPU list readback. Same-frame repeats consume no additional budget.
+Density work uses the existing scratch buffer: jobs occupy 64..4159. A 256-lane merge preserves
+pending ages and clears selection flags; parallel cyclic prefixes select the fair quota. Four
+byte-wise histogram reductions locate the oldest-work threshold; another prefix selects exact
+region-index ties and emits the remaining jobs. No invocation scans the whole domain or maintains
+a global heap. Initial fills use the entire 4096-job budget for fair service and skip the age
+reductions; subsequent batches reserve half for fairness and half for oldest pending work.
+Repeated observations update demand without resetting first-pending age. The fair prefix retains
+cyclic order; the priority suffix emits the exact selected set in physical-index order.
+
+Temporary words 32..37 hold the frozen cursor, quota and radix state. At maximum extent the
+281 by 256-bin histograms occupy 32768..104703; chunk counts occupy 245760..246040 and
+246272..246552. Density selection and lighting selection execute in separate, fence-ordered steps,
+so their overlapping histogram/summary area is reused safely. No candidate-sized allocation is
+added. Selector variants share one immutable-on-submission UBO through the existing uniform
+publication allocator. GPU indirect arguments submit selected jobs without CPU list readback.
+Same-frame repeats consume no additional budget.
 
 Incoming domains freeze their descriptor snapshot during bounded storage initialization and density
 fill. The previous domain remains usable until all initial density jobs finish; newer observations
@@ -626,6 +637,11 @@ read-modify-write races. GPU-selected indirect arguments contain separate three-
 direct and diffuse dispatch; no CPU readback selects work.
 
 Lighting scratch header words 16/17 hold selected counts, 18/19 fair cursors and 22/23 backlog.
+Words 29/30 hold solar/lunar counts. The common selected block-source list retains global selection
+and completion semantics; solar and lunar region lists at 16512..16575 and 16576..16639 partition it
+without changing the combined 64-job budget. The four three-uint indirect records hold the common
+direct count, diffuse dispatch, solar dispatch and lunar dispatch. Each source launches only its
+own groups; inactive sources are skipped and empty source counts launch zero invocations.
 Word 25 is the solver arithmetic-failure channel mask, 26 completion status and 27 deferred diffuse
 dependency demand. Direct jobs occupy 16384..16447 and diffuse jobs 16448..16479. Bounded
 selection summaries begin at words 32768 and 196608. These ranges do not overlap density work. Density demand in word 6
@@ -679,8 +695,12 @@ source selection independently and execute with image barriers between them, pre
 channels without RG read-modify-write races. Reset/context/executable changes revoke the solver's
 certificates; storage retains ownership of all fields.
 
-`CloudVolumeDiffuse` refines at most 32 selected blocks after ordered direct completion. Every
-occupied node gathers eight normalized cube-corner rays, equally weighted, through stored density
+`CloudVolumeDiffuse` refines at most 32 selected blocks after ordered direct completion. Each
+256-thread group processes 32 voxels with eight independent ray lanes per voxel; eight Y slices
+cover a complete 8x4x8 block. A leader validates each node once, all lanes reach the shared-memory
+barriers, and the leader combines eight results in the declared direction order. The two shared
+arrays use 4608 bytes per group. Any failed ray rejects the node/batch through the existing failure
+mask. Every occupied node gathers eight normalized cube-corner rays, equally weighted, through stored density
 at half-voxel nominal spacing. Each ray continues through empty gaps until the finite domain exit
 or the explicit 400-metre transport closure. The incoming sum is
 `sum(T_before*alpha*(Q(sample,-rayDirection)+D_read(sample)))+T_end*Environment`, with

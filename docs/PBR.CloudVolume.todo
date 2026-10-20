@@ -329,43 +329,82 @@ Phase 7.1 - Improve compute tracing parallelism and eliminate serial density sel
   Depends on: Phase 7.
   Outcome: bounded density and lighting work exposes useful GPU parallelism without increasing
     ray counts, work budgets or changing the declared transport/integration model.
-  [ ] Record a narrow matched baseline for density selection, direct and diffuse tracing. Capture
+  [x] Record a narrow matched baseline for density selection, direct and diffuse tracing. Capture
       dispatch/group counts, occupied versus early-exit lanes, registers/spills, achieved occupancy,
       eligible warps and texture/memory stalls where tooling supports them. State GPU, settings,
       coverage, scene state and contention; distinguish measured limits from source-based suspicions.
-  [ ] Replace the single-invocation density queue merge/heap scan with parallel classification and
+  [x] Replace the single-invocation density queue merge/heap scan with parallel classification and
       bounded hierarchical selection. Reuse the lighting selector's established approach where useful
       without coupling the independent queue policies. Preserve initial-fill behavior, pending ages,
       persistent fair cursors, stable ties, exact selected sets, backlog and indirect arguments.
       Account for simultaneous scratch users and barriers; do not add CPU job-list readback.
-  [ ] Parallelize the eight independent diffuse gather directions per occupied voxel and combine their
+  [x] Parallelize the eight independent diffuse gather directions per occupied voxel and combine their
       contributions through a bounded reduction. Preserve all eight directions, weights, recurrence,
       coherent old-field reads, finite checks and successful-only completion. Evaluate ray-to-lane
       mapping and reduction/register/shared-memory cost rather than merely increasing group size.
-  [ ] Emit separate solar/lunar direct lists and indirect counts so each compiled source dispatch
+  [x] Emit separate solar/lunar direct lists and indirect counts so each compiled source dispatch
       contains only its own jobs. Preserve the shared 64 block-source budget and global fairness/
       priority selection, active-source handling, channel isolation and completion stamps. Empty or
       inactive source lists submit no tracing work; retain required ordering for shared RG texels.
-  [ ] Compare smaller workgroup shapes against the existing 256-thread tracing groups at identical
+  [x] Compare smaller workgroup shapes against the existing 256-thread tracing groups at identical
       selected voxel/ray counts. Adjust group-to-block indexing and indirect dimensions explicitly;
       measure occupancy, load balance, divergence and register pressure. Keep only measured useful
       layouts; neither maximum local size nor maximum occupancy alone establishes better performance.
-  [ ] Preserve deferred fence-gated status reads, drawing from isolated completed snapshots, bounded
+  [x] Preserve deferred fence-gated status reads, drawing from isolated completed snapshots, bounded
       in-flight updates and dirty-block publication. Account for added reductions, dispatches, barriers,
       scratch and memory inside existing admission limits; do not restore render-thread GPU waits.
-  [ ] Use subagents for cached incremental builds and narrowly affected existing contract checks.
+  [x] Use subagents for cached incremental builds and narrowly affected existing contract checks.
       Cover selection/fairness, unique source lists, reduction math, edge blocks and failure/publication
       only where changed; avoid redundant fixtures and approximation-quality/image/convergence gates.
       Reuse passing evidence; no routine clean build, full matrix or packaging. Final qualification
       remains Phase 9.
-  [ ] Repeat the same narrow measurements after each candidate, including total update cost and
+  [x] Repeat the same narrow measurements after each candidate, including total update cost and
       publication overhead. Record retained improvements and rejected variants honestly; update the
       proposal/current architecture for delivered scheduling and resource changes. Do not raise
       sampling budgets to hide poor utilization or claim hardware saturation from invocation counts.
-  [ ] Completion: serial density selection is removed, source-mismatched direct groups are eliminated,
+  [x] Completion: serial density selection is removed, source-mismatched direct groups are eliminated,
       and diffuse-direction/workgroup choices have recorded cost evidence or explicit deferral with
       rationale. Queue, numerical and deferred-publication contracts remain intact; live frame-time
       and appearance acceptance remain separate qualification work.
+
+Phase 7.1 verification
+  Traceability: queue/fairness/scratch -> proposal / Metadata, budgets and source changes; ray lanes,
+    recurrence/finite encoding -> Lighting, recurrence and encoding; fenced publication -> Nonblocking
+    updates and drawable publication. Inherited ownership/units/enablement -> PBR.Clouds.md stored-volume
+    sections, PBR.Atmosphere.Publication.md and Rendering.Enablement.md. Current docs reconcile layout,
+    dispatch records and allowance: five private plus one shared density UBO, 48-byte lighting arguments,
+    788 reserved bytes. No new candidate-sized storage, ray count, budget or approximation threshold.
+  Delivered parallel density merge/cyclic prefixes/four-byte age threshold with stable ties; separate
+    source lists preserve common completion/selection. Cooperative diffuse uses 256 threads, eight ray
+    lanes per voxel and eight slices per block. Deferred status reads and isolated snapshots remain.
+  RTX 4090 standalone timers, uncontrolled external contention: max 71,825-block metadata selector
+    median 48.3727 ms baseline -> 0.2744 ms retained. A later repeat median was 0.4731 ms with samples
+    0.2734/0.4731/0.7608; report variability rather than promising a fixed speedup or hardware saturation.
+    Separate width20 authored tracing workload: guarded 55x66x55, uniform extinction .005, all occupied,
+    64 direct jobs (32/source), 32 diffuse blocks/65,536 rays, old diffuse zero, unit sources/environment.
+    Direct median 0.0532 ms -> 0.0532 ms; diffuse 0.2529 -> 0.0522 ms; transport plus coherent copy
+    0.3133 -> 0.1024 ms. Dirty publication 0.0072 ms; transport/copy/publication bracket 0.1137 ms.
+    These are separate coverage/brackets; do not sum them into a full-domain or live frame-time claim.
+  Compared direct 256/128/64 threads: 0.0573/0.0553/0.0532 ms in the layout trial, too small a spread
+    and no improvement over the old baseline to justify smaller groups. Diffuse cooperative256/128/64
+    medians 0.0522/0.0584/0.0666 ms versus serial256 0.2499 ms. Retained256 for both; rejected production
+    variants/branches removed. Register/spill/occupancy/eligible-warp/stall counters unavailable through
+    the timer fixture; ray/group counts are source-derived, not measured occupancy.
+  Complete candidate update: actual CloudVolumeSolution Poll/Submit with default detail/shadows/diffuse,
+    width20, alternating native extinction .25/.2505, native heights +/-100m within the 800m band.
+    Median sum 3.5308 ms across five callbacks/publication; samples 3.5308/2.9665/3.6844. Includes density
+    validation/observation/generation/occupancy, queues, transport/completion, copy and publication.
+    Startup/native upload/view/test fence waits excluded; callback submission gaps included. There is
+    no matched old whole-update baseline. Live frame cost, appearance and full-domain costs remain later work.
+  Cached Release build passed, 0 errors; all 10 affected GPU facts passed with no skips. Added one
+    measurement/oracle fact; reused storage/solver/view checks. After its complete-update extension,
+    cached build 24.61s, zero shader recompiles; only the affected existing fact reran and passed.
+    CPU ordering checks cover maximum/sparse/scarce queues, initial fairness, wrap/ties, ages/stamps,
+    indirect counts and scratch sentinel; source partition, recurrence, edge/failure and deferred
+    lifecycle/publication checks pass. Second review and independent completion audit passed.
+  Receipts: artifacts/CloudComputeParallel/{baseline,candidate,final,whole-update}.md, corresponding
+    build/test logs and TRX. Frozen baseline binaries/sources and rejected candidate sources retained
+    there for measurement provenance. No clean build, full test matrix, packaging or game action.
 
 Phase 8 - Evaluate acceleration and update cost
   Depends on: Phase 7.1; Phase 1 initial acceleration decision.

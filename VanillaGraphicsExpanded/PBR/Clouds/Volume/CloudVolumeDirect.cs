@@ -30,13 +30,13 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
             if(selected.NewlyActive!=0)
             {
                 var p=Prepare(0);p.Capture(fields.Domain,default,selected.NewlyActive);Bind(p,fields);
-                Run(p,()=>p.Dispatch(fields.Domain.BlocksX,fields.Domain.BlocksY,fields.Domain.BlocksX),current);
+                Run(p,()=>p.Dispatch((fields.Domain.Size+CloudVolumeDirectProgram.DefaultWidth-1)/CloudVolumeDirectProgram.DefaultWidth,fields.Domain.BlocksY,fields.Domain.BlocksX),current);
             }
             for(int source=0;source<2;source++)if((active&(1<<source))!=0)
             {
                 var p=Prepare(source+1);p.Capture(fields.Domain,source==0?selected.Lighting.Sun:selected.Lighting.Moon,0);Bind(p,fields);
                 // Separate submissions and image barriers serialize read-modify-write access to shared RG texels.
-                Run(p,()=>p.DispatchIndirect(selected.Commands),current);
+                Run(p,()=>p.DispatchIndirect(selected.Commands,24+source*12),current);
             }
             if(!work.Complete(storage,selected.Frame,active,()=>work.TryBatch(storage,out var live)&&ReferenceEquals(live,selected),current,deferStatus))
                 throw new InvalidOperationException(work.Failure??"Direct transport completion certificate changed.");

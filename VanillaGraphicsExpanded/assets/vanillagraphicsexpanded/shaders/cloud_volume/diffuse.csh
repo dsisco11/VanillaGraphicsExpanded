@@ -1,7 +1,9 @@
 #version 430 core
 @import "traversal.glsl"
 @import "encoding.glsl"
-layout(local_size_x=8,local_size_y=4,local_size_z=8) in;
+layout(local_size_x=256) in;
+shared vec4 gatherNodes[32];
+shared vec4 gatherValues[256];
 layout(std140) uniform VolumeDiffuse
 {
     ivec4 diffuseSize;
@@ -69,25 +71,43 @@ void main()
     int region=int(scratch[16448+int(gl_WorkGroupID.x)]);
     ivec3 blocks=ivec3(diffuseSlots.z,diffuseSlots.w,diffuseSlots.z);
     ivec3 block=ivec3(region%blocks.x,(region/blocks.x)%blocks.y,region/(blocks.x*blocks.y));
-    ivec3 p=block*ivec3(8,4,8)+ivec3(gl_LocalInvocationID);
-    if(any(greaterThanEqual(p,diffuseSize.xyz)))return;
-    ivec3 logical=ivec3((p.x-diffuseSlots.x+diffuseSize.x)%diffuseSize.x,p.y,
-        (p.z-diffuseSlots.y+diffuseSize.z)%diffuseSize.z);
-    vec3 source=.9*diffuseEnvironment.rgb;
-    float density=texelFetch(volumeDensity,p,0).r;
-    if(isnan(density)||isinf(density)||density<0){atomicOr(scratch[25],4u);return;}
-    if(density>0&&all(greaterThan(logical,ivec3(0)))&&all(lessThan(logical,diffuseSize.xyz-1)))
+    int lane=int(gl_LocalInvocationIndex),rayIndex=lane%8,node=lane/8;
+    int voxel=int(gl_WorkGroupID.y)*32+node;
+    ivec3 p=block*ivec3(8,4,8)+ivec3(voxel%8,(voxel/8)%4,voxel/32);
+    CloudVolumeGrid grid;grid.size=diffuseSize.xyz;grid.blocks=blocks;grid.slot=diffuseSlots.xy;
+    grid.first=diffuseFirst.xyz;grid.cell=diffuseCell.xyz;grid.minimum=diffuseMinimum.xyz;grid.maximum=diffuseMaximum.xyz;
+    if(rayIndex==0)
     {
-        CloudVolumeGrid grid;grid.size=diffuseSize.xyz;grid.blocks=blocks;grid.slot=diffuseSlots.xy;
-        grid.first=diffuseFirst.xyz;grid.cell=diffuseCell.xyz;grid.minimum=diffuseMinimum.xyz;grid.maximum=diffuseMaximum.xyz;
-        vec3 origin=grid.first+(vec3(logical)+.5)*grid.cell;source=vec3(0);
+        float kind=0;vec3 origin=vec3(0);
+        if(all(lessThan(p,diffuseSize.xyz)))
+        {
+            ivec3 logical=ivec3((p.x-diffuseSlots.x+diffuseSize.x)%diffuseSize.x,p.y,(p.z-diffuseSlots.y+diffuseSize.z)%diffuseSize.z);
+            origin=grid.first+(vec3(logical)+.5)*grid.cell;
+            float density=texelFetch(volumeDensity,p,0).r;
+            kind=isnan(density)||isinf(density)||density<0?-1.0:
+                (density>0&&all(greaterThan(logical,ivec3(0)))&&all(lessThan(logical,diffuseSize.xyz-1))?2.0:1.0);
+        }
+        gatherNodes[node]=vec4(origin,kind);
+    }
+    barrier();vec4 info=gatherNodes[node];vec3 incoming=vec3(0);bool valid=info.w>=0;
+    if(info.w==2)
+    {
+        vec3 direction=vec3((rayIndex&1)==0?-1:1,(rayIndex&2)==0?-1:1,(rayIndex&4)==0?-1:1)*.5773502691896258;
+        valid=VolumeDiffuseGather(grid,info.xyz,direction,incoming);
+    }
+    gatherValues[lane]=vec4(incoming,valid?1:0);barrier();
+    if(rayIndex!=0||info.w==0)return;
+    vec3 source=.9*diffuseEnvironment.rgb;
+    if(info.w==2)
+    {
+        source=vec3(0);
+        // Preserve the declared direction order and arithmetic weights while tracing independently.
         for(int i=0;i<8;i++)
         {
-            vec3 direction=vec3((i&1)==0?-1:1,(i&2)==0?-1:1,(i&4)==0?-1:1)*.5773502691896258;
-            vec3 incoming;if(!VolumeDiffuseGather(grid,origin,direction,incoming)){atomicOr(scratch[25],4u);return;}
-            source+=incoming*(.9/8.0);
+            vec4 value=gatherValues[node*8+i];valid=valid&&value.w!=0;
+            source+=value.rgb*(.9/8.0);
         }
     }
-    if(!VolumeDiffuseFinite(source)){atomicOr(scratch[25],4u);return;}
+    if(!valid||!VolumeDiffuseFinite(source)){atomicOr(scratch[25],4u);return;}
     imageStore(diffuseWrite,p,CloudVolumeEncode(source,diffuseCap.rgb,diffuseScales.y));
 }

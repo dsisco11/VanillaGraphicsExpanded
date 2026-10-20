@@ -36,7 +36,7 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
         UboPacking.WriteVec4(data,48,(float)(domain.FirstX*CloudVolumeDomain.HorizontalCell-domain.AnchorX),
             (float)(domain.Bottom-domain.VerticalCell),(float)(domain.FirstZ*CloudVolumeDomain.HorizontalCell-domain.AnchorZ),0);
         UboPacking.WriteVec4(data,64,(float)CloudVolumeDomain.HorizontalCell,domain.VerticalCell,(float)CloudVolumeDomain.HorizontalCell,0);
-        UboPacking.WriteIVec4(data,80,newlyActive,diffuse?1:0,0,0);
+        UboPacking.WriteIVec4(data,80,newlyActive,diffuse?1:0,1,CloudVolumeDiffuseProgram.DefaultSlices);
         UboPacking.WriteIVec4(data,96,source,destination,directGroups,diffuseGroups);
         for(int i=0;i<6;i++)UboPacking.WriteVec4(data,112+16*i,planes[i].X,planes[i].Y,planes[i].Z,planes[i].W);
         inputs.SetBytes(data);

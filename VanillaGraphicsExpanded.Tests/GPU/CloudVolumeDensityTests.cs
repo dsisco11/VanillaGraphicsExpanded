@@ -19,7 +19,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
     {
         EnsureShaderTestAvailable();
         using var storage=new VolumeStorage(()=>CloudVolumeMaintenanceProgram.Create(Programs.Api),()=>CloudVolumeCopyProgram.Create(Programs.Api));
-        using var density=new CloudVolumeDensity(op=>CloudVolumeDensityProgram.Create(Programs.Api,op,false));
+        using var density=new CloudVolumeDensity((op,shared)=>CloudVolumeDensityProgram.Create(Programs.Api,op,false,shared));
         using var map=DynamicTexture2D.Create(20,20,PixelInternalFormat.Rgba32f);
         var data=new float[20*20*4];int column=(10*20+10)*4;data[column]=.5f;data[column+3]=1f/50;
         map.UploadDataImmediate(data);
@@ -62,7 +62,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
     {
         EnsureShaderTestAvailable();
         using var storage=new VolumeStorage(()=>CloudVolumeMaintenanceProgram.Create(Programs.Api),()=>CloudVolumeCopyProgram.Create(Programs.Api));
-        using var density=new CloudVolumeDensity(op=>CloudVolumeDensityProgram.Create(Programs.Api,op,true));
+        using var density=new CloudVolumeDensity((op,shared)=>CloudVolumeDensityProgram.Create(Programs.Api,op,true,shared));
         using var map=DynamicTexture2D.Create(50,50,PixelInternalFormat.Rgba32f);
         var data=new float[50*50*4];int column=(25*50+25)*4;
         data[column]=.5f;data[column+2]=-2;data[column+3]=2;map.UploadDataImmediate(data);
