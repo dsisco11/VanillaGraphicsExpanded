@@ -1151,19 +1151,76 @@ Phase 7.11 evaluation and review
 Phase 7.12 - Reduce spatial reconstruction depth and empty-region work
   Depends on: Phase 7.5; Phase 7.8 where view/pass lifetime changes are shared.
   Outcome: lower full-resolution reconstruction cost without changing configured tracing resolution.
-  [ ] Use event7021's approximately0.24ms baseline. Evaluate reuse of compatible existing combined
+  [x] Use event7021's approximately0.24ms baseline. Evaluate reuse of compatible existing combined
       depth and conservative empty-region rejection, including all preparation, storage and draw costs.
-  [ ] Reuse depth only when material, visibility/particle and liquid clipping semantics match. Preserve
+  [x] Reuse depth only when material, visibility/particle and liquid clipping semantics match. Preserve
       odd viewport support, discontinuity fallback and invalid/empty metadata distinctions.
-  [ ] Implement beneficial conservative rejection or shared depth reuse using existing abstractions.
+  [x] Implement beneficial conservative rejection or shared depth reuse using existing abstractions.
       Keep hardware filtering of continuous compact payloads and all six native output contracts;
       do not substitute manual payload filtering or omit buckets. Retain the current path if added
       preparation outweighs saved work, recording the decision without leaving unused alternatives.
-  [ ] Use subagents for focused incremental builds and existing reconstruction/depth/identity checks
+  [x] Use subagents for focused incremental builds and existing reconstruction/depth/identity checks
       only. Measure combined preparation/reconstruction cost in occupied and empty views; no visual
       approximation thresholds, broad matrix or packaging. Reuse full-resolution direct-path evidence.
-  [ ] Completion: delivered reconstruction preserves clipping/composition and has honest total-cost
+  [x] Completion: delivered reconstruction preserves clipping/composition and has honest total-cost
       evidence; current docs describe only the retained implementation.
+
+Phase 7.12 evaluation and review
+  Traceability: depth/rejection tasks -> proposal / Rendering the published volume and Shared
+    rendering obligations; PBR.Clouds.md / Shared depth inputs and Stored-volume view and selection;
+    Rendering.Enablement.md / Render boundaries and resource lifetime; PBR.Atmosphere.Publication.md /
+    Publication contract. Dependencies7.5/7.8 preserve compact hardware-filtered reconstruction,
+    configured resolution, immediate resource borrows and cached pass lifetimes. Evidence -> existing
+    CloudStoredVolumeViewTests, DepthHierarchyRenderer, CloudStoredVolumeConsumer and reconstruction
+    source, artifacts/StoredCloudLatest/findings.md / event7021 and phase712 receipts below.
+  Captured event7021 costs approximately.23-.24ms at3440x1377 with860x345quarter tracing. Shared
+    DepthHierarchyRenderer publishes corrected material depth from ReceiverDepthTexture (or primary
+    fallback); it does not combine the primary particle visibility and liquid depths additionally
+    required by CloudStoredVolumeConsumer. No existing equivalent combined publication was found.
+    Reusing material-only depth would change clipping. Building a new full-size combined image adds
+    allocation, a producer pass and visibility/lifetime obligations rather than removing those reads
+    for free; it is not selected. A separate coarse empty mask similarly requires support halos and
+    construction/storage, while exact four-texel completion metadata already exists. No unused mask,
+    combined image or alternate production path is left behind.
+  Tested a resource-free shader alternative: fetch four exact metadata records first and reject
+    support containing only invalid/empty records before three scene-depth reads; search nearest
+    compatible centres only for discontinuities. Complete compatible support retained two hardware
+    continuous reads and all six native products. Root second review checked >=1/<=depth compatibility,
+    strict-nearest row-major ties, clamped odd edges, mixed invalid/empty support, failed prefixes and
+    independent material/particle/liquid clips. Neither spacing nor full-resolution direct path changed.
+    The alternative did not demonstrate a useful total-view saving and was removed. Retain the
+    original path rather than adding control flow/register state without justified cost benefit.
+  Initial unchanged512x256half fixture original/alternative medians: occupied.0614/.0604ms,
+    empty.0225/.0215ms, about timer granularity. Alternative canonical incremental Release88.83s,
+    0errors/192existingwarnings; production563cachehits/1compile, fixture648/1compile. All3existing
+    stored-view facts passed7.9532s, including odd extents, depth discontinuities, invalid/empty,
+    compiled fallback and publication lifecycle. Receipts: phase712-baseline.log/.trx and
+    phase712-current-build.log, phase712-current-tests.log, phase712-current.trx.
+  Resolve that timing gap with one capture-sized authored comparison, not a scene/resolution matrix.
+    Existing RecordStoredViewCost now uses3440x1377quarter (860x345trace) instead of512x256half;
+    no new fact/class. It measures complete trace, internal intermediate clears and reconstruction,
+    including every changed GPU operation. No extra preparation/pass/resource exists in either
+    version. External uploads, target preparation/clears and query readbacks remain outside; unchanged
+    CPU preparation is not claimed as a saving. Same settings, half-voxel spacing, fixed direct/diffuse,
+    sigma.0078125/zero, depth100 and disabled detail in both variants, one warmup plus3samples.
+  Capture-sized original/alternative occupied medians1.0076/1.0066ms (original samples
+    1.0076/1.0076/1.0086; alternative1.0066/1.0066/1.0086); empty.0942/.0922ms (original
+    .0932/.0942/.0952; alternative.0922/.0922/.0932). One/two-microsecond differences are insufficient
+    to establish useful savings under uncontrolled game contention. Allocation168608B and two cached
+    pass preparations remain unchanged. This is a matched authored view comparison at the captured
+    extent, not replay of event7021, a reconstruction-only timing or a liveFPS/appearance qualification.
+    Capture-sized alternative cached build14.50s,0errors/172existingwarnings,1factpassed5.8427s;
+    final original cached build15.05s,0warnings/0errors,1factpassed4.2854s. Both reused all564production
+    and649fixturevariants with zero compiler invocations. Receipts: phase712-capture-current-build.log,
+    phase712-capture-current-tests.log, phase712-capture-current.trx and
+    phase712-capture-baseline-build.log, phase712-capture-baseline-tests.log,
+    phase712-capture-baseline.trx. Final source/binaries contain the retained original shader.
+  No sampling, depth, composition, resource-lifetime or user-setting behavior changes are retained.
+    Existing proposal/current documentation already describes that implementation. Reuse unchanged
+    full-resolution/traversal/transport evidence; no quality gate, extra suite, packaging or game action.
+  Independent completion audit directly checked controlling sources, final diff and receipts and found
+    no required gaps. All five tasks are complete with the original reconstruction retained; later
+    phases remain unchecked.
 
 Phase 7.13 - Reduce retained-lighting selection overhead and evaluate refinement demand
   Depends on: Phases 7.1, 7.2 and 7.7; coordinate publication changes with Phase 7.9 where needed.

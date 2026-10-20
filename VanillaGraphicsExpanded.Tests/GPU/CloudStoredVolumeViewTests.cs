@@ -83,7 +83,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
     [Fact]
     public void RecordStoredViewCost()
     {
-        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,512,256);
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,3440,1377);
         using var timer=GpuTimerQuery.Create("Tests.Cloud.StoredVolume.ViewCost");
         foreach(float sigma in new[]{.0078125f,0f})
         {
@@ -91,7 +91,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             // Preparation and clear precede each query; synchronous test query reads follow it.
             for(int i=0;i<4;i++)
             {
-                scene.PrepareDraw(CloudVolumeViewSettings.Default with{Detail=false,TraceDivisor=2});
+                scene.PrepareDraw(CloudVolumeViewSettings.Default with{Detail=false,TraceDivisor=4});
                 timer.Begin();long allocatedBefore=GC.GetAllocatedBytesForCurrentThread();long started=System.Diagnostics.Stopwatch.GetTimestamp();
                 bool drawn=scene.DrawOnly();
                 double cpuMilliseconds=System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;long allocated=GC.GetAllocatedBytesForCurrentThread()-allocatedBefore;
@@ -100,9 +100,9 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
                 if(i>0){times.Add(milliseconds);cpuTimes.Add(cpuMilliseconds);allocations.Add(allocated);}
             }
             times.Sort();cpuTimes.Sort();allocations.Sort();
-            output.WriteLine($"Stored view 512x256 sigma={sigma}: median {times[1]:F4} ms; samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. CPU submission median {cpuTimes[1]:F4} ms; samples {string.Join(", ",cpuTimes.Select(t=>t.ToString("F4")))} ms; allocated median {allocations[1]} bytes; samples {string.Join(", ",allocations)} bytes. Pass preparations {scene.ViewPassPreparations}. GPU: {gpu}.");
+            output.WriteLine($"Stored view 3440x1377 sigma={sigma}: median {times[1]:F4} ms; samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. CPU submission median {cpuTimes[1]:F4} ms; samples {string.Join(", ",cpuTimes.Select(t=>t.ToString("F4")))} ms; allocated median {allocations[1]} bytes; samples {string.Join(", ",allocations)} bytes. Pass preparations {scene.ViewPassPreparations}. GPU: {gpu}.");
         }
-        output.WriteLine("Actual typed compact half-resolution trace plus full-resolution spatial reconstruction, 36 bytes per trace pixel, half-voxel occupied spacing, authored uniform extinction .0078125/empty0, direct .25/.75 and diffuse12, depths100, detail disabled, default shadows/diffuse/stop. One warmup and three samples. External preparation, clears and readbacks excluded; internal intermediate clears and both draws included; no live FPS or appearance qualification; contention uncontrolled.");
+        output.WriteLine("Actual typed compact quarter-resolution trace plus full-resolution spatial reconstruction, 36 bytes per trace pixel, half-voxel occupied spacing, authored uniform extinction .0078125/empty0, direct .25/.75 and diffuse12, depths100, detail disabled, default shadows/diffuse/stop. One warmup and three samples. External preparation, clears and readbacks excluded; internal intermediate clears and both draws included; no live FPS or appearance qualification; contention uncontrolled.");
     }
     /// <summary>The complete native-generation-to-stored-view path owns and retires only its independent resources.</summary>
     [Fact]
