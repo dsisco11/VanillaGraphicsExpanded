@@ -40,6 +40,10 @@ void DensitySelect()
 {
     uint id=gl_GlobalInvocationID.x,lane=gl_LocalInvocationIndex;
     int group=int(gl_WorkGroupID.x),groups=(volumeStamps.z+255)/256;
+    #if VGE_VOLUME_DENSITY_OPERATION>=9 && VGE_VOLUME_DENSITY_OPERATION<=12
+    // Uniform queue state: every lane skips the unused priority reductions together.
+    if(scratch[34]==0u)return;
+    #endif
     #if VGE_VOLUME_DENSITY_OPERATION==2
     if(id>=uint(volumeStamps.z))return;
     uint b=id*16u,flags=regions[b];bool pending=(flags&1u)!=0u;
@@ -97,7 +101,7 @@ void DensitySelect()
     if(selected){scratch[64u+scratch[33]+rank-1u]=id;regions[id*16u]|=256u;}
     #elif VGE_VOLUME_DENSITY_OPERATION==13
     if(id!=0u)return;
-    uint count=scratch[33]+scratch[34];scratch[4]=count;summary[4]=0u;summary[5]=count;
+    uint count=scratch[33]+scratch[34];scratch[4]=count;summary[4]=0u;summary[5]=count;summary[7]=0u;
     commands[0]=count;commands[1]=1u;commands[2]=1u;
     #endif
 }

@@ -196,6 +196,9 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
             for (int start = 0; start < domain.Blocks; start += 4096)
                 RunMaintenance(fields, domain, fallback, start, Math.Min(4096, domain.Blocks - start));
             RequireCurrent(current); fields.Domain = domain; fields.Revision++;
+            // Entering/guard initialization can remove density before the generator compares it.
+            // Changed finite coverage also changes transport exits, even for unchanged interior texels.
+            fields.DensityState.LayoutChanged=true;fields.DensityState.MaintenanceRequired=true;
         }
         catch { available = false; throw; }
     }

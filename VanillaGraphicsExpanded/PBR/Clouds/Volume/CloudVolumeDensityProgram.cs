@@ -35,7 +35,7 @@ internal sealed partial class CloudVolumeDensityProgram : GpuComputeProgram, ICl
         bool history=state.SnapshotValid && Math.Abs(x-state.WindowX)<domain.Width && Math.Abs(z-state.WindowZ)<domain.Width;
         UboPacking.WriteIVec4(data,0,domain.Size,CloudVolumeDomain.Height,domain.Width,domain.BlocksX);
         UboPacking.WriteIVec4(data,16,domain.SlotX,domain.SlotZ,CloudVolumeDomain.Mod(x,domain.Width),CloudVolumeDomain.Mod(z,domain.Width));
-        UboPacking.WriteIVec4(data,32,history?checked((int)(state.WindowX-x)):0,history?checked((int)(state.WindowZ-z)):0,history?1:0,0);
+        UboPacking.WriteIVec4(data,32,history?checked((int)(state.WindowX-x)):0,history?checked((int)(state.WindowZ-z)):0,history?1:0,state.LayoutChanged?1:0);
         UboPacking.WriteVec4(data,48,(float)(domain.FirstX*CloudVolumeDomain.HorizontalCell-domain.AnchorX),
             (float)(domain.Bottom-domain.VerticalCell),(float)(domain.FirstZ*CloudVolumeDomain.HorizontalCell-domain.AnchorZ),0);
         UboPacking.WriteVec4(data,64,(float)CloudVolumeDomain.HorizontalCell,domain.VerticalCell,(float)CloudVolumeDomain.HorizontalCell,0);

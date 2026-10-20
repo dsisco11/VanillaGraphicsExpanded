@@ -26,7 +26,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     private (float Minimum,float Maximum)? validatedBounds;
     private CloudVolumeFields? generated;
     private uint generatedFrame;
-    private bool validating,deferred;
+    private bool validating,deferred,generationSkipped;
     internal bool Busy=>fence is not null;
     /// <summary>Identifies retained-domain generation ordered into the caller's final lighting fence.</summary>
     internal bool Chained=>generated is not null&&fence is null;
@@ -84,10 +84,10 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
         Check(()=>true);
         if(generated is {} fields)
         {
-            ReadGeneration(fields,generatedFrame);
+            if(!generationSkipped)ReadGeneration(fields,generatedFrame);
             if(ReferenceEquals(fields,storage.Pending)&&fields.DensityState.InitialComplete)
                 storage.PublishPending(()=>fields.DensityState.InitialComplete,()=>true);
-            generated=null;
+            generated=null;generationSkipped=false;
         }
         Ready=storage.Ready;UpdateCompleted=true;
     }
@@ -176,7 +176,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     internal void Reset()
     {
         fence?.Dispose();fence=null;nativeSnapshot?.Dispose();nativeSnapshot=null;
-        validating=deferred=UpdateCompleted=false;validatedBounds=null;generated=null;frozenInput=default;
+        validating=deferred=generationSkipped=UpdateCompleted=false;validatedBounds=null;generated=null;frozenInput=default;
         Ready=observed=failed=false;Failure=null;identity=null;frame=0;
         Action[] release=new Action[17];
         for(int i=0;i<14;i++){int slot=i;release[i]=()=>{programs[slot]?.Dispose();programs[slot]=null;executable[slot]=0;};}
@@ -227,7 +227,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     {
         var state=fields.DensityState;
         if(state.Revision==uint.MaxValue)throw new InvalidOperationException("Density revision rollover requires reset.");
-        state.Revision++;state.SnapshotFrame=input.Frame;
+        state.Revision++;state.SnapshotFrame=input.Frame;state.MaintenanceRequired=true;
         long x=(long)input.Placement.CenterX-input.Placement.WindTileX,z=(long)input.Placement.CenterZ-input.Placement.WindTileZ;
         Configure(1,fields,x,z,input.Frame,!state.InitialComplete);
         programs[1]!.Map=map;Check(current);
@@ -240,6 +240,15 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     private void Generate(CloudVolumeFields fields,uint completedFrame,Func<bool> current)
     {
         var state=fields.DensityState;
+        generationSkipped=false;
+        if(state.InitialComplete&&!state.MaintenanceRequired)
+        {
+            // The last fenced summary proved the queue empty and no observation has added demand.
+            // Keep the retained-domain lighting chain moving without dispatches or a stale summary read.
+            state.Selected=state.Changed=0;
+            if(deferred){generated=fields;generatedFrame=completedFrame;generationSkipped=true;}
+            return;
+        }
         for(int op=2;op<6;op++)Configure(op,fields,state.WindowX,state.WindowZ,completedFrame,!state.InitialComplete);
         Check(current);Select(fields,completedFrame,current);
         Run(3,()=>programs[3]!.DispatchIndirect(commands!));
@@ -276,6 +285,8 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
         using var read=summary!.MapScope<uint>(0,8,MapBufferAccessMask.MapReadBit);
         if(read.Span[0]!=0)throw new InvalidOperationException("Generated cloud density cannot be represented as finite R16F.");
         state.Selected=checked((int)read.Span[5]);state.Remaining=checked((int)read.Span[4]);
+        state.Changed=checked((int)read.Span[7]);state.MaintenanceRequired=state.Remaining!=0;
+        state.LayoutChanged=false;
         if(state.Selected>0)state.CompletedFrame=completedFrame;
         state.InitialComplete|=state.Remaining==0;
     }
@@ -298,7 +309,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     {
         var p=programs[op]!;p.Capture(fields.Domain,x,z,fields.DensityState,completedFrame,initial,shift);
         p.Descriptors=new(fields.Descriptors,op==1?TextureAccess.ReadWrite:TextureAccess.ReadOnly);
-        p.Density=new(fields.Density,TextureAccess.WriteOnly,Layered:true);p.StoredDensity=fields.Density;
+        p.Density=new(fields.Density,op==3?TextureAccess.ReadWrite:TextureAccess.WriteOnly,Layered:true);p.StoredDensity=fields.Density;
         p.Regions=fields.Regions;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Summary=summary;
         p.Commands=new(commands,0,12);
     }

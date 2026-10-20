@@ -18,8 +18,9 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
     public void StoredDensityUsesCoverageAndRetainsUnchangedHistory()
     {
         EnsureShaderTestAvailable();
-        using var storage=new VolumeStorage(()=>CloudVolumeMaintenanceProgram.Create(Programs.Api),()=>CloudVolumeCopyProgram.Create(Programs.Api));
-        using var density=new CloudVolumeDensity((op,shared)=>CloudVolumeDensityProgram.Create(Programs.Api,op,false,shared));
+        var submission=new CloudVolumeSubmission();
+        using var storage=new VolumeStorage(()=>CloudVolumeMaintenanceProgram.Create(Programs.Api),()=>CloudVolumeCopyProgram.Create(Programs.Api),submission);
+        using var density=new CloudVolumeDensity((op,shared)=>CloudVolumeDensityProgram.Create(Programs.Api,op,false,shared),submission);
         using var map=DynamicTexture2D.Create(20,20,PixelInternalFormat.Rgba32f);
         var data=new float[20*20*4];int column=(10*20+10)*4;data[column]=.5f;data[column+3]=1f/50;
         map.UploadDataImmediate(data);
@@ -41,17 +42,49 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         input=input with{Frame=2,Generation=2,Upload=2};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         Assert.Equal(0,fields.DensityState.Selected);Assert.Equal(actual,fields.DensityState.CompletedFrame);
+        Assert.Equal(0,fields.DensityState.Changed);Assert.False(fields.DensityState.MaintenanceRequired);
         // A wind-only transform does not observe or regenerate stationary material content.
-        uint revision=fields.DensityState.Revision;
+        uint revision=fields.DensityState.Revision;int dispatches=submission.Dispatches;
         input=input with{Frame=3,Placement=input.Placement with{Offset=new Vector3(7,0,4),WindX=.7}};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         Assert.Equal(revision,fields.DensityState.Revision);Assert.Equal(0,fields.DensityState.Selected);
+        Assert.Equal(dispatches,submission.Dispatches);Assert.Equal(0,fields.DensityState.Changed);
         data[column]=1;map.UploadDataImmediate(data);input=input with{Frame=4,Generation=3,Upload=3};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         Assert.InRange(fields.DensityState.Selected,1,4096);
+        // A one-metre layer needs only its intersecting vertical blocks plus the margin,
+        // rather than every Y block for each connected horizontal neighbor.
+        Assert.InRange(fields.DensityState.Selected,1,fields.Domain.BlocksX*fields.Domain.BlocksX);
+        Assert.InRange(fields.DensityState.Changed,1,fields.DensityState.Selected);
         AssertStoredRepresentation(.02f/12.5f,Sample(probe,fields,output,point));
+        // Move the layer to disjoint support, ensuring old cells are cleared as new ones fill.
+        data[column+2]=2;data[column+3]=2+1f/50;map.UploadDataImmediate(data);
+        input=input with{Frame=6,Generation=5,Upload=5};
+        Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
+        Assert.Equal(0,Sample(probe,fields,output,point));
+        AssertStoredRepresentation(.02f/12.5f,Sample(probe,fields,output,point+new Vector3(0,100,0)));
+        Assert.InRange(fields.DensityState.Changed,1,fields.DensityState.Selected);
+        // Recenter an already-empty field: changed transport coverage still dirties lighting,
+        // and entering/guard occupancy must repair even when no generated texel changes.
+        Array.Clear(data);
+        // Both native values remain far below the smallest R16F extinction, even at full
+        // coverage. Unlike a near-rounding-boundary perturbation, this guarantees equal storage.
+        data[column]=1e-10f;data[column+3]=1f/50;
+        map.UploadDataImmediate(data);input=input with{Frame=7,Generation=6,Upload=6};
+        Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
+        using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,MapBufferAccessMask.MapWriteBit))dirty.Span[0]=0;
+        data[column]=2e-10f;map.UploadDataImmediate(data);input=input with{Frame=8,Generation=7,Upload=7};
+        Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
+        Assert.True(fields.DensityState.Selected>0);Assert.Equal(0,fields.DensityState.Changed);
+        using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,MapBufferAccessMask.MapReadBit))Assert.Equal(0u,dirty.Span[0]);
+        input=input with{Frame=9,Placement=input.Placement with{CenterX=1}};
+        Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
+        Assert.Equal(0,fields.DensityState.Changed);Assert.False(fields.DensityState.LayoutChanged);
+        using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,MapBufferAccessMask.MapReadBit))Assert.Equal(1u,dirty.Span[0]);
+        using(var occupied=fields.Occupancy.MapScope<uint>(0,fields.Domain.Blocks,MapBufferAccessMask.MapReadBit))
+            Assert.All(occupied.Span.ToArray(),value=>Assert.Equal(0u,value));
         var retained=fields.Density;Assert.True(retained.IsValid);
-        data[column]=-1;map.UploadDataImmediate(data);input=input with{Frame=5,Generation=4,Upload=4};
+        data[column]=-1;map.UploadDataImmediate(data);input=input with{Frame=10,Generation=8,Upload=8};
         Assert.False(density.Update(storage,input,map,encoding,Vector3.One,()=>true));
         Assert.False(storage.Ready);Assert.NotNull(density.Failure);Assert.True(map.IsValid);
     }

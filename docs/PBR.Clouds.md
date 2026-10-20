@@ -581,12 +581,17 @@ explicit previous-window membership, so departed keys cannot masquerade as enter
 Observation compares exact content, independent of publication generation. A matching native
 generation/upload/allocation/window skips redundant observation. Wind-only placement changes retain
 material data. Changed and departed columns enqueue their footprint plus connected-face neighbors;
-the snapshot advances after barriers and certificate checks without retaining a native texture.
+vertical demand covers old/new occupied heights and intersecting cells with a one-texel margin,
+rather than every vertical block. Empty columns with no previous support enqueue no geometry work.
+The snapshot advances after barriers and certificate checks without retaining a native texture.
 
 Generation intersects each voxel with native cuboids. Detail-off stores summed exact overlap-volume
 fractions times native extinction. Detail-on averages eight stratified points inside each nonempty
 overlap using bounded stationary noise and connected-face erosion. Half-float overflow fails the
-batch instead of clamping extinction. Noise and descriptor evaluation occur only in this generator;
+batch instead of clamping extinction. Generation explicitly narrows to a representable half value,
+compares its packed 16-bit representation exactly with the old R16F texel, and stores only changes. A shared block flag counts
+changed blocks in density summary word7. This storage equality test has no visual threshold.
+Noise and descriptor evaluation occur only in this generator;
 subsequent ray consumers can read stored density alone.
 
 Density work uses the existing scratch buffer: jobs occupy 64..4159. A 256-lane merge preserves
@@ -605,6 +610,12 @@ so their overlapping histogram/summary area is reused safely. No candidate-sized
 added. Selector variants share one immutable-on-submission UBO through the existing uniform
 publication allocator. GPU indirect arguments submit selected jobs without CPU list readback.
 Same-frame repeats consume no additional budget.
+After a fenced summary reports no remaining demand, `MaintenanceRequired` stays false until another
+observation; unchanged/wind-only frames skip the density dispatch chain and summary read. Lighting
+continues through the normal final fence. An observation with identical descriptors still validates
+and compares its certified snapshot. GPU priority stages return uniformly for an empty priority
+quota; fair cursors and selected sets are unchanged. Selected and Changed counts distinguish queued
+work from blocks whose stored density changed.
 
 Incoming domains freeze their descriptor snapshot during bounded storage initialization and density
 fill. The previous domain remains usable until all initial density jobs finish; newer observations
@@ -612,11 +623,16 @@ are deferred until publication. A later out-of-band observation requests another
 does not write cropped density into the active domain. Block records expose pending/completed
 revisions and frame ages; `DensityState` exposes snapshot frame and last actual batch completion.
 
-Every generated block marks neighboring occupancy records conservatively before writes. A separate
+Every changed stored block marks neighboring occupancy records conservatively before readers. A separate
 barrier-separated pass repairs them from stored density including one texel around each block and
 circular seams, covering trilinear filter support. Completion stamps advance only after repair and
-successful arithmetic/certificate checks. Density changes mark direct/diffuse dependents stale
+successful arithmetic/certificate checks. Recenter maintenance marks affected occupancy records for
+repair even if their entering/guard density is already zero. Only changed stored density marks
+drawable density blocks dirty and direct/diffuse dependents stale
 without clearing compatible illumination. Failure withdraws sampling and latches the generator;
+recentered coverage also dirties global lighting because maintenance may already have cleared old
+support and finite transport exits changed. Field-owned LayoutChanged survives submission until
+successful density completion, independently of the changed-texel count.
 explicit recovery resets both the generator and its storage. Context/executable identity is checked
 on both sides of work. Driver execution time, summary-read stalls and live appearance are unqualified.
 
@@ -660,6 +676,8 @@ physical atmosphere snapshot. Source direction changes dirty the matching direct
 diffuse transport; intensity/environment changes dirty diffuse only. Inactive direct sources
 receive no jobs. Activation revokes their completed-channel identity, requiring initialized fallback
 until the new channel is solved. Camera/frustum, fog and exposure changes retain compatible fields.
+Both finite nonzero sources remain eligible regardless of relative brightness; there is no faint-light
+cutoff or weighted budget partition. Intensity changes retain transmission and affect diffuse demand.
 Successful direct/diffuse publication requests later diffuse refinement without restarting pending
 ages. The selector admits all physical blocks conservatively; empty-node work reduction belongs
 to the solver, and total refresh latency remains a measurement concern.

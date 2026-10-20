@@ -61,7 +61,7 @@ void main()
                 regions[record+10]=0u; regions[record+11]=0u; regions[record+13]=0u; regions[record+15]=0u;
             }
             // A scroll may leave neighboring filtered support; conservative occupied is safe until density repair.
-            occupancy[id]=extentMode.w==0?0u:1u;
+            occupancy[id]=extentMode.w==0?0u:2u;
         }
     }
 }

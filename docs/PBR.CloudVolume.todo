@@ -775,25 +775,93 @@ Phase 7.7 - Reduce unnecessary density and lighting maintenance
     Phase 7.3 is not an implementation gate.
   Outcome: retained fields avoid redundant maintenance while useful bounded lighting work continues
     promptly; reducing already-small ray budgets is not substituted for removing wasted work.
-  [ ] Audit captured/source density observation, validation, selection, generation, occupancy repair
+  [x] Audit captured/source density observation, validation, selection, generation, occupancy repair
       and lighting scheduling. Trace unchanged content, wind-only motion, weather and source changes;
       record why the captured batch selects 4096 density blocks and whether those jobs change content.
       Add focused measurements only for unresolved behavior needed to choose or verify a change.
-  [ ] Eliminate redundant scans, invalidation and regeneration where retained content/identity permits.
+  [x] Eliminate redundant scans, invalidation and regeneration where retained content/identity permits.
       Preserve thin-density coverage, neighbor/filter support, conservative occupancy, fair cursors,
       pending ages, bounded initialization and correct handling of coalesced weather observations.
-  [ ] Evaluate source relevance and budget partitioning: the captured negligible lunar illuminance still
+  [x] Evaluate source relevance and budget partitioning: the captured negligible lunar illuminance still
       receives 32 direct jobs alongside 32 solar jobs. Record an explicit policy before approximating
       away nonzero contributions; preserve activation transitions, retained source data, useful-source
       service and current intensity application without mandatory retracing of unchanged transmission.
-  [ ] Preserve current ray counts, work budgets and settings during waste-removal comparisons. Any
+  [x] Preserve current ray counts, work budgets and settings during waste-removal comparisons. Any
       proposed budget/schedule change needs a separately stated rationale and numerical-contract update;
       neither raising samples nor reducing lighting samples is a remedy for an unmeasured bottleneck.
-  [ ] Extend affected existing demand/fairness/occupancy/publication checks only. Use subagents for
+  [x] Extend affected existing demand/fairness/occupancy/publication checks only. Use subagents for
       focused incremental validation, reuse evidence and avoid full matrices/packaging. Compare useful
       jobs, backlog/age and total CPU/GPU cost; no approximation-quality or convergence thresholds.
-  [ ] Completion: unnecessary maintenance is removed or explicitly justified, useful update throughput
+  [x] Completion: unnecessary maintenance is removed or explicitly justified, useful update throughput
       is measured, and any source-policy change is reconciled with the proposal and current docs.
+
+Phase 7.7 implementation and review
+  Traceability: captured4096-job dispatch and current maintenance paths -> existing capture event7473,
+    artifacts/StoredCloudPerformance/findings.md, CloudVolumeDensity/Updates/Work and density shaders.
+    Generation/identity/half storage -> proposal / Density generation, Native inputs and coordinate
+    identity, Generation/initialization/publication; demand/fairness/source/budgets -> Metadata, budgets
+    and source changes; safety/lifecycle -> Nonblocking updates and Shared rendering obligations,
+    PBR.Clouds.md / Stored density-volume resources, PBR.Atmosphere.Publication.md / Publication contract,
+    Rendering.Enablement.md. Existing GPU submission/binding/format admission contracts are retained.
+  Capture result: same578341372byte laggy-clouds.rdc from2026-10-20 10:03:40local, targeted event7472
+    versus7473 R16F comparison. Working Resource119496 changed2voxels in2blocks34627/39053; drawable
+    Resource115384 changednone. The dispatch selected4096blocks, so4094selectedblocks stored identical
+    results in this frame. Native observation exact changes enqueue pending footprints/connected
+    neighbors across all17vertical blocks in the captured implementation; fair/oldest service spends
+    its4096budget on that conservative queue. This is actual captured redundant work, not an assertion
+    that every weather update is redundant. Raw texture comparison is valid; optional GL SSBO metadata
+    introspection was unsupported and supplies no buffer evidence. Receipt: phase77-capture.json.
+  Implemented: old/new height-bounded column demand with intersecting-cell/one-texel margin, connected
+    horizontal neighbors and departing/entering identity; uniform empty-priority-stage exits; skip
+    the full density maintenance chain when a completed summary proves no backlog and no new
+    observation added possible demand. Same-content new observations still validate/freeze/compare.
+    Generation explicitly narrows R16F before exact old-value comparison; changed-block summary7
+    gates occupancy repair, density drawable dirtiness and lighting invalidation. No visual tolerance.
+    Selected completion/revisions/ages remain separate from Changed. Every partial/guard lane reaches
+    the two shared barriers. Recenter marks occupancy for repair even if cleared texels were zero,
+    and LayoutChanged requests global lighting refresh for changed finite exits/maintenance removals.
+    No new GPU volume/buffer/parameter bytes or CPU readback; no skipped stale-summary inspection.
+  Source relevance decision: retain all finite nonzero sources and the existing fair/priority budget.
+    Captured solar~81792/84431/63476 versus lunar~.00117/.00117/.00084 has a maximum-component ratio
+    around1.4e-8; both still receive32jobs. A relative cutoff would approximate away real transport,
+    and a weighted partition would change service guarantees/ordering. Neither policy is selected.
+    Intensity-only changes retain direct transmission; activation initializes incompatible channels,
+    direction changes request refresh and current intensity/colour continue applying at draw time.
+    No approximation cutoff, source omission, ray-count,4096/64/32budget or user-setting change.
+  Root second review checked coalesced observations, exact half equality, finite/failed output,
+    conservative filter support, circular/finite boundaries, initial/replacement fill and recenter
+    dependencies. Packed-half decision was re-reviewed after diagnostic texel readback proved a
+    false changed-block flag with the original float pack/unpack expression. Packed16-bit equality
+    passes the guaranteed equal-storage case; the temporary full-texture diagnostic helper is removed.
+  Focused validation: final cached Release build27.60s,0errors/171existingwarnings; all10affected
+    GPU facts passed, none skipped,12.3855s total/8s test execution. Full-view/solution publication,
+    storage/recenter/replacement, diffuse history/failure, density thin overlap/old support clearing,
+    packed equality/no invalidation, changed0 recenter/global demand/empty occupancy, bounded initial
+    fill/coalesced observations and exact fair/oldest/source queues passed. No new test classes or
+    quality gates. Receipts: artifacts/StoredCloudPerformance/phase77-qualified-build.log,
+    phase77-qualified-tests.log and phase77-qualified.trx. Current shader catalogs reused562production
+    and647fixture variants, zero compiler invocations. First build refreshed catalog identity after
+    interface/preprocessing changes; no clean/full test matrix/packaging/game action was requested.
+  Useful work: unchanged/wind density selected/changed/backlog0/0/0; unchanged retained update
+    dispatches29->11, barriers30->12, one boundary retained. Direct64/diffuse32jobs still run; direct
+    backlog426->362->298 in the first3unchanged samples, diffuse245pending, ages preserved. A new
+    identical upload still validates/compares its snapshot, selects0density jobs and lets direct
+    backlog42->0; diffuse continues32jobs. Evolving authored density selected833->245, with245actual
+    changed blocks and zero density backlog; direct/diffuse64/32 and backlogs490/245. Its direct ages
+    2/5/8 and diffuse27/30/33 are reported, not an age-improvement comparison across different steps.
+  Measured RTX4090 total callback-span GPU median baseline/current unchanged.8980/.7260ms;
+    evolving2.2262/1.7848ms. Current unchanged samples.7260/.7199/4.0827ms and evolving1.1899/
+    1.7848/2.2548ms expose uncontrolled running-game contention; intermediate runs were also noisy.
+    These are indicative bounded-sequence costs, not a reliable speedup or liveFPS qualification.
+    Added wind/reupload steps advance lighting history before later cases, so these are not exact
+    kernel A/B comparisons. Baseline receipt: phase77-baseline.trx. Current CPU Poll/Submit medians
+    unchanged.8215ms, wind.4344ms, identicalupload1.3481ms, evolving1.2772ms measure headless submission
+    only. No baseline CPU stopwatch existed; reduced dispatch burden is source/count evidence, not
+    a measured CPU-millisecond gain. Test logging/maps/timer waits/uploads are outside CPU brackets;
+    GPU brackets include submission gaps. Remaining observation validation and lighting-selection
+    scans preserve unknown new content and global demand/fairness; no speculative readback gate added.
+  Independent final documentation/receipt recheck passed with no unresolved findings. All six tasks
+    are complete. Later phases remain unchecked.
 
 Phase 8 - Evaluate acceleration and update cost
   Depends on: Phases 7.4-7.7; Phase 1 initial acceleration decision.

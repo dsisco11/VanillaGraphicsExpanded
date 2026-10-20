@@ -12,6 +12,12 @@ internal sealed class CloudVolumeDensityState
     internal uint CompletedFrame { get; set; }
     internal int Remaining { get; set; }
     internal int Selected { get; set; }
+    /// <summary>Counts blocks whose newly encoded extinction actually differs from stored values.</summary>
+    internal int Changed { get; set; }
+    /// <summary>Tracks observations and backlog that still require a GPU selection/maintenance pass.</summary>
+    internal bool MaintenanceRequired { get; set; } = true;
+    /// <summary>Retains domain/guard changes whose maintenance writes precede generation comparison.</summary>
+    internal bool LayoutChanged { get; set; }
     internal long NativeGeneration { get; set; }
     internal long NativeUpload { get; set; }
     internal long NativeAllocation { get; set; }

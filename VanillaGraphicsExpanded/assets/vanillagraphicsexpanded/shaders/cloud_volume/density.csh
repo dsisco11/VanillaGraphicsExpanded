@@ -10,7 +10,7 @@ layout(std140) uniform VolumeDensity
 {
     ivec4 volumeExtent; // size, height, native width, physical blocks X
     ivec4 volumeWindow; // first slots X/Z, descriptor window slots X/Z
-    ivec4 volumeHistory; // previous-origin minus current-origin X/Z, history valid
+    ivec4 volumeHistory; // previous-origin minus current-origin X/Z, history valid, layout changed
     vec4 volumeFirst; // first logical guard lower corner in native coordinates
     vec4 volumeCell;
     ivec4 volumeStamps; // frame, snapshot revision, total blocks, initial fill
@@ -19,13 +19,16 @@ layout(std140) uniform VolumeDensity
 };
 uniform sampler2D nativeMap;
 layout(rgba32f) uniform image2D descriptors;
-layout(r16f) writeonly uniform image3D densityOutput;
+layout(r16f) uniform image3D densityOutput;
 uniform sampler3D storedDensity;
 layout(std430) buffer DensityRegions { uint regions[]; };
 layout(std430) buffer DensityOccupancy { uint occupancy[]; };
 layout(std430) buffer DensityScratch { uint scratch[]; };
 layout(std430) buffer DensitySummary { uint summary[]; };
 layout(std430) buffer DensityCommands { uint commands[]; };
+#if VGE_VOLUME_DENSITY_OPERATION==3
+shared uint densityChanged;
+#endif
 
 /** Maps float bits to unsigned ordering for a tiny GPU envelope reduction. */
 uint Ordered(float x) { uint b=floatBitsToUint(x);return (b&0x80000000u)!=0u?~b:b^0x80000000u; }
@@ -41,8 +44,16 @@ vec4 NativeColumn(ivec2 cell)
     return vec4(physical,1);
 }
 /** Marks a changed column plus connected-face neighbors, coalescing physical block demand atomically. */
-void DirtyColumn(ivec2 cell)
+void DirtyColumn(ivec2 cell,vec4 before,vec4 after)
 {
+    float low=3.402823e38,high=-3.402823e38;
+    if(before.w>0&&before.x>0){low=before.y;high=before.z;}
+    if(after.w>0&&after.x>0){low=min(low,after.y);high=max(high,after.z);}
+    if(high<=low)return;
+    // Connected-face changes affect neighbors only within the changed column's old/new support.
+    // Include intersecting cells and a one-texel margin; Y is not circular.
+    int firstY=clamp(int(floor((low-volumeFirst.y)/volumeCell.y))-1,0,volumeExtent.y);
+    int lastY=clamp(int(ceil((high-volumeFirst.y)/volumeCell.y))+1,0,volumeExtent.y);
     ivec2 lo=ivec2(floor((vec2(cell)*50.0-50.0-volumeFirst.xz)/volumeCell.xz))-1;
     ivec2 hi=ivec2(ceil((vec2(cell)*50.0+100.0-volumeFirst.xz)/volumeCell.xz))+1;
     lo=clamp(lo,ivec2(0),ivec2(volumeExtent.x));hi=clamp(hi,ivec2(0),ivec2(volumeExtent.x));
@@ -52,13 +63,12 @@ void DirtyColumn(ivec2 cell)
         for(int x=lo.x;x<hi.x;)
         {
             int px=(x+volumeWindow.x)%volumeExtent.x;
-            for(int y=0;y<volumeSettings.y;y++)
+            for(int y=firstY/4;y<(lastY+3)/4;y++)
                 atomicOr(regions[((pz/8*volumeSettings.y+y)*volumeExtent.w+px/8)*16],16u);
             x+=min(hi.x-x,min(8-px%8,volumeExtent.x-px));
         }
         z+=min(hi.y-z,min(8-pz%8,volumeExtent.x-pz));
     }
-    atomicOr(scratch[6],1u);
 }
 
 #if VGE_VOLUME_DENSITY_OPERATION==2 || VGE_VOLUME_DENSITY_OPERATION>=6
@@ -84,13 +94,13 @@ void main()
     vec4 now=NativeColumn(cell),old=imageLoad(descriptors,slot);
     ivec2 prior=cell-volumeHistory.xy;
     bool retained=volumeHistory.z!=0&&all(greaterThanEqual(prior,ivec2(0)))&&all(lessThan(prior,ivec2(volumeExtent.z)));
-    if(!retained||any(notEqual(now,old)))DirtyColumn(cell);
+    if(!retained||any(notEqual(now,old)))DirtyColumn(cell,retained?old:vec4(0),now);
     if(volumeHistory.z!=0)
     {
         ivec2 oldSlot=(volumeWindow.zw+volumeHistory.xy%volumeExtent.z+volumeExtent.z)%volumeExtent.z;
         ivec2 oldCell=(slot-oldSlot+volumeExtent.z)%volumeExtent.z;
         ivec2 departed=oldCell+volumeHistory.xy;
-        if(any(lessThan(departed,ivec2(0)))||any(greaterThanEqual(departed,ivec2(volumeExtent.z))))DirtyColumn(departed);
+        if(any(lessThan(departed,ivec2(0)))||any(greaterThanEqual(departed,ivec2(volumeExtent.z))))DirtyColumn(departed,old,vec4(0));
     }
     imageStore(descriptors,slot,now);
     #elif VGE_VOLUME_DENSITY_OPERATION==2 || VGE_VOLUME_DENSITY_OPERATION>=6
@@ -99,8 +109,29 @@ void main()
     uint job=gl_WorkGroupID.x;if(job>=scratch[4])return;
     int region=int(scratch[64+job]);
     ivec3 block=ivec3(region%volumeExtent.w,(region/volumeExtent.w)%volumeSettings.y,region/(volumeExtent.w*volumeSettings.y));
-    if(gl_LocalInvocationIndex==0u)
+    if(gl_LocalInvocationIndex==0u)densityChanged=0u;
+    barrier();
+    ivec3 p=block*ivec3(8,4,8)+ivec3(gl_LocalInvocationID);
+    if(all(lessThan(p,ivec3(volumeExtent.x,volumeExtent.y,volumeExtent.x))))
     {
+        ivec3 q=ivec3((p.x-volumeWindow.x+volumeExtent.x)%volumeExtent.x,p.y,(p.z-volumeWindow.y+volumeExtent.x)%volumeExtent.x);
+        float density=0;
+        if(all(greaterThan(q,ivec3(0)))&&all(lessThan(q,ivec3(volumeExtent.x,volumeExtent.y,volumeExtent.x)-1)))
+            density=CellDensity(volumeFirst.xyz+vec3(q)*volumeCell.xyz);
+        if(isnan(density)||isinf(density)||density<0||density>65504){atomicOr(summary[0],2u);density=0;}
+        // Compare packed representations so narrowing participates directly in the decision,
+        // rather than relying on a pack/unpack float expression surviving shader optimization.
+        uint encoded=packHalf2x16(vec2(density,0))&65535u;
+        uint previous=packHalf2x16(vec2(imageLoad(densityOutput,p).r,0))&65535u;
+        if(encoded!=previous)
+        {
+            imageStore(densityOutput,p,vec4(unpackHalf2x16(encoded).x));atomicOr(densityChanged,1u);
+        }
+    }
+    barrier();
+    if(gl_LocalInvocationIndex==0u&&densityChanged!=0u)
+    {
+        atomicAdd(summary[7],1u);
         atomicOr(regions[region*16],4096u);
         for(int z=-1;z<=1;z++)for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)
         {
@@ -109,14 +140,6 @@ void main()
             atomicOr(occupancy[(b.z*volumeSettings.y+b.y)*volumeExtent.w+b.x],2u);
         }
     }
-    ivec3 p=block*ivec3(8,4,8)+ivec3(gl_LocalInvocationID);
-    if(any(greaterThanEqual(p,ivec3(volumeExtent.x,volumeExtent.y,volumeExtent.x))))return;
-    ivec3 q=ivec3((p.x-volumeWindow.x+volumeExtent.x)%volumeExtent.x,p.y,(p.z-volumeWindow.y+volumeExtent.x)%volumeExtent.x);
-    float density=0;
-    if(all(greaterThan(q,ivec3(0)))&&all(lessThan(q,ivec3(volumeExtent.x,volumeExtent.y,volumeExtent.x)-1)))
-        density=CellDensity(volumeFirst.xyz+vec3(q)*volumeCell.xyz);
-    if(isnan(density)||isinf(density)||density<0||density>65504){atomicOr(summary[0],2u);density=0;}
-    imageStore(densityOutput,p,vec4(density));
     #elif VGE_VOLUME_DENSITY_OPERATION==4
     if(id>=uint(volumeStamps.z)||(occupancy[id]&2u)==0u)return;
     int region=int(id);ivec3 b=ivec3(region%volumeExtent.w,(region/volumeExtent.w)%volumeSettings.y,region/(volumeExtent.w*volumeSettings.y));
@@ -134,7 +157,7 @@ void main()
     if(id>=uint(volumeStamps.z)||summary[0]!=0u)return;
     uint base=id*16u,flags=regions[base];
     if((flags&256u)!=0u){flags&=~(1u|256u);regions[base+2u]=uint(volumeStamps.y);regions[base+4u]=uint(volumeStamps.x);}
-    if(scratch[4]>0u)
+    if(summary[7]>0u||volumeHistory.w!=0)
     {
         if((flags&2u)==0u)regions[base+9u]=uint(volumeStamps.x);
         if((flags&4u)==0u)regions[base+14u]=uint(volumeStamps.x);

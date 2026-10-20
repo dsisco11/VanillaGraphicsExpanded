@@ -16,7 +16,7 @@ internal interface ICloudVolumeDensityBindings
     /// <summary>Owns the single persistent circular descriptor snapshot.</summary>
     [ShaderBinding("descriptors",ShaderBindingKind.Image,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture2D)]
     GpuTextureBinding Descriptors { set; }
-    /// <summary>Writes cell-average extinction only in selected complete physical blocks.</summary>
+    /// <summary>Compares and writes representable cell-average extinction in selected complete physical blocks.</summary>
     [ShaderBinding("densityOutput",ShaderBindingKind.Image,1,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D)]
     GpuTextureBinding Density { set; }
     /// <summary>Reads stored density exactly while repairing conservative filter-footprint occupancy.</summary>
