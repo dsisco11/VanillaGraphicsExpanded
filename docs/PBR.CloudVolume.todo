@@ -498,11 +498,132 @@ Phase 7.2 verification
     baseline.trx, candidate.trx and candidate-lifecycle build/test logs/TRX. Frozen baseline source and
     binaries retained. No live FPS, cloud appearance or full-domain performance acceptance is inferred;
     final qualification remains Phase9.
+Phase 7.3 - Reuse capture evidence and resolve specific measurement gaps
+  Depends on: Phase 7.2.
+  Outcome: the supplied capture and source audit support immediate waste removal. Additional profiling
+    answers named unresolved questions or measures a change; it is not a prerequisite for Phases 7.4-7.7.
+  [ ] Reuse artifacts/StoredCloudPerformance/findings.md and its raw capture receipts as the existing
+      workload/replay baseline. Retain viewport, renderer/settings, dispatch/binding/barrier counts,
+      copied bytes and per-pass GPU results; do not ask for a replacement capture or reproduce the
+      baseline merely to start the identified fixes. Source-check findings against changed code.
+  [ ] Distinguish established workload facts from unresolved live timing: full-resolution integration,
+      repeated internal handoffs and full-field copying are evidenced. The approximately 5.3 ms cloud
+      GPU replay result does not explain all reported 20-30 FPS; unstable terrain replay durations
+      and capture API elapsed time must not be presented as ordinary frame cost.
+  [ ] For a specific optimization, collect only the missing before/after evidence needed to evaluate
+      it. Reuse existing profiling hooks first; count eliminated work and use narrow matched GPU
+      measurements where applicable. Label source-derived savings and unmeasured CPU effects honestly.
+  [ ] If live CPU/GPU attribution remains necessary to resolve a named question, state that question
+      and the required measurement before adding diagnostics or requesting user profiling. Separate
+      CPU submission, driver waits and GPU execution; no synchronous timing reads in normal play.
+      Leave unavailable live evidence open without blocking independent capture-backed fixes.
+  [ ] Use subagents for any affected incremental build/test, reuse passing evidence and avoid full
+      matrices, clean rebuilds or packaging. Never launch/close the game. Comprehensive live acceptance
+      remains Phase 9; no broad profiling exercise is required to complete this evidence review.
+  [ ] Completion: existing evidence is mapped to actionable fixes, uncertainty is explicit, and any
+      additional measurement has a specific purpose rather than acting as a general implementation gate.
+
+Phase 7.4 - Batch retained update submission under one engine boundary
+  Depends on: Phase 7.2. Use existing capture evidence; Phase 7.3 is not an implementation gate.
+  Outcome: contiguous internal update passes avoid repeated native-state handoffs while preserving
+    existing GPU ownership, command ordering and failure-safe publication.
+  [ ] Audit the captured 33-dispatch update chain and its repeated program/binding changes and barriers.
+      Identify one outer update boundary with the union of required resource footprints; keep genuine
+      engine handoffs and CPU admission decisions distinct from internal producer-consumer stages.
+  [ ] Refactor density, scheduling, direct, copy, diffuse and completion submission to reuse that outer
+      boundary where contiguous execution permits. Keep typed shader/program/binding abstractions,
+      directional ownership and removable candidate code; no raw GL bypass or nested engine boundaries.
+  [ ] Preserve required storage, image, texture and indirect-command dependencies. Remove redundant
+      barriers and native restoration only where the resource hazards permit; retain final fence
+      polling, frozen inputs, executable/context certificates and successful-only drawable publication.
+  [ ] Extend affected existing ordering/restoration/failure/lifecycle checks only. Use subagents for
+      focused incremental validation and reuse unchanged evidence; no full matrix or packaging.
+      Compare boundary/binding/barrier counts and affected GPU cost against retained evidence. Measure
+      live CPU submission only if needed to resolve a specific question; do not require it to remove
+      the independently verified redundant handoffs.
+  [ ] Reconcile delivered ownership and ordering with the proposal and current architecture docs.
+  [ ] Completion: repeated internal handoffs are removed, external state restores correctly on success
+      and failure, and evidence records eliminated work separately from measured timing. Unmeasured
+      live CPU/FPS effects remain explicit rather than blocking completion of the refactor.
+
+Phase 7.5 - Reduce the cost of integrating the stored volume into the view
+  Depends on: Phase 7. Phase 7.4 is required only for changes sharing its submission ownership;
+    Phase 7.3 is not an implementation gate.
+  Outcome: the dominant cloud GPU pass has an explicit performance/appearance tradeoff without
+    silently changing the selected full-resolution, half-voxel integration contract.
+  [ ] Use the captured view cost, viewport and executable plus source review to identify redundant
+      arithmetic/fetches, traversal, attenuation, OIT bin calculations and blending work. Profile only
+      unresolved costs relevant to the selected change; do not repeat a broad baseline. Confirm
+      hardware trilinear filtering, empty-block skipping and compiled opacity termination remain effective.
+  [ ] Remove redundant view arithmetic, fetches and state work where the selected integration and OIT
+      semantics permit. Preserve depth clipping, finite coverage, physical source/medium composition,
+      circular seams and whole-ray failure behavior; do not reintroduce per-sample lighting traces.
+  [ ] Evaluate a cheaper occupied integration schedule and reduced-resolution spatial reconstruction
+      as explicit alternatives. Quantify pixel/sample savings, reconstruction/composition cost and
+      expected edge/thin-layer effects. Do not silently inherit the other renderer's TraceScale.
+  [ ] Record the selected design with the user before changing spacing, resolution or defaults; update
+      the proposal's numerical/view contract before dependent implementation. Screen-space temporal
+      accumulation remains outside the selected design unless separately approved.
+  [ ] Implement only the selected alternative through existing abstractions and compiled feature
+      options. Extend affected contract checks only, through subagent incremental builds/tests; reuse
+      evidence and avoid packaging/full matrices. Use narrow matched GPU measurements and user-run
+      appearance review, with no approximation-quality, image-difference or convergence test gates.
+  [ ] Completion: view cost and any selected visual tradeoff are documented and measured separately
+      from illumination amortization; unchanged-setting savings and changed-setting savings are labeled.
+
+Phase 7.6 - Avoid unnecessary whole-volume diffuse copying
+  Depends on: Phases 6 and 7.2; Phase 7.4 only for changed submission ownership.
+    Phase 7.3 is not an implementation gate.
+  Outcome: copying is proportional to justified publication/transport needs where feasible, without
+    losing a coherent old diffuse source or corrupting untouched cells and encoding.
+  [ ] Reuse the captured copy dispatch and .16-.18 ms replay timing plus source-derived approximately
+      267 MiB read/write traffic per maximum-domain nonempty batch. Separate gather ping-pong copying
+      from drawable snapshot publication; measure missing costs only where needed to choose or verify
+      the replacement. Do not present this copy as the sole FPS cause or require live attribution first.
+  [ ] Compare bounded alternatives for retaining untouched values without a full copy every batch.
+      Account for filter-neighbor reads, immutable old-field recurrence, scale changes, memory/metadata,
+      replacement and drawable isolation. Record the selected design and reconcile the proposal's
+      copy-before-partial-update requirement before changing that contract.
+  [ ] Implement only the justified design, or explicitly defer replacement if total cost is worse.
+      Preserve empty-work no-copy/no-swap behavior, coherent field/encoding publication, successful-only
+      completion stamps and reset/recenter/failure safety; do not add unjustified spare volume storage.
+  [ ] Extend affected existing publication/encoding/untouched-region checks only. Use subagents for
+      focused incremental validation, reuse evidence and avoid full matrices/packaging. Compare total
+      update cost and bytes against the retained baseline, including any new maintenance overhead.
+  [ ] Completion: copying is reduced with coherent recurrence/publication, or a measured design decision
+      explicitly retains it; memory accounting and current architecture reflect the delivered choice.
+
+Phase 7.7 - Reduce unnecessary density and lighting maintenance
+  Depends on: Phase 7.2; Phase 7.4 only for changed submission ownership.
+    Phase 7.3 is not an implementation gate.
+  Outcome: retained fields avoid redundant maintenance while useful bounded lighting work continues
+    promptly; reducing already-small ray budgets is not substituted for removing wasted work.
+  [ ] Audit captured/source density observation, validation, selection, generation, occupancy repair
+      and lighting scheduling. Trace unchanged content, wind-only motion, weather and source changes;
+      record why the captured batch selects 4096 density blocks and whether those jobs change content.
+      Add focused measurements only for unresolved behavior needed to choose or verify a change.
+  [ ] Eliminate redundant scans, invalidation and regeneration where retained content/identity permits.
+      Preserve thin-density coverage, neighbor/filter support, conservative occupancy, fair cursors,
+      pending ages, bounded initialization and correct handling of coalesced weather observations.
+  [ ] Evaluate source relevance and budget partitioning: the captured negligible lunar illuminance still
+      receives 32 direct jobs alongside 32 solar jobs. Record an explicit policy before approximating
+      away nonzero contributions; preserve activation transitions, retained source data, useful-source
+      service and current intensity application without mandatory retracing of unchanged transmission.
+  [ ] Preserve current ray counts, work budgets and settings during waste-removal comparisons. Any
+      proposed budget/schedule change needs a separately stated rationale and numerical-contract update;
+      neither raising samples nor reducing lighting samples is a remedy for an unmeasured bottleneck.
+  [ ] Extend affected existing demand/fairness/occupancy/publication checks only. Use subagents for
+      focused incremental validation, reuse evidence and avoid full matrices/packaging. Compare useful
+      jobs, backlog/age and total CPU/GPU cost; no approximation-quality or convergence thresholds.
+  [ ] Completion: unnecessary maintenance is removed or explicitly justified, useful update throughput
+      is measured, and any source-policy change is reconciled with the proposal and current docs.
+
 Phase 8 - Evaluate acceleration and update cost
-  Depends on: Phase 7.2; Phase 1 initial acceleration decision.
+  Depends on: Phases 7.4-7.7; Phase 1 initial acceleration decision.
   Outcome: a justified acceleration choice accounts for maintenance as well as traversal savings.
-  [ ] Measure the selected baseline narrowly: density, occupancy, direct, diffuse, full-field copy and
-      view costs, plus actual traversal/work counts and memory. Separate steady and changing content.
+  [ ] Reuse the focused attribution and optimization evidence from Phases 7.3-7.7 for density,
+      occupancy, direct, diffuse, copies and view costs, traversal/work counts and memory. Refresh only
+      stale or missing cases needed for acceleration decisions; separate steady and changing content.
   [ ] Evaluate signed versus unsigned distance bounds and hybrid traversal against coarse DDA.
       Prototype only if the recorded feasibility/cost analysis warrants it; otherwise record explicit
       deferral and rationale without claiming a measured distance-field comparison.
@@ -515,8 +636,9 @@ Phase 8 - Evaluate acceleration and update cost
   [ ] Compare implemented alternatives including construction/update time, memory and weather backlog;
       preserve occupied integration semantics. Keep only the justified selected strategy and remove
       rejected experimental paths/resources. Do not require both structures in ordinary rendering.
-  [ ] Investigate diffuse-copy cost only if measured as a bottleneck; an alternate publication scheme
-      requires a separately recorded design decision, not an automatic expansion of this phase.
+  [ ] Carry forward Phase 7.6's diffuse-copy decision and costs. Reopen that design only if acceleration
+      changes its hazards or measured cost; do not duplicate the completed comparison or silently
+      introduce another publication scheme here.
   [ ] Verify affected conservative traversal/publication contracts with incremental checks; document
       the selected algorithm and distinguish analysis from measured results. No quality thresholds.
   [ ] Completion: selected acceleration has honest total-cost evidence and safe density-update semantics;
