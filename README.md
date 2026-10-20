@@ -122,6 +122,34 @@ If you prefer using the RenderDoc GUI directly:
 5. Play the game and press **F12** to capture frames
 6. Close the game to load captures in RenderDoc for analysis
 
+## Graphics Debugging with NVIDIA Nsight Graphics
+
+The Nsight profiles launch the client through `ngfx.exe` using the **OpenGL Frame
+Debugger** activity and wait for a manual capture triggered in Nsight.
+
+### Setup
+
+1. Install [NVIDIA Nsight Graphics](https://developer.nvidia.com/nsight-graphics).
+2. Configure the installation root (not the `host` subdirectory):
+   - **VS Code:** Set `vanillaGraphicsExpanded.nsightGraphicsPath` in
+     `.vscode/settings.json`. The default is
+     `C:\Program Files\NVIDIA Corporation\Nsight Graphics 2026.3.1`.
+   - **Visual Studio:** Set the `NSIGHT_GRAPHICS_PATH` system environment variable
+     to that installation root, then restart Visual Studio.
+3. Keep `VINTAGE_STORY` and the development data directory configured as described
+   above.
+
+### Using the Launch Profile
+
+- **VS Code:** Select **Launch Client (Nsight Graphics)** in Run and Debug, then
+  press F5. Like the existing RenderDoc launch, this builds the mod, tails the
+  client log, opens `TestWorld`, and scans the log when the debug session ends.
+- **Visual Studio:** Select **Client (Nsight Graphics)** and press F5. This uses
+  the same data directory and mod output arguments as **Client (RenderDoc)**.
+
+Use the Nsight Graphics UI to capture and inspect an OpenGL frame. These profiles
+launch the graphics debugger; they do not attach a managed C# debugger to the game.
+
 ## Testing
 
 This project includes both unit tests and GPU-based shader tests. The test suite uses **xUnit v3** with support for conditional test skipping when GPU resources are unavailable.

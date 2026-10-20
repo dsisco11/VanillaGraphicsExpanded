@@ -103,6 +103,15 @@
             "problemMatcher": []
         },
         {
+            "label": "build + tail (Nsight Graphics)",
+            "dependsOn": [
+                "Build (dotnet)",
+                "tail: VintageStory client-debug.log"
+            ],
+            "dependsOrder": "parallel",
+            "problemMatcher": []
+        },
+        {
             "label": "Build (dotnet)",
             "group": "build",
             "type": "process",

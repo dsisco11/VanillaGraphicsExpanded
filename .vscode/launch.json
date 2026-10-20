@@ -33,6 +33,28 @@
             "stopAtEntry": false
         },
         {
+            "name": "Launch Client (Nsight Graphics)",
+            "type": "coreclr",
+            "request": "launch",
+            "program": "${config:vanillaGraphicsExpanded.nsightGraphicsPath}\\host\\windows-desktop-nomad-x64\\ngfx.exe",
+            "preLaunchTask": "build + tail (Nsight Graphics)",
+            "postDebugTask": "stop + scan: VintageStory client-debug.log",
+            "env": {
+                "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
+            },
+            "args": [
+                "--activity", "OpenGL Frame Debugger",
+                "--wait-hotkey",
+                "--exe", "${env:VINTAGE_STORY}\\Vintagestory.exe",
+                "--dir", "${env:VINTAGE_STORY}",
+                "--args", "--openWorld TestWorld --tracelog --dataPath \"${config:vanillaGraphicsExpanded.dataPath}\" --addModPath \"${workspaceFolder}\\VanillaGraphicsExpanded\\bin\\Debug\\Mods\" --addOrigin \"${workspaceFolder}\\VanillaGraphicsExpanded\\assets\""
+            ],
+            "cwd": "${env:VINTAGE_STORY}",
+            "console": "internalConsole",
+            "internalConsoleOptions": "neverOpen",
+            "stopAtEntry": false
+        },
+        {
             "name": "Launch Client (CPU Profile)",
             "type": "coreclr",
             "request": "launch",

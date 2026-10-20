@@ -12,6 +12,12 @@
       "commandLineArgs": "capture --wait-for-exit \"$(VINTAGE_STORY)/Vintagestory.exe\" --tracelog --dataPath \"$(VGE_DATA_PATH)\" --addModPath \"$(ProjectDir)/bin/$(Configuration)/Mods\"",
       "workingDirectory": "$(VINTAGE_STORY)"
     },
+    "Client (Nsight Graphics)": {
+      "commandName": "Executable",
+      "executablePath": "$(NSIGHT_GRAPHICS_PATH)\\host\\windows-desktop-nomad-x64\\ngfx.exe",
+      "commandLineArgs": "--activity \"OpenGL Frame Debugger\" --wait-hotkey --exe \"$(VINTAGE_STORY)\\Vintagestory.exe\" --dir \"$(VINTAGE_STORY)\" --args \"--tracelog --dataPath \\\"$(VGE_DATA_PATH)\\\" --addModPath \\\"$(ProjectDir)\\bin\\$(Configuration)\\Mods\\\"\"",
+      "workingDirectory": "$(VINTAGE_STORY)"
+    },
     "Server": {
       "commandName": "Executable",
       "executablePath": "$(VINTAGE_STORY)/VintagestoryServer.exe",
