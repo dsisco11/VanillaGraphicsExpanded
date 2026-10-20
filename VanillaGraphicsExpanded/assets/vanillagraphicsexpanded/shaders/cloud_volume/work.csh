@@ -110,6 +110,15 @@ void Candidates(bool initial)
         int child=group*4+lane,count=kind==0?oldDirect:oldDiffuse;
         if(child<count)atomicAdd(pendingCount,scratch[Summary(workReduction.x,kind,child,oldDirect)+stride-1]);
     }
+    // Every lane observes the same completed count. Empty children have no possible global
+    // winner, so publish the identical padded summary without running either sorting network.
+    // Demand and ages stay in region metadata; later density/source changes can make them eligible.
+    barrier();
+    if(pendingCount==0u)
+    {
+        if(lane<stride)scratch[targetOffset+lane]=lane==stride-1?0u:Invalid;
+        return;
+    }
     if(initial)keys[lane]=FairKey(job,kind);
     else
     {

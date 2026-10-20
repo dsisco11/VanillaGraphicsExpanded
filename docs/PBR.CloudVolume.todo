@@ -1225,23 +1225,102 @@ Phase 7.12 evaluation and review
 Phase 7.13 - Reduce retained-lighting selection overhead and evaluate refinement demand
   Depends on: Phases 7.1, 7.2 and 7.7; coordinate publication changes with Phase 7.9 where needed.
   Outcome: useful retained lighting work avoids unnecessary selection overhead without hidden policy changes.
-  [ ] Reuse earlier work-selection/transport receipts and current source to identify global candidate
+  [x] Reuse earlier work-selection/transport receipts and current source to identify global candidate
       scans/sorts and successful diffuse requeue behavior. Obtain only the missing focused update-heavy
       measurements needed to choose or verify changes; the latest capture cannot time these absent passes.
-  [ ] Evaluate active/pending-work compaction and cheaper selection while preserving exact fair/priority
+  [x] Evaluate active/pending-work compaction and cheaper selection while preserving exact fair/priority
       selection, source eligibility, pending ages, coalesced invalidation and bounded job budgets.
       Include maintenance and compaction cost under weather, source and domain changes.
-  [ ] Implement beneficial waste removal through existing GPU/program/submission abstractions; retain
+  [x] Implement beneficial waste removal through existing GPU/program/submission abstractions; retain
       conservative dependency refresh, current source application and publication safety.
-  [ ] Separately evaluate continuous diffuse refinement and source relevance as policy decisions.
+  [x] Separately evaluate continuous diffuse refinement and source relevance as policy decisions.
       Do not introduce convergence thresholds, reduce update frequency, omit nonzero sources or change
       budget partitioning without a concrete user-approved numerical/scheduling contract. Carry forward
       Phase 7.7's all-nonzero-source policy unless explicitly superseded; deferral is an explicit outcome.
-  [ ] Use subagents for incremental builds and affected existing scheduler/transport checks only.
+  [x] Use subagents for incremental builds and affected existing scheduler/transport checks only.
       Compare total selection plus useful solver work, backlog and ages; no full matrix, packaging,
       approximation-quality tests or duplicate test suite. Reuse unaffected publication evidence.
-  [ ] Completion: selection savings and any separately approved policy are documented with measured
+  [x] Completion: selection savings and any separately approved policy are documented with measured
       throughput/cost, preserving or explicitly reconciling service and dependency guarantees.
+
+Phase 7.13 implementation and review
+  Traceability: selection/compaction tasks -> proposal / Metadata, budgets and source changes,
+    Nonblocking updates and drawable publication; PBR.Clouds.md / Stored-volume view and selection.
+    Source/recurrence policy -> proposal / Lighting, recurrence and encoding and Metadata, budgets
+    and source changes. Shared obligations -> Rendering.Enablement.md / Render boundaries and
+    resource lifetime, PBR.Atmosphere.Publication.md / Publication contract. Dependencies7.1/7.2/7.7
+    preserve cooperative transport, ordered bounded updates and exact source/density demand;7.9
+    retires selection summaries before publication reuses that scratch. Evidence -> work.csh,
+    CloudVolumeWork, existing WorkReduction/Work/ComputeWork facts and phase713 receipts below.
+  Source review: merge scans every physical block; initial candidates scan direct block-source jobs
+    and diffuse blocks, then hierarchical shared sorting produces exact fair/priority winners.
+    Successful direct/diffuse completion sets scratch27, causing coalesced diffuse refresh next batch.
+    The latest capture has no selection/solver dispatch; reuse its scope limitation, earlier fixed
+    transport receipts and the existing complete-update measurement rather than invent capture costs.
+  Retained optimization synchronizes each initial/reduction group's eligible pendingCount and,
+    when zero, writes identical Invalid winner slots and zero backlog without either sorting
+    network. Every written word has one lane owner; all lanes take the same branch after a barrier.
+    Nonempty sorting, exact keys/ties, half-budget fair service, cursor updates, pending ages,
+    source activation and completion remain unchanged. Merge/scans and their maintenance costs
+    remain; this is empty-group pruning, not a claimed globally compacted scheduler. No new buffer,
+    pass, dispatch, UBO, count readback, scratch range or resource/publication lifetime is introduced.
+    Recenter/replacement still initializes or revokes region identity through existing maintenance;
+    the same merge and maximum-domain candidate scan cover its new demand. There is no additional
+    active-list repair to charge during domain changes. Reuse unchanged recenter/failed-publication
+    coverage from7.7/7.9; no new domain-replacement timing comparison is claimed.
+  Full active-list compaction was considered but not selected: a per-batch list still requires
+    candidate scanning, list writes and indirect setup; persistence additionally requires maintenance
+    for density/occupancy, source eligibility, weather demand and recenter/replacement. Append order
+    cannot replace the exact fair/priority keys. Existing summary scratch is reused by later density/
+    publication consumers, so it is not an implicitly persistent list. The selected pruning avoids
+    these new responsibilities and has direct cost evidence. No full-compaction prototype, maintenance
+    timing or superiority over every possible compact algorithm is claimed.
+  Policy evaluation is explicitly deferred: continuous diffuse refinement remains eligible after
+    inputs settle, and every finite nonzero solar/lunar source remains relevant. Reducing refresh
+    frequency, convergence stopping, relative-source cutoff or budget partitioning would change
+    service/transport policy and requires a separate approved contract. No such change is made.
+  Extended only the existing maximum-domain selector fact with sparse and empty occupancy, using
+    its independent CPU oracle for exact ordered winners, cursors, source partitioning, counts,
+    backlogs, completed stamps and retained pending ages. All scenarios reuse buffers/programs and
+    the same initial/merge/reduction/emit sequence; include final partial groups/cursor wrap. Existing
+    WorkTests covers becoming occupied, source deactivate/reactivate, repeated changes retaining age
+    and failed density preventing fresh completion. No new fact/class or approximation-quality gate.
+  Maximum71825block selector GPU baseline/current medians: dense.2632/.2652ms, sparse19occupied
+    .2222/.1905ms, empty.1567/.0317ms. Current samples dense.2632/.2652/.2652, sparse
+    .1874/.1905/.1905, empty.0307/.0317/.0317ms. Dense overhead is retained in the result, not
+    described as universal improvement. Sparse selected/backlog34direct/19diffuse and empty0/0 are
+    exact in both; dense selected64/32, backlog123462/71825. Timings include initialization, merge,
+    all reduction levels, emit and visibility barriers; metadata uploads, preparation and test waits
+    are outside. One warmup plus3samples, same data/ages/frustum/cursors and unchanged64/32 budgets.
+  Existing complete width20 update comparison includes validation, density, selection, useful
+    transport, repair, completion and drawable publication. All21scenario sample records match
+    exactly after excluding timing: selected/changed work, backlogs, pending/completion ages, copy
+    bytes and callback counts. Evolving samples select64/32jobs with490/245backlog, direct ages2..8
+    and diffuse27..33; empty/disabled cases select zero with zero eligible ages. Callback counts
+    remain2unchanged/wind/source/disabled and3upload/evolving/empty, with no claimed service gain.
+    Baseline/current complete GPU medians in ms: unchanged.9830/1.0271, wind.8909/.9052,
+    same-content upload2.5549/2.6030, evolving2.6665/2.7802, source change.8520/.8008,
+    empty2.1125/2.3265, disabled.5181/.5243. No end-to-end gain is established; several samples
+    regress. Timer brackets include CPU submission gaps and uncontrolled running-game contention.
+    Source-local empty/sparse sorting savings do not establish liveFPS, GPU occupancy or appearance.
+  Receipts: artifacts/StoredCloudLatest/phase713-initial-baseline.log/.trx (2existingfacts,5.3167s);
+    expanded selector baseline phase713-selector-baseline-build.log, phase713-selector-baseline-tests.log,
+    phase713-selector-baseline.trx (1fact,3.9033s). Baseline build83.28s,0errors/192existingwarnings,
+    all564production+649fixturevariants cached; aggregate identity refresh emitted catalogs without
+    shader compilation. Candidate phase713-current-build.log, phase713-current-tests.log,
+    phase713-current.trx:23.86s,0errors/172existingwarnings,558production+643fixturecachehits,
+    6affectedvariants compiled per catalog;3existingfacts passed5.8144s. No full matrix or package.
+    Final test-only cleanup removes a redundant initial occupancy upload; each scenario already
+    uploads its own occupancy. Cached build15.68s,0errors/172existingwarnings, all1213variants reused;
+    only the selector fact reran,1/1passed3.9720s. Final medians dense.2652, sparse.1894, empty.0317ms.
+    Receipts: phase713-final-build.log, phase713-final-tests.log and phase713-final.trx. Production
+    shader is unchanged since the3-fact run; reuse its source/lifecycle/complete-update evidence.
+  Root second review checked uniform barrier/return safety, complete zero-summary writes, retained
+    eligibility and exact counts/keys, bounded summary addresses, publication scratch retirement,
+    source independence and unchanged failed-completion gates. Permanent proposal/current docs now
+    describe empty-group pruning and its remaining scans. No game launch/close or setting change.
+  Independent completion audit directly reviewed controlling sources, implementation and final
+    receipts with no required findings. All six tasks are complete; later phases remain unchecked.
 
 Phase 8 - Evaluate acceleration and update cost
   Depends on: Phases 7.4-7.13; Phase 1 initial acceleration decision.

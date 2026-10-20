@@ -831,6 +831,13 @@ same-callback completion requirements; they do not provide an explicit asynchron
 guarantee graphics/compute overlap, or remove the update's GPU cost. Update service bounds count
 eligible batches, which can span multiple rendered frames. Diagnostics skip unfinished updates.
 
+Lighting work selection synchronizes each 256-lane group's eligible count before sorting. Empty
+initial and reduction groups publish invalid winner slots and zero backlog without either sorting
+network; nonempty groups retain exact fair/priority ordering. Region demand and pending ages are
+unchanged, and empty selection does not advance its fair cursor. Later occupancy/source changes
+make retained demand eligible without an auxiliary active list or CPU count read. The bounded merge
+and candidate scans remain; this skips empty-group sorting rather than eliminating domain traversal.
+
 `CloudVolumeCoordinates` converts the current camera/native placement into the published domain's
 material coordinates, including during replacement; native wind translation enters once. View
 settings retain density and lighting. Detail changes replace geometry; lighting feature changes
