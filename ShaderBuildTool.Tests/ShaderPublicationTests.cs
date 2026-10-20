@@ -1,6 +1,9 @@
 using ShaderBuildTool.Spirv;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 
 namespace ShaderBuildTool.Tests;
@@ -267,6 +270,67 @@ public sealed class ShaderPublicationTests
         Assert.True(ShaderBuildReceipt.IsCurrent(fixture.Output, "new"));
     }
 
+    /// <summary>A real transient Windows directory lock is retried without exposing a partial generation.</summary>
+    [Fact]
+    public void TransientDirectoryLockRetriesAtomicPublication()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new PublicationFixture();
+        fixture.Publish(fixture.Old, "old");
+        using var locked = LockDirectory(fixture.Active);
+        var messages = new List<string>();
+        var publisher = new ShaderPublication(fixture.Output, "test", report: message =>
+        {
+            messages.Add(message);
+            if (message.StartsWith("Shader directory rename blocked", StringComparison.Ordinal))
+            {
+                Assert.True(fixture.Matches(fixture.Old));
+                Assert.False(ShaderBuildReceipt.IsCurrent(fixture.Output, "new"));
+                locked.Dispose();
+            }
+        });
+        fixture.Publish(fixture.New, "new", publisher);
+        Assert.Contains(messages, message => message.Contains("retry 1/5", StringComparison.Ordinal));
+        Assert.True(fixture.Matches(fixture.New));
+        Assert.True(ShaderBuildReceipt.IsCurrent(fixture.Output, "new"));
+    }
+
+    /// <summary>Persistent conflicts and cancellation retain old bytes, clear success and remain recoverable.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BlockedDirectoryPublicationRetainsOldGeneration(bool cancel)
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        using var fixture = new PublicationFixture();
+        fixture.Publish(fixture.Old, "old");
+        using var locked = LockDirectory(fixture.Active);
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var publisher = new ShaderPublication(fixture.Output, "test", report: message =>
+        {
+            if (cancel && message.StartsWith("Shader directory rename blocked", StringComparison.Ordinal)) cancellation.Cancel();
+        });
+        /// <summary>Adapts the complete publication call to the assertion's synchronous action contract.</summary>
+        void Publish() => publisher.Publish(fixture.New, fixture.Manifest(fixture.New), "new",
+            () => ShaderBuildReceipt.Publish(fixture.Output, "new"), cancellationToken: cancellation.Token);
+        if (cancel) Assert.Throws<OperationCanceledException>(Publish);
+        else
+        {
+            var error = Assert.Throws<IOException>(Publish);
+            Assert.Contains(fixture.Active, error.Message);
+            Assert.Contains("after 6 attempts", error.Message);
+            Assert.Contains("Windows error", error.Message);
+            Assert.NotNull(error.InnerException);
+        }
+        Assert.True(fixture.Matches(fixture.Old));
+        Assert.False(File.Exists(Path.Combine(fixture.Output, "build-receipt.json")));
+        locked.Dispose();
+        new ShaderPublication(fixture.Output, "test").Recover();
+        fixture.Publish(fixture.New, "recovered");
+        Assert.True(fixture.Matches(fixture.New));
+        Assert.True(ShaderBuildReceipt.IsCurrent(fixture.Output, "recovered"));
+    }
+
     /// <summary>Verified desired bytes repair damaged active binaries without accepting their old receipt.</summary>
     [Fact]
     public void DamagedActiveOutputIsReplacedFromVerifiedBytes()
@@ -325,6 +389,19 @@ public sealed class ShaderPublicationTests
     #endregion
 
     #region Private
+    /// <summary>Opens a directory for reading while deliberately denying delete/rename sharing.</summary>
+    private static SafeFileHandle LockDirectory(string path)
+    {
+        var handle = OpenDirectory(path, 1, FileShare.ReadWrite, IntPtr.Zero, FileMode.Open, 0x02000000, IntPtr.Zero);
+        if (!handle.IsInvalid) return handle;
+        int error = Marshal.GetLastWin32Error();handle.Dispose();throw new Win32Exception(error);
+    }
+
+    /// <summary>Uses backup semantics to acquire a real directory handle for publication-lock regression checks.</summary>
+    [DllImport("kernel32.dll", EntryPoint = "CreateFileW", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern SafeFileHandle OpenDirectory(string path, uint access, FileShare share,
+        IntPtr security, FileMode mode, uint flags, IntPtr template);
+
     /// <summary>Owns a tiny binary catalogue and exact manifest/content assertions.</summary>
     private sealed class PublicationFixture : IDisposable
     {

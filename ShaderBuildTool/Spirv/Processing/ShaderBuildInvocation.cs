@@ -17,7 +17,7 @@ internal static class ShaderBuildInvocation
         var publication = new ShaderPublication(outputRoot, domain, report: Report);
         try
         {
-            publication.Recover();
+            publication.Recover(cancellationToken);
             string shaders = Path.Combine(assetsRoot, domain, "shaders");
             if (!Directory.Exists(shaders)) throw new DirectoryNotFoundException("Shader input directory is missing: " + shaders);
             LumonOctahedralShWeights.Generate(shaders);

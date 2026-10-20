@@ -31,7 +31,7 @@ internal sealed class ShaderPublication
     }
 
     /// <summary>Reconciles durable state before receipt evaluation or explicit clean, without trusting journal paths.</summary>
-    internal void Recover()
+    internal void Recover(CancellationToken cancellationToken = default)
     {
         if (!File.Exists(paths.Journal)) return;
         try
@@ -61,7 +61,7 @@ internal sealed class ShaderPublication
             if (journal.PriorCoherent && journal.Prior!.Matches(journal.Previous) && ShaderGenerationSnapshot.IsCoherent(journal.Previous))
             {
                 DeleteActive();
-                Directory.Move(journal.Previous, paths.Active);
+                ShaderPublicationMove.Move(journal.Previous, paths.Active, report, cancellationToken);
                 Cleanup(journal);
                 report?.Invoke("Restored previous complete shader generation.");
                 return;
@@ -69,7 +69,7 @@ internal sealed class ShaderPublication
             // Repair builds may have started with damaged outputs. A verified pending generation is then the only complete source.
             if (!activeExists && journal.Next is not null && journal.Next.Matches(journal.Pending) && ShaderGenerationSnapshot.IsCoherent(journal.Pending))
             {
-                Directory.Move(journal.Pending, paths.Active);
+                ShaderPublicationMove.Move(journal.Pending, paths.Active, report, cancellationToken);
                 Cleanup(journal);
                 report?.Invoke("Recovered verified pending shader generation without a success receipt.");
                 return;
@@ -87,7 +87,7 @@ internal sealed class ShaderPublication
     internal ShaderPublicationResult Publish(IReadOnlyDictionary<string, byte[]> binaries, byte[] manifest, string fingerprint = "",
         Action? publishReceipt = null, Action? validateInputs = null, CancellationToken cancellationToken = default)
     {
-        Recover();
+        Recover(cancellationToken);
         File.Delete(paths.Receipt);
         var timer = Stopwatch.StartNew();
         ShaderPublicationJournal? journal = null;
@@ -153,9 +153,9 @@ internal sealed class ShaderPublication
             Step(ShaderPublicationPoint.Prepared, cancellationToken);
             validateInputs?.Invoke();
             cancellationToken.ThrowIfCancellationRequested();
-            if (journal.Prior is not null) Directory.Move(paths.Active, journal.Previous);
+            if (journal.Prior is not null) ShaderPublicationMove.Move(paths.Active, journal.Previous, report, cancellationToken);
             Step(ShaderPublicationPoint.PreviousMoved, cancellationToken);
-            Directory.Move(journal.Pending, paths.Active);
+            ShaderPublicationMove.Move(journal.Pending, paths.Active, report, cancellationToken);
             // The checkpoint deliberately precedes the journal revision to cover rename/update interruption gaps.
             Step(ShaderPublicationPoint.Installed, cancellationToken);
             journal = journal with { State = ShaderPublicationState.Installed };
@@ -182,7 +182,8 @@ internal sealed class ShaderPublication
                 && ShaderGenerationSnapshot.IsCoherent(journal.Previous))
             {
                 DeleteActive();
-                Directory.Move(journal.Previous, paths.Active);
+                // Rollback must finish even when cancellation caused the original failure.
+                ShaderPublicationMove.Move(journal.Previous, paths.Active, report);
                 Cleanup(journal);
             }
             else Recover();
