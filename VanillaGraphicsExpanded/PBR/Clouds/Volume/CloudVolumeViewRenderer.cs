@@ -9,20 +9,24 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
-/// <summary>Draws the stored volume through ordinary full-resolution graphics authority without native density access.</summary>
-internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program):IDisposable
+/// <summary>Draws stored fields at the configured scale, reconstructing compact reduced views when needed.</summary>
+internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,CloudVolumeReconstructProgram reconstruct):IDisposable
 {
     internal static readonly VertexLayoutDesc Layout=new([]);
     private readonly GraphicsPipelineLifetime lifetime=new();
     private GraphicsPipeline? pipeline;
+    private GraphicsPipeline? reconstructionPipeline;
+    private CloudVolumeViewTargets? targets;
     private ArrayGraphicsGeometry? geometry;
     private CloudVolumeViewSettings settings;
-    private ulong revision;
+    private ulong revision,reconstructionRevision;
     private bool prepared,failed,disposed;
     internal string? Failure {get;private set;}
+    internal long TargetBytes=>targets?.Bytes??0;
     #region Public API
     /// <summary>Admits compiled view paths and procedural full-view geometry.</summary>
     internal bool Prepare(CloudVolumeViewSettings selection)
@@ -30,14 +34,18 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program):ID
         ObjectDisposedException.ThrowIf(disposed,this);selection.Validate();if(failed)return false;
         try
         {
-            program.ConfigureOptions(()=>{program.SelfShadowing=selection.SelfShadowing;program.Diffuse=selection.Diffuse;program.Termination=selection.Stop>0;});
+            program.ConfigureOptions(()=>{program.SelfShadowing=selection.SelfShadowing;program.Diffuse=selection.Diffuse;
+                program.Termination=selection.Stop>0;program.TraceDivisor=selection.TraceDivisor;});
             if(!program.EnsureReady())throw new InvalidOperationException("Stored cloud view executable unavailable.",program.PreparationFailure);
+            if(selection.TraceDivisor!=1&&!reconstruct.EnsureReady())throw new InvalidOperationException("Stored cloud reconstruction executable unavailable.",reconstruct.PreparationFailure);
             var caps=GpuSupport.Graphics;
-            if(caps.MaxDrawBuffers<6||caps.MaxFragmentShaderStorageBlocks<3||caps.MaxTextureImageUnits<9||caps.MaxCombinedTextureImageUnits<9||
-                caps.MaxUniformBufferBindings<=GpuBindingRegistry.Ubo.Frame||caps.MaxUniformBlockSize<256)
+            if(caps.MaxDrawBuffers<6||GpuSupport.MaxColorAttachments<6||caps.MaxFragmentShaderStorageBlocks<3||caps.MaxTextureImageUnits<9||caps.MaxCombinedTextureImageUnits<9||
+                caps.MaxUniformBufferBindings<=GpuBindingRegistry.Ubo.Frame||caps.MaxUniformBlockSize<240)
                 throw new NotSupportedException("Stored cloud view exceeds rendering capabilities.");
             geometry??=new(Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
-            settings=selection;revision=program.ExecutableRevision;prepared=true;return true;
+            if(prepared&&settings.TraceDivisor!=selection.TraceDivisor)ReleaseTargets();
+            settings=selection;revision=program.ExecutableRevision;
+            reconstructionRevision=selection.TraceDivisor==1?0:reconstruct.ExecutableRevision;prepared=true;return true;
         }
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error)){failed=true;Failure=error.Message;return false;}
     }
@@ -59,21 +67,46 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program):ID
         if(extent.X!=target.Width||extent.Y!=target.Height)return Reject("Stored cloud camera/OIT extent mismatch.");
         try
         {
-            Check(current);program.Capture(fields,input,settings,scene,debugMode);
+            Check(current);
+            program.Capture(fields,input,settings,scene,debugMode);
             program.Frame=scene.Camera;program.Lighting=scene.Lighting;program.Occupancy=fields.Occupancy;program.Regions=fields.Regions;
             program.Density=fields.Density;program.Direct=fields.Direct;program.DiffuseField=fields.Diffuse;
             program.MaterialDepth=scene.MaterialDepth;program.VisibilityDepth=scene.VisibilityDepth;program.LiquidDepth=scene.LiquidDepth;
             program.Aerial=scene.Aerial;program.Attenuation=scene.Attenuation;program.Shafts=scene.Shafts;
             var pass=new RenderPassDesc(target,LiquidPipelineStates.SurfaceOutputs);
-            using var metadata=new RenderPassTargets(pass);
-            var description=new GraphicsPipelineDesc(program.GraphicsIdentity!,Layout,metadata.Signature,
-                DynamicPipelineState.Viewport,blending:LiquidPipelineStates.SurfaceBlending);
-            if(pipeline is null||pipeline.Description!=description||pipeline.ExecutableRevision!=program.ExecutableRevision)
-            {pipeline?.Dispose();pipeline=new GraphicsPipeline(lifetime,description,program);}
+            RenderPassDesc? tracePass=null;
+            if(settings.TraceDivisor==1)
+            {
+                ReleaseTargets();UpdatePipeline(ref pipeline,program,pass,true);
+            }
+            else
+            {
+                int divisor=settings.TraceDivisor;
+                if(targets is not null&&(targets.Target.Width!=(target.Width+divisor-1)/divisor||
+                    targets.Target.Height!=(target.Height+divisor-1)/divisor))ReleaseTargets();
+                targets??=new CloudVolumeViewTargets(target.Width,target.Height,divisor);
+                reconstruct.Frame=scene.Camera;
+                reconstruct.Cloud=targets.Images[0];reconstruct.Bins=targets.Images[1];
+                reconstruct.Metadata=targets.Images[2];reconstruct.MaterialDepth=scene.MaterialDepth;
+                reconstruct.VisibilityDepth=scene.VisibilityDepth;reconstruct.LiquidDepth=scene.LiquidDepth;
+                tracePass=new RenderPassDesc(targets.Target,CloudVolumeViewTargets.Outputs);
+                UpdatePipeline(ref pipeline,program,tracePass,false);
+                UpdatePipeline(ref reconstructionPipeline,reconstruct,pass,true);
+            }
             Check(current);
-            if(!GraphicsCommandContext.TryRun("Cloud.Volume.View",[pipeline],true,commands=>
-                {commands.BeginPass(pass);commands.SetPipeline(pipeline);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
-                    commands.Draw(geometry!,new(0,3));commands.EndPass();}))throw new InvalidOperationException("Stored cloud view boundary rejected.");
+            GraphicsPipeline[] active=tracePass is null?[pipeline!]:[pipeline!,reconstructionPipeline!];
+            if(!GraphicsCommandContext.TryRun("Cloud.Volume.View",active,true,commands=>
+                {
+                    // The completed framebuffer writes precede sampling in a different draw target.
+                    // Ordinary framebuffer-to-sampler ordering needs no image/compute memory barrier.
+                    if(tracePass is not null)
+                    {
+                        commands.BeginPass(tracePass);commands.SetPipeline(pipeline!);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+                        commands.Draw(geometry!,new(0,3));commands.EndPass();
+                    }
+                    commands.BeginPass(pass);commands.SetPipeline(tracePass is null?pipeline!:reconstructionPipeline!);commands.SetDynamicState(new(){Viewport=commands.PassViewport});
+                    commands.Draw(geometry!,new(0,3));commands.EndPass();
+                }))throw new InvalidOperationException("Stored cloud view boundary rejected.");
             Check(current);
             return true;
         }
@@ -85,16 +118,29 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program):ID
     public void Dispose()
     {
         if(disposed)return;disposed=true;prepared=false;
-        RenderingCleanup.Run(()=>{pipeline?.Dispose();pipeline=null;},()=>{geometry?.Dispose();geometry=null;},ReleaseBorrows,lifetime.Dispose);
+        RenderingCleanup.Run(()=>{pipeline?.Dispose();pipeline=null;},()=>{reconstructionPipeline?.Dispose();reconstructionPipeline=null;},
+            ()=>{geometry?.Dispose();geometry=null;},ReleaseBorrows,ReleaseTargets,lifetime.Dispose);
     }
+    /// <summary>Retires screen-sized attachments on resize without clearing retained cloud-space fields.</summary>
+    internal void ReleaseTargets(){targets?.Dispose();targets=null;}
     #endregion
     #region Private
+    /// <summary>Retains executable-specific output authority, replacing a pipeline only when its signature changes.</summary>
+    private void UpdatePipeline(ref GraphicsPipeline? retained,GpuProgram owner,RenderPassDesc pass,bool blend)
+    {
+        using var metadata=new RenderPassTargets(pass);
+        var description=new GraphicsPipelineDesc(owner.GraphicsIdentity!,Layout,metadata.Signature,
+            DynamicPipelineState.Viewport,blending:blend?LiquidPipelineStates.SurfaceBlending:null);
+        if(retained is null||retained.Description!=description||retained.ExecutableRevision!=owner.ExecutableRevision)
+        {retained?.Dispose();retained=new GraphicsPipeline(lifetime,description,owner);}
+    }
     /// <summary>Reports preflight failure without changing native or stored resource ownership.</summary>
     private bool Reject(string reason){Failure=reason;return false;}
     /// <summary>Checks executable/context and source identities on both sides of drawing.</summary>
     private void Check(Func<bool> current)
     {
-        if(!current()||!program.IsLinked||program.ExecutableRevision!=revision||program.ExecutableContext!=RenderContextRegistry.Current())
+        if(!current()||!program.IsLinked||program.ExecutableRevision!=revision||program.ExecutableContext!=RenderContextRegistry.Current()||
+            (settings.TraceDivisor!=1&&(!reconstruct.IsLinked||reconstruct.ExecutableRevision!=reconstructionRevision||reconstruct.ExecutableContext!=RenderContextRegistry.Current())))
             throw new InvalidOperationException("Stored cloud view certificate changed.");
     }
     /// <summary>Drops synchronous camera/scene borrows and private field bindings after each submission.</summary>
@@ -102,6 +148,8 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program):ID
     {
         program.Frame=null;program.Lighting=null;program.Occupancy=null;program.Regions=null;program.Density=null;program.Direct=null;program.DiffuseField=null;
         program.MaterialDepth=null;program.VisibilityDepth=null;program.LiquidDepth=null;program.Aerial=null;program.Attenuation=null;program.Shafts=null;
+        reconstruct.Frame=null;reconstruct.Cloud=null;reconstruct.Bins=null;reconstruct.Metadata=null;
+        reconstruct.MaterialDepth=null;reconstruct.VisibilityDepth=null;reconstruct.LiquidDepth=null;
     }
     #endregion
 }

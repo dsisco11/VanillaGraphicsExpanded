@@ -26,18 +26,26 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     private readonly CloudOitSurface output;
     private readonly CloudMapInput input;
     private uint updateFrame;
+    private CloudVolumeViewScene preparedScene=null!;
+    /// <summary>Reports only the view owner's allocated trace products and reconstruction metadata.</summary>
+    internal long ViewTargetBytes=>renderer.TargetBytes;
+    /// <summary>Exposes retained density identity so view-only changes cannot silently replace the cloud fields.</summary>
+    internal DynamicTexture3D StoredDensity=>storage.Published.Density;
+    /// <summary>Authors the view-specific medium selector while fog remains owned by the shared frame snapshot.</summary>
+    internal float Underwater {get;set;}
     internal AtmosphereLighting Atmosphere {get;set;}=new(Vector3.UnitZ,new Vector3(30),new Vector3(10),Vector3.Zero,Vector3.Zero,
         ImmutableArray<float>.Empty){Moon=-Vector3.UnitY,Lunar=new Vector3(3),CalibrationGeneration=7,LookupStorageScale=1f/16};
     #region Public API
     /// <summary>Allocates only existing GPU owners and the actual stored-volume view program.</summary>
-    internal CloudStoredVolumeViewScene(ComponentShaderPrograms programs)
+    internal CloudStoredVolumeViewScene(ComponentShaderPrograms programs,int width=1,int height=1,
+        Vector3 fogColor=default,float fogDensity=0,float fogMinimum=0)
     {
         try
         {
-            camera=Own(TestFrameCamera.CreateFromProjection([1,0,0,0,0,1,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0],1,1,.1f,1000));
+            camera=Own(TestFrameCamera.CreateFromProjection([1,0,0,0,0,1,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0],width,height,.1f,1000,fogColor,fogDensity,fogMinimum));
             lighting=Own(new TestFrameLightingPublication());map=Own(DynamicTexture2D.Create(20,20,PixelInternalFormat.Rgba32f));
-            material=Own(DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f));visibility=Own(DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f));
-            liquid=Own(DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f));shafts=Own(DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f));
+            material=Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));visibility=Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));
+            liquid=Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f));shafts=Own(DynamicTexture2D.Create(1,1,PixelInternalFormat.R32f));
             shafts.UploadDataImmediate(new float[]{0});
             aerial=Own(DynamicTexture3D.Create(1,2,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
             attenuation=Own(DynamicTexture3D.Create(1,1,1,PixelInternalFormat.Rgba32f,textureTarget:TextureTarget.Texture3D));
@@ -53,7 +61,11 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             SeedDensity(.0078125f);
             Assert.True(VgeShaderPrograms.RegisterAll(programs.Api));
             var view=GpuShaderProgramLibraries.Get<CloudVolumeViewProgram>(programs.Api,CloudVolumeViewProgram.Contract.Identity);
-            Assert.NotNull(view);renderer=Own(new CloudVolumeViewRenderer(view));output=Own(new CloudOitSurface(1,1,"Tests.Cloud.StoredVolume.View"));
+            var reconstruction=GpuShaderProgramLibraries.Get<CloudVolumeReconstructProgram>(programs.Api,CloudVolumeReconstructProgram.Contract.Identity);
+            Assert.NotNull(view);Assert.NotNull(reconstruction);
+            Assert.True(reconstruction.EnsureReady(),reconstruction.PreparationFailure?.ToString());
+            renderer=Own(new CloudVolumeViewRenderer(view,reconstruction));
+            output=Own(new CloudOitSurface(width,height,"Tests.Cloud.StoredVolume.View"));
         }
         catch{Dispose();throw;}
     }
@@ -62,15 +74,26 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     {
         var fields=storage.Published;var d=fields.Domain;
         fields.Density.UploadDataImmediate(Enumerable.Repeat(sigma,d.Voxels).ToArray(),0,0,0,d.Size,66,d.Size);
-        fields.Occupancy.UploadData(Enumerable.Repeat(sigma>0?1u:0u,d.Blocks).ToArray());
+        fields.Occupancy.UploadData(Enumerable.Repeat(sigma==0?0u:1u,d.Blocks).ToArray());
     }
     /// <summary>Authors independent material, particle and liquid depth clips in projection space.</summary>
     internal void SetDepths(float opaque,float particles,float water)
     {
-        material.UploadDataImmediate(new[]{Depth(opaque)});visibility.UploadDataImmediate(new[]{Depth(particles)});liquid.UploadDataImmediate(new[]{Depth(water)});
+        int count=material.Width*material.Height;
+        material.UploadDataImmediate(Enumerable.Repeat(Depth(opaque),count).ToArray());
+        visibility.UploadDataImmediate(Enumerable.Repeat(Depth(particles),count).ToArray());
+        liquid.UploadDataImmediate(Enumerable.Repeat(Depth(water),count).ToArray());
+    }
+    /// <summary>Authors a material-depth discontinuity while keeping particle and liquid clips independent.</summary>
+    internal void SetMaterialDepthColumns(int firstBackground,float foreground,float background)
+    {
+        var depths=new float[material.Width*material.Height];
+        for(int y=0;y<material.Height;y++)for(int x=0;x<material.Width;x++)
+            depths[y*material.Width+x]=Depth(x<firstBackground?foreground:background);
+        material.UploadDataImmediate(depths);
     }
     /// <summary>Draws actual typed OIT, optionally advancing the complete independent stored-volume update chain.</summary>
-    internal float[][] Draw(CloudVolumeViewSettings settings,float scale=1,CloudVolumeSolution? solution=null,bool succeeds=true)
+    internal float[][] Draw(CloudVolumeViewSettings settings,float scale=1,CloudVolumeSolution? solution=null,bool succeeds=true,float? clear=null)
     {
         if(solution is not null)
         {
@@ -90,17 +113,23 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             }
             Assert.NotNull(solution.Drawable);Assert.True(solution.Drawable.Revision>before);
         }
-        lighting.Capture(scale);Assert.True(renderer.Prepare(settings),renderer.Failure);
-        RenderPassColor[] colors=Enumerable.Range(0,6).Select(i=>new RenderPassColor(i,AttachmentLoad.Clear,
-            Clear:i<2?ColorClearValue.Float(1,1,1,1):ColorClearValue.Float(0,0,0,0))).ToArray();
-        Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.StoredVolume.Clear",[],true,commands=>
-            {commands.BeginPass(new RenderPassDesc(output.Target,colors));commands.EndPass();}));
-        var scene=new CloudVolumeViewScene(camera,lighting.Buffer,Atmosphere,material,visibility,liquid,aerial,attenuation,shafts);
-        bool drawn=solution is null?renderer.Draw(storage,input,scene,output.Target,()=>true):
-            renderer.Draw(solution.Drawable!,input,scene,output.Target,()=>true);
+        PrepareDraw(settings,scale,clear);
+        bool drawn=solution is null?DrawOnly():renderer.Draw(solution.Drawable!,input,preparedScene,output.Target,()=>true);
         if(succeeds)Assert.True(drawn,renderer.Failure);else{Assert.False(drawn);Assert.NotNull(renderer.Failure);}
         return output.Images.Select(texture=>texture.ReadPixels()).ToArray();
     }
+    /// <summary>Prepares immutable view inputs and clears targets outside the measured draw interval.</summary>
+    internal void PrepareDraw(CloudVolumeViewSettings settings,float scale=1,float? clear=null)
+    {
+        lighting.Capture(scale);Assert.True(renderer.Prepare(settings),renderer.Failure);
+        RenderPassColor[] colors=Enumerable.Range(0,6).Select(i=>new RenderPassColor(i,AttachmentLoad.Clear,
+            Clear:clear is {} c?ColorClearValue.Float(c,c,c,c):i<2?ColorClearValue.Float(1,1,1,1):ColorClearValue.Float(0,0,0,0))).ToArray();
+        Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.StoredVolume.Clear",[],true,commands=>
+            {commands.BeginPass(new RenderPassDesc(output.Target,colors));commands.EndPass();}));
+        preparedScene=new CloudVolumeViewScene(camera,lighting.Buffer,Atmosphere,material,visibility,liquid,aerial,attenuation,shafts,Underwater);
+    }
+    /// <summary>Submits only the actual typed view draw, without preparation, clearing or readback.</summary>
+    internal bool DrawOnly()=>renderer.Draw(storage,input,preparedScene,output.Target,()=>true);
     /// <summary>Leaves a real update pending, optionally retiring and resubmitting in the same simulated render callback.</summary>
     internal void QueueUpdate(CloudVolumeSolution solution,CloudVolumeViewSettings settings,bool retireAndResubmit=false)
     {

@@ -18,7 +18,7 @@ public sealed class StoredVolumeSettings
     #region Public API
     /// <summary>Restores unsupported optical exits before configuration is published.</summary>
     public void Sanitize()=>StopTransmittance=float.IsFinite(StopTransmittance)?Math.Clamp(StopTransmittance,0,.005f):.005f;
-    /// <summary>Freezes applied controls independently of the other cloud renderers.</summary>
+    /// <summary>Freezes stored-field features before selection applies the shared resolution controls.</summary>
     internal CloudVolumeViewSettings Capture(){Sanitize();return new(Detail,SelfShadowing,Diffuse,StopTransmittance);}
     #endregion
 }

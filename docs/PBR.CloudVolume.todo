@@ -18,8 +18,9 @@ Authority and scope
     needed; separate lighting resolution is a later measured optimization, not implicit scope.
   No replacement weather, general path tracer, widely spaced slice rendering, required screen-space
     temporal accumulation, migration, generic rendering framework or automatic old-candidate removal.
-  Initial correctness view is full-resolution OIT. Reduced-resolution spatial reconstruction is a
-    separate later decision. No claim that persistent lighting eliminates final view integration.
+  Shared TraceScale and FullResolutionReference controls govern view resolution. Full draws directly;
+    half/quarter use compact spatial reconstruction. Half-voxel spacing remains. Persistent lighting
+    does not eliminate final view integration.
 
 Execution and evidence (applies to every phase)
   Use PBR/Clouds/Volume/ and private shaders/cloud_volume/ under the production project. Keep files
@@ -602,25 +603,98 @@ Phase 7.5 - Reduce the cost of integrating the stored volume into the view
     Phase 7.3 is not an implementation gate.
   Outcome: the dominant cloud GPU pass has an explicit performance/appearance tradeoff without
     silently changing the selected full-resolution, half-voxel integration contract.
-  [ ] Use the captured view cost, viewport and executable plus source review to identify redundant
+  [x] Use the captured view cost, viewport and executable plus source review to identify redundant
       arithmetic/fetches, traversal, attenuation, OIT bin calculations and blending work. Profile only
       unresolved costs relevant to the selected change; do not repeat a broad baseline. Confirm
       hardware trilinear filtering, empty-block skipping and compiled opacity termination remain effective.
-  [ ] Remove redundant view arithmetic, fetches and state work where the selected integration and OIT
+  [x] Remove redundant view arithmetic, fetches and state work where the selected integration and OIT
       semantics permit. Preserve depth clipping, finite coverage, physical source/medium composition,
       circular seams and whole-ray failure behavior; do not reintroduce per-sample lighting traces.
-  [ ] Evaluate a cheaper occupied integration schedule and reduced-resolution spatial reconstruction
+  [x] Evaluate a cheaper occupied integration schedule and reduced-resolution spatial reconstruction
       as explicit alternatives. Quantify pixel/sample savings, reconstruction/composition cost and
       expected edge/thin-layer effects. Do not silently inherit the other renderer's TraceScale.
-  [ ] Record the selected design with the user before changing spacing, resolution or defaults; update
+  [x] Record the selected design with the user before changing spacing, resolution or defaults; update
       the proposal's numerical/view contract before dependent implementation. Screen-space temporal
       accumulation remains outside the selected design unless separately approved.
-  [ ] Implement only the selected alternative through existing abstractions and compiled feature
+  [x] Implement only the selected alternative through existing abstractions and compiled feature
       options. Extend affected contract checks only, through subagent incremental builds/tests; reuse
       evidence and avoid packaging/full matrices. Use narrow matched GPU measurements and user-run
       appearance review, with no approximation-quality, image-difference or convergence test gates.
-  [ ] Completion: view cost and any selected visual tradeoff are documented and measured separately
+  [x] Completion: view cost and any selected visual tradeoff are documented and measured separately
       from illumination amortization; unchanged-setting savings and changed-setting savings are labeled.
+
+Phase 7.5 implementation and review
+  Traceability: capture event7216 / artifacts/StoredCloudPerformance/findings.md and view.fsh ->
+    full-resolution 3440x1377, half-voxel schedule, 3.94-4.08 ms replay and six native products.
+    Numerical, coordinate, filtering/failure and selected-view obligations -> proposal / Rendering
+    the published volume, Native inputs and coordinate identity, Traversal bounds and Shared rendering
+    obligations; PBR.Clouds.md / Stored-volume view and selection; PBR.Atmosphere.Publication.md /
+    Publication contract. Typed authority/lifecycle -> existing GpuProgram/GraphicsCommandContext and
+    Rendering.Enablement.md. Evidence uses the existing view fixture and independent source review.
+  User selected spatial reconstruction and subsequently required obeying the shared half/quarter/full
+    resolution controls. Effective divisor is FullResolutionReference?1:TraceScale (default4), compiled
+    structurally. Full draws directly without intermediate allocation/reconstruction. Retain nominal
+    half-voxel spacing and compiled feature/termination paths,
+    DDA empty skipping, hardware trilinear fields, physical medium/encoding and independent identities.
+  Alternatives: whole-voxel spacing would roughly halve occupied quadrature, excluding block-clipping
+    overhead, with greater thin-layer/along-ray aliasing. Half dimensions remove about75%
+    of view rays without changing that schedule: 4,736,880 -> 1,185,080 rays at3440x1377; at4K,
+    8,294,400 -> 2,073,600. Quarter uses518,400rays at4K (about93.75%fewer), and full uses8,294,400.
+    Rays/nominal sampling savings are arithmetic, not measured total speedup.
+  Reduced-view reconstruction adds a full-resolution pass: four exact metadata fetches, three scene-depth samples
+    and two hardware bilinear compact samples, then expansion into all six native products and blending once.
+    Tracing writes three compact textures without blending. Exact-empty support skips reads/native identity writes.
+    Targets cost36bytes/reduced pixel; half/quarter use40.7/10.2MiB at capture resolution or71.2/17.8MiB
+    at4K. Full allocates none. These are
+    outside volume payload limits; the debug panel reports them. Spatial reconstruction can soften
+    thin layers/silhouettes and conservatively thin foreground edges. No temporal accumulation.
+  User selected the compact layout as the implementation, with no expanded-output variant. Composition
+    filters cloud radiance/opacity and bucket transmission before generating native accumulations;
+    this differs from filtering expanded products and is an explicit spatial approximation.
+  Unchanged-setting arithmetic removal: hoisted affine circular coordinates and combined depth clipping
+    before a single unprojection; current source/OIT products are distinct, required fetches/math.
+    No independent GPU gain is attributed to these edits. Performance comparisons below include the
+    explicitly changed resolution and new reconstruction, separately from retained-lighting update cost.
+  User appearance acceptance: on2026-10-20 the user reported 'It looks fine' after the delivered fixes.
+    This records qualitative appearance acceptance only; no specific scenario matrix or live FPS gain
+    is inferred from that response.
+  Focused compact validation: canonical cached Release build passed0errors; three affected GPU facts
+    passed, covering native math/all3buckets, compiled disabled paths, three depth inputs, empty/NaN
+    neutral preservation, odd5x3/3x2allocation216bytes and complete stored-solution lifecycle. No raw
+    GL tests or approximation-quality thresholds added. Receipts: artifacts/StoredCloudPerformance/
+    phase75-compact-build.log, phase75-compact.log and phase75-compact.trx.
+  Same512x256scene/settings/depth resources, changed compact representation: occupied GPU median
+    .0625ms expanded -> .0563ms compact; empty .0256 -> .0215ms. Queries include both passes and
+    intermediate clears. These small short-ray results are not4K/in-game FPS or appearance proof.
+    The earlier full-resolution .0584/.0266ms baseline used1x1constantdepth inputs, so it is not an
+    identical-resource comparison against viewport-sized-depth reconstruction. No full-view gain claimed.
+  Second source review and independent audit cover compact packing, hardware filtering, exact failed/
+    empty metadata, six native outputs/blending once, unchanged traversal and resize/release. User
+    appearance acceptance is recorded above; no live FPS qualification is inferred.
+  Shared-input cleanup: both passes borrow VgeFrameUBO for full/derived trace dimensions and shaft
+    coordinates. Fog colour/density/minimum and CPU medium-headroom admission use the same shared
+    frame snapshot, captured after native camera/ambient. Only absent flat-fog geometry/underwater
+    state remain private medium inputs. View UBO is240bytes; reconstruction owns no parameter UBO.
+    Cached Release build passed0errors and all3affected GPU facts passed, including the existing
+    functional test extended with analytic shared-frame green fog in all3buckets and unchanged cloud
+    extinction. Receipts: phase75-shared-inputs-build.log, phase75-shared-inputs-tests.log and
+    phase75-shared-inputs.trx under artifacts/StoredCloudPerformance. No new performance claim.
+  Resolution-control follow-up: shared configuration Request/Apply now captures the effective1/2/4
+    divisor;24structural view variants select direct full output or compact reduced output. Full does
+    not prepare/use reconstruction and owns no screen targets. Half/quarter allocateceil(view/divisor),
+    clip2x2/4x4depth footprints and use full-view spatial reconstruction. Scale changes preserve stored
+    density/lighting and retire only incompatible view targets. No new resolution setting or migration.
+    Current cached Release build passed0errors;5affected existing facts passed, including2/4/1/2target
+    changes216/72/0/216bytes at5x3, retained density, failure/empty handling, deferred configuration,
+    full-reference precedence and invalid divisor rejection. Receipts: phase75-resolution-build2.log,
+    phase75-resolution-current-tests.log and phase75-resolution-current.trx in the same artifact folder.
+    The first build hit Windows shader-publication rename denial; tests accidentally run against its
+    previous binary are explicitly stale and excluded. The guarded retry published647cached variants
+    without compiler invocations. No live FPS gain claimed; user appearance acceptance is recorded separately.
+
+  Final affected-requirement audit passed after user acceptance. Current source files predate the
+    passing resolution receipt; no changed implementation invalidates the retained checks. All six
+    tasks are complete. Later phases remain unchecked; no additional build, packaging or game action.
 
 Phase 7.6 - Avoid unnecessary whole-volume diffuse copying
   Depends on: Phases 6 and 7.2; Phase 7.4 only for changed submission ownership.

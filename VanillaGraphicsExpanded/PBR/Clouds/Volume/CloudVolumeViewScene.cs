@@ -8,4 +8,4 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 internal sealed record CloudVolumeViewScene(VgeFrameUniformBuffer Camera,GpuShaderStorageBuffer Lighting,
     AtmosphereLighting Atmosphere,GpuTexture MaterialDepth,GpuTexture VisibilityDepth,GpuTexture LiquidDepth,
     DynamicTexture3D Aerial,DynamicTexture3D Attenuation,GpuTexture? Shafts=null,
-    float Underwater=0,Vector4 Fog=default,Vector3 FogColor=default);
+    float Underwater=0,Vector2 FlatFog=default);

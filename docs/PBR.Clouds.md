@@ -512,7 +512,7 @@ linked checklist.
 ## Stored density-volume resources
 
 `PBR/Clouds/Volume/` owns an independent storage foundation for persistent cloud density and
-illumination. `Clouds.VolumeRenderer=2` selects its independent full-resolution view. Its storage contract is
+illumination. `Clouds.VolumeRenderer=2` selects its stored-field view using the shared cloud resolution controls. Its storage contract is
 specified in [the density-volume proposal](PBR.CloudVolume.Proposal.md).
 
 `CloudVolumeDomain` uses fixed 19.53125-unit horizontal cells, 64 vertical interior cells and
@@ -530,14 +530,16 @@ allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance
 UBO, a 32-byte validation/completion summary and 12-byte indirect arguments. Lighting work uses six
 208-byte UBOs and 60-byte indirect arguments.
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
-addition is 2920 bytes. The view owns one 256-byte UBO across its variants and block publication
-owns a 16-byte UBO, leaving 776 bytes reserved inside that allowance. There are no private view
-targets or screen-space history. A separate drawable snapshot owns R16F density, RG16F direct,
+addition is 2920 bytes. The view owns one 240-byte UBO across its variants and block publication
+owns a 16-byte UBO, leaving 792 bytes reserved inside that allowance. Reconstruction borrows the
+shared frame UBO without owning a separate parameter buffer.
+Screen-sized view targets are charged separately below; there is no screen-space history.
+A separate drawable snapshot owns R16F density, RG16F direct,
 RGBA16F diffuse and exact region/occupancy buffers: 249,952,000 bytes (238.373 MiB) at maximum extent.
 A raw RGBA32F native observation snapshot adds at most 640,000 bytes. Maximum working plus drawable
 payload is 612.518 MiB; two working domains plus drawable/raw snapshots total 986.052 MiB. The
-512 MiB ceiling applies to each working field set; the combined owned payload fits the 1 GiB peak
-ceiling. Driver allocation overhead is additional and remains a measurement concern.
+512 MiB ceiling applies to each working field set; the combined volume payload fits the 1 GiB peak
+ceiling. Screen-sized view targets and driver allocation overhead are additional.
 
 `CloudVolumeStorage` admits format/dispatch/device limits before allocation. Incoming fields
 initialize at most 4096 physical blocks per call. They contain zero density, unit direct visibility
@@ -793,8 +795,8 @@ revoke queue/executable certificates and request refresh while compatible densit
 remain. Resize releases framebuffer metadata without clearing material-space history. Reload,
 selection release and world/context teardown retire all candidate resources.
 
-`CloudVolumeViewRenderer` draws one procedural full-resolution triangle through existing graphics
-pipelines into the six native Transparent attachments. It clips against finite stored coverage,
+`CloudVolumeViewRenderer` uses the shared `TraceScale` (half/quarter) and `FullResolutionReference` controls. Full resolution draws directly into native OIT without intermediate targets. Reduced views trace into private ceil-divided targets, then reconstruct the
+six native Transparent products at full resolution through existing graphics pipelines. It clips against finite stored coverage,
 material depth, particle visibility and liquid depth at mip zero. Coarse DDA retains traversal
 state and skips only certified empty support. Occupied intervals use half-voxel axis spacing,
 actual clipped metre lengths, hardware-filtered R16F density, RG16F transmission and scaled diffuse
@@ -809,12 +811,39 @@ integration, the shared affine atmosphere/local-medium treatment and frozen scen
 once. Bucket transmissions use each interval's near depth; overall transmission, glow metadata and
 three weighted accumulations preserve the native OIT convention in both PBR selections.
 
+`CloudVolumeViewTargets` owns three compact float32 textures: RGBA radiance/opacity, RGB bucket
+transmissions and RG clip-depth/completion metadata. Reduced tracing uses conservative two-by-two (half) or four-by-four (quarter) full-view
+depth gathers and the unchanged occupied schedule. Intermediate writes use no blending; reconstruction
+applies native blending once. `cloud_volume/reconstruct` reads exact four-texel metadata and uses two
+hardware bilinear continuous samples where all support texels are complete and depth-compatible.
+At depth discontinuities it selects the nearest compatible texel centre; no compatible sample leaves
+native products untouched. The filtered cloud value and bucket transmissions generate all six native
+outputs during final composition. There are no intermediate glow or accumulation buffers and no
+alternative expanded-output path. Filtering before bucket expansion is the selected spatial approximation.
+Metadata distinguishes invalid, complete contributing and complete exactly-empty rays. Empty support
+or an empty selected fallback skips continuous reads and native identity blends. Failed prefixes stay
+invalid. Reduced-resolution silhouettes can soften or thin, particularly at foreground depth boundaries;
+there is no temporal history or procedural lighting fallback. Odd sizes round up, and atmosphere shaft
+coordinates remain in full-view pixels. Targets cost 36 bytes per reduced pixel: half/quarter uses
+about40.7/10.2MiB at3440x1377 or71.2/17.8MiB at4K, separately from volume payloads. Full resolution
+allocates none. Resize and renderer release retire reduced targets
+without clearing retained cloud lighting. The debug panel reports allocation. Native composition
+requires six draw buffers/attachments; view lighting uses nine fragment samplers.
+
+Tracing and reconstruction bind the same `VgeFrameUBO`. Full-view dimensions, the derived ceil-divided
+extent, shaft coordinate scaling and fog colour/density/minimum come from that immutable frame.
+Fog headroom admission reads the same CPU snapshot. The shared frame owner captures current render
+fog after the native camera/ambient callbacks; the cloud consumer does not reread ambient fog for
+these values. Only flat-fog geometry and underwater state remain private medium parameters. Physical
+solar/lunar/environment values remain in the view parameters because the shared frame, point-light
+and photometric-storage blocks do not publish those atmospheric source values.
+
 The existing **VGE debug visualizers** menu includes **Cloud Stored Volume** with stored density,
 region identity, completed-age and initialized-fallback overlays. Its panel reports dimensions,
 spacing, resident/replacement payload, density and lighting work/backlog, completed work, fallback
 blocks and diffuse copy bytes. Diagnostic metadata reads occur only while this view is active,
 at most once per second. Existing bounded generation/completion status reads remain separate
-algorithm costs. Full-resolution view cost, copy bandwidth, shape and lighting latency still
+algorithm costs. Reconstructed view cost, copy bandwidth, shape and lighting latency still
 require measured performance and user appearance review.
 
 ## Independent lighting-volume candidate

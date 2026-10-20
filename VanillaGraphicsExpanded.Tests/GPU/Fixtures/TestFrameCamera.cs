@@ -64,14 +64,15 @@ internal static class TestFrameCamera
     }
 
     /// <summary>Captures a forward projection and explicit clipping range for rasterized liquid geometry.</summary>
-    internal static VgeFrameUniformBuffer CreateFromProjection(float[] projection, int width, int height, float near, float far)
+    internal static VgeFrameUniformBuffer CreateFromProjection(float[] projection, int width, int height, float near, float far,
+        Vector3 fogColor=default,float fogDensity=0,float fogMinimum=0)
     {
         float[] inverse = new float[16];
         if (Mat4f.Invert(inverse, projection) is null) throw new ArgumentException("Projection must be invertible.", nameof(projection));
         float[] identity = Mat4f.Create();
         var camera = new VgeFrameUniformBuffer();
         camera.Capture(projection, identity, inverse, identity, projection, projection, new(width, height),
-            0, 0, Vector3.Zero, Vector3.Zero, 0, new(near, far));
+            0, 0, Vector3.Zero, fogColor, fogDensity, new(near, far),fogMinimum:fogMinimum);
         return camera;
     }
 

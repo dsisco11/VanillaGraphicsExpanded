@@ -5,7 +5,7 @@ layout(std140) uniform StoredVolumeView
 {
     ivec4 viewSize,viewSlots;
     vec4 viewFirst,viewCell,viewMinimum,viewMaximum,viewOrigin;
-    vec4 viewBudget,viewSolar,viewLunar,viewEnvironment,viewSun,viewMoon,viewAerial,viewFog,viewFogColor;
+    vec4 viewBudget,viewSolar,viewLunar,viewEnvironment,viewSun,viewMoon,viewAerial,viewFlatFog;
 };
 #if VGE_STORED_VIEW_SHADOWS
 uniform sampler3D viewDirect;
@@ -20,10 +20,17 @@ uniform sampler2D viewMaterialDepth;
 #define VGE_ATMOSPHERE_SCATTERING_DIRECTIONS
 #define vge_atmosphereScatteringSun viewSun.xyz
 #define vge_atmosphereScatteringMoon viewMoon.xyz
+#define VGE_ATMOSPHERE_FRAGMENT_COORD (gl_FragCoord.xy*vgeFrame.screenSize/ceil(vgeFrame.screenSize/float(VGE_STORED_VIEW_TRACE_DIVISOR)))
 @import "../includes/atmosphere_aerial.glsl"
 @import "../includes/pbr_scene_storage.glsl"
 @import "../includes/pbr_color.glsl"
+#if VGE_STORED_VIEW_TRACE_DIVISOR == 1
 @import "../includes/oit.glsl"
+#else
+layout(location=0) out vec4 outViewCloud;
+layout(location=1) out vec3 outViewBins;
+layout(location=2) out vec2 outViewMetadata;
+#endif
 /** Reconstructs rotation-only camera displacement; native and material placement enter once through viewOrigin. */
 vec3 StoredViewUnproject(vec2 ndc,float depth)
 {
@@ -37,7 +44,7 @@ float StoredViewPhase(vec3 outgoing,vec3 light)
     return .64/(12.566370614359172*d*sqrt(d));
 }
 /** Composes current directional first scattering and the retained isotropic source once. */
-vec3 StoredViewSource(vec3 position,vec3 uv,vec2 phases,float sigma)
+vec3 StoredViewSource(vec3 uv,vec2 phases,float sigma)
 {
     if(viewBudget.w>0)
     {
@@ -81,29 +88,70 @@ vec3 StoredViewMedium(vec3 source,vec3 displacement)
 {
     if(viewAerial.z<=.7)return VgeApplyAerial(source,displacement,1,viewAerial.xyw,viewSun.xyz);
     float depth=length(displacement),clipped=min(depth,250);
-    float extra=max(-viewFog.z*clipped*viewFog.w/60,0);
-    float fog=max(1-exp(-(displacement.y-viewFog.w)*viewFog.z),1-exp(-clipped*viewFog.x-extra));
+    float extra=max(-viewFlatFog.x*clipped*viewFlatFog.y/60,0);
+    float fog=max(1-exp(-(displacement.y-viewFlatFog.y)*viewFlatFog.x),1-exp(-clipped*vgeFrame.fog0.w-extra));
     fog=max(min(.04,fog),fog-clamp((8-depth)/8,0,.9));
-    return mix(source,VgeCompatibilityLuminance(viewFogColor.rgb),clamp(fog+viewFog.y,0,1));
+    return mix(source,VgeCompatibilityLuminance(vgeFrame.fog0.rgb),clamp(fog+vgeFrame.fogMinimum,0,1));
+}
+/** Evaluates the native Gaussian bucket response without declaring native framebuffer outputs. */
+float StoredViewBellCurve(float distance)
+{
+    float n=distance/.832;
+    return exp(-n*n);
 }
 /** Preserves the native bucket-depth convention at every integrated interval's near endpoint. */
 vec3 StoredViewBins(float distance)
 {
     float adjusted=distance>500?distance-250:distance*distance*distance*(1-distance/1000)/250000;
     float bin=log(1+adjusted/30);
-    return vec3(vgeOitBellCurve(bin),vgeOitBellCurve(bin-1),bin>2?1:vgeOitBellCurve(bin-2));
+    return vec3(StoredViewBellCurve(bin),StoredViewBellCurve(bin-1),bin>2?1:StoredViewBellCurve(bin-2));
 }
-/** Integrates stored 3D density at voxel-relative spacing and emits the six full-resolution native OIT products. */
+/** Writes native products directly at full size or compact values at the compiled reduced scale. */
+void StoredViewWrite(vec4 cloud,vec3 bins,float depth,bool empty)
+{
+    #if VGE_STORED_VIEW_TRACE_DIVISOR == 1
+    if(empty)discard;
+    outOitRevealBins=bins;outRevealage=clamp(1-cloud.a,0,1);outOitGlow=vec4(0,0,0,cloud.a);
+    outOitAccumulation0=cloud*(1-bins.x);outOitAccumulation1=cloud*(1-bins.y);outOitAccumulation2=cloud*(1-bins.z);
+    #else
+    outViewCloud=cloud;outViewBins=bins;outViewMetadata=vec2(depth,empty?2:1);
+    #endif
+}
+/** Clips a full pixel directly or conservatively gathers the complete reduced pixel's depth footprint. */
+float StoredViewDepth(vec2 uv)
+{
+    #if VGE_STORED_VIEW_TRACE_DIVISOR == 1
+    return min(textureLod(viewMaterialDepth,uv,0).r,
+        min(textureLod(viewVisibilityDepth,uv,0).r,textureLod(viewLiquidDepth,uv,0).r));
+    #else
+    vec4 depths=vec4(3.402823e38);
+    // Half uses one 2x2 gather per source; quarter uses four to cover a 4x4 footprint.
+    for(int y=0;y<VGE_STORED_VIEW_TRACE_DIVISOR/2;y++)for(int x=0;x<VGE_STORED_VIEW_TRACE_DIVISOR/2;x++)
+    {
+        vec2 tap=uv+(vec2(x,y)*2-float(VGE_STORED_VIEW_TRACE_DIVISOR/2-1))/vgeFrame.screenSize;
+        depths=min(depths,min(textureGather(viewMaterialDepth,tap,0),
+            min(textureGather(viewVisibilityDepth,tap,0),textureGather(viewLiquidDepth,tap,0))));
+    }
+    return min(min(depths.x,depths.y),min(depths.z,depths.w));
+    #endif
+}
+/** Integrates authoritative density at the configured size with unchanged occupied voxel-relative spacing. */
 void main()
 {
     if(!VgeFrameLightingValid(vgeFrame.frameIndex,VgeLightingCalibrationGeneration()))discard;
-    vec2 uv=gl_FragCoord.xy/vgeFrame.screenSize,ndc=uv*2-1;
+    vec2 uv=gl_FragCoord.xy/ceil(vgeFrame.screenSize/float(VGE_STORED_VIEW_TRACE_DIVISOR)),ndc=uv*2-1;
     vec3 direction=normalize(StoredViewUnproject(ndc,1));
-    float depth=min(textureLod(viewMaterialDepth,uv,0).r,textureLod(viewVisibilityDepth,uv,0).r);
-    float limit=min(length(StoredViewUnproject(ndc,depth)),length(StoredViewUnproject(ndc,textureLod(viewLiquidDepth,uv,0).r)));
+    float depth=StoredViewDepth(uv);
+    float limit=length(StoredViewUnproject(ndc,depth));
     CloudVolumeGrid grid;grid.size=viewSize.xyz;grid.blocks=ivec3(viewSlots.z,viewSlots.w,viewSlots.z);grid.slot=viewSlots.xy;
     grid.first=viewFirst.xyz;grid.cell=viewCell.xyz;grid.minimum=viewMinimum.xyz;grid.maximum=viewMaximum.xyz;
     CloudVolumeRay ray=CloudVolumeBegin(grid,viewOrigin.xyz,direction,limit,.5);
+    if(ray.failed)discard;
+    if(ray.t>=ray.end){StoredViewWrite(vec4(0),vec3(1),depth,true);return;}
+    // Material addressing is affine along the ray; avoid native-position reconstruction and
+    // cell/extent division for every sample. Circular wrapping remains hardware Repeat.
+    vec3 coordOrigin=(ray.origin+vec3(grid.slot.x,0,grid.slot.y))/vec3(grid.size);
+    vec3 coordVelocity=ray.velocity/vec3(grid.size);
     vec2 phases=vec2(StoredViewPhase(-direction,viewSun.xyz),StoredViewPhase(-direction,viewMoon.xyz));
     vec3 bins=vec3(1),radiance=vec3(0);float transmission=1,weightSum=0,moment=0;bool terminated=false;
     for(int i=0;i<2048;i++)
@@ -111,23 +159,22 @@ void main()
         vec2 interval;bool occupied;if(!CloudVolumeNext(grid,ray,interval,occupied))break;
         if(!occupied)continue;
         float t=(interval.x+interval.y)*.5;
-        vec3 position=viewOrigin.xyz+direction*t;
-        vec3 coord=((position-grid.first)/grid.cell+vec3(grid.slot.x,0,grid.slot.y))/vec3(grid.size);
+        vec3 coord=coordOrigin+coordVelocity*t;
         float sigma=textureLod(volumeDensity,coord,0).r;
         if(isnan(sigma)||isinf(sigma)||sigma<0)discard;
         float alpha=1-exp(-sigma*(interval.y-interval.x));
         if(alpha<=0)continue;
         float weight=transmission*alpha;
-        radiance+=weight*StoredViewSource(position,coord,phases,sigma);weightSum+=weight;moment+=weight*t;
+        radiance+=weight*StoredViewSource(coord,phases,sigma);weightSum+=weight;moment+=weight*t;
         transmission*=1-alpha;bins*=clamp(vec3(1)-alpha*StoredViewBins(interval.x),0,1);
         #if VGE_STORED_VIEW_TERMINATION
         if(transmission<viewBudget.x){terminated=true;break;}
         #endif
     }
     if(!terminated&&!CloudVolumeComplete(ray))discard; // A safety-limit prefix is never accepted as completed transport.
+    if(weightSum==0){StoredViewWrite(vec4(0),vec3(1),depth,true);return;}
     if(weightSum>0)radiance=VgeStoreSceneLighting(StoredViewMedium(radiance/weightSum,direction*(moment/weightSum)))*weightSum;
     if(any(isnan(radiance))||any(isinf(radiance)))discard;
-    float opacity=clamp(1-transmission,0,1);vec4 value=vec4(radiance,opacity);
-    outOitRevealBins=clamp(bins,0,1);outRevealage=clamp(transmission,0,1);outOitGlow=vec4(0,0,0,opacity);
-    outOitAccumulation0=value*(1-bins.x);outOitAccumulation1=value*(1-bins.y);outOitAccumulation2=value*(1-bins.z);
+    float opacity=clamp(1-transmission,0,1);
+    StoredViewWrite(vec4(radiance,opacity),clamp(bins,0,1),depth,false);
 }

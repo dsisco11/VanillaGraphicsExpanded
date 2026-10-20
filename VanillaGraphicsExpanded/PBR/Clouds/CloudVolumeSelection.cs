@@ -16,7 +16,8 @@ internal sealed class CloudVolumeSelection
     /// <summary>Captures applied controls without changing admitted draw ownership.</summary>
     internal void Request(CloudRenderingSettings config)
     {
-        config.Sanitize();pending=config.VolumeRenderer;pendingSettings=config.LightingVolume.Capture();pendingStored=config.StoredVolume.Capture();
+        config.Sanitize();pending=config.VolumeRenderer;pendingSettings=config.LightingVolume.Capture();
+        pendingStored=config.StoredVolume.Capture() with{TraceDivisor=config.FullResolutionReference?1:(int)config.TraceScale};
     }
     /// <summary>Retires an incompatible renderer before exposing its replacement to preparation.</summary>
     internal void Apply(Action retire)

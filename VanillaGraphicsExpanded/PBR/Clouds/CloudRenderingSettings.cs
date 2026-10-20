@@ -19,7 +19,7 @@ public sealed class CloudRenderingSettings
     [JsonProperty] public int ViewRaySampleMin { get; set; } = 1;
     /// <summary>Defines the clipped cloud-layer distance at which the primary count reaches its maximum.</summary>
     [JsonProperty] public float ViewBudgetDistance { get; set; } = 10000;
-    /// <summary>Selects half or quarter view dimensions for tracing, with half-dimension reconstruction.</summary>
+    /// <summary>Selects half or quarter view dimensions for tracing across volumetric renderers.</summary>
     [JsonProperty] public CloudTraceScale TraceScale { get; set; } = CloudTraceScale.Quarter;
     /// <summary>Bypasses reduced tracing and history for direct full-resolution comparison.</summary>
     [JsonProperty] public bool FullResolutionReference { get; set; }

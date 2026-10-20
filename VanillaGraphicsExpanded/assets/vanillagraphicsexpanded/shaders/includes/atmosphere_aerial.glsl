@@ -39,7 +39,12 @@ vec3 VgeApplyAerial(vec3 radiance, vec3 worldDisplacement, float skyVisibility, 
     float availability = clamp(skyVisibility, 0.0, 1.0);
     // Screen-space shafts modulate only incoming atmospheric light, never extinction or surface radiance.
     vec2 shaftSize=vec2(max(textureSize(vge_lightShaftOcclusion,0),ivec2(1)));
-    float shaftVisibility=1.0-clamp(texture(vge_lightShaftOcclusion,gl_FragCoord.xy/shaftSize).r,0.0,1.0);
+    #ifdef VGE_ATMOSPHERE_FRAGMENT_COORD
+    vec2 shaftPixel=VGE_ATMOSPHERE_FRAGMENT_COORD;
+    #else
+    vec2 shaftPixel=gl_FragCoord.xy;
+    #endif
+    float shaftVisibility=1.0-clamp(texture(vge_lightShaftOcclusion,shaftPixel/shaftSize).r,0.0,1.0);
     return radiance * (vec3(1.0) - loss * availability) + scatter * availability * shaftVisibility;
 }
 #endif

@@ -1,6 +1,6 @@
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
-/// <summary>Selects primary trace dimensions while reconstruction remains at half view dimensions.</summary>
+/// <summary>Selects reduced primary trace dimensions; each renderer owns its spatial reconstruction.</summary>
 public enum CloudTraceScale
 {
     Half = 2,

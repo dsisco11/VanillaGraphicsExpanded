@@ -2,6 +2,7 @@ using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using VanillaGraphicsExpanded.PBR.Clouds;
 using VanillaGraphicsExpanded.PBR.Clouds.LightingVolume;
+using VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 namespace VanillaGraphicsExpanded.Tests;
 
@@ -37,6 +38,22 @@ public sealed class CloudVolumeSelectionTests
         selection.Apply(ownership.Dispose);Assert.Equal(1,candidate.Disposals);
         ownership.Update(true,1);var stored=new Consumer();Assert.True(ownership.TryActivate(CloudMode.Volumetric,stored,true));
         Assert.False(selection.StoredSettings.Detail);
+        Assert.Equal(4,selection.StoredSettings.TraceDivisor);
+        config.TraceScale=CloudTraceScale.Half;selection.Request(config);
+        Assert.Equal(4,selection.StoredSettings.TraceDivisor);
+        selection.Apply(()=>throw new Exception("Trace scale change retired ownership."));
+        Assert.Equal(2,selection.StoredSettings.TraceDivisor);Assert.Equal(0,stored.Disposals);
+        config.FullResolutionReference=true;selection.Request(config);
+        Assert.Equal(2,selection.StoredSettings.TraceDivisor);
+        selection.Apply(()=>throw new Exception("Reference resolution change retired ownership."));
+        Assert.Equal(1,selection.StoredSettings.TraceDivisor);
+        config.TraceScale=CloudTraceScale.Quarter;selection.Request(config);
+        selection.Apply(()=>throw new Exception("Reference resolution override retired ownership."));
+        Assert.Equal(1,selection.StoredSettings.TraceDivisor);
+        config.FullResolutionReference=false;selection.Request(config);
+        Assert.Equal(1,selection.StoredSettings.TraceDivisor);
+        selection.Apply(()=>throw new Exception("Reference resolution reset retired ownership."));
+        Assert.Equal(4,selection.StoredSettings.TraceDivisor);Assert.Equal(0,stored.Disposals);
         config.StoredVolume.StopTransmittance=0;selection.Request(config);selection.Apply(()=>throw new Exception("Stored view-only change retired ownership."));
         Assert.Equal(0,selection.StoredSettings.Stop);
         config.VolumeRenderer=CloudVolumeRendererKind.Existing;selection.Request(config);selection.Apply(ownership.Dispose);
@@ -57,6 +74,7 @@ public sealed class CloudVolumeSelectionTests
         var roundtrip=JsonConvert.DeserializeObject<CloudRenderingSettings>(JsonConvert.SerializeObject(config))!;
         Assert.Equal(config.LightingVolume.Capture(),roundtrip.LightingVolume.Capture());
         Assert.Equal(VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default,config.StoredVolume.Capture());
+        Assert.Throws<ArgumentOutOfRangeException>(()=>(CloudVolumeViewSettings.Default with{TraceDivisor=3}).Validate());
         config.StoredVolume.StopTransmittance=float.NaN;config.StoredVolume.Sanitize();Assert.Equal(.005f,config.StoredVolume.StopTransmittance);
         var document=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
         var controls=document["settings"]!.Children<JProperty>().SelectMany(p=>p.Value.Children<JProperty>()).Select(p=>p.Value).ToArray();

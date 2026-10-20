@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -7,13 +8,14 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
-/// <summary>Owns full-resolution stored-density view variants and their frozen physical scene inputs.</summary>
-[ShaderProgram("Contract","cloud_volume/view",8)]
+/// <summary>Owns reduced-resolution stored-density view variants and their frozen physical scene inputs.</summary>
+[ShaderProgram("Contract","cloud_volume/view",24)]
 [ShaderStage("Contract",ShaderStageKind.Vertex,"cloud_volume/view.vsh")]
 [ShaderStage("Contract",ShaderStageKind.Fragment,"cloud_volume/view.fsh")]
 [ShaderUse("Contract",ShaderStageKind.Fragment,nameof(SelfShadowing))]
 [ShaderUse("Contract",ShaderStageKind.Fragment,nameof(Diffuse))]
 [ShaderUse("Contract",ShaderStageKind.Fragment,nameof(Termination))]
+[ShaderUse("Contract",ShaderStageKind.Fragment,nameof(TraceDivisor))]
 internal sealed partial class CloudVolumeViewProgram:GpuProgram,ICloudVolumeViewBindings
 {
     private readonly PackedUniformBuffer view;
@@ -22,6 +24,9 @@ internal sealed partial class CloudVolumeViewProgram:GpuProgram,ICloudVolumeView
     internal VgeFrameUniformBuffer? Frame {get=>frame;set{RequireInputMutation();frame=value;}}
     internal GpuShaderStorageBuffer? Lighting {get=>lighting;set{RequireInputMutation();lighting=value;}}
     #region Public API
+    /// <summary>Compiles the selected full, half or quarter trace and output contract.</summary>
+    [ShaderOptionReference(typeof(CloudVolumeViewOptions),nameof(CloudVolumeViewOptions.TraceDivisor))]
+    internal partial int TraceDivisor {get;set;}
     /// <summary>Removes the direct sampler when disabled.</summary>
     [ShaderOptionReference(typeof(CloudVolumeViewOptions),nameof(CloudVolumeViewOptions.Shadows))]
     internal partial bool SelfShadowing {get;set;}
@@ -34,22 +39,26 @@ internal sealed partial class CloudVolumeViewProgram:GpuProgram,ICloudVolumeView
     /// <summary>Owns one parameter record across compiled variants and registers ordinary typed view contracts.</summary>
     public CloudVolumeViewProgram()
     {
-        view=OwnUniformBuffer(new PackedUniformBuffer(256));
+        view=OwnUniformBuffer(new PackedUniformBuffer(240));
         ProgramLayout.RegisterContract(Contract.Stages[0].Bindings);ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Captures the published geometry/scale independently of native procedural controls.</summary>
     internal void Capture(CloudVolumeViewFields fields,CloudMapInput input,CloudVolumeViewSettings settings,CloudVolumeViewScene scene,int debugMode)
     {
         RequireInputMutation();settings.Validate();var d=fields.Domain;var light=scene.Atmosphere;
-        if(!float.IsFinite(scene.Underwater)||!Finite(scene.Fog)||scene.Fog.X<0||!LightingCalibration.FiniteNonnegative(scene.FogColor)||
+        // Admission reads the same immutable shared fog snapshot that the shader consumes. Only
+        // flat-fog geometry and underwater state are absent from that global frame publication.
+        var frameFog=MemoryMarshal.Read<Vector4>(scene.Camera.Bytes.Slice(416,16));
+        var fogColor=new Vector3(frameFog.X,frameFog.Y,frameFog.Z);
+        if(!float.IsFinite(scene.Underwater)||!Finite(scene.FlatFog)||!LightingCalibration.FiniteNonnegative(fogColor)||
             !float.IsFinite(light.LookupStorageScale)||light.LookupStorageScale<=0||!float.IsFinite(1/light.LookupStorageScale)||
             !float.IsFinite(light.Altitude)||!float.IsFinite(light.HorizonElevation)||!float.IsFinite(light.ReconstructionMaximumNits)||light.ReconstructionMaximumNits<0)
             throw new ArgumentException("Invalid stored cloud view medium.");
         var bounds=CloudVolumeLightingBounds.Admit(light,fields.LightingBounds,fields.Encoding);
-        double peak=Math.Max(scene.FogColor.X,Math.Max(scene.FogColor.Y,scene.FogColor.Z));
+        double peak=Math.Max(fogColor.X,Math.Max(fogColor.Y,fogColor.Z));
         float fog=LightingStorage.UpperBound(32*(peak<=.04045?peak/12.92:Math.Pow((peak+.055)/1.055,2.4)));
         _=CloudVolumeAdmission.Maximum(bounds,light.ReconstructionMaximumNits,fog);
-        Span<byte> data=stackalloc byte[256];data.Clear();
+        Span<byte> data=stackalloc byte[240];data.Clear();
         UboPacking.WriteIVec4(data,0,d.Size,CloudVolumeDomain.Height,d.Size,0);
         UboPacking.WriteIVec4(data,16,d.SlotX,d.SlotZ,d.BlocksX,d.BlocksY);
         UboPacking.WriteVec4(data,32,(float)(d.FirstX*CloudVolumeDomain.HorizontalCell-d.AnchorX),(float)(d.Bottom-d.VerticalCell),(float)(d.FirstZ*CloudVolumeDomain.HorizontalCell-d.AnchorZ),0);
@@ -64,8 +73,7 @@ internal sealed partial class CloudVolumeViewProgram:GpuProgram,ICloudVolumeView
         Vector3 sun=Direction(light.Sun),moon=Direction(light.Moon);
         UboPacking.WriteVec4(data,176,sun.X,sun.Y,sun.Z,0);UboPacking.WriteVec4(data,192,moon.X,moon.Y,moon.Z,0);
         UboPacking.WriteVec4(data,208,light.Altitude,light.HorizonElevation,scene.Underwater,1/light.LookupStorageScale);
-        UboPacking.WriteVec4(data,224,scene.Fog.X,scene.Fog.Y,scene.Fog.Z,scene.Fog.W);
-        UboPacking.WriteVec4(data,240,scene.FogColor.X,scene.FogColor.Y,scene.FogColor.Z,0);view.SetBytes(data);
+        UboPacking.WriteVec4(data,224,scene.FlatFog.X,scene.FlatFog.Y,0,0);view.SetBytes(data);
     }
     #endregion
     #region Private
@@ -78,7 +86,7 @@ internal sealed partial class CloudVolumeViewProgram:GpuProgram,ICloudVolumeView
     /// <summary>Publishes the independent frozen photometric calibration.</summary>
     GpuShaderStorageBuffer IPhotometricFrameBindings.FrameLighting=>Lighting??throw new InvalidOperationException("Stored cloud scene lighting missing.");
     /// <summary>Checks every medium component before GPU upload.</summary>
-    private static bool Finite(Vector4 v)=>float.IsFinite(v.X)&&float.IsFinite(v.Y)&&float.IsFinite(v.Z)&&float.IsFinite(v.W);
+    private static bool Finite(Vector2 v)=>float.IsFinite(v.X)&&float.IsFinite(v.Y);
     /// <summary>Normalizes finite source directions without overflow.</summary>
     private static Vector3 Direction(Vector3 value)
     {

@@ -24,7 +24,7 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     private CloudVolumeViewSettings settings;
     private AtmosphereLighting? admitted;
     private bool prepared,failed,disposed;
-    internal string DiagnosticText=>CloudStoredVolumeDiagnostics.Describe(solution,failed);
+    internal string DiagnosticText=>$"{CloudStoredVolumeDiagnostics.Describe(solution,failed)}\nView targets: {view?.TargetBytes??0:N0} bytes (trace divisor {settings.TraceDivisor}; full resolution draws directly).";
 
     #region Public API
     #region Admission
@@ -54,8 +54,9 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
             if(view is null)
             {
                 var program=GpuShaderProgramLibraries.Get<CloudVolumeViewProgram>(api,CloudVolumeViewProgram.Contract.Identity);
-                if(program is null) return false;
-                view=new(program);
+                var reconstruction=GpuShaderProgramLibraries.Get<CloudVolumeReconstructProgram>(api,CloudVolumeReconstructProgram.Contract.Identity);
+                if(program is null||reconstruction is null) return false;
+                view=new(program,reconstruction);
             }
             if(!view.Prepare(settings)) throw new InvalidOperationException(view.Failure);
             prepared=true;return true;
@@ -102,11 +103,10 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
             using var visibility=new BorrowedTexture(primary.DepthTextureId);
             using var liquidDepth=new BorrowedTexture(liquid.DepthTextureId);
             var shafts=Postprocessing.LightShaftOcclusionRenderer.Texture;
-            var fog=api.Ambient.BlendedFogColor;
             var scene=new CloudVolumeViewScene(VgeFrameRenderer.Current,CameraExposureRenderer.FrozenLighting,lighting,
                 material,visibility,liquidDepth,aerial,attenuation,shafts,render.ShaderUniforms.CameraUnderwater,
-                new(api.Ambient.BlendedFogDensity,api.Ambient.BlendedFogMin,api.Ambient.BlendedFlatFogDensity,
-                    api.Ambient.BlendedFlatFogYPosForShader-(float)api.World.Player.Entity.CameraPos.Y),new(fog.R,fog.G,fog.B));
+                new(api.Ambient.BlendedFlatFogDensity,
+                    api.Ambient.BlendedFlatFogYPosForShader-(float)api.World.Player.Entity.CameraPos.Y));
             if(target is null || target.FboId!=transparent.FboId || target.Width!=transparent.Width || target.Height!=transparent.Height)
             {
                 RetireTarget();target=DynamicGpuFramebuffer.Wrap(transparent.FboId,"Cloud.Volume.Transparent",transparent.Width,transparent.Height);
@@ -141,7 +141,7 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     #endregion
     #region Private
     /// <summary>Retires framebuffer metadata on resize while cloud-space history remains compatible.</summary>
-    private void RetireTarget() {target?.Dispose();target=null;}
+    private void RetireTarget() {target?.Dispose();target=null;view?.ReleaseTargets();}
     /// <summary>Latches admitted failure until recovery without releasing native suppression midway through the frame.</summary>
     private void Fail(Exception error)
     {
