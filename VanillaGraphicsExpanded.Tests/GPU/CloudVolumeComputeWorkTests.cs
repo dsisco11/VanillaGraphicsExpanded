@@ -51,6 +51,27 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         copy.Source=fields.Diffuse;copy.Destination=new(fields.DiffuseSpare,TextureAccess.WriteOnly,Layered:true);
         Measure("Diffuse full-field copy",()=>copy.Dispatch((domain.Size+3)/4,17,(domain.Size+3)/4));
         Measure("Combined selected transport and coherent copy",()=>{solar.DispatchIndirect(commands,24);Barrier();lunar.DispatchIndirect(commands,36);Barrier();copy.Dispatch((domain.Size+3)/4,17,(domain.Size+3)/4);Barrier();diffuse.DispatchIndirect(commands,12);});
+        // Keep resources, shader inputs and work identical while changing only boundary ownership.
+        var submission=new CloudVolumeSubmission();
+        /// <summary>Submits identical transport and copy producers through the selected boundary policy.</summary>
+        void Ordered()
+        {
+            submission.Run(solar,()=>solar.DispatchIndirect(commands,24));
+            submission.Run(lunar,()=>lunar.DispatchIndirect(commands,36));
+            submission.Run(copy,()=>copy.Dispatch((domain.Size+3)/4,17,(domain.Size+3)/4));
+            submission.Run(diffuse,()=>diffuse.DispatchIndirect(commands,12));
+        }
+        foreach(bool batched in new[]{false,true})
+        {
+            int boundaries=submission.Boundaries,barriers=submission.Barriers;
+            long binds=StateCache.Current.ResourceSlotBindCount,textures=StateCache.Current.TextureBindCount;
+            Measure(batched?"Batched transport/copy boundary":"Standalone transport/copy boundaries",()=>
+            {
+                if(batched)submission.Batch(new GpuComputeProgram[]{solar,lunar,copy,diffuse},Ordered);
+                else Ordered();
+            });
+            output.WriteLine($"Matched four-dispatch submission ({(batched?"batched":"standalone")}): boundaries={(submission.Boundaries-boundaries)/4}, barriers={(submission.Barriers-barriers)/4}, image/indexed binds={(StateCache.Current.ResourceSlotBindCount-binds)/4.0}, texture binds={(StateCache.Current.TextureBindCount-textures)/4.0} per sample; program dispatch scopes unchanged.");
+        }
         var dirty=new uint[domain.Blocks*16];foreach(int r in regions)dirty[r*16]=8192|16384;
         using var publication=new CloudVolumePublication(()=>CloudVolumePublishProgram.Create(Programs.Api));publication.Publish(fields,0,domain.Bytes);
         Measure("Dirty publication (32 direct/diffuse blocks)",()=>publication.Publish(fields,0,domain.Bytes),()=>fields.Regions.UploadData(dirty));
@@ -121,7 +142,16 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
                 var observation=input with{Frame=++frame};if(measure)timer.Begin();
                 solution.Poll(observation);
                 bool published=solution.Drawable is {} drawable&&drawable.Revision>before;
-                if(!published)solution.Submit(observation,map,lighting,camera,settings,()=>true);
+                if(!published)
+                {
+                    int boundaries=solution.Submission.Boundaries,dispatches=solution.Submission.Dispatches,barriers=solution.Submission.Barriers;
+                    long binds=StateCache.Current.ResourceSlotBindCount;
+                    solution.Submit(observation,map,lighting,camera,settings,()=>true);
+                    int count=solution.Submission.Dispatches-dispatches;
+                    Assert.Equal(1,solution.Submission.Boundaries-boundaries);
+                    Assert.Equal(count+1,solution.Submission.Barriers-barriers);
+                    if(measure)output.WriteLine($"Update submission: dispatches={count}, boundaries=1, barriers={count+1}, actual image/indexed binds={StateCache.Current.ResourceSlotBindCount-binds}; previous per-pass path requires {count} boundaries and {count*2} per-pass barriers, plus one post-refine barrier only when diffuse runs.");
+                }
                 if(measure)timer.End();
                 using var completed=GpuFence.Insert();
                 Assert.Contains(completed.Wait(TimeSpan.FromSeconds(1)),new[]{WaitSyncStatus.AlreadySignaled,WaitSyncStatus.ConditionSatisfied});

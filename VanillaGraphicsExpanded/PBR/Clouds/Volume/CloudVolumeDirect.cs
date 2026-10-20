@@ -6,8 +6,11 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Updates retained dimensionless direct visibility against one frozen density/work batch.</summary>
-internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> createProgram):IDisposable
+internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> createProgram,CloudVolumeSubmission? submission=null):IDisposable
 {
+    private readonly CloudVolumeSubmission submission=submission??new();
+    /// <summary>Exposes prepared executable footprints to the enclosing update boundary.</summary>
+    internal System.Collections.Generic.IEnumerable<GpuComputeProgram> SubmissionPrograms=>System.Linq.Enumerable.OfType<GpuComputeProgram>(programs);
     private readonly CloudVolumeDirectProgram?[] programs=new CloudVolumeDirectProgram?[3];
     private readonly ulong[] executable=new ulong[3];
     private CloudVolumeWorkBatch? finished;
@@ -89,10 +92,7 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
     private void Run(CloudVolumeDirectProgram p,Action dispatch,Func<bool> current)
     {
         Check(p,current);
-        var bindings=p.ProgramLayout.BinaryInterface?.PreparedBindings??throw new InvalidOperationException("Direct bindings unavailable.");
-        if(!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Cloud.Volume.Direct"),EngineBoundaryResources.From(bindings),_=>
-            {Barrier();dispatch();Barrier();}))throw new InvalidOperationException("Direct submission boundary rejected.");
-        GlDebug.ThrowIfErrors("Cloud volume direct");Check(p,current);
+        submission.Run(p,dispatch);Check(p,current);
     }
     /// <summary>Rejects changed source or executable/context identities before publication.</summary>
     private void Check(CloudVolumeDirectProgram p,Func<bool> current)
@@ -103,9 +103,5 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
         for(int i=0;i<3;i++)if(programs[i] is {} loaded&&((IGpuProgram)loaded).ExecutableRevision!=executable[i])
             throw new InvalidOperationException("Direct executable changed during transport.");
     }
-    /// <summary>Makes ordered image writes, sampled fields and failure bits visible to their consumers.</summary>
-    private static void Barrier()=>GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|
-        MemoryBarrierFlags.TextureFetchBarrierBit|MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit|
-        MemoryBarrierFlags.CommandBarrierBit|MemoryBarrierFlags.TextureUpdateBarrierBit);
     #endregion
 }

@@ -8,8 +8,11 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Publishes initialized volume sets and retains the old domain during bounded replacement work.</summary>
 internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> createMaintenance,
-    Func<CloudVolumeCopyProgram> createCopy) : IDisposable
+    Func<CloudVolumeCopyProgram> createCopy,CloudVolumeSubmission? submission=null) : IDisposable
 {
+    private readonly CloudVolumeSubmission submission=submission??new();
+    /// <summary>Exposes prepared maintenance and copy footprints before update entry.</summary>
+    internal System.Collections.Generic.IEnumerable<GpuComputeProgram> SubmissionPrograms=>new GpuComputeProgram[]{maintenance!,copy!};
     private CloudVolumeMaintenanceProgram? maintenance;
     private CloudVolumeCopyProgram? copy;
     private CloudVolumeFields? active, pending;
@@ -104,6 +107,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
     internal void Withdraw() => available = false;
 
     /// <summary>Copies and refines a disjoint diffuse destination, publishing only a barrier-complete texture/scale pair.</summary>
+    /// <remarks>The refinement owner must submit its producers through the shared submission owner, closing their visibility before returning.</remarks>
     internal bool UpdateDiffuse(CloudVolumeEncoding target, Func<bool> current, Action<CloudVolumeFields> refine,
         Func<bool>? complete = null, GpuIndirectBuffer? commands = null, bool deferPublication = false)
     {
@@ -118,12 +122,13 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
             copy!.Capture(fields.Domain, fields.Encoding, target); copy.Source = fields.Diffuse;
             copy.Destination = new(fields.DiffuseSpare, TextureAccess.WriteOnly, Layered: true);
             // The lighting selector emits zero groups for an empty diffuse list. No CPU count decision is required.
-            Submit(copy, () =>
+            submission.Run(copy, () =>
             {
                 if (commands is null) copy.Dispatch((fields.Domain.Size + 3) / 4, 17, (fields.Domain.Size + 3) / 4);
                 else copy.DispatchIndirect(commands, 48);
             });
-            refine(fields); Barrier();
+            // The gather's submission already closes image/status visibility; do not repeat its barrier.
+            refine(fields);
             RequireCurrent(current);
             if (complete is not null && !complete()) throw new InvalidOperationException("Cloud diffuse completion rejected.");
             if (!deferPublication) fields.PublishDiffuse(target);
@@ -200,23 +205,9 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
         maintenance.Diffuse = new(fields.Diffuse, TextureAccess.WriteOnly, Layered: true);
         maintenance.Spare = new(fields.DiffuseSpare, TextureAccess.WriteOnly, Layered: true);
         maintenance.Regions = fields.Regions; maintenance.Occupancy = fields.Occupancy;
-        Submit(maintenance, () => maintenance.Dispatch(count));
+        submission.Run(maintenance, () => maintenance.Dispatch(count));
     }
 
-    /// <summary>Runs a typed program through engine resource authority and closes write visibility for all consumers.</summary>
-    private static void Submit(GpuComputeProgram program, Action dispatch)
-    {
-        var bindings = program.ProgramLayout.BinaryInterface?.PreparedBindings ?? throw new InvalidOperationException("Cloud volume bindings are unavailable.");
-        if (!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Cloud.Volume.Storage"),
-            EngineBoundaryResources.From(bindings), _ => { Barrier(); dispatch(); Barrier(); }))
-            throw new InvalidOperationException("Cloud volume boundary rejected.");
-        GlDebug.ThrowIfErrors("Cloud volume storage submission");
-    }
-
-    /// <summary>Completes image, sampler, metadata and upload visibility between ordered passes.</summary>
-    private static void Barrier() => GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit |
-        MemoryBarrierFlags.TextureFetchBarrierBit | MemoryBarrierFlags.ShaderStorageBarrierBit |
-        MemoryBarrierFlags.BufferUpdateBarrierBit | MemoryBarrierFlags.TextureUpdateBarrierBit | MemoryBarrierFlags.CommandBarrierBit);
     #endregion
 
     #region Admission and cleanup

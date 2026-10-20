@@ -1,5 +1,6 @@
 using System;
 using System.Numerics;
+using System.Linq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
 using VanillaGraphicsExpanded.Rendering;
@@ -9,7 +10,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Separates bounded update submission from nonblocking completion and drawable publication.</summary>
 internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeDensity density,CloudVolumeWork work,
-    CloudVolumeDirect direct,CloudVolumeDiffuse diffuse,CloudVolumePublication publication):IDisposable
+    CloudVolumeDirect direct,CloudVolumeDiffuse diffuse,CloudVolumePublication publication,CloudVolumeSubmission submission):IDisposable
 {
     /// <summary>Separates CPU domain admission from the single dependent lighting chain.</summary>
     private enum Step { Idle,Density,Lighting,Pending }
@@ -49,21 +50,27 @@ internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeD
         CloudVolumeViewSettings settings,CloudVolumeAdmission admission,Func<bool> current)
     {
         if(fence is not null||density.Busy)return;
-        if(step is Step.Idle or Step.Density)
+        // CPU admission still ends its callback at the existing fences. The prepared union covers
+        // every internal producer before any resource changes; no boundary survives the callback.
+        submission.Batch(storage.SubmissionPrograms.Concat(density.SubmissionPrograms).Concat(work.SubmissionPrograms)
+            .Concat(direct.SubmissionPrograms).Concat(diffuse.SubmissionPrograms),()=>
         {
-            density.Submit(storage,input,map,admission.Encoding,.9f*lighting.Environment,current,chainRetained:true);
-            step=Step.Density;
-            if(!density.Chained)return;
-            step=Step.Lighting;
-        }
-        if(step!=Step.Lighting)return;
-        CloudVolumeCoordinates.Frustum(camera,CloudVolumeCoordinates.Origin(storage.Published.Domain,input),planes);
-        if(!work.Select(storage,lighting,input.Frame,planes,current,settings.SelfShadowing,settings.Diffuse,density.Chained)||
-            !work.TryBatch(storage,out batch)||!direct.Update(storage,work,current,deferStatus:true)||
-            !diffuse.Update(storage,work,current,deferStatus:true))
-            throw new InvalidOperationException(work.Failure??direct.Failure??diffuse.Failure??"Cloud lighting submission failed.");
-        work.SubmitCompletion(storage,current);
-        step=Step.Pending;context=RenderContextRegistry.Current();fence=GpuFence.Insert();
+            if(step is Step.Idle or Step.Density)
+            {
+                density.Submit(storage,input,map,admission.Encoding,.9f*lighting.Environment,current,chainRetained:true);
+                step=Step.Density;
+                if(!density.Chained)return;
+                step=Step.Lighting;
+            }
+            if(step!=Step.Lighting)return;
+            CloudVolumeCoordinates.Frustum(camera,CloudVolumeCoordinates.Origin(storage.Published.Domain,input),planes);
+            if(!work.Select(storage,lighting,input.Frame,planes,current,settings.SelfShadowing,settings.Diffuse,density.Chained)||
+                !work.TryBatch(storage,out batch)||!direct.Update(storage,work,current,deferStatus:true)||
+                !diffuse.Update(storage,work,current,deferStatus:true))
+                throw new InvalidOperationException(work.Failure??direct.Failure??diffuse.Failure??"Cloud lighting submission failed.");
+            work.SubmitCompletion(storage,current);
+            step=Step.Pending;context=RenderContextRegistry.Current();fence=GpuFence.Insert();
+        });
     }
     /// <summary>Revokes queued publication and retires fences without waiting for the GPU.</summary>
     public void Dispose(){fence?.Dispose();fence=null;batch=null;step=Step.Idle;}

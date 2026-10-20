@@ -761,7 +761,13 @@ Native validation retains its envelope fence, and initial/replacement density co
 summary fence before storage admission. For an admitted active domain, density generation, occupancy
 repair, selection, direct tracing, conditional diffuse copy/gather and combined completion submit
 after the draw as one chain with explicit image/sampler/storage/indirect barriers. Shared scratch
-is reused only after preceding GPU consumers. No intermediate lighting fence or CPU diffuse-count
+is reused only after preceding GPU consumers. `CloudVolumeSubmission` captures one engine boundary
+for the union of the prepared density, scheduling, maintenance/copy and selected transport programs.
+Their typed dispatches reuse that authority with one entry barrier and one visibility barrier after
+each producer; there is no internal native-state restoration or duplicate pre-dispatch barrier.
+External bindings restore on successful and failed exit. Individual owners retain standalone
+boundary support, and the later completed drawable copy retains separate authority. No boundary
+survives a callback or changes CPU admission/fence ordering. No intermediate lighting fence or CPU diffuse-count
 decision separates these passes. Final fenced lighting status/count and density-summary reads
 validate the result before texture/encoding/bounds and drawable publication. Failed density suppresses
 lighting completion; any solver failure prevents publication. Empty diffuse lists never swap an

@@ -9,6 +9,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 /// <summary>Coordinates private stored-density, scheduling and transport owners without owning native weather.</summary>
 internal sealed class CloudVolumeSolution:IDisposable
 {
+    private readonly CloudVolumeSubmission submission=new();
     private readonly CloudVolumeDensity density;
     private readonly CloudVolumeWork work;
     private readonly CloudVolumeDirect direct;
@@ -23,16 +24,18 @@ internal sealed class CloudVolumeSolution:IDisposable
     internal CloudVolumeDiffuse Diffuse=>diffuse;
     internal CloudVolumeViewFields? Drawable=>publication.Published;
     internal bool UpdatePending=>updates.Pending;
+    /// <summary>Exposes submission counts independently of GPU timings for focused diagnostics.</summary>
+    internal CloudVolumeSubmission Submission=>submission;
     internal long PublicationBytes=>publication.Bytes;
     internal string? Failure {get;private set;}
     #region Public API
     /// <summary>Creates independently owned algorithm components and typed executable factories.</summary>
     internal CloudVolumeSolution(ICoreAPI api,bool detail)
     {
-        Storage=new(()=>CloudVolumeMaintenanceProgram.Create(api),()=>CloudVolumeCopyProgram.Create(api));
-        density=new((op,shared)=>CloudVolumeDensityProgram.Create(api,op,detail,shared));work=new(op=>CloudVolumeWorkProgram.Create(api,op));
-        direct=new(op=>CloudVolumeDirectProgram.Create(api,op));diffuse=new(shadows=>CloudVolumeDiffuseProgram.Create(api,shadows));
-        publication=new(()=>CloudVolumePublishProgram.Create(api));updates=new(Storage,density,work,direct,diffuse,publication);
+        Storage=new(()=>CloudVolumeMaintenanceProgram.Create(api),()=>CloudVolumeCopyProgram.Create(api),submission);
+        density=new((op,shared)=>CloudVolumeDensityProgram.Create(api,op,detail,shared),submission);work=new(op=>CloudVolumeWorkProgram.Create(api,op),submission);
+        direct=new(op=>CloudVolumeDirectProgram.Create(api,op),submission);diffuse=new(shadows=>CloudVolumeDiffuseProgram.Create(api,shadows),submission);
+        publication=new(()=>CloudVolumePublishProgram.Create(api));updates=new(Storage,density,work,direct,diffuse,publication,submission);
     }
     /// <summary>Prepares only selected solvers before consumer ownership transfers.</summary>
     internal void Prepare(CloudVolumeViewSettings settings)

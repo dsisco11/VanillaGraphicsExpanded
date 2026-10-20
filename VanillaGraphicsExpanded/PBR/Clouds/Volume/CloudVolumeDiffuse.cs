@@ -6,8 +6,11 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Refines bounded diffuse jobs from a coherent old field and publishes only a complete destination/scale pair.</summary>
-internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> createProgram):IDisposable
+internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> createProgram,CloudVolumeSubmission? submission=null):IDisposable
 {
+    private readonly CloudVolumeSubmission submission=submission??new();
+    /// <summary>Exposes prepared executable footprints to the enclosing update boundary.</summary>
+    internal System.Collections.Generic.IEnumerable<GpuComputeProgram> SubmissionPrograms=>System.Linq.Enumerable.OfType<GpuComputeProgram>(programs);
     private readonly CloudVolumeDiffuseProgram?[] programs=new CloudVolumeDiffuseProgram?[2];
     private readonly ulong[] executable=new ulong[2];
     private CloudVolumeWorkBatch? finished;
@@ -115,10 +118,7 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
     private void Run(CloudVolumeDiffuseProgram p,CloudVolumeWorkBatch batch,Func<bool> current)
     {
         Check(p,current);
-        var bindings=p.ProgramLayout.BinaryInterface?.PreparedBindings??throw new InvalidOperationException("Diffuse bindings unavailable.");
-        if(!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Cloud.Volume.Diffuse"),EngineBoundaryResources.From(bindings),_=>
-            {Barrier();p.DispatchIndirect(batch.Commands,12);Barrier();}))throw new InvalidOperationException("Diffuse submission boundary rejected.");
-        GlDebug.ThrowIfErrors("Cloud volume diffuse");Check(p,current);
+        submission.Run(p,()=>p.DispatchIndirect(batch.Commands,12));Check(p,current);
     }
     /// <summary>Checks exact executable and source/context certificates before accepting writes.</summary>
     private void Check(CloudVolumeDiffuseProgram p,Func<bool> current)
@@ -128,9 +128,5 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
         for(int i=0;i<2;i++)if(programs[i] is {} loaded&&((IGpuProgram)loaded).ExecutableRevision!=executable[i])
             throw new InvalidOperationException("Diffuse executable changed during transport.");
     }
-    /// <summary>Closes sampled-field, image, queue and failure-status visibility across transport passes.</summary>
-    private static void Barrier()=>GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|
-        MemoryBarrierFlags.TextureFetchBarrierBit|MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit|
-        MemoryBarrierFlags.CommandBarrierBit|MemoryBarrierFlags.TextureUpdateBarrierBit);
     #endregion
 }

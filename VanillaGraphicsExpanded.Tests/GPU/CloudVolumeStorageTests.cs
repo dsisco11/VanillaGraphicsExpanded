@@ -18,7 +18,8 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
     public void CircularFieldsPreserveOverlapAndPublishCoherently()
     {
         EnsureShaderTestAvailable();
-        using var storage = new CloudVolumeStorage(() => CloudVolumeMaintenanceProgram.Create(Programs.Api), () => CloudVolumeCopyProgram.Create(Programs.Api));
+        var submission=new CloudVolumeSubmission();
+        using var storage = new CloudVolumeStorage(() => CloudVolumeMaintenanceProgram.Create(Programs.Api), () => CloudVolumeCopyProgram.Create(Programs.Api),submission);
         using var probe = CloudVolumeProbeProgram.Create(Programs.Api);
         using var output = GpuShaderStorageBuffer.Create(); output.UploadData(new Vector4[2]);
         var identity = new CloudVolumeIdentity(new object(), 1, 1);
@@ -67,7 +68,19 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
 
         var oldDiffuse = fields.Diffuse;
         var grown = new CloudVolumeEncoding(new Vector3(1e8f));
-        Assert.True(storage.UpdateDiffuse(grown,()=>true,_=>{}));
+        var cache=StateCache.Current;
+        cache.BindTexture(TextureTarget.Texture3D,0,fields.Density.TextureId);
+        cache.BindImageTexture(0,fields.Density.TextureId,0,true,0,TextureAccess.ReadOnly,SizedInternalFormat.R16f);
+        fields.Regions.BindBase(0);
+        int boundaries=submission.Boundaries,dispatches=submission.Dispatches,barriers=submission.Barriers;
+        submission.Batch(storage.SubmissionPrograms,()=>
+        {
+            Assert.True(storage.UpdateDiffuse(grown,()=>true,_=>{}));
+            Assert.Throws<InvalidOperationException>(()=>submission.Batch(storage.SubmissionPrograms,()=>{}));
+            Assert.Throws<InvalidOperationException>(()=>submission.Run(probe,()=>probe.Dispatch(1)));
+        });
+        Assert.Equal(1,submission.Boundaries-boundaries);Assert.Equal(1,submission.Dispatches-dispatches);
+        Assert.Equal(2,submission.Barriers-barriers);Restored();
         Assert.NotSame(oldDiffuse,fields.Diffuse); Assert.Equal(grown,fields.Encoding);
         Assert.Equal(new Vector4(4,4,4,0),Query(probe,fields,output,point-new Vector3(50,0,0))[1]);
         var replacement = new CloudVolumeDomain(5, default,-1000,1000,moved);
@@ -77,14 +90,31 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.False(storage.PublishPending(()=>false,()=>true)); Assert.Same(fields,storage.Published);
         Assert.True(storage.PublishPending(()=>true,()=>true)); Assert.False(density.IsValid);
         fields=storage.Published;
+        cache.BindTexture(TextureTarget.Texture3D,0,fields.Density.TextureId);
+        cache.BindImageTexture(0,fields.Density.TextureId,0,true,0,TextureAccess.ReadOnly,SizedInternalFormat.R16f);
+        fields.Regions.BindBase(0);
         var stable=fields.Diffuse; var stableEncoding=fields.Encoding; int certificates=0;
-        Assert.False(storage.UpdateDiffuse(grown,()=>++certificates==1,_=>{}));
+        var failure=Assert.Throws<InvalidOperationException>(()=>submission.Batch(storage.SubmissionPrograms,()=>
+        {
+            Assert.False(storage.UpdateDiffuse(grown,()=>++certificates==1,_=>{}));
+            throw new InvalidOperationException("Injected update failure");
+        }));
+        Assert.Equal("Injected update failure",failure.Message);Restored();
         Assert.False(storage.Ready); Assert.Same(stable,fields.Diffuse); Assert.Equal(stableEncoding,fields.Encoding);
         storage.Reset(); Assert.False(stable.IsValid); Assert.Null(storage.Pending); Assert.Equal(0,storage.StorageBytes);
         storage.Request(domain,identity,encoding,Vector3.One,()=>true);
         var partial=storage.Pending!.Density;
         Assert.Throws<InvalidOperationException>(()=>storage.InitializeNext(()=>false));
         Assert.False(partial.IsValid); Assert.Null(storage.Pending);
+
+        /// <summary>Checks borrowed image, sampler and indexed bindings after successful and failed batch exit.</summary>
+        void Restored()
+        {
+            Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.Texture3D,0,out int texture));Assert.Equal(fields.Density.TextureId,texture);
+            Assert.True(cache.TryGetCachedImageTexture(0,out int image));Assert.Equal(fields.Density.TextureId,image);
+            Assert.True(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.ShaderStorageBuffer,0,out int buffer,out _,out _));
+            Assert.Equal(fields.Regions.BufferId,buffer);
+        }
     }
     #endregion
     #region Private

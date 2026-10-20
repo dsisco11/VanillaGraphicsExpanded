@@ -8,8 +8,11 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Owns fair lighting queues while separating selection, completed work and compatible retained history.</summary>
-internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createProgram):IDisposable
+internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createProgram,CloudVolumeSubmission? submission=null):IDisposable
 {
+    private readonly CloudVolumeSubmission submission=submission??new();
+    /// <summary>Exposes prepared executable footprints to the enclosing update boundary.</summary>
+    internal System.Collections.Generic.IEnumerable<GpuComputeProgram> SubmissionPrograms=>System.Linq.Enumerable.OfType<GpuComputeProgram>(programs);
     internal const int DirectListWord=16384,DiffuseListWord=16448,SummaryA=32768,SummaryB=196608;
     private readonly CloudVolumeWorkProgram?[] programs=new CloudVolumeWorkProgram?[6];
     private readonly ulong[] executable=new ulong[6];
@@ -180,15 +183,8 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     /// <summary>Submits typed work through resource authority and closes metadata/command visibility.</summary>
     private void Run(int op,int groups=1)
     {
-        var p=programs[op]!;var bindings=p.ProgramLayout.BinaryInterface?.PreparedBindings??throw new InvalidOperationException("Cloud work bindings unavailable.");
-        if(!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Cloud.Volume.Work"),EngineBoundaryResources.From(bindings),_=>
-            {Barrier();p.Dispatch(groups);Barrier();}))throw new InvalidOperationException("Cloud work boundary rejected.");
-        GlDebug.ThrowIfErrors("Cloud volume work");
+        var p=programs[op]!;submission.Run(p,()=>p.Dispatch(groups));
     }
-    /// <summary>Orders retained metadata and indirect commands before solvers or CPU status inspection.</summary>
-    private static void Barrier()=>GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|
-        MemoryBarrierFlags.BufferUpdateBarrierBit|MemoryBarrierFlags.CommandBarrierBit|MemoryBarrierFlags.ShaderImageAccessBarrierBit|
-        MemoryBarrierFlags.TextureFetchBarrierBit);
     #endregion
 
     #region Input and identity validation

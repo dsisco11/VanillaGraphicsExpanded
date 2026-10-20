@@ -551,24 +551,51 @@ Phase 7.4 - Batch retained update submission under one engine boundary
   Depends on: Phase 7.2. Use existing capture evidence; Phase 7.3 is not an implementation gate.
   Outcome: contiguous internal update passes avoid repeated native-state handoffs while preserving
     existing GPU ownership, command ordering and failure-safe publication.
-  [ ] Audit the captured 33-dispatch update chain and its repeated program/binding changes and barriers.
+  [x] Audit the captured 33-dispatch update chain and its repeated program/binding changes and barriers.
       Identify one outer update boundary with the union of required resource footprints; keep genuine
       engine handoffs and CPU admission decisions distinct from internal producer-consumer stages.
-  [ ] Refactor density, scheduling, direct, copy, diffuse and completion submission to reuse that outer
+  [x] Refactor density, scheduling, direct, copy, diffuse and completion submission to reuse that outer
       boundary where contiguous execution permits. Keep typed shader/program/binding abstractions,
       directional ownership and removable candidate code; no raw GL bypass or nested engine boundaries.
-  [ ] Preserve required storage, image, texture and indirect-command dependencies. Remove redundant
+  [x] Preserve required storage, image, texture and indirect-command dependencies. Remove redundant
       barriers and native restoration only where the resource hazards permit; retain final fence
       polling, frozen inputs, executable/context certificates and successful-only drawable publication.
-  [ ] Extend affected existing ordering/restoration/failure/lifecycle checks only. Use subagents for
+  [x] Extend affected existing ordering/restoration/failure/lifecycle checks only. Use subagents for
       focused incremental validation and reuse unchanged evidence; no full matrix or packaging.
       Compare boundary/binding/barrier counts and affected GPU cost against retained evidence. Measure
       live CPU submission only if needed to resolve a specific question; do not require it to remove
       the independently verified redundant handoffs.
-  [ ] Reconcile delivered ownership and ordering with the proposal and current architecture docs.
-  [ ] Completion: repeated internal handoffs are removed, external state restores correctly on success
+  [x] Reconcile delivered ownership and ordering with the proposal and current architecture docs.
+  [x] Completion: repeated internal handoffs are removed, external state restores correctly on success
       and failure, and evidence records eliminated work separately from measured timing. Unmeasured
       live CPU/FPS effects remain explicit rather than blocking completion of the refactor.
+
+Phase 7.4 verification
+  Traceability: boundary/footprint ownership -> proposal / Ownership and Nonblocking updates,
+    PBR.Clouds.md / Stored-volume view and selection, existing engine boundary/program contracts.
+    Hazard/fence/publication safety -> selected density order, shared scratch, coherent old diffuse,
+    successful-only completion and disjoint drawable rules; atmosphere physical publication and
+    change-driven enablement remain unchanged. Focused evidence uses existing capture receipts and
+    the affected ordering, restoration, failure and lifecycle fixtures rather than a new scene matrix.
+  CloudVolumeSubmission is private to the candidate and shared by density, storage, scheduling and
+    transport. One prepared footprint union covers each contiguous update callback; typed program
+    dispatch scopes and executable/context checks remain. Validation/domain admission and later
+    drawable copying retain separate fences/authority. No boundary spans callbacks or GPU completion.
+  Source comparison for the saved 33-dispatch diffuse chain: 33 update boundaries/67 barriers become
+    one/34, including the entry barrier. This is source arithmetic, not a recaptured frame. Program
+    dispatch scopes remain; the captured 68 program switches are not claimed eliminated.
+  Release incremental build passed; 22 affected checks passed, including real successful/failed
+    binding restoration, undeclared/nested rejection and complete deferred publication/lifecycle.
+    Matched four-dispatch standalone/batched test: boundaries4/1, barriers8/5, image/indexed binds16/12;
+    Final GPU medians .2048/.2028 ms are effectively unchanged. The integrated 29-dispatch retained fixture
+    submits one boundary/30 barriers. Tiny authored fixture counts are not the maximum capture's153
+    indexed-buffer binds. Live CPU/FPS effects remain unmeasured; no GPU transport speedup is claimed.
+  Receipts: artifacts/StoredCloudPerformance/phase74-baseline.trx, phase74-build.log and
+    phase74-candidate.trx (22/22), phase74-finalbuild.log and phase74-finalmeasurement.trx (1/1
+    measurement refresh after a text-only barrier-label correction).
+  Second review and independent audit-stage-completion passed with no unresolved findings; diff
+    whitespace check passed. Later phases remain unchecked. No shader algorithm/settings/budgets,
+    GPU allocation, packaging or game action changed.
 
 Phase 7.5 - Reduce the cost of integrating the stored volume into the view
   Depends on: Phase 7. Phase 7.4 is required only for changes sharing its submission ownership;

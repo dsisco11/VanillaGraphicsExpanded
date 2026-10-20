@@ -7,8 +7,11 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Owns certified descriptor observation, bounded density jobs and barrier-complete occupancy publication.</summary>
-internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolumeDensityProgram> createProgram) : IDisposable
+internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolumeDensityProgram> createProgram,CloudVolumeSubmission? submission=null) : IDisposable
 {
+    private readonly CloudVolumeSubmission submission=submission??new();
+    /// <summary>Exposes prepared executable footprints to the enclosing update boundary.</summary>
+    internal System.Collections.Generic.IEnumerable<GpuComputeProgram> SubmissionPrograms=>System.Linq.Enumerable.OfType<GpuComputeProgram>(programs);
     private readonly CloudVolumeDensityProgram?[] programs=new CloudVolumeDensityProgram?[14];
     private readonly ulong[] executable=new ulong[14];
     private GpuShaderStorageBuffer? summary;
@@ -303,15 +306,8 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     /// <summary>Uses existing engine authority and makes image, metadata, command and sampler writes visible.</summary>
     private void Run(int op,Action dispatch)
     {
-        var bindings=programs[op]!.ProgramLayout.BinaryInterface?.PreparedBindings??throw new InvalidOperationException("Density bindings unavailable.");
-        if(!EngineBoundaryExecution.TryRun(new EngineBoundaryDeclaration("Cloud.Volume.Density"),EngineBoundaryResources.From(bindings),_=>
-            {Barrier();dispatch();Barrier();}))throw new InvalidOperationException("Density submission boundary rejected.");
-        GlDebug.ThrowIfErrors("Cloud volume density");
+        submission.Run(programs[op]!,dispatch);
     }
-    /// <summary>Orders cross-pass writes and GPU-generated indirect commands without CPU-selected jobs.</summary>
-    private static void Barrier()=>GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit|
-        MemoryBarrierFlags.TextureFetchBarrierBit|MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit|
-        MemoryBarrierFlags.TextureUpdateBarrierBit|MemoryBarrierFlags.CommandBarrierBit);
     /// <summary>Rejects changed native certificates before and after synchronous submission.</summary>
     private void Check(Func<bool> current)
     {
