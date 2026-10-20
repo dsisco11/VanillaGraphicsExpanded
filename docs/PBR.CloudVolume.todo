@@ -406,8 +406,56 @@ Phase 7.1 verification
     build/test logs and TRX. Frozen baseline binaries/sources and rejected candidate sources retained
     there for measurement provenance. No clean build, full test matrix, packaging or game action.
 
+Phase 7.2 - Remove intermediate frame waits from retained volume updates
+  Depends on: Phase 7.1.
+  Outcome: dependent GPU stages execute as one bounded update chain where possible, while rendering
+    retains the last completed publication. Intermediate CPU decisions no longer impose avoidable
+    render-frame boundaries or reduce the frequency of useful lighting work.
+  [ ] Record a narrow current baseline using the corrected traversal: callbacks and elapsed frames
+      per publication, useful direct/diffuse jobs per rendered frame, backlog/completion age, CPU
+      readbacks and per-stage/total GPU cost. Include unchanged and evolving weather, source changes
+      and empty batches. Do not reuse timings from the undersampling traversal as a matched baseline.
+  [ ] Audit CloudVolumeUpdates, CloudVolumeDensity, CloudVolumeWork and CloudVolumeDiffuse dependencies.
+      Separate CPU-required admission/domain decisions from GPU producer-consumer ordering. Identify
+      each fence/readback and why it is needed; retain asynchronous admission where CPU results are
+      necessary without turning every downstream stage into a separate rendered-frame step.
+  [ ] Chain work selection, direct tracing/completion and diffuse copy/gather/completion through the
+      existing command stream with explicit storage/image/texture/indirect-command barriers. Include
+      density generation/occupancy in that chain wherever its validated admission permits. Remove
+      intermediate fences used only to sequence GPU consumers; do not imply backend async-compute
+      overlap or move graphics commands to an unsupported CPU thread/context.
+  [ ] Remove the intermediate CPU diffuse-job-count decision. Use GPU-produced counts/conditional
+      work to suppress empty tracing and unnecessary whole-field copying, while preserving coherent
+      old-field reads, untouched texels, encoding/scale compatibility and correct swap/publication
+      semantics. Do not swap in an uninitialized destination when GPU-selected work is empty.
+  [ ] Accumulate arithmetic/completion status on the GPU and inspect it after the final completion
+      fence. Poll with zero timeout on later frames; no ordinary-play waits, immediate buffer maps,
+      spin loops or fixed frame delays. Failed work must not publish fields, encoding or completion
+      claims as successful. Retain CPU validation before decisions that genuinely require it.
+  [ ] Simplify the scheduler around bounded pending updates and completed publications. Submit the
+      next eligible chain promptly after the previous chain retires, without an artificial idle
+      frame. Preserve frozen inputs, coalesced newer weather, executable/context certificates,
+      ownership, recenter/replacement/reconfiguration cancellation and safe resource reuse.
+      Keep current ray schedules, directions, texture resolution, 4096/64/32 work budgets and memory
+      ceilings; improve submission cadence instead of hiding the issue by increasing budgets.
+  [ ] Extend only affected existing ordering, empty-work, failure/publication and lifecycle checks
+      through actual GPU/program/binding abstractions. Verify coherent publication, successful-only
+      stamps, no intermediate CPU waits and unchanged bounded work. No approximation-quality, image
+      difference or convergence gates, redundant fixtures or broad test matrix.
+  [ ] Use subagents for focused incremental builds/tests. Reuse passing evidence during iteration;
+      no routine clean builds, full baseline reproduction or packaging. Repeat only the matched
+      throughput measurements needed to evaluate changed candidates; final qualification remains
+      Phase 9. State contention and distinguish GPU execution time from frame-level update latency.
+  [ ] Reconcile the proposal's Nonblocking updates and drawable publication contract and current
+      PBR.Clouds.md architecture with delivered ordering, status handling and resource accounting.
+      Record any remaining CPU admission boundary or throughput limitation explicitly.
+  [ ] Completion: avoidable intermediate frame boundaries/readbacks are removed, useful update
+      throughput and publication latency have matched before/after evidence at unchanged budgets,
+      and drawable isolation, bounded work and failure/lifecycle contracts remain intact. No live
+      FPS or appearance acceptance is inferred from focused checks.
+
 Phase 8 - Evaluate acceleration and update cost
-  Depends on: Phase 7.1; Phase 1 initial acceleration decision.
+  Depends on: Phase 7.2; Phase 1 initial acceleration decision.
   Outcome: a justified acceleration choice accounts for maintenance as well as traversal savings.
   [ ] Measure the selected baseline narrowly: density, occupancy, direct, diffuse, full-field copy and
       view costs, plus actual traversal/work counts and memory. Separate steady and changing content.
