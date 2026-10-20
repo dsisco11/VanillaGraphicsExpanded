@@ -19,7 +19,8 @@ Authority and scope
   No replacement weather, general path tracer, widely spaced slice rendering, required screen-space
     temporal accumulation, migration, generic rendering framework or automatic old-candidate removal.
   Shared TraceScale and FullResolutionReference controls govern view resolution. Full draws directly;
-    half/quarter use compact spatial reconstruction. Half-voxel spacing remains. Persistent lighting
+    half/quarter use compact spatial reconstruction. Half-voxel spacing is the current baseline;
+    Phase 8.1 owns its explicit replacement with piecewise-constant voxel integration. Persistent lighting
     does not eliminate final view integration.
 
 Execution and evidence (applies to every phase)
@@ -1322,23 +1323,23 @@ Phase 7.13 implementation and review
   Independent completion audit directly reviewed controlling sources, implementation and final
     receipts with no required findings. All six tasks are complete; later phases remain unchecked.
 
-Phase 8 - Evaluate acceleration and update cost
+Phase 8 - Evaluate voxel integration, acceleration and update cost
   Depends on: Phases 7.4-7.13; Phase 1 initial acceleration decision.
-  Outcome: a justified acceleration choice accounts for maintenance as well as traversal savings.
+  Execution: reuse baseline evidence first, complete subphases 8.1 and 8.2, then close the comparison.
+  Outcome: selected voxel integration and acceleration account for maintenance and traversal cost.
   [ ] Reuse the focused attribution and optimization evidence from Phases 7.3-7.13 for density,
       occupancy, direct, diffuse, copies and view costs, traversal/work counts and memory. Refresh only
       stale or missing cases needed for acceleration decisions; separate steady and changing content.
-  [ ] Evaluate signed versus unsigned distance bounds and hybrid traversal against coarse DDA.
-      Prototype only if the recorded feasibility/cost analysis warrants it; otherwise record explicit
-      deferral and rationale without claiming a measured distance-field comparison.
-  [ ] For any distance prototype, establish conservative distances to all potentially nonzero filtered
-      density, accounting for anisotropic cells, quantization and reconstruction error. Do not use a
+  [ ] Carry out piecewise-constant voxel and unsigned distance-field work in subphases 8.1/8.2.
+      Compare USDF-assisted traversal with voxel DDA; an interior signed field is not required.
+  [ ] Establish conservative distances to all potentially nonzero density support under the selected
+      representation, accounting for anisotropic cells, quantization and reconstruction error. Do not use a
       visible isosurface threshold or assume hardware-interpolated distances are automatically safe.
   [ ] For any prototype, repair/revoke nonlocal certificates on density additions before publication;
       retain safe smaller bounds on removals. Fall back to safe DDA/no skipping during repair. Include
       recenter/domain changes, guards and all three ray consumers in the safety contract.
   [ ] Compare implemented alternatives including construction/update time, memory and weather backlog;
-      preserve occupied integration semantics. Keep only the justified selected strategy and remove
+      preserve the occupied integration contract selected in 8.1. Keep the justified strategy and remove
       rejected experimental paths/resources. Do not require both structures in ordinary rendering.
   [ ] Carry forward Phase 7.6's diffuse-copy decision and costs. Reopen that design only if acceleration
       changes its hazards or measured cost; do not duplicate the completed comparison or silently
@@ -1347,6 +1348,87 @@ Phase 8 - Evaluate acceleration and update cost
       the selected algorithm and distinguish analysis from measured results. No quality thresholds.
   [ ] Completion: selected acceleration has honest total-cost evidence and safe density-update semantics;
       all unimplemented alternatives are explicitly deferred, with no misleading comparison claim.
+
+Phase 8.1 - Integrate piecewise-constant voxels along exact ray-cell intersections
+  Depends on: Phases 7.4-7.13; Phase 8 baseline review.
+  Outcome: one local density/lighting evaluation per crossed occupied voxel replaces fixed
+    half-voxel sampling, with closed-form transport for the declared constant-cell model.
+  [ ] Reconcile the proposal before implementation: stored cell-average extinction becomes constant
+      throughout its physical voxel. Select cell-centred direct visibility and diffuse source for
+      constant-cell transport; distinguish this representation change from trilinear integration.
+      Record expected harder voxel boundaries and user-run appearance review, without quality gates.
+      Update contradictory half-voxel/trilinear requirements and selected numerical bounds together.
+  [ ] Implement retained voxel DDA within the finite domain, retaining coarse empty-block skipping
+      where useful. Calculate exact entry/exit lengths per physical cell, including clipped first/last
+      cells, zero axes, tied crossings, anisotropic spacing, circular seams, partial blocks and guards.
+      Visit a crossed cell once; do not retain half-voxel substeps or silently merge different cells.
+  [ ] Fetch each occupied cell's constant density and required lighting values once through point
+      sampling/exact texel access. Do not manually reconstruct trilinear filtering. Keep hardware
+      bilinear filtering of compact screen-space reconstruction; it is a separate reconstruction step.
+  [ ] Integrate alpha=1-exp(-sigma*length) and premultiplied source contribution=T_before*alpha*source
+      for each constant cell. Use actual clipped metre lengths, defined zero-density behavior and
+      existing nonnegative/finite safeguards. Closed-form exactness applies to the constant-cell
+      extinction/source model, not the original interpolated field or all depth-dependent effects.
+  [ ] Reconcile view, direct and diffuse consumers around the same authoritative density support.
+      Retain solar/lunar eligibility, phase response, diffuse recurrence/direction weights, finite
+      direct exits, diffuse closure distance, albedo, encoding and bounded work budgets. Record any
+      consumer-specific lighting evaluation explicitly; do not silently mix density representations.
+  [ ] Specify bucket evaluation at the new cell intervals and preserve all three native bucket
+      transmissions, six output meanings, scene depth and atmosphere application. Label remaining
+      depth-weight/medium approximations; do not claim those integrals become exact automatically.
+      Preserve configured full/half/quarter tracing and structural user-setting shader options.
+  [ ] Re-derive view/direct/diffuse operation caps from crossed-cell and block boundaries, including
+      diagonal rays and seams. The previous direct1024 cap must not be assumed sufficient for voxel
+      DDA. Admit limits before execution; never truncate a valid ray or coarsen cells to satisfy a cap.
+  [ ] Use subagents for cached incremental builds and affected existing traversal/transport/OIT checks.
+      Cover analytic constant-cell math, interval coverage, ties, seams, bounds and failed prefixes;
+      no approximation-quality tests or duplicate suite. Compare total view and transport costs,
+      sample/cell counts and traversal overhead at unchanged resolution, fields and work budgets.
+  [ ] Obtain user-run appearance review for the changed density/source filtering. Keep one selected
+      implementation and reconcile proposal/current docs; no permanent experimental selector or
+      automatic performance/appearance acceptance. Record a concrete decision if the tradeoff fails.
+  [ ] Completion: constant-cell integration has explicit numerical/appearance decisions and honest
+      total-cost evidence; all consumers, resource contracts and retained lighting identity agree.
+
+Phase 8.2 - Accelerate empty-space traversal with an unsigned distance field
+  Depends on: Phase 8.1's selected density-support contract; Phase 8 baseline review.
+  Outcome: conservative USDF steps skip empty space while occupied cells use the selected voxel integrator.
+  [ ] Specify unsigned distance to all potentially nonzero stored density support in physical metres,
+      not to a visible isosurface or occupied centres. For constant voxels, include complete occupied
+      cell boxes; if any consumer retains filtered density, include its full interpolation support.
+      No negative interior distances or perceptual extinction threshold is needed.
+  [ ] Select resolution, format and construction algorithm with a conservative error proof. Account
+      for anisotropy, finite guards, circular adjacency, quantization and cell/sample-position offsets.
+      Approximate nearest-seed algorithms can overestimate safe distance; correct/bound that error
+      rather than assuming a propagated nearest seed or trilinear distance sample is conservative.
+  [ ] Budget resident/peak field storage, construction scratch and publication lifetime before
+      allocation. Full-resolution R16F alone is35,009,700bytes (about33.4MiB) at515x66x515; charge
+      all additional resources against the agreed ceilings. Evaluate coarser storage explicitly,
+      with its lost skipping precision and safety allowance; no uncounted spares or silent coverage cut.
+  [ ] Build/update USDF through existing GPU/program/barrier abstractions from authoritative stored
+      density. Track the density/domain revision certified by the distance data. Keep distance data
+      private to the volume owner and retire it on selection, shader/context and world lifecycle changes.
+  [ ] Revoke affected nonlocal distance certificates before publishing newly occupied density.
+      During rebuild, use safe voxel/coarse DDA or zero skipping in uncertified regions. Removals may
+      retain older smaller safe bounds. Include initial fill, weather additions/removals, recenter,
+      replacement, guards and failure paths; never let stale distances hide new density.
+  [ ] Integrate conservative distance stepping into view, direct and diffuse traversal, clipped to
+      scene/domain/ray limits. Skip only certified empty support, guarantee forward progress and resume
+      exact cell traversal near occupied support. Do not widen occupied intervals, double integrate,
+      cross an unverified region or change source/recurrence/bucket semantics to gain speed.
+  [ ] Preserve safe drawable/working publication and include all construction, repair, copy, barrier
+      and certification work in costs. Reuse DDA as the unavailable/stale-field fallback without a
+      second complete renderer or a hidden CPU wait. Justify each retained acceleration resource.
+  [ ] Use subagents for focused incremental checks of conservative bounds, additions during pending
+      rebuilds, seams, anisotropy, publication identity, failure and ray completion. Reuse existing
+      fixtures; no image-error, convergence, noise or approximation-quality thresholds.
+  [ ] Compare voxel DDA alone against USDF-assisted traversal at matched settings and density,
+      including static and evolving weather/source/domain cases. Report total construction plus
+      traversal cost, occupied samples, skipped distance, backlog/age and memory. Separate per-ray
+      savings from full-resolution composition, which USDF does not remove. No broad matrix/package.
+  [ ] Completion: retain USDF only with demonstrated useful total-cost benefit and conservative
+      update/publication behavior; otherwise remove the prototype and record the decision. Obtain
+      user-run appearance confirmation without inventing acceptance or an FPS guarantee.
 
 Phase 9 - Qualify the frozen candidate and reconcile documentation
   Depends on: Phase 8.
