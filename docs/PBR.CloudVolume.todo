@@ -863,10 +863,127 @@ Phase 7.7 implementation and review
   Independent final documentation/receipt recheck passed with no unresolved findings. All six tasks
     are complete. Later phases remain unchecked.
 
+Remaining performance work: shared evidence for Phases 7.8-7.13
+  Use artifacts/StoredCloudLatest/findings.md and its event/state/timing receipts from the
+    574196035-byte capture dated 2026-10-20 13:58 local. Native viewport3440x1377, trace860x345;
+    replay tracing0.50-0.52ms, reconstruction0.23-0.24ms, publication0.11-0.12ms, total about0.9ms.
+  This frame contains publication and descriptor validation, but no direct/diffuse transport or
+    work-selection batch. Do not infer update-heavy frame costs from their absence.
+  Captured cloud CPU marker span6.494ms includes0.558ms recorded GL calls; inter-call time includes
+    application and capture overhead. It is not a measured recoverable CPU cost or GPU stall.
+    Whole-frame replay terrain outliers are unsuitable for live frame attribution.
+  Preserve current visual settings, spacing, budgets, source eligibility and OIT semantics during
+    waste removal. Reuse this capture immediately; additional measurement answers a named gap or
+    verifies a change, and is not a broad profiling prerequisite for implementation.
+
+Phase 7.8 - Reduce recurring view preparation and submission overhead
+  Depends on: Phases 7.4 and 7.5.
+  Outcome: stable view resources avoid repeated preparation while existing ownership checks hold.
+  [ ] Trace repeated render-pass/signature/pipeline-description construction and binding preparation
+      in view submission. Separate actual application work from capture inter-call overhead; add
+      narrow CPU instrumentation only where needed to identify or verify a removable cost.
+  [ ] Cache immutable descriptions and other stable preparation by target, executable and context
+      lifetime. Refresh on resize, resolution/options change, shader reload and resource replacement.
+  [ ] Remove redundant clear/rebind/validation work where ownership permits. Preserve per-draw scene
+      borrows, source certificates, failure cleanup and engine-state restoration; do not retain stale
+      resource references or broaden shared rendering infrastructure merely to bypass checks.
+  [ ] Use subagents for cached incremental builds and affected existing lifecycle/submission checks
+      only. Compare preparation/allocation/binding counts and focused CPU cost; reuse GPU evidence.
+      No full matrix, packaging, new redundant tests or approximation-quality thresholds.
+  [ ] Completion: remaining recurring work is justified, measured savings are distinguished from
+      capture gaps, and lifecycle/ownership changes are reconciled with proposal/current docs.
+
+Phase 7.9 - Publish changed volume blocks without a full-domain image dispatch
+  Depends on: Phases 7.2, 7.6 and 7.7.
+  Outcome: ordinary drawable image publication scales with changed blocks rather than domain size.
+  [ ] Use event6941 as baseline: full-channel mask0 still dispatches65x17x65 groups of256 lanes,
+      or18387200 invocations. Distinguish dirty image copies from metadata that must remain coherent.
+  [ ] Build bounded unique dirty-block work and indirect image-copy arguments through existing GPU
+      abstractions. Reuse producer lists/flags where safe; account for compaction, barriers, storage,
+      overflow handling and total cost rather than adding an unmeasured full-domain preparation pass.
+  [ ] Update required metadata separately with appropriately sized work or explicit deltas. Preserve
+      density/direct/diffuse channel dirtiness, occupancy, ages, revisions and debug metadata even
+      where no texel changed. Clear dirty state only after its required publication is submitted.
+  [ ] Retain correct full-channel publication for initialization, domain/recenter, activation and
+      encoding changes. Preserve fenced validation, drawable isolation and failed-batch behavior.
+  [ ] Use subagents for focused incremental builds and existing publication/lifecycle checks only;
+      measure total compaction/copy/metadata cost and bytes for sparse and required full publication.
+      No full matrix, packaging or approximation thresholds; reuse unaffected receipts.
+  [ ] Completion: ordinary publication work is bounded by actual changes where beneficial, full-copy
+      cases remain correct, and measured benefit is reported against the approximately0.11ms baseline.
+
+Phase 7.10 - Simplify traversal and texture-address arithmetic
+  Depends on: Phases 7.5 and 7.7.
+  Outcome: view and compute rays spend less arithmetic on unchanged traversal semantics.
+  [ ] Review DDA boundary increments, integer wrapping and division; replace repeated work with
+      retained increments or explicit wrap branches where circular seams and short edge blocks allow.
+  [ ] Apply affine texture-coordinate evaluation to direct and diffuse consumers where it removes
+      repeated position reconstruction/division, following the existing view approach.
+  [ ] Preserve occupied spacing, clipped interval lengths, tied-axis crossings, anisotropic cells,
+      finite exits, conservative filtered-density support, operation bounds and failed-ray handling.
+  [ ] Use subagents for incremental builds and affected existing traversal/transport checks only.
+      Compare view and relevant compute cost separately; this latest capture has no solver timing.
+      Reuse suitable earlier fixtures rather than repeating a broad baseline matrix or packaging.
+  [ ] Completion: retained arithmetic changes have focused correctness and cost evidence, with no
+      sampling-policy change or approximation-quality gate; reconcile selected numerical details.
+
+Phase 7.11 - Reduce repeated transparency-bucket evaluation during integration
+  Depends on: Phase 7.5; incorporate Phase 7.10 if it changes the same view loop.
+  Outcome: reduce per-interval bucket math while preserving all three native bucket contributions.
+  [ ] Analyze log/exp evaluation in StoredViewBins separately from density attenuation. Investigate
+      reusable terms, algebraic reductions and recurrences, including irregular clipped intervals.
+  [ ] Implement only justified reductions that preserve the declared per-interval bucket integration.
+      Do not silently replace it with representative-depth weights, a lookup approximation, omitted
+      buckets or a different integration schedule. Present any such alternative for a separate
+      user decision and proposal update before implementation; retain current math if none qualifies.
+  [ ] Use subagents for cached incremental builds and affected existing OIT/math checks only. Compare
+      total view cost at unchanged settings, not just instruction estimates. No approximation-error
+      thresholds, full matrices or packaging; reuse unchanged traversal/reconstruction evidence.
+  [ ] Completion: selected reductions or explicit evidence-backed deferral are documented, with
+      measured results distinguished from hypothetical gains and native composition preserved.
+
+Phase 7.12 - Reduce spatial reconstruction depth and empty-region work
+  Depends on: Phase 7.5; Phase 7.8 where view/pass lifetime changes are shared.
+  Outcome: lower full-resolution reconstruction cost without changing configured tracing resolution.
+  [ ] Use event7021's approximately0.24ms baseline. Evaluate reuse of compatible existing combined
+      depth and conservative empty-region rejection, including all preparation, storage and draw costs.
+  [ ] Reuse depth only when material, visibility/particle and liquid clipping semantics match. Preserve
+      odd viewport support, discontinuity fallback and invalid/empty metadata distinctions.
+  [ ] Implement beneficial conservative rejection or shared depth reuse using existing abstractions.
+      Keep hardware filtering of continuous compact payloads and all six native output contracts;
+      do not substitute manual payload filtering or omit buckets. Retain the current path if added
+      preparation outweighs saved work, recording the decision without leaving unused alternatives.
+  [ ] Use subagents for focused incremental builds and existing reconstruction/depth/identity checks
+      only. Measure combined preparation/reconstruction cost in occupied and empty views; no visual
+      approximation thresholds, broad matrix or packaging. Reuse full-resolution direct-path evidence.
+  [ ] Completion: delivered reconstruction preserves clipping/composition and has honest total-cost
+      evidence; current docs describe only the retained implementation.
+
+Phase 7.13 - Reduce retained-lighting selection overhead and evaluate refinement demand
+  Depends on: Phases 7.1, 7.2 and 7.7; coordinate publication changes with Phase 7.9 where needed.
+  Outcome: useful retained lighting work avoids unnecessary selection overhead without hidden policy changes.
+  [ ] Reuse earlier work-selection/transport receipts and current source to identify global candidate
+      scans/sorts and successful diffuse requeue behavior. Obtain only the missing focused update-heavy
+      measurements needed to choose or verify changes; the latest capture cannot time these absent passes.
+  [ ] Evaluate active/pending-work compaction and cheaper selection while preserving exact fair/priority
+      selection, source eligibility, pending ages, coalesced invalidation and bounded job budgets.
+      Include maintenance and compaction cost under weather, source and domain changes.
+  [ ] Implement beneficial waste removal through existing GPU/program/submission abstractions; retain
+      conservative dependency refresh, current source application and publication safety.
+  [ ] Separately evaluate continuous diffuse refinement and source relevance as policy decisions.
+      Do not introduce convergence thresholds, reduce update frequency, omit nonzero sources or change
+      budget partitioning without a concrete user-approved numerical/scheduling contract. Carry forward
+      Phase 7.7's all-nonzero-source policy unless explicitly superseded; deferral is an explicit outcome.
+  [ ] Use subagents for incremental builds and affected existing scheduler/transport checks only.
+      Compare total selection plus useful solver work, backlog and ages; no full matrix, packaging,
+      approximation-quality tests or duplicate test suite. Reuse unaffected publication evidence.
+  [ ] Completion: selection savings and any separately approved policy are documented with measured
+      throughput/cost, preserving or explicitly reconciling service and dependency guarantees.
+
 Phase 8 - Evaluate acceleration and update cost
-  Depends on: Phases 7.4-7.7; Phase 1 initial acceleration decision.
+  Depends on: Phases 7.4-7.13; Phase 1 initial acceleration decision.
   Outcome: a justified acceleration choice accounts for maintenance as well as traversal savings.
-  [ ] Reuse the focused attribution and optimization evidence from Phases 7.3-7.7 for density,
+  [ ] Reuse the focused attribution and optimization evidence from Phases 7.3-7.13 for density,
       occupancy, direct, diffuse, copies and view costs, traversal/work counts and memory. Refresh only
       stale or missing cases needed for acceleration decisions; separate steady and changing content.
   [ ] Evaluate signed versus unsigned distance bounds and hybrid traversal against coarse DDA.
