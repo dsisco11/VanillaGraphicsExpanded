@@ -318,6 +318,13 @@ Phase 7 verification
     artifacts/test-results/cloud-volume-view.trx. Focused checks corrected combined sampler declarations
     and an undersized authored native-map fixture. No game action or approximation-quality gate.
     Live appearance, measured GPU/copy/memory cost and canonical packaging remain later qualification.
+  Startup-registration follow-up: the black-clouds capture selected renderer 2 but showed native
+    cloud draw event 7135; missing cloud_volume/view registration prevented candidate activation.
+    RegisterAll now declares it. The two stored-view GPU tests use the real startup declaration/Get
+    path instead of direct program construction. Cached Release build 2m15.11s, 0 errors, 185 existing
+    warnings, all 524/609 production/fixture shader binaries reused. Both focused facts passed,
+    none skipped, 3s. Receipts: artifacts/BlackClouds/registration-build.log, registration-tests.log,
+    registration-tests.trx. Capture replay is evidence of the activation bug, not candidate performance.
 Phase 8 - Evaluate acceleration and update cost
   Depends on: Phase 7; Phase 1 initial acceleration decision.
   Outcome: a justified acceleration choice accounts for maintenance as well as traversal savings.

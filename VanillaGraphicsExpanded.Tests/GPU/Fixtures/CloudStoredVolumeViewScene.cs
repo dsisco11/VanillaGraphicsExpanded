@@ -6,6 +6,7 @@ using VanillaGraphicsExpanded.PBR.Clouds;
 using VanillaGraphicsExpanded.PBR.Clouds.Volume;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
+using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VolumeStorage=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeStorage;
@@ -49,7 +50,9 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             var fields=storage.Published;var rg=new float[domain.Voxels*2];
             for(int i=0;i<domain.Voxels;i++){rg[i*2]=.25f;rg[i*2+1]=.75f;}fields.Direct.UploadDataImmediate(rg,0,0,0,domain.Size,66,domain.Size);
             SeedDensity(.0078125f);
-            renderer=Own(new CloudVolumeViewRenderer(programs.Create<CloudVolumeViewProgram>()));output=Own(new CloudOitSurface(1,1,"Tests.Cloud.StoredVolume.View"));
+            Assert.True(VgeShaderPrograms.RegisterAll(programs.Api));
+            var view=GpuShaderProgramLibraries.Get<CloudVolumeViewProgram>(programs.Api,CloudVolumeViewProgram.Contract.Identity);
+            Assert.NotNull(view);renderer=Own(new CloudVolumeViewRenderer(view));output=Own(new CloudOitSurface(1,1,"Tests.Cloud.StoredVolume.View"));
         }
         catch{Dispose();throw;}
     }
