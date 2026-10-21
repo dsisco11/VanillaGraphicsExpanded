@@ -119,7 +119,7 @@ Spatial reconstruction can soften silhouettes and thin layers. Conservative dept
 
 Each history additionally stores required observation age in R16F. The default-off compiled `VGE_CLOUD_TEMPORAL_DIAGNOSTICS` option adds a separate RGBA16F attachment for effective prior weight, fresh/carried/fallback status, rejection code and displayed age. Its fragment output and composition sampler exist only in that variant. Normal rendering allocates no diagnostic images or bindings. Switching diagnostic variants rebuilds only framebuffer metadata and adds/retires optional images; physical transport, confidence and age survive unchanged. No diagnostic CPU readback is added.
 
-Private compact trace and two normal history sets cost about103 bytes per reduced pixel (ceil edges add a bounded excess): approximately116.3/29.1MiB at3440x1377 for half/quarter and203.7/50.9MiB at4K, plus a32KiB blue-noise texture. Diagnostic capture adds16bytes per reduced pixel across both histories, for119bytes nominal (134.4/33.6MiB at3440x1377 or235.3/58.8MiB at4K). Full resolution allocates none. These screen resources are additional to volume payload limits and retire on resize/reload/release. Normal filtering writes four attachments; diagnostic filtering writes five. Native composition requires six draw buffers/attachments. Filtering reserves eleven fragment texture units normally and twelve for diagnostic composition. No extra density or lighting volume is allocated. Measure total reconstruction, blending and allocation cost rather than treating quarter ray count as a fourfold total speedup.
+Private compact trace and two normal history sets cost about103 bytes per reduced pixel (ceil edges add a bounded excess): approximately116.3/29.1MiB at3440x1377 for half/quarter and203.7/50.9MiB at4K, plus32KiB blue noise and1KiB RG16 jitter points. Diagnostic capture adds16bytes per reduced pixel across both histories, for119bytes nominal (134.4/33.6MiB at3440x1377 or235.3/58.8MiB at4K). Full resolution allocates none. These screen resources are additional to volume payload limits and retire on resize/reload/release. Normal filtering writes four attachments; diagnostic filtering writes five. Native composition requires six draw buffers/attachments. Reduced filtering requires thirteen fragment texture-unit slots, with jitter at12 and slot11 reserved for diagnostic composition. No extra density or lighting volume is allocated. Measure total reconstruction, blending and allocation cost rather than treating quarter ray count as a fourfold total speedup.
 
 Apply current directional phase functions to cached transmission, add the retained diffuse source once, and integrate in physical units. Apply the established atmosphere/local-medium treatment and scene encoding once, preserving both PBR modes and all six native OIT attachment meanings. Preserve independent camera and atmospheric calibration identities. Retained lighting bounds must cover the older energy still present in the volume, not only the current sky intensity.
 
@@ -300,6 +300,39 @@ Surface validity and boundary policies remain surface-owned. These helpers do no
 volume-specific range, classification, foreground, age or confidence contracts below.
 
 Reduced views retain two compact physical history sets and a disjoint current trace set at half their width/height. Incompatible frames reuse the invalid previous-history set as full reduced-grid trace scratch before filtering into the other set. One blue-noise ranked location per two-by-two reduced tile is refreshed on each of four phases; initial or incompatible views trace all reduced pixels. Every fresh ray retains exact occupied-cell transport. Full resolution bypasses temporal targets. Commit history only after successful final composition.
+
+Fresh rays additionally sample a bounded two-dimensional offset within the selected reduced pixel.
+Reuse generic `Rendering/PmjJitterTexture` provisioning for256 Sobol-based/Owen-style project points,
+not the published PMJ algorithm or a proven spatial-blue-noise sequence. Decode the stored RG16
+integer digits, XOR them with a fixed screen-pixel hash, and sample their bin midpoints; offsets
+are strictly between -.5 and .5 reduced pixels. Digital XOR preserves the actual quantized point
+set's dyadic bin counts, not unestablished properties of the generator. No index permutation,
+random phase jump or stride is introduced.
+
+The successful cold trace records one uint epoch in the existing temporal block's reserved word.
+Every pixel consumes point0 there. Later indices count actual scheduled fresh opportunities since
+that epoch, modulo256; carried/fallback frames and confidence do not advance the index. Count every
+clamped phase in odd boundary tiles, where a pixel may receive two or four rays per cycle. A rejected
+history lookup does not reset the sequence; a frame gap or incompatible/cold view resets the epoch.
+Unsigned subtraction handles frame wrap, and failed final submission never commits an epoch.
+An attempted but failed fresh ray consumes that opportunity without producing valid history; the
+index is not a count of completed independent observations.
+Pixel hash identity stays screen-relative through motion and resets with the view lifetime; changing
+the compiled sampling algorithm invalidates history through shader identity.
+
+Use the actual reproducible jittered UV for the fresh ray, atmospheric coordinates and fresh cloud
+representative-point reprojection. Conservative material/particle/liquid footprint clipping remains
+centred on the complete reduced pixel. It cannot shift away from a foreground object with the jitter.
+Radiance, opacity and all bucket factors come from the same ray. Filtered history represents the
+pixel's accumulated footprint, not one exact point: its scalar representative range is a proxy for
+that footprint, retaining the existing max(2units,5percent) uncertainty gate. Carried reprojection
+uses that footprint's centre and fresh lookup uses the jittered direction. This explicitly adds
+within-pixel spatial uncertainty and can reject depth edges; no coordinate texture or per-pixel
+sample counter is allocated and no exact multi-ray world point is claimed. Exact stationary address
+bypass additionally requires identical sample UV; a newly jittered observation uses projection even
+when camera and material are stationary. Age, confidence and disocclusion gates remain independent.
+Clamp the final normalized sample below one to avoid outer-edge float rounding. Cold filtering does
+not fetch jitter points because it has no prior history to project.
 
 A compatible untraced pixel carries hardware-filtered prior transport unchanged; neighboring current observations supply spatial fallback only when history is unavailable. Fallback has zero independent-observation count and cannot seed reusable history. A failed fresh ray remains invalid. Certified empty fresh rays reject contributing history. Removed cloud support is therefore observed at the next fresh phase, normally within four frames, rather than triggering a blanket publication reset.
 

@@ -5,22 +5,30 @@
 @import "../includes/cloud_temporal_parameters.glsl"
 @import "../includes/blue_noise.glsl"
 @import "../includes/interleaved_sampling.glsl"
+@import "sampling.glsl"
 uniform sampler2D viewBlueNoise;
+uniform sampler2D cloudPmjJitter;
 #endif
 /** Maps physically compact rays onto their blue-noise-selected reduced-grid positions. */
-vec2 StoredViewUv()
+vec2 StoredViewUv(out vec2 centre)
 {
     vec2 size=ceil(vgeFrame.screenSize/float(VGE_STORED_VIEW_TRACE_DIVISOR));
     #if VGE_STORED_VIEW_TRACE_DIVISOR != 1
+    ivec2 pixel=ivec2(gl_FragCoord.xy),tile=cloudHistory.x>.5?pixel:pixel/2;
+    float rank=0;
     if(cloudHistory.x>.5)
     {
-        ivec2 tile=ivec2(gl_FragCoord.xy);
-        float rank=BlueNoiseRank(viewBlueNoise,tile,0u,8);
-        return (vec2(InterleavedSampleLocation2x2(rank,tile,vgeFrame.frameIndex,ivec2(size)))+.5)/size;
+        rank=BlueNoiseRank(viewBlueNoise,tile,0u,8);
+        pixel=InterleavedSampleLocation2x2(rank,tile,vgeFrame.frameIndex,ivec2(size));
     }
+    centre=(vec2(pixel)+.5)/size;
+    return StoredVolumeSampleUv(cloudPmjJitter,rank,pixel,ivec2(size),vgeFrame.frameIndex,floatBitsToUint(cloudHistory.w));
+    #else
+    centre=gl_FragCoord.xy/size;
+    return centre;
     #endif
-    return gl_FragCoord.xy/size;
 }
+vec2 storedViewSampleUv;
 layout(std140) uniform StoredVolumeView
 {
     ivec4 viewSize,viewSlots;
@@ -40,7 +48,7 @@ uniform sampler2D viewMaterialDepth;
 #define VGE_ATMOSPHERE_SCATTERING_DIRECTIONS
 #define vge_atmosphereScatteringSun viewSun.xyz
 #define vge_atmosphereScatteringMoon viewMoon.xyz
-#define VGE_ATMOSPHERE_FRAGMENT_COORD (StoredViewUv()*vgeFrame.screenSize)
+#define VGE_ATMOSPHERE_FRAGMENT_COORD (storedViewSampleUv*vgeFrame.screenSize)
 @import "../includes/atmosphere_aerial.glsl"
 @import "../includes/pbr_scene_storage.glsl"
 @import "../includes/pbr_color.glsl"
@@ -160,9 +168,11 @@ float StoredViewDepth(vec2 uv)
 void main()
 {
     if(!VgeFrameLightingValid(vgeFrame.frameIndex,VgeLightingCalibrationGeneration()))discard;
-    vec2 uv=StoredViewUv(),ndc=uv*2-1;
+    vec2 centre,uv=StoredViewUv(centre),ndc=uv*2-1;storedViewSampleUv=uv;
     vec3 direction=normalize(StoredViewUnproject(ndc,1));
-    float depth=StoredViewDepth(uv);
+    // Keep the complete unjittered pixel's conservative foreground footprint. Only the
+    // viewing ray and its depth unprojection move; no jitter can evade foreground clipping.
+    float depth=StoredViewDepth(centre);
     float limit=length(StoredViewUnproject(ndc,depth));
     CloudVolumeGrid grid;grid.size=viewSize.xyz;grid.blocks=ivec3(viewSlots.z,viewSlots.w,viewSlots.z);grid.slot=viewSlots.xy;
     grid.first=viewFirst.xyz;grid.cell=viewCell.xyz;grid.minimum=viewMinimum.xyz;grid.maximum=viewMaximum.xyz;

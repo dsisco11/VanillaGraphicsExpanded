@@ -25,6 +25,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
     private readonly CloudVolumeViewTargets?[] histories=new CloudVolumeViewTargets?[2];
     private readonly CloudVolumeViewPass?[] temporalPasses=new CloudVolumeViewPass?[2];
     private CloudBlueNoiseTexture? noise;
+    private PmjJitterTexture? jitter;
     private GpuTexture? historyDensity;
     private object? historyMaterial;
     private CloudVolumeDomain? historyDomain;
@@ -65,7 +66,8 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
             if(selection.TraceDivisor!=1&&!reconstruct.EnsureReady())throw new InvalidOperationException("Stored cloud reconstruction executable unavailable.",reconstruct.PreparationFailure);
             if(selection.TraceDivisor!=1&&!temporal.EnsureReady())throw new InvalidOperationException("Cloud temporal executable unavailable.",temporal.PreparationFailure);
             var caps=GpuSupport.Graphics;
-            if(caps.MaxDrawBuffers<6||GpuSupport.MaxColorAttachments<6||caps.MaxFragmentShaderStorageBlocks<3||caps.MaxTextureImageUnits<11||caps.MaxCombinedTextureImageUnits<11||
+            int textureUnits=selection.TraceDivisor==1?9:13;
+            if(caps.MaxDrawBuffers<6||GpuSupport.MaxColorAttachments<6||caps.MaxFragmentShaderStorageBlocks<3||caps.MaxTextureImageUnits<textureUnits||caps.MaxCombinedTextureImageUnits<textureUnits||
                 caps.MaxUniformBufferBindings<=GpuBindingRegistry.Ubo.Frame||caps.MaxUniformBlockSize<240)
                 throw new NotSupportedException("Stored cloud view exceeds rendering capabilities.");
             geometry??=new(Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
@@ -119,6 +121,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
                 histories[0]!.ConfigureDiagnostics(temporal.DiagnosticsEnabled);
                 histories[1]!.ConfigureDiagnostics(temporal.DiagnosticsEnabled);
                 noise??=CloudBlueNoiseTexture.Create();noise.EnsureCreated();program.BlueNoise=noise;
+                jitter??=PmjJitterTexture.Create(256,0xa5b35705u);jitter.EnsureCreated();program.PmjJitter=jitter;
                 bool compatible=ReferenceEquals(historyDensity,fields.Density)&&ReferenceEquals(historyMaterial,fields.MaterialIdentity)&&historyDomain is {} oldDomain
                     &&oldDomain.Width==fields.Domain.Width&&oldDomain.Bottom==fields.Domain.Bottom&&oldDomain.Band==fields.Domain.Band
                     &&(historySettings with{LightingRaysPerUpdate=settings.LightingRaysPerUpdate})==settings&&historyUnderwater==(scene.Underwater>.7f)&&historyDebug==(debugMode>=5?0:debugMode);
@@ -132,6 +135,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
                 currentTrace=HistoryCompatible?targets:previous;
                 temporal.Frame=scene.Camera;temporal.Lighting=scene.Lighting;
                 temporal.BlueNoise=noise;temporal.PreviousAge=previous.Images[3];temporal.Diagnostics=null;
+                temporal.PmjJitter=jitter;
                 temporal.Cloud=currentTrace.Images[0];temporal.Bins=currentTrace.Images[1];temporal.Metadata=currentTrace.Images[2];
                 temporal.PreviousCloud=previous.Images[0];temporal.PreviousBins=previous.Images[1];temporal.PreviousMetadata=previous.Images[2];
                 temporal.MaterialDepth=scene.MaterialDepth;temporal.VisibilityDepth=scene.VisibilityDepth;temporal.LiquidDepth=scene.LiquidDepth;
@@ -182,6 +186,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
         integration?.Dispose();composition?.Dispose();targets?.Dispose();targets=null;currentTrace=null;
         for(int i=0;i<2;i++){temporalPasses[i]?.Dispose();temporalPasses[i]=null;histories[i]?.Dispose();histories[i]=null;}
         noise?.Dispose();noise=null;
+        jitter?.Dispose();jitter=null;
     }
     #endregion
     #region Private
@@ -226,6 +231,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
         program.MaterialDepth=null;program.VisibilityDepth=null;program.LiquidDepth=null;program.Aerial=null;program.Attenuation=null;program.Shafts=null;
         reconstruct.Frame=null;reconstruct.Temporal=null;reconstruct.Diagnostics=null;reconstruct.Cloud=null;reconstruct.Bins=null;reconstruct.Metadata=null;
         reconstruct.Lighting=null;program.BlueNoise=null;
+        program.PmjJitter=null;temporal.PmjJitter=null;
         reconstruct.MaterialDepth=null;reconstruct.VisibilityDepth=null;reconstruct.LiquidDepth=null;
         temporal.Frame=null;temporal.Lighting=null;temporal.Cloud=null;temporal.Bins=null;temporal.Metadata=null;
         temporal.PreviousCloud=null;temporal.PreviousBins=null;temporal.PreviousMetadata=null;

@@ -60,7 +60,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
     private LumOnWorldProbeClipmapBufferManager? worldProbeClipmapBufferManager;
 
-    private readonly LumOnPmjJitterTexture pmjJitter;
+    private readonly PmjJitterTexture pmjJitter;
     private readonly LumOnUniformBuffers uniformBuffers = new();
 
     // Fullscreen quad mesh
@@ -130,7 +130,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         this.worldProbeClipmapBufferManager = worldProbeClipmapBufferManager;
         this.readCamera = readCamera ?? (() => LumOnCameraState.Read(capi));
 
-        pmjJitter = LumOnPmjJitterTexture.Create(config.LumOn.PmjJitterCycleLength, config.LumOn.PmjJitterSeed);
+        pmjJitter = PmjJitterTexture.Create(config.LumOn.PmjJitterCycleLength, config.LumOn.PmjJitterSeed);
 
         // Create fullscreen quad mesh
         var quadMesh = QuadMeshUtil.GetCustomQuadModelData(-1, -1, 0, 2, 2);

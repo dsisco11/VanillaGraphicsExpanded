@@ -11,6 +11,7 @@ internal sealed class CloudReprojectionHistory
     private int mapWidth;
     private readonly WeakReference<object> owner=new(null!);
     private uint frame,calibration;
+    private uint samplingEpoch,capturedEpoch,capturedFrame;
     private Vector2 screen;
     private CloudPlacement placement;
     private readonly float[] projection=new float[16];
@@ -49,13 +50,17 @@ internal sealed class CloudReprojectionHistory
         // a nonzero neighboring footprint and inherit that neighbor's older observation age.
         bool stationary=compatible&&translation==Vector3.Zero
             &&camera.CurrentViewProjection[..12].SequenceEqual(camera.PreviousViewProjection[..12]);
+        // Cold full-grid observations start at point zero. Subsequent opportunity counts
+        // derive from this successful epoch, never from confidence or skipped/carry frames.
+        capturedFrame=input.Frame;capturedEpoch=compatible?samplingEpoch:input.Frame;
         output.Capture(compatible?translation:Vector3.Zero,
-            width,height,input.Frame,compatible,divisor,debugMode,stationary);
+            width,height,input.Frame,compatible,divisor,debugMode,stationary,capturedEpoch);
         return compatible;
     }
     /// <summary>Commits only after trace, reconstruction and full-resolution submission all succeed.</summary>
     internal void Commit(CloudMapInput input,VgeFrameUniformBuffer camera)
     {
+        samplingEpoch=capturedFrame==input.Frame?capturedEpoch:input.Frame;
         owner.SetTarget(input.Owner); mapWidth=input.Storage.Width; world=input.World; allocation=input.Allocation; upload=input.Upload; shader=input.Shader; frame=input.Frame;
         placement=input.Placement;
         // Only consecutive successful cloud frames may consume the shared previous camera.

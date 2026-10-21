@@ -23,5 +23,8 @@ internal interface ICloudVolumeTemporalBindings:ICloudVolumeReconstructBindings
     /// <summary>Maps compact raw texels to the same blue-noise-selected reduced pixels as tracing.</summary>
     [ShaderBinding("temporalBlueNoise",ShaderBindingKind.Sampler,9,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
     GpuTexture? BlueNoise {set;}
+    /// <summary>Reproduces fresh ray positions independently of surface-lighting enablement.</summary>
+    [ShaderBinding("cloudPmjJitter",ShaderBindingKind.Sampler,12,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? PmjJitter {set;}
     #endregion
 }

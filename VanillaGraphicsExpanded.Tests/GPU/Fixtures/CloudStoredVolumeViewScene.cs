@@ -106,7 +106,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         fields.Occupancy.UploadData(Enumerable.Repeat(sigma==0?0u:1u,d.Blocks).ToArray());
     }
     /// <summary>Filters authored compact rays with explicit previous-camera rotation and material translation through the actual temporal program.</summary>
-    internal float[][] FilterAuthored(float[] cloud,float[] bins,float[] metadata,bool diagnostics=true,Vector3 translation=default,float previousYaw=0)
+    internal float[][] FilterAuthored(float[] cloud,float[] bins,float[] metadata,bool diagnostics=true,Vector3 translation=default,float previousYaw=0,bool stationary=false)
     {
         temporalProgram.ConfigureOptions(()=>temporalProgram.DiagnosticsEnabled=diagnostics);
         Assert.True(temporalProgram.EnsureReady(),temporalProgram.PreparationFailure?.ToString());
@@ -118,6 +118,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         using var geometry=new ArrayGraphicsGeometry(CloudVolumeViewRenderer.Layout,PrimitiveType.Triangles,
             new Dictionary<int,GpuVbo>(),proceduralVertices:3);
         using var noise=CloudBlueNoiseTexture.Create();noise.EnsureCreated();
+        using var jitter=PmjJitterTexture.Create(256,0xa5b35705u);
         raw.Images[0].UploadDataImmediate(cloud);raw.Images[1].UploadDataImmediate(bins);raw.Images[2].UploadDataImmediate(metadata);
         var projection=camera.CurrentViewProjection.ToArray();
         if(previousYaw!=0)Vintagestory.API.MathTools.Mat4f.RotateY(projection,projection,previousYaw);
@@ -129,11 +130,11 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             projection,camera.CurrentViewProjection,new(frameValues[96],frameValues[97]),frameValues[98],input.Frame,
             new(frameValues[100],frameValues[101],frameValues[102]),new(frameValues[104],frameValues[105],frameValues[106]),frameValues[107],
             new(frameValues[124],frameValues[125]),deltaTime:frameValues[126],fogMinimum:frameValues[103]);
-        temporalProgram.Temporal.Capture(translation,destination.Target.Width,destination.Target.Height,input.Frame,true);
+        temporalProgram.Temporal.Capture(translation,destination.Target.Width,destination.Target.Height,input.Frame,true,stationary:stationary,samplingEpoch:input.Frame);
         lighting.Capture(1,input.Frame);
         try
         {
-            temporalProgram.Frame=authoredCamera;temporalProgram.Lighting=lighting.Buffer;temporalProgram.BlueNoise=noise;
+            temporalProgram.Frame=authoredCamera;temporalProgram.Lighting=lighting.Buffer;temporalProgram.BlueNoise=noise;temporalProgram.PmjJitter=jitter;
             temporalProgram.Cloud=raw.Images[0];temporalProgram.Bins=raw.Images[1];temporalProgram.Metadata=raw.Images[2];
             temporalProgram.PreviousCloud=previous.Images[0];temporalProgram.PreviousBins=previous.Images[1];
             temporalProgram.PreviousMetadata=previous.Images[2];temporalProgram.PreviousAge=previous.Images[3];temporalProgram.Diagnostics=null;
@@ -145,7 +146,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         }
         finally
         {
-            temporalProgram.Frame=null;temporalProgram.Lighting=null;temporalProgram.BlueNoise=null;
+            temporalProgram.Frame=null;temporalProgram.Lighting=null;temporalProgram.BlueNoise=null;temporalProgram.PmjJitter=null;
             temporalProgram.Cloud=null;temporalProgram.Bins=null;temporalProgram.Metadata=null;
             temporalProgram.PreviousCloud=null;temporalProgram.PreviousBins=null;temporalProgram.PreviousMetadata=null;temporalProgram.PreviousAge=null;temporalProgram.Diagnostics=null;
             temporalProgram.MaterialDepth=null;temporalProgram.VisibilityDepth=null;temporalProgram.LiquidDepth=null;

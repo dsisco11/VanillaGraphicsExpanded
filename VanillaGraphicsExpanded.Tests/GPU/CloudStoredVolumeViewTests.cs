@@ -16,7 +16,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
     public void StoredViewUsesVoxelTransportAndNativeProducts()
     {
         EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs);
-        var settings=CloudVolumeViewSettings.Default with{Detail=false,Stop=0,TraceDivisor=2};
+        var settings=CloudVolumeViewSettings.Default with{Detail=false,Stop=0,TraceDivisor=1};
         var baseline=scene.Draw(settings);
         scene.Draw(settings); // Warm both disjoint temporal destinations before checking stable preparation.
         int prepared=scene.ViewPassPreparations;
@@ -26,7 +26,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         scene.RefreshOutputMetadata();Assert.Equal(baseline[1],scene.Draw(settings)[1]);
         Assert.Equal(prepared+1,scene.ViewPassPreparations);
         scene.ReleaseViewTargets();Assert.Equal(baseline[1],scene.Draw(settings)[1]);
-        Assert.Equal(prepared+3,scene.ViewPassPreparations);
+        Assert.Equal(prepared+2,scene.ViewPassPreparations);
         Assert.InRange(Math.Abs(baseline[1][0]-MathF.Exp(-.0078125f*100)),0,2e-5f);
         float phase0=.64f/(4*MathF.PI*MathF.Pow(1.36f,1.5f));float phase1=1.6f/(4*MathF.PI*.4f*.4f);
         float source=.9f*(30*.25f*phase1+3*.75f*phase0)+12;
@@ -80,6 +80,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             }
         }
         scene.Atmosphere=scene.Atmosphere with{CalibrationGeneration=0};scene.Draw(settings,succeeds:false);
+        settings=settings with{TraceDivisor=2};
         using(var temporal=new CloudStoredVolumeViewScene(Programs,16,16))
         {
             temporal.Draw(settings);Assert.False(temporal.HistoryCompatible);
@@ -250,6 +251,25 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         var oldEdge=scene.FilterAuthored(edgeRays,Enumerable.Repeat(.5f,4*4*3).ToArray(),edgeRayMeta,
             translation:new Vector3(.625f,0,0));
         Assert.DoesNotContain(2,oldEdge[3].Where((_,i)=>i%4==1));
+        // Contributing fresh rays land in a jittered footprint, while checkerboard centre
+        // metadata is deliberately empty. Reprojection at the centre would reject these
+        // cases; actual subpixel reprojection admits a neighboring compatible observation.
+        var jitterCloud=(float[])priorCloud.Clone();var jitterMeta=(float[])metadata.Clone();
+        var jitterBins=Enumerable.Repeat(.5f,64*3).ToArray();
+        for(int y=0;y<8;y++)for(int x=0;x<8;x++)
+        {
+            int i=(y*8+x)*4;bool isEmpty=(x+y)%2==0;
+            jitterMeta[i]=metadata[0];jitterMeta[i+1]=isEmpty?2:1;jitterMeta[i+2]=isEmpty?0:10;jitterMeta[i+3]=4;
+            if(isEmpty){Array.Clear(jitterCloud,i,4);Array.Fill(jitterBins,1f,(y*8+x)*3,3);}
+        }
+        scene.SeedHistory(jitterCloud,jitterMeta,new float[metadata.Length],jitterBins);
+        var jittered=scene.FilterAuthored(edgeRays,Enumerable.Repeat(.5f,4*4*3).ToArray(),edgeRayMeta,stationary:true);
+        int corrected=0;
+        for(int p=0;p<64;p++)if(jitterMeta[p*4+1]==2&&jittered[3][p*4+1]==1&&jittered[3][p*4+2]==12)
+        {
+            Assert.True(jittered[3][p*4]>0);Assert.True(jittered[2][p*4+3]>1);corrected++;
+        }
+        Assert.True(corrected>0,"Fresh jitter must reproject its actual subpixel ray instead of using a stationary centre certificate.");
         // A failed own ray cannot be hidden by retained information or a nearby valid prefix.
         var invalid=scene.FilterAuthored(new float[4*4*4],Enumerable.Repeat(1f,4*4*3).ToArray(),new float[4*4*4]);
         var failed=invalid[3];var failedMeta=invalid[2];
@@ -339,6 +359,9 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             output.WriteLine($"Trace receipts: fresh={receipt.Where((_,i)=>i%4==1).Count(v=>v>=1)}, visits={receipt.Where((_,i)=>i%4==3).Sum()}, admitted history={history.Where((_,i)=>i%4==3).Count(v=>v>1)}/{history.Length/4}; targets={scene.ViewTargetBytes}bytes.");
             var contribution=scene.HistoryDiagnostics;
             output.WriteLine($"Actual prior contribution: {contribution.Where((_,i)=>i%4==0).Count(v=>v>0)}/{contribution.Length/4}; carried={contribution.Where((_,i)=>i%4==1).Count(v=>v==2)}, fresh={contribution.Where((_,i)=>i%4==1).Count(v=>v==1)}, fallback={contribution.Where((_,i)=>i%4==1).Count(v=>v==3)}; maximum observation age={contribution.Where((_,i)=>i%4==3).DefaultIfEmpty().Max()}.");
+            var physical=scene.HistoryCloud;
+            int[] contributing=Enumerable.Range(0,physical.Length/4).Where(p=>physical[p*4+3]>0).ToArray();
+            output.WriteLine($"Contributing-pixel prior weight mean={contributing.Select(p=>(double)contribution[p*4]).DefaultIfEmpty().Average():F6}; fresh={contributing.Count(p=>contribution[p*4+1]==1)}, carry={contributing.Count(p=>contribution[p*4+1]==2)}, fallback={contributing.Count(p=>contribution[p*4+1]==3)}/{contributing.Length}. Post-query diagnostic readback; no quality threshold.");
             using var trace=GpuTimerQuery.Create("Tests.Cloud.View.Trace");
             using var temporal=GpuTimerQuery.Create("Tests.Cloud.View.Temporal");
             using var compose=GpuTimerQuery.Create("Tests.Cloud.View.Compose");

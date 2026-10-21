@@ -1,6 +1,11 @@
 # LumOn PMJ Temporal Jitter
 
-LumOn uses a **Progressive Multi-Jittered (PMJ02)** sample sequence as a deterministic, per-frame source of small 2D offsets (“jitter”).
+LumOn uses the project's `Pmj02` sequence as a deterministic source of small 2D offsets (“jitter”).
+`PmjGenerator` actually constructs Sobol-based points with the optional `PmjOwenScrambler` hash
+transform. This is not the published PMJ generation algorithm. The current scrambler hashes a
+prefix including the current input bit; this document makes no claim that it is a bijective Owen
+tree permutation or establishes the published algorithms' progressive-prefix properties. The
+sequence is not a spatial or spatiotemporal blue-noise mask.
 
 This serves two goals:
 
@@ -33,7 +38,11 @@ The PMJ sequence is uploaded once as a tiny “1D” texture stored as a 2D text
 
 The runtime code that owns this is:
 
-- `VanillaGraphicsExpanded/LumOn/LumOnPmjJitterTexture.cs`
+- `VanillaGraphicsExpanded/Rendering/PmjJitterTexture.cs`
+
+This general GPU owner uses `Noise/PmjCache`, `PmjGenerator` and `PmjConversions`. LumOn and
+volumetric clouds own separate texture instances and lifetimes; clouds do not read LumOn settings
+or depend on LumOn being enabled.
 
 It generates:
 
@@ -47,10 +56,11 @@ and uploads packed jitter points via `PmjConversions.ToRg16UNormInterleaved(...)
 
 On the GPU side, shaders index the sequence by frame:
 
-- `frameIndexMod = frameIndex % pmjCycleLength`
+- `idx = (frameIndex + probeIndex) % pmjCycleLength`
 - sample the jitter offset at `x = frameIndexMod`, `y = 0`
 
-The fetched `RG16_UNorm` value decodes to a point in $[0,1)^2$.
+CPU packing floors `point*65536` and clamps to 65535. Hardware UNorm reads divide those stored
+integers by 65535 and can therefore reach one. LumOn uses those normalized values directly.
 Depending on the shader, that may then be remapped to a centered offset in $[-0.5, 0.5)$ before applying scale.
 
 ## How cycle length affects stability
@@ -58,7 +68,7 @@ Depending on the shader, that may then be remapped to a centered offset in $[-0.
 Cycle length controls how long it takes for the jitter pattern to repeat:
 
 - **Short cycle** (e.g. 32/64): repeats frequently; can create periodic artifacts when combined with temporal accumulation.
-- **Long cycle** (e.g. 128/256): repeats less often; typically reduces obvious repetition.
+- **Long cycle** (e.g. 128/256): repeats less often. This alone does not establish better convergence or visible stability.
 
 Memory cost is negligible for typical values:
 
@@ -91,9 +101,12 @@ Practical checks if jitter “does nothing” or looks wrong:
 
 Automated regression coverage:
 
-- `VanillaGraphicsExpanded.Tests/GPU/LumOnPmjJitterTextureUploadTests.cs` validates:
+- `VanillaGraphicsExpanded.Tests/GPU/PmjJitterTextureUploadTests.cs` validates:
   - the texture is created as `RG16` with expected dimensions
   - GPU readback matches CPU packing for a fixed seed
+
+Cloud view sampling has a separate consumed-observation index and pixel digital shift, described
+in [PBR.Clouds.md](PBR.Clouds.md). It reuses provisioning rather than LumOn's frame/probe indexing.
 
 ## References
 

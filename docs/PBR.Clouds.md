@@ -464,7 +464,7 @@ coordinates remain in full-view pixels. Compact trace and two history targets co
 about116.3/29.1MiB at3440x1377 or203.7/50.9MiB at4K normally, separately from volume payloads. Full resolution
 allocates none. Resize and renderer release retire reduced targets
 without clearing retained cloud lighting. The debug panel reports allocation. Native composition
-requires six draw buffers/attachments; reduced filtering reserves eleven fragment texture units for shared blue noise and history age, with twelve required for diagnostic composition.
+requires six draw buffers/attachments; reduced filtering reserves thirteen fragment texture-unit slots for blue noise, history age and subpixel jitter. Diagnostic composition uses the reserved slot11.
 
 `CloudVolumeViewPass` retains immutable pass descriptions and graphics-pipeline preparation for each
 view pass. Its key includes framebuffer identity, attachment revision, extent, blending mode and
@@ -507,6 +507,40 @@ four-frame 2x2 schedule without depending on clouds or a texture layout. The sto
 adapter owns filtering of its compact radiance/opacity and bucket values without borrowing previous
 transport or shadow-cache state. The temporal pass distinguishes freshly traced, history-only and spatial-fallback locations. Compatible untraced pixels preserve prior physical transport without blending toward neighbors. Fallback fills unsupported holes but has zero observation confidence and cannot become reusable history. Failed fresh rays remain invalid. A newly empty ray rejects contributing history; removal is normally observed within the four-frame trace cycle.
 
+Each fresh reduced ray also uses two-dimensional subpixel jitter. General `Rendering/PmjJitterTexture`
+owns256 RG16 points (1KiB), generated once through `Noise/PmjCache`, `PmjGenerator` and
+`PmjConversions`. LumOn uses the same provisioning class with a separate instance; clouds have no
+LumOn enablement or configuration dependency. The project calls these points `Pmj02`, but the
+implementation is Sobol-based with an Owen-style input-prefix hash transform. No published-PMJ,
+bijective-Owen, progressive-prefix, spatial-blue-noise or convergence guarantee is assumed.
+
+`pmj_sampling.glsl` reconstructs stored16-bit digits and XORs a stable screen-pixel hash into
+them. Bin midpoints map strictly inside [-.5,.5] reduced-pixel offsets, with the endpoints excluded.
+This invertible digital shift preserves the quantized point set's dyadic bin counts without skipping
+indices. `cloud_volume/sampling.glsl` composes those offsets with the existing selected pixel.
+The four-frame blue-noise refresh schedule, fresh ray count and exact cell intervals are unchanged.
+
+The existing temporal block carries a uint successful-cold-frame epoch in its reserved word.
+Cold full-grid traces consume point0. Each subsequent scheduled fresh opportunity increments its
+pixel's consumed index, wrapping modulo256. Odd edge tiles count repeated clamped phases, including
+twice/four-times-per-cycle refreshes. Carry/fallback and history confidence never advance it.
+Per-pixel history rejection retains the index; incompatible/cold views, resize/reload and frame gaps
+restart it. Failed final composition cannot commit the epoch. Unsigned frame subtraction handles
+frame wrap. Pixel decorrelation stays screen-relative during motion, rather than claiming a material
+identity for the sampling sequence. No persistent per-pixel counter or position image is allocated.
+An attempted fresh ray consumes its scheduled point even if that ray fails; failure never becomes
+valid history. The index counts tracing opportunities, not completed independent observations.
+
+Tracing, medium/shaft coordinates and fresh representative-point lookup use the same reproducible
+jittered UV. Foreground depth gathers still cover the unjittered reduced pixel's complete footprint;
+the jitter cannot escape its conservative clipping. Accumulated history is a pixel-footprint estimate,
+not a single exact world point. Its range remains a scalar proxy with the existing max(2units,5percent)
+gate; carry maps the footprint centre, while fresh lookup projects its actual jittered direction.
+This introduces bounded within-pixel spatial uncertainty and may reject depth discontinuities.
+All physical channels follow the same admitted footprint, and age/confidence keep their existing rules.
+Final jittered UV is clamped below one to prevent large pixel-coordinate arithmetic rounding onto
+the excluded outer screen boundary. Cold filtering skips sequence reads because no prior lookup exists.
+
 Camera reconstruction and projection use rendering-owned `camera_reprojection.glsl`, also consumed
 by LumOn velocity generation and its history debug projection. UV uses the OpenGL bottom-left
 convention. Homogeneous reconstruction divides by W; position projection uses W=1 and the shared
@@ -546,6 +580,9 @@ mapping in the existing temporal block. The filter uses the destination pixel's 
 coordinate, preserving its own confidence and age. It does not reconstruct an almost-identical
 bilinear footprint through floating-point matrix roundoff. Any rotation or material translation uses
 normal reprojection; foreground depth is still checked in the previous scene camera independently.
+This identity bypass additionally requires the current sample UV to equal the footprint centre.
+New jittered rays therefore project normally even under a stationary camera/material transform;
+unchanged carried footprints retain exact own-pixel addressing.
 
 Only fresh updates can be constrained by neighborhood bounds, requiring four same-support, distance-compatible observations spanning two pixels on each axis. A single observation cannot erase history. Supported-bound replacement explicitly rejects prior information. The fresh prior weight is min(count,7)/(min(count,7)+1), multiplied by clamp(1-4*opacity delta,0,1) and clamp(1-max RGB delta/max RGB peak,0,1). Count is 1/(1-effective prior weight), up to eight, rather than an admission/frame counter. A carry transports confidence without an independent-observation increment; zero weight or a clipping replacement starts at one. Counts describe declared blend confidence, not statistical independence of correlated rays.
 
@@ -563,7 +600,7 @@ independent of freshness and confidence.
 
 Each history owns a required R16F refresh-age field. Unrefreshed support expires at age seven. The default-off `VGE_CLOUD_TEMPORAL_DIAGNOSTICS` compiled option separately adds an RGBA16F record for prior weight, status (fresh1/carried2/fallback3/invalid0), rejection and displayed age. Normal temporal GLSL has no diagnostic output; normal composition has no diagnostic sampler or diagnostic UBO. The ordinary age sampler/output remain production validity metadata. Optional diagnostic images and their framebuffer attachments exist only during diagnostic capture; toggling them preserves physical image identities, confidence and age. Temporal diagnostics add no runtime CPU readback.
 
-Normal storage is approximately103bytes per reduced pixel: two46-byte histories plus44-byte raw trace at one quarter their area, with ceil-edge overhead and32KiB blue noise. Diagnostic capture adds16bytes per reduced pixel across both histories, bringing the nominal total to119. Full resolution allocates none. Trace/filter UBOs use64bytes; only diagnostic composition borrows the filter UBO. Filtering writes four attachments normally and five when diagnostics are compiled in.
+Normal storage is approximately103bytes per reduced pixel: two46-byte histories plus44-byte raw trace at one quarter their area, with ceil-edge overhead,32KiB blue noise and1KiB jitter points. Diagnostic capture adds16bytes per reduced pixel across both histories, bringing the nominal total to119. Full resolution allocates none. Trace/filter UBOs use64bytes; only diagnostic composition borrows the filter UBO. Filtering writes four attachments normally and five when diagnostics are compiled in. Reduced rendering requires13texture-unit slots: temporal jitter uses12, leaving11 for diagnostic composition. Jitter adds one sequence fetch per fresh trace and compatible fresh filtering, no composition reads and no metadata bandwidth.
 
 The Cloud Stored Volume visualizer selects that compiled variant and adds update-class colors (fresh green, carry blue, fallback orange, invalid red), effective prior weight (black0 to white1), reason color and observation age (black0 to white7). Reason codes:0 filtered admission,1 no compatible frame,2 projection outside coverage,4 incompatible completion/count,5 foreground depth,6 malformed physical transport,7 representative distance,8 expired age,9 failed fresh trace,10 supported-bound replacement,11 zero reactive weight,12 nearest-compatible admission. Code12 indicates retained information, not rejection; status and effective weight still determine whether it contributes. Reason colors use fract(code*(.37,.61,.83)); code0 is green. The visualizer does not change physical sampling or create CPU readbacks.
 

@@ -2210,54 +2210,179 @@ Phase 8.6.4 - Integrate progressive subpixel jitter into cloud view sampling
   Depends on: Phase8.6.2 motion correspondence correction and Phase8.6.3 shared reprojection.
   Outcome: fresh cloud view rays progressively sample their reduced pixel footprint, reusing the
     existing PMJ infrastructure while blue noise continues to distribute the four-frame refresh schedule.
-  [ ] Reconcile PBR.CloudVolume.Proposal.md / Rendering the published volume and Temporal view
+  [x] Reconcile PBR.CloudVolume.Proposal.md / Rendering the published volume and Temporal view
       sampling contract, PBR.Clouds.md / Stored-volume temporal view, and LumOn.PMJ-Jitter.md with
       the selected subpixel sampling contract before implementation. Inspect Noise/PmjGenerator,
       PmjSobol02, PmjOwenScrambler and LumOnPmjJitterTexture plus actual anchor-shader indexing.
       Distinguish our Sobol-based/Owen-style implementation from published PMJ variants; do not
       assume spatial blue-noise or progressive-prefix properties not established by the actual code.
-  [ ] Reuse the generic Noise sequence/cache/conversion facilities and existing texture/program
+  [x] Reuse the generic Noise sequence/cache/conversion facilities and existing texture/program
       abstractions. Keep cloud resource lifetime independent of LumOn enablement, configuration and
       private renderer ownership; extract only genuinely shared provisioning if needed. Precompute
       and upload a small sequence once per relevant identity, not per frame or pixel. Account for
       sequence storage, optional metadata and replacement/retirement without a new sampling framework.
-  [ ] Add bounded two-dimensional offsets within each selected reduced pixel. Preserve the existing
+  [x] Add bounded two-dimensional offsets within each selected reduced pixel. Preserve the existing
       blue-noise ranked one-per-2x2 refresh schedule, ray budget, full-resolution reference bypass,
       exact occupied-cell DDA intervals and conservative material/particle/liquid clipping. Jitter
       changes the view ray, not density, cached lighting, physical voxel boundaries or integration steps.
-  [ ] Define indexing by successive fresh tracing opportunities for each pixel, rather than consuming
+  [x] Define indexing by successive fresh tracing opportunities for each pixel, rather than consuming
       every fourth sequence entry through naive frame indexing. Derive the observation index from
       schedule/cycle state where possible; carried/fallback frames do not advance it. Specify cold
       full-grid traces, history rejection, frame gaps, cycle wrap and odd boundary tiles. History
       confidence is not a monotonic sequence counter. Avoid new persistent counters unless necessary.
-  [ ] Decorrelate neighboring pixel sequences deterministically with bounded hash/scramble or existing
+  [x] Decorrelate neighboring pixel sequences deterministically with bounded hash/scramble or existing
       rank inputs while preserving the selected sequence properties. Do not assume arbitrary index
       offsets or skipped subsequences preserve stratification. Keep jitter stable under the declared
       screen/material identity and specify behavior across camera movement and view resize/reload.
-  [ ] Reconstruct fresh representative cloud points using their actual jittered positions. Define how
+  [x] Reconstruct fresh representative cloud points using their actual jittered positions. Define how
       blended/carried history represents the pixel footprint and its distance/position uncertainty;
       choose reproducible offsets or minimal justified metadata rather than silently treating jittered
       rays as pixel-centre rays. Preserve camera/wind motion once, physical payload/bucket consistency,
       real disocclusion rejection, failed-ray safety and age/confidence semantics from8.6.1.
       Extend the exact stationary-address certificate to include sample-position identity: an unchanged
       camera/material transform alone must not bypass reprojection when the jitter position changes.
-  [ ] Extend affected existing fixtures for deterministic indexing, consecutive consumed samples,
+  [x] Extend affected existing fixtures for deterministic indexing, consecutive consumed samples,
       offset bounds, cold/odd/wrapped schedules, reference bypass, reprojection and resource lifetime.
       Reuse unchanged sequence tests; no approximation-quality, noise, convergence or image-error gates.
       Use focused cached incremental builds/tests through subagents; no broad matrix or packaging.
-  [ ] Measure trace/filter/composition and independent total cost at unchanged ray counts/settings;
+  [x] Measure trace/filter/composition and independent total cost at unchanged ray counts/settings;
       include texture reads, metadata traffic and actual prior contribution. Obtain user-run review
       of silhouettes, stationary flicker, motion/ghosting and dynamic weather/light response. Reconcile
       proposal/current docs, perform second review and independent audit. Never launch the game.
       Completion requires integrated PMJ-based ray jitter with truthful indexing/reprojection and
       explicit appearance/performance limits; a longer sequence alone is not proof of improvement.
 
-Phase 8.6.5 - Implement spatiotemporal blue-noise jitter and compare with PMJ
-  Depends on: Phase8.6.4 and its reproducible PMJ sampling/retention evidence.
+Phase 8.6.4 implementation and verification (complete)
+  Ownership and traceability
+    - Tasks1-2 -> proposal / Rendering the published volume and Temporal view sampling contract;
+      PBR.Clouds.md / Stored-volume temporal view; LumOn.PMJ-Jitter.md and inspected Noise generator,
+      cache, packing, Sobol/Owen and actual anchor/atlas-temporal shaders. The Pmj02 name denotes
+      this project's Sobol-based/Owen-style transform, not the published PMJ algorithm or a proven
+      blue-noise/progressive-prefix construction. LumOn uses frame+probe indexing; cloud indexing
+      counts fresh opportunities instead. Generic Rendering/PmjJitterTexture replaces effect-owned
+      provisioning without compatibility aliases or a new sampling framework.
+    - Tasks3-6 -> same view/temporal contracts, plus shared camera projection and foreground contracts:
+      cloud_volume/sampling composes generic opportunity indexing/digital shift. Camera/wind and exact
+      voxel DDA remain unchanged; full reference compiles out jitter. Centre-based depth gathers retain
+      complete conservative foreground support. Ray/medium coordinates and fresh reprojection use the
+      same jittered UV. A carried/blended value explicitly represents a pixel footprint, not one exact
+      world point; scalar range and existing max(2units,5percent) gates retain bounded proxy uncertainty.
+    - The cold epoch occupies existing temporal padding. Point0 is consumed by every cold ray; later
+      indices count scheduled fresh opportunities including clamped odd-tile duplicates, modulo256.
+      No confidence-derived counter, arbitrary sequence offset or every-fourth-entry stride is used.
+      Failed submission never commits an epoch. Frame gaps/incompatibility restart; ordinary per-pixel
+      history rejection does not. Pixel hash stays screen-relative; fresh jitter cannot use the exact
+      stationary-address bypass, while unchanged carried footprint centres can.
+    - Tasks7-8 -> inherited execution/evidence rules and the same numerical/resource contracts:
+      focused existing tests plus a bounded typed sampling probe, matched per-pass/independent-total
+      measurements at unchanged settings and user-run appearance review. No approximation-quality
+      thresholds, broad matrices, routine packaging or game launch/closure.
+  Resource review
+    - One256x1RG16 sequence adds1024bytes per reduced view lifetime, independent of LumOn. No new
+      persistent pixel metadata, counter, position image, 3D field, pass or UBO allocation. The two
+      temporal blocks stay64bytes each. One sequence fetch per fresh trace/compatible fresh filtering;
+      composition adds no fetch or metadata traffic. Typed temporal jitter occupies slot12, leaving
+      diagnostic composition slot11 distinct; reduced capability admission requires13texture slots.
+    - Jitter changes which cells a ray crosses, not its budget or physical interval rule. Added sequence
+      reads/hash/index arithmetic and retention changes can cost time; no improvement is assumed.
+  Focused verification and measured limits
+    - artifacts/CloudPmj/checked.trx supplies21passing checks; its authored-depth fixture failure is
+      superseded by the corrected actual-jitter-address fact in address-and-cost.trx. epoch.trx proves
+      the saved CPU epoch/commit/gap/wrap contract. Together:23distinct passing correctness checks
+      plus one cost benchmark, no skipped evidence or approximation-quality gate. Cached final build
+      succeeds with0errors and0shader recompiles. The preceding affected build emitted26production
+      and27fixture variants, reusing unrelated variants. Missing initial receipts required catalog
+      recovery; a concurrent source edit was rejected by the build guard, and Windows publication
+      required a cached elevated retry. No cache manipulation, baseline matrix or packaging.
+    - Actual helper checks cover cold, odd/clamped, uint-wrap and256point schedules, bounded offsets,
+      large-edge UVs and deterministic digital shifts. GPU checks include physical temporal retention,
+      real jittered fresh projection versus stationary-centre admission, failed-ray/clipping safety,
+      FullReference arithmetic/bypass and typed immutable upload/retirement. Disposed sequence owners
+      now reject recreation rather than resurrecting a retired allocation.
+    - artifacts/CloudPmj/comparison.md retains raw independent-total samples and separate pass queries,
+      plus their receipts. RTX4090,3440x1377,quarter, fixed fields/settings, diagnostics in both runs;
+      game left running with uncontrolled contention. Cold/reuse ray counts stay296700/74390 and view
+      targets stay35316760bytes; jitter adds1024bytes, with no pixel metadata traffic. Occupied reuse
+      pass observations trace/filter/compose: .0768/.1044/.8294ms before, .0768/.1116/.8950ms after.
+      Independent occupied cold medians1.0230->1.4715ms and reuse3.0679->1.3066ms have substantial
+      sample variance; these observations establish neither a speedup nor a reliable regression.
+    - Candidate occupied reuse retains positive prior contribution in296694/296700pixels, with222310
+      carries,74390fresh and0fallback. Mean prior weight .888366 includes weight-one carries, not just
+      independently fresh observations. Baseline lacks matched mean weight, so no retention-improvement
+      comparison is claimed. Headless receipts do not establish appearance or live FPS.
+    - Source/document/receipt audit supported the implementation. Initial appearance review reported
+      constant boiling around cloud edges. The user subsequently explicitly accepted8.6.4 with this
+      known limitation and requested the next subphase to address temporal coverage accumulation.
+      This closes PMJ integration, not the edge-stability issue. Sampling/history cycle alignment
+      remains an unconfirmed hypothesis; no visual improvement or stable-edge result is claimed.
+      Corrective coverage work belongs to8.6.5 and must precede the STBN comparison in8.6.6.
+
+Phase 8.6.5 - Accumulate subpixel cloud coverage without discarding valid edge history
+  Depends on: Phase8.6.4 and its accepted PMJ integration with known edge-boiling limitation.
+  Outcome: valid jittered hits and misses accumulate a stable pixel-footprint estimate while real
+    foreground disocclusion, removed cloud support and invalid observations still retire stale history.
+    This temporal policy applies to both PMJ and the later STBN comparison; sequence period matching
+    or a longer history alone must not be presumed to resolve rejection before accumulation.
+  [ ] Consult PBR.CloudVolume.Proposal.md / Rendering the published volume and Temporal view sampling
+      contract, PBR.Clouds.md / Stored-volume temporal view,8.6.1 boundary retention and8.6.2/8.6.3
+      correspondence contracts, plus8.6.4's indexing/footprint evidence. Identify which current
+      empty/contributing classification, opacity/radiance reactivity and reconstruction rules discard
+      legitimate coverage variation. Reconcile the controlling contracts with the selected coverage
+      estimator before implementation rather than silently weakening the previous rejection policy.
+  [ ] Define the accumulated quantity and metadata explicitly: premultiplied radiance/opacity and
+      paired bucket factors describe a pixel footprint, while completion and independent-observation
+      confidence describe evidence. Valid fresh empty rays may reduce accumulated coverage gradually;
+      they must not automatically overwrite the retained footprint's classification with the latest
+      miss. Invalid/failed rays and spatial fallback supply no independent coverage observations.
+      Specify consistent all-empty, mixed-coverage and contributing states and finite physical bounds.
+  [ ] Preserve representative cloud support while subsequent jittered rays miss it. Define its
+      distance/position uncertainty and the transport of that support through camera rotation,
+      translation and cloud wind exactly once. Keep sample-position identity, conservative scene-depth
+      footprint clipping and paired hardware-filtered physical payloads. Reconstruction must interpret
+      accumulated coverage/support, not merely the latest ray's hit/miss label; do not interpolate
+      unrelated foreground or cloud-depth layers to manufacture retention.
+  [ ] Separate within-footprint sampling variation from real disocclusion, domain/material identity
+      changes, disappearing density and newly revealed foreground. Evaluate bounded retention and,
+      only if needed, a conditional check of the retained representative point against the existing
+      published density. One sample cannot certify an entire footprint or prove full visibility.
+      Reuse existing coordinate/publication inputs and shared UBOs without duplicate camera/scene data;
+      add no replacement density field, lighting solver, velocity pass or per-pixel shadow/ray march.
+  [ ] Specify bounded stale-coverage retirement and fresh-response behavior for cloud removal, changing
+      weather/light and foreground transitions. Distinguish refresh of an empty observation from the
+      age of retained positive cloud support so repeated misses cannot perpetually renew stale opacity.
+      Revisit opacity/radiance reactivity and clipping only where coverage semantics justify it;
+      preserve real foreground, failed-ray and lifecycle rejection. Evaluate retention length in actual
+      fresh opportunities, independently of the256point jitter cycle. Do not hide boiling with an
+      unbounded history, larger ray budget, frozen jitter or blanket rejection disablement.
+  [ ] Fit the selected support/coverage evidence into existing metadata when its semantics allow it;
+      add only justified channels if independent support age or validity cannot be reconstructed.
+      Account for both histories, raw targets if affected, formats, framebuffer attachments, sampler
+      slots, resident/peak payload and retirement/replacement. One R16F channel across both histories
+      is approximately2MiB at4K quarter resolution, an estimate rather than a mandated allocation.
+      Extend ordinary validity state separately from compile-time optional diagnostic interfaces;
+      preserve cloud independence from LumOn resources and use existing GPU/program abstractions.
+  [ ] Extend focused existing fixtures for alternating valid hit/miss observations, retained support
+      and its finite retirement, failed/fallback evidence, constant and moving foreground, rotation,
+      translation/wind, removal/reappearance, cold/odd/resize/reload transitions and reference bypass.
+      Verify declared coverage/confidence/age math, resource identity and actual prior contribution;
+      no approximation-quality, convergence, noise or image-error pass/fail gates. Preserve PMJ fresh
+      opportunity indexing and actual ray counts. Use cached incremental builds/tests through subagents;
+      no broad matrices, repeated baseline reproduction or routine packaging.
+  [ ] Reuse8.6.4 measurement evidence and collect only the targeted comparison needed for changed
+      trace/filter/composition and independent total cost at unchanged sampling settings. Account for
+      conditional density reads, metadata traffic, memory and retained contribution; disclose running
+      game contention and do not infer improvement from source sharing or an isolated pass. Obtain
+      user-run review of stationary/thin edges, silhouettes, motion/ghosting, foreground reveal and
+      removal/weather/light response before closing. Reconcile proposal/current docs, perform second
+      review and independent audit. Never launch/close the game. Record remaining limitations and leave
+      the later STBN comparison unchecked.
+
+Phase 8.6.6 - Implement spatiotemporal blue-noise jitter and compare with PMJ
+  Depends on: Phase8.6.4 sampling evidence and Phase8.6.5 accepted coverage-aware temporal policy.
   Outcome: compare genuine two-dimensional STBN ray jitter against PMJ under the same cloud
     reconstruction and history policy, then select the delivered sampling approach from evidence.
   [ ] Consult PBR.CloudVolume.Proposal.md / Rendering the published volume and Temporal view sampling
-      contract, PBR.Clouds.md / Stored-volume temporal view and8.6.4's selected indexing/footprint
+      contract, PBR.Clouds.md / Stored-volume temporal view and8.6.4/8.6.5's indexing/coverage/footprint
       contract. Specify the STBN asset/generation method, two-dimensional vector distribution,
       temporal period, tiling and required attribution. Independently animated spatial masks or a
       generic3D blue-noise texture must not be described as STBN without the required properties.
@@ -2428,7 +2553,7 @@ Phase 8.8 - Provide five compiled cloud-quality workload levels
       or close the game or infer a performance guarantee from shader counts alone.
 
 Phase 9 - Qualify the frozen implementation and reconcile documentation
-  Depends on: Phase8.6 including8.6.1,8.6.2,8.6.3,8.6.4 and8.6.5, plus Phases8.7 and8.8.
+  Depends on: Phase8.6 including8.6.1,8.6.2,8.6.3,8.6.4,8.6.5 and8.6.6, plus Phases8.7 and8.8.
   Outcome: measured total cost, memory and user appearance determine candidate acceptance.
   [ ] Freeze the candidate and run canonical packaging/required final checks once. Verify delivered
       assets, selectable settings and cleanup; do not treat older candidate receipts as qualification.

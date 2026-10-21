@@ -5,7 +5,9 @@
 @import "../includes/camera_reprojection.glsl"
 @import "../includes/blue_noise.glsl"
 @import "../includes/interleaved_sampling.glsl"
+@import "sampling.glsl"
 uniform sampler2D temporalBlueNoise;
+uniform sampler2D cloudPmjJitter;
 uniform sampler2D reconstructCloud;
 uniform sampler2D reconstructBins;
 uniform sampler2D reconstructMetadata;
@@ -54,10 +56,10 @@ float StoredTemporalDepth(vec2 uv)
     return min(min(depth.x,depth.y),min(depth.z,depth.w));
 }
 /** Identifies actual observations independently of spatial fallback or carried history. */
-bool StoredTemporalFresh(ivec2 p,ivec2 size,out ivec2 source)
+bool StoredTemporalFresh(ivec2 p,ivec2 size,out ivec2 source,out float rank)
 {
-    source=p;if(cloudHistory.x<.5)return true;
-    source=p/2;float rank=BlueNoiseRank(temporalBlueNoise,source,0u,8);
+    source=p;rank=0;if(cloudHistory.x<.5)return true;
+    source=p/2;rank=BlueNoiseRank(temporalBlueNoise,source,0u,8);
     return all(equal(p,InterleavedSampleLocation2x2(rank,source,vgeFrame.frameIndex,size)));
 }
 /** Classifies one history tap without relaxing foreground, support, distance or expiry gates. */
@@ -70,12 +72,12 @@ float StoredTemporalTap(vec4 old,float age,float kind,float depth,float distance
     return 0;
 }
 /** Uses a qualified hardware footprint, or its nearest individually compatible texel centre. */
-bool StoredTemporalHistory(vec2 uv,float depth,float distance,float kind,bool fresh,ivec2 size,
+bool StoredTemporalHistory(vec2 uv,vec2 sampleUv,float depth,float distance,float kind,bool fresh,ivec2 size,
     out vec4 value,out vec3 bins,out float count,out float age,out float reason,out vec2 support)
 {
     value=vec4(0);bins=vec3(1);count=8;age=0;reason=0;StoredTemporalReason(1);support=vec2(0);
     if(cloudHistory.x<.5)return false;
-    vec3 direction=normalize(CameraReconstructDisplacement(vgeFrame.invProjectionMatrix,vgeFrame.invViewMatrix,uv,1));
+    vec3 direction=normalize(CameraReconstructDisplacement(vgeFrame.invProjectionMatrix,vgeFrame.invViewMatrix,sampleUv,1));
     // Rotation maps directions independently of cloud distance. Translation needs current-ray
     // evidence: main supplies the nearest completed fresh neighbor as a bounded distance proxy.
     // Never bootstrap a moving ray from history at the old, unrelated same-screen coordinate.
@@ -83,13 +85,15 @@ bool StoredTemporalHistory(vec2 uv,float depth,float distance,float kind,bool fr
     bool directional=!fresh&&!translated;
     float anchor=distance;
     if(directional)anchor=1;
-    if(!directional&&kind==2)anchor=length(CameraReconstructDisplacement(vgeFrame.invProjectionMatrix,vgeFrame.invViewMatrix,uv,depth));
+    if(!directional&&kind==2)anchor=length(CameraReconstructDisplacement(vgeFrame.invProjectionMatrix,vgeFrame.invViewMatrix,sampleUv,depth));
     if(!directional&&kind!=1&&kind!=2){StoredTemporalReason(4);return false;}
     if(anchor<=0){StoredTemporalReason(4);return false;}
     vec3 point=direction*anchor+cloudPreviousTranslation.xyz;
     vec4 clip=CameraProjectDisplacement(vgeFrame.prevViewProjMatrix,vgeFrame.projectionMatrix,point);
     if(clip.w<=0){StoredTemporalReason(2);return false;}
-    bool stationary=cloudHistory.z>.5;
+    // Carried history represents the reduced pixel footprint. Its centre can use exact
+    // stationary addressing; a newly jittered observation must project its actual ray instead.
+    bool stationary=cloudHistory.z>.5&&all(equal(sampleUv,uv));
     vec2 oldUv=stationary?uv:CameraClipUv(clip);
     if(!CameraUvInBounds(oldUv)){StoredTemporalReason(2);return false;}
     // The certified identity map has exactly one support texel. Even an inverse/project
@@ -189,7 +193,12 @@ void main()
     ivec2 pixel=ivec2(gl_FragCoord.xy),size=ivec2(cloudTrace.xy),source;
     vec2 uv=(vec2(pixel)+.5)/vec2(size);float depth=StoredTemporalDepth(uv);
     if(isnan(depth)||isinf(depth)){StoredTemporalReject(5);return;}
-    bool fresh=StoredTemporalFresh(pixel,size,source);
+    float rank;bool fresh=StoredTemporalFresh(pixel,size,source,rank);
+    vec2 sampleUv=uv;
+    if(fresh&&cloudHistory.x>.5)
+    {
+        sampleUv=StoredVolumeSampleUv(cloudPmjJitter,rank,pixel,size,vgeFrame.frameIndex,floatBitsToUint(cloudHistory.w));
+    }
     vec4 data=vec4(0),meta=vec4(0);vec3 bins=vec3(1);
     if(fresh)
     {
@@ -204,8 +213,8 @@ void main()
     // spanning, same-support evidence. One observation never defines clipping bounds.
     for(int y=-1;y<=1;y++)for(int x=-1;x<=1;x++)
     {
-        ivec2 p=pixel+ivec2(x,y),s;
-        if(any(lessThan(p,ivec2(0)))||any(greaterThanEqual(p,size))||!StoredTemporalFresh(p,size,s))continue;
+        ivec2 p=pixel+ivec2(x,y),s;float neighborRank;
+        if(any(lessThan(p,ivec2(0)))||any(greaterThanEqual(p,size))||!StoredTemporalFresh(p,size,s,neighborRank))continue;
         vec4 m=texelFetch(reconstructMetadata,s,0),c=texelFetch(reconstructCloud,s,0);vec3 b=texelFetch(reconstructBins,s,0).rgb;
         if(!StoredTemporalFinite(c,b,m)||abs(m.x-depth)>2e-5)continue;
         if(fresh&&m.y==meta.y&&abs(m.z-meta.z)<=max(2.0,meta.z*.05))
@@ -214,7 +223,7 @@ void main()
         if(!fresh&&score<best){best=score;data=c;bins=b;meta=m;}
     }
     vec4 old;vec3 oldBins;float count,age,reason;vec2 support;
-    bool accepted=StoredTemporalHistory(uv,depth,meta.z,meta.y,fresh,size,old,oldBins,count,age,reason,support);
+    bool accepted=StoredTemporalHistory(uv,sampleUv,depth,meta.z,meta.y,fresh,size,old,oldBins,count,age,reason,support);
     if(!fresh&&accepted)
     {
         // Hardware-filtered transport is carried intact, with no spatial-current blend and no

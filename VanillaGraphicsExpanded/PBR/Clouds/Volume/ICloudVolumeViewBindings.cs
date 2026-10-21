@@ -21,6 +21,9 @@ internal interface ICloudVolumeViewBindings:IPhotometricFrameBindings
     /// <summary>Distributes rotating reduced-pixel phases with the existing cloud blue-noise resource.</summary>
     [ShaderBinding("viewBlueNoise",ShaderBindingKind.Sampler,9,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp,Required=false)]
     GpuTexture? BlueNoise {set;}
+    /// <summary>Reuses generic sequence provisioning for reduced-pixel ray offsets only.</summary>
+    [ShaderBinding("cloudPmjJitter",ShaderBindingKind.Sampler,10,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp,Required=false)]
+    GpuTexture? PmjJitter {set;}
     /// <summary>Reads conservative stored-density occupancy.</summary>
     [ShaderBinding("VolumeOccupancy",ShaderBindingKind.StorageBlock,0,ShaderStageKind.Fragment)]
     GpuShaderStorageBuffer? Occupancy {set;}

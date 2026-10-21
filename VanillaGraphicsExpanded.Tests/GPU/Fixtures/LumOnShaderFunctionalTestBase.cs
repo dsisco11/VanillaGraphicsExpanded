@@ -111,7 +111,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     /// <summary>Retains one default sequential component branch; simultaneous histories use explicit separate owners.</summary>
     private protected ShaderLightingResources LightingResources => lightingResources ??= new(Programs.Api);
 
-    private LumOnPmjJitterTexture? _pmjJitterTexture;
+    private PmjJitterTexture? _pmjJitterTexture;
     private int _pmjJitterCycleLength;
     private uint _pmjJitterSeed;
 
@@ -216,7 +216,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
     #region PMJ Helpers
 
     /// <summary>Reuses the jitter owner until its deterministic seed or cycle changes.</summary>
-    protected LumOnPmjJitterTexture GetOrCreatePmjJitterTexture(int cycleLength = DefaultPmjCycleLength, uint seed = DefaultPmjSeed)
+    protected PmjJitterTexture GetOrCreatePmjJitterTexture(int cycleLength = DefaultPmjCycleLength, uint seed = DefaultPmjSeed)
     {
         if (_pmjJitterTexture is not null && _pmjJitterTexture.TextureId != 0 && _pmjJitterCycleLength == cycleLength && _pmjJitterSeed == seed)
         {
@@ -232,7 +232,7 @@ public abstract class LumOnShaderFunctionalTestBase : RenderTestBase, IDisposabl
         _pmjJitterCycleLength = cycleLength;
         _pmjJitterSeed = seed;
 
-        _pmjJitterTexture = LumOnPmjJitterTexture.Create(cycleLength, seed);
+        _pmjJitterTexture = PmjJitterTexture.Create(cycleLength, seed);
 
         return _pmjJitterTexture;
     }
