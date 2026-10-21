@@ -21,7 +21,7 @@ internal sealed class CloudReprojectionHistory
     internal void Invalidate() { valid=false; owner.SetTarget(null!); }
     /// <summary>Reprojects only consecutive compatible main-view frames, irrespective of reusable texture names.</summary>
     internal bool Capture(CloudMapInput input,VgeFrameUniformBuffer camera,int width,int height,CloudTemporalParameters output,
-        bool contentCompatible,int divisor=2)
+        bool contentCompatible,int divisor=2,int debugMode=0)
     {
         bool compatible=valid && !camera.CameraCut && camera.FrameIndex==input.Frame && unchecked(frame+1)==input.Frame
             && owner.TryGetTarget(out var previousOwner) && ReferenceEquals(previousOwner,input.Owner) && input.Storage.Width==mapWidth
@@ -46,7 +46,7 @@ internal sealed class CloudReprojectionHistory
             compatible=false;
         if(!valid) CaptureCloudProjection(camera,previousProjection);
         output.Capture(previousProjection,compatible?translation:Vector3.Zero,
-            width,height,input.Frame,compatible,divisor);
+            width,height,input.Frame,compatible,divisor,debugMode);
         return compatible;
     }
     /// <summary>Commits only after trace, reconstruction and full-resolution submission all succeed.</summary>

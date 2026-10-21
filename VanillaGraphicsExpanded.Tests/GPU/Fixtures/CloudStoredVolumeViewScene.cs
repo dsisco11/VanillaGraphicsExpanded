@@ -9,6 +9,7 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
+using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VolumeStorage=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeStorage;
 
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -23,6 +24,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     private readonly TestFrameLightingPublication lighting;
     private readonly VolumeStorage storage;
     private readonly CloudVolumeViewRenderer renderer;
+    private readonly CloudVolumeTemporalProgram temporalProgram;
     private readonly CloudOitSurface output;
     private CloudMapInput input;
     private uint updateFrame;
@@ -38,6 +40,21 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     internal float[] TraceReceipts=>renderer.TraceReceipts?.ReadPixels()??[];
     /// <summary>Reads the successfully committed history metadata, independently of fresh-ray scheduling.</summary>
     internal float[] HistoryReceipts=>renderer.HistoryReceipts?.ReadPixels()??[];
+    /// <summary>Requests the compiled receipt variant while keeping native composition unchanged.</summary>
+    internal bool CaptureDiagnostics {get;set;}=true;
+    /// <summary>Reads real contribution, update class, rejection and observation age outside submission.</summary>
+    internal float[] HistoryDiagnostics=>renderer.HistoryDiagnostics?.ReadPixels()??[];
+    /// <summary>Reads physical compact transport without native encoding or OIT expansion.</summary>
+    internal float[] HistoryCloud=>renderer.CompletedHistory?.Images[0].ReadPixels()??[];
+    /// <summary>Authors prior transport and confidence independently of the current trace.</summary>
+    internal void SeedHistory(float[] cloud,float[] metadata,float[] diagnostics,float[]? bins=null)
+    {
+        var completed=renderer.CompletedHistory??throw new InvalidOperationException("History has not been drawn.");
+        completed.Images[0].UploadDataImmediate(cloud);completed.Images[2].UploadDataImmediate(metadata);
+        completed.Images[3].UploadDataImmediate(diagnostics.Where((_,i)=>i%4==3).ToArray());
+        completed.Diagnostics?.UploadDataImmediate(diagnostics);
+        if(bins is not null)completed.Images[1].UploadDataImmediate(bins);
+    }
     /// <summary>Borrows opt-in query owners for a separate nonnested per-pass measurement.</summary>
     internal void SetPassTimers(GpuTimerQuery[]? timers){renderer.PassTimers=timers;}
     /// <summary>Reports the shared history admission used by the last view.</summary>
@@ -76,7 +93,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             Assert.NotNull(view);Assert.NotNull(reconstruction);
             Assert.True(reconstruction.EnsureReady(),reconstruction.PreparationFailure?.ToString());
             var temporal=GpuShaderProgramLibraries.Get<CloudVolumeTemporalProgram>(programs.Api,CloudVolumeTemporalProgram.Contract.Identity);
-            Assert.NotNull(temporal);renderer=Own(new CloudVolumeViewRenderer(view,reconstruction,temporal));
+            Assert.NotNull(temporal);temporalProgram=temporal;renderer=Own(new CloudVolumeViewRenderer(view,reconstruction,temporal));
             output=Own(new CloudOitSurface(width,height,"Tests.Cloud.StoredVolume.View"));
         }
         catch{Dispose();throw;}
@@ -87,6 +104,43 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         var fields=storage.Published;var d=fields.Domain;
         fields.Density.UploadDataImmediate(Enumerable.Repeat(sigma,d.Voxels).ToArray(),0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(Enumerable.Repeat(sigma==0?0u:1u,d.Blocks).ToArray());
+    }
+    /// <summary>Filters independently authored compact rays through the actual temporal program at a stationary half-scale view.</summary>
+    internal float[][] FilterAuthored(float[] cloud,float[] bins,float[] metadata,bool diagnostics=true)
+    {
+        temporalProgram.ConfigureOptions(()=>temporalProgram.DiagnosticsEnabled=diagnostics);
+        Assert.True(temporalProgram.EnsureReady(),temporalProgram.PreparationFailure?.ToString());
+        var previous=renderer.CompletedHistory??throw new InvalidOperationException("History has not been drawn.");
+        using var raw=new CloudVolumeViewTargets(material.Width,material.Height,4);
+        using var destination=new CloudVolumeViewTargets(material.Width,material.Height,2,true);
+        destination.ConfigureDiagnostics(diagnostics);
+        using var lifetime=new GraphicsPipelineLifetime();using var pass=new CloudVolumeViewPass(temporalProgram,lifetime);
+        using var geometry=new ArrayGraphicsGeometry(CloudVolumeViewRenderer.Layout,PrimitiveType.Triangles,
+            new Dictionary<int,GpuVbo>(),proceduralVertices:3);
+        using var noise=CloudBlueNoiseTexture.Create();noise.EnsureCreated();
+        raw.Images[0].UploadDataImmediate(cloud);raw.Images[1].UploadDataImmediate(bins);raw.Images[2].UploadDataImmediate(metadata);
+        var projection=camera.CurrentViewProjection.ToArray();camera.Projection.Slice(12,4).CopyTo(projection.AsSpan(12));
+        temporalProgram.Temporal.Capture(projection,Vector3.Zero,destination.Target.Width,destination.Target.Height,input.Frame,true);
+        lighting.Capture(1,input.Frame);
+        try
+        {
+            temporalProgram.Frame=camera;temporalProgram.Lighting=lighting.Buffer;temporalProgram.BlueNoise=noise;
+            temporalProgram.Cloud=raw.Images[0];temporalProgram.Bins=raw.Images[1];temporalProgram.Metadata=raw.Images[2];
+            temporalProgram.PreviousCloud=previous.Images[0];temporalProgram.PreviousBins=previous.Images[1];
+            temporalProgram.PreviousMetadata=previous.Images[2];temporalProgram.PreviousAge=previous.Images[3];temporalProgram.Diagnostics=null;
+            temporalProgram.MaterialDepth=material;temporalProgram.VisibilityDepth=visibility;temporalProgram.LiquidDepth=liquid;
+            pass.Prepare(destination.Target,destination.FilterOutputs,false);
+            Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.Temporal.Authored",[pass.Pipeline!],true,commands=>pass.Draw(commands,geometry)));
+            return [destination.Images[0].ReadPixels(),destination.Images[1].ReadPixels(),destination.Images[2].ReadPixels(),
+                destination.Diagnostics?.ReadPixels()??[],destination.Images[3].ReadPixels()];
+        }
+        finally
+        {
+            temporalProgram.Frame=null;temporalProgram.Lighting=null;temporalProgram.BlueNoise=null;
+            temporalProgram.Cloud=null;temporalProgram.Bins=null;temporalProgram.Metadata=null;
+            temporalProgram.PreviousCloud=null;temporalProgram.PreviousBins=null;temporalProgram.PreviousMetadata=null;temporalProgram.PreviousAge=null;temporalProgram.Diagnostics=null;
+            temporalProgram.MaterialDepth=null;temporalProgram.VisibilityDepth=null;temporalProgram.LiquidDepth=null;
+        }
     }
     /// <summary>Authors independent material, particle and liquid depth clips in projection space.</summary>
     internal void SetDepths(float opaque,float particles,float water)
@@ -126,7 +180,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             Assert.NotNull(solution.Drawable);Assert.True(solution.Drawable.Revision>before);
         }
         PrepareDraw(settings,scale,clear);
-        bool drawn=solution is null?DrawOnly():renderer.Draw(solution.Drawable!,input,preparedScene,output.Target,()=>true);
+        bool drawn=solution is null?DrawOnly():renderer.Draw(solution.Drawable!,input,preparedScene,output.Target,()=>true,captureDiagnostics:CaptureDiagnostics);
         if(succeeds)Assert.True(drawn,renderer.Failure);else{Assert.False(drawn);Assert.NotNull(renderer.Failure);}
         return output.Images.Select(texture=>texture.ReadPixels()).ToArray();
     }
@@ -141,8 +195,8 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         preparedScene=new CloudVolumeViewScene(camera,lighting.Buffer,Atmosphere,material,visibility,liquid,aerial,attenuation,shafts,Underwater);
     }
     /// <summary>Submits only the actual typed view draw, without preparation, clearing or readback.</summary>
-    internal bool DrawOnly()=>replacementIdentity is null?renderer.Draw(storage,input,preparedScene,output.Target,()=>true):
-        renderer.Draw(storage.Published.View with{MaterialIdentity=replacementIdentity},input,preparedScene,output.Target,()=>true);
+    internal bool DrawOnly()=>replacementIdentity is null?renderer.Draw(storage,input,preparedScene,output.Target,()=>true,captureDiagnostics:CaptureDiagnostics):
+        renderer.Draw(storage.Published.View with{MaterialIdentity=replacementIdentity},input,preparedScene,output.Target,()=>true,captureDiagnostics:CaptureDiagnostics);
     /// <summary>Models a new material owner reusing identical drawable allocations.</summary>
     internal void ReplaceViewMaterialIdentity(){replacementIdentity=new object();}
     /// <summary>Advances a complete camera/native frame pair without changing cloud storage identity.</summary>

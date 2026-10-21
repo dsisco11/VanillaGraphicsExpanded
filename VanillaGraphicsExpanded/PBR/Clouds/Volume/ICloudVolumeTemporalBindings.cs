@@ -8,9 +8,9 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 internal interface ICloudVolumeTemporalBindings:ICloudVolumeReconstructBindings
 {
     #region Public API
-    /// <summary>Supplies shared camera/material reprojection and history admission.</summary>
-    [ShaderBinding("CloudTemporalParameters",ShaderBindingKind.UniformBlock,14,ShaderStageKind.Fragment)]
-    CpuUniformBuffer TemporalInputs {get;}
+    /// <summary>Reads required observation age independently of optional diagnostic resources.</summary>
+    [ShaderBinding("previousAge",ShaderBindingKind.Sampler,10,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? PreviousAge {set;}
     /// <summary>Reads the previous physical radiance and opacity with hardware filtering.</summary>
     [ShaderBinding("previousCloud",ShaderBindingKind.Sampler,6,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.LinearClamp)]
     GpuTexture? PreviousCloud {set;}

@@ -6,9 +6,10 @@ using VanillaGraphicsExpanded.Rendering.Shaders;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Filters compact physical view samples using the shared cloud reprojection certificate.</summary>
-[ShaderProgram("Contract","cloud_volume/temporal",1)]
+[ShaderProgram("Contract","cloud_volume/temporal",2)]
 [ShaderStage("Contract",ShaderStageKind.Vertex,"cloud_volume/view.vsh")]
 [ShaderStage("Contract",ShaderStageKind.Fragment,"cloud_volume/temporal.fsh")]
+[ShaderUse("Contract",ShaderStageKind.Fragment,nameof(DiagnosticsEnabled))]
 internal sealed partial class CloudVolumeTemporalProgram:GpuProgram,ICloudVolumeTemporalBindings
 {
     internal readonly CloudTemporalParameters Temporal;
@@ -17,6 +18,9 @@ internal sealed partial class CloudVolumeTemporalProgram:GpuProgram,ICloudVolume
     /// <summary>Borrows the same admitted photometric frame as the current view.</summary>
     internal GpuShaderStorageBuffer? Lighting {get=>lighting;set{RequireInputMutation();lighting=value;}}
     #region Public API
+    /// <summary>Compiles contribution/rejection receipts out of ordinary filtering.</summary>
+    [ShaderOptionReference(typeof(CloudVolumeTemporalOptions),nameof(CloudVolumeTemporalOptions.Diagnostics))]
+    internal partial bool DiagnosticsEnabled {get;set;}
     /// <summary>Registers the compact payload adapter and owns only its local reprojection parameters.</summary>
     public CloudVolumeTemporalProgram()
     {
@@ -32,7 +36,7 @@ internal sealed partial class CloudVolumeTemporalProgram:GpuProgram,ICloudVolume
     /// <summary>Supplies the current full-view camera without a duplicate global UBO.</summary>
     CpuUniformBuffer ICloudVolumeReconstructBindings.Camera=>frame??throw new InvalidOperationException("Cloud temporal camera missing.");
     /// <summary>Supplies the shared reprojection layout.</summary>
-    CpuUniformBuffer ICloudVolumeTemporalBindings.TemporalInputs=>Temporal;
+    CpuUniformBuffer ICloudVolumeReconstructBindings.TemporalInputs=>Temporal;
     /// <summary>Supplies the current frame certificate without retaining transient encoded history.</summary>
     GpuShaderStorageBuffer CameraExposure.IPhotometricFrameBindings.FrameLighting=>lighting??throw new InvalidOperationException("Cloud temporal lighting missing.");
     #endregion

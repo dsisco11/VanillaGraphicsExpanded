@@ -28,7 +28,8 @@ public static partial class VgeBuiltInDebugViews
         public override void Compose(GuiComposer composer,ElementBounds bounds,string keyPrefix)
         {
             this.composer=composer;textKey=keyPrefix+"-stats";
-            composer.AddDropDown(["1","2","3","4"],["Stored density","Region identity","Completed age","Initialized fallback"],
+            composer.AddDropDown(["1","2","3","4","5","6","7","8"],["Stored density","Region identity","Completed age","Initialized fallback",
+                "Temporal: fresh / carried / fallback","Temporal: effective prior weight","Temporal: rejection reason","Temporal: observation age"],
                 Math.Max(0,CloudStoredVolumeDiagnostics.Mode-1),(value,_)=>CloudStoredVolumeDiagnostics.Mode=int.Parse(value),
                 ElementBounds.Fixed(0,0,420,30).WithParent(bounds),keyPrefix+"-mode")
                 .AddDynamicText(CloudNativeRuntime.StoredVolumeDiagnosticText,CairoFont.WhiteSmallText(),

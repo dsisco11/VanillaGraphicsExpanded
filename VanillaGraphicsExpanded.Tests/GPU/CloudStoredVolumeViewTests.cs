@@ -59,8 +59,8 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             {
                 var selection=settings with{TraceDivisor=divisor};edge.SeedDensity(.0078125f);
                 var clipped=edge.Draw(selection);Assert.All(clipped.SelectMany(v=>v),v=>Assert.True(float.IsFinite(v)));
-                Assert.Equal(divisor==1?0:44*(2*((5+divisor-1)/divisor)*((3+divisor-1)/divisor)+
-                    ((5+divisor*2-1)/(divisor*2))*((3+divisor*2-1)/(divisor*2))),edge.ViewTargetBytes);
+                Assert.Equal(divisor==1?0:108*((5+divisor-1)/divisor)*((3+divisor-1)/divisor)+
+                    44*((5+divisor*2-1)/(divisor*2))*((3+divisor*2-1)/(divisor*2)),edge.ViewTargetBytes);
                 Assert.Same(retained,edge.StoredDensity);
                 if(divisor!=4)for(int y=0;y<3;y++)Assert.True(clipped[1][y*5]>clipped[1][y*5+4]);
                 edge.SeedDensity(0);
@@ -100,7 +100,10 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             Assert.Contains(temporal.HistoryReceipts.Where((_,i)=>i%4==3),count=>count>1);
             temporal.SetDepths(50,50,50);temporal.AdvanceFrame();temporal.Draw(settings);
             Assert.All(temporal.HistoryReceipts.Where((_,i)=>i%4==3),count=>Assert.InRange(count,0,1));
-            temporal.SeedDensity(0);temporal.AdvanceFrame();var cleared=temporal.Draw(settings);
+            // Removed density is observed at each pixel's next scheduled fresh ray; no global
+            // content reset is required. The four-phase sweep removes all retained contribution.
+            temporal.SeedDensity(0);float[][] cleared=[];
+            for(int phase=0;phase<4;phase++){temporal.AdvanceFrame();cleared=temporal.Draw(settings);}
             Assert.All(cleared[1],value=>Assert.Equal(1,value));
             temporal.AdvanceFrame(cameraCut:true);temporal.Draw(settings);Assert.False(temporal.HistoryCompatible);
             temporal.ReleaseViewTargets();temporal.AdvanceFrame();temporal.Draw(settings);
@@ -110,6 +113,91 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             temporal.ReplaceViewMaterialIdentity();temporal.AdvanceFrame();temporal.Draw(settings);
             Assert.False(temporal.HistoryCompatible);
         }
+    }
+    /// <summary>Distinguishes carried information from fresh spatial fallback and verifies actual weight/count arithmetic.</summary>
+    [Fact]
+    public void TemporalCarriesOnlyRealObservationsAndReportsEffectiveWeight()
+    {
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,16,16);
+        var settings=CloudVolumeViewSettings.Default with{Detail=false,TraceDivisor=2};scene.Draw(settings);
+        var original=scene.HistoryCloud;var metadata=scene.HistoryReceipts;
+        var authored=(float[])original.Clone();var diagnostic=new float[metadata.Length];
+        for(int i=0;i<metadata.Length;i+=4){authored[i]+=1;metadata[i+3]=4;}
+        scene.SeedHistory(authored,metadata,diagnostic);scene.AdvanceFrame();scene.Draw(settings);
+        var actual=scene.HistoryCloud;var receipts=scene.HistoryReceipts;var info=scene.HistoryDiagnostics;
+        int carried=0,fresh=0;
+        for(int i=0;i<info.Length;i+=4)
+        {
+            if(info[i+1]==2)
+            {
+                carried++;Assert.Equal(1,info[i]);Assert.Equal(4,receipts[i+3]);Assert.Equal(1,info[i+3]);
+                for(int c=0;c<4;c++)Assert.InRange(Math.Abs(actual[i+c]-authored[i+c]),0,2e-5f);
+            }
+            if(info[i+1]==1)
+            {
+                fresh++;Assert.Equal(0,info[i+3]);
+                // Half-float diagnostics round the weight; metadata retains float32 arithmetic.
+                Assert.InRange(Math.Abs(receipts[i+3]-1/(1-info[i])),0,.02f);
+                if(info[i]==0)Assert.Equal(1,receipts[i+3]);
+            }
+        }
+        Assert.Equal(16,fresh);Assert.True(carried>0);
+        // Diagnostic attachments are optional; changing them keeps the physical images,
+        // independent-observation confidence and required age alive across frame boundaries.
+        scene.CaptureDiagnostics=false;scene.AdvanceFrame();scene.Draw(settings);
+        Assert.True(scene.HistoryCompatible);Assert.Empty(scene.HistoryDiagnostics);
+        Assert.Equal(92*8*8+44*4*4,scene.ViewTargetBytes);
+        Assert.Contains(scene.HistoryReceipts.Where((_,i)=>i%4==3),value=>value>1);
+        scene.CaptureDiagnostics=true;scene.AdvanceFrame();scene.Draw(settings);
+        Assert.True(scene.HistoryCompatible);Assert.NotEmpty(scene.HistoryDiagnostics);
+        Assert.Equal(108*8*8+44*4*4,scene.ViewTargetBytes);
+        // One independently authored observation cannot define a neighborhood range. Its
+        // explicit half-radiance reactivity leaves .4 old weight and confidence5/3.
+        var priorCloud=new float[metadata.Length];var priorBins=Enumerable.Repeat(.5f,8*8*3).ToArray();
+        for(int i=0;i<metadata.Length;i+=4)
+        {
+            priorCloud[i]=priorCloud[i+1]=priorCloud[i+2]=1;priorCloud[i+3]=.5f;
+            metadata[i+1]=1;metadata[i+2]=10;metadata[i+3]=4;
+        }
+        scene.SeedHistory(priorCloud,metadata,new float[metadata.Length],priorBins);
+        var rayCloud=new float[4*4*4];var rayMeta=new float[rayCloud.Length];
+        rayCloud[0]=rayCloud[1]=rayCloud[2]=2;rayCloud[3]=.5f;
+        rayMeta[0]=metadata[0];rayMeta[1]=1;rayMeta[2]=10;
+        var single=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta);
+        var ordinary=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta,diagnostics:false);
+        for(int channel=0;channel<3;channel++)Assert.Equal(single[channel],ordinary[channel]);
+        Assert.Empty(ordinary[3]);Assert.Equal(single[4],ordinary[4]);
+        int observed=Enumerable.Range(0,64).Single(p=>single[3][p*4+1]==1)*4;
+        Assert.InRange(Math.Abs(single[0][observed]-1.6f),0,2e-6f);
+        Assert.InRange(Math.Abs(single[2][observed+3]-5f/3),0,2e-6f);
+        Assert.Equal(0,single[3][observed+2]);
+        rayCloud[0]=rayCloud[1]=rayCloud[2]=0;
+        var reactive=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta);
+        Assert.Equal(0,reactive[3][observed]);Assert.Equal(1,reactive[2][observed+3]);Assert.Equal(11,reactive[3][observed+2]);
+        rayCloud[3]=0;rayMeta[1]=2;rayMeta[2]=0;
+        var empty=scene.FilterAuthored(rayCloud,Enumerable.Repeat(1f,4*4*3).ToArray(),rayMeta);
+        Assert.Equal(2,empty[2][observed+1]);Assert.Equal(1,empty[2][observed+3]);
+        Assert.Equal(0,empty[0][observed+3]);Assert.Equal(4,empty[3][observed+2]);
+        rayCloud[3]=.5f;rayMeta[1]=1;rayMeta[2]=10;
+        for(int i=3;i<diagnostic.Length;i+=4)diagnostic[i]=7;
+        scene.SeedHistory(priorCloud,metadata,diagnostic,priorBins);
+        var expired=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta);
+        Assert.DoesNotContain(2,expired[3].Where((_,i)=>i%4==1));
+        Assert.Contains(8,expired[3].Where((_,i)=>i%4==2));
+        // Exactly centred history has one nonzero bilinear tap. Invalid adjacent taps must
+        // not reject it; the static centre also has no distance or camera-depth ambiguity.
+        using var centre=new CloudStoredVolumeViewScene(Programs,6,6);centre.Draw(settings);
+        var centreCloud=centre.HistoryCloud;var centreMeta=centre.HistoryReceipts;
+        for(int i=0;i<centreMeta.Length;i+=4)centreMeta[i+3]=i==16?4:0;
+        centre.SeedHistory(centreCloud,centreMeta,new float[centreMeta.Length]);
+        centre.AdvanceFrame();centre.Draw(settings);
+        Assert.Equal(0,centre.HistoryDiagnostics[18]);
+        Assert.True(centre.HistoryReceipts[19]>=4);
+        // A failed own ray cannot be hidden by retained information or a nearby valid prefix.
+        var invalid=scene.FilterAuthored(new float[4*4*4],Enumerable.Repeat(1f,4*4*3).ToArray(),new float[4*4*4]);
+        var failed=invalid[3];var failedMeta=invalid[2];
+        Assert.Contains(9,failed.Where((_,i)=>i%4==2));
+        for(int i=0;i<failed.Length;i+=4)if(failed[i+2]==9)Assert.Equal(0,failedMeta[i+1]);
     }
     /// <summary>Records a bounded authored view workload without a speed or approximation threshold.</summary>
     [Fact]
@@ -137,6 +225,8 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             output.WriteLine($"Stored view 3440x1377 sigma={sigma} history={reuse}: median {times[1]:F4} ms; samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. CPU submission median {cpuTimes[1]:F4} ms; samples {string.Join(", ",cpuTimes.Select(t=>t.ToString("F4")))} ms; allocated median {allocations[1]} bytes; samples {string.Join(", ",allocations)} bytes. Pass preparations {scene.ViewPassPreparations}. GPU: {gpu}.");
             var receipt=scene.TraceReceipts;var history=scene.HistoryReceipts;
             output.WriteLine($"Trace receipts: fresh={receipt.Where((_,i)=>i%4==1).Count(v=>v>=1)}, visits={receipt.Where((_,i)=>i%4==3).Sum()}, admitted history={history.Where((_,i)=>i%4==3).Count(v=>v>1)}/{history.Length/4}; targets={scene.ViewTargetBytes}bytes.");
+            var contribution=scene.HistoryDiagnostics;
+            output.WriteLine($"Actual prior contribution: {contribution.Where((_,i)=>i%4==0).Count(v=>v>0)}/{contribution.Length/4}; carried={contribution.Where((_,i)=>i%4==1).Count(v=>v==2)}, fresh={contribution.Where((_,i)=>i%4==1).Count(v=>v==1)}, fallback={contribution.Where((_,i)=>i%4==1).Count(v=>v==3)}; maximum observation age={contribution.Where((_,i)=>i%4==3).DefaultIfEmpty().Max()}.");
             using var trace=GpuTimerQuery.Create("Tests.Cloud.View.Trace");
             using var temporal=GpuTimerQuery.Create("Tests.Cloud.View.Temporal");
             using var compose=GpuTimerQuery.Create("Tests.Cloud.View.Compose");
@@ -167,7 +257,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
                 output.WriteLine($"Changing {scenario}[{observation}]: history={scene.HistoryCompatible}, total={milliseconds:F4}ms, fresh={raw.Where((_,i)=>i%4==1).Count(v=>v>=1)}, visits={raw.Where((_,i)=>i%4==3).Sum()}, admitted={retained.Where((_,i)=>i%4==3).Count(v=>v>1)}/{retained.Length/4}; repeated same-frame observation forces fresh baseline.");
             }
         }
-        output.WriteLine("Actual typed compact quarter-resolution trace plus full-resolution spatial reconstruction, 99 bytes per reduced pixel including compact raw trace and two histories (ceil edges additional), exact occupied-cell intervals, authored uniform extinction .0078125/empty0, direct .25/.75 and diffuse12, depths100, detail disabled, default shadows/diffuse/stop. One warmup and three stationary samples; changing-input diagnostics are single pairs. External preparation, clears and readbacks excluded; internal clears and trace/temporal/composition included; no live FPS or appearance qualification; contention uncontrolled.");
+        output.WriteLine("Actual typed compact quarter-resolution trace plus full-resolution spatial reconstruction, 119 bytes per reduced pixel with diagnostic capture, compact raw trace and two histories (ceil edges additional), exact occupied-cell intervals, authored uniform extinction .0078125/empty0, direct .25/.75 and diffuse12, depths100, detail disabled, default shadows/diffuse/stop. One warmup and three stationary samples; changing-input diagnostics are single pairs. External preparation, clears and readbacks excluded; internal clears and trace/temporal/composition included; no live FPS or appearance qualification; contention uncontrolled.");
     }
     /// <summary>The complete native-generation-to-stored-view path owns and retires only its independent resources.</summary>
     [Fact]

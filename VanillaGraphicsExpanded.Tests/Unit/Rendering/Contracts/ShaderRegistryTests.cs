@@ -60,7 +60,7 @@ public sealed class ShaderRegistryTests
     [InlineData("tests/worldprobe_debug", "lumon_debug.vsh", "lumon_debug_view_world_probe_irradiance_combined.fsh", 4)]
     [InlineData("cloud_simple", "cloud_simple.vsh", "cloud_simple.fsh", 1)]
     [InlineData("cloud_volume/view", "cloud_volume/view.vsh", "cloud_volume/view.fsh", 24)]
-    [InlineData("cloud_volume/temporal", "cloud_volume/view.vsh", "cloud_volume/temporal.fsh", 1)]
+    [InlineData("cloud_volume/temporal", "cloud_volume/view.vsh", "cloud_volume/temporal.fsh", 2)]
     public void PairingsAreDeclared(string program, string vertex, string fragment, int budget)
     {
         var contract = Registry.FindProgram(program);

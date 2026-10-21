@@ -12,6 +12,12 @@ internal interface ICloudVolumeReconstructBindings:IPhotometricFrameBindings
     /// <summary>Borrows the shared frame publication for normalized full-view coordinates.</summary>
     [ShaderBinding("VgeFrameUBO",ShaderBindingKind.UniformBlock,GpuBindingRegistry.Ubo.Frame,ShaderStageKind.Fragment)]
     CpuUniformBuffer Camera {get;}
+    /// <summary>Borrows the same temporal parameters for diagnostic display without another UBO owner.</summary>
+    [ShaderBinding("CloudTemporalParameters",ShaderBindingKind.UniformBlock,14,ShaderStageKind.Fragment)]
+    CpuUniformBuffer TemporalInputs {get;}
+    /// <summary>Reads effective prior weight, update status, rejection reason and frames since observation.</summary>
+    [ShaderBinding("reconstructDiagnostics",ShaderBindingKind.Sampler,11,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
+    GpuTexture? Diagnostics {set;}
     /// <summary>Hardware-filters premultiplied integrated radiance and opacity together.</summary>
     [ShaderBinding("reconstructCloud",ShaderBindingKind.Sampler,0,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.LinearClamp)]
     GpuTexture? Cloud {set;}

@@ -44,6 +44,10 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
     internal DynamicTexture2D? TraceReceipts=>currentTrace?.Images[2];
     /// <summary>Exposes completed history confidence for focused temporal admission diagnostics.</summary>
     internal DynamicTexture2D? HistoryReceipts=>histories[1-cursor]?.Images[2];
+    /// <summary>Exposes effective retention and observation age through the existing texture diagnostics.</summary>
+    internal DynamicTexture2D? HistoryDiagnostics=>histories[1-cursor]?.Diagnostics;
+    /// <summary>Exposes physical history for independently authored temporal contract fixtures.</summary>
+    internal CloudVolumeViewTargets? CompletedHistory=>histories[1-cursor];
     /// <summary>Borrows optional per-pass timer queries for opt-in attribution, never read on the render path.</summary>
     internal GpuTimerQuery[]? PassTimers {get;set;}
     /// <summary>Reports expensive pass preparations so stable draws can be distinguished from lifecycle refreshes.</summary>
@@ -61,7 +65,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
             if(selection.TraceDivisor!=1&&!reconstruct.EnsureReady())throw new InvalidOperationException("Stored cloud reconstruction executable unavailable.",reconstruct.PreparationFailure);
             if(selection.TraceDivisor!=1&&!temporal.EnsureReady())throw new InvalidOperationException("Cloud temporal executable unavailable.",temporal.PreparationFailure);
             var caps=GpuSupport.Graphics;
-            if(caps.MaxDrawBuffers<6||GpuSupport.MaxColorAttachments<6||caps.MaxFragmentShaderStorageBlocks<3||caps.MaxTextureImageUnits<10||caps.MaxCombinedTextureImageUnits<10||
+            if(caps.MaxDrawBuffers<6||GpuSupport.MaxColorAttachments<6||caps.MaxFragmentShaderStorageBlocks<3||caps.MaxTextureImageUnits<11||caps.MaxCombinedTextureImageUnits<11||
                 caps.MaxUniformBufferBindings<=GpuBindingRegistry.Ubo.Frame||caps.MaxUniformBlockSize<240)
                 throw new NotSupportedException("Stored cloud view exceeds rendering capabilities.");
             geometry??=new(Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>(),proceduralVertices:3);
@@ -73,15 +77,15 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error)){failed=true;Failure=error.Message;return false;}
     }
     /// <summary>Validates independent publications and submits exactly one native six-attachment contribution.</summary>
-    internal bool Draw(CloudVolumeStorage storage,CloudMapInput input,CloudVolumeViewScene scene,GpuFramebuffer target,Func<bool> current,int debugMode=0)
+    internal bool Draw(CloudVolumeStorage storage,CloudMapInput input,CloudVolumeViewScene scene,GpuFramebuffer target,Func<bool> current,int debugMode=0,bool captureDiagnostics=false)
     {
         if(!storage.Ready)return Reject("Stored cloud publication unavailable.");
         var fields=storage.Published;uint stamp=fields.Revision;
         return Draw(fields.View,input,scene,target,()=>current()&&storage.Ready&&
-            ReferenceEquals(fields,storage.Published)&&fields.Revision==stamp,debugMode);
+            ReferenceEquals(fields,storage.Published)&&fields.Revision==stamp,debugMode,captureDiagnostics);
     }
     /// <summary>Draws an immutable publication independently of unfinished solver storage.</summary>
-    internal bool Draw(CloudVolumeViewFields fields,CloudMapInput input,CloudVolumeViewScene scene,GpuFramebuffer target,Func<bool> current,int debugMode=0)
+    internal bool Draw(CloudVolumeViewFields fields,CloudMapInput input,CloudVolumeViewScene scene,GpuFramebuffer target,Func<bool> current,int debugMode=0,bool captureDiagnostics=false)
     {
         ObjectDisposedException.ThrowIf(disposed,this);Failure=null;
         if(!prepared||failed||!current())return Reject("Stored cloud publication unavailable.");
@@ -90,8 +94,9 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
         if(extent.X!=target.Width||extent.Y!=target.Height)return Reject("Stored cloud camera/OIT extent mismatch.");
         try
         {
+            if(settings.TraceDivisor!=1)PrepareDiagnostics(debugMode>=5||captureDiagnostics);
             Check(current);
-            program.Capture(fields,input,settings,scene,debugMode);
+            program.Capture(fields,input,settings,scene,debugMode>=5?0:debugMode);
             program.Frame=scene.Camera;program.Lighting=scene.Lighting;program.Occupancy=fields.Occupancy;program.Regions=fields.Regions;
             program.Density=fields.Density;program.Direct=fields.Direct;program.DiffuseField=fields.Diffuse;
             program.MaterialDepth=scene.MaterialDepth;program.VisibilityDepth=scene.VisibilityDepth;program.LiquidDepth=scene.LiquidDepth;
@@ -109,33 +114,35 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
                     targets.Target.Height!=(target.Height+divisor*2-1)/(divisor*2)||
                     histories[0]!.Target.Width!=(target.Width+divisor-1)/divisor||histories[0]!.Target.Height!=(target.Height+divisor-1)/divisor))ReleaseTargets();
                 targets??=new CloudVolumeViewTargets(target.Width,target.Height,divisor*2);
-                histories[0]??=new CloudVolumeViewTargets(target.Width,target.Height,divisor);
-                histories[1]??=new CloudVolumeViewTargets(target.Width,target.Height,divisor);
+                histories[0]??=new CloudVolumeViewTargets(target.Width,target.Height,divisor,true);
+                histories[1]??=new CloudVolumeViewTargets(target.Width,target.Height,divisor,true);
+                histories[0]!.ConfigureDiagnostics(temporal.DiagnosticsEnabled);
+                histories[1]!.ConfigureDiagnostics(temporal.DiagnosticsEnabled);
                 noise??=CloudBlueNoiseTexture.Create();noise.EnsureCreated();program.BlueNoise=noise;
                 bool compatible=ReferenceEquals(historyDensity,fields.Density)&&ReferenceEquals(historyMaterial,fields.MaterialIdentity)&&historyDomain is {} oldDomain
                     &&oldDomain.Width==fields.Domain.Width&&oldDomain.Bottom==fields.Domain.Bottom&&oldDomain.Band==fields.Domain.Band
-                    &&(historySettings with{LightingRaysPerUpdate=settings.LightingRaysPerUpdate})==settings&&historyUnderwater==(scene.Underwater>.7f)&&historyDebug==debugMode;
+                    &&(historySettings with{LightingRaysPerUpdate=settings.LightingRaysPerUpdate})==settings&&historyUnderwater==(scene.Underwater>.7f)&&historyDebug==(debugMode>=5?0:debugMode);
                 int historyWidth=histories[0]!.Target.Width,historyHeight=histories[0]!.Target.Height;
                 HistoryCompatible=history.Capture(input,scene.Camera,historyWidth,historyHeight,program.Temporal,compatible,divisor);
-                history.Capture(input,scene.Camera,historyWidth,historyHeight,temporal.Temporal,compatible,divisor);
+                history.Capture(input,scene.Camera,historyWidth,historyHeight,temporal.Temporal,compatible,divisor,debugMode);
                 if(!HistoryCompatible)cursor=0;
                 var previous=histories[1-cursor]!;var next=histories[cursor]!;
                 // Invalid history is scratch: trace its full reduced grid before filtering into the
                 // disjoint destination. Compatible frames use a quarter-sized physical raw target.
                 currentTrace=HistoryCompatible?targets:previous;
                 temporal.Frame=scene.Camera;temporal.Lighting=scene.Lighting;
-                temporal.BlueNoise=noise;
+                temporal.BlueNoise=noise;temporal.PreviousAge=previous.Images[3];temporal.Diagnostics=null;
                 temporal.Cloud=currentTrace.Images[0];temporal.Bins=currentTrace.Images[1];temporal.Metadata=currentTrace.Images[2];
                 temporal.PreviousCloud=previous.Images[0];temporal.PreviousBins=previous.Images[1];temporal.PreviousMetadata=previous.Images[2];
                 temporal.MaterialDepth=scene.MaterialDepth;temporal.VisibilityDepth=scene.VisibilityDepth;temporal.LiquidDepth=scene.LiquidDepth;
-                reconstruct.Frame=scene.Camera;
+                reconstruct.Frame=scene.Camera;reconstruct.Temporal=temporal.Temporal;reconstruct.Diagnostics=next.Diagnostics;
                 reconstruct.Lighting=scene.Lighting;
                 reconstruct.Cloud=next.Images[0];reconstruct.Bins=next.Images[1];
                 reconstruct.Metadata=next.Images[2];reconstruct.MaterialDepth=scene.MaterialDepth;
                 reconstruct.VisibilityDepth=scene.VisibilityDepth;reconstruct.LiquidDepth=scene.LiquidDepth;
                 integration.Prepare(currentTrace.Target,CloudVolumeViewTargets.Outputs,false);
                 temporalPasses[cursor]??=new(temporal,lifetime);
-                temporalPasses[cursor]!.Prepare(next.Target,CloudVolumeViewTargets.Outputs,false);
+                temporalPasses[cursor]!.Prepare(next.Target,next.FilterOutputs,false);
                 composition??=new(reconstruct,lifetime);
                 composition.Prepare(target,LiquidPipelineStates.SurfaceOutputs,true);
             }
@@ -153,7 +160,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
             if(settings.TraceDivisor!=1)
             {
                 history.Commit(input,scene.Camera);historyDensity=fields.Density;historyMaterial=fields.MaterialIdentity;historyDomain=fields.Domain;
-                historySettings=settings;historyUnderwater=scene.Underwater>.7f;historyDebug=debugMode;cursor=1-cursor;
+                historySettings=settings;historyUnderwater=scene.Underwater>.7f;historyDebug=debugMode>=5?0:debugMode;cursor=1-cursor;
             }
             return true;
         }
@@ -178,6 +185,19 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
     }
     #endregion
     #region Private
+    /// <summary>Changes compiled diagnostic executables only when capture demand changes, preserving physical history.</summary>
+    private void PrepareDiagnostics(bool enabled)
+    {
+        if(enabled&&(GpuSupport.Graphics.MaxTextureImageUnits<12||GpuSupport.Graphics.MaxCombinedTextureImageUnits<12))
+            throw new NotSupportedException("Cloud temporal diagnostics require twelve texture units.");
+        if(temporal.DiagnosticsEnabled==enabled&&reconstruct.DiagnosticsEnabled==enabled)return;
+        temporal.ConfigureOptions(()=>temporal.DiagnosticsEnabled=enabled);
+        reconstruct.ConfigureOptions(()=>reconstruct.DiagnosticsEnabled=enabled);
+        if(!temporal.EnsureReady()||!reconstruct.EnsureReady())
+            throw new InvalidOperationException("Cloud temporal diagnostic executable unavailable.",temporal.PreparationFailure??reconstruct.PreparationFailure);
+        temporalRevision=temporal.ExecutableRevision;reconstructionRevision=reconstruct.ExecutableRevision;
+    }
+
     /// <summary>Draws the selected immediate passes without allocating a new boundary callback each frame.</summary>
     private void SubmitPasses(GraphicsCommandContext commands)
     {
@@ -204,12 +224,12 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
     {
         program.Frame=null;program.Lighting=null;program.Occupancy=null;program.Regions=null;program.Density=null;program.Direct=null;program.DiffuseField=null;
         program.MaterialDepth=null;program.VisibilityDepth=null;program.LiquidDepth=null;program.Aerial=null;program.Attenuation=null;program.Shafts=null;
-        reconstruct.Frame=null;reconstruct.Cloud=null;reconstruct.Bins=null;reconstruct.Metadata=null;
+        reconstruct.Frame=null;reconstruct.Temporal=null;reconstruct.Diagnostics=null;reconstruct.Cloud=null;reconstruct.Bins=null;reconstruct.Metadata=null;
         reconstruct.Lighting=null;program.BlueNoise=null;
         reconstruct.MaterialDepth=null;reconstruct.VisibilityDepth=null;reconstruct.LiquidDepth=null;
         temporal.Frame=null;temporal.Lighting=null;temporal.Cloud=null;temporal.Bins=null;temporal.Metadata=null;
         temporal.PreviousCloud=null;temporal.PreviousBins=null;temporal.PreviousMetadata=null;
-        temporal.BlueNoise=null;
+        temporal.BlueNoise=null;temporal.PreviousAge=null;temporal.Diagnostics=null;
         temporal.MaterialDepth=null;temporal.VisibilityDepth=null;temporal.LiquidDepth=null;
     }
     #endregion

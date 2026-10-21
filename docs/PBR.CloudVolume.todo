@@ -1864,54 +1864,228 @@ Phase 8.6 - Preserve effective cloud temporal history between fresh traces
   Outcome: untraced pixels retain compatible observations, and fresh observations update history
     without sparse spatial reconstruction silently replacing it. Base appearance acceptance does
     not establish temporal accumulation; earlier admission counters are not proof of retained energy.
-  [ ] Reconcile PBR.CloudVolume.Proposal.md / Temporal view sampling contract and Rendering the
+  [x] Reconcile PBR.CloudVolume.Proposal.md / Temporal view sampling contract and Rendering the
       published volume with the corrected retention policy. Consult PBR.Clouds.md / Stored-volume
       temporal view and LumOn's screen-probe temporal pass for its preserve-untraced/update-traced
       behavior. Adapt that policy to volumetric support and compact cloud payloads; do not import
       surface-probe atlas identity, hit classification or velocity assumptions indiscriminately.
-  [ ] Separate freshly traced, history-only and spatial-fallback pixels explicitly. Preserve valid
+  [x] Separate freshly traced, history-only and spatial-fallback pixels explicitly. Preserve valid
       reprojected history at untraced locations instead of blending it toward a neighboring fresh ray
       every frame. Use spatial fallback only where compatible history is unavailable. Missing fresh
       neighbors alone must not revoke usable history; genuinely disoccluded/invalid support must not
       resurrect obsolete clouds. Keep exact occupied-cell transport and the existing trace schedule.
-  [ ] Correct neighborhood clipping for sparse observations. A single compatible fresh sample must
+  [x] Correct neighborhood clipping for sparse observations. A single compatible fresh sample must
       not collapse low/high to that sample and erase all previous information while claiming reuse.
       Define when bounds are supported, how thin/edge support is handled and when fresh observations
       may constrain history. Preserve finite admitted physical radiance/opacity/bucket bounds and
       responsive weather/light changes without a blanket reset or unrelated-neighbor contamination.
-  [ ] Reevaluate four-tap history admission and depth/support comparisons. Ignore taps with exactly
+  [x] Reevaluate four-tap history admission and depth/support comparisons. Ignore taps with exactly
       zero hardware interpolation weight; specify safe treatment of mixed empty/contributing support.
       Compare reprojected geometry in consistent coordinates/depth units rather than raw depths from
       different cameras. Account for representative cloud distance uncertainty and material wind once.
       Preserve depth/liquid/particle occlusion, finite coverage, replacement and failed-prefix safety;
       do not weaken rejection merely to increase a counter or bypass hardware filtering.
-  [ ] Make history metadata describe real observations and contribution. Untraced carry-forward must
+  [x] Make history metadata describe real observations and contribution. Untraced carry-forward must
       not count as a new independent sample. Rejection, zero effective weight or complete clamp
       replacement must not increase an effective sample count. Select and document history length,
       blend weights, age/confidence and lighting/coverage reactivity with these semantics; increasing
       the frame limit alone is insufficient. Retain physical encoding until final native composition.
-  [ ] Extend the existing VGE cloud debug visualizer with actual retained/rejected coverage, effective
+  [x] Extend the existing VGE cloud debug visualizer with actual retained/rejected coverage, effective
       history weight after reactivity/clipping, fresh versus carried/fallback status and rejection
       reasons. Distinguish compatible addresses from surviving prior information. Reuse existing
       diagnostics/GPU abstractions, avoid synchronous runtime readbacks and justify extra metadata.
-  [ ] Strengthen affected existing fixtures with independently authored payloads that distinguish
+  [x] Strengthen affected existing fixtures with independently authored payloads that distinguish
       retained history from current spatial fallback. Cover untraced preservation, fresh-only sample
       count advancement, collapsed bounds, zero-weight edge taps, moving camera/wind, disocclusion,
       changing lighting/weather and failure/replacement. Test declared arithmetic/identity contracts,
       not approximation quality, convergence, image error or noise thresholds. Reuse fixtures, run
       focused cached incremental checks through subagents and avoid broad matrices or packaging.
-  [ ] Measure trace/filter/composition and independent total cost at unchanged volume/settings/view
+  [x] Measure trace/filter/composition and independent total cost at unchanged volume/settings/view
       resolution, including history traffic and actual contribution diagnostics. Reuse previous cost
       evidence where unchanged. Inspect stationary views, edges, camera/wind motion and changing
       weather/light; label authored workloads and contention. Do not interpret an accepted-address
       count, reduced ray count or faster isolated pass as proof of effective accumulation or net gain.
-  [ ] Obtain user-run review for stationary stability, cloud boundaries, ghosting, camera motion and
-      dynamic lighting/weather response. Reconcile proposal/current docs with delivered behavior and
+  [x] Record user feedback and authorized closeout of the delivered retention fix. Remaining edge
+      stability, ghosting, motion and weather appearance review stays with8.6.1 and qualification9.
+      Reconcile proposal/current docs with delivered behavior and
       independently audit retention, resource lifetime and diagnostics before marking complete.
       Never launch the game; final frozen packaging remains Phase9.
-  [ ] Completion: prior information demonstrably survives at valid untraced locations, fresh updates
-      follow the declared weighting/count semantics, disocclusion remains safe, and diagnostics plus
-      user review establish effective temporal behavior. Performance limits remain explicit.
+  [x] Completion: prior information demonstrably survives at valid untraced locations, fresh updates
+      follow declared weighting/count semantics and disocclusion remains safe. User feedback confirms
+      improvement and authorizes core closeout; remaining edge flicker belongs to8.6.1. Complete
+      appearance acceptance and final performance qualification remain open; no noise-free claim.
+
+  Implementation review (complete for delivered scope; edge work remains8.6.1)
+    Traceability -> proposal / Rendering the published volume and Temporal view sampling contract;
+      PBR.Clouds.md / Stored-volume temporal view; LumOn.05-Temporal.md7.2 and the actual
+      probe-atlas temporal pass -> preserve untraced observations, update only fresh rays, adapt
+      volume support/physical payloads without surface-atlas identity. Atmospheric publication and
+      shared FrameCameraHistory/FrameWorldSpaceBridge retain current frame/encoding/origin ownership.
+    Implementation -> actual fresh/history-only/spatial-fallback states; no neighbor blend on carry;
+      sparse bounds require four same-support observations spanning two pixels on both axes;
+      clipping replacement/zero reactive weight reset equivalent confidence rather than grow it.
+      Nonzero hardware filter support is checked before two hardware transport reads. Foreground
+      endpoints use the shared origin-rebased previous view-projection with native eye translation;
+      material projection remains rotation-only with native cloud motion once. Failed own rays stay
+      invalid; empty observations clear contributing history; fallback has no reusable confidence.
+    Metadata/resources -> confidence1/(1-effective prior weight), cap8 on fresh updates; carry
+      preserves confidence, expires after7frames without observation. Required R16F age is separate
+      from optional RGBA16F diagnostic images. Normal shaders omit diagnostic samplers/outputs and
+      allocate no diagnostic attachments:103bytes per reduced pixel normally,119 during capture,
+      plus ceil-edge overhead and32KiB blue noise. Original128-byte UBO layout remains; only
+      diagnostic composition borrows filter parameters. Successful final submission commits history;
+      resize/reload/failure release borrows and invalidate history without resetting cloud volumes.
+    Second review -> physical bounds, exact-empty identity, fresh failure, wind/camera separation,
+      frame/lifecycle gates, disjoint targets, metadata age and effective confidence reviewed.
+      Existing visualizer adds actual update class, effective prior weight, rejection and age;
+      temporal diagnostics add no runtime CPU readback. No lower trace budget/resolution or change
+      to exact occupied-cell integration. Independent audit found no confirmed code/docs defect;
+      shared-camera validation passes. Required visual acceptance is explicitly split by the user:
+      delivered core improvement closes here; remaining edge appearance work stays8.6.1.
+    Verification -> focused incremental receipts under artifacts/StoredCloudLatest/phase86-*;
+      existing fixtures cover independent carried payloads, single-fresh sparse bounds arithmetic,
+      fresh-only count, reactive zero weight, empty support, age expiry, centred zero-weight taps,
+      failed metadata, camera/material motion, depth changes and replacement/resource retirement.
+      No approximation-quality threshold, broad matrix, package or game launch/close.
+    Final receipts -> phase86-shared-build.log (cached Release47.77s,0errors189warnings),
+      phase86-shared.trx18/18 focused checks and phase86-shared-cost.trx1/1 measurement pass.
+      Authored3440x1377 quarter view occupied total1.1110ms fresh versus1.0967ms reused;
+      separate queries trace.1239/.0799ms, temporal.0819/.1106ms, composition.9011/.9001ms.
+      Actual prior contribution296700/296700pixels:222310carry,74390fresh,0fallback; maxage4.
+      These pre-separation measurements used34,129,960bytes of screen targets; they do not measure
+      the final split-age/optional-diagnostic layout. Empty total.1976/.1966ms. Dynamic single pairs are
+      diagnostic only; timings have uncontrolled contention, not live FPS/appearance proof.
+      Earlier phase84 occupied reused1.0291ms/temporal.0676ms is contextual, not a matched
+      current comparison; the corrected filter adds bandwidth/work. No net speedup claim.
+    Diagnostic cleanup -> temporal-diagnostic-resources-build.log0errors and
+      temporal-diagnostic-resources.trx3/3 GPU checks cover physical/age equality, attachment toggles
+      and exact allocation. Matching reflection JSON proves normal temporal outputs0..3 (scalar
+      age at3), optional diagnostic output4, and composition sampler11/UBO14 only during capture.
+      Physical history survives toggles; diagnostic textures retire when disabled.
+    User review -> temporal behavior is much better, but blue-noise flicker remains visible at
+      cloud edges. User explicitly authorized closing8.6; remaining edge appearance belongs to8.6.1.
+
+    Closeout audit -> independent affected-scope review confirms the delivered retention fix,
+      final split-age/compiled-diagnostic resources, documentation and evidence satisfy8.6 as
+      explicitly closed by the user. No required core item remains open.8.6.1,8.6.2,8.6.3,8.7
+      and9 remain unchecked; edge flicker and full visual/performance acceptance are not claimed.
+
+Phase 8.6.1 - Retain compatible temporal observations at cloud boundaries
+  Depends on: the delivered8.6 retention implementation and opt-in compiled diagnostics.
+  Outcome: reduce edge-history rejection and sample-pattern flicker while preserving real
+    disocclusion, finite cloud coverage and foreground occlusion. Temporal appearance is improved
+    but edge flicker remains user-reported; this is not full temporal acceptance.
+  [ ] Consult PBR.CloudVolume.Proposal.md / Temporal view sampling contract and Rendering the
+      published volume, plus PBR.Clouds.md / Stored-volume temporal view. Use the existing compiled
+      update/weight/rejection/age visualizers to distinguish rejected edge history, reactive weight
+      loss, sparse fallback and final reconstruction changes. Reuse available captures and focused
+      authored evidence; request new evidence only for a specific unresolved behavior.
+  [ ] Reevaluate mixed empty/contributing bilinear support and representative-distance uncertainty.
+      Consider compatible-support nearest sampling or confidence reduction where hardware filtering
+      cannot safely span the boundary. Preserve current depth/liquid/particle occlusion, failed-ray
+      rejection, bounded age, volume replacement and exact occupied-cell transport. Do not admit
+      incompatible taps just to increase retention, or replace hardware filtering with manual
+      bilinear transport fetches.
+  [ ] Separate real cloud removal/disocclusion from coverage variation induced by the sparse trace
+      schedule. Reevaluate edge clipping and opacity reactivity with actual surviving weight/count
+      semantics; prevent spatial fallback from repeatedly overwriting retained edge information.
+      Keep physical premultiplied radiance, opacity and all bucket transmissions consistent.
+  [ ] Evaluate longer observation confidence only after identifying where prior information survives.
+      Discuss responsiveness/ghosting tradeoffs with the user before changing the current limit.
+      Distinguish fresh-observation history length from carried-frame expiry; preserve wind and
+      camera reprojection once and routine weather/day-night retention.
+  [ ] Extend affected existing authored fixtures only for changed admission/weight/identity math:
+      mixed support, thin edges, stationary phases, moving foreground/camera/wind, empty updates
+      and failure/replacement. No image-error, approximation-quality, convergence or noise thresholds.
+      Run focused cached incremental checks through subagents; no broad matrix or packaging.
+  [ ] Measure affected filtering/composition and independent total cost at unchanged settings;
+      account for optional diagnostics and contention. Reconcile current docs, perform second review
+      and independent audit, then obtain user-run stationary/edge/ghosting/motion/weather review.
+      Never launch the game. Completion requires improved accepted edge behavior with explicit
+      performance and responsiveness limitations, not merely higher history counters.
+
+Phase 8.6.2 - Integrate progressive subpixel jitter into cloud view sampling
+  Depends on: Phase8.6.1 edge-retention work.
+  Outcome: fresh cloud view rays progressively sample their reduced pixel footprint, reusing the
+    existing PMJ infrastructure while blue noise continues to distribute the four-frame refresh schedule.
+  [ ] Reconcile PBR.CloudVolume.Proposal.md / Rendering the published volume and Temporal view
+      sampling contract, PBR.Clouds.md / Stored-volume temporal view, and LumOn.PMJ-Jitter.md with
+      the selected subpixel sampling contract before implementation. Inspect Noise/PmjGenerator,
+      PmjSobol02, PmjOwenScrambler and LumOnPmjJitterTexture plus actual anchor-shader indexing.
+      Distinguish our Sobol-based/Owen-style implementation from published PMJ variants; do not
+      assume spatial blue-noise or progressive-prefix properties not established by the actual code.
+  [ ] Reuse the generic Noise sequence/cache/conversion facilities and existing texture/program
+      abstractions. Keep cloud resource lifetime independent of LumOn enablement, configuration and
+      private renderer ownership; extract only genuinely shared provisioning if needed. Precompute
+      and upload a small sequence once per relevant identity, not per frame or pixel. Account for
+      sequence storage, optional metadata and replacement/retirement without a new sampling framework.
+  [ ] Add bounded two-dimensional offsets within each selected reduced pixel. Preserve the existing
+      blue-noise ranked one-per-2x2 refresh schedule, ray budget, full-resolution reference bypass,
+      exact occupied-cell DDA intervals and conservative material/particle/liquid clipping. Jitter
+      changes the view ray, not density, cached lighting, physical voxel boundaries or integration steps.
+  [ ] Define indexing by successive fresh tracing opportunities for each pixel, rather than consuming
+      every fourth sequence entry through naive frame indexing. Derive the observation index from
+      schedule/cycle state where possible; carried/fallback frames do not advance it. Specify cold
+      full-grid traces, history rejection, frame gaps, cycle wrap and odd boundary tiles. History
+      confidence is not a monotonic sequence counter. Avoid new persistent counters unless necessary.
+  [ ] Decorrelate neighboring pixel sequences deterministically with bounded hash/scramble or existing
+      rank inputs while preserving the selected sequence properties. Do not assume arbitrary index
+      offsets or skipped subsequences preserve stratification. Keep jitter stable under the declared
+      screen/material identity and specify behavior across camera movement and view resize/reload.
+  [ ] Reconstruct fresh representative cloud points using their actual jittered positions. Define how
+      blended/carried history represents the pixel footprint and its distance/position uncertainty;
+      choose reproducible offsets or minimal justified metadata rather than silently treating jittered
+      rays as pixel-centre rays. Preserve camera/wind motion once, physical payload/bucket consistency,
+      real disocclusion rejection, failed-ray safety and age/confidence semantics from8.6.1.
+  [ ] Extend affected existing fixtures for deterministic indexing, consecutive consumed samples,
+      offset bounds, cold/odd/wrapped schedules, reference bypass, reprojection and resource lifetime.
+      Reuse unchanged sequence tests; no approximation-quality, noise, convergence or image-error gates.
+      Use focused cached incremental builds/tests through subagents; no broad matrix or packaging.
+  [ ] Measure trace/filter/composition and independent total cost at unchanged ray counts/settings;
+      include texture reads, metadata traffic and actual prior contribution. Obtain user-run review
+      of silhouettes, stationary flicker, motion/ghosting and dynamic weather/light response. Reconcile
+      proposal/current docs, perform second review and independent audit. Never launch the game.
+      Completion requires integrated PMJ-based ray jitter with truthful indexing/reprojection and
+      explicit appearance/performance limits; a longer sequence alone is not proof of improvement.
+
+Phase 8.6.3 - Implement spatiotemporal blue-noise jitter and compare with PMJ
+  Depends on: Phase8.6.2 and its reproducible PMJ sampling/retention evidence.
+  Outcome: compare genuine two-dimensional STBN ray jitter against PMJ under the same cloud
+    reconstruction and history policy, then select the delivered sampling approach from evidence.
+  [ ] Consult PBR.CloudVolume.Proposal.md / Rendering the published volume and Temporal view sampling
+      contract, PBR.Clouds.md / Stored-volume temporal view and8.6.2's selected indexing/footprint
+      contract. Specify the STBN asset/generation method, two-dimensional vector distribution,
+      temporal period, tiling and required attribution. Independently animated spatial masks or a
+      generic3D blue-noise texture must not be described as STBN without the required properties.
+  [ ] Implement STBN through the same cloud ray-jitter boundary and existing GPU abstractions, with
+      static texture provisioning and bounded lifecycle. Keep the refresh-selection blue noise
+      separate from subpixel jitter semantics. Supply appropriately constructed two-dimensional
+      samples; do not assume two arbitrary correlated scalar channels form suitable vector jitter.
+  [ ] Adapt temporal indexing to actual fresh tracing opportunities. Evaluate the consumed sparse
+      sequence, history restarts, phase changes, odd tiles, cycle wrap and motion; indexing a full-rate
+      STBN atlas every fourth frame does not automatically preserve its temporal behavior. Preserve
+      deterministic replay and the identical four-frame refresh coverage guarantee used by PMJ.
+  [ ] Use narrow precompiled comparison variants or existing fixture controls, not runtime per-ray
+      algorithm branches or an unsolicited permanent user selector. PMJ and STBN must share jitter
+      footprint/amplitude, ray counts, resolution, volume state, clipping, reconstruction, history
+      length/reactivity and rejection policy. Hold diagnostics demand fixed and disclose differing
+      texture/metadata storage and fetch costs. Change one sampling variable at a time.
+  [ ] Reuse focused fixtures to verify sample addressing/bounds, exact refresh coverage, reproducibility,
+      reference bypass, reprojection identities, compiled path/resource exclusion and retirement.
+      Compare authored sampling workloads and actual retained contribution without approximation,
+      convergence, image-error or noise pass/fail thresholds. Run cached incremental checks through
+      subagents; avoid broad rebuilds/matrices and reserve final packaging for Phase9.
+  [ ] Compare independent total and per-pass GPU cost plus resident/peak memory at matched settings.
+      Obtain user-run side-by-side review of stationary noise, thin edges/silhouette stability,
+      periodic patterns, camera/wind motion, disocclusion/ghosting and lighting/weather changes.
+      Record history-rejection conditions and contention; distinguish integration error distribution
+      from discarded history. Do not claim a winner from an isolated pass or theoretical noise spectra.
+  [ ] Present measured tradeoffs and obtain the user's sampling choice before replacing the PMJ
+      default. Keep comparison plumbing small/removable, remove rejected production resources and
+      variants after selection unless their retention is explicitly justified, and reconcile proposal/
+      current docs with the delivered approach. Perform second review and independent audit.
+      Completion records the comparison, selected approach and limitations; never invent visual
+      acceptance or launch the game to provide it.
 
 Phase 8.7 - Spend persisted-lighting ray budgets on occupied voxels
   Depends on: Phase 8.5 and the delivered LightingRaysPerUpdate control. Independent of8.6's
@@ -1968,7 +2142,7 @@ Phase 8.7 - Spend persisted-lighting ray budgets on occupied voxels
       metadata remain truthful. Any rejected compaction alternative and remaining limitations are
       explicit. Final package and user-run appearance/performance acceptance remain Phase9.
 Phase 9 - Qualify the frozen implementation and reconcile documentation
-  Depends on: Phases 8.6 and 8.7.
+  Depends on: Phase8.6 including8.6.1,8.6.2 and8.6.3, plus Phase8.7.
   Outcome: measured total cost, memory and user appearance determine candidate acceptance.
   [ ] Freeze the candidate and run canonical packaging/required final checks once. Verify delivered
       assets, selectable settings and cleanup; do not treat older candidate receipts as qualification.

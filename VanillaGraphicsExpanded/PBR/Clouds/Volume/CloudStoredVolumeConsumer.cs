@@ -24,7 +24,8 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     private CloudVolumeViewSettings settings;
     private AtmosphereLighting? admitted;
     private bool prepared,failed,disposed;
-    internal string DiagnosticText=>$"{CloudStoredVolumeDiagnostics.Describe(solution,failed)}\nLighting ray budget per update: {settings.LightingRaysPerUpdate:N0}\nView targets: {view?.TargetBytes??0:N0} bytes (trace divisor {settings.TraceDivisor}; full resolution draws directly).";
+    internal string DiagnosticText=>$"{CloudStoredVolumeDiagnostics.Describe(solution,failed)}\nLighting ray budget per update: {settings.LightingRaysPerUpdate:N0}\nView targets: {view?.TargetBytes??0:N0} bytes (trace divisor {settings.TraceDivisor}; full resolution draws directly)."+
+        (CloudStoredVolumeDiagnostics.Mode>=5?"\nTemporal: fresh green; carry blue; fallback orange; invalid red. Weight0..1; age0..7.\nReject0=accepted,1=frame,2=projection,4=support,5=depth,6=nonfinite,7=distance,8=age,9=failed ray,10=bounds,11=reactive. See PBR.Clouds.md for rejection colors.":string.Empty);
 
     #region Public API
     #region Admission

@@ -447,7 +447,7 @@ integration, the shared affine atmosphere/local-medium treatment and frozen scen
 once. Bucket transmissions use each interval's near depth; overall transmission, glow metadata and
 three weighted accumulations preserve the native OIT convention in both PBR selections.
 
-Each `CloudVolumeViewTargets` set owns three compact float32 textures: RGBA physical radiance/opacity, RGB bucket
+Each `CloudVolumeViewTargets` set owns three compact float32 textures; each history also owns R16F observation age and an optional RGBA16F diagnostic attachment: RGBA physical radiance/opacity, RGB bucket
 transmissions and RGBA clip-depth/completion/representative-distance/receipt metadata. Reduced tracing uses conservative two-by-two (half) or four-by-four (quarter) full-view
 depth gathers and the unchanged occupied schedule. Intermediate writes use no blending; reconstruction
 applies native blending once. `cloud_volume/reconstruct` reads exact four-texel metadata and uses two
@@ -460,11 +460,11 @@ Metadata distinguishes invalid, complete contributing and complete exactly-empty
 or an empty selected fallback skips continuous reads and native identity blends. Failed prefixes stay
 invalid. Reduced-resolution silhouettes can soften or thin, particularly at foreground depth boundaries;
 there is no procedural lighting fallback. Reduced views retain physical temporal history. Odd sizes round up, and atmosphere shaft
-coordinates remain in full-view pixels. Compact trace and two history targets cost approximately 99 bytes per reduced pixel (ceil edges add excess): half/quarter uses
-about111.9/28.1MiB at3440x1377 or195.8/49.0MiB at4K, separately from volume payloads. Full resolution
+coordinates remain in full-view pixels. Compact trace and two history targets cost approximately 103 bytes per reduced pixel normally (119 with diagnostics) (ceil edges add excess): half/quarter uses
+about116.3/29.1MiB at3440x1377 or203.7/50.9MiB at4K normally, separately from volume payloads. Full resolution
 allocates none. Resize and renderer release retire reduced targets
 without clearing retained cloud lighting. The debug panel reports allocation. Native composition
-requires six draw buffers/attachments; reduced view lighting uses ten fragment samplers including shared blue noise.
+requires six draw buffers/attachments; reduced filtering reserves eleven fragment texture units for shared blue noise and history age, with twelve required for diagnostic composition.
 
 `CloudVolumeViewPass` retains immutable pass descriptions and graphics-pipeline preparation for each
 view pass. Its key includes framebuffer identity, attachment revision, extent, blending mode and
@@ -505,17 +505,17 @@ rotation-only reconstruction provide the view history certificate and sampling s
 reads an atlas with an explicit mask count; `interleaved_sampling.glsl` maps a supplied rank to a
 four-frame 2x2 schedule without depending on clouds or a texture layout. The stored-volume payload
 adapter owns filtering of its compact radiance/opacity and bucket values without borrowing previous
-transport or shadow-cache state. The temporal pass checks current foreground footprints, selects a
-compatible fresh neighbor where needed, and admits hardware-filtered history only when all four
-metadata taps agree. Current-neighborhood bounds and coverage reactivity contain stale lighting and
-geometry response; history count is capped at eight. A pixel is refreshed within four phases, but
-this does not promise zero ghosting or immediate fine-shape response.
+transport or shadow-cache state. The temporal pass distinguishes freshly traced, history-only and spatial-fallback locations. Compatible untraced pixels preserve prior physical transport without blending toward neighbors. Fallback fills unsupported holes but has zero observation confidence and cannot become reusable history. Failed fresh rays remain invalid. A newly empty ray rejects contributing history; removal is normally observed within the four-frame trace cycle.
 
-The count measures admitted reprojections, not independently retained observations. Sparse fresh
-neighborhood bounds can collapse to one sample and replace previous values completely; coverage
-reactivity can also reduce history weight to zero without resetting the count. Untraced pixels
-currently blend against a neighboring fresh observation rather than preserving history unchanged.
-Consequently, increasing counts or compatible-address coverage do not prove effective accumulation.
+All exactly nonzero bilinear support taps must agree on empty/contributing completion, real-observation confidence, foreground support and representative-distance uncertainty. Exactly zero-weight taps are irrelevant. Compare current scene endpoints projected into the previous camera against previous clip metadata, using the shared origin-rebased previous view-projection and current inverse view, independent of cloud wind and layer height. The representative cloud distance is a proxy; the max(2 world units,5 percent) gate may conservatively reject edges. Current material/particle/liquid footprint clipping remains in effect.
+
+Only fresh updates can be constrained by neighborhood bounds, requiring four same-support, distance-compatible observations spanning two pixels on each axis. A single observation cannot erase history. Supported-bound replacement explicitly rejects prior information. The fresh prior weight is min(count,7)/(min(count,7)+1), multiplied by clamp(1-4*opacity delta,0,1) and clamp(1-max RGB delta/max RGB peak,0,1). Count is 1/(1-effective prior weight), up to eight, rather than an admission/frame counter. A carry keeps count unchanged; zero weight or a clipping replacement starts at one. Counts describe declared blend confidence, not statistical independence of correlated rays.
+
+Each history owns a required R16F observation-age field. Carry expires after seven frames without a real trace. The default-off `VGE_CLOUD_TEMPORAL_DIAGNOSTICS` compiled option separately adds an RGBA16F record for prior weight, status (fresh1/carried2/fallback3/invalid0), rejection and displayed age. Normal temporal GLSL has no diagnostic output; normal composition has no diagnostic sampler or diagnostic UBO. The ordinary age sampler/output remain production validity metadata. Optional diagnostic images and their framebuffer attachments exist only during diagnostic capture; toggling them preserves physical image identities, confidence and age. Temporal diagnostics add no runtime CPU readback.
+
+Normal storage is approximately103bytes per reduced pixel: two46-byte histories plus44-byte raw trace at one quarter their area, with ceil-edge overhead and32KiB blue noise. Diagnostic capture adds16bytes per reduced pixel across both histories, bringing the nominal total to119. Full resolution allocates none. Trace/filter UBOs use128bytes; only diagnostic composition borrows the filter UBO. Filtering writes four attachments normally and five when diagnostics are compiled in.
+
+The Cloud Stored Volume visualizer selects that compiled variant and adds update-class colors (fresh green, carry blue, fallback orange, invalid red), effective prior weight (black0 to white1), rejection color and observation age (black0 to white7). Rejection codes:0 accepted,1 no compatible frame,2 projection outside coverage,4 incompatible completion/count,5 foreground depth,6 malformed physical transport,7 representative distance,8 expired age,9 failed fresh trace,10 supported-bound replacement,11 zero reactive weight. Rejection colors use fract(code*(.37,.61,.83)); code0 is green. The visualizer does not change physical sampling or create CPU readbacks.
 
 Camera/material motion enters exactly once. Routine weather uploads, light/fog/exposure evolution
 and partial volume publication preserve compatible history. Camera cuts, incompatible storage/layout,
