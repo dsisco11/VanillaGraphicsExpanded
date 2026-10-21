@@ -1448,43 +1448,131 @@ Phase 8.1 implementation and verification
 
 Phase 8.2 - Accelerate empty-space traversal with an unsigned distance field
   Depends on: Phase 8.1's selected density-support contract; Phase 8 baseline review.
-  Outcome: conservative USDF steps skip empty space while occupied cells use the selected voxel integrator.
-  [ ] Specify unsigned distance to all potentially nonzero stored density support in physical metres,
+  Outcome: evaluate conservative empty-space stepping without changing occupied integration;
+    retain it only with useful measured total benefit, otherwise remove the prototype.
+  [x] Specify unsigned distance to all potentially nonzero stored density support in physical metres,
       not to a visible isosurface or occupied centres. For constant voxels, include complete occupied
       cell boxes; if any consumer retains filtered density, include its full interpolation support.
       No negative interior distances or perceptual extinction threshold is needed.
-  [ ] Select resolution, format and construction algorithm with a conservative error proof. Account
+  [x] Select resolution, format and construction algorithm with a conservative error proof. Account
       for anisotropy, finite guards, circular adjacency, quantization and cell/sample-position offsets.
       Approximate nearest-seed algorithms can overestimate safe distance; correct/bound that error
       rather than assuming a propagated nearest seed or trilinear distance sample is conservative.
-  [ ] Budget resident/peak field storage, construction scratch and publication lifetime before
+  [x] Budget resident/peak field storage, construction scratch and publication lifetime before
       allocation. Full-resolution R16F alone is35,009,700bytes (about33.4MiB) at515x66x515; charge
       all additional resources against the agreed ceilings. Evaluate coarser storage explicitly,
       with its lost skipping precision and safety allowance; no uncounted spares or silent coverage cut.
-  [ ] Build/update USDF through existing GPU/program/barrier abstractions from authoritative stored
+  [x] Build/update USDF through existing GPU/program/barrier abstractions from authoritative stored
       density. Track the density/domain revision certified by the distance data. Keep distance data
       private to the volume owner and retire it on selection, shader/context and world lifecycle changes.
-  [ ] Revoke affected nonlocal distance certificates before publishing newly occupied density.
+  [x] Revoke affected nonlocal distance certificates before publishing newly occupied density.
       During rebuild, use safe voxel/coarse DDA or zero skipping in uncertified regions. Removals may
       retain older smaller safe bounds. Include initial fill, weather additions/removals, recenter,
       replacement, guards and failure paths; never let stale distances hide new density.
-  [ ] Integrate conservative distance stepping into view, direct and diffuse traversal, clipped to
+  [x] Integrate conservative distance stepping into view, direct and diffuse traversal, clipped to
       scene/domain/ray limits. Skip only certified empty support, guarantee forward progress and resume
       exact cell traversal near occupied support. Do not widen occupied intervals, double integrate,
       cross an unverified region or change source/recurrence/bucket semantics to gain speed.
-  [ ] Preserve safe drawable/working publication and include all construction, repair, copy, barrier
+  [x] Preserve safe drawable/working publication and include all construction, repair, copy, barrier
       and certification work in costs. Reuse DDA as the unavailable/stale-field fallback without a
       second complete renderer or a hidden CPU wait. Justify each retained acceleration resource.
-  [ ] Use subagents for focused incremental checks of conservative bounds, additions during pending
+  [x] Use subagents for focused incremental checks of conservative bounds, additions during pending
       rebuilds, seams, anisotropy, publication identity, failure and ray completion. Reuse existing
       fixtures; no image-error, convergence, noise or approximation-quality thresholds.
-  [ ] Compare voxel DDA alone against USDF-assisted traversal at matched settings and density,
+  [x] Compare voxel DDA alone against USDF-assisted traversal at matched settings and density,
       including static and evolving weather/source/domain cases. Report total construction plus
       traversal cost, occupied samples, skipped distance, backlog/age and memory. Separate per-ray
       savings from full-resolution composition, which USDF does not remove. No broad matrix/package.
-  [ ] Completion: retain USDF only with demonstrated useful total-cost benefit and conservative
+  [x] Completion: retain USDF only with demonstrated useful total-cost benefit and conservative
       update/publication behavior; otherwise remove the prototype and record the decision. Obtain
       user-run appearance confirmation without inventing acceptance or an FPS guarantee.
+
+Phase 8.2 evaluation and rejection
+  Support/safety -> proposal / Traversal acceleration candidates, Initial acceleration selection,
+    Native inputs and coordinate identity -> tested capped integer block-distance relaxation from
+    conservative occupancy. Distance zero included entire occupied cell boxes and occupancy halo.
+    Eight 26-neighbor relaxations capped Chebyshev block distance at eight; X/Z wrapped, vertical
+    exterior acted as occupied. Distance d certified the block-index cube of radius d-1 empty.
+    Distance to its nearest face defines a conservative unsigned physical-distance bound; the tested
+    lookup used the stronger directional ray exit in metres. This was not a Euclidean distance texture.
+    Original-ray integer planes accounted for anisotropy, partial seam blocks and finite clipping;
+    stepping stayed one float below the computed cube exit and resumed unchanged exact voxel DDA.
+  Memory -> proposal / Layout and memory limits -> prototype appended two uint/block slices to each
+    working occupancy buffer and one to drawable occupancy, plus twelve header bytes per buffer.
+    Maximum additional working574612bytes, drawable287312, replacement1436536; peak1035387288
+    remained below1073741824. A working slice was construction scratch; no per-voxel volume/spare.
+    These are owned payload calculations, not driver allocation measurements. All were removed.
+  Updates/publication -> proposal / Nonblocking updates and drawable publication; PBR.Clouds.md /
+    Stored density-volume resources; Rendering.Enablement.md / Render boundaries;
+    PBR.Atmosphere.Publication.md / Publication contract -> rebuilt after ordered density/occupancy
+    writes and before all consumers. Revision/frame/ready header and density copied together into
+    isolated drawable storage. Unbuilt certificates used DDA; final barriers certified construction.
+    Owner command ordering prevented stale-ready reads during edits/recentering/replacement; failure
+    withdrew working publication. Existing source-only/unchanged geometry required no construction.
+  Evidence -> proposal / Evaluation and acceptance; this plan / Execution and evidence -> existing
+    traversal, transport, stored-view and complete-update facts extended temporarily, no new facts or
+    quality/speed assertions. Seven baseline and seven prototype checks passed in phase82-baseline.trx
+    and phase82-current.trx under artifacts/StoredCloudLatest/. CPU distance oracle, short seams,
+    anisotropy, unbuilt fallback and added support passed. Axis operations21->4, empty diagonal40->5;
+    added-support diagonal44->14 retained the same five occupied samples. Skipped lengths and coverage
+    remained conservative. Shared consumers preserved sources, recurrence, integration and budgets.
+  Paired same-width20 sparse DDA -> USDF medians: quarter view plus reconstruction .1741 -> .2714ms,
+    direct .0717 -> .0901ms, diffuse .0983 -> .2335ms. These regress even excluding construction.
+    Separate maximum-width200 construction cost .0655ms initial / .0645ms evolving, including nine
+    dispatches/barriers; replacement used the same full construction. Do not add maximum-domain
+    construction to smaller-domain trace costs as a matched total. Complete width20 update records
+    include density construction, selection, repair, completion and publication; normalized jobs,
+    backlog and ages are retained in the logs. Callback timings include CPU submission gaps and
+    contention, so cross-build totals do not isolate the field's hardware execution cost.
+  Decision: reject this prototype; fewer empty-space operations did not yield useful measured total
+    benefit. Removed its shader paths, operations, buffers, metadata and test-only helper/cases.
+    Current runtime remains the approved exact-cell/coarse DDA implementation, with no new setting,
+    distance allocation or visual change. Previous user appearance approval applies to that restored
+    implementation, not to the rejected prototype. This does not prove all distance algorithms are
+    unhelpful, especially on larger sparse volumes. Full-resolution composition remains unaffected.
+    RTX4090 authored fixtures with uncontrolled contention do not establish live FPS or appearance.
+    Restored cached incremental build passed with no errors and192warnings; production561cache hits/
+    three compiles, fixtures646hits/three compiles. Two affected restored checks passed in6.5426s
+    (phase82-restored.trx); unchanged passing evidence was reused. Second review and independent
+    completion audit passed. All ten tasks complete via the explicit rejected-prototype outcome.
+    No packaging or game launch/close. Phase 8.3 and later work remain unchecked.
+
+Phase 8.2 retry - physical block-distance lookup
+  User requested another attempt on2026-10-21. Replaced capped cube exits with three separable
+    min/max transforms of physical block-box gaps. Weighted L-infinity distance conservatively
+    bounded Euclidean separation from every point of a block to potentially occupied support.
+    X/Z used circular physical gaps including short blocks; Y had no artificial exterior seeds.
+    Scalar lookup retained original-ray float/direction allowances and finite clipping.
+  Tested three lookup revisions: scalar jumps with DDA reinitialization; distance-only empty state
+    deferring fine planes until support; and final distances packed into occupancy's upper16bits.
+    Packed half-metre units rounded down and saturated at32767.5m; low bits retained occupancy/repair.
+    Zero/short bounds returned before separate metadata loads and position arithmetic. This removed
+    the extra distance fetch. Working scratch added574612bytes, final drawable header only12bytes;
+    combined replacement increment1149236bytes stayed below the existing1GiB ceiling. All removed.
+  Source traceability remains proposal / Traversal acceleration candidates, Native inputs and
+    coordinate identity, Layout and memory limits, Nonblocking updates and drawable publication;
+    inherited Clouds/Atmosphere/Enablement contracts are unchanged. No settings or budgets changed.
+  Existing fixtures compared515x66x515 fields at3440x1377/quarter tracing, sparse and denser layers,
+    all three consumers, ABBA order and same-domain construction. These were authored fields at the
+    captured allocation size, not replayed captured weather. No approximation or speed thresholds.
+    Initial6checks passed; retained-state and packed revisions each passed3affected checks. Corrected
+    two initially out-of-band oracle rays before final validation:8occupied samples before support
+    addition and16afterward remained identical; operations28->15/16 and35->28/29. CPU box-gap and
+    downward quantization assertions covered anisotropy, circular seams and short blocks.
+  Final packed ABBA medians: sparse view DDA1.4029/1.4172ms versus distance1.4397/1.4162ms (overlap);
+    denser view DDA1.1919/1.1858 versus distance1.2421/1.2421ms (about4%slower). Sparse direct tied
+    at.0123ms and diffuse tied at.0358ms. Construction added about.0307ms at the same allocation.
+    Retaining empty state reduced the scalar retry's regression but did not establish total benefit.
+    Timing includes the actual view/reconstruction path; uncontrolled contention remains a limitation.
+  Decision: reject this retry too. Restored all renderer/test sources to the approved DDA content;
+    no distance fields, flags, programs, temporary test cases or settings remain. Previous appearance
+    approval still applies. Results do not rule out every distance representation or workload.
+    Receipts: artifacts/StoredCloudLatest/phase82retry-{baseline,current,retainedstate,packed}*. Logs
+    preserve per-pass/complete-update costs, work counts and ages; packed.patch/helper.cs preserve
+    the rejected implementation outside product sources. Restored cached build passed with no errors
+    and172warnings; production564cache hits, fixtures649hits, no recompiles on recovery. Original
+    traversal and stored-solution lifecycle checks passed2/2 in6.3202s (phase82retry-restored.trx).
+    Source review confirms only this planning document differs; no packaging or game interaction.
 
 Phase 8.3 - Compare voxel integration and acceleration total cost
   Depends on: Phases 8.1 and 8.2, including their selected implementation or explicit rejected-prototype result.
