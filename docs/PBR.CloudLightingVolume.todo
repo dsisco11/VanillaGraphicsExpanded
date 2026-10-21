@@ -1,3 +1,8 @@
+Retired implementation plan
+  Superseded by PBR.CloudVolume.todo. All outstanding items marked [-] are cancelled, not completed.
+  Recorded source paths and measurements below describe the retired implementation only.
+  Shared native weather, Simple rendering and temporal obligations are owned by PBR.CloudVolume.todo.
+
 Persistent cloud lighting volume candidate
 ==========================================
 
@@ -411,28 +416,28 @@ Phase 8: Qualify cost, appearance and removability
   Depends on Phases 1–7. Outcome: evidence supports keeping, revising or removing the candidate.
   Validation: one frozen-candidate canonical build/package check and matched opt-in comparisons;
     reuse unchanged focused receipts and valid baseline provenance. Repeat only invalidated evidence.
-  ☐ Freeze source/settings/shader identities; verify canonical production/test outputs and package assets.
+  [-] Freeze source/settings/shader identities; verify canonical production/test outputs and package assets.
     - Confirm candidate resources are packaged and default selection is unchanged. Cover both PBR
       modes, Off/Simple/Volumetric, failed preparation/recovery and retirement with existing receipts.
-  ☐ Measure existing and candidate rendering with matched native inputs, extent and declared settings.
+  [-] Measure existing and candidate rendering with matched native inputs, extent and declared settings.
     - Separate descriptor observation, domain maintenance, direct/scattering updates, publication/copies,
       view integration, optional spatial resolve, CPU submission, total GPU cost and resident allocation.
     - Include cold initialization, stable warm views, camera/wind motion, evolving weather, low sun and
       source transitions. Report backlog, oldest lighting age and fallback coverage alongside timings.
     - State resolution/approximation differences and regressions. Warm-state savings alone do not
       qualify initialization spikes or sustained backlog. No preselected speedup/FPS claim is a gate.
-  ☐ Obtain user-run appearance assessment of sharp support, thin clouds, gaps, grid motion, source
+  [-] Obtain user-run appearance assessment of sharp support, thin clouds, gaps, grid motion, source
     transitions, stale lighting, edge artifacts and deterministic-view aliasing without temporal history.
     - Record latency/quality tradeoffs and the user's disposition; headless checks do not establish
       visual acceptance. Later temporal filtering, sparse storage or density caching require new scope.
-  ☐ Audit removability and reconcile delivered documentation.
+  [-] Audit removability and reconcile delivered documentation.
     - Enumerate exact candidate directories, settings/debug/shader registrations and the selection seam
       needed for removal. Confirm no current cloud shader branches or resource owners require them.
     - Verify return-to-existing behavior and complete candidate resource retirement. Do not delete the
       candidate merely to perform this audit or promote it to default without explicit user direction.
     - Keep PBR.Clouds.md current for delivered selection/ownership; keep existing realtime acceptance
       separate. Record decisions/deviations against the source proposal and unresolved qualification.
-  ☐ Completion: correctness/package evidence, matched costs, user assessment and removal audit have
+  [-] Completion: correctness/package evidence, matched costs, user assessment and removal audit have
     an explicit keep/revise/remove disposition. Missing runtime evidence leaves qualification open.
 
 Proposal coverage
@@ -446,10 +451,10 @@ Proposal coverage
   Evaluation/removal criteria -> execution policy, Phases 7–8 and final acceptance below.
 
 Final acceptance
-  ☐ Every source requirement maps to delivered behavior or an explicitly agreed deviation/disposition.
-  ☐ Candidate algorithms/resources remain isolated and removal requires only the enumerated boundary.
-  ☐ Native ownership, physical scene/OIT contracts, both PBR modes and existing renderer selection work.
-  ☐ Retained illumination has coherent publication, bounded work and observable validity/age/backlog.
-  ☐ Focused correctness, canonical package, complete cost accounting and user appearance evidence exist.
-  ☐ Remaining tradeoffs are explicit; neither production promotion nor unrelated realtime-task completion
+  [-] Every source requirement maps to delivered behavior or an explicitly agreed deviation/disposition.
+  [-] Candidate algorithms/resources remain isolated and removal requires only the enumerated boundary.
+  [-] Native ownership, physical scene/OIT contracts, both PBR modes and existing renderer selection work.
+  [-] Retained illumination has coherent publication, bounded work and observable validity/age/backlog.
+  [-] Focused correctness, canonical package, complete cost accounting and user appearance evidence exist.
+  [-] Remaining tradeoffs are explicit; neither production promotion nor unrelated realtime-task completion
     is inferred from this candidate's implementation or qualification.

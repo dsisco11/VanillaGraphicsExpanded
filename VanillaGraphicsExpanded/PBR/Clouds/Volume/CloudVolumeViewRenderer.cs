@@ -116,8 +116,8 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
                     &&oldDomain.Width==fields.Domain.Width&&oldDomain.Bottom==fields.Domain.Bottom&&oldDomain.Band==fields.Domain.Band
                     &&historySettings==settings&&historyUnderwater==(scene.Underwater>.7f)&&historyDebug==debugMode;
                 int historyWidth=histories[0]!.Target.Width,historyHeight=histories[0]!.Target.Height;
-                HistoryCompatible=history.Capture(input,scene.Camera,historyWidth,historyHeight,program.Temporal,compatible,CloudTraceScale.Quarter,divisor);
-                history.Capture(input,scene.Camera,historyWidth,historyHeight,temporal.Temporal,compatible,CloudTraceScale.Quarter,divisor);
+                HistoryCompatible=history.Capture(input,scene.Camera,historyWidth,historyHeight,program.Temporal,compatible,divisor);
+                history.Capture(input,scene.Camera,historyWidth,historyHeight,temporal.Temporal,compatible,divisor);
                 if(!HistoryCompatible)cursor=0;
                 var previous=histories[1-cursor]!;var next=histories[cursor]!;
                 // Invalid history is scratch: trace its full reduced grid before filtering into the

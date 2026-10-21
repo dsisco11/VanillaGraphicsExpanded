@@ -40,16 +40,8 @@ Issues:
           for every possible amplitude, threshold or other continuous value.
         - Preserve runtime guards for geometry, lighting, current publications, resource availability,
           disocclusion and other per-frame/per-sample facts; these are not configuration switches.
-        ☐ Compile cloud detail and its noise bypass as feature selections.
-          - Replace volumeDetail.w and the zero-amplitude noise selection in cloud_volume_density.glsl
-            with options derived from Clouds.Detail and whether DetailAmplitude is positive.
-          - Apply the same density policy to reduced tracing, reference transport, retained secondary
-            marching and shadow-cache generation. Preserve cubic support, connected faces, anchoring
-            and actual amplitude/scale controls; omit disabled noise/erosion work from the binary.
-        ☐ Compile cloud primary early-termination enablement separately from its threshold.
-          - Derive enablement from Clouds.StopTransmittance > 0. Remove the per-step termination
-            comparison when zero; retain the configured threshold and strict post-step exit when on.
-          - Preserve primary sampling, support metadata, physical units and all OIT output arithmetic.
+        - Cancelled: retired procedural cloud detail and primary-termination shader refactors.
+          The stored-volume renderer already compiles Detail and StopTransmittance enablement.
         ☐ Compile LumOn anchor jitter enablement in anchor and temporal shaders.
           - Replace the AnchorJitterEnabled uniform switch in lumon_probe_anchor.fsh and
             lumon_probe_atlas_temporal.fsh with a shared option; retain jitter scale/cycle as data.

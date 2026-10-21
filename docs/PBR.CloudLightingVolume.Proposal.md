@@ -1,3 +1,5 @@
+Planning status: superseded by [the cloud volume design](PBR.CloudVolume.Proposal.md). This document is an inactive design record, not current architecture or implementation authority.
+
 # Persistent cloud lighting volume candidate
 
 ## Status and purpose

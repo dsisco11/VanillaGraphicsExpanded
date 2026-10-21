@@ -11,7 +11,7 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
-/// <summary>Adapts the selected candidate to native frame/lifecycle contracts without owning native weather or textures.</summary>
+/// <summary>Adapts stored-volume rendering to native frame/lifecycle contracts without owning native weather or textures.</summary>
 internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
 {
     private readonly ICoreClientAPI api;
@@ -38,7 +38,7 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
         this.api=api;this.runtime=runtime;this.selection=selection;
         unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,RetireTarget);
     }
-    /// <summary>Applies cached candidate controls before Opaque while preserving compatible fields for view-only changes.</summary>
+    /// <summary>Applies cached cloud controls before Opaque while preserving compatible fields for view-only changes.</summary>
     public bool Prepare()
     {
         if(disposed || failed || AtmosphereModSystem.Lighting is not { } lighting || lighting.CalibrationGeneration==0 || !GpuUniformRingSystem.TryGetCurrent(out _)) return false;
@@ -113,7 +113,7 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
                 RetireTarget();target=DynamicGpuFramebuffer.Wrap(transparent.FboId,"Cloud.Volume.Transparent",transparent.Width,transparent.Height);
                 target.PublishRenderPassMetadata();
             }
-            if(!view!.Draw(publication,input,scene,target,Current,CloudStoredVolumeDiagnostics.Mode)) throw new InvalidOperationException(view.Failure??"Candidate view rejected.");
+            if(!view!.Draw(publication,input,scene,target,Current,CloudStoredVolumeDiagnostics.Mode)) throw new InvalidOperationException(view.Failure??"Cloud view rejected.");
             }
             // Optional diagnostics inspect completed working data before another update is submitted.
             try {CloudStoredVolumeDiagnostics.Observe(solution,input.Frame);}
@@ -147,7 +147,7 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     private void Fail(Exception error)
     {
         failed=true;solution?.Storage.Withdraw();
-        api.Logger.Error("[VGE] Stored-volume clouds disabled until reload/reset/selection change. {0}",error);
+        api.Logger.Error("[VGE] Stored-volume clouds disabled until reload/reset/mode change. {0}",error);
     }
     #endregion
 }

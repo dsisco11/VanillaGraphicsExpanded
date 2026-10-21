@@ -8,13 +8,11 @@ namespace VanillaGraphicsExpanded.DebugView;
 public static partial class VgeBuiltInDebugViews
 {
     #region Cloud lighting volume
-    /// <summary>Registers candidate coverage and exact validity inspection in the existing debug menu.</summary>
+    /// <summary>Registers cloud coverage and exact validity inspection in the existing debug menu.</summary>
     private static DebugViewDefinition CreateStoredVolumeView()=>new(
         "vge.cloud.storedVolume","Cloud Stored Volume",CategoryPbr,
         "Native density support, lighting coverage, validity/fallback and bounded update statistics.",
         _=>{CloudStoredVolumeDiagnostics.Mode=4;return new ActionDisposable(()=>CloudStoredVolumeDiagnostics.Mode=0);},
-        availability:ctx=>ctx.Config.Clouds.VolumeRenderer==CloudVolumeRendererKind.StoredVolume
-            ? DebugViewAvailability.Available():DebugViewAvailability.Unavailable("Select the stored-volume candidate first."),
         createPanel:_=>new StoredVolumePanel());
 
     /// <summary>Displays existing GPU scheduler records without creating another diagnostic resource owner.</summary>

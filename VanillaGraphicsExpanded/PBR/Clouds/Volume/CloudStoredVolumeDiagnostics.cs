@@ -42,11 +42,11 @@ internal static class CloudStoredVolumeDiagnostics
             "Density/region/age/fallback overlays use stored fields only. Readback is developer-only, once per second.";
         lastRead=now;source=new(solution);
     }
-    /// <summary>Rejects statistics from retired candidates and exposes expected bounded startup separately from failure.</summary>
+    /// <summary>Rejects statistics from retired volume lifetimes and exposes expected bounded startup separately from failure.</summary>
     internal static string Describe(CloudVolumeSolution? solution,bool failed)
     {
         if(failed)return "Stored-volume contribution withdrawn; reload shaders or switch renderer to recover.";
-        if(solution is null)return "Stored-volume candidate not prepared.";
+        if(solution is null)return "Volumetric clouds are not prepared.";
         if(!solution.Storage.Ready)return "Bounded density initialization/replacement pending; initial contribution is neutral.";
         return source is not null&&source.TryGetTarget(out var prior)&&ReferenceEquals(prior,solution)?snapshot:"Awaiting developer diagnostic observation.";
     }

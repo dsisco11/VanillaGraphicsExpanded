@@ -1,100 +1,49 @@
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using VanillaGraphicsExpanded.PBR.Clouds;
-using VanillaGraphicsExpanded.PBR.Clouds.LightingVolume;
 using VanillaGraphicsExpanded.PBR.Clouds.Volume;
+using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.Tests;
 
-/// <summary>Checks early-boundary selection and independent candidate settings without a native game lifetime.</summary>
+/// <summary>Checks the production configuration boundary and retired program removal.</summary>
 public sealed class CloudVolumeSelectionTests
 {
     #region Public API
-    /// <summary>Pending configuration cannot switch a frozen frame; retirement precedes new preparation and preserves mode admission.</summary>
+    /// <summary>Applied features and resolution remain pending until early preparation.</summary>
     [Fact]
-    public void SelectionRetiresBeforeReplacementOnlyAtExplicitBoundary()
+    public void ConfigurationPublishesOnlyAtPreparation()
     {
-        var selection=new CloudVolumeSelection();var config=new CloudRenderingSettings();
-        using var ownership=new CloudModeOwnership();ownership.Update(true,1);
-        var existing=new Consumer();Assert.True(ownership.TryActivate(CloudMode.Volumetric,existing,true));
-        config.VolumeRenderer=CloudVolumeRendererKind.LightingVolumeCandidate;selection.Request(config);
-        Assert.Equal(CloudVolumeRendererKind.StoredVolume,selection.Renderer);Assert.Equal(0,existing.Disposals);
-        selection.Apply(()=>
+        var config=new CloudRenderingSettings();var staged=new CloudVolumeConfiguration();
+        Assert.Equal(CloudVolumeViewSettings.Default,config.Capture());
+        foreach(var (reference,scale,divisor) in new[]{(false,CloudTraceScale.Half,2),(true,CloudTraceScale.Quarter,1),(false,CloudTraceScale.Quarter,4)})
         {
-            Assert.Equal(CloudVolumeRendererKind.StoredVolume,selection.Renderer);ownership.Dispose();
-        });
-        Assert.Equal(1,existing.Disposals);Assert.False(ownership.Owns(CloudMode.Volumetric));
-        ownership.Update(true,1);var candidate=new Consumer();
-        Assert.False(ownership.TryActivate(CloudMode.Volumetric,candidate,false));
-        Assert.False(ownership.Owns(CloudMode.Volumetric));
-        Assert.True(ownership.TryActivate(CloudMode.Volumetric,candidate,true));
-        // Ordinary per-frame reconciliation, including missing draw inputs, retains the one admitted owner.
-        ownership.Update(true,1);Assert.True(ownership.Owns(CloudMode.Volumetric));
-        config.LightingVolume.ViewMaximum=12;selection.Request(config);selection.Apply(()=>throw new Exception("View-only change retired ownership."));
-        Assert.Equal(12,selection.Settings.Maximum);Assert.Equal(0,candidate.Disposals);
-        config.VolumeRenderer=CloudVolumeRendererKind.StoredVolume;
-        config.StoredVolume.Detail=false;selection.Request(config);
-        Assert.Equal(CloudVolumeRendererKind.LightingVolumeCandidate,selection.Renderer);
-        selection.Apply(ownership.Dispose);Assert.Equal(1,candidate.Disposals);
-        ownership.Update(true,1);var stored=new Consumer();Assert.True(ownership.TryActivate(CloudMode.Volumetric,stored,true));
-        Assert.False(selection.StoredSettings.Detail);
-        Assert.Equal(4,selection.StoredSettings.TraceDivisor);
-        config.TraceScale=CloudTraceScale.Half;selection.Request(config);
-        Assert.Equal(4,selection.StoredSettings.TraceDivisor);
-        selection.Apply(()=>throw new Exception("Trace scale change retired ownership."));
-        Assert.Equal(2,selection.StoredSettings.TraceDivisor);Assert.Equal(0,stored.Disposals);
-        config.FullResolutionReference=true;selection.Request(config);
-        Assert.Equal(2,selection.StoredSettings.TraceDivisor);
-        selection.Apply(()=>throw new Exception("Reference resolution change retired ownership."));
-        Assert.Equal(1,selection.StoredSettings.TraceDivisor);
-        config.TraceScale=CloudTraceScale.Quarter;selection.Request(config);
-        selection.Apply(()=>throw new Exception("Reference resolution override retired ownership."));
-        Assert.Equal(1,selection.StoredSettings.TraceDivisor);
-        config.FullResolutionReference=false;selection.Request(config);
-        Assert.Equal(1,selection.StoredSettings.TraceDivisor);
-        selection.Apply(()=>throw new Exception("Reference resolution reset retired ownership."));
-        Assert.Equal(4,selection.StoredSettings.TraceDivisor);Assert.Equal(0,stored.Disposals);
-        config.StoredVolume.StopTransmittance=0;selection.Request(config);selection.Apply(()=>throw new Exception("Stored view-only change retired ownership."));
-        Assert.Equal(0,selection.StoredSettings.Stop);
-        config.VolumeRenderer=CloudVolumeRendererKind.Previous;selection.Request(config);selection.Apply(ownership.Dispose);
-        Assert.Equal(1,stored.Disposals);
-        Assert.Equal(1,candidate.Disposals);Assert.Equal(CloudVolumeRendererKind.Previous,selection.Renderer);
-    }
-    /// <summary>Candidate fields sanitize and serialize separately while current defaults and ConfigLib controls stay consistent.</summary>
-    [Fact]
-    public void CandidateConfigurationKeepsExistingQualityAndDefaultsIndependent()
-    {
-        var config=JsonConvert.DeserializeObject<CloudRenderingSettings>("{}")!;
-        var existing=config.Capture();Assert.Equal(CloudVolumeRendererKind.StoredVolume,config.VolumeRenderer);
-        Assert.Equal(LightingVolumeViewSettings.Default,config.LightingVolume.Capture());
-        config.LightingVolume.ViewMaximum=999;config.LightingVolume.ViewBudgetDistance=float.NaN;
-        config.LightingVolume.StopTransmittance=-1;config.LightingVolume.Diffuse=false;config.VolumeRenderer=(CloudVolumeRendererKind)99;
-        config.Sanitize();Assert.Equal(existing,config.Capture());Assert.Equal(CloudVolumeRendererKind.StoredVolume,config.VolumeRenderer);
-        Assert.Equal(new LightingVolumeViewSettings(96,10000,0,true,true,false),config.LightingVolume.Capture());
-        var roundtrip=JsonConvert.DeserializeObject<CloudRenderingSettings>(JsonConvert.SerializeObject(config))!;
-        Assert.Equal(config.LightingVolume.Capture(),roundtrip.LightingVolume.Capture());
-        Assert.Equal(VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default,config.StoredVolume.Capture());
+            var previous=staged.Settings;config.TraceScale=scale;config.FullResolutionReference=reference;
+            config.Detail=false;config.SelfShadowing=false;config.Diffuse=false;config.StopTransmittance=0;
+            staged.Request(config);Assert.Equal(previous,staged.Settings);staged.Apply();
+            Assert.Equal(new CloudVolumeViewSettings(false,false,false,0,divisor),staged.Settings);
+        }
+        config.TraceScale=(CloudTraceScale)3;config.StopTransmittance=float.NaN;
+        Assert.Equal(4,config.Capture().TraceDivisor);Assert.Equal(.005f,config.StopTransmittance);
+        var copy=JsonConvert.DeserializeObject<CloudRenderingSettings>(JsonConvert.SerializeObject(config))!;
+        Assert.Equal(config.Capture(),copy.Capture());
         Assert.Throws<ArgumentOutOfRangeException>(()=>(CloudVolumeViewSettings.Default with{TraceDivisor=3}).Validate());
-        config.StoredVolume.StopTransmittance=float.NaN;config.StoredVolume.Sanitize();Assert.Equal(.005f,config.StoredVolume.StopTransmittance);
-        var document=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
-        var controls=document["settings"]!.Children<JProperty>().SelectMany(p=>p.Value.Children<JProperty>()).Select(p=>p.Value).ToArray();
-        Assert.Equal(0,controls.Single(p=>(string?)p["code"]=="Clouds.VolumeRenderer")["default"]!.Value<int>());
-        Assert.Contains(2,controls.Single(p=>(string?)p["code"]=="Clouds.VolumeRenderer")["values"]!.Values<int>());
-        foreach(string field in new[]{"Detail","SelfShadowing","Diffuse","StopTransmittance"})
-            Assert.Single(controls,p=>(string?)p["code"]=="Clouds.StoredVolume."+field);
-        foreach(string field in new[]{"ViewMaximum","ViewBudgetDistance","StopTransmittance","Detail","SelfShadowing","Diffuse"})
-            Assert.Single(controls,p=>(string?)p["code"]=="Clouds.LightingVolume."+field);
     }
-    #endregion
-    #region Private
-    /// <summary>Counts only selected-owner retirement; failed admission leaves ownership with the caller.</summary>
-    private sealed class Consumer:IDisposable
+    /// <summary>Only supported cloud controls and retained shader inputs remain discoverable.</summary>
+    [Fact]
+    public void ProductionControlsAndCatalogExcludeRetiredPaths()
     {
-        internal int Disposals {get;private set;}
-        #region Public API
-        /// <summary>Records each release so duplicate disposal is observable.</summary>
-        public void Dispose()=>Disposals++;
-        #endregion
+        var document=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
+        var controls=document["settings"]!.Children<JProperty>().SelectMany(p=>p.Value.Children<JProperty>()).Select(p=>p.Value)
+            .Where(p=>((string?)p["code"])?.StartsWith("Clouds.")==true).ToArray();
+        string[] expected=["Detail","SelfShadowing","Diffuse","StopTransmittance","TraceScale","FullResolutionReference"];
+        Assert.Equal(expected.Select(s=>"Clouds."+s).Order(),controls.Select(p=>(string)p["code"]!).Order());
+        var serialized=JObject.Parse(JsonConvert.SerializeObject(new CloudRenderingSettings()));
+        Assert.Equal(expected.Order(),serialized.Properties().Select(p=>p.Name).Order());
+        var identities=GeneratedShaderCatalog.Programs().SelectMany(p=>p.Stages).Select(s=>s.Identity).Distinct().ToArray();
+        Assert.Contains("cloud_volume/view.fsh",identities);Assert.Contains("cloud_volume/temporal.fsh",identities);
+        Assert.Contains("cloud_simple.fsh",identities);
+        Assert.DoesNotContain(identities,s=>s.StartsWith("cloud_lighting_volume/")||s is "cloud_volume.fsh" or "cloud_volume_trace.fsh" or "cloud_volume_temporal.fsh" or "cloud_volume_resolve.fsh" or "cloud_hierarchy.csh" or "cloud_shadow_cache.csh" or "tests/cloud-traversal.csh");
     }
     #endregion
 }

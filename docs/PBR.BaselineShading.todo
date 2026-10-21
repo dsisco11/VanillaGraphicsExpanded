@@ -206,34 +206,12 @@ Tasks
       migrate direct lighting, composite/display resolve, liquids and water-volume inputs together.
 
   ☐ Implement physically motivated volumetric clouds integrated with the sky.
-    - Approved proposal: docs/PBR.VolumetricClouds.Proposal.md (2026-10-16), archived at e87de94d.
-      Its implementation checklist docs/PBR.VolumetricClouds.todo is archived at the same commit;
-      read both with git show <commit>:<path>. Current qualification is in PBR.CloudRealtime.todo.
-      User visual/performance acceptance and the recorded reflection dependency remain open.
-    - Realtime work tasklist: docs/PBR.CloudRealtime.todo; reconcile
-      sampling, self-lighting, termination, reconstruction, atmosphere and acceleration costs there.
-      Its Phase 8 evaluates repeated shading work and cloud-internal lighting reuse at preserved
-      initial settings. The current cache uses compact front-depth/mean-extinction/maximum-optical-
-      depth records with a single hardware-filtered parameter sample, bounded generation and
-      transported per-source projection orientation. The approximation replaces separated layers/gaps with a mean ramp;
-      finite ShadowDistance and same-frame source/publication validity remain intact. Hardware
-      filtering and its focused qualification are consolidated into subphase 8.5. Final visual and
-      whole-renderer performance acceptance remain in Phase 11. Primary samples are budgeted over
-      the certified cloud-layer intersection in reduced and reference paths. The measured budget
-      distance default is 10000 world units; missing/stale bounds use an explicit conservative
-      horizontal-domain schedule. This changes sample positions, weights and approximation.
-      Quarter tracing is
-      now the default by explicit user direction; explicit Half remains supported. Density perturbation uses
-      one procedural value-noise field with integer corner hashes and shared periodic lattice setup.
-      View/light/cache consumers retain native support, amplitude bounds and material/wind anchoring.
-      User appearance acceptance and measured performance qualification remain open.
-      Phase 10 improves temporal retention and evaluates LumOn
-      reprojection/invalidation reuse. Phase 11 retains final qualification.
-      Implementation phases use cached incremental builds, affected-contract checks and existing
-      baseline evidence. Full baseline reproduction and canonical release/package verification are
-      final-qualification work in Phase 11, not repeated completion gates for each increment; follow
-      the validation scope in PBR.CloudRealtime.todo / Execution and evidence.
-      External cast-shadow deferral is unchanged.
+    - Current design: docs/PBR.CloudVolume.Proposal.md. Implementation and remaining qualification:
+      docs/PBR.CloudVolume.todo. Stored density/lighting is the sole Volumetric implementation;
+      retired procedural and lighting-only plans are inactive design records.
+      Native weather and Off/Simple ownership, physical atmosphere and six-output OIT remain intact.
+      Remaining temporal-retention fixes and final performance/package/user acceptance belong to
+      that plan. Use focused cached incremental checks; final packaging belongs to qualification.
     - Define bounded 3D cloud density, altitude/weather controls, wind and volume lighting. Evaluate
       ray marching, light transmittance and a controlled multiple-scattering approximation.
     - Defer shadows cast by clouds until virtual shadow maps are implemented; retain cloud-volume self-shadowing.
@@ -244,25 +222,9 @@ Tasks
     - Define replacement of vanilla clouds and clean disable/reload behavior. Validate thin/thick
       clouds, moving sun, weather, disocclusion, water reflections and fog; measure GPU and memory cost.
 
-  ☐ Validate changed volumetric cloud sampling in game. Primary rays use a certified layer-intersection
-    uniform lattice, with an explicit horizontal fallback and eight spatial blue-noise masks;
-    reference primary transport remains midpoint. Secondary
-    sampling uses deterministic midpoints of bounded quadratic intervals. Prior PMJ receipts qualify the legacy primary
-    sampler only: artifacts/CloudPmj/validation.md. New numerical qualification is tracked in
-    docs/PBR.CloudRealtime.todo; live appearance and GPU/frame-time acceptance remain open.
-  ☐ Evaluate what type of HZB accelleration structure would be suitable for volumetric cloud rendering.
-    - Archived design and implementation receipts: commit f66895c6,
-      docs/PBR.CloudHierarchy.Proposal.md and docs/PBR.CloudHierarchy.todo. Current architecture:
-      docs/PBR.Clouds.md; remaining sampling/performance work: docs/PBR.CloudRealtime.todo.
-      Native leaves retain owned coarse min/max height summaries.
-    - Reduced tracing uses certified root-height rejection with direct native-support fallback.
-      Primary root misses reject whole rays without changing the sample span/count/jitter; solar/lunar
-      roots skip proven-empty scheduled positions. Primary and retained secondary transport have no
-      column DDA or tree descent; cache generation uses a bounded native-support walk on short chords.
-      Primary sampling is independent of summary availability. Archived automated integration qualification
-      applies to its recorded candidate; total GPU benefit and user-run
-      live acceptance remain open, so this parent item is not complete.
-
+  - Cancelled: qualification of retired layer-lattice primary/secondary sampling and native-column
+    height-summary acceleration. Those implementations are removed; current exact-cell DDA,
+    conservative occupancy and temporal qualification are owned by docs/PBR.CloudVolume.todo.
   ✔ Compact volumetric cloud intermediates and reconstruct native OIT accumulation bins at resolve. @done(26-10-17)
     - Implementation uses three named RGBA32F images per set, with physical radiance/transmission,
       bucket transmissions and unchanged depth metadata. Resolve reconstructs products per admitted
@@ -474,6 +436,11 @@ Tasks
       subagent-run focused GPU tests. Capture VAO/EBO call reductions and compare rendered outputs;
       distinguish API call savings from measured GPU or frame-time improvements.
 
+  ☐ Implement Direct State Access support into GpuTexture base class.
+  ☐ Implement Direct State Access support into GpuFramebuffer base class.
+  ☐ Implement Direct State Access support into GpuVao base class.
+  ☐ Implement Direct State Access support into GpuEbo base class.
+  ☐ Evaluate what other areas of our Gpu wrapper abstractions could use Direct State Access support.
   ☐ Implement virtual shadow maps.
 
   ☐ Analyze the current PBR MRT textures and evaluate which can be combined together to just use individual channels of the same texture-layer in the G-Buffer array.

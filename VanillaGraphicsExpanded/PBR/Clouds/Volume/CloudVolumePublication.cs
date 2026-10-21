@@ -25,7 +25,7 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
     #region Public API
     /// <summary>Counts all drawable images and metadata separately from working/replacement storage.</summary>
     internal static long Payload(CloudVolumeDomain domain)=>checked(14L*domain.Voxels+68L*domain.Blocks);
-    /// <summary>Admits the typed publication executable before candidate activation.</summary>
+    /// <summary>Admits the typed publication executable before volume activation.</summary>
     internal void Prepare()
     {
         var caps=GpuSupport.Graphics;

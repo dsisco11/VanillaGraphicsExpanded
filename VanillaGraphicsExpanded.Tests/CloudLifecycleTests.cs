@@ -70,7 +70,7 @@ public sealed class CloudLifecycleTests(HeadlessGLFixture fixture)
                     Assert.Equal(mode == 2, simpleSuppressed);
                     Assert.False(volumeSuppressed && simpleSuppressed);
                     Assert.Equal(mode == 1, registered.Contains(nativeVolume));
-                    Assert.Equal(mode == 1, registered.Any(renderer => renderer is CloudVolumeRenderer));
+                    Assert.Equal(mode == 1, registered.Any(renderer => renderer is VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudStoredVolumeConsumer));
                     Assert.Equal(mode == 2, AccessTools.Field(typeof(CloudNativeRuntime), "simple").GetValue(runtime) is not null);
                     Assert.Equal(mode == 1, AccessTools.Field(typeof(CloudNativeRuntime), "volume").GetValue(runtime) is not null);
                     object? consumer = AccessTools.Field(typeof(CloudNativeRuntime), mode == 1 ? "volume" : "simple").GetValue(runtime);
@@ -90,7 +90,7 @@ public sealed class CloudLifecycleTests(HeadlessGLFixture fixture)
                 Assert.Null(CloudNativeRuntime.Active);
                 Assert.False(runtime.SuppressVolume(nativeVolume));
                 Assert.False(runtime.RenderSimple(nativeSimple, .125f, EnumRenderStage.OIT));
-                Assert.DoesNotContain(registered, renderer => renderer is CloudVolumeRenderer);
+                Assert.DoesNotContain(registered, renderer => renderer is VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudStoredVolumeConsumer);
                 Assert.Equal(mode == 1, registered.Contains(nativeVolume));
                 Assert.Same(nativeVolume, AccessTools.Field(typeof(FluffyCloudsModSystem), "volumetric").GetValue(system));
                 Assert.Same(nativeSimple, AccessTools.Field(typeof(WeatherSystemClient), "cloudRenderer").GetValue(weather));
@@ -111,21 +111,18 @@ public sealed class CloudLifecycleTests(HeadlessGLFixture fixture)
         api.Setup(value => value.Settings.Int.Get("cloudRenderMode", 0)).Returns(1);
         using var runtime = new CloudNativeRuntime(api.Object);
         events.Raise(value => value.LevelFinalize += null); runtime.Update();
-        var renderer = new CloudVolumeRenderer(api.Object, runtime);
-        var reconstruction = AccessTools.Field(typeof(CloudVolumeRenderer), "reconstruction").GetValue(renderer)!;
-        var storage = new CloudVolumeStorage(1, 1, "Tests.Cloud.Teardown");
-        var surface = storage.Blocks[0];
-        int framebuffer = surface.Target.FboId;
-        int[] textures = [storage.Array.TextureId,..storage.Blocks.Select(block=>block.View.TextureId)];
-        AccessTools.Field(reconstruction.GetType(), "storage").SetValue(reconstruction, storage);
+        var renderer = new VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudStoredVolumeConsumer(api.Object, runtime,()=>VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default);
+        var storage = new VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewTargets(1,1,2);
+        int framebuffer=storage.Target.FboId;
+        AccessTools.Field(renderer.GetType(),"target").SetValue(renderer,storage.Target);
         Assert.True(runtime.Ownership.TryActivate(CloudMode.Volumetric, renderer, true));
         events.Setup(value => value.UnregisterRenderer(renderer, EnumRenderStage.OIT)).Throws(new InvalidOperationException("event teardown"));
         var error = Assert.Throws<AggregateException>(() => runtime.Ownership.Dispose());
         Assert.Contains(error.InnerExceptions, failure => failure.Message == "event teardown");
         Assert.False(runtime.Ownership.Owns(CloudMode.Volumetric));
         Assert.False(GL.IsFramebuffer(framebuffer));
-        Assert.All(textures, texture => Assert.False(GL.IsTexture(texture)));
-        Assert.Null(AccessTools.Field(reconstruction.GetType(), "storage").GetValue(reconstruction));
+        storage.Dispose();
+        Assert.Null(AccessTools.Field(renderer.GetType(),"target").GetValue(renderer));
         renderer.Dispose(); // No second event removal or resource retirement.
         events.Verify(value => value.UnregisterRenderer(renderer, EnumRenderStage.OIT), Times.Once);
     }
@@ -138,7 +135,7 @@ public sealed class CloudLifecycleTests(HeadlessGLFixture fixture)
         if (mode == 0 || runtime.Ownership.Owns((CloudMode)mode)) return;
         if (mode == 1)
         {
-            var renderer = new CloudVolumeRenderer(api, runtime);
+            var renderer = new VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudStoredVolumeConsumer(api, runtime,()=>VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default);
             Assert.True(runtime.Ownership.TryActivate(CloudMode.Volumetric, renderer, true));
             AccessTools.Field(typeof(CloudNativeRuntime), "volume").SetValue(runtime, renderer);
             api.Event.RegisterRenderer(renderer, EnumRenderStage.OIT, "vge_cloud_volume");

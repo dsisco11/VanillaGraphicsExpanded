@@ -71,7 +71,7 @@ internal sealed class CloudVolumeSolution:IDisposable
     {
         RenderingCleanup.Run(updates.Dispose,density.Reset,diffuse.Reset,direct.Reset,work.Reset,publication.Dispose);submittedFrame=null;asyncIdentity=null;
     }
-    /// <summary>Retires every candidate-owned resource while native publications remain borrowed.</summary>
+    /// <summary>Retires every volume-owned resource while native publications remain borrowed.</summary>
     public void Dispose()=>RenderingCleanup.Run(updates.Dispose,publication.Dispose,diffuse.Dispose,direct.Dispose,work.Dispose,density.Dispose,Storage.Dispose);
     #endregion
 }

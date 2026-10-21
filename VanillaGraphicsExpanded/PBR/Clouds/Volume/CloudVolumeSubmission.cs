@@ -7,7 +7,7 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
-/// <summary>Owns one native-state handoff for a contiguous candidate update, retaining typed dispatch ownership.</summary>
+/// <summary>Owns one native-state handoff for a contiguous volume update, retaining typed dispatch ownership.</summary>
 internal sealed class CloudVolumeSubmission
 {
     private HashSet<GpuComputeProgram>? admitted;

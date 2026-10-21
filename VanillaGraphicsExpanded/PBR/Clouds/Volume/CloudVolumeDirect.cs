@@ -85,7 +85,7 @@ internal sealed class CloudVolumeDirect(Func<int,CloudVolumeDirectProgram> creat
     #endregion
     #region Private
 
-    /// <summary>Binds only candidate-owned density, visibility, occupancy and existing queue scratch.</summary>
+    /// <summary>Binds only volume-owned density, visibility, occupancy and existing queue scratch.</summary>
     private static void Bind(CloudVolumeDirectProgram p,CloudVolumeFields fields)
     {p.Density=fields.Density;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Direct=new(fields.Direct,TextureAccess.ReadWrite,Layered:true);}
     /// <summary>Orders image/channel writes and checks context/source certificates around each submission.</summary>

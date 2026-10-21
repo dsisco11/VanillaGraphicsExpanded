@@ -35,18 +35,5 @@ public sealed class CloudBlueNoiseTextureTests(HeadlessGLFixture fixture) : Rend
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Reset and disposal release the owned primary noise texture.</summary>
-    [Fact]
-    public void ReconstructionResetRetiresPrimaryNoise()
-    {
-        EnsureContextValid();
-        using var reconstruction = new CloudVolumeReconstruction(Moq.Mock.Of<Vintagestory.API.Client.ICoreClientAPI>());
-        var field = typeof(CloudVolumeReconstruction).GetField("primaryNoise", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-        using var texture = CloudBlueNoiseTexture.Create(); int id = texture.TextureId;
-        field.SetValue(reconstruction, texture); reconstruction.Reset();
-        Assert.Null(field.GetValue(reconstruction)); Assert.False(GL.IsTexture(id));
-        using var replacement = CloudBlueNoiseTexture.Create(); int next = replacement.TextureId;
-        field.SetValue(reconstruction, replacement); reconstruction.Dispose(); Assert.False(GL.IsTexture(next));
-    }
     #endregion
 }

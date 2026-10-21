@@ -3,12 +3,9 @@
   "file": "VanillaGraphicsExpanded.json",
   "settings": {
     "boolean": {
-      "STORED_DETAIL": { "code": "Clouds.StoredVolume.Detail", "clientSide": true, "name": "Clouds/StoredVolume/Detail", "ingui": "vanillagraphicsexpanded:config-stored-detail", "default": true, "weight": 25.81 },
-      "STORED_SHADOWS": { "code": "Clouds.StoredVolume.SelfShadowing", "clientSide": true, "name": "Clouds/StoredVolume/SelfShadowing", "ingui": "vanillagraphicsexpanded:config-stored-shadows", "default": true, "weight": 25.82 },
-      "STORED_DIFFUSE": { "code": "Clouds.StoredVolume.Diffuse", "clientSide": true, "name": "Clouds/StoredVolume/Diffuse", "ingui": "vanillagraphicsexpanded:config-stored-diffuse", "default": true, "weight": 25.83 },
-      "CANDIDATE_DETAIL": { "code": "Clouds.LightingVolume.Detail", "clientSide": true, "name": "Clouds/LightingVolume/Detail", "ingui": "vanillagraphicsexpanded:config-candidate-detail", "default": true, "weight": 25.71 },
-      "CANDIDATE_SHADOWS": { "code": "Clouds.LightingVolume.SelfShadowing", "clientSide": true, "name": "Clouds/LightingVolume/SelfShadowing", "ingui": "vanillagraphicsexpanded:config-candidate-shadows", "default": true, "weight": 25.72 },
-      "CANDIDATE_DIFFUSE": { "code": "Clouds.LightingVolume.Diffuse", "clientSide": true, "name": "Clouds/LightingVolume/Diffuse", "ingui": "vanillagraphicsexpanded:config-candidate-diffuse", "default": true, "weight": 25.73 },
+      "STORED_DETAIL": { "code": "Clouds.Detail", "clientSide": true, "name": "Clouds/Detail", "ingui": "vanillagraphicsexpanded:config-cloud-detail", "default": true, "weight": 25.81 },
+      "STORED_SHADOWS": { "code": "Clouds.SelfShadowing", "clientSide": true, "name": "Clouds/SelfShadowing", "ingui": "vanillagraphicsexpanded:config-cloud-shadows", "default": true, "weight": 25.82 },
+      "STORED_DIFFUSE": { "code": "Clouds.Diffuse", "clientSide": true, "name": "Clouds/Diffuse", "ingui": "vanillagraphicsexpanded:config-cloud-diffuse", "default": true, "weight": 25.83 },
       "CLOUD_REFERENCE": {
         "code": "Clouds.FullResolutionReference",
         "clientSide": true,
@@ -17,15 +14,6 @@
         "comment": "vanillagraphicsexpanded:config-cloud-reference-tooltip",
         "default": false,
         "weight": 25
-      },
-      "CLOUD_DETAIL": {
-        "code": "Clouds.Detail",
-        "clientSide": true,
-        "name": "Clouds/Detail",
-        "ingui": "vanillagraphicsexpanded:config-cloud-detail",
-        "comment": "vanillagraphicsexpanded:config-cloud-detail-tooltip",
-        "default": true,
-        "weight": 25.1
       },
       "CAMERA_ENABLED": {
         "code": "CameraExposure.Enabled",
@@ -209,66 +197,6 @@
       }
     },
     "integer": {
-      "CLOUD_RENDERER": { "code": "Clouds.VolumeRenderer", "clientSide": true, "name": "Clouds/VolumeRenderer", "ingui": "vanillagraphicsexpanded:config-cloud-renderer", "default": 0, "values": [0,1,2], "weight": 25.69 },
-      "CANDIDATE_SAMPLES": { "code": "Clouds.LightingVolume.ViewMaximum", "clientSide": true, "name": "Clouds/LightingVolume/ViewMaximum", "ingui": "vanillagraphicsexpanded:config-candidate-samples", "default": 96, "range": { "min": 4, "max": 96, "step": 1 }, "weight": 25.74 },
-      "CLOUD_VIEW_SAMPLES": {
-        "code": "Clouds.ViewRaySampleMax",
-        "clientSide": true,
-        "name": "Clouds/ViewRaySampleMax",
-        "ingui": "vanillagraphicsexpanded:config-cloud-view-samples",
-        "comment": "vanillagraphicsexpanded:config-cloud-view-samples-tooltip",
-        "default": 384,
-        "weight": 25.2,
-        "range": {
-          "min": 4,
-          "max": 384,
-          "step": 1
-        }
-      },
-      "CLOUD_VIEW_MINIMUM": {
-        "code": "Clouds.ViewRaySampleMin",
-        "clientSide": true,
-        "name": "Clouds/ViewRaySampleMin",
-        "ingui": "vanillagraphicsexpanded:config-cloud-view-minimum",
-        "comment": "vanillagraphicsexpanded:config-cloud-view-minimum-tooltip",
-        "default": 1,
-        "weight": 25.21,
-        "range": { "min": 1, "max": 16, "step": 1 }
-      },
-      "CLOUD_LIGHT_RAY_SAMPLE_MAX": {
-        "code": "Clouds.LightRaySampleMax",
-        "clientSide": true,
-        "name": "Clouds/LightRaySampleMax",
-        "ingui": "vanillagraphicsexpanded:config-cloud-light-ray-max",
-        "comment": "vanillagraphicsexpanded:config-cloud-light-ray-max-tooltip",
-        "default": 10,
-        "weight": 25.3,
-        "range": {
-          "min": 2,
-          "max": 64,
-          "step": 1
-        }
-      },
-      "CLOUD_SHADOW_QUALITY": {
-        "code": "Clouds.ShadowQuality",
-        "clientSide": true,
-        "name": "Clouds/ShadowQuality",
-        "ingui": "vanillagraphicsexpanded:config-cloud-shadow-quality",
-        "comment": "vanillagraphicsexpanded:config-cloud-shadow-quality-tooltip",
-        "default": 1,
-        "weight": 25.33,
-        "range": { "min": 0, "max": 3, "step": 1 }
-      },
-      "CLOUD_SHADOW_DISTANCE": {
-        "code": "Clouds.ShadowDistance",
-        "clientSide": true,
-        "name": "Clouds/ShadowDistance",
-        "ingui": "vanillagraphicsexpanded:config-cloud-shadow-distance",
-        "comment": "vanillagraphicsexpanded:config-cloud-shadow-distance-tooltip",
-        "default": 1500,
-        "weight": 25.31,
-        "range": { "min": 50, "max": 10000, "step": 50 }
-      },
       "CLOUD_TRACE_SCALE": {
         "code": "Clouds.TraceScale",
         "clientSide": true,
@@ -562,71 +490,7 @@
       }
     },
     "float": {
-      "CANDIDATE_DISTANCE": { "code": "Clouds.LightingVolume.ViewBudgetDistance", "clientSide": true, "name": "Clouds/LightingVolume/ViewBudgetDistance", "ingui": "vanillagraphicsexpanded:config-candidate-distance", "default": 10000, "range": { "min": 50, "max": 10000, "step": 50 }, "weight": 25.75 },
-      "STORED_STOP": { "code": "Clouds.StoredVolume.StopTransmittance", "clientSide": true, "name": "Clouds/StoredVolume/StopTransmittance", "ingui": "vanillagraphicsexpanded:config-stored-stop", "default": 0.005, "range": { "min": 0, "max": 0.005, "step": 0.001 }, "weight": 25.84 },
-      "CANDIDATE_STOP": { "code": "Clouds.LightingVolume.StopTransmittance", "clientSide": true, "name": "Clouds/LightingVolume/StopTransmittance", "ingui": "vanillagraphicsexpanded:config-candidate-stop", "default": 0.005, "range": { "min": 0, "max": 0.005, "step": 0.001 }, "weight": 25.76 },
-      "CLOUD_STOP_TRANSMITTANCE": {
-        "code": "Clouds.StopTransmittance",
-        "clientSide": true,
-        "name": "Clouds/StopTransmittance",
-        "ingui": "vanillagraphicsexpanded:config-cloud-stop-transmittance",
-        "comment": "vanillagraphicsexpanded:config-cloud-stop-transmittance-tooltip",
-        "default": 0.005,
-        "weight": 25.32,
-        "range": { "min": 0, "max": 0.005, "step": 0.0005 }
-      },
-      "CLOUD_VIEW_DISTANCE": {
-        "code": "Clouds.ViewBudgetDistance",
-        "clientSide": true,
-        "name": "Clouds/ViewBudgetDistance",
-        "ingui": "vanillagraphicsexpanded:config-cloud-view-distance",
-        "comment": "vanillagraphicsexpanded:config-cloud-view-distance-tooltip",
-        "default": 10000,
-        "weight": 25.22,
-        "range": { "min": 50, "max": 10000, "step": 50 }
-      },
-      "CLOUD_DETAIL_AMPLITUDE": {
-        "code": "Clouds.DetailAmplitude",
-        "clientSide": true,
-        "name": "Clouds/DetailAmplitude",
-        "ingui": "vanillagraphicsexpanded:config-cloud-amplitude",
-        "comment": "vanillagraphicsexpanded:config-cloud-amplitude-tooltip",
-        "default": 0.15,
-        "weight": 25.4,
-        "range": {
-          "min": 0,
-          "max": 0.95,
-          "step": 0.01
-        }
-      },
-      "CLOUD_EDGE_WIDTH": {
-        "code": "Clouds.EdgeWidth",
-        "clientSide": true,
-        "name": "Clouds/EdgeWidth",
-        "ingui": "vanillagraphicsexpanded:config-cloud-edge-width",
-        "comment": "vanillagraphicsexpanded:config-cloud-edge-width-tooltip",
-        "default": 2,
-        "weight": 25.5,
-        "range": {
-          "min": 0.01,
-          "max": 10,
-          "step": 0.01
-        }
-      },
-      "CLOUD_NOISE_SCALE": {
-        "code": "Clouds.NoiseScale",
-        "clientSide": true,
-        "name": "Clouds/NoiseScale",
-        "ingui": "vanillagraphicsexpanded:config-cloud-noise-scale",
-        "comment": "vanillagraphicsexpanded:config-cloud-noise-scale-tooltip",
-        "default": 0.08,
-        "weight": 25.6,
-        "range": {
-          "min": 0.001,
-          "max": 1,
-          "step": 0.001
-        }
-      },
+      "STORED_STOP": { "code": "Clouds.StopTransmittance", "clientSide": true, "name": "Clouds/StopTransmittance", "ingui": "vanillagraphicsexpanded:config-cloud-stop", "default": 0.005, "range": { "min": 0, "max": 0.005, "step": 0.001 }, "weight": 25.84 },
       "POST_BLOOMSTRENGTH": {
         "code": "Postprocessing.BloomStrength",
         "clientSide": true,

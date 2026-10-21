@@ -36,7 +36,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
             Assert.Equal(new[] { .046875f, .0078125f, .03125f, 1f }, current.Pixels[0].Skip((4 * 8 + 3) * 4).Take(4));
             Assert.Equal(4, current.Pixels[0].Count(value => value != 0));
         }
-        if (workload == "cloud") Assert.Contains(current.Events, item => item.StartsWith("application:BlendFuncSeparate("));
+        if (workload == "cloud") Assert.Contains("validated:active-blend-factors",current.Events);
         AssertDormantOutputPayloads(current.Events);
         output.WriteLine("PSO_RELEVANCE_WORKLOAD=" + JsonSerializer.Serialize(new { workload, current.FixedCalls, current.Events,
             renderer = GL.GetString(StringName.Renderer), version = GL.GetString(StringName.Version), exactNativeHandback = true }));
@@ -57,9 +57,9 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         if (workload == "cloud")
         {
             using var programs = new ComponentShaderPrograms();
-            using var scene = new CloudReconstructionScene(8, 8, programs, false, 4);
-            scene.Capture(0, .125f, 10, 1, 0, "detail-lit");
-            return Measure(() => scene.Render(0, false, includeReference:true), () => [.. scene.ReadDefault(), .. scene.ReadReference(), .. scene.ReadTraceRecord(), .. scene.ReadHistory()]);
+            using var scene = new CloudStoredVolumeViewScene(programs,8,8);
+            var settings=VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default;
+            float[][] pixels=[];return Measure(() => pixels=scene.Draw(settings), () => pixels);
         }
         return PointResolve();
     }

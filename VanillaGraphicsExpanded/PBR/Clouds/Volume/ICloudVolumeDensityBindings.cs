@@ -3,7 +3,7 @@ using VanillaGraphicsExpanded.Rendering.Contracts;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
-/// <summary>Declares borrowed observation inputs and candidate-owned generation/occupancy resources.</summary>
+/// <summary>Declares borrowed observation inputs and volume-owned generation/occupancy resources.</summary>
 internal interface ICloudVolumeDensityBindings
 {
     #region Public API

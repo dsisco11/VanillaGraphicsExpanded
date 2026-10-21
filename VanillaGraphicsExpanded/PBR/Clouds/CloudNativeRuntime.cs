@@ -3,7 +3,6 @@ using System.Threading;
 using FluffyClouds;
 using HarmonyLib;
 using VanillaGraphicsExpanded.ModSystems;
-using VanillaGraphicsExpanded.PBR.Clouds.LightingVolume;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Enablement;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -20,7 +19,7 @@ internal sealed class CloudNativeRuntime : IDisposable
     private static readonly AccessTools.FieldRef<WeatherSystemClient, CloudRenderer> NativeSimple = AccessTools.FieldRefAccess<WeatherSystemClient, CloudRenderer>("cloudRenderer");
     private CloudSimpleRenderer? simple;
     private ICloudVolumeConsumer? volume;
-    private readonly CloudVolumeSelection selection=new();
+    private readonly CloudVolumeConfiguration configuration=new();
     private readonly RenderThreadDispatch dispatch;
     private static long nextWorld;
     private readonly ICoreClientAPI api;
@@ -48,7 +47,7 @@ internal sealed class CloudNativeRuntime : IDisposable
     internal CloudNativeRuntime(ICoreClientAPI api)
     {
         this.api = api; Active = this;
-        dispatch=new(api);selection.Request(ConfigModSystem.Config.Clouds);
+        dispatch=new(api);configuration.Request(ConfigModSystem.Config.Clouds);
         LiveConfigReload.Applied+=ConfigApplied;
         Ownership.VolumetricChanged += NotifyVolumeOwnershipChanged;
         api.Event.LevelFinalize += BeginWorld;
@@ -97,21 +96,10 @@ internal sealed class CloudNativeRuntime : IDisposable
     {
         // Only the early preparation callback applies pending configuration. OIT calls to
         // Update cannot replace the owner after the scene storage scale has been frozen.
-        selection.Apply(()=>
-        {
-            if(!Ownership.Owns(CloudMode.Volumetric)) return;
-            Ownership.Dispose();volume=null;
-            // Disposal revokes mode admission; reestablish it only on this transition.
-            Update();
-        });
+        configuration.Apply();
         if (!worldReady || disposed || context == default || api.Settings.Int.Get("cloudRenderMode", 0) != 1) return;
         if (Ownership.Owns(CloudMode.Volumetric)) { volume?.Prepare(); return; }
-        ICloudVolumeConsumer candidate = selection.Renderer switch
-        {
-            CloudVolumeRendererKind.LightingVolumeCandidate=>new LightingVolumeConsumer(api,this,()=>selection.Settings),
-            CloudVolumeRendererKind.Previous=>new CloudVolumeRenderer(api,this),
-            _=>new Volume.CloudStoredVolumeConsumer(api,this,()=>selection.StoredSettings)
-        };
+        ICloudVolumeConsumer candidate = new Volume.CloudStoredVolumeConsumer(api,this,()=>configuration.Settings);
         try
         {
             if (candidate.Prepare() && Ownership.TryActivate(CloudMode.Volumetric, candidate, true))
@@ -150,13 +138,9 @@ internal sealed class CloudNativeRuntime : IDisposable
         Active is { } current && current.Ownership.Owns(CloudMode.Volumetric)
             ? current.volume?.Maximum(lighting, localFogMaximum) ?? 0 : 0;
 
-    /// <summary>Exposes selected candidate diagnostics without making scene admission candidate-aware.</summary>
-    internal static string VolumeDiagnosticText=>Active?.volume is LightingVolumeConsumer candidate
-        ? candidate.DiagnosticText : "Lighting-volume candidate is not the admitted volumetric renderer.";
-
-    /// <summary>Describes the admitted stored-volume consumer independently of its selection request.</summary>
+    /// <summary>Describes the admitted stored-volume consumer independently of native mode demand.</summary>
     internal static string StoredVolumeDiagnosticText=>Active?.volume is Volume.CloudStoredVolumeConsumer candidate
-        ?candidate.DiagnosticText:"Stored-volume candidate is not the admitted volumetric renderer.";
+        ?candidate.DiagnosticText:"Volumetric clouds are not currently admitted.";
 
     /// <summary>Removes VGE subscriptions and consumers; native callbacks automatically resume through their draw gates.</summary>
     public void Dispose()
@@ -218,10 +202,10 @@ internal sealed class CloudNativeRuntime : IDisposable
     #endregion
 
     #region Private
-    /// <summary>Captures complete applied settings on the render thread, leaving selection pending until Before.</summary>
+    /// <summary>Captures complete applied settings on the render thread, leaving configuration pending until Before.</summary>
     private void ConfigApplied(Vintagestory.API.Common.ICoreAPI source)
     {
-        if(ReferenceEquals(source,api)) dispatch.Run(()=>selection.Request(ConfigModSystem.Config.Clouds));
+        if(ReferenceEquals(source,api)) dispatch.Run(()=>configuration.Request(ConfigModSystem.Config.Clouds));
     }
     /// <summary>Forwards ownership transitions only from the active client lifetime.</summary>
     private void NotifyVolumeOwnershipChanged()

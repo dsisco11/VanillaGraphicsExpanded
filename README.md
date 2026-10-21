@@ -240,3 +240,8 @@ VGE mapping rules support optional explicit overrides for:
 - Packed normal+height (`values.overrides.normalHeight`)
 
 See [docs/PBRMaterialRegistry.ModderGuide.md](docs/PBRMaterialRegistry.ModderGuide.md) for format, packing, and examples.
+
+## Clouds
+
+Native Off, Simple and Volumetric modes remain authoritative. Volumetric uses stored density and
+progressive lighting. Cloud feature and resolution controls are documented in [Cloud rendering](docs/PBR.Clouds.md).

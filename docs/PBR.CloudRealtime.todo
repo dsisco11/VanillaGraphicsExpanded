@@ -1,3 +1,8 @@
+Retired implementation plan
+  Superseded by PBR.CloudVolume.todo. All outstanding items marked [-] are cancelled, not completed.
+  Recorded source paths and measurements below describe the retired implementation only.
+  Shared native weather, Simple rendering and temporal obligations are owned by PBR.CloudVolume.todo.
+
 Realtime volumetric cloud work
 =============================
 
@@ -664,7 +669,7 @@ Phase 10: Improve volumetric-cloud temporal filtering and retain compatible samp
     accumulation with fewer unnecessary resets, while rejecting genuinely incompatible observations.
   Validation: incremental affected-variant build and focused history/reprojection checks, plus the
     selected opt-in diagnostics. No full baseline reproduction or canonical package gate before Phase 11.
-  ☐ Establish the current retention behavior before changing the filter.
+  [-] Establish the current retention behavior before changing the filter.
     - Inspect CloudTemporalHistory, CloudTemporalParameters, cloud_volume_temporal.fsh and quarter
       reconstruction. Record actual weights, effective accumulation horizon, reprojection coordinates,
       support/foreground admission, neighborhood clamping and successful-commit-only history rotation.
@@ -674,7 +679,7 @@ Phase 10: Improve volumetric-cloud temporal filtering and retain compatible samp
     - Add only opt-in diagnostics needed to attribute history rejection, clamping and effective weight.
       Separate global resets, per-pixel rejection and history that survives admission but is clamped
       away. Observe stationary views, camera/wind motion and continuous day/night/weather evolution.
-  ☐ Evaluate reuse of existing LumOn temporal reprojection and invalidation facilities.
+  [-] Evaluate reuse of existing LumOn temporal reprojection and invalidation facilities.
     - Inspect lumon_reprojection.glsl, lumon_probe_atlas_temporal.fsh, FrameCameraHistory and the
       relevant LumOn history/dependency owners. Identify reusable coordinate, validity, confidence,
       weighting and diagnostic mechanisms rather than assuming a single drop-in temporal system.
@@ -684,7 +689,7 @@ Phase 10: Improve volumetric-cloud temporal filtering and retain compatible samp
     - Record which facilities can be reused directly, adapted narrowly or should remain separate,
       with ownership and dependency direction. Keep clouds functional when LumOn is disabled; do not
       activate its renderer/probes or introduce a generic temporal framework to obtain helper reuse.
-  ☐ Evaluate a longer accumulation horizon and retention-aware temporal weights.
+  [-] Evaluate a longer accumulation horizon and retention-aware temporal weights.
     - Compare the current horizon with bounded longer candidates; specify current/history weights,
       warm-up, age/confidence saturation and recovery after rejection. Define effective sample count
       for correlated/repeated observations rather than equating elapsed frames with independent samples.
@@ -694,7 +699,7 @@ Phase 10: Improve volumetric-cloud temporal filtering and retain compatible samp
     - Inspect neighborhood clipping and support uncertainty alongside weights: a larger nominal
       frame count cannot retain information discarded every frame. Balance stationary noise retention
       against trails, disocclusion recovery and response to actual lighting/weather changes.
-  ☐ Implement the selected cloud-compatible reprojection, retention and invalidation policy.
+  [-] Implement the selected cloud-compatible reprojection, retention and invalidation policy.
     - Preserve the corrected camera-relative transform and native material/wind translation. Retain
       history through ordinary continuous lighting, fog, weather uploads and cache updates; do not
       restore value/publication-identity resets that prevent convergence during normal gameplay.
@@ -704,13 +709,13 @@ Phase 10: Improve volumetric-cloud temporal filtering and retain compatible samp
     - Preserve current foreground/liquid clipping, bounded physical optical payloads, unaveraged
       current support/spacing metadata, OIT encoding, both PBR modes and history-free reference mode.
       Own any additional confidence storage through existing typed resources/bindings/lifecycle.
-  ☐ Validate with focused arithmetic, coordinate, admission and lifecycle checks using existing
+  [-] Validate with focused arithmetic, coordinate, admission and lifecycle checks using existing
     fixtures and GPU abstractions. Cover weight/age bounds, new-sample versus copied-history behavior,
     camera/wind reprojection, valid retention and required resets without redundant scene matrices.
     - Use opt-in diagnostic comparisons and user-run review for stationary flicker, edges, movement,
       disocclusion and evolving weather/light. Add no convergence, RMS, noise-reduction or image-quality
       assertions. Measure temporal/reconstruction and total costs, storage and any diagnostic overhead.
-  ☐ Completion: selected retention policy and LumOn reuse decision are documented and implemented,
+  [-] Completion: selected retention policy and LumOn reuse decision are documented and implemented,
     with focused incremental checks and tested-asset identity through subagents, second review and independent
     audit. Update current-state documentation only for delivered behavior; Phase 11 owns final measured
     performance and user appearance acceptance. Do not claim a larger frame count guarantees improvement.
@@ -722,12 +727,12 @@ Phase 11: Qualify the complete renderer and reconcile acceptance
     against a frozen combined candidate. Reuse unchanged focused evidence and valid baseline provenance;
     rebuild baseline programs only where provenance requires it. Repeat broader qualification only
     when candidate changes or failures invalidate the applicable evidence; avoid redundant clean builds.
-  ☐ Freeze the candidate; run canonical build/shader, focused numerical/GPU, lifecycle and package
+  [-] Freeze the candidate; run canonical build/shader, focused numerical/GPU, lifecycle and package
     checks through subagents. Verify production asset digests and exact output copies.
     - Cover Off/Simple/Volumetric, both PBR selections, pause, resize, reload, world replacement,
       source invalidation, current settings/defaults, reference selection and failed-resource recovery.
     - Keep density/bounds oracles independent; a new integrator must not validate only against itself.
-  ☐ Measure baseline versus final renderer with matched scenes/settings and separate quality labels.
+  [-] Measure baseline versus final renderer with matched scenes/settings and separate quality labels.
     - Report each increment's effects where attributable; distinguish fewer pixels/samples and
       changed approximation quality from same-output traversal/implementation improvements.
     - Include separated cloud layers and light-space grid/source transitions from subphases 8.1–8.5 and 8.7.
@@ -744,31 +749,31 @@ Phase 11: Qualify the complete renderer and reconcile acceptance
       Account for native producer/uploads and shared depth separately in whole-frame assessment.
     - Report paired distributions and all regressions. Relative improvement is required; do not
       invent an absolute time target, hide regressions in an aggregate or equate probe counts with speed.
-  ☐ Obtain user-run acceptance of the changed quality policy: cubic fluff, lighting, shadows within
+  [-] Obtain user-run acceptance of the changed quality policy: cubic fluff, lighting, shadows within
     clouds, fog, thin support, disocclusion, motion and OIT overlap across relevant views/modes.
     Include the procedural noise field's appearance, periodic seams and wind
       anchoring from Phase 9.
     Include Phase 10 history retention, stationary noise, moving edges/trails, disocclusion recovery
       and response to continuous day/night/weather changes with LumOn both disabled and enabled.
     Earlier appearance acceptance does not establish acceptance of changed sampling/resolution/fog.
-  ☐ Update PBR.Clouds.md to describe only delivered behavior. Reconcile both source proposals,
+  [-] Update PBR.Clouds.md to describe only delivered behavior. Reconcile both source proposals,
     existing cloud checklists and the parent with implemented policy, remaining dependencies and
     receipts. Retire superseded requirements explicitly without rewriting prior measurement evidence.
-  ☐ Completion: required correctness/package checks, second review, independent audit, measured
+  [-] Completion: required correctness/package checks, second review, independent audit, measured
     relative benefit and user acceptance exist; unresolved performance or appearance gates stay open.
 
 Final acceptance
-  ☐ Whole-ray primary budgets, bounded retained secondary marches and qualified threshold
+  [-] Whole-ray primary budgets, bounded retained secondary marches and qualified threshold
     termination replace the identified unbounded-by-quality per-column work multiplication.
     Any selected attenuation cache has separately bounded construction, coverage and lookup costs.
-  ☐ Lower-resolution tracing, amortized atmosphere, repeated density/phase work and acceleration
+  [-] Lower-resolution tracing, amortized atmosphere, repeated density/phase work and acceleration
     each have delivered behavior or an evidence-backed disposition against the stated objective.
-  ☐ All six original performance findings, earlier density/phase findings and Phase 8, subphases 8.1–8.5 and 8.7, and Phase 9/10 tasks
+  [-] All six original performance findings, earlier density/phase findings and Phase 8, subphases 8.1–8.5 and 8.7, and Phase 9/10 tasks
     map to final receipts;
     any unimplemented improvement is explicitly recorded, not silently treated as complete.
-  ☐ Native ownership/weather, cubic density support, physical lighting, foreground clips, temporal
+  [-] Native ownership/weather, cubic density support, physical lighting, foreground clips, temporal
     lifecycle, existing OIT integration and both PBR modes satisfy inherited unaffected contracts.
-  ☐ The parent remains unchecked while required live/performance gates or its separate reflected-
+  [-] The parent remains unchecked while required live/performance gates or its separate reflected-
     cloud integration dependency remain outstanding. No headless result establishes live frame time.
 
 Bounded quality policy (implementation contract)

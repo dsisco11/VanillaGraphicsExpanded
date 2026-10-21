@@ -1788,37 +1788,73 @@ Phase 8.5 - Remove the retired volumetric and lighting-only implementations
     User considers base appearance acceptable for now but reports ineffective temporal history.
     Correcting and accepting that behavior belongs to8.6; it does not gate removal of retired paths.
   Outcome: one maintained volumetric renderer remains, without retired selectors, resources or assets.
-  [ ] Inventory both retiring implementations and their exclusive consumers, transport/hierarchy/shadow
+  [x] Inventory both retiring implementations and their exclusive consumers, transport/hierarchy/shadow
       programs, storage, settings, shader declarations, diagnostics and fixtures. Trace shared native
       weather, Off/Simple rendering, atmosphere, depth, GPU infrastructure and temporal dependencies
       before deletion; keep those required by the retained renderer and other live consumers.
-  [ ] Remove previous volumetric transport and the lighting-only candidate, their exclusive resource
+  [x] Remove previous volumetric transport and the lighting-only candidate, their exclusive resource
       owners and private shaders. Remove obsolete program-library/catalog declarations and generated
       asset inputs through owning build tooling; do not edit generated outputs as the source of truth.
       Ensure neither path can run, allocate background resources or become an implicit failure fallback.
-  [ ] Remove the renderer-choice setting and obsolete experimental labels, ConfigLib patches, debug
+  [x] Remove the renderer-choice setting and obsolete experimental labels, ConfigLib patches, debug
       entries and feature settings with no retained meaning. Keep supported stored-volume and shared
       controls under clear production names; use a clean break without compatibility aliases/migration.
       Simplify consumer selection/composition while preserving native Off/Simple/Volumetric transitions,
       change-driven enablement, teardown/reload and engine registration restoration.
-  [ ] Retain the adapted blue-noise/history/reprojection machinery required by8.4 in its final owning
+  [x] Retain the adapted blue-noise/history/reprojection machinery required by8.4 in its final owning
       domain. Remove superseded adapters, dead code and duplicate temporal payload/resolve paths.
       Preserve density/lighting identity, nonblocking publication, physical encoding and six-output OIT.
-  [ ] Remove tests/fixtures that exercise only deleted implementations; retain or relocate independent
+  [x] Remove tests/fixtures that exercise only deleted implementations; retain or relocate independent
       contracts still relevant to native weather, temporal sampling and the remaining renderer.
       Consolidate duplicate coverage rather than replacing every deleted test with a new counterpart.
-  [ ] Reconcile PBR.Clouds.md, PBR.CloudVolume.Proposal.md, README, configuration documentation and
+  [x] Reconcile PBR.Clouds.md, PBR.CloudVolume.Proposal.md, README, configuration documentation and
       affected active tasklists. Permanent docs describe the remaining system only; mark obsolete
       outstanding work cancelled/superseded in planning documents without fabricating completion.
       Search source/catalog/config/docs for dangling selectors, assets and removed ownership references.
-  [ ] Run focused cached incremental builds and affected selection, temporal, shader-discovery and
+  [x] Run focused cached incremental builds and affected selection, temporal, shader-discovery and
       resource-lifecycle checks through subagents. Verify removed shader inputs are absent from the
       active catalog. Reuse unchanged receipts; no broad matrix, quality thresholds or routine package.
       Final delivered-asset/package verification remains Phase9.
-  [ ] Completion: only the stored-volume implementation handles Volumetric mode, retained shared
+  [x] Completion: only the stored-volume implementation handles Volumetric mode, retained shared
       dependencies are intact, and no retired settings/programs/resources remain reachable. Second
       review and independent completion audit confirm deletion scope and documentation consistency.
 
+Phase 8.5 implementation review
+  Traceability -> this section plus proposal / Ownership and integration, Initial controls and
+    Shared rendering obligations -> preserve native modes, scene publication, lifecycle and a clean
+    configuration break. CloudNativeRuntime now constructs only CloudStoredVolumeConsumer;
+    CloudVolumeConfiguration stages production features/resolution before scene admission.
+    Removed both private renderer families, old transport/hierarchy/shadow programs and fixtures,
+    renderer enum/selector, lighting-only debug entry and obsolete sampling/cache controls.
+  Shared dependency review -> PBR.Clouds.md / Scheduling and ownership, Shared depth inputs and
+    Stored-volume temporal view; Rendering.Enablement.md and PBR.Atmosphere.Publication.md ->
+    native weather/map certificates, Off/Simple restoration, shared depth/lighting and change-driven
+    ownership remain. Stored-volume solver, field identity, publication, encoding and six OIT products
+    retain their algorithms. Shared reprojection, cloud noise ownership and generic GLSL sampling
+    helpers remain; obsolete adapter and previous-only temporal phase helpers are removed.
+    The known ineffective history-retention behavior is unchanged and remains explicitly owned by8.6.
+  Configuration/documents -> production controls are Clouds.Detail, SelfShadowing, Diffuse,
+    StopTransmittance, TraceScale and FullResolutionReference. Removed nested experimental records
+    and selector with no aliases or migration. ConfigLib/localization, README, current architecture,
+    proposal, parent tasklist and project.todo agree. Retired implementation plans explicitly cancel
+    outstanding work rather than marking it complete; their receipts are inactive historical evidence.
+  Second review -> no deleted implementation remains reachable or declared. Ported existing native
+    lifecycle and independent camera/wind tests; deleted exclusive fixtures rather than creating
+    counterpart suites. Catalog coverage distinguishes GLSL include helpers from stage entrypoints.
+    PSO workload uses the real stored view; native blend factors are checked before handback because
+    optimized wrapper interception alone can miss calls. Dormant-write and exact handback checks remain.
+  Verification -> artifacts/StoredCloudLatest/phase85-final-build.log, phase85-final.trx and
+    phase85-pso-build.log / phase85-pso.trx -> cached Release builds pass; final test-only repair build
+    reports0errors/169warnings. Seventy-five unaffected non-PSO cases plus all three refreshed PSO
+    rows give78distinct passing focused checks. Includes configuration, history certificate,
+    native lifecycle/adapter, stored view/publication, shader registry and blue-noise contracts.
+    phase85-catalog-check.txt confirms zero retired shader paths in generated production/fixture
+    publications. Initial fixture publication hit Windows error5; one normal retry recovered.
+    Prior failing registry/instrumentation results are superseded by these corrected focused receipts.
+  Independent completion audit -> all requirements satisfied; documentation corrections rechecked,
+    source reachability and retained dependencies reviewed directly, final receipts accepted.
+    No package or game launch/close; no live FPS or effective temporal-retention claim.
+    Phase8.5 is complete. Phase8.6 and Phase9 remain unchecked.
 Phase 8.6 - Preserve effective cloud temporal history between fresh traces
   Depends on: Phase 8.5.
   Outcome: untraced pixels retain compatible observations, and fresh observations update history

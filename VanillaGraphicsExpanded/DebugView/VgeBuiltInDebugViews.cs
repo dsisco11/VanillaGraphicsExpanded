@@ -51,7 +51,7 @@ public static partial class VgeBuiltInDebugViews
         DebugViewRegistry.Instance.Register(CreateSurfaceCacheDebugView());
         DebugViewRegistry.Instance.Register(CreateToolsView());
         DebugViewRegistry.Instance.Register(CreateArtifactsView());
-        DebugViewRegistry.Instance.Register(CreateLightingVolumeView());
+
         DebugViewRegistry.Instance.Register(CreateStoredVolumeView());
     }
 }

@@ -15,17 +15,11 @@ internal static class VgeShaderPrograms
     internal static bool RegisterAll(ICoreClientAPI api)
     {
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudSimpleProgram.Contract.Identity, () => new PBR.Clouds.CloudSimpleProgram());
-        GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudVolumeProgram.Contract.Identity, () => new PBR.Clouds.CloudVolumeProgram());
-        GpuShaderProgramLibraries.Declare(api, PBR.Clouds.LightingVolume.LightingVolumeViewProgram.Contract.Identity,
-            () => new PBR.Clouds.LightingVolume.LightingVolumeViewProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.Volume.CloudVolumeViewProgram.Contract.Identity,
             () => new PBR.Clouds.Volume.CloudVolumeViewProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.Volume.CloudVolumeTemporalProgram.Contract.Identity, () => new PBR.Clouds.Volume.CloudVolumeTemporalProgram());
         GpuShaderProgramLibraries.Declare(api, PBR.Clouds.Volume.CloudVolumeReconstructProgram.Contract.Identity,
             () => new PBR.Clouds.Volume.CloudVolumeReconstructProgram());
-        GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudTraceProgram.Contract.Identity, () => new PBR.Clouds.CloudTraceProgram());
-        GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudTemporalProgram.Contract.Identity, () => new PBR.Clouds.CloudTemporalProgram());
-        GpuShaderProgramLibraries.Declare(api, PBR.Clouds.CloudResolveProgram.Contract.Identity, () => new PBR.Clouds.CloudResolveProgram());
         GpuShaderProgramLibraries.Declare(api,"pbr_bloom_local_exposure",
             ()=>new PBR.Postprocessing.BloomShaderProgram { LocalExposureEnabled=true },
             new Contracts.ShaderSettings(PBR.Postprocessing.BloomShaderProgram.Contract).With("VGE_LOCAL_EXPOSURE","true"));

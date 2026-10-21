@@ -25,7 +25,7 @@ public sealed class ShaderRegistryTests
             .Where(path => extensions.Contains(Path.GetExtension(path)))
             .Select(path => Path.GetRelativePath(root, path).Replace('\\', '/')))
             // Fixture overlays replace a production source at the same asset path.
-            .Where(path => !path.StartsWith("includes/", StringComparison.Ordinal))
+            .Where(path => !path.StartsWith("includes/", StringComparison.Ordinal) && Path.GetExtension(path)!=".glsl")
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal);
         var fixtures = ShaderBuildTool.Spirv.TestShaderPrograms.Create();
         Assert.Equal(sources, fixtures.Stages.Values.Select(stage => stage.Source).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal));
@@ -59,10 +59,8 @@ public sealed class ShaderRegistryTests
     [InlineData("tests/trace_probe_anchor", "tests/trace_probe_anchor.vsh", "lumon_probe_atlas_trace.fsh", 32)]
     [InlineData("tests/worldprobe_debug", "lumon_debug.vsh", "lumon_debug_view_world_probe_irradiance_combined.fsh", 4)]
     [InlineData("cloud_simple", "cloud_simple.vsh", "cloud_simple.fsh", 1)]
-    [InlineData("cloud_volume", "cloud_volume.vsh", "cloud_volume.fsh", 1)]
-    [InlineData("cloud_volume_trace", "cloud_volume.vsh", "cloud_volume_trace.fsh", 1)]
-    [InlineData("cloud_volume_temporal", "cloud_volume.vsh", "cloud_volume_temporal.fsh", 1)]
-    [InlineData("cloud_volume_resolve", "cloud_volume.vsh", "cloud_volume_resolve.fsh", 1)]
+    [InlineData("cloud_volume/view", "cloud_volume/view.vsh", "cloud_volume/view.fsh", 24)]
+    [InlineData("cloud_volume/temporal", "cloud_volume/view.vsh", "cloud_volume/temporal.fsh", 1)]
     public void PairingsAreDeclared(string program, string vertex, string fragment, int budget)
     {
         var contract = Registry.FindProgram(program);

@@ -190,7 +190,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
     }
     /// <summary>The independent volume callback never advances native weather and retains ownership across unavailable maps and reload.</summary>
     [Fact]
-    public void ReferenceRendererRetainsItsGateUntilCurrentModeRelease()
+    public void StoredRendererRetainsItsGateUntilCurrentModeRelease()
     {
         fixture.EnsureContextValid();
         var api = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
@@ -202,7 +202,7 @@ public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
         int mode = 1; api.Setup(value => value.Settings.Int.Get("cloudRenderMode", 0)).Returns(() => mode);
         using var runtime = new CloudNativeRuntime(api.Object);
         events.Raise(value => value.LevelFinalize += null); runtime.Update();
-        var renderer = new CloudVolumeRenderer(api.Object, runtime);
+        var renderer = new VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudStoredVolumeConsumer(api.Object, runtime,()=>VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default);
         AccessTools.Field(typeof(CloudNativeRuntime), "volume").SetValue(runtime, renderer);
         Assert.Equal(.31, renderer.RenderOrder);
         // Executable arithmetic is exercised separately by the real binary GPU fixtures.
