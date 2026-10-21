@@ -24,11 +24,11 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
         storage.Request(domain,new(new object(),1,1),new(Vector3.One),Vector3.Zero,()=>true);
         while(!storage.InitializeNext(()=>true)){}
         Assert.True(storage.PublishPending(()=>true,()=>true));var fields=storage.Published;
-        using var work=new CloudVolumeWork(op=>CloudVolumeWorkProgram.Create(Programs.Api,op));
+        using var work=new CloudVolumeWork((op,large)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large));
         var lighting=new AtmosphereLighting(Vector3.UnitY,Vector3.One,Vector3.One,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
             {Moon=Vector3.UnitX,Lunar=Vector3.One};
         var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();
-        Assert.True(work.Select(storage,lighting,0,planes,()=>true),work.Failure);
+        Assert.True(work.Select(storage,lighting,0,planes,()=>true,lightingRays:2560),work.Failure);
         Assert.Equal(0u,Read(fields.Scratch,16,1)[0]);Assert.Equal(0u,Read(fields.Scratch,17,1)[0]);
         Assert.Equal(0u,Read(fields.Regions,6,1)[0]);Assert.Equal(0u,Read(fields.Regions,13,1)[0]);
         // Empty blocks keep uncompleted demand; becoming occupied must make it eligible again.
@@ -56,11 +56,11 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
         Assert.True(work.Select(storage,lighting,7,planes,()=>true),work.Failure);
         Assert.Equal(0u,Read(fields.Scratch,16,1)[0]);Assert.Same(density,fields.Density);
         lighting=lighting with{Sun=Vector3.Normalize(new Vector3(1,1,0))};
-        Assert.True(work.Select(storage,lighting,8,planes,()=>true),work.Failure);
+        Assert.True(work.Select(storage,lighting,8,planes,()=>true,lightingRays:327680),work.Failure);
         Assert.All(Read(fields.Scratch,CloudVolumeWork.DirectListWord,(int)Read(fields.Scratch,16,1)[0]),job=>Assert.Equal(0u,job%2));
         Assert.Equal(8u,Read(fields.Regions,9,1)[0]);
         lighting=lighting with{Sun=Vector3.UnitY};
-        Assert.True(work.Select(storage,lighting,9,planes,()=>true),work.Failure);
+        Assert.True(work.Select(storage,lighting,9,planes,()=>true,lightingRays:2560),work.Failure);
         Assert.Equal(8u,Read(fields.Regions,9,1)[0]);
         using(var flag=fields.Scratch.MapScope<uint>(6*4,1,MapBufferAccessMask.MapWriteBit))flag.Span[0]=1;
         Assert.True(work.Select(storage,lighting,10,planes,()=>true),work.Failure);

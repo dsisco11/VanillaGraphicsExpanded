@@ -12,8 +12,9 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
 {
     #region Public API
     /// <summary>Hierarchical winners match an independent CPU ordering, including cursor wrap, priorities and retained ages.</summary>
-    [Fact]
-    public void MaximumDomainSelectionPreservesExactGlobalWinners()
+    [Theory]
+    [InlineData(2560)][InlineData(81920)][InlineData(327680)]
+    public void MaximumDomainSelectionPreservesExactGlobalWinners(int rays)
     {
         EnsureShaderTestAvailable();
         var d=new CloudVolumeDomain(200,default,-100,100);var data=new uint[d.Blocks*16];
@@ -27,7 +28,7 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
         using var regions=GpuShaderStorageBuffer.Create();using var scratch=GpuShaderStorageBuffer.Create();using var commands=GpuShaderStorageBuffer.Create();
         regions.UploadData(data);scratch.UploadData(header);commands.UploadData(new uint[18]);
         using var occupancy=GpuShaderStorageBuffer.Create();
-        var programs=Enumerable.Range(0,6).Select(op=>CloudVolumeWorkProgram.Create(Programs.Api,op)).ToArray();
+        var programs=Enumerable.Range(0,6).Select(op=>CloudVolumeWorkProgram.Create(Programs.Api,op,rays>81920)).ToArray();
         try
         {
             foreach(var p in programs){p.Regions=regions;p.Scratch=scratch;p.Commands=new(commands,0,72);p.Occupancy=occupancy;}
@@ -46,7 +47,7 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
                     /// <summary>Submits one real selector operation and orders its summary and indirect outputs.</summary>
                     void Submit(int op,int count,int source=0,int destination=0,int dg=0,int ig=0)
                     {
-                        programs[op].Capture(d,1000,20,3,0,0,true,0,planes,source,destination,dg,ig);
+                        programs[op].Capture(d,1000,20,3,0,0,true,0,planes,source,destination,dg,ig,lightingRays:rays);
                         programs[op].Dispatch(count);
                         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit|MemoryBarrierFlags.CommandBarrierBit);
                     }
@@ -66,8 +67,8 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
                 {
                     var pending=Enumerable.Range(0,d.Blocks*(kind==0?2:1)).Where(job=>
                         occupied[kind==0?job/2:job]!=0&&(kind==1||data[(job/2)*16+6+(job%2)*2]!=5u)).ToArray();
-                    int budget=kind==0?64:32,total=d.Blocks*(kind==0?2:1);uint cursor=header[18+kind];
-                    var fair=pending.OrderBy(job=>(job+total-(int)cursor)%total).Take(budget/2).ToArray();
+                    int budget=rays/2560*(kind==0?2:1),total=d.Blocks*(kind==0?2:1);uint cursor=header[18+kind];
+                    var fair=pending.OrderBy(job=>(job+total-(int)cursor)%total).Take((budget+1)/2).ToArray();
                     var rest=pending.Except(fair).OrderBy(job=>Priority(d,data,job,kind)).ThenBy(job=>data[(kind==0?job/2:job)*16+(kind==0?9:14)]).ThenBy(job=>job).Take(budget-fair.Length);
                     var expected=fair.Concat(rest).Select(job=>(uint)job).ToArray();
                     Assert.Equal((uint)expected.Length,actual[16+kind]);Assert.Equal((uint)pending.Length,actual[22+kind]);
@@ -77,7 +78,7 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
                     {
                         var source=expected.Where(job=>job%2==sourceIndex).Select(job=>job/2).ToArray();
                         Assert.Equal((uint)source.Length,actual[29+sourceIndex]);
-                        Assert.Equal(source,Read(scratch,16512+sourceIndex*64,source.Length));
+                        Assert.Equal(source,Read(scratch,16768+sourceIndex*256,source.Length));
                     }
                 }
                 Assert.Equal(0xdeadbeefu,Read(scratch,header.Length-1,1)[0]);

@@ -21,6 +21,10 @@ Authority and scope
     rendering framework. Explicitly authorized promotion/removal belongs to Phases 8.4/8.5.
     Phase 8.4 adds screen-space temporal
     sampling reuse to the view; persistent density and illumination remain independently retained.
+  Production LightingRaysPerUpdate controls persisted-lighting throughput:2560..327680 rays,
+    default81920, in2560-ray units (two direct block-source jobs plus one diffuse block).
+    Maximum queue capacity is256direct/128diffuse; numerical ray schedules are unchanged.
+    Four MiB scratch per working set supports the range without geometry/history reallocation.
   Shared TraceScale and FullResolutionReference controls govern view resolution. Full draws directly;
     half/quarter use compact spatial reconstruction. Exact constant-cell intervals are implemented;
     Phase 8.1 records the approved appearance decision for that representation. Persistent lighting

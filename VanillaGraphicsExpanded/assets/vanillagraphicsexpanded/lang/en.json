@@ -1,4 +1,6 @@
 {
+  "config-cloud-lighting-rays": "Cloud lighting rays per update",
+  "config-cloud-lighting-rays-tooltip": "Maximum direct and diffuse rays per completed lighting update (2560–327680; default 81920). Rounded to block work units: 512 direct rays and 2048 diffuse rays per unit. Empty voxels and disabled features trace fewer rays. Higher budgets refresh lighting faster but cost more GPU time; this does not change view sampling or rays per voxel.",
   "config-section-clouds": "Clouds",
   "config-cloud-detail": "Cloud density detail",
   "config-cloud-shadows": "Cloud self-shadowing",

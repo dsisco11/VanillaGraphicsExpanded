@@ -67,7 +67,7 @@ bool VolumeDiffuseGather(CloudVolumeGrid grid,vec3 origin,vec3 direction,out vec
 /** Refines only selected physical blocks while leaving the copied destination elsewhere untouched. */
 void main()
 {
-    int region=int(scratch[16448+int(gl_WorkGroupID.x)]);
+    int region=int(scratch[16640+int(gl_WorkGroupID.x)]);
     ivec3 blocks=ivec3(diffuseSlots.z,diffuseSlots.w,diffuseSlots.z);
     ivec3 block=ivec3(region%blocks.x,(region/blocks.x)%blocks.y,region/(blocks.x*blocks.y));
     int lane=int(gl_LocalInvocationIndex),rayIndex=lane%8,node=lane/8;

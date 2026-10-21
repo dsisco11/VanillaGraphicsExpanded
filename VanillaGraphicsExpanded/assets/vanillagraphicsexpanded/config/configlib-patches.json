@@ -3,6 +3,7 @@
   "file": "VanillaGraphicsExpanded.json",
   "settings": {
     "boolean": {
+      "CLOUD_LIGHTING_RAYS": { "code": "Clouds.LightingRaysPerUpdate", "clientSide": true, "name": "Clouds/LightingRaysPerUpdate", "ingui": "vanillagraphicsexpanded:config-cloud-lighting-rays", "comment": "vanillagraphicsexpanded:config-cloud-lighting-rays-tooltip", "default": 81920, "range": { "min": 2560, "max": 327680, "step": 2560 }, "weight": 25.85 },
       "STORED_DETAIL": { "code": "Clouds.Detail", "clientSide": true, "name": "Clouds/Detail", "ingui": "vanillagraphicsexpanded:config-cloud-detail", "default": true, "weight": 25.81 },
       "STORED_SHADOWS": { "code": "Clouds.SelfShadowing", "clientSide": true, "name": "Clouds/SelfShadowing", "ingui": "vanillagraphicsexpanded:config-cloud-shadows", "default": true, "weight": 25.82 },
       "STORED_DIFFUSE": { "code": "Clouds.Diffuse", "clientSide": true, "name": "Clouds/Diffuse", "ingui": "vanillagraphicsexpanded:config-cloud-diffuse", "default": true, "weight": 25.83 },

@@ -16,7 +16,7 @@ public sealed class CloudVolumeDomainTests
     {
         var d = new CloudVolumeDomain(200, default, -100, 100);
         Assert.Equal(515, d.Size); Assert.Equal(17504850, d.Voxels); Assert.Equal(71825, d.Blocks);
-        Assert.Equal(391679376, d.Bytes); Assert.Equal(280077600, d.CopyBytes);
+        Assert.Equal(394825104, d.Bytes); Assert.Equal(280077600, d.CopyBytes);
         Assert.True(2 * d.Bytes < CloudVolumeDomain.PeakLimit);
         var p = new CloudPlacement(-53, 87, 0, 0, -7, 5, .2, .7, new Vector3(3), 0);
         var a = new CloudVolumeDomain(5, p, -1, 1);

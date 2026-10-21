@@ -15,9 +15,14 @@ layout(std430) buffer WorkRegions {uint regions[];};
 layout(std430) buffer WorkScratch {uint scratch[];};
 layout(std430) buffer WorkCommands {uint commands[];};
 layout(std430) readonly buffer WorkOccupancy {uint occupancy[];};
-const int DirectJobs=16384,DiffuseJobs=16448;
+const int DirectJobs=16384,DiffuseJobs=16640;
 const uint Invalid=0xffffffffu;
-shared uvec3 keys[256];
+#if VGE_VOLUME_WORK_LARGE_BUDGET
+const int SelectionEntries=1024;
+#else
+const int SelectionEntries=256;
+#endif
+shared uvec3 keys[SelectionEntries];
 shared uint pendingCount;
 
 /** Uses a conservative native-local AABB, treating a block spanning the logical seam as visible. */
@@ -61,23 +66,38 @@ uvec3 FairKey(uint job,int kind)
 }
 /** Compares fixed integer keys without SSBO lookups or repeated frustum tests. */
 bool Less(uvec3 a,uvec3 b){return a.x<b.x||(a.x==b.x&&(a.y<b.y||(a.y==b.y&&a.z<b.z)));}
-/** Cooperatively sorts 256 shared keys, padding absent candidates with the largest key. */
-void Sort()
+/** Sorts bounded shared keys cooperatively, retaining the default 256-entry specialization. */
+void Sort(int count)
 {
-    uint lane=gl_LocalInvocationIndex;
+    int lane=int(gl_LocalInvocationIndex);
     barrier();
-    for(uint width=2u;width<=256u;width*=2u)for(uint stride=width/2u;stride>0u;stride/=2u)
+    for(int width=2;width<=count;width*=2)for(int stride=width/2;stride>0;stride/=2)
     {
-        uvec3 own=keys[lane],other=keys[lane^stride];
-        bool minimum=((lane&stride)==0u)==((lane&width)==0u);
-        uvec3 chosen=minimum?(Less(other,own)?other:own):(Less(own,other)?other:own);
-        barrier();keys[lane]=chosen;barrier();
+        uvec3 chosen[SelectionEntries/256];
+        for(int j=0;j<SelectionEntries/256;j++)
+        {
+            int index=lane+j*256;
+            if(index<count)
+            {
+                uvec3 own=keys[index],other=keys[index^stride];
+                bool minimum=((index&stride)==0)==((index&width)==0);
+                chosen[j]=minimum?(Less(other,own)?other:own):(Less(own,other)?other:own);
+            }
+        }
+        barrier();
+        for(int j=0;j<SelectionEntries/256;j++)if(lane+j*256<count)keys[lane+j*256]=chosen[j];
+        barrier();
     }
 }
-/** Locates packed fair indices, cached priority keys and one backlog count within existing scratch. */
+/** Returns block-job capacities from the admitted ray budget, preserving fair service for odd counts. */
+int Budget(int kind){return int(workFirst.w)*(kind==0?2:1);}
+/** Assigns the odd leftover job to fair service so the smallest budget cannot starve it. */
+int FairQuota(int kind){return (Budget(kind)+1)/2;}
+/** Accounts for exact fair indices, three-word priority keys and one backlog word. */
+int SummaryStride(int kind){return FairQuota(kind)+Budget(kind)*3+1;}
+/** Locates variable-size fair indices, priority keys and backlog within fixed maximum scratch. */
 int Summary(int base,int kind,int group,int directGroups)
-{return base+(kind==0?group*225:directGroups*225+group*113);}
-/** Stores only enough local winners to preserve the exact global fair/priority result. */
+{return base+(kind==0?group*SummaryStride(0):directGroups*SummaryStride(0)+group*SummaryStride(1));}/** Stores only enough local winners to preserve the exact global fair/priority result. */
 void StoreTop(int targetOffset,int quota,bool fair)
 {
     int lane=int(gl_LocalInvocationIndex);
@@ -96,7 +116,8 @@ void Candidates(bool initial)
     int nextDirect=initial?oldDirect:(oldDirect+3)/4,nextDiffuse=initial?oldDiffuse:(oldDiffuse+3)/4;
     int kind=int(gl_WorkGroupID.x)<nextDirect?0:1;
     int group=int(gl_WorkGroupID.x)-(kind==0?0:nextDirect);
-    int fairQuota=kind==0?32:16,priorityQuota=kind==0?64:32,stride=kind==0?225:113;
+    int fairQuota=FairQuota(kind),priorityQuota=Budget(kind),stride=SummaryStride(kind);
+    int sortSize=256;while(!initial&&sortSize<4*priorityQuota)sortSize*=2;
     int targetOffset=Summary(workReduction.y,kind,group,nextDirect);
     if(lane==0)pendingCount=0u;barrier();
     uint job=Invalid;uvec3 priority=uvec3(Invalid);
@@ -116,37 +137,43 @@ void Candidates(bool initial)
     barrier();
     if(pendingCount==0u)
     {
-        if(lane<stride)scratch[targetOffset+lane]=lane==stride-1?0u:Invalid;
+        for(int i=lane;i<stride;i+=256)scratch[targetOffset+i]=i==stride-1?0u:Invalid;
         return;
     }
-    if(initial)keys[lane]=FairKey(job,kind);
-    else
+    for(int index=lane;index<sortSize;index+=256)
     {
-        int child=group*4+lane/fairQuota,count=kind==0?oldDirect:oldDiffuse;
-        keys[lane]=lane<4*fairQuota&&child<count?
-            FairKey(scratch[Summary(workReduction.x,kind,child,oldDirect)+lane%fairQuota],kind):uvec3(Invalid);
+        if(initial)keys[index]=FairKey(job,kind);
+        else
+        {
+            int child=group*4+index/fairQuota,count=kind==0?oldDirect:oldDiffuse;
+            keys[index]=index<4*fairQuota&&child<count?
+                FairKey(scratch[Summary(workReduction.x,kind,child,oldDirect)+index%fairQuota],kind):uvec3(Invalid);
+        }
     }
-    Sort();StoreTop(targetOffset,fairQuota,true);
-    if(initial)keys[lane]=priority;
-    else
+    Sort(sortSize);StoreTop(targetOffset,fairQuota,true);
+    for(int index=lane;index<sortSize;index+=256)
     {
-        int child=group*4+lane/priorityQuota,count=kind==0?oldDirect:oldDiffuse;
-        if(lane<4*priorityQuota&&child<count)
-        {int p=Summary(workReduction.x,kind,child,oldDirect)+fairQuota+(lane%priorityQuota)*3;keys[lane]=uvec3(scratch[p],scratch[p+1],scratch[p+2]);}
-        else keys[lane]=uvec3(Invalid);
+        if(initial)keys[index]=priority;
+        else
+        {
+            int child=group*4+index/priorityQuota,count=kind==0?oldDirect:oldDiffuse;
+            if(index<4*priorityQuota&&child<count)
+            {int p=Summary(workReduction.x,kind,child,oldDirect)+fairQuota+(index%priorityQuota)*3;keys[index]=uvec3(scratch[p],scratch[p+1],scratch[p+2]);}
+            else keys[index]=uvec3(Invalid);
+        }
     }
-    Sort();StoreTop(targetOffset+fairQuota,priorityQuota,false);
+    Sort(sortSize);StoreTop(targetOffset+fairQuota,priorityQuota,false);
     if(lane==0)scratch[targetOffset+stride-1]=pendingCount;
 }
 /** Emits bounded unique lists from global winners, retaining exactly half-budget round-robin service. */
 void Emit(int kind,int groups)
 {
-    int list=kind==0?DirectJobs:DiffuseJobs,budget=kind==0?64:32,quota=budget/2,count=0;
+    int list=kind==0?DirectJobs:DiffuseJobs,budget=Budget(kind),quota=FairQuota(kind),count=0;
     uint backlog=0u;
     if(groups!=0)
     {
         int sourceOffset=Summary(workReduction.x,kind,0,workReduction.z);
-        backlog=scratch[sourceOffset+(kind==0?224:112)];
+        backlog=scratch[sourceOffset+SummaryStride(kind)-1];
         for(int i=0;i<quota;i++)
         {
             uint job=scratch[sourceOffset+i];if(job==Invalid)break;
@@ -179,8 +206,8 @@ void Emit(int kind,int groups)
         for(int i=0;i<count;i++)
         {
             uint job=scratch[DirectJobs+i];
-            if((job&1u)==0u)scratch[16512u+solar++]=job/2u;
-            else scratch[16576u+lunar++]=job/2u;
+            if((job&1u)==0u)scratch[16768u+solar++]=job/2u;
+            else scratch[17024u+lunar++]=job/2u;
         }
         scratch[29]=solar;scratch[30]=lunar;
         commands[6]=solar;commands[7]=uint(workSettings.z);commands[8]=1u;
@@ -236,7 +263,7 @@ void main()
         scratch[38]=scratch[17];
         for(uint i=0u;i<scratch[17];i++)
         {
-            uint region=scratch[DiffuseJobs+int(i)];scratch[16640u+i]=region;
+            uint region=scratch[DiffuseJobs+int(i)];scratch[17280u+i]=region;
             int b=int(region)*16;
             regions[b+13]=regions[b+12];regions[b+15]=uint(workStamps.x);regions[b]&=~(4u|2048u);regions[b]|=16384u;scratch[27]=1u;
         }

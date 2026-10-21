@@ -45,7 +45,7 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
         var occupancy=Enumerable.Repeat(1u,d.Blocks).ToArray();occupancy[1]=0;fields.Occupancy.UploadData(occupancy);
         using(var persistent=fields.Scratch.MapScope<uint>(0,40,MapBufferAccessMask.MapWriteBit))
         {persistent.Span[5]=17;persistent.Span[18]=19;persistent.Span[19]=23;persistent.Span[38]=1;persistent.Span[39]=29;}
-        using(var repair=fields.Scratch.MapScope<uint>(16640*4,1,MapBufferAccessMask.MapWriteBit))repair.Span[0]=31;
+        using(var repair=fields.Scratch.MapScope<uint>(17280*4,1,MapBufferAccessMask.MapWriteBit))repair.Span[0]=31;
         publication.Publish(fields,0,storage.StorageBytes);Complete();
         Assert.Equal(new uint[]{0,1,1,0},Arguments(publication));
         using(var read=publication.Published!.Regions.MapScope<uint>(0,records.Length,MapBufferAccessMask.MapReadBit))Assert.Equal(records,read.Span.ToArray());
@@ -53,7 +53,7 @@ public sealed class CloudVolumePublicationTests(HeadlessGLFixture fixture,Xunit.
         Assert.Equal(after,Sample(probe,result,publication.Published!,Point(d,4)));
         using(var persistent=fields.Scratch.MapScope<uint>(0,40,MapBufferAccessMask.MapReadBit))
         {Assert.Equal(17u,persistent.Span[5]);Assert.Equal(19u,persistent.Span[18]);Assert.Equal(23u,persistent.Span[19]);Assert.Equal(1u,persistent.Span[38]);Assert.Equal(29u,persistent.Span[39]);}
-        using(var repair=fields.Scratch.MapScope<uint>(16640*4,1,MapBufferAccessMask.MapReadBit))Assert.Equal(31u,repair.Span[0]);
+        using(var repair=fields.Scratch.MapScope<uint>(17280*4,1,MapBufferAccessMask.MapReadBit))Assert.Equal(31u,repair.Span[0]);
         // More than one indirect row, with a short final Y block, exercises uniform padded exits.
         fields.Density.Clear(3);fields.Direct.Clear(.25f,.75f);fields.Diffuse.Clear(5,5,5);
         for(int r=0;r<d.Blocks;r++)records[r*16]=4096|8192|16384;

@@ -106,6 +106,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             temporal.ReleaseViewTargets();temporal.AdvanceFrame();temporal.Draw(settings);
             Assert.False(temporal.HistoryCompatible);
             temporal.AdvanceFrame();temporal.Draw(settings);Assert.True(temporal.HistoryCompatible);
+            temporal.AdvanceFrame();temporal.Draw(settings with{LightingRaysPerUpdate=327680});Assert.True(temporal.HistoryCompatible);
             temporal.ReplaceViewMaterialIdentity();temporal.AdvanceFrame();temporal.Draw(settings);
             Assert.False(temporal.HistoryCompatible);
         }

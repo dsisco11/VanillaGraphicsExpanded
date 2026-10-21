@@ -24,7 +24,7 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     private CloudVolumeViewSettings settings;
     private AtmosphereLighting? admitted;
     private bool prepared,failed,disposed;
-    internal string DiagnosticText=>$"{CloudStoredVolumeDiagnostics.Describe(solution,failed)}\nView targets: {view?.TargetBytes??0:N0} bytes (trace divisor {settings.TraceDivisor}; full resolution draws directly).";
+    internal string DiagnosticText=>$"{CloudStoredVolumeDiagnostics.Describe(solution,failed)}\nLighting ray budget per update: {settings.LightingRaysPerUpdate:N0}\nView targets: {view?.TargetBytes??0:N0} bytes (trace divisor {settings.TraceDivisor}; full resolution draws directly).";
 
     #region Public API
     #region Admission

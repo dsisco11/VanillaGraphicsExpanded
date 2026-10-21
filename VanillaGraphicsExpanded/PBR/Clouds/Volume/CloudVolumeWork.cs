@@ -8,20 +8,21 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Owns fair lighting queues while separating selection, completed work and compatible retained history.</summary>
-internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createProgram,CloudVolumeSubmission? submission=null):IDisposable
+internal sealed class CloudVolumeWork(Func<int,bool,CloudVolumeWorkProgram> createProgram,CloudVolumeSubmission? submission=null):IDisposable
 {
     private readonly CloudVolumeSubmission submission=submission??new();
     /// <summary>Exposes prepared executable footprints to the enclosing update boundary.</summary>
     internal System.Collections.Generic.IEnumerable<GpuComputeProgram> SubmissionPrograms=>System.Linq.Enumerable.OfType<GpuComputeProgram>(programs);
-    internal const int DirectListWord=16384,DiffuseListWord=16448,SummaryA=32768,SummaryB=196608;
+    internal const int DirectListWord=16384,DiffuseListWord=16640,SummaryA=32768,SummaryB=800000;
     /// <summary>Reserves retained repair history outside density selector temporaries and light lists.</summary>
-    internal const int RepairCountWord=38,CopyVoxelsWord=39,RepairListWord=16640;
+    internal const int RepairCountWord=38,CopyVoxelsWord=39,RepairListWord=17280;
     private readonly CloudVolumeWorkProgram?[] programs=new CloudVolumeWorkProgram?[6];
     private readonly ulong[] executable=new ulong[6];
     private readonly Vector4[] planes=new Vector4[6];
     private GpuIndirectBuffer? commands;
     private CloudVolumeWorkBatch? batch;
     private uint revision;
+    private bool largeBudget;
     private int completed,pendingCompletion;
     private bool failed,disposed;
     internal bool Ready {get;private set;}
@@ -35,7 +36,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     #region Selection and completion
     /// <summary>Admits source changes and emits bounded GPU work without modifying actual-completion stamps.</summary>
     internal bool Select(CloudVolumeStorage storage,AtmosphereLighting lighting,uint frame,ReadOnlySpan<Vector4> frustum,
-        Func<bool> current,bool directEnabled=true,bool diffuseEnabled=true,bool densityPending=false)
+        Func<bool> current,bool directEnabled=true,bool diffuseEnabled=true,bool densityPending=false,int lightingRays=CloudVolumeLightingBudget.DefaultRays)
     {
         ObjectDisposedException.ThrowIf(disposed,this);
         if(failed||!storage.Ready||!current()){Ready=false;return false;}
@@ -44,7 +45,9 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
         Ready=false;
         try
         {
-            Validate(lighting,frustum);Prepare();
+            Validate(lighting,frustum);
+            lightingRays=CloudVolumeLightingBudget.Sanitize(lightingRays);
+            Prepare(lightingRays);
             bool same=batch is not null&&ReferenceEquals(batch.Fields,fields);
             if(same&&(frame<batch!.Frame||revision==uint.MaxValue))throw new InvalidOperationException("Cloud work counters require reset.");
             if(!same)revision=0;
@@ -61,7 +64,7 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
             }
             dirty|=newly;
             frustum.CopyTo(planes);
-            SelectLists(fields,frame,active,dirty,newly,diffuseEnabled,current,densityPending);
+            SelectLists(fields,frame,active,dirty,newly,diffuseEnabled,current,densityPending,lightingRays);
             batch=new(fields,lighting,frame,revision,fields.Revision,fields.DensityState.Revision,
                 fields.DensityState.CompletedFrame,active,newly,directEnabled,diffuseEnabled,commands!);
             completed=pendingCompletion=0;Ready=true;return true;
@@ -108,8 +111,8 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
         Check(()=>true);
         using var status=fields.Scratch.MapScope<uint>(17*4,23,MapBufferAccessMask.MapReadBit);
         if((status.Span[8]&((uint)channels|8u))!=0)throw new InvalidOperationException("Cloud density or lighting arithmetic failed.");
-        if(status.Span[0]>32)throw new InvalidOperationException("Diffuse list exceeds its admitted budget.");
-        if(status.Span[21]>32||status.Span[22]>fields.Domain.Voxels)
+        if(status.Span[0]>CloudVolumeLightingBudget.MaximumDiffuseJobs)throw new InvalidOperationException("Diffuse list exceeds its admitted budget.");
+        if(status.Span[21]>CloudVolumeLightingBudget.MaximumDiffuseJobs||status.Span[22]>fields.Domain.Voxels)
             throw new InvalidOperationException("Diffuse repair history or copy extent exceeds its admitted bound.");
         LastDiffuseCopyBytes=16L*status.Span[22];
         return (int)status.Span[0];
@@ -132,18 +135,29 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
 
     #region Public API
     /// <summary>Admits fixed work-list capabilities and rejects executable changes while retaining queue history.</summary>
-    internal void Prepare()
+    internal void Prepare(int lightingRays=0)
     {
+        if(lightingRays!=0)
+        {
+            bool large=lightingRays>CloudVolumeLightingBudget.DefaultRays;
+            if(large!=largeBudget)
+            {
+                // Selection runs only after the preceding update retires. Changing capacity retains
+                // region demand, fair cursors and source history while replacing private executables.
+                for(int i=0;i<6;i++){programs[i]?.Dispose();programs[i]=null;executable[i]=0;}
+                largeBudget=large;
+            }
+        }
         var caps=GpuSupport.Graphics;
         if(caps.MaxUniformBlockSize<208||caps.MaxComputeShaderStorageBlocks<4||caps.MaxShaderStorageBufferBindings<4||
             caps.MaxComputeWorkGroupInvocations<256||caps.MaxComputeWorkGroupSize.Length<1||caps.MaxComputeWorkGroupSize[0]<256||
-            caps.MaxComputeSharedMemorySize<4112)
+            caps.MaxComputeSharedMemorySize<(largeBudget?12304:3088))
             throw new NotSupportedException("Cloud work requires four storage bindings, 256 lanes and shared selection storage.");
         for(int i=0;i<6;i++)
         {
-            var p=programs[i]??=createProgram(i);if(!p.EnsureReady())throw new InvalidOperationException(p.PreparationLog);
+            var p=programs[i]??=createProgram(i,largeBudget);if(!p.EnsureReady())throw new InvalidOperationException(p.PreparationLog);
             ulong next=((IGpuProgram)p).ExecutableRevision;
-            if(batch is not null&&executable[i]!=next)throw new InvalidOperationException("Cloud work executable changed; reset required.");
+            if(batch is not null&&executable[i]!=0&&executable[i]!=next)throw new InvalidOperationException("Cloud work executable changed; reset required.");
             executable[i]=next;
         }
         if(commands is null){commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{0,1,1,0,1,1,0,1,1,0,1,1,0,1,1,0,1,1});}
@@ -153,17 +167,19 @@ internal sealed class CloudVolumeWork(Func<int,CloudVolumeWorkProgram> createPro
     #region Program preparation and execution
 
     /// <summary>Classifies in parallel and reduces disjoint top-K summaries without full-domain serial scans.</summary>
-    private void SelectLists(CloudVolumeFields fields,uint frame,int active,int dirty,int newly,bool diffuse,Func<bool> current,bool densityPending)
+    private void SelectLists(CloudVolumeFields fields,uint frame,int active,int dirty,int newly,bool diffuse,Func<bool> current,bool densityPending,int lightingRays)
     {
         var d=fields.Domain;
         int direct=active==0?0:(d.Blocks*2+255)/256,indirect=diffuse?(d.Blocks+255)/256:0;
-        // The maximum first level ends at word 190971; its quarter-sized spare ends below 236356.
+        int units=lightingRays/CloudVolumeLightingBudget.RaysPerUnit;
+        int directStride=units+6*units+1,diffuseStride=(units+1)/2+3*units+1;
+        // Variable top-K summaries fit the maximum-capacity scratch ranges.
         // Both occupy existing fixed scratch, disjoint from density lists and lighting headers.
-        if(SummaryA+direct*225+indirect*113>SummaryB||SummaryB+((direct+3)/4)*225+((indirect+3)/4)*113>
+        if(SummaryA+direct*directStride+indirect*diffuseStride>SummaryB||SummaryB+((direct+3)/4)*directStride+((indirect+3)/4)*diffuseStride>
             (CloudVolumeDomain.ScratchBytes-4096)/4)throw new NotSupportedException("Cloud work summaries exceed fixed scratch.");
         void Submit(int op,int count,int source=0,int destination=0,int dg=0,int ig=0)
         {
-            programs[op]!.Capture(d,frame,revision,active,dirty,newly,diffuse,0,planes,source,destination,dg,ig,densityPending);
+            programs[op]!.Capture(d,frame,revision,active,dirty,newly,diffuse,0,planes,source,destination,dg,ig,densityPending,lightingRays);
             Bind(op,fields);Run(op,count);
         }
         Check(current);Submit(0,1);Submit(1,(d.Blocks+255)/256);

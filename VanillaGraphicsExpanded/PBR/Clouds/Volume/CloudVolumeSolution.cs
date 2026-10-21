@@ -33,7 +33,7 @@ internal sealed class CloudVolumeSolution:IDisposable
     internal CloudVolumeSolution(ICoreAPI api,bool detail)
     {
         Storage=new(()=>CloudVolumeMaintenanceProgram.Create(api),()=>CloudVolumeCopyProgram.Create(api),submission);
-        density=new((op,shared)=>CloudVolumeDensityProgram.Create(api,op,detail,shared),submission);work=new(op=>CloudVolumeWorkProgram.Create(api,op),submission);
+        density=new((op,shared)=>CloudVolumeDensityProgram.Create(api,op,detail,shared),submission);work=new((op,large)=>CloudVolumeWorkProgram.Create(api,op,large),submission);
         direct=new(op=>CloudVolumeDirectProgram.Create(api,op),submission);diffuse=new(shadows=>CloudVolumeDiffuseProgram.Create(api,shadows),submission);
         publication=new((op,shared)=>CloudVolumePublishProgram.Create(api,op,shared));updates=new(Storage,density,work,direct,diffuse,publication,submission);
     }

@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 internal sealed record CloudVolumeDomain
 {
     internal const double HorizontalCell = 19.53125;
-    internal const int Height = 66, ScratchBytes = 1048576;
+    internal const int Height = 66, ScratchBytes = 4194304;
     internal const long ResidentLimit = 512L * 1024 * 1024, PeakLimit = 2 * ResidentLimit;
     internal int Width { get; }
     internal int Size { get; }

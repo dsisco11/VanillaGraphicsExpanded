@@ -107,8 +107,8 @@ physical texture seams; ClampToEdge in Y and logical empty guards bound finite s
 `CloudVolumeFields` owns R16F density, RG16F direct visibility, two RGBA16F diffuse fields with
 zero alpha, one latest native-descriptor snapshot and exact block metadata/occupancy buffers.
 View and transport fetch exact physical texels for piecewise-constant cells; textures retain mixed wrap
-state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB parameter/scratch
-allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
+state. Maximum field-set accounting is 394,825,104 bytes, including the 4 MiB parameter/scratch
+allowance. The allocated scratch buffer uses 4,190,208 bytes and the maintenance/copy UBOs use
 128 bytes. Density operations use five independent 128-byte UBOs plus one shared 128-byte selector
 UBO, a 32-byte validation/completion summary and 12-byte indirect arguments. Lighting work uses six
 208-byte UBOs and 72-byte indirect arguments.
@@ -121,7 +121,7 @@ Screen-sized trace/history targets and the 32 KiB blue-noise texture are charged
 A separate drawable snapshot owns R16F density, RG16F direct,
 RGBA16F diffuse and exact region/occupancy buffers: 249,952,000 bytes (238.373 MiB) at maximum extent.
 A raw RGBA32F native observation snapshot adds at most 640,000 bytes. Maximum working plus drawable
-payload is 612.518 MiB; two working domains plus drawable/raw snapshots total 986.052 MiB. The
+payload is 615.518 MiB; two working domains plus drawable/raw snapshots total 992.052 MiB. The
 512 MiB ceiling applies to each working field set; the combined volume payload fits the 1 GiB peak
 ceiling. Screen-sized view targets and driver allocation overhead are additional.
 
@@ -235,7 +235,7 @@ consumers must reject an incomplete prefix rather than treating it as completed 
 `CloudVolumeWork` selects separate direct and diffuse lists after ordered density/occupancy writes. Blocks
 with certified zero density and conservative support do not consume lighting jobs or backlog counts.
 Their pending revisions remain uncompleted and become eligible when density makes them occupied.
-It reserves half each 64/32-job budget for persistent round-robin service, then chooses incompatible,
+It reserves half the configured direct/diffuse job budgets for persistent round-robin service, then chooses incompatible,
 newly active, visible stale and other old pending work. Physical blocks spanning a logical window
 seam are conservatively visible. Offscreen jobs retain fair service. The direct list encodes
 `block*2+source`; the direct owner orders solar/lunar RG writes to avoid channel
@@ -244,14 +244,14 @@ direct and diffuse dispatch; no CPU readback selects work.
 
 Lighting scratch header words 16/17 hold selected counts, 18/19 fair cursors and 22/23 backlog.
 Words 29/30 hold solar/lunar counts. The common selected block-source list retains global selection
-and completion semantics; solar and lunar region lists at 16512..16575 and 16576..16639 partition it
-without changing the combined 64-job budget. The six three-uint indirect records hold the common
+and completion semantics; solar and lunar region lists at 16768..17023 and 17024..17279 partition it
+without changing the combined direct job budget. The six three-uint indirect records hold the common
 direct count, diffuse dispatch, solar dispatch, lunar dispatch, conditional full diffuse copy and
 bounded previous-block repair. Each source launches only its
 own groups; inactive sources are skipped and empty source counts launch zero invocations.
 Word 25 is the accumulated failure mask (bits 1/2/4 for lighting, 8 for chained density), 26 completion status and 27 deferred diffuse
-dependency demand. Word 31 carries density failure across scratch reuse. Direct jobs occupy 16384..16447 and diffuse jobs 16448..16479. Bounded
-selection summaries begin at words 32768 and 196608. These ranges do not overlap density work. Density demand in word 6
+dependency demand. Word 31 carries density failure across scratch reuse. Direct jobs occupy 16384..16639 and diffuse jobs 16640..16767. Bounded
+selection summaries begin at words 32768 and 800000. These ranges do not overlap density work. Density demand in word 6
 coalesces until the lighting selector consumes it; density and lighting use separate revision
 namespaces. Selection preserves completed stamps and pending ages, and never certifies work as fresh.
 
@@ -269,7 +269,7 @@ to the solver, and total refresh latency remains a measurement concern.
 Work selection uses barrier-separated initialization, a 256-lane parallel region merge, local
 classification and hierarchical top-K reduction, then bounded final list emission. Each pending
 candidate's priority/frustum and waiting age are calculated once. Shared-memory sorting retains
-the first 32/16 fair candidates and 64/32 priority candidates per disjoint chunk. Four-child
+the configured fair and priority candidate counts per disjoint chunk. Four-child
 reductions preserve those exact global winners; the final emitter removes fair/priority overlap.
 The priority oversupply ensures that excluding fair winners still fills the remaining budget.
 Stable job-index ties and cyclic cursors define deterministic priority ordering and fair-service bounds.
@@ -277,8 +277,8 @@ Only the bounded final emitter and completion loops use a single lane; there is 
 serial scan or repeated visibility calculation inside a heap comparator.
 
 At maximum extent, the first summary level contains 562 direct and 281 diffuse chunks. Its
-packed indices/priority keys/counts occupy words 32768..190970; the quarter-sized reduction spare
-occupies at most 196608..236355, alternating levels after SSBO barriers. Both fit existing scratch;
+packed indices/priority keys/counts occupy words 32768..663050; the quarter-sized reduction spare
+occupies at most 800000..958355, alternating levels after SSBO barriers. Both fit existing scratch;
 no full per-job array or extra GPU allocation is needed. The source-domain extent determines
 reduction dispatch sizes; no CPU job readback or queue selection is introduced.
 
@@ -296,7 +296,7 @@ failure bit; no failed batch advances completion, and partial in-place writes wi
 
 Activation initializes each newly relevant channel to unshadowed across the bounded allocation
 before selected updates. This full-field image pass has no ray integrals; its read/write traffic
-and GPU cost are separate from the 64-job transport allowance and remain unqualified. Compatible
+and GPU cost are separate from the configured direct transport allowance and remain unqualified. Compatible
 direction-stale values survive ordinary direction changes. Brightness/environment changes reuse
 direct transmission; future consumers apply current illuminance and phase separately. Disabled
 direct work creates no transport program and dispatches no integrals. Solar/lunar variants compile
@@ -304,7 +304,7 @@ source selection independently and execute with image barriers between them, pre
 channels without RG read-modify-write races. Reset/context/executable changes revoke the solver's
 certificates; storage retains ownership of all fields.
 
-`CloudVolumeDiffuse` refines at most 32 selected blocks after ordered direct completion. Each
+`CloudVolumeDiffuse` refines at most 128 selected blocks after ordered direct completion. Each
 256-thread group processes 32 voxels with eight independent ray lanes per voxel; eight Y slices
 cover a complete 8x4x8 block. A leader validates each node once, all lanes reach the shared-memory
 barriers, and the leader combines eight results in the declared direction order. The two shared
@@ -321,14 +321,14 @@ finite .9*Environment fallback. Alpha remains zero.
 
 A same-scale nonempty batch repairs the existing spare from the preceding successful batch's
 physical block list. Initialization and recenter maintenance write both fields; outside that list
-the fields already match. At most 32 complete blocks need copying, including partial edges, with
+the fields already match. At most 128 complete blocks need copying, including partial edges, with
 no neighbor halo: the gather samples only the coherent old texture, including one
 exact texel fetch each for density, old diffuse and optional cached direct visibility for
 the current physical cell. Self-shadowing selects actual compiled variants; disabling it removes the
 direct sampler. Disabled diffuse creates no solver and does no copy. GPU-selected indirect arguments
 skip copy/gather groups for an empty list. Final fenced status/count inspection accepts only a
 successful nonempty destination; empty work retains the old scale/texture and repair history.
-Scratch word38 retains the previous count and words16640..16671 retain its list, after the two
+Scratch word38 retains the previous count and words17280..17407 retain its list, after the two
 source-specific lists and outside density selector temporaries32..37. Successful-only completion
 replaces that history; solver reset retains it with its owning fields. Copy word39 counts actual
 texels in the existing deferred status read; no additional readback is introduced. Separate indirect
@@ -337,7 +337,7 @@ Each field tracks its own scale. If either differs from the target scale, or an 
 invalidated repair history, copy/re-encode the entire source before gathering. A scale transition
 can require two consecutive full copies to bring both fields to the new scale. Same-scale repair
 preserves stored half values exactly. `LastCopyBytes` charges texture read/write traffic separately
-from `LastJobs`: zero for initial equal fields, at most131,072 bytes for bounded repair, or
+from `LastJobs`: zero for initial equal fields, at most524,288 bytes for bounded repair, or
 280,077,600 bytes for a maximum-domain full copy. Metadata/dispatch overhead is separate; no extra
 texture or buffer is allocated. Drawable snapshot copying remains independent. These counts do not
 establish GPU execution time.
@@ -356,7 +356,7 @@ unqualified.
 ### Stored-volume view and configuration
 
 In ConfigLib, set native cloud mode to **Volumetric**. `Clouds.Detail`, `SelfShadowing`, `Diffuse`
-and `StopTransmittance` control stored-field features. `TraceScale` and `FullResolutionReference`
+and `StopTransmittance` control stored-field features. `Clouds.LightingRaysPerUpdate` controls persisted-lighting throughput. `TraceScale` and `FullResolutionReference`
 govern view resolution. Configuration snapshots commit at the Before preparation boundary;
 view-only changes retain compatible density and lighting. Reload or mode release resets a latched
 failure. `CloudStoredVolumeConsumer` is the sole Volumetric consumer, drawing at OIT .31.
@@ -525,6 +525,24 @@ release all view history without clearing compatible cloud-space density or illu
 screen resources add no solver fence, CPU wait or new 3D field. User-run temporal appearance and
 measured total performance remain separate acceptance activities.
 
+## Persisted lighting update budget
+
+`Clouds.LightingRaysPerUpdate` sets an upper ray budget for each submitted lighting update, not
+per rendered frame or per view pixel. It ranges from 2,560 to 327,680 in steps of 2,560; the default
+is 81,920. Each unit admits two direct block-source jobs (up to 512 rays) and one diffuse block
+(up to 2,048 rays across eight directions per occupied voxel). Disabled sources/features, empty
+voxels and partial edge blocks reduce actual traced rays; unused work is not reassigned between solvers.
+Changing the budget preserves density, illumination, pending ages, fair cursors and view history.
+A pending update finishes under its frozen budget before a later update uses the new setting.
+
+The maximum is 256 direct jobs and 128 diffuse blocks. Scheduler summaries scale with the selected
+count; budgets above the default use a precompiled 1,024-key selection variant. The default retains
+the 256-key variant. Both use 256-thread groups. The fixed scratch allowance is 4 MiB per working
+field set, three MiB more than the smallest-capacity allocation; all field sets reserve the maximum
+so changing this work control does not reallocate density or lighting. Maximum summary ranges remain
+separate from headers, lists and one another. The previous diffuse repair list holds up to 128 blocks.
+A higher budget trades GPU work per update for faster spatial refresh, without changing each ray's
+exact-cell traversal, the scattering directions or density generation. This is not a frame-time guarantee.
 ## Native compatibility and qualification
 
 Native lookup resources and cloudmap.fsh remain available for native map production.

@@ -25,6 +25,9 @@ public sealed class CloudVolumeSelectionTests
         }
         config.TraceScale=(CloudTraceScale)3;config.StopTransmittance=float.NaN;
         Assert.Equal(4,config.Capture().TraceDivisor);Assert.Equal(.005f,config.StopTransmittance);
+        config.LightingRaysPerUpdate=int.MaxValue;Assert.Equal(327680,config.Capture().LightingRaysPerUpdate);
+        config.LightingRaysPerUpdate=-1;Assert.Equal(2560,config.Capture().LightingRaysPerUpdate);
+        config.LightingRaysPerUpdate=9000;Assert.Equal(7680,config.Capture().LightingRaysPerUpdate);
         var copy=JsonConvert.DeserializeObject<CloudRenderingSettings>(JsonConvert.SerializeObject(config))!;
         Assert.Equal(config.Capture(),copy.Capture());
         Assert.Throws<ArgumentOutOfRangeException>(()=>(CloudVolumeViewSettings.Default with{TraceDivisor=3}).Validate());
@@ -36,7 +39,7 @@ public sealed class CloudVolumeSelectionTests
         var document=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
         var controls=document["settings"]!.Children<JProperty>().SelectMany(p=>p.Value.Children<JProperty>()).Select(p=>p.Value)
             .Where(p=>((string?)p["code"])?.StartsWith("Clouds.")==true).ToArray();
-        string[] expected=["Detail","SelfShadowing","Diffuse","StopTransmittance","TraceScale","FullResolutionReference"];
+        string[] expected=["Detail","SelfShadowing","Diffuse","StopTransmittance","TraceScale","FullResolutionReference","LightingRaysPerUpdate"];
         Assert.Equal(expected.Select(s=>"Clouds."+s).Order(),controls.Select(p=>(string)p["code"]!).Order());
         var serialized=JObject.Parse(JsonConvert.SerializeObject(new CloudRenderingSettings()));
         Assert.Equal(expected.Order(),serialized.Properties().Select(p=>p.Name).Order());

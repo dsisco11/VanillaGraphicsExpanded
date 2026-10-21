@@ -50,6 +50,8 @@ internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeD
         CloudVolumeViewSettings settings,CloudVolumeAdmission admission,Func<bool> current)
     {
         if(fence is not null||density.Busy)return;
+        // Choose capacity after the preceding fence retires and before borrowing executable authority.
+        work.Prepare(settings.LightingRaysPerUpdate);
         // CPU admission still ends its callback at the existing fences. The prepared union covers
         // every internal producer before any resource changes; no boundary survives the callback.
         submission.Batch(storage.SubmissionPrograms.Concat(density.SubmissionPrograms).Concat(work.SubmissionPrograms)
@@ -64,7 +66,7 @@ internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeD
             }
             if(step!=Step.Lighting)return;
             CloudVolumeCoordinates.Frustum(camera,CloudVolumeCoordinates.Origin(storage.Published.Domain,input),planes);
-            if(!work.Select(storage,lighting,input.Frame,planes,current,settings.SelfShadowing,settings.Diffuse,density.Chained)||
+            if(!work.Select(storage,lighting,input.Frame,planes,current,settings.SelfShadowing,settings.Diffuse,density.Chained,settings.LightingRaysPerUpdate)||
                 !work.TryBatch(storage,out batch)||!direct.Update(storage,work,current,deferStatus:true)||
                 !diffuse.Update(storage,work,current,deferStatus:true))
                 throw new InvalidOperationException(work.Failure??direct.Failure??diffuse.Failure??"Cloud lighting submission failed.");

@@ -21,10 +21,14 @@ public sealed class CloudRenderingSettings
     /// <summary>Stops after a completed view segment; zero compiles termination out.</summary>
     [JsonProperty] public float StopTransmittance {get;set;}=.005f;
 
+    /// <summary>Bounds direct plus diffuse rays per lighting update in complete block-sized work units.</summary>
+    [JsonProperty] public int LightingRaysPerUpdate {get;set;}=CloudVolumeLightingBudget.DefaultRays;
+
     #region Public API
     /// <summary>Bounds persisted work controls before publishing a coherent settings snapshot.</summary>
     public void Sanitize()
     {
+        LightingRaysPerUpdate=CloudVolumeLightingBudget.Sanitize(LightingRaysPerUpdate);
         if(TraceScale is not (CloudTraceScale.Half or CloudTraceScale.Quarter))TraceScale=CloudTraceScale.Quarter;
         StopTransmittance=float.IsFinite(StopTransmittance)?Math.Clamp(StopTransmittance,0,.005f):.005f;
     }
@@ -32,7 +36,7 @@ public sealed class CloudRenderingSettings
     internal CloudVolumeViewSettings Capture()
     {
         Sanitize();
-        return new(Detail,SelfShadowing,Diffuse,StopTransmittance,FullResolutionReference?1:(int)TraceScale);
+        return new(Detail,SelfShadowing,Diffuse,StopTransmittance,FullResolutionReference?1:(int)TraceScale,LightingRaysPerUpdate);
     }
     #endregion
 }

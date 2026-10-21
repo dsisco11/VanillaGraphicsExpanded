@@ -33,7 +33,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
             r/(domain.BlocksX*domain.BlocksY)>0&&r/(domain.BlocksX*domain.BlocksY)<domain.BlocksX-1&&
             (r/domain.BlocksX)%domain.BlocksY>=4&&(r/domain.BlocksX)%domain.BlocksY<12).Take(32).ToArray();
         Assert.Equal(32,regions.Length);
-        for(int i=0;i<32;i++){header[16384+i*2]=(uint)(regions[i]*2);header[16385+i*2]=(uint)(regions[i]*2+1);header[16448+i]=(uint)regions[i];header[16512+i]=header[16576+i]=(uint)regions[i];header[16640+i]=(uint)regions[i];}
+        for(int i=0;i<32;i++){header[16384+i*2]=(uint)(regions[i]*2);header[16385+i*2]=(uint)(regions[i]*2+1);header[16640+i]=(uint)regions[i];header[16768+i]=header[17024+i]=(uint)regions[i];header[17280+i]=(uint)regions[i];}
         header[38]=32;
         header[16]=64;header[17]=32;fields.Scratch.UploadData(header);
         using var commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{64,1,1,32,8,1,32,1,1,32,1,1});
@@ -94,8 +94,8 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         using var source=DynamicTexture3D.Create(domain.Size,66,domain.Size,PixelInternalFormat.Rgba16f,textureTarget:TextureTarget.Texture3D);
         using var target=DynamicTexture3D.Create(domain.Size,66,domain.Size,PixelInternalFormat.Rgba16f,textureTarget:TextureTarget.Texture3D);
         source.Clear(.25f,.5f,.75f);target.Clear();
-        using var scratch=GpuShaderStorageBuffer.Create();var header=new uint[16672];
-        header[38]=32;for(int i=0;i<32;i++)header[16640+i]=(uint)(1+i+domain.BlocksX*(4+domain.BlocksY));
+        using var scratch=GpuShaderStorageBuffer.Create();var header=new uint[CloudVolumeWork.RepairListWord+CloudVolumeLightingBudget.MaximumDiffuseJobs];
+        header[38]=32;for(int i=0;i<32;i++)header[17280+i]=(uint)(1+i+domain.BlocksX*(4+domain.BlocksY));
         scratch.UploadData(header);
         using var copy=CloudVolumeCopyProgram.Create(Programs.Api);copy.Scratch=scratch;copy.Source=source;
         copy.Destination=new(target,TextureAccess.WriteOnly,Layered:true);copy.Capture(domain,encoding,encoding);

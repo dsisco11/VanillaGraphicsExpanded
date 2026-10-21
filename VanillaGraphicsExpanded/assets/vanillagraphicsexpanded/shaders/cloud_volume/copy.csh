@@ -11,7 +11,7 @@ void main()
     ivec3 block=ivec3(gl_WorkGroupID);
     if(copyExtent.w!=0)
     {
-        int region=int(scratch[16640+int(gl_WorkGroupID.x)]);
+        int region=int(scratch[17280+int(gl_WorkGroupID.x)]);
         int nx=(copyExtent.x+7)/8,ny=(copyExtent.y+3)/4;
         block=ivec3(region%nx,(region/nx)%ny,region/(nx*ny));
     }

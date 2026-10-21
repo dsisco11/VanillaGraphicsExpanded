@@ -26,7 +26,7 @@ void main()
     imageStore(directOutput,p,value);
     #else
     const int source=VGE_VOLUME_DIRECT_OPERATION-1;
-    int region=int(scratch[16512+source*64+int(gl_WorkGroupID.x)]);
+    int region=int(scratch[16768+source*256+int(gl_WorkGroupID.x)]);
     ivec3 blocks=ivec3(directSlots.z,directSlots.w,directSlots.z);
     ivec3 block=ivec3(region%blocks.x,(region/blocks.x)%blocks.y,region/(blocks.x*blocks.y));
     ivec3 p=block*ivec3(8,4,8)+ivec3(gl_LocalInvocationID);

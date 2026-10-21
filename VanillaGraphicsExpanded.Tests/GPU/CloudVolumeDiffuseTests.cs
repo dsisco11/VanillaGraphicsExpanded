@@ -29,7 +29,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShad
         fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
         fields.Direct.UploadDataImmediate(Enumerable.Repeat(float.NaN,d.Voxels*2).ToArray(),0,0,0,d.Size,66,d.Size);
-        using var work=new CloudVolumeWork(op=>CloudVolumeWorkProgram.Create(Programs.Api,op));
+        using var work=new CloudVolumeWork((op,large)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large));
         using var solver=new CloudVolumeDiffuse(shadows=>CloudVolumeDiffuseProgram.Create(Programs.Api,shadows));
         var light=new AtmosphereLighting(Vector3.UnitY,Vector3.Zero,environment,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty);
         var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();
