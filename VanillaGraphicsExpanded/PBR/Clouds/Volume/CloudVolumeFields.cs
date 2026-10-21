@@ -62,7 +62,7 @@ internal sealed class CloudVolumeFields : IDisposable
     public void Dispose() => resources.Dispose();
     #endregion
     #region Private
-    /// <summary>Creates true trilinear volumes with circular horizontal and finite vertical addressing.</summary>
+    /// <summary>Creates 3D fields with circular horizontal and finite vertical addressing; transport fetches exact cells.</summary>
     private DynamicTexture3D Volume(PixelInternalFormat format)
     {
         var texture = resources.Own(DynamicTexture3D.Create(Domain.Size, CloudVolumeDomain.Height, Domain.Size,

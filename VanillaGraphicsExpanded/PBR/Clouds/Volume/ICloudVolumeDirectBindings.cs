@@ -10,7 +10,7 @@ internal interface ICloudVolumeDirectBindings
     /// <summary>Supplies finite geometry and the frozen source direction.</summary>
     [ShaderBinding("VolumeDirect",ShaderBindingKind.UniformBlock,0,ShaderStageKind.Compute)]
     CpuUniformBuffer Inputs {get;}
-    /// <summary>Samples authoritative extinction through hardware trilinear filtering.</summary>
+    /// <summary>Fetches authoritative constant-cell extinction by exact physical texel address.</summary>
     [ShaderBinding("volumeDensity",ShaderBindingKind.Sampler,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
     GpuTexture? Density {set;}
     /// <summary>Reads certified filtered support.</summary>

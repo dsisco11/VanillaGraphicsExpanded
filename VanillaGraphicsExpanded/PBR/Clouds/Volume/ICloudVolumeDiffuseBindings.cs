@@ -10,7 +10,7 @@ internal interface ICloudVolumeDiffuseBindings
     /// <summary>Supplies finite geometry, physical sources and the paired field scales.</summary>
     [ShaderBinding("VolumeDiffuse",ShaderBindingKind.UniformBlock,0,ShaderStageKind.Compute)]
     CpuUniformBuffer Inputs {get;}
-    /// <summary>Samples authoritative extinction with hardware filtering.</summary>
+    /// <summary>Fetches authoritative constant-cell extinction by exact physical texel address.</summary>
     [ShaderBinding("volumeDensity",ShaderBindingKind.Sampler,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
     GpuTexture? Density {set;}
     /// <summary>Samples the coherent previous diffuse source, never the writable destination.</summary>

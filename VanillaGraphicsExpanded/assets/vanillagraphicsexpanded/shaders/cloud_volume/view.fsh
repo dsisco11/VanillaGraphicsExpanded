@@ -44,11 +44,11 @@ float StoredViewPhase(vec3 outgoing,vec3 light)
     return .64/(12.566370614359172*d*sqrt(d));
 }
 /** Composes current directional first scattering and the retained isotropic source once. */
-vec3 StoredViewSource(vec3 uv,vec2 phases,float sigma)
+vec3 StoredViewSource(ivec3 cell,vec2 phases,float sigma)
 {
     if(viewBudget.w>0)
     {
-        ivec3 p=ivec3(floor(mod(uv,1.0)*vec3(viewSize.xyz)));
+        ivec3 p=cell;
         p=clamp(p,ivec3(0),viewSize.xyz-1);ivec3 b=p/ivec3(8,4,8);
         int id=(b.z*viewSlots.w+b.y)*viewSlots.z+b.x;
         int mode=int(viewBudget.w);vec3 color;
@@ -75,11 +75,11 @@ vec3 StoredViewSource(vec3 uv,vec2 phases,float sigma)
     }
     vec2 visibility=vec2(1);
     #if VGE_STORED_VIEW_SHADOWS
-    visibility=textureLod(viewDirect,uv,0).rg;
+    visibility=texelFetch(viewDirect,cell,0).rg;
     #endif
     vec3 diffuse=.9*viewEnvironment.rgb;
     #if VGE_STORED_VIEW_DIFFUSE
-    diffuse=textureLod(viewDiffuse,uv,0).rgb*viewBudget.y;
+    diffuse=texelFetch(viewDiffuse,cell,0).rgb*viewBudget.y;
     #endif
     return .9*(viewSolar.rgb*visibility.x*phases.x+viewLunar.rgb*visibility.y*phases.y)+diffuse;
 }
@@ -135,7 +135,7 @@ float StoredViewDepth(vec2 uv)
     return min(min(depths.x,depths.y),min(depths.z,depths.w));
     #endif
 }
-/** Integrates authoritative density at the configured size with unchanged occupied voxel-relative spacing. */
+/** Integrates authoritative constant cells at the configured size along exact clipped cell intervals. */
 void main()
 {
     if(!VgeFrameLightingValid(vgeFrame.frameIndex,VgeLightingCalibrationGeneration()))discard;
@@ -145,13 +145,9 @@ void main()
     float limit=length(StoredViewUnproject(ndc,depth));
     CloudVolumeGrid grid;grid.size=viewSize.xyz;grid.blocks=ivec3(viewSlots.z,viewSlots.w,viewSlots.z);grid.slot=viewSlots.xy;
     grid.first=viewFirst.xyz;grid.cell=viewCell.xyz;grid.minimum=viewMinimum.xyz;grid.maximum=viewMaximum.xyz;
-    CloudVolumeRay ray=CloudVolumeBegin(grid,viewOrigin.xyz,direction,limit,.5);
+    CloudVolumeRay ray=CloudVolumeBegin(grid,viewOrigin.xyz,direction,limit);
     if(ray.failed)discard;
     if(ray.t>=ray.end){StoredViewWrite(vec4(0),vec3(1),depth,true);return;}
-    // Material addressing is affine along the ray; avoid native-position reconstruction and
-    // cell/extent division for every sample. Circular wrapping remains hardware Repeat.
-    vec3 coordOrigin=(ray.origin+vec3(grid.slot.x,0,grid.slot.y))/vec3(grid.size);
-    vec3 coordVelocity=ray.velocity/vec3(grid.size);
     vec2 phases=vec2(StoredViewPhase(-direction,viewSun.xyz),StoredViewPhase(-direction,viewMoon.xyz));
     vec3 bins=vec3(1),radiance=vec3(0);float transmission=1,weightSum=0,moment=0;bool terminated=false;
     for(int i=0;i<2048;i++)
@@ -159,13 +155,13 @@ void main()
         vec2 interval;bool occupied;if(!CloudVolumeNext(grid,ray,interval,occupied))break;
         if(!occupied)continue;
         float t=(interval.x+interval.y)*.5;
-        vec3 coord=coordOrigin+coordVelocity*t;
-        float sigma=textureLod(volumeDensity,coord,0).r;
+        ivec3 cell=ray.sampleCell;
+        float sigma=texelFetch(volumeDensity,cell,0).r;
         if(isnan(sigma)||isinf(sigma)||sigma<0)discard;
         float alpha=1-exp(-sigma*(interval.y-interval.x));
         if(alpha<=0)continue;
         float weight=transmission*alpha;
-        radiance+=weight*StoredViewSource(coord,phases,sigma);weightSum+=weight;moment+=weight*t;
+        radiance+=weight*StoredViewSource(cell,phases,sigma);weightSum+=weight;moment+=weight*t;
         transmission*=1-alpha;bins*=clamp(vec3(1)-alpha*StoredViewBins(interval.x),0,1);
         #if VGE_STORED_VIEW_TERMINATION
         if(transmission<viewBudget.x){terminated=true;break;}

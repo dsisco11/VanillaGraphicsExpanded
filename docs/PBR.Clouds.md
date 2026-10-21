@@ -523,7 +523,7 @@ physical texture seams; ClampToEdge in Y and logical empty guards bound finite s
 
 `CloudVolumeFields` owns R16F density, RG16F direct visibility, two RGBA16F diffuse fields with
 zero alpha, one latest native-descriptor snapshot and exact block metadata/occupancy buffers.
-Textures use hardware trilinear filtering; no shared sampler override replaces their mixed wrap
+View and transport fetch exact physical texels for piecewise-constant cells; textures retain mixed wrap
 state. Maximum field-set accounting is 391,679,376 bytes, including the 1 MiB parameter/scratch
 allowance. The allocated scratch buffer uses 1,044,480 bytes and the maintenance/copy UBOs use
 128 bytes. Density operations use five independent 128-byte UBOs plus one shared 128-byte selector
@@ -626,7 +626,7 @@ revisions and frame ages; `DensityState` exposes snapshot frame and last actual 
 
 Every changed stored block marks neighboring occupancy records conservatively before readers. A separate
 barrier-separated pass repairs them from stored density including one texel around each block and
-circular seams, covering trilinear filter support. Completion stamps advance only after repair and
+circular seams, retaining a conservative neighboring-cell halo. Completion stamps advance only after repair and
 successful arithmetic/certificate checks. Recenter maintenance marks affected occupancy records for
 repair even if their entering/guard density is already zero. Only changed stored density marks
 drawable density blocks dirty and direct/diffuse dependents stale
@@ -644,13 +644,13 @@ Crossings advance all tied axes, including the short physical edge block at the 
 Only an occupancy value of zero skips a block; pending repair values remain conservatively occupied.
 The ray caches unknown, empty and occupied classifications in one integer state. The decoded
 classification controls both interval length and whether the consumer integrates that interval.
-Occupied steps use nominal half-voxel spacing for view/diffuse or one-voxel spacing for direct rays,
-shortened at block/domain endpoints. One hardware trilinear fetch evaluates each midpoint density.
-Operation caps are 2048 and 1024 respectively. Lack of progress or cap overflow fails the ray;
+Occupied intervals follow exact voxel entry/exit planes and fetch density once per crossed cell.
+Density and cell-centred direct/diffuse source are constant within that cell; clipped lengths enter
+closed-form extinction and source integration. All ray consumers have a 2048-operation cap. Lack of progress or cap overflow fails the ray;
 consumers must reject an incomplete prefix rather than treating it as completed transport.
 
 `CloudVolumeWork` selects separate direct and diffuse lists after ordered density/occupancy writes. Blocks
-with certified zero density and trilinear support do not consume lighting jobs or backlog counts.
+with certified zero density and conservative support do not consume lighting jobs or backlog counts.
 Their pending revisions remain uncompleted and become eligible when density makes them occupied.
 It reserves half each 64/32-job budget for persistent round-robin service, then chooses incompatible,
 newly active, visible stale and other old pending work. Physical blocks spanning a logical window
@@ -705,8 +705,8 @@ reading lists. Repeated completion or changed field/density certificates cannot 
 Failures withdraw sampling until reset; the view consumes only successful published fields.
 
 `CloudVolumeDirect` consumes the frozen work batch and authoritative stored density only. Each
-occupied node traces toward its relevant source through the retained coarse DDA to the finite
-domain exit, at one-voxel nominal spacing. It accumulates actual segment lengths in metres,
+occupied node traces toward its relevant source through retained cell DDA with coarse empty skipping to the finite
+domain exit. It accumulates actual segment lengths in metres,
 saturates optical depth at 80 without early termination, and stores dimensionless exp(-tau) in
 RG16F. Empty nodes skip integration. Incomplete rays and nonfinite arithmetic set the channel's
 failure bit; no failed batch advances completion, and partial in-place writes withdraw sampling.
@@ -727,7 +727,7 @@ cover a complete 8x4x8 block. A leader validates each node once, all lanes reach
 barriers, and the leader combines eight results in the declared direction order. The two shared
 arrays use 4608 bytes per group. Any failed ray rejects the node/batch through the existing failure
 mask. Every occupied node gathers eight normalized cube-corner rays, equally weighted, through stored density
-at half-voxel nominal spacing. Each ray continues through empty gaps until the finite domain exit
+along exact constant-cell intervals. Each ray continues through empty gaps until the finite domain exit
 or the explicit 400-metre transport closure. The incoming sum is
 `sum(T_before*alpha*(Q(sample,-rayDirection)+D_read(sample)))+T_end*Environment`, with
 `alpha=1-exp(-sigma*actualSegmentMetres)`, albedo .9, HG g=.6 and
@@ -740,8 +740,8 @@ A same-scale nonempty batch repairs the existing spare from the preceding succes
 physical block list. Initialization and recenter maintenance write both fields; outside that list
 the fields already match. At most 32 complete blocks need copying, including partial edges, with
 no neighbor halo: the gather samples only the coherent old texture, including one
-hardware trilinear fetch each for density, old diffuse and optional cached direct visibility at
-an occupied midpoint. Self-shadowing selects actual compiled variants; disabling it removes the
+exact texel fetch each for density, old diffuse and optional cached direct visibility for
+the current physical cell. Self-shadowing selects actual compiled variants; disabling it removes the
 direct sampler. Disabled diffuse creates no solver and does no copy. GPU-selected indirect arguments
 skip copy/gather groups for an empty list. Final fenced status/count inspection accepts only a
 successful nonempty destination; empty work retains the old scale/texture and repair history.
@@ -848,22 +848,21 @@ selection release and world/context teardown retire all candidate resources.
 `CloudVolumeViewRenderer` uses the shared `TraceScale` (half/quarter) and `FullResolutionReference` controls. Full resolution draws directly into native OIT without intermediate targets. Reduced views trace into private ceil-divided targets, then reconstruct the
 six native Transparent products at full resolution through existing graphics pipelines. It clips against finite stored coverage,
 material depth, particle visibility and liquid depth at mip zero. Coarse DDA retains traversal
-state and skips only certified empty support. Occupied intervals use half-voxel axis spacing,
-actual clipped metre lengths, hardware-filtered R16F density, RG16F transmission and scaled diffuse
+state and skips only certified empty support. Occupied intervals use exact voxel boundaries,
+actual clipped metre lengths and cell-constant R16F density, RG16F transmission and scaled diffuse
 RGB. There is no native descriptor/noise lookup, low layer sample cap, jitter or screen-space history.
 Operation-limit failure discards the whole pixel prefix. Optional optical termination occurs only
 after a completed segment and compiles out when StopTransmittance is zero.
 
-DDA entry normalizes each horizontal signed remainder once. One-block advances use explicit seam
-branches, including short physical edge blocks, while crossing distances still derive from retained
-planes and the original grid ray. Tied axes, clipping and progress checks use those same distances;
-no accumulated crossing increment changes their rounding. Direct and diffuse rays use the same
-per-ray affine texture addressing as the view: evaluate original coordinate origin plus velocity
-times the current interval midpoint, avoiding repeated native reconstruction and coordinate division.
-Physical-to-logical texel lookup uses one negative wrap adjustment per horizontal axis. Filtering
-remains hardware trilinear, and coordinates are never accumulated between intervals. Float32
-reassociation affects rounding but leaves the declared integration schedule and physical units intact.
-
+One retained plane/crossing set switches between fine cells and coarse empty blocks along the original ray. Empty blocks jump to
+coarse exits; occupied cells advance all tied voxel axes once. Physical indices wrap explicitly at
+circular seams, and cell entry is corrected using original-ray crossing parameters when position
+reconstruction rounds onto an adjacent plane. Nonprogress rejects the ray. Each returned interval
+retains its own physical sample-cell address even though traversal state has already advanced.
+All consumers fetch exact texels for the piecewise-constant volume model. Screen-space compact
+reconstruction uses hardware bilinear filtering.
+The constant-cell model can expose harder voxel edges and cell-to-cell lighting changes; no automated
+image-quality threshold qualifies that tradeoff.
 The outgoing phase direction is sample-to-camera. Current directional first scattering and cached
 diffuse enter once; disabled self-shadowing uses unit transmission, and disabled diffuse uses
 .9*current Environment. Those user-disabled sampling paths compile out. After physical front-to-back

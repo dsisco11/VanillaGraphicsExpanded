@@ -19,8 +19,8 @@ Authority and scope
   No replacement weather, general path tracer, widely spaced slice rendering, required screen-space
     temporal accumulation, migration, generic rendering framework or automatic old-candidate removal.
   Shared TraceScale and FullResolutionReference controls govern view resolution. Full draws directly;
-    half/quarter use compact spatial reconstruction. Half-voxel spacing is the current baseline;
-    Phase 8.1 owns its explicit replacement with piecewise-constant voxel integration. Persistent lighting
+    half/quarter use compact spatial reconstruction. Exact constant-cell intervals are implemented;
+    Phase 8.1 records the approved appearance decision for that representation. Persistent lighting
     does not eliminate final view integration.
 
 Execution and evidence (applies to every phase)
@@ -92,9 +92,9 @@ Selected specification summary
   Formats R16F density, RG16F direct, two RGBA16F diffuse (alpha zero). One latest descriptor snapshot,
     block metadata/occupancy and 1 MiB fixed allowance. Resident payload 391,679,376 bytes; replacement
     peak 783,358,752 bytes. Admission ceilings 512 MiB/1 GiB; driver overhead separately measured.
-  Hardware trilinear sampling with circular X/Z, finite logical guards and bounded material keys.
-  Coarse DDA first; no initial distance field. View/gather operation cap 2048, direct 1024, derived
-    from nominal voxel-relative spacing and crossings, not a quality-driven sample cap.
+  Constant-cell exact texel sampling with circular X/Z, finite logical guards and bounded material keys.
+  Coarse empty-block and occupied-cell DDA; no distance field. All ray operation caps are 2048,
+    covering at most 1096 cell crossings plus 150 block advances and 16 endpoint allowances.
   Density generation uses cuboid overlap and eight shaping samples per overlap. Direct traverses
     the complete finite domain; diffuse uses eight cube-corner directions and 400-metre closure.
   Density/direct/diffuse budgets 4096/64/32 block jobs; source jobs count separately. Half fair service.
@@ -1382,42 +1382,69 @@ Phase 8.1 - Integrate piecewise-constant voxels along exact ray-cell intersectio
   Depends on: Phases 7.4-7.13; Phase 8 baseline review.
   Outcome: one local density/lighting evaluation per crossed occupied voxel replaces fixed
     half-voxel sampling, with closed-form transport for the declared constant-cell model.
-  [ ] Reconcile the proposal before implementation: stored cell-average extinction becomes constant
+  [x] Reconcile the proposal before implementation: stored cell-average extinction becomes constant
       throughout its physical voxel. Select cell-centred direct visibility and diffuse source for
       constant-cell transport; distinguish this representation change from trilinear integration.
       Record expected harder voxel boundaries and user-run appearance review, without quality gates.
       Update contradictory half-voxel/trilinear requirements and selected numerical bounds together.
-  [ ] Implement retained voxel DDA within the finite domain, retaining coarse empty-block skipping
+  [x] Implement retained voxel DDA within the finite domain, retaining coarse empty-block skipping
       where useful. Calculate exact entry/exit lengths per physical cell, including clipped first/last
       cells, zero axes, tied crossings, anisotropic spacing, circular seams, partial blocks and guards.
       Visit a crossed cell once; do not retain half-voxel substeps or silently merge different cells.
-  [ ] Fetch each occupied cell's constant density and required lighting values once through point
+  [x] Fetch each occupied cell's constant density and required lighting values once through point
       sampling/exact texel access. Do not manually reconstruct trilinear filtering. Keep hardware
       bilinear filtering of compact screen-space reconstruction; it is a separate reconstruction step.
-  [ ] Integrate alpha=1-exp(-sigma*length) and premultiplied source contribution=T_before*alpha*source
+  [x] Integrate alpha=1-exp(-sigma*length) and premultiplied source contribution=T_before*alpha*source
       for each constant cell. Use actual clipped metre lengths, defined zero-density behavior and
       existing nonnegative/finite safeguards. Closed-form exactness applies to the constant-cell
       extinction/source model, not the original interpolated field or all depth-dependent effects.
-  [ ] Reconcile view, direct and diffuse consumers around the same authoritative density support.
+  [x] Reconcile view, direct and diffuse consumers around the same authoritative density support.
       Retain solar/lunar eligibility, phase response, diffuse recurrence/direction weights, finite
       direct exits, diffuse closure distance, albedo, encoding and bounded work budgets. Record any
       consumer-specific lighting evaluation explicitly; do not silently mix density representations.
-  [ ] Specify bucket evaluation at the new cell intervals and preserve all three native bucket
+  [x] Specify bucket evaluation at the new cell intervals and preserve all three native bucket
       transmissions, six output meanings, scene depth and atmosphere application. Label remaining
       depth-weight/medium approximations; do not claim those integrals become exact automatically.
       Preserve configured full/half/quarter tracing and structural user-setting shader options.
-  [ ] Re-derive view/direct/diffuse operation caps from crossed-cell and block boundaries, including
+  [x] Re-derive view/direct/diffuse operation caps from crossed-cell and block boundaries, including
       diagonal rays and seams. The previous direct1024 cap must not be assumed sufficient for voxel
       DDA. Admit limits before execution; never truncate a valid ray or coarsen cells to satisfy a cap.
-  [ ] Use subagents for cached incremental builds and affected existing traversal/transport/OIT checks.
+  [x] Use subagents for cached incremental builds and affected existing traversal/transport/OIT checks.
       Cover analytic constant-cell math, interval coverage, ties, seams, bounds and failed prefixes;
       no approximation-quality tests or duplicate suite. Compare total view and transport costs,
       sample/cell counts and traversal overhead at unchanged resolution, fields and work budgets.
-  [ ] Obtain user-run appearance review for the changed density/source filtering. Keep one selected
+  [x] Obtain user-run appearance review for the changed density/source filtering. Keep one selected
       implementation and reconcile proposal/current docs; no permanent experimental selector or
       automatic performance/appearance acceptance. Record a concrete decision if the tradeoff fails.
-  [ ] Completion: constant-cell integration has explicit numerical/appearance decisions and honest
+  [x] Completion: constant-cell integration has explicit numerical/appearance decisions and honest
       total-cost evidence; all consumers, resource contracts and retained lighting identity agree.
+
+Phase 8.1 implementation and verification
+  Traceability: representation, cell fetches, math, consumer agreement and caps -> proposal / Selected
+    representation and numerical contract and Traversal acceleration candidates -> shared traversal,
+    direct/diffuse/view shaders and existing traversal/transport facts. Native outputs/resolution ->
+    PBR.Clouds.md / stored density-volume view and PBR.Atmosphere.Publication.md / Publication contract;
+    submission/lifetime -> Rendering.Enablement.md and unchanged owning publication/view boundaries.
+  One retained crossing set switches between occupied cells and certified-empty blocks. All consumers
+    fetch the same physical density cell; direct/diffuse sources are constant per cell. Actual clipped
+    lengths feed closed-form transport. Bucket near-endpoint weights and representative medium remain
+    approximations. Screen reconstruction retains hardware bilinear filtering and configured resolution.
+  Second review corrected mixed empty/occupied seam state: one classification state and an explicit
+    occupied decision now govern advancement. Existing traversal fact covers both seam directions,
+    short blocks, ties, anisotropy, clipped cells, zero/tiny axes, analytic tau and failed prefixes.
+    Overflowed reciprocals use division; axes that underflow to zero remain inert. No quality thresholds.
+  Cached incremental build passed with 172 warnings and no errors. Current seven affected facts pass
+    across artifacts/StoredCloudLatest/phase81-state.trx and phase81-final.trx. Mixed seam rays visit
+    seven occupied cells and one empty span, with no mode/block mismatch; all-occupied cases visit
+    14/14/64/64/64/14/5/7 cells. No new test class, broad suite, packaging or game launch.
+  Matched GPU medians, baseline -> current: occupied view 1.0056 -> 1.0056 ms; empty view .0942 ->
+    .0993 ms; direct .1116 -> .0655 ms; diffuse .0768 -> .0993 ms. All 21 update-policy records match
+    after excluding timing. Complete update medians also decreased, but initial existing-binary CPU
+    allocation differences prevent attributing broader CPU improvements. Small authored fixtures and
+    possible running-game contention do not establish live frame time or captured-scene performance.
+  Proposal/current docs describe constant cells. Independent affected recheck passed with no technical
+    findings. User approved the appearance/tradeoff on 2026-10-20; independent closure review confirms
+    completion. No overall performance win is claimed. Phase 8.2 remains unchecked and untouched.
 
 Phase 8.2 - Accelerate empty-space traversal with an unsigned distance field
   Depends on: Phase 8.1's selected density-support contract; Phase 8 baseline review.

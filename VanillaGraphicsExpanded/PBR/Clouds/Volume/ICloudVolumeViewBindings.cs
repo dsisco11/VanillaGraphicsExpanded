@@ -21,7 +21,7 @@ internal interface ICloudVolumeViewBindings:IPhotometricFrameBindings
     /// <summary>Reads exact region ages/identity only for the developer overlay.</summary>
     [ShaderBinding("ViewRegions",ShaderBindingKind.StorageBlock,1,ShaderStageKind.Fragment)]
     GpuShaderStorageBuffer? Regions {set;}
-    /// <summary>Samples authoritative stored extinction with hardware trilinear filtering.</summary>
+    /// <summary>Fetches authoritative constant-cell extinction by exact physical texel address.</summary>
     [ShaderBinding("volumeDensity",ShaderBindingKind.Sampler,0,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
     GpuTexture? Density {set;}
     /// <summary>Samples retained solar/lunar transmission in the compiled shadow path.</summary>

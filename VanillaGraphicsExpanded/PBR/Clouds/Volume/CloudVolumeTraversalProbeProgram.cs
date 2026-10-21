@@ -22,7 +22,7 @@ internal sealed partial class CloudVolumeTraversalProbeProgram:GpuComputeProgram
         return new(pipeline!);
     }
     /// <summary>Captures native-local geometry and optional deliberately reduced test operation cap.</summary>
-    internal void Capture(CloudVolumeDomain d,Vector3 origin,Vector3 direction,float length,float fraction,int limit=0)
+    internal void Capture(CloudVolumeDomain d,Vector3 origin,Vector3 direction,float length,int limit=0)
     {
         RequireInputMutation();Span<byte> data=stackalloc byte[128];data.Clear();
         UboPacking.WriteIVec4(data,0,d.Size,CloudVolumeDomain.Height,d.Size,limit);
@@ -33,7 +33,7 @@ internal sealed partial class CloudVolumeTraversalProbeProgram:GpuComputeProgram
         UboPacking.WriteVec4(data,64,0,(float)d.Bottom,0,0);
         UboPacking.WriteVec4(data,80,50*d.Width,(float)(d.Bottom+d.Band),50*d.Width,0);
         UboPacking.WriteVec4(data,96,origin.X,origin.Y,origin.Z,length);
-        UboPacking.WriteVec4(data,112,direction.X,direction.Y,direction.Z,fraction);inputs.SetBytes(data);
+        UboPacking.WriteVec4(data,112,direction.X,direction.Y,direction.Z,0);inputs.SetBytes(data);
     }
     #endregion
     #region Private

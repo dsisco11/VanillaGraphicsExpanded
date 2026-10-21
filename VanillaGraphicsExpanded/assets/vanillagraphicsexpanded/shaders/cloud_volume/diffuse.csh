@@ -37,11 +37,7 @@ float VolumeDiffusePhase(float cosine)
 /** Gathers first scattering plus the coherent old isotropic source, then closes the ray once with environment. */
 bool VolumeDiffuseGather(CloudVolumeGrid grid,vec3 origin,vec3 direction,out vec3 incoming)
 {
-    CloudVolumeRay ray=CloudVolumeBegin(grid,origin,direction,400,.5);
-    // Share one affine coordinate across density, direct and diffuse fetches. The midpoint is
-    // evaluated independently each interval, avoiding accumulated texture-coordinate drift.
-    vec3 coordOrigin=(ray.origin+vec3(grid.slot.x,0,grid.slot.y))/vec3(grid.size);
-    vec3 coordVelocity=ray.velocity/vec3(grid.size);
+    CloudVolumeRay ray=CloudVolumeBegin(grid,origin,direction,400);
     vec3 solar=.9*diffuseSolar.rgb*VolumeDiffusePhase(dot(-direction,diffuseSun.xyz));
     vec3 lunar=.9*diffuseLunar.rgb*VolumeDiffusePhase(dot(-direction,diffuseMoon.xyz));
     float transmission=1;incoming=vec3(0);
@@ -49,16 +45,16 @@ bool VolumeDiffuseGather(CloudVolumeGrid grid,vec3 origin,vec3 direction,out vec
     {
         vec2 interval;bool occupied;if(!CloudVolumeNext(grid,ray,interval,occupied))break;
         if(!occupied)continue; // Empty gaps do not attenuate or terminate transport.
-        vec3 uv=coordOrigin+coordVelocity*((interval.x+interval.y)*.5);
-        float sigma=textureLod(volumeDensity,uv,0).r;
+        ivec3 cell=ray.sampleCell;
+        float sigma=texelFetch(volumeDensity,cell,0).r;
         if(isnan(sigma)||isinf(sigma)||sigma<0)return false;
         if(sigma==0)continue;
         vec2 visibility=vec2(1);
         #if VGE_VOLUME_DIFFUSE_SHADOWS
-        visibility=textureLod(directRead,uv,0).rg;
+        visibility=texelFetch(directRead,cell,0).rg;
         if(any(isnan(visibility))||any(isinf(visibility))||any(lessThan(visibility,vec2(0)))||any(greaterThan(visibility,vec2(1))))return false;
         #endif
-        vec3 oldSource=textureLod(diffuseRead,uv,0).rgb*diffuseScales.x;
+        vec3 oldSource=texelFetch(diffuseRead,cell,0).rgb*diffuseScales.x;
         if(!VolumeDiffuseFinite(oldSource))return false;
         float stepTransmission=exp(-sigma*(interval.y-interval.x));
         incoming+=transmission*(1-stepTransmission)*(solar*visibility.x+lunar*visibility.y+oldSource);

@@ -10,7 +10,7 @@ internal interface ICloudVolumeTraversalProbeBindings
     /// <summary>Supplies grid geometry and one finite test ray.</summary>
     [ShaderBinding("TraversalProbe",ShaderBindingKind.UniformBlock,0,ShaderStageKind.Compute)]
     CpuUniformBuffer Inputs {get;}
-    /// <summary>Samples stored extinction with the owner's circular hardware filtering.</summary>
+    /// <summary>Fetches constant-cell extinction through the retained circular physical cell address.</summary>
     [ShaderBinding("volumeDensity",ShaderBindingKind.Sampler,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
     GpuTexture? Density {set;}
     /// <summary>Supplies exact conservative occupancy certificates.</summary>

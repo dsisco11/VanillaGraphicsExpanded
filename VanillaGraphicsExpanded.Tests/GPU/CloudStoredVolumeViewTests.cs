@@ -102,7 +102,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             times.Sort();cpuTimes.Sort();allocations.Sort();
             output.WriteLine($"Stored view 3440x1377 sigma={sigma}: median {times[1]:F4} ms; samples {string.Join(", ",times.Select(t=>t.ToString("F4")))} ms. CPU submission median {cpuTimes[1]:F4} ms; samples {string.Join(", ",cpuTimes.Select(t=>t.ToString("F4")))} ms; allocated median {allocations[1]} bytes; samples {string.Join(", ",allocations)} bytes. Pass preparations {scene.ViewPassPreparations}. GPU: {gpu}.");
         }
-        output.WriteLine("Actual typed compact quarter-resolution trace plus full-resolution spatial reconstruction, 36 bytes per trace pixel, half-voxel occupied spacing, authored uniform extinction .0078125/empty0, direct .25/.75 and diffuse12, depths100, detail disabled, default shadows/diffuse/stop. One warmup and three samples. External preparation, clears and readbacks excluded; internal intermediate clears and both draws included; no live FPS or appearance qualification; contention uncontrolled.");
+        output.WriteLine("Actual typed compact quarter-resolution trace plus full-resolution spatial reconstruction, 36 bytes per trace pixel, exact occupied-cell intervals, authored uniform extinction .0078125/empty0, direct .25/.75 and diffuse12, depths100, detail disabled, default shadows/diffuse/stop. One warmup and three samples. External preparation, clears and readbacks excluded; internal intermediate clears and both draws included; no live FPS or appearance qualification; contention uncontrolled.");
     }
     /// <summary>The complete native-generation-to-stored-view path owns and retires only its independent resources.</summary>
     [Fact]
