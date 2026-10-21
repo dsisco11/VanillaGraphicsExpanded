@@ -2135,36 +2135,76 @@ Phase 8.6.3 - Share camera reprojection machinery with surface lighting
   Depends on: Phase8.6.2 motion correspondence correction and delivered shared frame-camera data.
   Outcome: cloud and surface-lighting reprojection use a common coordinate/projection contract,
     while cloud material motion and volume-history validation remain explicitly cloud-owned.
-  [ ] Inventory active consumers of FrameCameraHistory, vgeFrame, LumOn velocity generation,
+  [x] Inventory active consumers of FrameCameraHistory, vgeFrame, LumOn velocity generation,
       lumon_reprojection.glsl, CloudReprojectionHistory and cloud_reprojection.glsl. Distinguish
       used helpers from unused utilities and identify duplicated camera state/calculations.
       Reconcile PBR.CloudVolume.Proposal.md and PBR.Clouds.md with the selected ownership contract.
-  [ ] Define one current render-relative position to previous-screen projection contract using
+  [x] Define one current render-relative position to previous-screen projection contract using
       shared frame matrices and precise render-origin rebasing. Specify position versus direction,
       native eye translation, homogeneous division, validity and bounds conventions. Clouds supply
       their representative position and material displacement; apply camera and wind motion once.
       Preserve the corrected distance/classification correspondence rather than assuming shared
       matrix math alone resolves it. Do not use scene-surface velocity as cloud velocity.
-  [ ] Extract only genuinely shared projection/reconstruction helpers into rendering-owned code
+  [x] Extract only genuinely shared projection/reconstruction helpers into rendering-owned code
       and adopt them in the relevant cloud and surface-lighting paths. Prefer existing frame UBO
       fields over duplicate uniforms or per-frame uploads. Remove the private cloud previous-camera
       matrix if the common contract replaces it; document any retained state with a concrete need.
       Preserve cloud successful-frame commit semantics when global camera history advances through
       a skipped or failed cloud frame; keep cloud lifecycle, material identity and validity local.
-  [ ] Preserve exact stationary addressing, origin precision, foreground disocclusion, cloud wind,
+  [x] Preserve exact stationary addressing, origin precision, foreground disocclusion, cloud wind,
       paired history payloads, observation age/confidence and jitter-ready sample-position semantics.
       Keep cloud operation independent of LumOn enablement/resources. Avoid a broad temporal framework,
       compatibility aliases, added velocity passes or persistent textures without demonstrated need.
       Diagnostics remain compile-time optional and bindings use existing GPU abstractions.
-  [ ] Extend focused existing fixtures for shared projection identities, rotation/translation,
+  [x] Extend focused existing fixtures for shared projection identities, rotation/translation,
       render-origin rebasing, cloud advection, skipped cloud frames, stationary retention and LumOn
       disabled. Validate surface-lighting behavior affected by the extracted helpers without imposing
       cloud rejection rules on it. Use focused cached incremental builds/tests through subagents;
       no approximation-quality gates, broad matrices, baseline reproduction or routine packaging.
-  [ ] Review changed shader reads, UBO traffic and resource ownership; use targeted measurements only
+  [x] Review changed shader reads, UBO traffic and resource ownership; use targeted measurements only
       for unresolved cost questions. Obtain user-run motion/disocclusion review, reconcile current
       documentation, perform second review and independent audit. Record remaining limitations;
       shared source alone does not establish improved retention or speed. Never launch/close the game.
+
+Phase 8.6.3 implementation and verification (complete)
+  Ownership and traceability
+    - Tasks1-4 -> proposal / Ownership and integration, Shared rendering obligations and Temporal
+      view sampling contract; PBR.Clouds.md / Stored-volume temporal view; atmosphere publication
+      and Rendering.Enablement.md: preserve native/frame/source ownership, material motion, physical
+      payloads and change-driven enablement. No atmosphere, enablement or transport changes.
+    - Inventory: VgeFrameRenderer owns FrameCameraHistory and publishes origin-rebased previous VP
+      through vgeFrame independently of LumOn. LumOn velocity and its history debug projection consume
+      that position contract. cloud_volume/temporal consumes the same frame for cloud displacement
+      and foreground projection. cloud_reprojection had one active reconstruction helper;
+      lumon_reprojection had no consumers and duplicated reconstruction/projection/NaN utilities.
+      Both old includes are removed, with active consumers using camera_reprojection.glsl.
+    - CloudReprojectionHistory retains owner/lifecycle/frame, placement and projection-compatibility
+      certificates only. Removed its private previous matrix and matrix construction/upload. The shared
+      previous VP's first three columns supply prior orientation; cloud displacement uses W=0 plus
+      compatible projection column4, excluding both native eye translation and origin rebasing.
+      Foreground/surface positions use W=1 and retain the shared double-origin rebase. Placement
+      camera/wind displacement, range/classification and successful cloud commit semantics remain local.
+    - Tasks5-6 -> same temporal/ownership contracts and execution/evidence rules: focused shader/CPU
+      checks, independent audit and user-run motion/disocclusion review remain required.
+  Resource and behavior review
+    - No additional shader texture reads, pass, persistent image, CPU readback or frame UBO upload.
+      Trace/filter private blocks each shrink128->64bytes; shared frame layout remains592bytes.
+      Both physical history reads keep paired hardware filtering. Age/confidence, foreground gates,
+      exact stationary addressing, typed diagnostic exclusion and sampling schedule are unchanged.
+      LumOn preserves its own depth/flag/bounds policy; clouds do not consume surface velocity.
+    - Shared source reuse and reduced private state do not establish faster GPU time or improved
+      visual retention. Translation still uses the declared neighboring-fresh volume-distance proxy.
+  Verification and acceptance
+    - artifacts/CloudEdges/shared-projection-focused.trx:29passed,0failed/skipped, including15cloud
+      certificate,4shared-camera precision/algebra,3cloud GPU carry/motion/freshness and7LumOn GPU
+      velocity checks. Release retry build:0errors;169warnings. No game operations or packaging.
+    - Initial incremental build invalidated production531/fixture612variants because shader-tool
+      identities changed; the tooling exposes no per-variant selector. Fixture publication then hit
+      Windows directory-rename error5. Identical elevated cached retry recovered publication with
+      zero shader emissions/compiler invocations. No cache manipulation or repeated baseline matrix.
+    - Second review and independent source/document/receipt audit found no confirmed defects.
+      User accepted rotation, translation and newly revealed foreground-edge behavior: "Looks acceptable".
+      Independent closeout recheck confirms all six tasks satisfied; later subphases remain unchecked.
 
 Phase 8.6.4 - Integrate progressive subpixel jitter into cloud view sampling
   Depends on: Phase8.6.2 motion correspondence correction and Phase8.6.3 shared reprojection.

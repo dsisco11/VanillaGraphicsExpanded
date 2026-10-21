@@ -4,6 +4,7 @@ layout(location = 0) out vec4 outVelocity;
 
 @import "./includes/lumon_common.glsl"
 @import "./includes/velocity_common.glsl"
+@import "./includes/camera_reprojection.glsl"
 
 // Phase 23: shared per-frame state via UBOs.
 @import "./includes/lumon_ubos.glsl"
@@ -49,8 +50,7 @@ void main(void)
         return;
     }
 
-    vec4 currClip = vec4(currUv * 2.0 - 1.0, depthRaw * 2.0 - 1.0, 1.0);
-    vec4 worldPosH = vgeFrame.invCurrViewProjMatrix * currClip;
+    vec4 worldPosH = CameraReconstructPosition(vgeFrame.invCurrViewProjMatrix, currUv, depthRaw);
 
     if (abs(worldPosH.w) < 1e-8)
     {
@@ -63,7 +63,7 @@ void main(void)
 
     // The uploaded matrix includes current-origin to previous-origin translation.
     // The reconstructed position remains current-relative; do not apply that translation twice.
-    vec4 prevClip = vgeFrame.prevViewProjMatrix * vec4(renderRelativePos, 1.0);
+    vec4 prevClip = CameraProjectPosition(vgeFrame.prevViewProjMatrix, renderRelativePos);
     if (prevClip.w <= 1e-8)
     {
         flags |= LUMON_VEL_FLAG_PREV_BEHIND_CAMERA;
@@ -71,8 +71,7 @@ void main(void)
         return;
     }
 
-    vec2 prevNdc = prevClip.xy / prevClip.w;
-    vec2 prevUv = prevNdc * 0.5 + 0.5;
+    vec2 prevUv = CameraClipUv(prevClip);
 
     if (lumonIsNanVec2(prevUv))
     {

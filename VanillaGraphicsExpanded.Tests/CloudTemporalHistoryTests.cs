@@ -30,8 +30,8 @@ public sealed class CloudTemporalHistoryTests
         using var camera=Camera(next.Frame,change=="resize"?10:9,change=="cut");
         if(change=="calibration")camera.SetLightingCalibration(VanillaGraphicsExpanded.PBR.LightingCalibration.Default with{BlockReferenceLux=123});
         Assert.Equal(change=="none",history.Capture(next,camera,5,4,temporal,change!="content"));
-        Assert.Equal(change=="none"?1:0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[24]);
-        Assert.Equal(change=="none"?1:0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[26]);
+        Assert.Equal(change=="none"?1:0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[8]);
+        Assert.Equal(change=="none"?1:0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[10]);
     }
     /// <summary>Grid recentering is not motion; committed and residual wind form a continuous single material translation.</summary>
     [Fact]
@@ -43,11 +43,11 @@ public sealed class CloudTemporalHistoryTests
         var b=a with { Frame=11,Generation=999,Upload=2,Placement=a.Placement with { CenterX=1,Offset=new(50,1,0) } };
         Assert.True(h.Capture(b,current,5,4,t,true));
         var values=MemoryMarshal.Cast<byte,float>(t.Bytes);
-        Assert.Equal(0,values[16]); Assert.Equal(-1,values[17]); Assert.Equal(0,values[18]);
+        Assert.Equal(0,values[0]); Assert.Equal(-1,values[1]); Assert.Equal(0,values[2]);
         b=b with { Placement=b.Placement with { WindTileX=1,WindX=-49,Offset=new(-1,1,0) } };
         Assert.True(h.Capture(b,current,5,4,t,true));
-        Assert.Equal(1,MemoryMarshal.Cast<byte,float>(t.Bytes)[16]);
-        Assert.Equal(0,MemoryMarshal.Cast<byte,float>(t.Bytes)[26]); // Wind requires ordinary material reprojection.
+        Assert.Equal(1,MemoryMarshal.Cast<byte,float>(t.Bytes)[0]);
+        Assert.Equal(0,MemoryMarshal.Cast<byte,float>(t.Bytes)[10]); // Wind requires ordinary material reprojection.
     }
     /// <summary>Previous cloud clip coordinates rotate camera-relative points without applying eye translation twice.</summary>
     [Fact]
@@ -70,19 +70,18 @@ public sealed class CloudTemporalHistoryTests
             history.Commit(input,prior);
             var next=input with {Frame=11,Generation=12};
             Assert.True(history.Capture(next,current,1720,689,temporal,true));
-            Assert.Equal(1,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[26]);
-            float[] actual=MemoryMarshal.Cast<byte,float>(temporal.Bytes[..64]).ToArray();
-            // Build the expected matrix independently from rotation-only view algebra, rather
-            // than copying the production matrix's replacement-column implementation.
-            var rotation=(float[])view.Clone();rotation[12]=rotation[13]=rotation[14]=0;
-            float[] expected=new float[16];Mat4f.Mul(expected,projection,rotation);
-            Assert.Equal(expected,actual);
+            Assert.Equal(1,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[10]);
+            Assert.Equal(64,temporal.Bytes.Length);
+            float[] actual=current.PreviousViewProjection.ToArray();
+            // Shared position projection retains the native eye translation. Cloud displacement
+            // projection explicitly excludes that column and adds only perspective translation.
+            Assert.Equal(fullProjection,actual);
             foreach(var uv in new[]{new Vector2(.15f,.8f),new Vector2(.5f,.5f),new Vector2(.85f,.7f)})
             {
                 Vector4 point=Transform(inverseProjection,new(uv*2-Vector2.One,1,1));point/=point.W;
                 Vector4 rotated=Transform(inverseView,new(point.X,point.Y,point.Z,0));
                 Vector3 direction=Vector3.Normalize(new(rotated.X,rotated.Y,rotated.Z));
-                Vector4 clip=Transform(actual,new(direction*1000,1));
+                Vector4 clip=Transform(actual,new(direction*1000,0))+new Vector4(projection[12],projection[13],projection[14],projection[15]);
                 Assert.InRange(Math.Abs(clip.X/clip.W*.5f+.5f-uv.X),0,2e-6f);
                 Assert.InRange(Math.Abs(clip.Y/clip.W*.5f+.5f-uv.Y),0,2e-6f);
             }
@@ -95,17 +94,34 @@ public sealed class CloudTemporalHistoryTests
                 turned.Capture(projection,turnedView,inverseProjection,turnedInverse,fullProjection,turnedProjection,
                     new(3440,1377),0,11,Vector3.Zero,Vector3.Zero,0);
                 Assert.True(history.Capture(next,turned,1720,689,temporal,true));
-                Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[26]);
+                Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[10]);
             }
             // Native material movement remains explicit after the camera convention is fixed.
             next=next with {Placement=next.Placement with {CenterX=1,Offset=new(50,1,0)}};
             Assert.True(history.Capture(next,current,1720,689,temporal,true));
-            Assert.Equal(new Vector3(0,-1,0),MemoryMarshal.Read<Vector3>(temporal.Bytes.Slice(64,12)));
-            Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[26]);
+            Assert.Equal(new Vector3(0,-1,0),MemoryMarshal.Read<Vector3>(temporal.Bytes.Slice(0,12)));
+            Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[10]);
             history.Invalidate();
             Assert.False(history.Capture(next,current,1720,689,temporal,true));
-            Assert.Equal(expected,MemoryMarshal.Cast<byte,float>(temporal.Bytes[..64]).ToArray());
+            Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[8]);
         }
+    }
+    /// <summary>A globally rendered frame cannot advance cloud history after a skipped or failed cloud submission.</summary>
+    [Fact]
+    public void SharedCameraAdvanceCannotRenewUncommittedCloudHistory()
+    {
+        var history=new CloudReprojectionHistory();var first=Input(10);
+        using var camera10=Camera(10);using var camera11=Camera(11);using var camera12=Camera(12);
+        using var camera13=Camera(13);using var temporal=new CloudTemporalParameters();
+        history.Commit(first,camera10);
+        Assert.True(history.Capture(first with{Frame=11},camera11,5,4,temporal,true));
+        // No cloud commit: this models either a skipped draw or a failed final submission,
+        // even though the shared frame-camera owner has advanced normally.
+        var resumed=first with{Frame=12};
+        Assert.False(history.Capture(resumed,camera12,5,4,temporal,true));
+        Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[8]);
+        history.Commit(resumed,camera12);
+        Assert.True(history.Capture(first with{Frame=13},camera13,5,4,temporal,true));
     }
     #endregion
     #region Private

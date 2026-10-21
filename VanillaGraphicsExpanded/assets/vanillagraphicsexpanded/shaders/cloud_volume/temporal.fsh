@@ -2,7 +2,7 @@
 @import "../includes/vge_frame_ubo.glsl"
 @import "../includes/pbr_frame_lighting.glsl"
 @import "../includes/cloud_temporal_parameters.glsl"
-@import "../includes/cloud_reprojection.glsl"
+@import "../includes/camera_reprojection.glsl"
 @import "../includes/blue_noise.glsl"
 @import "../includes/interleaved_sampling.glsl"
 uniform sampler2D temporalBlueNoise;
@@ -75,7 +75,7 @@ bool StoredTemporalHistory(vec2 uv,float depth,float distance,float kind,bool fr
 {
     value=vec4(0);bins=vec3(1);count=8;age=0;reason=0;StoredTemporalReason(1);support=vec2(0);
     if(cloudHistory.x<.5)return false;
-    vec3 direction=normalize(CloudTemporalPoint(uv,1));
+    vec3 direction=normalize(CameraReconstructDisplacement(vgeFrame.invProjectionMatrix,vgeFrame.invViewMatrix,uv,1));
     // Rotation maps directions independently of cloud distance. Translation needs current-ray
     // evidence: main supplies the nearest completed fresh neighbor as a bounded distance proxy.
     // Never bootstrap a moving ray from history at the old, unrelated same-screen coordinate.
@@ -83,25 +83,26 @@ bool StoredTemporalHistory(vec2 uv,float depth,float distance,float kind,bool fr
     bool directional=!fresh&&!translated;
     float anchor=distance;
     if(directional)anchor=1;
-    if(!directional&&kind==2)anchor=length(CloudTemporalPoint(uv,depth));
+    if(!directional&&kind==2)anchor=length(CameraReconstructDisplacement(vgeFrame.invProjectionMatrix,vgeFrame.invViewMatrix,uv,depth));
     if(!directional&&kind!=1&&kind!=2){StoredTemporalReason(4);return false;}
     if(anchor<=0){StoredTemporalReason(4);return false;}
     vec3 point=direction*anchor+cloudPreviousTranslation.xyz;
-    vec4 clip=cloudPreviousProjection*vec4(point,1);
+    vec4 clip=CameraProjectDisplacement(vgeFrame.prevViewProjMatrix,vgeFrame.projectionMatrix,point);
     if(clip.w<=0){StoredTemporalReason(2);return false;}
     bool stationary=cloudHistory.z>.5;
-    vec2 oldUv=stationary?uv:clip.xy/clip.w*.5+.5;
-    if(any(lessThan(oldUv,vec2(0)))||any(greaterThanEqual(oldUv,vec2(1)))){StoredTemporalReason(2);return false;}
+    vec2 oldUv=stationary?uv:CameraClipUv(clip);
+    if(!CameraUvInBounds(oldUv)){StoredTemporalReason(2);return false;}
     // The certified identity map has exactly one support texel. Even an inverse/project
     // roundoff of a millionth of a pixel must not import neighboring confidence or age.
     vec2 coordinate=stationary?vec2(ivec2(gl_FragCoord.xy)):oldUv*vec2(size)-.5;
     vec2 fraction=fract(coordinate);ivec2 base=ivec2(floor(coordinate));
     // Project the CURRENT occluder into the PREVIOUS camera, without material wind. Comparing
     // raw projection depths from different cameras would reject unchanged scene geometry.
-    vec4 sceneView=vgeFrame.invProjectionMatrix*vec4(uv*2-1,depth*2-1,1);
+    vec4 sceneView=CameraReconstructPosition(vgeFrame.invProjectionMatrix,uv,depth);
     // Shared history is already rebased to the current render origin. Preserve the native
     // eye translation (w=1); no cloud placement, weather height or wind enters this path.
-    vec4 sceneClip=vgeFrame.prevViewProjMatrix*vgeFrame.invViewMatrix*vec4(sceneView.xyz/sceneView.w,1);
+    vec3 scenePosition=(vgeFrame.invViewMatrix*vec4(sceneView.xyz/sceneView.w,1)).xyz;
+    vec4 sceneClip=CameraProjectPosition(vgeFrame.prevViewProjMatrix,scenePosition);
     if(sceneClip.w<=0){StoredTemporalReason(5);return false;}
     float expectedDepth=sceneClip.z/sceneClip.w*.5+.5;
     if(directional)

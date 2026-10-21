@@ -107,6 +107,8 @@ internal sealed class VgeFrameUniformBuffer : CpuUniformBuffer
     internal ReadOnlySpan<float> InverseView => MemoryMarshal.Cast<byte, float>(Bytes.Slice(192, 64));
     /// <summary>Exposes current clip coordinates without repeating matrix composition.</summary>
     internal ReadOnlySpan<float> CurrentViewProjection => MemoryMarshal.Cast<byte, float>(Bytes.Slice(320, 64));
+    /// <summary>Projects current render-relative positions into the preceding shared camera, including precise origin rebasing.</summary>
+    internal ReadOnlySpan<float> PreviousViewProjection => MemoryMarshal.Cast<byte, float>(Bytes.Slice(256, 64));
     #endregion
 
     #region Private

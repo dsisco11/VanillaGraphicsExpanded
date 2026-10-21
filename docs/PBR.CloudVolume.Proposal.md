@@ -123,7 +123,7 @@ Private compact trace and two normal history sets cost about103 bytes per reduce
 
 Apply current directional phase functions to cached transmission, add the retained diffuse source once, and integrate in physical units. Apply the established atmosphere/local-medium treatment and scene encoding once, preserving both PBR modes and all six native OIT attachment meanings. Preserve independent camera and atmospheric calibration identities. Retained lighting bounds must cover the older energy still present in the volume, not only the current sky intensity.
 
-Bind the existing shared frame publication in both tracing and reconstruction. Derive view extents and shaft coordinates from its full-resolution screen size and compiled divisor; consume its fog colour, density and minimum directly, including for CPU fog-headroom admission. Do not republish those frame values in private cloud UBOs. Flat-fog geometry and underwater state remain private because the shared frame does not publish them. The private view block owns volume/material parameters and atmospheric source values absent from existing shared blocks; composition owns no private parameter UBO; trace and temporal filtering each own a 128-byte shared-layout reprojection block; diagnostic composition borrows the filter block.
+Bind the existing shared frame publication in both tracing and reconstruction. Derive view extents and shaft coordinates from its full-resolution screen size and compiled divisor; consume its fog colour, density and minimum directly, including for CPU fog-headroom admission. Do not republish those frame values in private cloud UBOs. Flat-fog geometry and underwater state remain private because the shared frame does not publish them. The private view block owns volume/material parameters and atmospheric source values absent from existing shared blocks; composition owns no private parameter UBO; trace and temporal filtering each own a 64-byte shared-layout material/sampling block; diagnostic composition borrows the filter block.
 
 Retain immutable view-pass descriptions and pipeline preparation by framebuffer identity, attachment revision, extent, compiled executable and context. Refresh them when those dependencies change, and release cached target references with screen-resource retirement. Cached preparation never retains an active attachment borrow: each immediate pass validates and borrows its current images, then releases them through the existing graphics boundary. Scene, camera and sampled-resource references remain synchronous borrows cleared after submission, including failure; cache reuse does not waive current publication or executable certificates.
 
@@ -285,6 +285,19 @@ Preserve change-driven consumer enablement described in [Rendering.Enablement.md
 The selected coarse shape, lighting refresh latency, full-field copy traffic and reconstructed view cost are unqualified until measured and reviewed in game. Distance fields remain a conditional follow-up rather than a second mandatory allocation. This specification selects an implementable experiment; it does not claim that the experiment is already fast enough or visually accepted.
 
 ### Temporal view sampling contract
+
+Use rendering-owned camera reconstruction/projection helpers and the existing shared frame UBO,
+also used by surface-lighting velocity. Shared previous view-projection accepts current render-relative
+positions with a double-precision origin delta composed into its fourth column. Cloud ray displacements
+exclude native eye translation: project their previous-eye-relative position with the shared matrix at
+W=0 plus the compatible projection's fourth column. Cloud placement supplies camera/material motion
+once; foreground scene endpoints use W=1 position projection without wind. Do not upload a private
+cloud previous-camera matrix or borrow scene-surface velocity. Keep projection compatibility and the
+successful cloud-frame certificate local: shared history can advance through a skipped or failed
+cloud draw, but that gap must revoke screen-history reuse. LumOn enablement is irrelevant.
+UV is bottom-left OpenGL; cloud lookup requires finite half-open [0,1) coverage and positive clip W.
+Surface validity and boundary policies remain surface-owned. These helpers do not replace the
+volume-specific range, classification, foreground, age or confidence contracts below.
 
 Reduced views retain two compact physical history sets and a disjoint current trace set at half their width/height. Incompatible frames reuse the invalid previous-history set as full reduced-grid trace scratch before filtering into the other set. One blue-noise ranked location per two-by-two reduced tile is refreshed on each of four phases; initial or incompatible views trace all reduced pixels. Every fresh ray retains exact occupied-cell transport. Full resolution bypasses temporal targets. Commit history only after successful final composition.
 

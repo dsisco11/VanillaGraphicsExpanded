@@ -13,7 +13,7 @@ internal sealed class CloudReprojectionHistory
     private uint frame,calibration;
     private Vector2 screen;
     private CloudPlacement placement;
-    private readonly float[] projection=new float[16],previousProjection=new float[16];
+    private readonly float[] projection=new float[16];
     private bool valid;
 
     #region Public API
@@ -44,13 +44,12 @@ internal sealed class CloudReprojectionHistory
         var translation=new Vector3((float)dx,placement.Offset.Y-input.Placement.Offset.Y,(float)dz);
         if(!float.IsFinite(translation.X)||!float.IsFinite(translation.Y)||!float.IsFinite(translation.Z)||translation.LengthSquared()>2500)
             compatible=false;
-        if(!valid) CaptureCloudProjection(camera,previousProjection);
         // An exactly unchanged material-to-view transform maps pixel centres to themselves.
         // Certify it on the CPU instead of letting a floating-point matrix round trip invent
         // a nonzero neighboring footprint and inherit that neighbor's older observation age.
         bool stationary=compatible&&translation==Vector3.Zero
-            &&camera.CurrentViewProjection[..12].SequenceEqual(previousProjection.AsSpan(0,12));
-        output.Capture(previousProjection,compatible?translation:Vector3.Zero,
+            &&camera.CurrentViewProjection[..12].SequenceEqual(camera.PreviousViewProjection[..12]);
+        output.Capture(compatible?translation:Vector3.Zero,
             width,height,input.Frame,compatible,divisor,debugMode,stationary);
         return compatible;
     }
@@ -59,22 +58,12 @@ internal sealed class CloudReprojectionHistory
     {
         owner.SetTarget(input.Owner); mapWidth=input.Storage.Width; world=input.World; allocation=input.Allocation; upload=input.Upload; shader=input.Shader; frame=input.Frame;
         placement=input.Placement;
-        camera.Projection.CopyTo(projection); CaptureCloudProjection(camera,previousProjection);
+        // Only consecutive successful cloud frames may consume the shared previous camera.
+        // A skipped/failed cloud draw leaves this frame certificate behind and rejects reuse.
+        camera.Projection.CopyTo(projection);
         calibration=camera.CalibrationGeneration;
         screen=System.Runtime.InteropServices.MemoryMarshal.Read<Vector2>(camera.Bytes.Slice(384,8)); valid=true;
     }
     #endregion
 
-    #region Private
-    /// <summary>Projects camera-relative cloud displacements without reapplying native view translation.</summary>
-    private static void CaptureCloudProjection(VgeFrameUniformBuffer camera,Span<float> target)
-    {
-        // Cloud ray reconstruction applies the inverse view with w=0. Material/camera motion
-        // is supplied separately by the placement delta, so native eye translation must not
-        // enter this transform again. For an affine view, removing translation preserves the
-        // first three VP columns and makes the fourth column equal to projection's fourth.
-        camera.CurrentViewProjection.CopyTo(target);
-        camera.Projection.Slice(12,4).CopyTo(target.Slice(12,4));
-    }
-    #endregion
 }

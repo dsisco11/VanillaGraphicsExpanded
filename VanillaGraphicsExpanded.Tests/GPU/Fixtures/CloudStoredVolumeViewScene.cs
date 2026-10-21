@@ -119,13 +119,21 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             new Dictionary<int,GpuVbo>(),proceduralVertices:3);
         using var noise=CloudBlueNoiseTexture.Create();noise.EnsureCreated();
         raw.Images[0].UploadDataImmediate(cloud);raw.Images[1].UploadDataImmediate(bins);raw.Images[2].UploadDataImmediate(metadata);
-        var projection=camera.CurrentViewProjection.ToArray();camera.Projection.Slice(12,4).CopyTo(projection.AsSpan(12));
+        var projection=camera.CurrentViewProjection.ToArray();
         if(previousYaw!=0)Vintagestory.API.MathTools.Mat4f.RotateY(projection,projection,previousYaw);
-        temporalProgram.Temporal.Capture(projection,translation,destination.Target.Width,destination.Target.Height,input.Frame,true);
+        // Author previous-camera state through the shared frame UBO, as both cloud and surface
+        // reprojection now consume that owner rather than a second cloud projection matrix.
+        using var authoredCamera=new VgeFrameUniformBuffer();
+        var frameValues=System.Runtime.InteropServices.MemoryMarshal.Cast<byte,float>(camera.Bytes);
+        authoredCamera.Capture(camera.Projection,frameValues.Slice(16,16),frameValues.Slice(32,16),frameValues.Slice(48,16),
+            projection,camera.CurrentViewProjection,new(frameValues[96],frameValues[97]),frameValues[98],input.Frame,
+            new(frameValues[100],frameValues[101],frameValues[102]),new(frameValues[104],frameValues[105],frameValues[106]),frameValues[107],
+            new(frameValues[124],frameValues[125]),deltaTime:frameValues[126],fogMinimum:frameValues[103]);
+        temporalProgram.Temporal.Capture(translation,destination.Target.Width,destination.Target.Height,input.Frame,true);
         lighting.Capture(1,input.Frame);
         try
         {
-            temporalProgram.Frame=camera;temporalProgram.Lighting=lighting.Buffer;temporalProgram.BlueNoise=noise;
+            temporalProgram.Frame=authoredCamera;temporalProgram.Lighting=lighting.Buffer;temporalProgram.BlueNoise=noise;
             temporalProgram.Cloud=raw.Images[0];temporalProgram.Bins=raw.Images[1];temporalProgram.Metadata=raw.Images[2];
             temporalProgram.PreviousCloud=previous.Images[0];temporalProgram.PreviousBins=previous.Images[1];
             temporalProgram.PreviousMetadata=previous.Images[2];temporalProgram.PreviousAge=previous.Images[3];temporalProgram.Diagnostics=null;

@@ -115,7 +115,7 @@ UBO, a 32-byte validation/completion summary and 12-byte indirect arguments. Lig
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
 addition is 2932 bytes. The view owns one 240-byte UBO across its variants and block publication
 shares a 16-byte UBO across its three compiled operations and owns a 16-byte argument record,
-plus two 128-byte temporal parameter blocks, leaving 508 bytes reserved inside that allowance. Reconstruction borrows the
+plus two 64-byte temporal parameter blocks, leaving 636 bytes reserved inside that allowance. Reconstruction borrows the
 shared frame UBO without owning a separate parameter buffer.
 Screen-sized trace/history targets and the 32 KiB blue-noise texture are charged separately below.
 A separate drawable snapshot owns R16F density, RG16F direct,
@@ -507,6 +507,26 @@ four-frame 2x2 schedule without depending on clouds or a texture layout. The sto
 adapter owns filtering of its compact radiance/opacity and bucket values without borrowing previous
 transport or shadow-cache state. The temporal pass distinguishes freshly traced, history-only and spatial-fallback locations. Compatible untraced pixels preserve prior physical transport without blending toward neighbors. Fallback fills unsupported holes but has zero observation confidence and cannot become reusable history. Failed fresh rays remain invalid. A newly empty ray rejects contributing history; removal is normally observed within the four-frame trace cycle.
 
+Camera reconstruction and projection use rendering-owned `camera_reprojection.glsl`, also consumed
+by LumOn velocity generation and its history debug projection. UV uses the OpenGL bottom-left
+convention. Homogeneous reconstruction divides by W; position projection uses W=1 and the shared
+`vgeFrame.prevViewProjMatrix`, whose fourth column includes the double-precision render-origin
+delta narrowed only after subtraction. Surface velocity keeps its own validity flags and inclusive
+UV boundary policy; cloud lookup requires finite half-open [0,1) coverage and positive clip W.
+
+Cloud rays instead reconstruct a displacement with inverse-view W=0. Their placement delta already
+contains camera and material motion once, so project that previous-eye-relative displacement with
+the shared previous matrix at W=0 and add the compatible projection's fourth column. Neither the
+native eye offset nor shared origin rebasing enters this direction transform a second time. Cloud
+foreground endpoints use position projection, including the native eye offset, without cloud wind.
+No private previous-camera matrix is stored or uploaded. The retained projection is only a CPU
+compatibility certificate; placement, owner and successful-frame identity remain cloud-owned.
+Shared camera history advances independently of cloud drawing. Only consecutive successfully
+composited cloud frames may consume it; a skipped/failed frame rejects reuse rather than projecting
+older cloud textures through the wrong camera. No LumOn texture, enablement state or velocity pass
+is required. Representative range, support classification, age and confidence still follow the
+cloud-specific rules below; sharing projection math does not make volume correspondence exact.
+
 All exactly nonzero bilinear support taps must agree on empty/contributing completion, real-observation confidence, foreground support and representative-distance uncertainty. Exactly zero-weight taps are irrelevant. If that footprint is incompatible, select its nearest individually compatible texel centre and sample both physical textures there through hardware filtering. Its own confidence and age apply; no rejected tap enters the transport. If none qualifies, history remains unavailable. Fresh empty rays continue to reject contributing history. This retains boundary observations without interpolating across a discontinuity, at the cost of a possible displacement within the four-tap footprint. Compare current scene endpoints projected into the previous camera against previous clip metadata, using the shared origin-rebased previous view-projection and current inverse view, independent of cloud wind and layer height. The representative cloud distance is a proxy; the max(2 world units,5 percent) gate may conservatively reject edges. Current material/particle/liquid footprint clipping remains in effect.
 
 Untraced pixels with zero material-relative translation map their viewing direction into the old
@@ -543,7 +563,7 @@ independent of freshness and confidence.
 
 Each history owns a required R16F refresh-age field. Unrefreshed support expires at age seven. The default-off `VGE_CLOUD_TEMPORAL_DIAGNOSTICS` compiled option separately adds an RGBA16F record for prior weight, status (fresh1/carried2/fallback3/invalid0), rejection and displayed age. Normal temporal GLSL has no diagnostic output; normal composition has no diagnostic sampler or diagnostic UBO. The ordinary age sampler/output remain production validity metadata. Optional diagnostic images and their framebuffer attachments exist only during diagnostic capture; toggling them preserves physical image identities, confidence and age. Temporal diagnostics add no runtime CPU readback.
 
-Normal storage is approximately103bytes per reduced pixel: two46-byte histories plus44-byte raw trace at one quarter their area, with ceil-edge overhead and32KiB blue noise. Diagnostic capture adds16bytes per reduced pixel across both histories, bringing the nominal total to119. Full resolution allocates none. Trace/filter UBOs use128bytes; only diagnostic composition borrows the filter UBO. Filtering writes four attachments normally and five when diagnostics are compiled in.
+Normal storage is approximately103bytes per reduced pixel: two46-byte histories plus44-byte raw trace at one quarter their area, with ceil-edge overhead and32KiB blue noise. Diagnostic capture adds16bytes per reduced pixel across both histories, bringing the nominal total to119. Full resolution allocates none. Trace/filter UBOs use64bytes; only diagnostic composition borrows the filter UBO. Filtering writes four attachments normally and five when diagnostics are compiled in.
 
 The Cloud Stored Volume visualizer selects that compiled variant and adds update-class colors (fresh green, carry blue, fallback orange, invalid red), effective prior weight (black0 to white1), reason color and observation age (black0 to white7). Reason codes:0 filtered admission,1 no compatible frame,2 projection outside coverage,4 incompatible completion/count,5 foreground depth,6 malformed physical transport,7 representative distance,8 expired age,9 failed fresh trace,10 supported-bound replacement,11 zero reactive weight,12 nearest-compatible admission. Code12 indicates retained information, not rejection; status and effective weight still determine whether it contributes. Reason colors use fract(code*(.37,.61,.83)); code0 is green. The visualizer does not change physical sampling or create CPU readbacks.
 
