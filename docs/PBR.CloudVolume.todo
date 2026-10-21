@@ -1577,22 +1577,68 @@ Phase 8.2 retry - physical block-distance lookup
 Phase 8.3 - Compare voxel integration and acceleration total cost
   Depends on: Phases 8.1 and 8.2, including their selected implementation or explicit rejected-prototype result.
   Outcome: a justified integration/acceleration choice accounts for maintenance and traversal savings.
-  [ ] Reconcile completed 8.1/8.2 results against the Phase 8 baseline at matched settings. Compare
+  [x] Reconcile completed 8.1/8.2 results against the Phase 8 baseline at matched settings. Compare
       voxel DDA alone and the implemented USDF alternative; an interior signed field is not required.
-  [ ] Verify conservative bounds to all nonzero support under the selected representation, including
+  [x] Verify conservative bounds to all nonzero support under the selected representation, including
       anisotropy, quantization and reconstruction allowances. Verify density additions revoke unsafe
       distances before publication; removals retain only safe bounds. Include all three consumers,
       recenter/replacement, guards and fallback during repair; no visible-density thresholds.
-  [ ] Compare total construction/update, traversal, copy/publication cost, memory and weather backlog.
+  [x] Compare total construction/update, traversal, copy/publication cost, memory and weather backlog.
       Preserve 8.1's selected occupied integration semantics and carry forward 7.6's repair decision
       unless its hazards changed. Distinguish authored tests, capture evidence and live performance.
-  [ ] Retain only justified implementation/resources and remove rejected experimental alternatives.
+  [x] Retain only justified implementation/resources and remove rejected experimental alternatives.
       Do not require two production acceleration structures. Reconcile proposal/current docs and
       resource lifetimes; no silent sampling, source-relevance or update-budget changes.
-  [ ] Reuse affected conservative traversal/publication receipts. Run only missing focused checks
+  [x] Reuse affected conservative traversal/publication receipts. Run only missing focused checks
       through subagents with cached incremental builds; no quality thresholds, broad matrix or packaging.
-  [ ] Completion: selected integration/acceleration has honest total-cost and safe-update evidence;
+  [x] Completion: selected integration/acceleration has honest total-cost and safe-update evidence;
       rejected/deferred alternatives and outstanding appearance review are explicit.
+
+Phase 8.3 comparison and selected implementation
+  Traceability: comparison/safety -> proposal / Traversal acceleration candidates, Initial acceleration
+    selection, Traversal bounds and Evaluation and acceptance; memory/update identity -> Layout and
+    memory limits and Nonblocking updates and drawable publication. Inherited integration contracts:
+    PBR.Clouds.md / Stored density-volume resources and Stored-volume view and selection;
+    PBR.Atmosphere.Publication.md / Publication contract; Rendering.Enablement.md / Render boundaries.
+    Evidence: Phase 8 baseline, 8.1 matched results, both 8.2 rejection records and their linked receipts.
+  Selected implementation remains exact constant-cell integration with retained coarse/fine DDA.
+    The matched 8.1 comparison preserved settings: occupied view1.0056->1.0056ms, empty.0942->.0993,
+    direct.1116->.0655 and diffuse.0768->.0993. The baseline's half-voxel representation is superseded;
+    its older capture timings are context, not a matched current-scene comparison. No overall speedup
+    follows from the mixed results. The user approved the constant-cell appearance on2026-10-20.
+  Both distance prototypes were rejected. Full-size packed retry ABBA at515x66x515 and3440x1377,
+    quarter tracing: sparse view1.4029/1.4172ms without certificates versus1.4397/1.4162 with them;
+    denser view1.1919/1.1858 versus1.2421/1.2421. Sparse direct.0123ms and diffuse.0358ms tied.
+    These toggle certificates in the same compiled prototype, not separately compiled pure-DDA
+    binaries. Three-pass construction added about.0307ms per geometry rebuild, not per rendered view.
+    No useful traversal gain was demonstrated even before this maintenance cost. Extra packed working
+    scratch574612bytes and drawable header12bytes were removed, including all executable/test paths.
+  Conservative-distance receipts covered complete occupied boxes, anisotropy, circular short blocks,
+    downward quantization, additions and unbuilt fallback. They qualify the rejected experiment only.
+    Current density repair marks affected occupancy before readers, scans every positive stored texel
+    with a conservative halo and publishes occupancy with density. Exact-cell consumers require no
+    trilinear support expansion; screen reconstruction does not authorize additional empty skipping.
+    There is no retained distance certificate to become stale on additions/removals or replacement.
+    Existing guards, recenter, failed-prefix and isolated-publication checks remain applicable.
+  Preserve7.6's coherent previous-block diffuse repair: at most131072bytes per ordinary batch;
+    scale/history incompatibility still requires280077600bytes full repair. Retry maximum-domain
+    measurements were.0061ms bounded repair versus.1280ms full copy. Drawable publication is separate.
+    Current maximum volume payload remains642271376bytes working/drawable/raw,1033950752peak;
+    screen targets and driver overhead are additional. No budget, sampling or source rule changed.
+  Complete width20 retry records cover unchanged, wind, same-content upload, evolving, source change,
+    empty and disabled-lighting cases; they are not maximum-domain totals. Packed evolving records
+    selected245changed density blocks with zero remaining density backlog,64/32lighting jobs,
+    backlogs490/245 and pending ages2..8direct/27..33diffuse. Do not combine these update/copy totals
+    with maximum-domain construction to invent a matched total or compare cross-build CPU changes.
+    Original 8.2/8.1 policy receipts and current source retain the same queues, budgets and publication.
+  Second review reconciled proposal/current docs with the retained implementation; no permanent-doc
+    change is needed because no distance alternative remains. Reuse phase81-state/final.trx,
+    phase82-current/restored.trx and phase82retry-packed/restored.trx under artifacts/StoredCloudLatest/.
+    Restored build and two affected checks already pass; this comparison changes no runtime source,
+    so no additional build/test, packaging or game action is justified. Independent completion audit
+    confirmed the rejection outcome and evidence limits. Prior appearance approval applies unchanged;
+    broader shape/motion/weather and final cost acceptance remain explicitly open in Phase 9.
+    Authored RTX4090 fixtures and uncontrolled contention do not establish captured-weather or live FPS.
 
 Phase 9 - Qualify the frozen candidate and reconcile documentation
   Depends on: Phase 8.3.
