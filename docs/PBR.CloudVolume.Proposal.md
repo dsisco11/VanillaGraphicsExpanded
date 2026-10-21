@@ -296,4 +296,10 @@ Only fresh pixels may use neighborhood bounds, and only with at least four same-
 
 History count is the declared equivalent observation confidence 1/(1-effective prior weight), capped at eight on fresh updates. Carry preserves count and increments observation age; it never invents an independent observation. Zero prior weight and clipping replacement produce count one. Age expires at seven carried frames to bound reprojection-only persistence. Diagnostics distinguish address admission from actual old weight and from fallback. Screen allocation and bandwidth are additional to volume payload. User-run stationary, edge, camera/wind, ghosting and dynamic lighting/weather review and measured total cost remain acceptance requirements.
 
+Certify an exactly unchanged compatible material-to-view transform on the CPU using zero relative
+translation and identical projection/rotation. In that case use the destination's exact integer
+history coordinate, avoiding a spurious neighboring metadata footprint from inverse/project roundoff.
+This does not relax expiry or foreground checks; scene-camera occlusion is evaluated independently.
+Actual camera rotation or material translation retains ordinary reprojection and footprint admission.
+
 The lighting budget is staged with applied cloud settings and frozen for an in-flight update. Budget-only changes retain fields, demand age, cursors and view history. Scheduler capacities are compiled at256keys for the default-or-lower range and1024keys above it. Maximum scratch is reserved independently of the selected budget. The configured direct/diffuse ratio is retained even when one solver has less eligible work.

@@ -89,9 +89,13 @@ bool StoredTemporalHistory(vec2 uv,float depth,float distance,float kind,bool fr
     vec3 point=direction*anchor+cloudPreviousTranslation.xyz;
     vec4 clip=cloudPreviousProjection*vec4(point,1);
     if(clip.w<=0){StoredTemporalReason(2);return false;}
-    vec2 oldUv=clip.xy/clip.w*.5+.5;
+    bool stationary=cloudHistory.z>.5;
+    vec2 oldUv=stationary?uv:clip.xy/clip.w*.5+.5;
     if(any(lessThan(oldUv,vec2(0)))||any(greaterThanEqual(oldUv,vec2(1)))){StoredTemporalReason(2);return false;}
-    vec2 coordinate=oldUv*vec2(size)-.5,fraction=fract(coordinate);ivec2 base=ivec2(floor(coordinate));
+    // The certified identity map has exactly one support texel. Even an inverse/project
+    // roundoff of a millionth of a pixel must not import neighboring confidence or age.
+    vec2 coordinate=stationary?vec2(ivec2(gl_FragCoord.xy)):oldUv*vec2(size)-.5;
+    vec2 fraction=fract(coordinate);ivec2 base=ivec2(floor(coordinate));
     // Project the CURRENT occluder into the PREVIOUS camera, without material wind. Comparing
     // raw projection depths from different cameras would reject unchanged scene geometry.
     vec4 sceneView=vgeFrame.invProjectionMatrix*vec4(uv*2-1,depth*2-1,1);

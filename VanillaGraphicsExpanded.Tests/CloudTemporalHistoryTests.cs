@@ -31,6 +31,7 @@ public sealed class CloudTemporalHistoryTests
         if(change=="calibration")camera.SetLightingCalibration(VanillaGraphicsExpanded.PBR.LightingCalibration.Default with{BlockReferenceLux=123});
         Assert.Equal(change=="none",history.Capture(next,camera,5,4,temporal,change!="content"));
         Assert.Equal(change=="none"?1:0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[24]);
+        Assert.Equal(change=="none"?1:0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[26]);
     }
     /// <summary>Grid recentering is not motion; committed and residual wind form a continuous single material translation.</summary>
     [Fact]
@@ -46,7 +47,7 @@ public sealed class CloudTemporalHistoryTests
         b=b with { Placement=b.Placement with { WindTileX=1,WindX=-49,Offset=new(-1,1,0) } };
         Assert.True(h.Capture(b,current,5,4,t,true));
         Assert.Equal(1,MemoryMarshal.Cast<byte,float>(t.Bytes)[16]);
-        Assert.Equal(0,MemoryMarshal.Cast<byte,float>(t.Bytes)[26]); // Quarter history is phase-independent.
+        Assert.Equal(0,MemoryMarshal.Cast<byte,float>(t.Bytes)[26]); // Wind requires ordinary material reprojection.
     }
     /// <summary>Previous cloud clip coordinates rotate camera-relative points without applying eye translation twice.</summary>
     [Fact]
@@ -69,6 +70,7 @@ public sealed class CloudTemporalHistoryTests
             history.Commit(input,prior);
             var next=input with {Frame=11,Generation=12};
             Assert.True(history.Capture(next,current,1720,689,temporal,true));
+            Assert.Equal(1,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[26]);
             float[] actual=MemoryMarshal.Cast<byte,float>(temporal.Bytes[..64]).ToArray();
             // Build the expected matrix independently from rotation-only view algebra, rather
             // than copying the production matrix's replacement-column implementation.
@@ -84,10 +86,22 @@ public sealed class CloudTemporalHistoryTests
                 Assert.InRange(Math.Abs(clip.X/clip.W*.5f+.5f-uv.X),0,2e-6f);
                 Assert.InRange(Math.Abs(clip.Y/clip.W*.5f+.5f-uv.Y),0,2e-6f);
             }
+            // A real camera rotation must not use the exact stationary pixel address.
+            var turnedView=(float[])view.Clone();var turnedInverse=new float[16];var turnedProjection=new float[16];
+            Mat4f.RotateY(turnedView,turnedView,.001f);Mat4f.Invert(turnedInverse,turnedView);
+            Mat4f.Mul(turnedProjection,projection,turnedView);
+            using(var turned=new VgeFrameUniformBuffer())
+            {
+                turned.Capture(projection,turnedView,inverseProjection,turnedInverse,fullProjection,turnedProjection,
+                    new(3440,1377),0,11,Vector3.Zero,Vector3.Zero,0);
+                Assert.True(history.Capture(next,turned,1720,689,temporal,true));
+                Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[26]);
+            }
             // Native material movement remains explicit after the camera convention is fixed.
             next=next with {Placement=next.Placement with {CenterX=1,Offset=new(50,1,0)}};
             Assert.True(history.Capture(next,current,1720,689,temporal,true));
             Assert.Equal(new Vector3(0,-1,0),MemoryMarshal.Read<Vector3>(temporal.Bytes.Slice(64,12)));
+            Assert.Equal(0,MemoryMarshal.Cast<byte,float>(temporal.Bytes)[26]);
             history.Invalidate();
             Assert.False(history.Capture(next,current,1720,689,temporal,true));
             Assert.Equal(expected,MemoryMarshal.Cast<byte,float>(temporal.Bytes[..64]).ToArray());

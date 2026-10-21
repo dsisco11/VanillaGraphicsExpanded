@@ -193,6 +193,24 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         centre.AdvanceFrame();centre.Draw(settings);
         Assert.Equal(0,centre.HistoryDiagnostics[18]);
         Assert.True(centre.HistoryReceipts[19]>=4);
+        // With a rotated but now stationary view, every carried pixel owns its exact age.
+        // Matrix roundoff must not let a nearly zero neighboring weight age a fresh pixel.
+        centre.AdvanceFrame(cameraCut:true,yaw:.001f);centre.Draw(settings);
+        var stationaryMeta=centre.HistoryReceipts;var stationaryAge=new float[stationaryMeta.Length];
+        for(int p=0;p<stationaryMeta.Length/4;p++)
+        {
+            stationaryMeta[p*4+3]=4;stationaryAge[p*4+3]=p%2==0?0:6;
+        }
+        centre.SeedHistory(centre.HistoryCloud,stationaryMeta,stationaryAge);
+        centre.AdvanceFrame();centre.Draw(settings);
+        var stationaryReceipt=centre.HistoryDiagnostics;var stationaryCounts=centre.HistoryReceipts;int stationaryCarries=0;
+        for(int p=0;p<stationaryMeta.Length/4;p++)if(stationaryReceipt[p*4+1]==2)
+        {
+            stationaryCarries++;
+            Assert.Equal(stationaryAge[p*4+3]+1,stationaryReceipt[p*4+3]);
+            Assert.Equal(4,stationaryCounts[p*4+3]);
+        }
+        Assert.True(stationaryCarries>0);
         // Subpixel material reprojection straddles a contributing/empty boundary. The selected
         // compatible centre must retain its complete physical tuple and its own age/confidence;
         // rejected empty taps must not dilute radiance, opacity or bucket transmissions.

@@ -45,8 +45,13 @@ internal sealed class CloudReprojectionHistory
         if(!float.IsFinite(translation.X)||!float.IsFinite(translation.Y)||!float.IsFinite(translation.Z)||translation.LengthSquared()>2500)
             compatible=false;
         if(!valid) CaptureCloudProjection(camera,previousProjection);
+        // An exactly unchanged material-to-view transform maps pixel centres to themselves.
+        // Certify it on the CPU instead of letting a floating-point matrix round trip invent
+        // a nonzero neighboring footprint and inherit that neighbor's older observation age.
+        bool stationary=compatible&&translation==Vector3.Zero
+            &&camera.CurrentViewProjection[..12].SequenceEqual(previousProjection.AsSpan(0,12));
         output.Capture(previousProjection,compatible?translation:Vector3.Zero,
-            width,height,input.Frame,compatible,divisor,debugMode);
+            width,height,input.Frame,compatible,divisor,debugMode,stationary);
         return compatible;
     }
     /// <summary>Commits only after trace, reconstruction and full-resolution submission all succeed.</summary>

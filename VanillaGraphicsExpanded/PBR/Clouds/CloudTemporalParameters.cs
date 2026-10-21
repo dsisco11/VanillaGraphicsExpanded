@@ -11,11 +11,11 @@ internal sealed class CloudTemporalParameters : CpuUniformBuffer
     internal CloudTemporalParameters() : base(128) { }
     /// <summary>Uses cloud material motion independently of tile-grid recentering and never encodes depth or coverage.</summary>
     internal void Capture(System.ReadOnlySpan<float> previousProjection,Vector3 translation,int width,int height,uint frame,bool valid,int divisor=2,
-        int debugMode=0)
+        int debugMode=0,bool stationary=false)
     {
         WriteMatrix4(0,previousProjection); WriteVector4(64,new(translation,0));
         WriteVector4(80,new(width,height,frame&1,(frame>>1)&1));
-        WriteVector4(96,new(valid?1:0,debugMode,0,0));
+        WriteVector4(96,new(valid?1:0,debugMode,valid&&stationary?1:0,0));
         WriteVector4(112,new((width+1)/2,(height+1)/2,2,divisor));
     }
     #endregion

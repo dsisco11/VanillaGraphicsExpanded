@@ -2076,6 +2076,8 @@ Phase 8.6.2 - Integrate progressive subpixel jitter into cloud view sampling
       choose reproducible offsets or minimal justified metadata rather than silently treating jittered
       rays as pixel-centre rays. Preserve camera/wind motion once, physical payload/bucket consistency,
       real disocclusion rejection, failed-ray safety and age/confidence semantics from8.6.1.
+      Extend the exact stationary-address certificate to include sample-position identity: an unchanged
+      camera/material transform alone must not bypass reprojection when the jitter position changes.
   [ ] Extend affected existing fixtures for deterministic indexing, consecutive consumed samples,
       offset bounds, cold/odd/wrapped schedules, reference bypass, reprojection and resource lifetime.
       Reuse unchanged sequence tests; no approximation-quality, noise, convergence or image-error gates.
