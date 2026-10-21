@@ -193,6 +193,45 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         centre.AdvanceFrame();centre.Draw(settings);
         Assert.Equal(0,centre.HistoryDiagnostics[18]);
         Assert.True(centre.HistoryReceipts[19]>=4);
+        // Subpixel material reprojection straddles a contributing/empty boundary. The selected
+        // compatible centre must retain its complete physical tuple and its own age/confidence;
+        // rejected empty taps must not dilute radiance, opacity or bucket transmissions.
+        var edgeCloud=(float[])priorCloud.Clone();var edgeMeta=(float[])metadata.Clone();
+        var edgeBins=(float[])priorBins.Clone();var edgeAge=new float[metadata.Length];
+        for(int y=0;y<8;y++)for(int x=0;x<8;x++)
+        {
+            int p=y*8+x;edgeAge[p*4+3]=2;
+            if(x<4)continue;
+            Array.Clear(edgeCloud,p*4,4);edgeMeta[p*4+1]=2;edgeMeta[p*4+2]=0;
+            Array.Fill(edgeBins,1f,p*3,3);
+        }
+        var edgeRays=new float[4*4*4];var edgeRayMeta=new float[edgeRays.Length];
+        for(int p=0;p<16;p++)
+        {
+            edgeRays[p*4]=edgeRays[p*4+1]=edgeRays[p*4+2]=1;edgeRays[p*4+3]=.5f;
+            edgeRayMeta[p*4]=metadata[0];edgeRayMeta[p*4+1]=1;edgeRayMeta[p*4+2]=10;
+        }
+        scene.SeedHistory(edgeCloud,edgeMeta,edgeAge,edgeBins);
+        var boundary=scene.FilterAuthored(edgeRays,Enumerable.Repeat(.5f,4*4*3).ToArray(),edgeRayMeta,
+            translation:new Vector3(.625f,0,0));
+        for(int y=1;y<7;y++)
+        {
+            int p=y*8+3;Assert.Equal(12,boundary[3][p*4+2]);
+            Assert.Equal(1,boundary[0][p*4]);Assert.Equal(.5f,boundary[0][p*4+3]);
+            Assert.Equal(.5f,boundary[1][p*3]);Assert.True(boundary[2][p*4+3]>=4);
+            if(boundary[3][p*4+1]==2)Assert.Equal(3,boundary[4][p]);
+        }
+        // The same nearest candidate cannot bypass a foreground mismatch or expired observation.
+        for(int p=0;p<64;p++)edgeMeta[p*4]=0;
+        scene.SeedHistory(edgeCloud,edgeMeta,edgeAge,edgeBins);
+        var occluded=scene.FilterAuthored(edgeRays,Enumerable.Repeat(.5f,4*4*3).ToArray(),edgeRayMeta,
+            translation:new Vector3(.625f,0,0));
+        Assert.DoesNotContain(2,occluded[3].Where((_,i)=>i%4==1));
+        for(int p=0;p<64;p++){edgeMeta[p*4]=metadata[0];edgeAge[p*4+3]=7;}
+        scene.SeedHistory(edgeCloud,edgeMeta,edgeAge,edgeBins);
+        var oldEdge=scene.FilterAuthored(edgeRays,Enumerable.Repeat(.5f,4*4*3).ToArray(),edgeRayMeta,
+            translation:new Vector3(.625f,0,0));
+        Assert.DoesNotContain(2,oldEdge[3].Where((_,i)=>i%4==1));
         // A failed own ray cannot be hidden by retained information or a nearby valid prefix.
         var invalid=scene.FilterAuthored(new float[4*4*4],Enumerable.Repeat(1f,4*4*3).ToArray(),new float[4*4*4]);
         var failed=invalid[3];var failedMeta=invalid[2];

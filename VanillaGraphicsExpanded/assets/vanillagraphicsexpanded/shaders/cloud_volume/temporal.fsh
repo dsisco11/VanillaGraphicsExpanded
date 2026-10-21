@@ -60,7 +60,16 @@ bool StoredTemporalFresh(ivec2 p,ivec2 size,out ivec2 source)
     source=p/2;float rank=BlueNoiseRank(temporalBlueNoise,source,0u,8);
     return all(equal(p,InterleavedSampleLocation2x2(rank,source,vgeFrame.frameIndex,size)));
 }
-/** Admits the exact nonzero hardware footprint before two continuous hardware-filtered reads. */
+/** Classifies one history tap without relaxing foreground, support, distance or expiry gates. */
+float StoredTemporalTap(vec4 old,float age,float kind,float depth,float distance)
+{
+    if(old.y!=kind||old.w<1||any(isnan(old))||any(isinf(old)))return 4;
+    if(abs(old.x-depth)>2e-5)return 5;
+    if(kind==1&&abs(old.z-distance)>max(2.0,distance*.05))return 7;
+    if(age<0||age>=7||isnan(age)||isinf(age))return 8;
+    return 0;
+}
+/** Uses a qualified hardware footprint, or its nearest individually compatible texel centre. */
 bool StoredTemporalHistory(vec2 uv,float depth,float distance,float kind,bool fresh,ivec2 size,
     out vec4 value,out vec3 bins,out float count,out float age,out float reason,out vec2 support)
 {
@@ -91,21 +100,33 @@ bool StoredTemporalHistory(vec2 uv,float depth,float distance,float kind,bool fr
     vec4 sceneClip=vgeFrame.prevViewProjMatrix*vgeFrame.invViewMatrix*vec4(sceneView.xyz/sceneView.w,1);
     if(sceneClip.w<=0){StoredTemporalReason(5);return false;}
     float expectedDepth=sceneClip.z/sceneClip.w*.5+.5;
+    bool filtered=true,found=false;float nearest=3.402823e38,selectedCount=0,selectedAge=0;
+    vec2 selectedUv=oldUv;
     for(int y=0;y<2;y++)for(int x=0;x<2;x++)
     {
         float weight=(x==0?1-fraction.x:fraction.x)*(y==0?1-fraction.y:fraction.y);
         if(weight==0)continue;
         ivec2 p=clamp(base+ivec2(x,y),ivec2(0),size-1);
         vec4 old=texelFetch(previousMetadata,p,0);float observationAge=texelFetch(previousAge,p,0).r;
-        if(old.y!=kind||old.w<1||any(isnan(old))||any(isinf(old))){StoredTemporalReason(4);return false;}
-        if(abs(old.x-expectedDepth)>2e-5){StoredTemporalReason(5);return false;}
-        if(kind==1&&abs(old.z-length(point))>max(2.0,length(point)*.05)){StoredTemporalReason(7);return false;}
-        if(observationAge<0||observationAge>=7||isnan(observationAge)||isinf(observationAge)){StoredTemporalReason(8);return false;}
+        float rejection=StoredTemporalTap(old,observationAge,kind,expectedDepth,length(point));
+        if(rejection!=0){filtered=false;StoredTemporalReason(rejection);continue;}
         count=min(count,old.w);age=max(age,observationAge);
+        vec2 centre=(vec2(p)+.5)/vec2(size),offset=vec2(p)-coordinate;
+        float separation=dot(offset,offset);
+        if(separation<nearest)
+        {
+            found=true;nearest=separation;selectedUv=centre;
+            selectedCount=old.w;selectedAge=observationAge;
+        }
     }
+    if(!found)return false;
+    // A mixed footprint cannot interpolate across incompatible cloud/foreground support. Read
+    // the nearest admitted centre through the same hardware samplers, preserving the paired
+    // radiance, opacity and bucket products rather than blending them with rejected taps.
+    if(!filtered){oldUv=selectedUv;count=selectedCount;age=selectedAge;}
     value=textureLod(previousCloud,oldUv,0);bins=textureLod(previousBins,oldUv,0).rgb;
     if(!StoredTemporalFinite(value,bins,vec4(depth,kind,anchor,count))){StoredTemporalReason(6);return false;}
-    support=vec2(kind,kind==2?0:anchor);StoredTemporalReason(0);return true;
+    support=vec2(kind,kind==2?0:anchor);StoredTemporalReason(filtered?0:12);return true;
 }
 /** Preserves untraced observations; only actual fresh rays advance observation confidence. */
 void main()
@@ -146,7 +167,7 @@ void main()
         // Hardware-filtered transport is carried intact, with no spatial-current blend and no
         // independent-observation increment. Missing current neighbors alone are irrelevant.
         outCloud=old;outBins=oldBins;outMetadata=vec4(depth,support.x,support.y,count);
-        outAge=age+1;StoredTemporalReceipt(1,2,0,age+1);return;
+        outAge=age+1;StoredTemporalReceipt(1,2,reason,age+1);return;
     }
     if(!fresh&&best==3.402823e38){StoredTemporalReject(reason);return;}
     float weight=0;

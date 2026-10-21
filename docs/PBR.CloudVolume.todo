@@ -1973,36 +1973,75 @@ Phase 8.6 - Preserve effective cloud temporal history between fresh traces
 Phase 8.6.1 - Retain compatible temporal observations at cloud boundaries
   Depends on: the delivered8.6 retention implementation and opt-in compiled diagnostics.
   Outcome: reduce edge-history rejection and sample-pattern flicker while preserving real
-    disocclusion, finite cloud coverage and foreground occlusion. Temporal appearance is improved
-    but edge flicker remains user-reported; this is not full temporal acceptance.
-  [ ] Consult PBR.CloudVolume.Proposal.md / Temporal view sampling contract and Rendering the
+    disocclusion, finite cloud coverage and foreground occlusion. User reviewed the edge-retention
+    change and approved its appearance.
+  [x] Consult PBR.CloudVolume.Proposal.md / Temporal view sampling contract and Rendering the
       published volume, plus PBR.Clouds.md / Stored-volume temporal view. Use the existing compiled
       update/weight/rejection/age visualizers to distinguish rejected edge history, reactive weight
       loss, sparse fallback and final reconstruction changes. Reuse available captures and focused
       authored evidence; request new evidence only for a specific unresolved behavior.
-  [ ] Reevaluate mixed empty/contributing bilinear support and representative-distance uncertainty.
+  [x] Reevaluate mixed empty/contributing bilinear support and representative-distance uncertainty.
       Consider compatible-support nearest sampling or confidence reduction where hardware filtering
       cannot safely span the boundary. Preserve current depth/liquid/particle occlusion, failed-ray
       rejection, bounded age, volume replacement and exact occupied-cell transport. Do not admit
       incompatible taps just to increase retention, or replace hardware filtering with manual
       bilinear transport fetches.
-  [ ] Separate real cloud removal/disocclusion from coverage variation induced by the sparse trace
+  [x] Separate real cloud removal/disocclusion from coverage variation induced by the sparse trace
       schedule. Reevaluate edge clipping and opacity reactivity with actual surviving weight/count
       semantics; prevent spatial fallback from repeatedly overwriting retained edge information.
       Keep physical premultiplied radiance, opacity and all bucket transmissions consistent.
-  [ ] Evaluate longer observation confidence only after identifying where prior information survives.
+  [x] Evaluate longer observation confidence only after identifying where prior information survives.
       Discuss responsiveness/ghosting tradeoffs with the user before changing the current limit.
       Distinguish fresh-observation history length from carried-frame expiry; preserve wind and
       camera reprojection once and routine weather/day-night retention.
-  [ ] Extend affected existing authored fixtures only for changed admission/weight/identity math:
+  [x] Extend affected existing authored fixtures only for changed admission/weight/identity math:
       mixed support, thin edges, stationary phases, moving foreground/camera/wind, empty updates
       and failure/replacement. No image-error, approximation-quality, convergence or noise thresholds.
       Run focused cached incremental checks through subagents; no broad matrix or packaging.
-  [ ] Measure affected filtering/composition and independent total cost at unchanged settings;
+  [x] Measure affected filtering/composition and independent total cost at unchanged settings;
       account for optional diagnostics and contention. Reconcile current docs, perform second review
       and independent audit, then obtain user-run stationary/edge/ghosting/motion/weather review.
       Never launch the game. Completion requires improved accepted edge behavior with explicit
       performance and responsiveness limitations, not merely higher history counters.
+
+Phase 8.6.1 implementation and acceptance
+  Traceability -> admission/weight tasks: proposal / Temporal view sampling contract and Rendering
+    the published volume; PBR.Clouds.md / Stored-volume temporal view. Existing atmospheric and
+    native OIT publication remain unchanged. temporal.fsh qualifies every nonzero support tap,
+    then retains either the compatible hardware-filtered footprint or its nearest individually
+    admitted centre. Both physical textures use that same centre; selected confidence/age apply.
+    Reason12 identifies nearest-compatible admission in the opt-in compiled diagnostics.
+  Diagnosis -> mixed support previously discarded all history before weighting. The authored
+    subpixel material-motion boundary now retains its physical tuple while foreground mismatch
+    and expiry remain rejected. Existing tests retain fresh-empty removal, failed-ray rejection,
+    camera/wind, identity replacement and diagnostic variant checks. Spatial fallback still cannot
+    overwrite admitted history or acquire reusable confidence. No metadata or texture allocation added.
+  Weight review -> retain supported fresh clipping and existing opacity/radiance reactivity: those
+    respond to real fresh observations; nearest support addresses earlier admission loss. Do not
+    raise the eight-observation confidence cap or seven-frame carry expiry. Longer confidence would
+    increase smoothing but can delay response and ghost moving boundaries; discuss that tradeoff
+    before changing it. Representative-distance uncertainty and depth tolerances remain unchanged.
+  Focused evidence -> artifacts/StoredCloudLatest/phase861-current-build.log: cached Release,
+    23.69s,0errors,169warnings; only two production and two fixture variants recompiled.
+    phase861-current-tests.trx:2/2 existing native/temporal facts; phase861-current-cost.trx:1/1.
+    Baseline phase861-baseline-cost.trx used the same split-age/optional-diagnostic layout after
+    one stale compiler-identity recovery build. The earlier no-build stale binary is not the baseline.
+  Matched authored cost -> RTX4090,3440x1377,quarter trace,diagnostics enabled, unchanged ray settings.
+    Occupied cold/reused independent totals: baseline1.1039/1.0854ms, current1.0906/1.0772ms.
+    Reused separate queries: filter0.1055->0.1004ms,composition0.9001->0.9001ms; these are not
+    components to sum into the independently measured total. Empty cold/reused totals:
+    baseline0.1935/0.1905ms,current0.1853/0.1864ms. Three timed stationary samples; game remained
+    running and contention uncontrolled. No clear regression; no live FPS or normal-variant speed claim.
+    Diagnostic target bytes remain35,316,760. Stationary prior contribution296700/296700; a single
+    camera-change diagnostic retained125345 versus14192 before, not proof of appearance improvement.
+  Second review -> paired transport, selected confidence/age, empty/failed/foreground/expiry gates,
+    exact occupied-cell transport and default-off diagnostic interface preserved. Current proposal
+    and architecture docs reconciled. No approximation-quality gates, packaging or game launch/close.
+  Acceptance -> user confirmed the change reduces the visible issue, looks good and is approved.
+    This closes the requested user appearance review. Nearest support may shift within the original
+    four-tap footprint; acceptance is not a promise of noise-free edges or a measured live FPS gain.
+    Independent completion audit found no code/documentation defects and accepted the focused receipts.
+    All six tasks are complete. Later subphases remain unchecked.
 
 Phase 8.6.2 - Integrate progressive subpixel jitter into cloud view sampling
   Depends on: Phase8.6.1 edge-retention work.
