@@ -3,7 +3,7 @@
   "config-stored-shadows": "Stored volume: self-shadowing",
   "config-stored-diffuse": "Stored volume: progressive diffuse lighting",
   "config-stored-stop": "Stored volume: stop transmittance (0 disables early exit)",
-  "config-cloud-renderer": "Volumetric renderer (0: existing, 1: lighting-volume, 2: stored-volume)",
+  "config-cloud-renderer": "Volumetric renderer (0: default stored volume, 1: retiring lighting-volume, 2: retiring previous renderer)",
   "config-candidate-detail": "Candidate density detail",
   "config-candidate-shadows": "Candidate self-shadowing",
   "config-candidate-diffuse": "Candidate diffuse transport",

@@ -92,7 +92,7 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
             }))
             throw new InvalidOperationException("Cloud publication boundary rejected.");
         GlDebug.ThrowIfErrors("Cloud volume publication");
-        Published=new(d,fields.Encoding,fields.LightingBounds,checked((Published?.Revision??0)+1),density!,direct!,diffuse!,regions!,occupancy!);
+        Published=new(d,fields.Encoding,fields.LightingBounds,checked((Published?.Revision??0)+1),density!,direct!,diffuse!,regions!,occupancy!,fields);
         source=fields;
         FullChannels=full;
     }

@@ -1,6 +1,26 @@
 #version 430 core
 @import "traversal.glsl"
 @import "../includes/vge_frame_ubo.glsl"
+#if VGE_STORED_VIEW_TRACE_DIVISOR != 1
+@import "../includes/cloud_temporal_parameters.glsl"
+@import "../includes/blue_noise.glsl"
+@import "../includes/interleaved_sampling.glsl"
+uniform sampler2D viewBlueNoise;
+#endif
+/** Maps physically compact rays onto their blue-noise-selected reduced-grid positions. */
+vec2 StoredViewUv()
+{
+    vec2 size=ceil(vgeFrame.screenSize/float(VGE_STORED_VIEW_TRACE_DIVISOR));
+    #if VGE_STORED_VIEW_TRACE_DIVISOR != 1
+    if(cloudHistory.x>.5)
+    {
+        ivec2 tile=ivec2(gl_FragCoord.xy);
+        float rank=BlueNoiseRank(viewBlueNoise,tile,0u,8);
+        return (vec2(InterleavedSampleLocation2x2(rank,tile,vgeFrame.frameIndex,ivec2(size)))+.5)/size;
+    }
+    #endif
+    return gl_FragCoord.xy/size;
+}
 layout(std140) uniform StoredVolumeView
 {
     ivec4 viewSize,viewSlots;
@@ -20,7 +40,7 @@ uniform sampler2D viewMaterialDepth;
 #define VGE_ATMOSPHERE_SCATTERING_DIRECTIONS
 #define vge_atmosphereScatteringSun viewSun.xyz
 #define vge_atmosphereScatteringMoon viewMoon.xyz
-#define VGE_ATMOSPHERE_FRAGMENT_COORD (gl_FragCoord.xy*vgeFrame.screenSize/ceil(vgeFrame.screenSize/float(VGE_STORED_VIEW_TRACE_DIVISOR)))
+#define VGE_ATMOSPHERE_FRAGMENT_COORD (StoredViewUv()*vgeFrame.screenSize)
 @import "../includes/atmosphere_aerial.glsl"
 @import "../includes/pbr_scene_storage.glsl"
 @import "../includes/pbr_color.glsl"
@@ -29,7 +49,7 @@ uniform sampler2D viewMaterialDepth;
 #else
 layout(location=0) out vec4 outViewCloud;
 layout(location=1) out vec3 outViewBins;
-layout(location=2) out vec2 outViewMetadata;
+layout(location=2) out vec4 outViewMetadata;
 #endif
 /** Reconstructs rotation-only camera displacement; native and material placement enter once through viewOrigin. */
 vec3 StoredViewUnproject(vec2 ndc,float depth)
@@ -107,14 +127,15 @@ vec3 StoredViewBins(float distance)
     return vec3(StoredViewBellCurve(bin),StoredViewBellCurve(bin-1),bin>2?1:StoredViewBellCurve(bin-2));
 }
 /** Writes native products directly at full size or compact values at the compiled reduced scale. */
-void StoredViewWrite(vec4 cloud,vec3 bins,float depth,bool empty)
+void StoredViewWrite(vec4 cloud,vec3 bins,float depth,bool empty,float representative,float visits)
 {
     #if VGE_STORED_VIEW_TRACE_DIVISOR == 1
     if(empty)discard;
+    cloud.rgb=VgeStoreSceneLighting(cloud.rgb);
     outOitRevealBins=bins;outRevealage=clamp(1-cloud.a,0,1);outOitGlow=vec4(0,0,0,cloud.a);
     outOitAccumulation0=cloud*(1-bins.x);outOitAccumulation1=cloud*(1-bins.y);outOitAccumulation2=cloud*(1-bins.z);
     #else
-    outViewCloud=cloud;outViewBins=bins;outViewMetadata=vec2(depth,empty?2:1);
+    outViewCloud=cloud;outViewBins=bins;outViewMetadata=vec4(depth,empty?2:1,representative,visits);
     #endif
 }
 /** Clips a full pixel directly or conservatively gathers the complete reduced pixel's depth footprint. */
@@ -139,7 +160,7 @@ float StoredViewDepth(vec2 uv)
 void main()
 {
     if(!VgeFrameLightingValid(vgeFrame.frameIndex,VgeLightingCalibrationGeneration()))discard;
-    vec2 uv=gl_FragCoord.xy/ceil(vgeFrame.screenSize/float(VGE_STORED_VIEW_TRACE_DIVISOR)),ndc=uv*2-1;
+    vec2 uv=StoredViewUv(),ndc=uv*2-1;
     vec3 direction=normalize(StoredViewUnproject(ndc,1));
     float depth=StoredViewDepth(uv);
     float limit=length(StoredViewUnproject(ndc,depth));
@@ -147,7 +168,7 @@ void main()
     grid.first=viewFirst.xyz;grid.cell=viewCell.xyz;grid.minimum=viewMinimum.xyz;grid.maximum=viewMaximum.xyz;
     CloudVolumeRay ray=CloudVolumeBegin(grid,viewOrigin.xyz,direction,limit);
     if(ray.failed)discard;
-    if(ray.t>=ray.end){StoredViewWrite(vec4(0),vec3(1),depth,true);return;}
+    if(ray.t>=ray.end){StoredViewWrite(vec4(0),vec3(1),depth,true,0,0);return;}
     vec2 phases=vec2(StoredViewPhase(-direction,viewSun.xyz),StoredViewPhase(-direction,viewMoon.xyz));
     vec3 bins=vec3(1),radiance=vec3(0);float transmission=1,weightSum=0,moment=0;bool terminated=false;
     for(int i=0;i<2048;i++)
@@ -168,9 +189,9 @@ void main()
         #endif
     }
     if(!terminated&&!CloudVolumeComplete(ray))discard; // A safety-limit prefix is never accepted as completed transport.
-    if(weightSum==0){StoredViewWrite(vec4(0),vec3(1),depth,true);return;}
-    if(weightSum>0)radiance=VgeStoreSceneLighting(StoredViewMedium(radiance/weightSum,direction*(moment/weightSum)))*weightSum;
+    if(weightSum==0){StoredViewWrite(vec4(0),vec3(1),depth,true,0,float(ray.operations));return;}
+    if(weightSum>0)radiance=StoredViewMedium(radiance/weightSum,direction*(moment/weightSum))*weightSum;
     if(any(isnan(radiance))||any(isinf(radiance)))discard;
     float opacity=clamp(1-transmission,0,1);
-    StoredViewWrite(vec4(radiance,opacity),clamp(bins,0,1),depth,false);
+    StoredViewWrite(vec4(radiance,opacity),clamp(bins,0,1),depth,false,moment/weightSum,float(ray.operations));
 }

@@ -122,7 +122,7 @@ public sealed class CloudTemporalHistoryTests
         b=b with { Placement=b.Placement with { WindTileX=1,WindX=-49,Offset=new(-1,1,0) } };
         Assert.True(h.Capture(b,current,CloudVolumeSettings.Default,p,5,4,t));
         Assert.Equal(1,MemoryMarshal.Cast<byte,float>(t.Bytes)[16]);
-        Assert.Equal(1,MemoryMarshal.Cast<byte,float>(t.Bytes)[26]); // prior phase y=(10>>1)&1
+        Assert.Equal(0,MemoryMarshal.Cast<byte,float>(t.Bytes)[26]); // Quarter history is phase-independent.
     }
     /// <summary>Previous cloud clip coordinates rotate camera-relative points without applying eye translation twice.</summary>
     [Fact]

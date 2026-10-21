@@ -109,8 +109,8 @@ internal sealed class CloudNativeRuntime : IDisposable
         ICloudVolumeConsumer candidate = selection.Renderer switch
         {
             CloudVolumeRendererKind.LightingVolumeCandidate=>new LightingVolumeConsumer(api,this,()=>selection.Settings),
-            CloudVolumeRendererKind.StoredVolumeCandidate=>new Volume.CloudStoredVolumeConsumer(api,this,()=>selection.StoredSettings),
-            _=>new CloudVolumeRenderer(api,this)
+            CloudVolumeRendererKind.Previous=>new CloudVolumeRenderer(api,this),
+            _=>new Volume.CloudStoredVolumeConsumer(api,this,()=>selection.StoredSettings)
         };
         try
         {

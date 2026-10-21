@@ -28,7 +28,7 @@ internal sealed class CloudVolumeFields : IDisposable
     internal bool Initialized => InitializedBlocks == Domain.Blocks;
     internal CloudVolumeDensityState DensityState { get; } = new();
     /// <summary>Captures the current coherent view bindings without transferring their ownership.</summary>
-    internal CloudVolumeViewFields View => new(Domain,Encoding,LightingBounds,Revision,Density,Direct,Diffuse,Regions,Occupancy);
+    internal CloudVolumeViewFields View => new(Domain,Encoding,LightingBounds,Revision,Density,Direct,Diffuse,Regions,Occupancy,this);
 
     #region Public API
     /// <summary>Allocates only the admitted field set, adopting each allocation immediately for failure cleanup.</summary>

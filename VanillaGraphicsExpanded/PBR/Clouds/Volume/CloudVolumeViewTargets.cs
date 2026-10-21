@@ -14,13 +14,13 @@ internal sealed class CloudVolumeViewTargets : IDisposable
     internal readonly GpuFramebuffer Target;
     internal static readonly RenderPassColor[] Outputs=Enumerable.Range(0,3).Select(i=>new RenderPassColor(i,
         AttachmentLoad.Clear,Clear:i==1?ColorClearValue.Float(1,1,1,1):ColorClearValue.Float(0,0,0,0))).ToArray();
-    internal long Bytes=>(long)Target.Width*Target.Height*36;
+    internal long Bytes=>(long)Target.Width*Target.Height*44;
     #region Public API
     /// <summary>Allocates the selected ceil-divided target transactionally, preserving float32 ranges.</summary>
     internal CloudVolumeViewTargets(int width,int height,int divisor)
     {
-        if(divisor is not (2 or 4))throw new ArgumentOutOfRangeException(nameof(divisor));
-        PixelInternalFormat[] formats=[PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgb32f,PixelInternalFormat.Rg32f];
+        if(divisor is not (2 or 4 or 8))throw new ArgumentOutOfRangeException(nameof(divisor));
+        PixelInternalFormat[] formats=[PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgb32f,PixelInternalFormat.Rgba32f];
         try
         {
             for(int i=0;i<3;i++)Images[i]=DynamicTexture2D.Create((width+divisor-1)/divisor,(height+divisor-1)/divisor,formats[i],debugName:$"Cloud.Volume.View.{i}");

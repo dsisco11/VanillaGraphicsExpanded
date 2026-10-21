@@ -55,8 +55,9 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
             {
                 var program=GpuShaderProgramLibraries.Get<CloudVolumeViewProgram>(api,CloudVolumeViewProgram.Contract.Identity);
                 var reconstruction=GpuShaderProgramLibraries.Get<CloudVolumeReconstructProgram>(api,CloudVolumeReconstructProgram.Contract.Identity);
-                if(program is null||reconstruction is null) return false;
-                view=new(program,reconstruction);
+                var temporal=GpuShaderProgramLibraries.Get<CloudVolumeTemporalProgram>(api,CloudVolumeTemporalProgram.Contract.Identity);
+                if(program is null||reconstruction is null||temporal is null) return false;
+                view=new(program,reconstruction,temporal);
             }
             if(!view.Prepare(settings)) throw new InvalidOperationException(view.Failure);
             prepared=true;return true;

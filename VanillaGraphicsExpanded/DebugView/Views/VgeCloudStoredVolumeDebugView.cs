@@ -13,7 +13,7 @@ public static partial class VgeBuiltInDebugViews
         "vge.cloud.storedVolume","Cloud Stored Volume",CategoryPbr,
         "Native density support, lighting coverage, validity/fallback and bounded update statistics.",
         _=>{CloudStoredVolumeDiagnostics.Mode=4;return new ActionDisposable(()=>CloudStoredVolumeDiagnostics.Mode=0);},
-        availability:ctx=>ctx.Config.Clouds.VolumeRenderer==CloudVolumeRendererKind.StoredVolumeCandidate
+        availability:ctx=>ctx.Config.Clouds.VolumeRenderer==CloudVolumeRendererKind.StoredVolume
             ? DebugViewAvailability.Available():DebugViewAvailability.Unavailable("Select the stored-volume candidate first."),
         createPanel:_=>new StoredVolumePanel());
 

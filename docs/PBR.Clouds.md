@@ -512,7 +512,7 @@ linked checklist.
 ## Stored density-volume resources
 
 `PBR/Clouds/Volume/` owns an independent storage foundation for persistent cloud density and
-illumination. `Clouds.VolumeRenderer=2` selects its stored-field view using the shared cloud resolution controls. Its storage contract is
+illumination. `Clouds.VolumeRenderer=0` (the default) selects its stored-field view using the shared cloud resolution controls. Its storage contract is
 specified in [the density-volume proposal](PBR.CloudVolume.Proposal.md).
 
 `CloudVolumeDomain` uses fixed 19.53125-unit horizontal cells, 64 vertical interior cells and
@@ -532,9 +532,9 @@ UBO, a 32-byte validation/completion summary and 12-byte indirect arguments. Lig
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
 addition is 2932 bytes. The view owns one 240-byte UBO across its variants and block publication
 shares a 16-byte UBO across its three compiled operations and owns a 16-byte argument record,
-leaving 764 bytes reserved inside that allowance. Reconstruction borrows the
+plus two 128-byte temporal parameter blocks, leaving 508 bytes reserved inside that allowance. Reconstruction borrows the
 shared frame UBO without owning a separate parameter buffer.
-Screen-sized view targets are charged separately below; there is no screen-space history.
+Screen-sized trace/history targets and the 32 KiB blue-noise texture are charged separately below.
 A separate drawable snapshot owns R16F density, RG16F direct,
 RGBA16F diffuse and exact region/occupancy buffers: 249,952,000 bytes (238.373 MiB) at maximum extent.
 A raw RGBA32F native observation snapshot adds at most 640,000 bytes. Maximum working plus drawable
@@ -772,15 +772,12 @@ unqualified.
 
 ### Stored-volume view and selection
 
-In ConfigLib, set native cloud mode to **Volumetric**, then select **Volumetric renderer = 2
-(stored-volume)**. `0` retains the existing renderer and `1` retains the lighting-only candidate.
-The persisted equivalent is `Clouds.VolumeRenderer=2`, with controls under `Clouds.StoredVolume`:
-`Detail`, `SelfShadowing`, `Diffuse` (all true by default) and `StopTransmittance` (.005 by default).
-Apply ConfigLib changes normally; selection commits at the next Before preparation boundary.
-If editing the JSON outside ConfigLib, restart the client to load it. To recover a latched GPU or
-shader failure, switch **Volumetric renderer** to **0**, apply, then **2**, apply. The normal client shader-reload action also resets it.
-No migration or automatic promotion is involved. Native Off and Simple keep their meanings.
-
+In ConfigLib, set native cloud mode to **Volumetric**. The default renderer value **0** uses
+stored-volume rendering; temporary comparison values **1** and **2** select the lighting-only and
+previous volumetric renderers respectively. `Clouds.StoredVolume` retains Detail, SelfShadowing,
+Diffuse and StopTransmittance controls. Shared TraceScale and FullResolutionReference govern view
+resolution. Apply configuration normally; selection commits at the Before preparation boundary.
+Switching away and back, or shader reload, resets a latched failure. No settings migration is used.
 `CloudStoredVolumeConsumer` uses the existing native consumer boundary at OIT .31. The previous
 consumer retires before the new one prepares; inactive candidates do no generation or lighting.
 Before Opaque, `CloudVolumeAdmission` retains source envelopes and admits Qcap+Dcap, aerial/local
@@ -850,7 +847,7 @@ six native Transparent products at full resolution through existing graphics pip
 material depth, particle visibility and liquid depth at mip zero. Coarse DDA retains traversal
 state and skips only certified empty support. Occupied intervals use exact voxel boundaries,
 actual clipped metre lengths and cell-constant R16F density, RG16F transmission and scaled diffuse
-RGB. There is no native descriptor/noise lookup, low layer sample cap, jitter or screen-space history.
+RGB. There is no native descriptor/procedural-noise lookup or low layer sample cap. Reduced views use screen-space sampling history; full reference remains deterministic.
 Operation-limit failure discards the whole pixel prefix. Optional optical termination occurs only
 after a completed segment and compiles out when StopTransmittance is zero.
 
@@ -870,8 +867,8 @@ integration, the shared affine atmosphere/local-medium treatment and frozen scen
 once. Bucket transmissions use each interval's near depth; overall transmission, glow metadata and
 three weighted accumulations preserve the native OIT convention in both PBR selections.
 
-`CloudVolumeViewTargets` owns three compact float32 textures: RGBA radiance/opacity, RGB bucket
-transmissions and RG clip-depth/completion metadata. Reduced tracing uses conservative two-by-two (half) or four-by-four (quarter) full-view
+Each `CloudVolumeViewTargets` set owns three compact float32 textures: RGBA physical radiance/opacity, RGB bucket
+transmissions and RGBA clip-depth/completion/representative-distance/receipt metadata. Reduced tracing uses conservative two-by-two (half) or four-by-four (quarter) full-view
 depth gathers and the unchanged occupied schedule. Intermediate writes use no blending; reconstruction
 applies native blending once. `cloud_volume/reconstruct` reads exact four-texel metadata and uses two
 hardware bilinear continuous samples where all support texels are complete and depth-compatible.
@@ -882,12 +879,12 @@ alternative expanded-output path. Filtering before bucket expansion is the selec
 Metadata distinguishes invalid, complete contributing and complete exactly-empty rays. Empty support
 or an empty selected fallback skips continuous reads and native identity blends. Failed prefixes stay
 invalid. Reduced-resolution silhouettes can soften or thin, particularly at foreground depth boundaries;
-there is no temporal history or procedural lighting fallback. Odd sizes round up, and atmosphere shaft
-coordinates remain in full-view pixels. Targets cost 36 bytes per reduced pixel: half/quarter uses
-about40.7/10.2MiB at3440x1377 or71.2/17.8MiB at4K, separately from volume payloads. Full resolution
+there is no procedural lighting fallback. Reduced views retain physical temporal history. Odd sizes round up, and atmosphere shaft
+coordinates remain in full-view pixels. Compact trace and two history targets cost approximately 99 bytes per reduced pixel (ceil edges add excess): half/quarter uses
+about111.9/28.1MiB at3440x1377 or195.8/49.0MiB at4K, separately from volume payloads. Full resolution
 allocates none. Resize and renderer release retire reduced targets
 without clearing retained cloud lighting. The debug panel reports allocation. Native composition
-requires six draw buffers/attachments; view lighting uses nine fragment samplers.
+requires six draw buffers/attachments; reduced view lighting uses ten fragment samplers including shared blue noise.
 
 `CloudVolumeViewPass` retains immutable pass descriptions and graphics-pipeline preparation for each
 view pass. Its key includes framebuffer identity, attachment revision, extent, blending mode and
@@ -917,7 +914,7 @@ require measured performance and user appearance review.
 ## Independent lighting-volume candidate
 
 `PBR/Clouds/LightingVolume/` owns an independent lighting-grid candidate. `Clouds.VolumeRenderer`
-selects `Existing` (0, default) or `LightingVolumeCandidate` (1), separately from native Off/Simple/
+selects `StoredVolume` (0, default), `LightingVolumeCandidate` (1) or `Previous` (2), separately from native Off/Simple/
 Volumetric selection. Candidate controls live under `Clouds.LightingVolume`; existing quality settings
 are retained unchanged when switching. Its numerical rendering contract is described in the
 [lighting-volume proposal](PBR.CloudLightingVolume.Proposal.md).
@@ -1080,3 +1077,37 @@ actual update ages, allocation payload/counts and transition policy. Scheduler m
 while this view is active, at most once per second; GUI ticks read cached text. No new diagnostic
 texture or framework is allocated. The coarse fallback is source-lit, so black illumination also
 produces a black diagnostic view. Live appearance, timing and package qualification remain open.
+
+### Stored-volume temporal view
+
+Reduced tracing refreshes one location per 2x2 reduced tile in each four-frame cycle. The existing
+cloud blue-noise masks distribute tile phases; initial/incompatible views trace every reduced pixel.
+Every fresh ray integrates complete exact voxel intervals. A physically smaller raw target and two alternating
+history targets prevent read/write feedback. The raw target has ceil(history width/2) by ceil(history height/2) texels; the view maps each ray onto its selected reduced-grid location. Cold frames trace the full reduced grid into invalid previous-history storage before filtering into the disjoint destination. Compact metadata is RGBA32F: clip depth, completion,
+representative distance and raw traversal visits or filtered history count. Radiance stays physical
+through filtering and is encoded only during final native composition.
+
+`CloudReprojectionHistory`, `CloudTemporalParameters`, cloud-owned blue-noise storage and
+rotation-only reconstruction are shared with the previous renderer. General `blue_noise.glsl`
+reads an atlas with an explicit mask count; `interleaved_sampling.glsl` maps a supplied rank to a
+four-frame 2x2 schedule without depending on clouds or a texture layout. The stored-volume payload
+adapter owns filtering of its compact radiance/opacity and bucket values without borrowing previous
+transport or shadow-cache state. The temporal pass checks current foreground footprints, selects a
+compatible fresh neighbor where needed, and admits hardware-filtered history only when all four
+metadata taps agree. Current-neighborhood bounds and coverage reactivity contain stale lighting and
+geometry response; history count is capped at eight. A pixel is refreshed within four phases, but
+this does not promise zero ghosting or immediate fine-shape response.
+
+The count measures admitted reprojections, not independently retained observations. Sparse fresh
+neighborhood bounds can collapse to one sample and replace previous values completely; coverage
+reactivity can also reduce history weight to zero without resetting the count. Untraced pixels
+currently blend against a neighboring fresh observation rather than preserving history unchanged.
+Consequently, increasing counts or compatible-address coverage do not prove effective accumulation.
+
+Camera/material motion enters exactly once. Routine weather uploads, light/fog/exposure evolution
+and partial volume publication preserve compatible history. Camera cuts, incompatible storage/layout,
+world/context/shader identity, frame gaps, resolution/features/debug or underwater-mode changes revoke
+it. Commit and target rotation follow successful final submission only. Resize/reload/retirement
+release all view history without clearing compatible cloud-space density or illumination. These
+screen resources add no solver fence, CPU wait or new 3D field. User-run temporal appearance and
+measured total performance remain separate acceptance activities.

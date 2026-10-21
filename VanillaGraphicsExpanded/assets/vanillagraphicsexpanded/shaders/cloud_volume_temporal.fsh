@@ -15,12 +15,7 @@ vec4 CloudCurrentFetch(int layer,ivec2 pixel)
     return texelFetch(currentPayload,ivec3(pixel,layer),0);
 }
 
-/** Reconstructs camera-relative positions from this view's inverse transforms. */
-vec3 CloudTemporalPoint(vec2 uv,float depth)
-{
-    vec4 p=vgeFrame.invProjectionMatrix*vec4(uv*2.0-1.0,depth*2.0-1.0,1);
-    return (vgeFrame.invViewMatrix*vec4(p.xyz/p.w,0)).xyz;
-}
+@import "./includes/cloud_reprojection.glsl"
 /** Allows quantized support endpoints while retaining independent foreground and displacement rejection. */
 bool CloudHistoryCompatible(vec4 a,vec4 b,float expected,float currentSpacing,float previousSpacing)
 {

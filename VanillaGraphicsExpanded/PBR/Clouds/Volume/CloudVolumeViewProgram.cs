@@ -19,6 +19,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 internal sealed partial class CloudVolumeViewProgram:GpuProgram,ICloudVolumeViewBindings
 {
     private readonly PackedUniformBuffer view;
+    internal readonly CloudTemporalParameters Temporal;
     private VgeFrameUniformBuffer? frame;
     private GpuShaderStorageBuffer? lighting;
     internal VgeFrameUniformBuffer? Frame {get=>frame;set{RequireInputMutation();frame=value;}}
@@ -40,6 +41,7 @@ internal sealed partial class CloudVolumeViewProgram:GpuProgram,ICloudVolumeView
     public CloudVolumeViewProgram()
     {
         view=OwnUniformBuffer(new PackedUniformBuffer(240));
+        Temporal=OwnUniformBuffer(new CloudTemporalParameters());
         ProgramLayout.RegisterContract(Contract.Stages[0].Bindings);ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Captures the published geometry/scale independently of native procedural controls.</summary>
@@ -83,6 +85,8 @@ internal sealed partial class CloudVolumeViewProgram:GpuProgram,ICloudVolumeView
     CpuUniformBuffer ICloudVolumeViewBindings.Camera=>Frame??throw new InvalidOperationException("Stored cloud camera missing.");
     /// <summary>Publishes finite geometry and medium parameters.</summary>
     CpuUniformBuffer ICloudVolumeViewBindings.View=>view;
+    /// <summary>Publishes common cloud history admission and sampling phase.</summary>
+    CpuUniformBuffer ICloudVolumeViewBindings.TemporalInputs=>Temporal;
     /// <summary>Publishes the independent frozen photometric calibration.</summary>
     GpuShaderStorageBuffer IPhotometricFrameBindings.FrameLighting=>Lighting??throw new InvalidOperationException("Stored cloud scene lighting missing.");
     /// <summary>Checks every medium component before GPU upload.</summary>

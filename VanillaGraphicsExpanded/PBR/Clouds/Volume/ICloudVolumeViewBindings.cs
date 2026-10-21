@@ -15,6 +15,12 @@ internal interface ICloudVolumeViewBindings:IPhotometricFrameBindings
     /// <summary>Supplies finite stored geometry, physical sources and medium.</summary>
     [ShaderBinding("StoredVolumeView",ShaderBindingKind.UniformBlock,0,ShaderStageKind.Fragment)]
     CpuUniformBuffer View {get;}
+    /// <summary>Supplies the common cloud history certificate for reduced spatial sampling.</summary>
+    [ShaderBinding("CloudTemporalParameters",ShaderBindingKind.UniformBlock,14,ShaderStageKind.Fragment,Required=false)]
+    CpuUniformBuffer TemporalInputs {get;}
+    /// <summary>Distributes rotating reduced-pixel phases with the existing cloud blue-noise resource.</summary>
+    [ShaderBinding("viewBlueNoise",ShaderBindingKind.Sampler,9,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp,Required=false)]
+    GpuTexture? BlueNoise {set;}
     /// <summary>Reads conservative stored-density occupancy.</summary>
     [ShaderBinding("VolumeOccupancy",ShaderBindingKind.StorageBlock,0,ShaderStageKind.Fragment)]
     GpuShaderStorageBuffer? Occupancy {set;}

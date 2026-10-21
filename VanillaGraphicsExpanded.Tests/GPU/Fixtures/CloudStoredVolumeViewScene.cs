@@ -24,8 +24,9 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     private readonly VolumeStorage storage;
     private readonly CloudVolumeViewRenderer renderer;
     private readonly CloudOitSurface output;
-    private readonly CloudMapInput input;
+    private CloudMapInput input;
     private uint updateFrame;
+    private object? replacementIdentity;
     private CloudVolumeViewScene preparedScene=null!;
     /// <summary>Reports only the view owner's allocated trace products and reconstruction metadata.</summary>
     internal long ViewTargetBytes=>renderer.TargetBytes;
@@ -33,6 +34,14 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     internal int ViewPassPreparations=>renderer.PassPreparations;
     /// <summary>Exposes retained density identity so view-only changes cannot silently replace the cloud fields.</summary>
     internal DynamicTexture3D StoredDensity=>storage.Published.Density;
+    /// <summary>Reads actual fresh-ray validity and cell/block visits after the timed view submission.</summary>
+    internal float[] TraceReceipts=>renderer.TraceReceipts?.ReadPixels()??[];
+    /// <summary>Reads the successfully committed history metadata, independently of fresh-ray scheduling.</summary>
+    internal float[] HistoryReceipts=>renderer.HistoryReceipts?.ReadPixels()??[];
+    /// <summary>Borrows opt-in query owners for a separate nonnested per-pass measurement.</summary>
+    internal void SetPassTimers(GpuTimerQuery[]? timers){renderer.PassTimers=timers;}
+    /// <summary>Reports the shared history admission used by the last view.</summary>
+    internal bool HistoryCompatible=>renderer.HistoryCompatible;
     /// <summary>Authors the view-specific medium selector while fog remains owned by the shared frame snapshot.</summary>
     internal float Underwater {get;set;}
     internal AtmosphereLighting Atmosphere {get;set;}=new(Vector3.UnitZ,new Vector3(30),new Vector3(10),Vector3.Zero,Vector3.Zero,
@@ -66,7 +75,8 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             var reconstruction=GpuShaderProgramLibraries.Get<CloudVolumeReconstructProgram>(programs.Api,CloudVolumeReconstructProgram.Contract.Identity);
             Assert.NotNull(view);Assert.NotNull(reconstruction);
             Assert.True(reconstruction.EnsureReady(),reconstruction.PreparationFailure?.ToString());
-            renderer=Own(new CloudVolumeViewRenderer(view,reconstruction));
+            var temporal=GpuShaderProgramLibraries.Get<CloudVolumeTemporalProgram>(programs.Api,CloudVolumeTemporalProgram.Contract.Identity);
+            Assert.NotNull(temporal);renderer=Own(new CloudVolumeViewRenderer(view,reconstruction,temporal));
             output=Own(new CloudOitSurface(width,height,"Tests.Cloud.StoredVolume.View"));
         }
         catch{Dispose();throw;}
@@ -123,7 +133,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     /// <summary>Prepares immutable view inputs and clears targets outside the measured draw interval.</summary>
     internal void PrepareDraw(CloudVolumeViewSettings settings,float scale=1,float? clear=null)
     {
-        lighting.Capture(scale);Assert.True(renderer.Prepare(settings),renderer.Failure);
+        lighting.Capture(scale,input.Frame);Assert.True(renderer.Prepare(settings),renderer.Failure);
         RenderPassColor[] colors=Enumerable.Range(0,6).Select(i=>new RenderPassColor(i,AttachmentLoad.Clear,
             Clear:clear is {} c?ColorClearValue.Float(c,c,c,c):i<2?ColorClearValue.Float(1,1,1,1):ColorClearValue.Float(0,0,0,0))).ToArray();
         Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.StoredVolume.Clear",[],true,commands=>
@@ -131,7 +141,34 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         preparedScene=new CloudVolumeViewScene(camera,lighting.Buffer,Atmosphere,material,visibility,liquid,aerial,attenuation,shafts,Underwater);
     }
     /// <summary>Submits only the actual typed view draw, without preparation, clearing or readback.</summary>
-    internal bool DrawOnly()=>renderer.Draw(storage,input,preparedScene,output.Target,()=>true);
+    internal bool DrawOnly()=>replacementIdentity is null?renderer.Draw(storage,input,preparedScene,output.Target,()=>true):
+        renderer.Draw(storage.Published.View with{MaterialIdentity=replacementIdentity},input,preparedScene,output.Target,()=>true);
+    /// <summary>Models a new material owner reusing identical drawable allocations.</summary>
+    internal void ReplaceViewMaterialIdentity(){replacementIdentity=new object();}
+    /// <summary>Advances a complete camera/native frame pair without changing cloud storage identity.</summary>
+    internal void AdvanceFrame(float materialMotion=0,bool cameraCut=false,float yaw=0)
+    {
+        var bytes=camera.Bytes.ToArray();uint frame=input.Frame+1;
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(396,4),frame);
+        System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(508,4),cameraCut?1u:0u);
+        var v=System.Runtime.InteropServices.MemoryMarshal.Cast<byte,float>(bytes.AsSpan());
+        if(yaw!=0)
+        {
+            var view=v.Slice(16,16).ToArray();var inverse=new float[16];var clip=new float[16];
+            Vintagestory.API.MathTools.Mat4f.RotateY(view,view,yaw);
+            Vintagestory.API.MathTools.Mat4f.Invert(inverse,view);
+            Vintagestory.API.MathTools.Mat4f.Mul(clip,v[..16].ToArray(),view);
+            v.Slice(80,16).CopyTo(v.Slice(64,16));view.CopyTo(v.Slice(16,16));
+            inverse.CopyTo(v.Slice(48,16));clip.CopyTo(v.Slice(80,16));
+        }
+        // Recapture the retained camera rather than decoding calibration into a new owner: optional
+        // accessor defaults otherwise become explicit values and spuriously advance its generation.
+        camera.Capture(v[..16],v.Slice(16,16),v.Slice(32,16),v.Slice(48,16),v.Slice(64,16),v.Slice(80,16),
+            new(v[96],v[97]),v[98],frame,new(v[100],v[101],v[102]),new(v[104],v[105],v[106]),v[107],
+            new(v[124],v[125]),deltaTime:v[126],cameraCut:cameraCut,fogMinimum:v[103]);
+        input=input with{Frame=frame,
+            Placement=input.Placement with{Offset=input.Placement.Offset+new Vector3(materialMotion,0,0)}};
+    }
     /// <summary>Replaces attachment metadata on the same native target to exercise revision-based invalidation.</summary>
     internal void RefreshOutputMetadata()
     {

@@ -1649,66 +1649,144 @@ Phase 8.4 - Promote stored-volume rendering and adapt temporal sampling
   Depends on: Phase 8.3.
   Outcome: stored-volume rendering is the default volumetric implementation, with existing temporal
     machinery adapted to amortize its view traces; retained density/lighting remain independently owned.
-  [ ] Reconcile PBR.CloudVolume.Proposal.md / Status and intent, Ownership and integration and Initial
+  [x] Reconcile PBR.CloudVolume.Proposal.md / Status and intent, Ownership and integration and Initial
       controls with the authorized default promotion and subsequent removal. Update selection/default
       settings, ConfigLib labels and runtime construction so normal Volumetric mode uses stored-volume
       rendering without selecting experimental option2. Preserve native Off/Simple semantics and
       Full/Half/Quarter controls. Use a clean settings break, no migration or silent error fallback to
       either retiring implementation. Keep their temporary selection only until removal in8.5.
-  [ ] Reconcile the newly authorized temporal view design with PBR.CloudVolume.Proposal.md / Ownership
+  [x] Reconcile the newly authorized temporal view design with PBR.CloudVolume.Proposal.md / Ownership
       and integration, Rendering the published volume and Initial controls before implementation.
       Supersede the no-temporal-view restriction explicitly; keep stored-volume resource ownership
       and exact constant-cell transport. Update PBR.Clouds.md only for behavior actually delivered.
-  [ ] Inspect canonical CloudVolumeReconstruction, CloudTemporalHistory, blue-noise resources and
+  [x] Inspect canonical CloudVolumeReconstruction, CloudTemporalHistory, blue-noise resources and
       temporal/resolve shaders and their payload contracts. Identify reusable camera/material-motion,
       history admission, sequence, filtering and lifecycle machinery. Extract narrowly shared owners
       or helpers where compatible; adapt existing temporal ownership and payload boundaries instead of
       copying a second temporal stack or importing retiring transport, hierarchy or shadow-cache owners.
       Put retained temporal code in its steady-state cloud domain; identify every dependency that8.5
       must preserve. Do not build a permanent multi-renderer framework for the temporary coexistence.
-  [ ] Specify the reduced fresh-trace schedule, temporal sample sequence, history length/weights and
+  [x] Specify the reduced fresh-trace schedule, temporal sample sequence, history length/weights and
       disocclusion fallback. Use the existing blue-noise resource/sequence where possible. Distinguish
       spatial/subpixel sampling from stochastic longitudinal sampling: blue noise alone saves no work.
       Prefer amortizing pixel/subpixel traces while retaining exact intervals within each traced ray;
       any occupied-cell subsampling requires an explicit revised estimator/transport contract first.
       Preserve shared Full/Half/Quarter controls and a compiled full-resolution reference bypass.
-  [ ] Define a compatible physical history payload and required depth/completion/confidence metadata
+  [x] Define a compatible physical history payload and required depth/completion/confidence metadata
       for compact radiance, opacity and all three bucket responses. Account for current depth clipping,
       liquid/particle occlusion, source encoding and final six-attachment OIT composition in both PBR
       modes. Reuse hardware filtering; do not average unrelated encoded values or failed ray prefixes.
-  [ ] Reuse correct camera reprojection and native wind/material motion exactly once. Retain history
+  [x] Reuse correct camera reprojection and native wind/material motion exactly once. Retain history
       across ordinary camera motion, day/night, fog, exposure and weather-light changes; use responsive
       weighting for changing illumination rather than resetting every frame. Reject incompatible
       world/layout/material identities and genuinely disoccluded samples. Distinguish partial density/
       lighting publication from incompatible replacement so normal bounded updates do not clear all
       history. Define local rejection/reactivity for changed geometry and stale-to-refreshed lighting.
-  [ ] Implement shared history capture/commit and blue-noise scheduling through existing typed GPU
+  [x] Implement shared history capture/commit and blue-noise scheduling through existing typed GPU
       programs, bindings and submission abstractions. Commit only after successful complete submission;
       handle first frame, missing inputs, failure, resize, selection, reload and teardown. Keep volume
       solver fences/publication independent, no CPU waits or duplicate global UBOs. User-configured
       path disablement selects compile-time options. Charge history targets and bandwidth separately
       from volume storage, reuse allocations and justify every additional buffer/attachment.
-  [ ] Extend only affected existing fixtures for default selection, sequence progression, reprojection,
+  [x] Extend only affected existing fixtures for default selection, sequence progression, reprojection,
       identity/encoding, valid commit, disocclusion and lifecycle contracts. Run focused cached incremental
       builds/tests through subagents; reuse unchanged receipts. No approximation-quality, noise,
       convergence or image-error assertions, broad baseline matrix or routine packaging.
-  [ ] Compare matched current view against temporal view at unchanged volume/settings/resolution:
+  [x] Compare matched current view against temporal view at unchanged volume/settings/resolution:
       fresh rays and cell visits, trace/temporal/reconstruction and total GPU cost, CPU submission,
       history memory/bandwidth and retained/rejected coverage. Include stationary and moving cameras,
       wind, evolving weather/light, depth edges and replacement. Reuse capture evidence where relevant;
       do not assume fewer traces outweigh history overhead or conflate resolution changes with savings.
-  [ ] Obtain user-run review for stationary noise, edges, ghosting, motion/disocclusion and changing
-      lighting. Record measured tradeoffs and unresolved limits, reconcile proposal/current docs and
-      independently review default ownership, preserved temporal contracts and retirement boundaries.
-      Never launch
-      the game or infer appearance/FPS acceptance from fixtures; final packaging stays in Phase 9.
-  [ ] Completion: stored-volume rendering is the default; temporal sampling reduces fresh integration work,
-      compatible history is
-      retained safely, reusable machinery is shared with minimal duplication, and total costs plus
-      user-reviewed appearance are explicit. No silent weakening of stored-density/transport contracts.
+  [x] Record user-run base-appearance review and known temporal limitations. User accepts the clouds
+      for now and explicitly assigns ineffective temporal retention to8.6 after removal in8.5.
+      Reconcile current docs and independently review default ownership and retirement boundaries;
+      temporal stability/ghosting/dynamic-response acceptance belongs to8.6, not this closure.
+      Never launch the game or infer appearance/FPS acceptance from fixtures; final packaging stays in Phase 9.
+  [x] Completion: stored-volume rendering is the default, fresh integration work is reduced and shared
+      machinery/resource contracts are delivered. Base appearance is provisionally accepted; actual
+      history retention defects and their acceptance are explicitly transferred to8.6 by user request.
+      This closure does not claim effective temporal accumulation or an overall performance win.
+
+Phase 8.4 implementation and closure
+  Traceability: promotion/selection -> proposal / Status and intent, Ownership and integration,
+    Initial controls -> zero-valued StoredVolume selection, sanitized/default settings, native consumer
+    factory and ConfigLib label. Comparison choices1lighting-only/2previous remain for8.5 only.
+    This is a clean enum meaning change, not migration: a persisted2 now selects the previous path;
+    select0 for the default implementation. Native Off/Simple ownership remains unchanged.
+  Temporal payload/schedule -> proposal / Rendering the published volume and Temporal view sampling
+    contract -> physical compact payload, shared CloudReprojectionHistory/CloudTemporalParameters,
+    existing cloud blue-noise texture plus shared rank lookup and rotation-only projection. Previous
+    transport uses a small compatibility adapter; no previous transport/shadow resource owner is
+    borrowed by stored-volume rendering. Preserve these shared owners when removing old paths in8.5.
+  Each compatible frame physically traces ceil(historyWidth/2)*ceil(historyHeight/2) fresh rays,
+    mapped onto one blue-noise-distributed location per2x2 tile; four phases visit all real locations.
+    Every ray retains exact occupied-cell intervals. Cold/incompatible frames use invalid previous
+    history as full reduced-grid scratch before filtering into a disjoint destination. Full reference
+    compiles direct native output and runs no temporal pass/targets. Half/Quarter retain their controls.
+  Publication/lifetime -> proposal / Nonblocking updates and drawable publication; PBR.Clouds.md /
+    Stored-volume temporal view; PBR.Atmosphere.Publication.md / Publication contract;
+    Rendering.Enablement.md / Render boundaries -> current camera/material translation once, physical
+    radiance until final encoding, same six native outputs, typed graphics passes and hardware history
+    filtering. Separate working-material identity rejects replacements even when drawable allocations
+    are reused. Ordinary partial publication and continuous atmosphere/fog/exposure do not globally
+    invalidate history. Current depth/support, neighborhood bounds and coverage reactivity gate reuse;
+    count is capped at8. Commit/rotation follow successful final submission only; solver fences unchanged.
+  Screen memory:44*(2*historyW*historyH+ceil(historyW/2)*ceil(historyH/2))bytes, about99/reducedpixel;
+    plus32KiB blue noise. At3440x1377/quarter this is29382760bytes of targets; at4K/quarter about49MiB.
+    No additional3D field. Two128byte local temporal UBOs fit the existing fixed allowance, leaving508
+    bytes. Opt-in pass queries borrow existing GpuTimerQuery owners, never wait/read on the render path.
+    Logical attachment writes at3440x1377/quarter are44*(296700+74390)=16327960bytes per compatible
+    frame, versus2*44*296700=26109600 on cold frames, excluding clears/native outputs. An accepted
+    history lookup checks four16byte metadata texels and two bilinear continuous values (16+12bytes
+    per tap): up to176logical bytes/history pixel,52219200bytes for all296700pixels before reuse.
+    Current-neighborhood/depth/noise reads are additional; filtered taps and metadata share caches.
+    These are format-level traffic calculations, not measured device bandwidth, allocation overhead
+    or cache misses. GPU timings include the real passes; no hardware bandwidth counter claim is made.
+  Second review fixed executable-revision initialization and added independent material identity.
+    Existing fixtures cover default selection, unchanged native modes, encoding, failed prefixes,
+    all three depth clips, odd Full/Half/Quarter allocation, fresh ray count, growing admission metadata,
+    small camera yaw/material motion, changed foreground rejection, camera cuts, same-allocation
+    replacement and target retirement. No new test classes, quality thresholds or increased budgets.
+    Reused27passing CPU checks plus stored-solution lifecycle from phase84-current2.trx; refreshed
+    two candidate facts pass in phase84-final.trx, and two affected previous-path reprojection/noise
+    facts pass in phase84-shared.trx. Final cached build passed0errors/172warnings,565production and
+    650fixture cache hits, zero shader compiles. Receipts are under artifacts/StoredCloudLatest/.
+    The baseline had a stale Quarter-versus-Half phase assertion, corrected without changing transport.
+    An intermediate fixture recapture spuriously changed calibration; its invalid .0635ms result is
+    discarded. Final fixtures preserve camera calibration and validate GPU address admission, not surviving prior energy.
+  RTX4090 authored3440x1377/quarter: full-fresh versus retained sampling within the NEW path gave
+    occupied total1.0660->1.0291ms and empty.1567->.1260ms. Fresh rays296700->74390; traversal
+    visits3581530->898654. Separate diagnostic queries: trace.1167->.0707ms, temporal.0573->.0676,
+    composition.8909->.8909. Query overhead is included; their sum is not the independently timed total.
+    The full-fresh comparison still includes the temporal pass. The pre-change baseline occupied
+    samples.9626/1.5370/1.5759ms were noisy, so no net speedup versus the original implementation is
+    established. Reducing fresh integration does not remove the dominant full-resolution composition.
+  Single changing-input pairs (retained/full-fresh) remain diagnostics, not stable medians: small
+    camera1.0322/1.0670ms and wind1.0301/1.0660 admitted296355/296700history pixels; foreground
+    change1.0148/1.0609 admitted148350; same-allocation replacement rejected history. A broad authored
+    weather/light change halved extinction everywhere and changed source illumination: CPU history
+    remained compatible but GPU support rejected all previous samples,1.2370/1.0650ms. Record this
+    regression and retention limit; do not infer behavior for every ordinary weather/light update.
+    Density uploads, clears and readbacks are outside view timing; this is not full solver/weather cost.
+  Initial independent source review and focused checks passed, but subsequent user feedback and
+    shader inspection found that sparse fresh-neighborhood clamping can replace history completely,
+    untraced pixels are repeatedly mixed with spatial fallback, and admission counts can advance
+    without surviving prior contribution. Thus earlier admitted-pixel/count evidence is NOT proof
+    of effective accumulation. Four-tap/depth rejection also needs reevaluation. These findings and
+    stronger behavioral evidence/diagnostics are explicitly owned by8.6, not dismissed as passing tests.
+  On2026-10-21 the user reported base appearance acceptable for now, requested corrections after8.5
+    in new8.6, then explicitly requested8.4closure. Updated the final two tasks to reflect that scope
+    transfer; no temporal-quality or full-motion acceptance is inferred. Current architecture records
+    the limitation. Generic blue-noise/sampling helper extraction subsequently passed two affected
+    GPU checks (blue-noise-shared.trx) and cached build; no sampling behavior changed in that refactor.
+    Authored fields and uncontrolled contention still do not establish live FPS or an overall gain.
+    Independent closure recheck confirms the revised user-authorized contract is satisfied.
+    No packaging or game launch/close. Phase8.5/8.6/9 remain unchecked.
 
 Phase 8.5 - Remove the retired volumetric and lighting-only implementations
-  Depends on: Phase 8.4, including its adapted temporal machinery and user-run appearance review.
+  Depends on: Phase 8.4's delivered default selection and retained resource/temporal ownership.
+    User considers base appearance acceptable for now but reports ineffective temporal history.
+    Correcting and accepting that behavior belongs to8.6; it does not gate removal of retired paths.
   Outcome: one maintained volumetric renderer remains, without retired selectors, resources or assets.
   [ ] Inventory both retiring implementations and their exclusive consumers, transport/hierarchy/shadow
       programs, storage, settings, shader declarations, diagnostics and fixtures. Trace shared native
@@ -1741,8 +1819,62 @@ Phase 8.5 - Remove the retired volumetric and lighting-only implementations
       dependencies are intact, and no retired settings/programs/resources remain reachable. Second
       review and independent completion audit confirm deletion scope and documentation consistency.
 
-Phase 9 - Qualify the frozen implementation and reconcile documentation
+Phase 8.6 - Preserve effective cloud temporal history between fresh traces
   Depends on: Phase 8.5.
+  Outcome: untraced pixels retain compatible observations, and fresh observations update history
+    without sparse spatial reconstruction silently replacing it. Base appearance acceptance does
+    not establish temporal accumulation; earlier admission counters are not proof of retained energy.
+  [ ] Reconcile PBR.CloudVolume.Proposal.md / Temporal view sampling contract and Rendering the
+      published volume with the corrected retention policy. Consult PBR.Clouds.md / Stored-volume
+      temporal view and LumOn's screen-probe temporal pass for its preserve-untraced/update-traced
+      behavior. Adapt that policy to volumetric support and compact cloud payloads; do not import
+      surface-probe atlas identity, hit classification or velocity assumptions indiscriminately.
+  [ ] Separate freshly traced, history-only and spatial-fallback pixels explicitly. Preserve valid
+      reprojected history at untraced locations instead of blending it toward a neighboring fresh ray
+      every frame. Use spatial fallback only where compatible history is unavailable. Missing fresh
+      neighbors alone must not revoke usable history; genuinely disoccluded/invalid support must not
+      resurrect obsolete clouds. Keep exact occupied-cell transport and the existing trace schedule.
+  [ ] Correct neighborhood clipping for sparse observations. A single compatible fresh sample must
+      not collapse low/high to that sample and erase all previous information while claiming reuse.
+      Define when bounds are supported, how thin/edge support is handled and when fresh observations
+      may constrain history. Preserve finite admitted physical radiance/opacity/bucket bounds and
+      responsive weather/light changes without a blanket reset or unrelated-neighbor contamination.
+  [ ] Reevaluate four-tap history admission and depth/support comparisons. Ignore taps with exactly
+      zero hardware interpolation weight; specify safe treatment of mixed empty/contributing support.
+      Compare reprojected geometry in consistent coordinates/depth units rather than raw depths from
+      different cameras. Account for representative cloud distance uncertainty and material wind once.
+      Preserve depth/liquid/particle occlusion, finite coverage, replacement and failed-prefix safety;
+      do not weaken rejection merely to increase a counter or bypass hardware filtering.
+  [ ] Make history metadata describe real observations and contribution. Untraced carry-forward must
+      not count as a new independent sample. Rejection, zero effective weight or complete clamp
+      replacement must not increase an effective sample count. Select and document history length,
+      blend weights, age/confidence and lighting/coverage reactivity with these semantics; increasing
+      the frame limit alone is insufficient. Retain physical encoding until final native composition.
+  [ ] Extend the existing VGE cloud debug visualizer with actual retained/rejected coverage, effective
+      history weight after reactivity/clipping, fresh versus carried/fallback status and rejection
+      reasons. Distinguish compatible addresses from surviving prior information. Reuse existing
+      diagnostics/GPU abstractions, avoid synchronous runtime readbacks and justify extra metadata.
+  [ ] Strengthen affected existing fixtures with independently authored payloads that distinguish
+      retained history from current spatial fallback. Cover untraced preservation, fresh-only sample
+      count advancement, collapsed bounds, zero-weight edge taps, moving camera/wind, disocclusion,
+      changing lighting/weather and failure/replacement. Test declared arithmetic/identity contracts,
+      not approximation quality, convergence, image error or noise thresholds. Reuse fixtures, run
+      focused cached incremental checks through subagents and avoid broad matrices or packaging.
+  [ ] Measure trace/filter/composition and independent total cost at unchanged volume/settings/view
+      resolution, including history traffic and actual contribution diagnostics. Reuse previous cost
+      evidence where unchanged. Inspect stationary views, edges, camera/wind motion and changing
+      weather/light; label authored workloads and contention. Do not interpret an accepted-address
+      count, reduced ray count or faster isolated pass as proof of effective accumulation or net gain.
+  [ ] Obtain user-run review for stationary stability, cloud boundaries, ghosting, camera motion and
+      dynamic lighting/weather response. Reconcile proposal/current docs with delivered behavior and
+      independently audit retention, resource lifetime and diagnostics before marking complete.
+      Never launch the game; final frozen packaging remains Phase9.
+  [ ] Completion: prior information demonstrably survives at valid untraced locations, fresh updates
+      follow the declared weighting/count semantics, disocclusion remains safe, and diagnostics plus
+      user review establish effective temporal behavior. Performance limits remain explicit.
+
+Phase 9 - Qualify the frozen implementation and reconcile documentation
+  Depends on: Phase 8.6.
   Outcome: measured total cost, memory and user appearance determine candidate acceptance.
   [ ] Freeze the candidate and run canonical packaging/required final checks once. Verify delivered
       assets, selectable settings and cleanup; do not treat older candidate receipts as qualification.

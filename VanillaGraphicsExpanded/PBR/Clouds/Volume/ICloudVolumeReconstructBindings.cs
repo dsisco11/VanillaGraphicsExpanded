@@ -1,10 +1,12 @@
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
+using VanillaGraphicsExpanded.PBR.CameraExposure;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Declares compact continuous cloud results separately from exact depth/completion metadata.</summary>
-internal interface ICloudVolumeReconstructBindings
+[ShaderBindingSet(typeof(IPhotometricFrameBindings),Defaults=true)]
+internal interface ICloudVolumeReconstructBindings:IPhotometricFrameBindings
 {
     #region Public API
     /// <summary>Borrows the shared frame publication for normalized full-view coordinates.</summary>

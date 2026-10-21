@@ -1,6 +1,7 @@
 #version 430 core
 @import "../includes/oit.glsl"
 @import "../includes/vge_frame_ubo.glsl"
+@import "../includes/pbr_scene_storage.glsl"
 uniform sampler2D reconstructCloud;
 uniform sampler2D reconstructBins;
 uniform sampler2D reconstructMetadata;
@@ -32,6 +33,7 @@ void main()
     if(!found||empty||(!filtered&&selectedEmpty))discard;
     vec2 sampleUv=filtered?uv:selected;
     vec4 cloud=textureLod(reconstructCloud,sampleUv,0);
+    cloud.rgb=VgeStoreSceneLighting(cloud.rgb);
     vec3 bins=textureLod(reconstructBins,sampleUv,0).rgb;
     // Expansion follows filtering by design; no native accumulation or glow images are retained.
     outOitRevealBins=bins;outRevealage=clamp(1-cloud.a,0,1);

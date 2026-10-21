@@ -1,14 +1,12 @@
 #ifndef VGE_CLOUD_VOLUME_SAMPLING
 #define VGE_CLOUD_VOLUME_SAMPLING
 #ifdef VGE_CLOUD_PRIMARY_NOISE
+@import "./blue_noise.glsl"
 uniform sampler2D cloudPrimaryNoise;
 /** Uses the traced full-view position and an eight-frame spatial-mask index independently of reconstruction phase. */
 float CloudPrimaryJitter(vec2 uv)
 {
-    ivec2 size=textureSize(cloudPrimaryNoise,0);
-    ivec2 pixel=ivec2(floor(uv*vgeFrame.screenSize));
-    int side=size.y/8,frame=int(vgeFrame.frameIndex%8u);
-    return texelFetch(cloudPrimaryNoise,ivec2(pixel.x%size.x,pixel.y%side+frame*side),0).r;
+    return BlueNoiseRank(cloudPrimaryNoise,ivec2(floor(uv*vgeFrame.screenSize)),vgeFrame.frameIndex,8);
 }
 #else
 /** Keeps deterministic full-view validation independent of spatial sampling resources. */

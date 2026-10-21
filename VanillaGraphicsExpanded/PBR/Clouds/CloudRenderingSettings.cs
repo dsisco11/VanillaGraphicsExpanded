@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 public sealed class CloudRenderingSettings
 {
     /// <summary>Selects the candidate only by explicit developer choice.</summary>
-    [JsonProperty] public CloudVolumeRendererKind VolumeRenderer { get; set; }=CloudVolumeRendererKind.Existing;
+    [JsonProperty] public CloudVolumeRendererKind VolumeRenderer { get; set; }=CloudVolumeRendererKind.StoredVolume;
     /// <summary>Owns candidate controls separately from existing quality.</summary>
     [JsonProperty] public LightingVolume.LightingVolumeSettings LightingVolume { get; set; }=new();
     /// <summary>Owns stored-density candidate controls independently of other renderers.</summary>
@@ -44,7 +44,7 @@ public sealed class CloudRenderingSettings
     /// <summary>Bounds persisted input before it controls shader work; nonfinite values restore authored defaults.</summary>
     public void Sanitize()
     {
-        if(!Enum.IsDefined(VolumeRenderer)) VolumeRenderer=CloudVolumeRendererKind.Existing;
+        if(!Enum.IsDefined(VolumeRenderer)) VolumeRenderer=CloudVolumeRendererKind.StoredVolume;
         LightingVolume ??= new();LightingVolume.Sanitize();
         StoredVolume ??=new();StoredVolume.Sanitize();
         if(TraceScale is not (CloudTraceScale.Half or CloudTraceScale.Quarter)) TraceScale=CloudTraceScale.Quarter;
