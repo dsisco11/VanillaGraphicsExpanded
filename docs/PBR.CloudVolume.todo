@@ -1913,8 +1913,62 @@ Phase 8.6 - Preserve effective cloud temporal history between fresh traces
       follow the declared weighting/count semantics, disocclusion remains safe, and diagnostics plus
       user review establish effective temporal behavior. Performance limits remain explicit.
 
+Phase 8.7 - Spend persisted-lighting ray budgets on occupied voxels
+  Depends on: Phase 8.5 and the delivered LightingRaysPerUpdate control. Independent of8.6's
+    view-history correction; both must finish before final qualification.
+  Outcome: occupied cloud material receives the lighting work, with explicit accounting for useful
+    rays rather than treating conservative block capacity as actual tracing throughput.
+  [ ] Reconcile PBR.CloudVolume.Proposal.md / Density generation, Metadata, budgets and source changes,
+      and Nonblocking updates and drawable publication; consult PBR.Clouds.md / Persisted lighting
+      update budget. Inventory actual scheduling, traversal occupancy, empty-lane skips and dispatch
+      costs. Separate selected blocks, occupied origin voxels, launched rays and completed updates.
+      Reuse existing capture/fixture evidence; gather only missing measurements.
+  [ ] Separate exact positive-density scheduling support from conservative traversal support.
+      Maintain own-block nonempty information or occupied-voxel counts during density generation
+      and maintenance, without rescanning the full density field every update. Do not remove the
+      traversal halo solely to improve scheduling: independently prove any tighter traversal support
+      against exact-cell semantics before changing it. Pending/unknown support stays conservative.
+      Handle entering/departing cells, circular seams, guards, replacement and failed updates.
+  [ ] Exclude blocks with no occupied origin voxels from direct/diffuse selection while preserving
+      their pending revisions. Reintroduce them when density becomes positive, retaining demand age
+      and fair service. Prioritize initialized/stale/visible work through existing owning policies;
+      changing source direction or remote density must still enqueue dependent occupied receivers.
+  [ ] Evaluate and implement occupied-voxel job compaction where total measured cost supports it.
+      Compare exact-support block selection first, then compact per-voxel or sub-block work against
+      its list construction, metadata, dispatch and maintenance cost. Avoid a persistent global list
+      unless its lifecycle and measured benefit justify it. Use existing GPU buffers, typed programs,
+      indirect dispatch and barriers; no CPU job-list readback or generic scheduling framework.
+  [ ] Define LightingRaysPerUpdate accounting for the selected algorithm. Charge one direct ray per
+      occupied voxel/source and eight diffuse rays per occupied voxel; retain the current solver
+      allocation ratio unless explicitly revised. Refill unused empty-origin capacity with eligible
+      occupied work within bounded selection effort. State granularity, rounding and underspend when
+      insufficient work exists; do not silently change the budget's meaning or trace beyond it.
+      Preserve the default/range, relevant-source rules and individual ray/scattering schedules.
+  [ ] Preserve coherent partial-update publication. If selected work no longer covers complete blocks,
+      do not stamp a whole block fresh after a partial voxel update. Define partial completion and
+      fair cursors explicitly, preserve untouched destination values and diffuse repair history, and
+      publish only successful dirty regions. Keep one coherent diffuse source per gather iteration,
+      nonblocking fences, failure withdrawal and retained field/view identities.
+      Charge all added metadata/scratch and peak replacement storage against the existing limits.
+  [ ] Extend existing debug statistics with eligible occupied voxels, actual direct/diffuse ray counts,
+      reserved-versus-used budget, empty dispatch work and oldest pending age. Reuse deferred status
+      and developer diagnostics; no new synchronous runtime readbacks or per-frame diagnostic scans.
+  [ ] Extend focused existing fixtures for sparse/halo-only/empty blocks, partial occupancy, source
+      activation, density changes, seams/recentering and minimum/default/maximum budgets. Verify exact
+      selection/bounds, no duplicate origin/source jobs, fairness, complete metadata and failed-update
+      safety. No approximation-quality or convergence thresholds. Run cached incremental builds and
+      affected tests through subagents; avoid broad matrices or routine packaging.
+  [ ] Compare total selection, compaction, tracing, repair and publication cost at matched settings
+      and occupied content. Include sparse and dense cases plus evolving weather; report useful rays,
+      refresh age, memory and contention. Reject compaction that costs more overall; retain measured
+      exact-support scheduling gains without claiming that higher ray utilization alone means speedup.
+      Reconcile proposal/current documentation, perform second review and independent completion audit.
+  [ ] Completion: empty origin regions no longer consume lighting jobs, the selected implementation
+      demonstrably directs bounded work to occupied density, and ray accounting plus completion
+      metadata remain truthful. Any rejected compaction alternative and remaining limitations are
+      explicit. Final package and user-run appearance/performance acceptance remain Phase9.
 Phase 9 - Qualify the frozen implementation and reconcile documentation
-  Depends on: Phase 8.6.
+  Depends on: Phases 8.6 and 8.7.
   Outcome: measured total cost, memory and user appearance determine candidate acceptance.
   [ ] Freeze the candidate and run canonical packaging/required final checks once. Verify delivered
       assets, selectable settings and cleanup; do not treat older candidate receipts as qualification.
