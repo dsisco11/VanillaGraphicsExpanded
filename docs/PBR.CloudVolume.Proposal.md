@@ -290,11 +290,37 @@ Reduced views retain two compact physical history sets and a disjoint current tr
 
 A compatible untraced pixel carries hardware-filtered prior transport unchanged; neighboring current observations supply spatial fallback only when history is unavailable. Fallback has zero independent-observation count and cannot seed reusable history. A failed fresh ray remains invalid. Certified empty fresh rays reject contributing history. Removed cloud support is therefore observed at the next fresh phase, normally within four frames, rather than triggering a blanket publication reset.
 
-Admit every exactly nonzero bilinear metadata tap before two hardware-filtered transport reads. Require matching empty/contributing support, finite payload, a real observation count, no more than seven carried frames, previous-camera clip support and representative-distance agreement within max(2 world units,5 percent). When the footprint mixes incompatible support, select its nearest individually admitted texel centre instead of rejecting all history. Both physical textures use that same centre through their hardware samplers; rejected taps never contribute. Confidence and age then come from the selected observation, rather than the rejected footprint. If no tap qualifies, reject history. A fresh empty ray still cannot retain contributing history. Project the current scene endpoint into the previous camera using the shared origin-rebased previous view-projection and current inverse view (including native eye translation) before comparing clip depths (2e-5 projection-depth tolerance). Cloud reprojection additionally applies material wind once. Distance is a contribution-weighted proxy with uncertainty, not an exact first-hit surface. These conservative gates may reduce retention near edges and moving foregrounds; nearest support also introduces a bounded screen-space displacement within the original four-tap footprint.
+For untraced pixels with zero relative material translation, establish the previous address from
+the rotated viewing direction without guessing cloud distance. Classification and representative
+distance come from the nearest admissible support at that address, never the old same-screen
+coordinate. With translation or wind, use the nearest completed current fresh neighbor within the
+existing 3x3 neighborhood as an independent classification/distance proxy; reject if no such
+observation exists. Project that proxy into the previous camera and validate previous support
+against its classification and previous-camera distance. This bounded approximation can lose
+history at depth discontinuities; it does not establish an exact volumetric correspondence.
+Carried metadata follows the same admitted physical footprint (bilinear distance for a fully
+qualified footprint, otherwise the selected centre). Convert its previous-camera range to current
+ray range by solving `|direction*range + materialTranslation| = previousRange`, taking the positive
+far root; reject a nonpositive solution. Fresh rays retain their own measured range. Empty support
+stores zero range. No extra rays, search textures or persistent metadata are introduced.
+
+Admit every exactly nonzero bilinear metadata tap before two hardware-filtered transport reads. Require matching empty/contributing support, finite payload, a real observation count, each tap's refresh age below seven, previous-camera clip support and representative-distance agreement within max(2 world units,5 percent). When the footprint mixes incompatible support, select its nearest individually admitted texel centre instead of rejecting all history. Both physical textures use that same centre through their hardware samplers; rejected taps never contribute. Confidence and age then come from the selected observation, rather than the rejected footprint. If no tap qualifies, reject history. A fresh empty ray still cannot retain contributing history. Project the current scene endpoint into the previous camera using the shared origin-rebased previous view-projection and current inverse view (including native eye translation) before comparing clip depths (2e-5 projection-depth tolerance). Cloud reprojection additionally applies material wind once. Distance is a contribution-weighted proxy with uncertainty, not an exact first-hit surface. These conservative gates may reduce retention near edges and moving foregrounds; nearest support also introduces a bounded screen-space displacement within the original four-tap footprint.
 
 Only fresh pixels may use neighborhood bounds, and only with at least four same-support, distance-compatible fresh observations spanning two pixels in both axes. Unsupported sparse bounds do nothing. If supported bounds exclude prior transport, reject its contribution and reset confidence to one rather than claiming a clipped sample survived. Fresh blend weight is min(previous count,7)/(min(previous count,7)+1), multiplied by opacity and relative-radiance reactivity. Opacity reactivity is clamp(1-4*abs(delta opacity),0,1); radiance reactivity is clamp(1-max RGB delta/max RGB peak,0,1). Values remain physical until native composition. Routine lighting/weather/fog/exposure changes do not revoke the CPU certificate; fresh observations adapt their weight.
 
-History count is the declared equivalent observation confidence 1/(1-effective prior weight), capped at eight on fresh updates. Carry preserves count and increments observation age; it never invents an independent observation. Zero prior weight and clipping replacement produce count one. Age expires at seven carried frames to bound reprojection-only persistence. Diagnostics distinguish address admission from actual old weight and from fallback. Screen allocation and bandwidth are additional to volume payload. User-run stationary, edge, camera/wind, ghosting and dynamic lighting/weather review and measured total cost remain acceptance requirements.
+History count is the declared equivalent observation confidence 1/(1-effective prior weight), capped at eight on fresh updates. Carry transports confidence and increments refresh age; it never invents an independent observation. Zero prior weight and clipping replacement produce count one. Each support tap must have refresh age below seven before admission. Diagnostics distinguish address admission from actual old weight and from fallback. Screen allocation and bandwidth are additional to volume payload. User-run stationary, edge, camera/wind, ghosting and dynamic lighting/weather review and measured total cost remain acceptance requirements.
+
+A fully admitted bilinear footprint uses the same weights for refresh age as for its physical
+transport: `age = sum(weight * tapAge)`. Confidence is the weighted harmonic mean,
+`count = 1 / sum(weight / min(tapCount,8))`, clamped to [1,8]. This is transported blend confidence,
+not a claim that interpolation creates independent observations; it stays within the contributing
+confidence range. A nearest-centre fallback uses only that centre's age and confidence.
+Carry adds one to the weighted age; a real fresh trace resets refresh age to zero. Refresh age
+describes time since contributing spatial support was refreshed, not the oldest radiance component
+inside an accumulated observation. An expired tap never contributes. Without incoming fresh
+observations, the minimum age of surviving support advances by one on every carry and expires;
+spatial averaging cannot perpetuate unrefreshed data. Incoming fresh support lowers age only in
+proportion to its bilinear contribution. All foreground, support and distance gates remain separate.
 
 Certify an exactly unchanged compatible material-to-view transform on the CPU using zero relative
 translation and identical projection/rotation. In that case use the destination's exact integer

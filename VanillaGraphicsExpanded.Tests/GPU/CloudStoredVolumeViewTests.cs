@@ -256,6 +256,61 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         Assert.Contains(9,failed.Where((_,i)=>i%4==2));
         for(int i=0;i<failed.Length;i+=4)if(failed[i+2]==9)Assert.Equal(0,failedMeta[i+1]);
     }
+    /// <summary>Moving history carries corresponding cloud support rather than unrelated same-screen metadata.</summary>
+    [Fact]
+    public void TemporalMotionCarriesMappedClassificationAndCurrentFrameDistance()
+    {
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,16,16);
+        scene.SetDepths(1000,1000,1000);
+        scene.Draw(CloudVolumeViewSettings.Default with{Detail=false,TraceDivisor=2});
+        var prior=new float[8*8*4];var metadata=new float[prior.Length];
+        var bins=Enumerable.Repeat(1f,8*8*3).ToArray();
+        for(int y=0;y<8;y++)for(int x=0;x<8;x++)
+        {
+            int p=y*8+x;metadata[p*4]=1;metadata[p*4+1]=x<4||x%2==1?1:2;metadata[p*4+3]=4;
+            if(x>=4&&x%2==1)metadata[p*4+2]=99;
+            if(x>=4)continue;
+            metadata[p*4+2]=10;prior[p*4]=2;prior[p*4+1]=3;prior[p*4+2]=4;prior[p*4+3]=.5f;
+            bins[p*3]=.2f;bins[p*3+1]=.4f;bins[p*3+2]=.6f;
+        }
+        scene.SeedHistory(prior,metadata,new float[prior.Length],bins);
+        var rays=new float[4*4*4];var rayMeta=new float[rays.Length];
+        for(int p=0;p<16;p++)
+        {
+            rays[p*4]=2;rays[p*4+1]=3;rays[p*4+2]=4;rays[p*4+3]=.5f;
+            rayMeta[p*4]=1;rayMeta[p*4+1]=1;rayMeta[p*4+2]=10;
+        }
+        // A positive previous yaw maps current right-hand pixels onto the old cloud band.
+        // Translation additionally changes the camera-relative distance even when its source
+        // history distance is ten; the current neighbor is independent correspondence evidence.
+        foreach(var motion in new[]{(Yaw:.55f,Translation:Vector3.Zero),
+            (Yaw:0f,Translation:new Vector3(-4,0,0)),(Yaw:.45f,Translation:new Vector3(-1,0,1))})
+        {
+            var result=scene.FilterAuthored(rays,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta,
+                translation:motion.Translation,previousYaw:motion.Yaw);
+            int mapped=0,wrongClass=0,wrongDistance=0;
+            for(int y=1;y<7;y++)for(int x=4;x<7;x++)
+            {
+                int p=y*8+x,i=p*4;
+                if(result[3][i+1]!=2||result[2][i+1]!=1)continue;
+                mapped++;if(metadata[i+1]==2)wrongClass++;else wrongDistance++;
+                Assert.Equal(4,result[2][i+3]);Assert.Equal(1,result[4][p]);
+                Assert.Equal(2,result[0][i],5);Assert.Equal(3,result[0][i+1],5);
+                Assert.Equal(4,result[0][i+2],5);Assert.Equal(.5f,result[0][i+3],5);
+                Assert.Equal(.2f,result[1][p*3],5);Assert.Equal(.4f,result[1][p*3+1],5);
+                Assert.Equal(.6f,result[1][p*3+2],5);
+                var direction=Vector3.Normalize(new Vector3((x+.5f)/4-1,(y+.5f)/4-1,-1));
+                float along=Vector3.Dot(direction,motion.Translation);
+                float expected=MathF.Sqrt(100-motion.Translation.LengthSquared()+along*along)-along;
+                Assert.Equal(expected,result[2][i+2],4);
+            }
+            Assert.True(mapped>0,$"No corresponding cloud survived yaw {motion.Yaw}, translation {motion.Translation}.");
+            Assert.True(wrongClass>0&&wrongDistance>0,"Both unrelated empty and unrelated distant same-screen support must be corrected.");
+            output.WriteLine($"Motion yaw={motion.Yaw}, translation={motion.Translation}: mapped wrong class={wrongClass}, wrong distance={wrongDistance}; "+
+                string.Join(", ",Enumerable.Range(0,64).GroupBy(p=>result[3][p*4+1]).Select(g=>$"status {g.Key}={g.Count()}"))+"; "+
+                string.Join(", ",Enumerable.Range(0,64).GroupBy(p=>result[3][p*4+2]).Select(g=>$"reason {g.Key}={g.Count()}")));
+        }
+    }
     /// <summary>Records a bounded authored view workload without a speed or approximation threshold.</summary>
     [Fact]
     public void RecordStoredViewCost()

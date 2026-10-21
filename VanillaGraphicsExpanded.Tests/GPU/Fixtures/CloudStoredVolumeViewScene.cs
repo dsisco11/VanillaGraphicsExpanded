@@ -105,8 +105,8 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         fields.Density.UploadDataImmediate(Enumerable.Repeat(sigma,d.Voxels).ToArray(),0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(Enumerable.Repeat(sigma==0?0u:1u,d.Blocks).ToArray());
     }
-    /// <summary>Filters authored compact rays with an explicit material reprojection offset through the actual temporal program.</summary>
-    internal float[][] FilterAuthored(float[] cloud,float[] bins,float[] metadata,bool diagnostics=true,Vector3 translation=default)
+    /// <summary>Filters authored compact rays with explicit previous-camera rotation and material translation through the actual temporal program.</summary>
+    internal float[][] FilterAuthored(float[] cloud,float[] bins,float[] metadata,bool diagnostics=true,Vector3 translation=default,float previousYaw=0)
     {
         temporalProgram.ConfigureOptions(()=>temporalProgram.DiagnosticsEnabled=diagnostics);
         Assert.True(temporalProgram.EnsureReady(),temporalProgram.PreparationFailure?.ToString());
@@ -120,6 +120,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         using var noise=CloudBlueNoiseTexture.Create();noise.EnsureCreated();
         raw.Images[0].UploadDataImmediate(cloud);raw.Images[1].UploadDataImmediate(bins);raw.Images[2].UploadDataImmediate(metadata);
         var projection=camera.CurrentViewProjection.ToArray();camera.Projection.Slice(12,4).CopyTo(projection.AsSpan(12));
+        if(previousYaw!=0)Vintagestory.API.MathTools.Mat4f.RotateY(projection,projection,previousYaw);
         temporalProgram.Temporal.Capture(projection,translation,destination.Target.Width,destination.Target.Height,input.Frame,true);
         lighting.Capture(1,input.Frame);
         try

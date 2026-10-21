@@ -2047,32 +2047,89 @@ Phase 8.6.2 - Correct history distance and classification during camera motion
   Depends on: delivered8.6.1 boundary retention and exact stationary-address handling.
   Outcome: untraced pixels establish and validate correspondence using metadata belonging to
     the reprojected cloud region, rather than assuming old same-screen metadata describes it.
-  [ ] Reconcile temporal.fsh, CloudReprojectionHistory and the temporal contracts in
+  [x] Reconcile temporal.fsh, CloudReprojectionHistory and the temporal contracts in
       PBR.CloudVolume.Proposal.md and PBR.Clouds.md. Identify the frame, ray and coordinate system
       owning each distance/classification value. Distinguish the confirmed metadata defect from
       unmeasured causes of widespread rejection during live camera motion.
-  [ ] Replace the untraced-pixel same-screen metadata bootstrap with bounded correspondence.
+  [x] Replace the untraced-pixel same-screen metadata bootstrap with bounded correspondence.
       Handle pure rotation without a guessed cloud distance; establish and validate a justified
       representative position for translation and cloud advection. Do not validate correspondence
       solely against the stale metadata that selected it or treat a volume integral as a surface.
-  [ ] Obtain classification, distance, confidence and age from corresponding history support;
+  [x] Obtain classification, distance, confidence and age from corresponding history support;
       compare distances in a common coordinate system. Keep physical transport and bucket payloads
       paired with that support. Preserve camera/cloud motion exactly once, stationary addressing,
       hardware-filtered payload reads, and foreground, fresh-empty, failed-ray and expiry rejection.
-  [ ] Preserve scheduling and carried-observation semantics. Unresolved correspondence uses the
+  [x] Preserve scheduling and carried-observation semantics. Unresolved correspondence uses the
       existing untrusted spatial fallback without invented confidence. Do not mask the defect by
       increasing history length or ray count or globally weakening rejection. Inspect age/confidence
       propagation separately and report remaining problems without assuming this fixes all motion noise.
-  [ ] Extend existing focused fixtures with rotation, translation and combined camera/cloud motion
+  [x] Apply the user-approved follow-up for contribution-aware refresh age and confidence after
+      reviewing cloud-temporal-camera-rot.rdc. Use the admitted bilinear weights for refresh age
+      and a weighted harmonic confidence, without independent-observation increments on carry.
+      Keep per-tap expiry, nearest-support ownership, failed-fresh and foreground rejection intact.
+      Verify that resampling without incoming real observations still expires and reconcile the
+      changed metadata semantics with proposal/current docs; no extra rays, resources or diagnostics.
+  [x] Extend existing focused fixtures with rotation, translation and combined camera/cloud motion
       where same-screen old metadata belongs to a different cloud/empty region. Verify correspondence,
       genuine rejection, paired payload ownership and stationary preservation using existing GPU
       abstractions and compile-time optional diagnostics. No approximation-quality/image-error gates.
       Run focused cached incremental checks through subagents; no broad matrices or packaging.
-  [ ] Inspect rejection reasons and effective prior contribution under motion; request targeted
+  [x] Inspect rejection reasons and effective prior contribution under motion; request targeted
       moving-capture evidence only for unresolved questions. Account for added reads/work at unchanged
       sampling settings and obtain user-run review of noise, silhouettes, disocclusion and trails.
       Reconcile current documentation, perform second review and independent audit, and record
       evidence limits. Never launch or close the game; visual acceptance remains explicit.
+
+Phase 8.6.2 implementation and verification (complete)
+  Traceability: correspondence/support/safety tasks -> proposal / Temporal view sampling contract
+    and Rendering the published volume; PBR.Clouds.md / Stored-volume temporal view; atmospheric
+    publication ownership -> temporal.fsh and the existing shared camera/material certificate.
+    Direction-only motion establishes its address without a range guess. Translation uses the
+    existing nearest current fresh neighbor as independent class/range evidence. Admitted support
+    supplies carried range, converted into current-ray coordinates; no new rays/resources/settings.
+  Verification: focused cached Release build succeeded with0errors and169existing warnings.
+    Initial compiler-cache configuration, concurrent input edit and Windows directory publication
+    failures were recovered; the final recovery reused all612fixture records with0compiler calls.
+    artifacts/CloudEdges/motion-build-recovery.log and motion-focused.trx record16/16passing checks:
+   14CPU history cases, existing temporal GPU safety fact and one new authored motion GPU fact.
+    Pure rotation/translation/combined motion corrected unrelated empty and distant same-screen
+    support while preserving paired physical values, count4, age1 and actual prior weight1.
+    On each64-pixel authored frame respectively:16fresh,27/26/18carried and21/22/30fallback;
+    corrected wrong-class pixels4/6/9 and wrong-distance pixels5/5/5. Genuine bounds and distance
+    rejection remain. These are contract receipts, not image-quality or live-performance evidence.
+  Cost/limits: source-level stationary untraced metadata reads remain2RGBA32F plus1R16F age.
+    Fractional rotation adds a support-establishment walk: up to8metadata and8age reads versus
+    the former5metadata/4age; physical hardware-filtered reads remain2. Translated carries remove
+    the old same-screen metadata read and add bounded range-conversion arithmetic. These are
+    source upper bounds, not measured memory transactions or a GPU timing claim. No cost matrix,
+    packaging or game launch/close was performed. Translation proxies may reject depth boundaries.
+    Subsequent moving-capture analysis identified max-age/min-confidence propagation as a remaining
+    retention weakness; the user authorized its contribution-aware correction as follow-up here.
+    Second source review and independent completion audit found no code/documentation defects and
+    verified the focused receipts. The final user-run motion/silhouette/disocclusion/trail review
+    accepted the delivered correspondence and freshness corrections.
+
+  Approved freshness follow-up: the moving capture in artifacts/CloudRotation/ establishes valid
+    rotation-only history, with788of859lost prior contributions above0.001opacity expiring by age.
+    Mixed bilinear footprints propagated their oldest age and lowest confidence regardless of weight.
+    The user approved correcting this policy. Full admitted footprints now use weighted refresh age
+    and harmonic confidence; nearest fallback retains only its own metadata. Per-tap age7expiry,
+    actual-fresh age reset, foreground/support gates and failed-ray safety remain. No shader interfaces,
+    textures, fetches, ray counts or settings were added; extra arithmetic replaces min/max propagation.
+    Refresh age is not a guarantee about the oldest accumulated radiance component. Without fresh
+    input, surviving support's minimum age still advances each carry until it expires.
+  Follow-up verification: cached incremental build selected only2of531production and2of612fixture
+    temporal variants. Existing16checks passed against the final production shader in
+    artifacts/CloudEdges/freshness-focused.trx. New CloudTemporalFreshnessTests fact passed in
+    freshness-retry.trx after replacing an overprecise hardware-filter assertion with uniform physical
+    support; its variable metadata still verifies analytic weighted age/harmonic confidence and eight
+    repeated carries without new observations expire. These17passing checks are across two receipts,
+    not one passing run. Proposal/current docs describe the revised metadata semantics. No live noise,
+    motion/trail acceptance or GPU timing claim is inferred from these receipts.
+    Second review and independent follow-up audit found no code/documentation defects and verified
+    all17distinct passing checks. The user explicitly answered "Looks acceptable" to the rotation-noise,
+    trails and newly revealed edges review. Independent closeout audit confirms all seven tasks are
+    satisfied. Phase8.6.2 is complete; subsequent subphases remain unchecked.
 
 Phase 8.6.3 - Share camera reprojection machinery with surface lighting
   Depends on: Phase8.6.2 motion correspondence correction and delivered shared frame-camera data.

@@ -76,15 +76,15 @@ bool StoredTemporalHistory(vec2 uv,float depth,float distance,float kind,bool fr
     value=vec4(0);bins=vec3(1);count=8;age=0;reason=0;StoredTemporalReason(1);support=vec2(0);
     if(cloudHistory.x<.5)return false;
     vec3 direction=normalize(CloudTemporalPoint(uv,1));
-    // History-only locations use their previous representative distance, never a neighbor's
-    // changing radiance. Fresh rays provide their own geometry. Empty rays use the far point.
+    // Rotation maps directions independently of cloud distance. Translation needs current-ray
+    // evidence: main supplies the nearest completed fresh neighbor as a bounded distance proxy.
+    // Never bootstrap a moving ray from history at the old, unrelated same-screen coordinate.
+    bool translated=any(notEqual(cloudPreviousTranslation.xyz,vec3(0)));
+    bool directional=!fresh&&!translated;
     float anchor=distance;
-    if(!fresh)
-    {
-        vec4 own=texelFetch(previousMetadata,ivec2(uv*vec2(size)),0);
-        if(own.y>=1&&own.w>=1){anchor=own.z;kind=own.y;}
-    }
-    if(kind==2)anchor=length(CloudTemporalPoint(uv,depth));
+    if(directional)anchor=1;
+    if(!directional&&kind==2)anchor=length(CloudTemporalPoint(uv,depth));
+    if(!directional&&kind!=1&&kind!=2){StoredTemporalReason(4);return false;}
     if(anchor<=0){StoredTemporalReason(4);return false;}
     vec3 point=direction*anchor+cloudPreviousTranslation.xyz;
     vec4 clip=cloudPreviousProjection*vec4(point,1);
@@ -104,7 +104,32 @@ bool StoredTemporalHistory(vec2 uv,float depth,float distance,float kind,bool fr
     vec4 sceneClip=vgeFrame.prevViewProjMatrix*vgeFrame.invViewMatrix*vec4(sceneView.xyz/sceneView.w,1);
     if(sceneClip.w<=0){StoredTemporalReason(5);return false;}
     float expectedDepth=sceneClip.z/sceneClip.w*.5+.5;
+    if(directional)
+    {
+        // The address is established by rotation, not by the candidate's own metadata. Choose
+        // nearest valid support there to establish classification/distance before admitting a
+        // coherent bilinear footprint. This also preserves exact own-pixel stationary history.
+        float nearestSupport=3.402823e38;bool established=false;
+        for(int y=0;y<2;y++)for(int x=0;x<2;x++)
+        {
+            float weight=(x==0?1-fraction.x:fraction.x)*(y==0?1-fraction.y:fraction.y);
+            if(weight==0)continue;
+            ivec2 p=clamp(base+ivec2(x,y),ivec2(0),size-1);
+            vec4 candidate=texelFetch(previousMetadata,p,0);
+            // A stationary footprint has one tap: its age is checked once in the common pass.
+            float candidateAge=stationary?0:texelFetch(previousAge,p,0).r;
+            if((candidate.y!=1&&candidate.y!=2)||(candidate.y==1&&candidate.z<=0))
+            {StoredTemporalReason(4);continue;}
+            float rejection=StoredTemporalTap(candidate,candidateAge,candidate.y,expectedDepth,candidate.z);
+            if(rejection!=0){StoredTemporalReason(rejection);continue;}
+            vec2 offset=vec2(p)-coordinate;float separation=dot(offset,offset);
+            if(separation<nearestSupport)
+            {nearestSupport=separation;kind=candidate.y;anchor=candidate.z;established=true;}
+        }
+        if(!established)return false;
+    }
     bool filtered=true,found=false;float nearest=3.402823e38,selectedCount=0,selectedAge=0;
+    float expectedDistance=directional?anchor:length(point),filteredDistance=0,selectedDistance=0,inverseConfidence=0;
     vec2 selectedUv=oldUv;
     for(int y=0;y<2;y++)for(int x=0;x<2;x++)
     {
@@ -112,22 +137,45 @@ bool StoredTemporalHistory(vec2 uv,float depth,float distance,float kind,bool fr
         if(weight==0)continue;
         ivec2 p=clamp(base+ivec2(x,y),ivec2(0),size-1);
         vec4 old=texelFetch(previousMetadata,p,0);float observationAge=texelFetch(previousAge,p,0).r;
-        float rejection=StoredTemporalTap(old,observationAge,kind,expectedDepth,length(point));
+        float rejection=StoredTemporalTap(old,observationAge,kind,expectedDepth,expectedDistance);
         if(rejection!=0){filtered=false;StoredTemporalReason(rejection);continue;}
-        count=min(count,old.w);age=max(age,observationAge);
+        // Transport and its freshness use the same admitted bilinear weights. Confidence is
+        // a weighted harmonic mean: interpolation cannot manufacture independent observations
+        // or exceed the strongest input, and a tiny weak tap no longer controls the footprint.
+        inverseConfidence+=weight/min(old.w,8);
+        age+=weight*observationAge;
+        filteredDistance+=weight*old.z;
         vec2 centre=(vec2(p)+.5)/vec2(size),offset=vec2(p)-coordinate;
         float separation=dot(offset,offset);
         if(separation<nearest)
         {
             found=true;nearest=separation;selectedUv=centre;
-            selectedCount=old.w;selectedAge=observationAge;
+            selectedCount=old.w;selectedAge=observationAge;selectedDistance=old.z;
         }
     }
     if(!found)return false;
     // A mixed footprint cannot interpolate across incompatible cloud/foreground support. Read
     // the nearest admitted centre through the same hardware samplers, preserving the paired
     // radiance, opacity and bucket products rather than blending them with rejected taps.
-    if(!filtered){oldUv=selectedUv;count=selectedCount;age=selectedAge;}
+    if(filtered)count=clamp(1/inverseConfidence,1,8);
+    else{oldUv=selectedUv;count=selectedCount;age=selectedAge;}
+    if(!fresh&&kind==1)
+    {
+        // History distances belong to the previous camera. Recover a distance on the current
+        // ray from |direction*distance + translation| = previousDistance. The independent
+        // current neighbor already bounded translated correspondence; this is metadata transport,
+        // not another observation or an exact surface reconstruction.
+        float previousDistance=filtered?filteredDistance:selectedDistance;
+        anchor=previousDistance;
+        if(translated)
+        {
+            float along=dot(direction,cloudPreviousTranslation.xyz);
+            float square=previousDistance*previousDistance-dot(cloudPreviousTranslation.xyz,cloudPreviousTranslation.xyz)+along*along;
+            if(square<=0){StoredTemporalReason(7);return false;}
+            anchor=sqrt(square)-along;
+        }
+        if(anchor<=0){StoredTemporalReason(7);return false;}
+    }
     value=textureLod(previousCloud,oldUv,0);bins=textureLod(previousBins,oldUv,0).rgb;
     if(!StoredTemporalFinite(value,bins,vec4(depth,kind,anchor,count))){StoredTemporalReason(6);return false;}
     support=vec2(kind,kind==2?0:anchor);StoredTemporalReason(filtered?0:12);return true;
@@ -169,8 +217,12 @@ void main()
     if(!fresh&&accepted)
     {
         // Hardware-filtered transport is carried intact, with no spatial-current blend and no
-        // independent-observation increment. Missing current neighbors alone are irrelevant.
+        // independent-observation increment. Only translated correspondence requires a current
+        // neighbor; direction-only reprojection can carry without any current spatial support.
         outCloud=old;outBins=oldBins;outMetadata=vec4(depth,support.x,support.y,count);
+        // With no fresh input anywhere in the carried support, the youngest possible age
+        // advances by one per frame. Averaging cannot keep an unrefreshed history alive:
+        // each tap must still pass expiry before it contributes on the next frame.
         outAge=age+1;StoredTemporalReceipt(1,2,reason,age+1);return;
     }
     if(!fresh&&best==3.402823e38){StoredTemporalReject(reason);return;}

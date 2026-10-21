@@ -509,15 +509,39 @@ transport or shadow-cache state. The temporal pass distinguishes freshly traced,
 
 All exactly nonzero bilinear support taps must agree on empty/contributing completion, real-observation confidence, foreground support and representative-distance uncertainty. Exactly zero-weight taps are irrelevant. If that footprint is incompatible, select its nearest individually compatible texel centre and sample both physical textures there through hardware filtering. Its own confidence and age apply; no rejected tap enters the transport. If none qualifies, history remains unavailable. Fresh empty rays continue to reject contributing history. This retains boundary observations without interpolating across a discontinuity, at the cost of a possible displacement within the four-tap footprint. Compare current scene endpoints projected into the previous camera against previous clip metadata, using the shared origin-rebased previous view-projection and current inverse view, independent of cloud wind and layer height. The representative cloud distance is a proxy; the max(2 world units,5 percent) gate may conservatively reject edges. Current material/particle/liquid footprint clipping remains in effect.
 
+Untraced pixels with zero material-relative translation map their viewing direction into the old
+camera independently of distance, then obtain classification and distance from the nearest admitted
+support there. Translation or wind instead uses the nearest completed fresh observation in the
+existing 3x3 neighborhood as independent current classification/distance evidence. Its projected
+previous-camera range gates the mapped history; missing evidence produces untrusted fallback.
+Neither path reads old same-screen metadata to guess the moving ray's identity. Carried range comes
+from the admitted physical footprint, using bilinear metadata weights or the selected nearest centre,
+and is converted from previous-camera range onto the current ray with the material translation.
+This is a bounded volume-position approximation, especially near depth discontinuities; fresh rays
+keep their own measured range and certified empty rays store zero. Resource sizes, ray budgets and
+the per-tap expiry threshold are unchanged.
+
 When the compatible material-to-view transform is exactly unchanged, the CPU certifies the identity
 mapping in the existing temporal block. The filter uses the destination pixel's exact integer history
 coordinate, preserving its own confidence and age. It does not reconstruct an almost-identical
 bilinear footprint through floating-point matrix roundoff. Any rotation or material translation uses
 normal reprojection; foreground depth is still checked in the previous scene camera independently.
 
-Only fresh updates can be constrained by neighborhood bounds, requiring four same-support, distance-compatible observations spanning two pixels on each axis. A single observation cannot erase history. Supported-bound replacement explicitly rejects prior information. The fresh prior weight is min(count,7)/(min(count,7)+1), multiplied by clamp(1-4*opacity delta,0,1) and clamp(1-max RGB delta/max RGB peak,0,1). Count is 1/(1-effective prior weight), up to eight, rather than an admission/frame counter. A carry keeps count unchanged; zero weight or a clipping replacement starts at one. Counts describe declared blend confidence, not statistical independence of correlated rays.
+Only fresh updates can be constrained by neighborhood bounds, requiring four same-support, distance-compatible observations spanning two pixels on each axis. A single observation cannot erase history. Supported-bound replacement explicitly rejects prior information. The fresh prior weight is min(count,7)/(min(count,7)+1), multiplied by clamp(1-4*opacity delta,0,1) and clamp(1-max RGB delta/max RGB peak,0,1). Count is 1/(1-effective prior weight), up to eight, rather than an admission/frame counter. A carry transports confidence without an independent-observation increment; zero weight or a clipping replacement starts at one. Counts describe declared blend confidence, not statistical independence of correlated rays.
 
-Each history owns a required R16F observation-age field. Carry expires after seven frames without a real trace. The default-off `VGE_CLOUD_TEMPORAL_DIAGNOSTICS` compiled option separately adds an RGBA16F record for prior weight, status (fresh1/carried2/fallback3/invalid0), rejection and displayed age. Normal temporal GLSL has no diagnostic output; normal composition has no diagnostic sampler or diagnostic UBO. The ordinary age sampler/output remain production validity metadata. Optional diagnostic images and their framebuffer attachments exist only during diagnostic capture; toggling them preserves physical image identities, confidence and age. Temporal diagnostics add no runtime CPU readback.
+For a fully qualified bilinear footprint, refresh age is `sum(weight * tapAge)` and confidence is
+the weighted harmonic mean `1 / sum(weight / min(tapCount,8))`, clamped to [1,8]. These weights
+match the admitted physical footprint, so a lightly weighted old or weak tap has proportionate
+influence. Interpolation cannot exceed the strongest input confidence or create an independent
+observation. Nearest-compatible fallback uses the selected centre's own values. The exact stationary
+path preserves its own metadata. Carried age adds one; a genuine fresh trace resets it to zero.
+The fractional R16F age measures refresh of contributing spatial support, not the oldest component
+of previously accumulated radiance. Each tap still expires at age seven before filtering. If no
+fresh observations enter the support, its minimum surviving age increases once per carry until
+all of it expires; interpolation alone cannot renew stale data. Foreground and support gates remain
+independent of freshness and confidence.
+
+Each history owns a required R16F refresh-age field. Unrefreshed support expires at age seven. The default-off `VGE_CLOUD_TEMPORAL_DIAGNOSTICS` compiled option separately adds an RGBA16F record for prior weight, status (fresh1/carried2/fallback3/invalid0), rejection and displayed age. Normal temporal GLSL has no diagnostic output; normal composition has no diagnostic sampler or diagnostic UBO. The ordinary age sampler/output remain production validity metadata. Optional diagnostic images and their framebuffer attachments exist only during diagnostic capture; toggling them preserves physical image identities, confidence and age. Temporal diagnostics add no runtime CPU readback.
 
 Normal storage is approximately103bytes per reduced pixel: two46-byte histories plus44-byte raw trace at one quarter their area, with ceil-edge overhead and32KiB blue noise. Diagnostic capture adds16bytes per reduced pixel across both histories, bringing the nominal total to119. Full resolution allocates none. Trace/filter UBOs use128bytes; only diagnostic composition borrows the filter UBO. Filtering writes four attachments normally and five when diagnostics are compiled in.
 
