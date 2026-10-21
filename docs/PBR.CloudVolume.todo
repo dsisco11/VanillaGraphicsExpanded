@@ -2043,8 +2043,74 @@ Phase 8.6.1 implementation and acceptance
     Independent completion audit found no code/documentation defects and accepted the focused receipts.
     All six tasks are complete. Later subphases remain unchecked.
 
-Phase 8.6.2 - Integrate progressive subpixel jitter into cloud view sampling
-  Depends on: Phase8.6.1 edge-retention work.
+Phase 8.6.2 - Correct history distance and classification during camera motion
+  Depends on: delivered8.6.1 boundary retention and exact stationary-address handling.
+  Outcome: untraced pixels establish and validate correspondence using metadata belonging to
+    the reprojected cloud region, rather than assuming old same-screen metadata describes it.
+  [ ] Reconcile temporal.fsh, CloudReprojectionHistory and the temporal contracts in
+      PBR.CloudVolume.Proposal.md and PBR.Clouds.md. Identify the frame, ray and coordinate system
+      owning each distance/classification value. Distinguish the confirmed metadata defect from
+      unmeasured causes of widespread rejection during live camera motion.
+  [ ] Replace the untraced-pixel same-screen metadata bootstrap with bounded correspondence.
+      Handle pure rotation without a guessed cloud distance; establish and validate a justified
+      representative position for translation and cloud advection. Do not validate correspondence
+      solely against the stale metadata that selected it or treat a volume integral as a surface.
+  [ ] Obtain classification, distance, confidence and age from corresponding history support;
+      compare distances in a common coordinate system. Keep physical transport and bucket payloads
+      paired with that support. Preserve camera/cloud motion exactly once, stationary addressing,
+      hardware-filtered payload reads, and foreground, fresh-empty, failed-ray and expiry rejection.
+  [ ] Preserve scheduling and carried-observation semantics. Unresolved correspondence uses the
+      existing untrusted spatial fallback without invented confidence. Do not mask the defect by
+      increasing history length or ray count or globally weakening rejection. Inspect age/confidence
+      propagation separately and report remaining problems without assuming this fixes all motion noise.
+  [ ] Extend existing focused fixtures with rotation, translation and combined camera/cloud motion
+      where same-screen old metadata belongs to a different cloud/empty region. Verify correspondence,
+      genuine rejection, paired payload ownership and stationary preservation using existing GPU
+      abstractions and compile-time optional diagnostics. No approximation-quality/image-error gates.
+      Run focused cached incremental checks through subagents; no broad matrices or packaging.
+  [ ] Inspect rejection reasons and effective prior contribution under motion; request targeted
+      moving-capture evidence only for unresolved questions. Account for added reads/work at unchanged
+      sampling settings and obtain user-run review of noise, silhouettes, disocclusion and trails.
+      Reconcile current documentation, perform second review and independent audit, and record
+      evidence limits. Never launch or close the game; visual acceptance remains explicit.
+
+Phase 8.6.3 - Share camera reprojection machinery with surface lighting
+  Depends on: Phase8.6.2 motion correspondence correction and delivered shared frame-camera data.
+  Outcome: cloud and surface-lighting reprojection use a common coordinate/projection contract,
+    while cloud material motion and volume-history validation remain explicitly cloud-owned.
+  [ ] Inventory active consumers of FrameCameraHistory, vgeFrame, LumOn velocity generation,
+      lumon_reprojection.glsl, CloudReprojectionHistory and cloud_reprojection.glsl. Distinguish
+      used helpers from unused utilities and identify duplicated camera state/calculations.
+      Reconcile PBR.CloudVolume.Proposal.md and PBR.Clouds.md with the selected ownership contract.
+  [ ] Define one current render-relative position to previous-screen projection contract using
+      shared frame matrices and precise render-origin rebasing. Specify position versus direction,
+      native eye translation, homogeneous division, validity and bounds conventions. Clouds supply
+      their representative position and material displacement; apply camera and wind motion once.
+      Preserve the corrected distance/classification correspondence rather than assuming shared
+      matrix math alone resolves it. Do not use scene-surface velocity as cloud velocity.
+  [ ] Extract only genuinely shared projection/reconstruction helpers into rendering-owned code
+      and adopt them in the relevant cloud and surface-lighting paths. Prefer existing frame UBO
+      fields over duplicate uniforms or per-frame uploads. Remove the private cloud previous-camera
+      matrix if the common contract replaces it; document any retained state with a concrete need.
+      Preserve cloud successful-frame commit semantics when global camera history advances through
+      a skipped or failed cloud frame; keep cloud lifecycle, material identity and validity local.
+  [ ] Preserve exact stationary addressing, origin precision, foreground disocclusion, cloud wind,
+      paired history payloads, observation age/confidence and jitter-ready sample-position semantics.
+      Keep cloud operation independent of LumOn enablement/resources. Avoid a broad temporal framework,
+      compatibility aliases, added velocity passes or persistent textures without demonstrated need.
+      Diagnostics remain compile-time optional and bindings use existing GPU abstractions.
+  [ ] Extend focused existing fixtures for shared projection identities, rotation/translation,
+      render-origin rebasing, cloud advection, skipped cloud frames, stationary retention and LumOn
+      disabled. Validate surface-lighting behavior affected by the extracted helpers without imposing
+      cloud rejection rules on it. Use focused cached incremental builds/tests through subagents;
+      no approximation-quality gates, broad matrices, baseline reproduction or routine packaging.
+  [ ] Review changed shader reads, UBO traffic and resource ownership; use targeted measurements only
+      for unresolved cost questions. Obtain user-run motion/disocclusion review, reconcile current
+      documentation, perform second review and independent audit. Record remaining limitations;
+      shared source alone does not establish improved retention or speed. Never launch/close the game.
+
+Phase 8.6.4 - Integrate progressive subpixel jitter into cloud view sampling
+  Depends on: Phase8.6.2 motion correspondence correction and Phase8.6.3 shared reprojection.
   Outcome: fresh cloud view rays progressively sample their reduced pixel footprint, reusing the
     existing PMJ infrastructure while blue noise continues to distribute the four-frame refresh schedule.
   [ ] Reconcile PBR.CloudVolume.Proposal.md / Rendering the published volume and Temporal view
@@ -2089,12 +2155,12 @@ Phase 8.6.2 - Integrate progressive subpixel jitter into cloud view sampling
       Completion requires integrated PMJ-based ray jitter with truthful indexing/reprojection and
       explicit appearance/performance limits; a longer sequence alone is not proof of improvement.
 
-Phase 8.6.3 - Implement spatiotemporal blue-noise jitter and compare with PMJ
-  Depends on: Phase8.6.2 and its reproducible PMJ sampling/retention evidence.
+Phase 8.6.5 - Implement spatiotemporal blue-noise jitter and compare with PMJ
+  Depends on: Phase8.6.4 and its reproducible PMJ sampling/retention evidence.
   Outcome: compare genuine two-dimensional STBN ray jitter against PMJ under the same cloud
     reconstruction and history policy, then select the delivered sampling approach from evidence.
   [ ] Consult PBR.CloudVolume.Proposal.md / Rendering the published volume and Temporal view sampling
-      contract, PBR.Clouds.md / Stored-volume temporal view and8.6.2's selected indexing/footprint
+      contract, PBR.Clouds.md / Stored-volume temporal view and8.6.4's selected indexing/footprint
       contract. Specify the STBN asset/generation method, two-dimensional vector distribution,
       temporal period, tiling and required attribution. Independently animated spatial masks or a
       generic3D blue-noise texture must not be described as STBN without the required properties.
@@ -2183,7 +2249,7 @@ Phase 8.7 - Spend persisted-lighting ray budgets on occupied voxels
       metadata remain truthful. Any rejected compaction alternative and remaining limitations are
       explicit. Final package and user-run appearance/performance acceptance remain Phase9.
 Phase 9 - Qualify the frozen implementation and reconcile documentation
-  Depends on: Phase8.6 including8.6.1,8.6.2 and8.6.3, plus Phase8.7.
+  Depends on: Phase8.6 including8.6.1,8.6.2,8.6.3,8.6.4 and8.6.5, plus Phase8.7.
   Outcome: measured total cost, memory and user appearance determine candidate acceptance.
   [ ] Freeze the candidate and run canonical packaging/required final checks once. Verify delivered
       assets, selectable settings and cleanup; do not treat older candidate receipts as qualification.
