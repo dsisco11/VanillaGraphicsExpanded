@@ -417,6 +417,8 @@ Tasks
       and commands.ps1. Release call observers used process-only COMPlus_JitNoInline=1 with an ordinary
       Release build. Prior matched pixel/state/call comparisons remain valid; no live/timing claim.
 
+  ☐ Investigate and resolve excessive game loading times.
+
   ☐ Preserve texture binding caching for lifecycle-aware borrowed rendering inputs.
     - Inspect raw integer sampler inputs, including cloud scene/visibility/liquid depth. Reuse or
       extend existing borrowed resource references so allocation identity and retirement are known.
