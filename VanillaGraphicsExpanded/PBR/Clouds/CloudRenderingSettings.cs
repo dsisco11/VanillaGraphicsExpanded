@@ -18,25 +18,28 @@ public sealed class CloudRenderingSettings
     [JsonProperty] public bool SelfShadowing {get;set;}=true;
     /// <summary>Compiles retained diffuse sampling and enables progressive gather jobs.</summary>
     [JsonProperty] public bool Diffuse {get;set;}=true;
-    /// <summary>Stops after a completed view segment; zero compiles termination out.</summary>
-    [JsonProperty] public float StopTransmittance {get;set;}=.005f;
+    /// <summary>Selects a coherent compiled workload independently of trace resolution.</summary>
+    [JsonProperty] public int Quality {get;set;}=2;
 
-    /// <summary>Bounds direct plus diffuse rays per lighting update in complete block-sized work units.</summary>
-    [JsonProperty] public int LightingRaysPerUpdate {get;set;}=CloudVolumeLightingBudget.DefaultRays;
+    /// <summary>Overrides the profile ray limit; zero selects the profile's default budget.</summary>
+    [JsonProperty] public int LightingRaysPerUpdate {get;set;}
 
     #region Public API
     /// <summary>Bounds persisted work controls before publishing a coherent settings snapshot.</summary>
     public void Sanitize()
     {
-        LightingRaysPerUpdate=CloudVolumeLightingBudget.Sanitize(LightingRaysPerUpdate);
+        Quality=Math.Clamp(Quality,0,4);
+        LightingRaysPerUpdate=LightingRaysPerUpdate==0?0:CloudVolumeLightingBudget.Sanitize(LightingRaysPerUpdate);
         if(TraceScale is not (CloudTraceScale.Half or CloudTraceScale.Quarter))TraceScale=CloudTraceScale.Quarter;
-        StopTransmittance=float.IsFinite(StopTransmittance)?Math.Clamp(StopTransmittance,0,.005f):.005f;
+
     }
     /// <summary>Freezes features and resolution together for the early render boundary.</summary>
     internal CloudVolumeViewSettings Capture()
     {
         Sanitize();
-        return new(Detail,SelfShadowing,Diffuse,StopTransmittance,FullResolutionReference?1:(int)TraceScale,LightingRaysPerUpdate);
+        var profile=CloudVolumeQuality.Resolve(Quality);
+        return new(Detail,SelfShadowing,Diffuse,profile.ViewStop,FullResolutionReference?1:(int)TraceScale,
+            LightingRaysPerUpdate==0?profile.LightingRays:LightingRaysPerUpdate,Quality);
     }
     #endregion
 }

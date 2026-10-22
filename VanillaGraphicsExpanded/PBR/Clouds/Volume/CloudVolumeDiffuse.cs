@@ -103,7 +103,7 @@ internal sealed class CloudVolumeDiffuse(Func<bool,CloudVolumeDiffuseProgram> cr
         if(caps.MaxUniformBlockSize<208||caps.MaxComputeTextureImageUnits<(shadows?3:2)||
             caps.MaxCombinedTextureImageUnits<(shadows?3:2)||caps.MaxComputeShaderStorageBlocks<2||caps.MaxShaderStorageBufferBindings<2||
             caps.MaxComputeWorkGroupInvocations<256||caps.MaxComputeWorkGroupSize.Length<3||
-            caps.MaxComputeWorkGroupSize[0]<256||caps.MaxComputeSharedMemorySize<4608||caps.MaxComputeWorkGroupSize[1]<4||caps.MaxComputeWorkGroupSize[2]<8)
+            caps.MaxComputeWorkGroupSize[0]<256||caps.MaxComputeSharedMemorySize<6144||caps.MaxComputeWorkGroupSize[1]<4||caps.MaxComputeWorkGroupSize[2]<8)
             throw new NotSupportedException("Stored diffuse transport exceeds compute capabilities.");
         int index=shadows?1:0;var p=programs[index]??=createProgram(shadows);
         if(!p.EnsureReady())throw new InvalidOperationException(p.PreparationLog);

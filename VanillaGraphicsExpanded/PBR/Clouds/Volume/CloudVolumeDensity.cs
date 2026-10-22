@@ -134,7 +134,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
             Prepare();
             if(observed&&input.Frame<frame){storage.Reset();observed=false;}
             CloudVolumeFields? fields=storage.Pending;
-            if(fields is null&&storage.Ready)
+            if(fields is null&&storage.Ready&&!storage.GeometryReplacement)
             {
                 var retained=storage.Published;var stamp=retained.DensityState;
                 if(stamp.SnapshotValid&&stamp.NativeGeneration==input.Generation&&stamp.NativeUpload==input.Upload&&
@@ -298,7 +298,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     {
         if(identity is not null&&!identity.Matches(new(input.Owner,input.World,input.Shader))||observed&&input.Frame<frame)return true;
         if(storage.Pending is {} pending)return !pending.DensityState.SnapshotValid;
-        if(!storage.Ready)return true;
+        if(!storage.Ready||storage.GeometryReplacement)return true;
         var stamp=storage.Published.DensityState;
         return !stamp.SnapshotValid||stamp.NativeGeneration!=input.Generation||stamp.NativeUpload!=input.Upload||
             stamp.NativeAllocation!=input.Allocation||stamp.WindowX!=(long)input.Placement.CenterX-input.Placement.WindTileX||

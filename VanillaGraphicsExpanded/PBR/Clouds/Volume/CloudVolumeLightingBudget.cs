@@ -7,7 +7,8 @@ internal static class CloudVolumeLightingBudget
     internal const int MaximumDirectJobs=256,MaximumDiffuseJobs=128;
     #region Public API
     /// <summary>Bounds candidate selection effort while reusing the maximum existing list allocation.</summary>
-    internal static int Candidates(int rays,bool direct)=>rays/RaysPerUnit*(direct?2:1);
+    internal static int Candidates(int rays,bool direct,int directions=8)=>direct?rays/RaysPerUnit*2:
+        System.Math.Clamp(rays/RaysPerUnit*8/directions,1,MaximumDiffuseJobs);
     /// <summary>Rounds down to 512 direct rays and 2048 diffuse rays per throughput unit.</summary>
     internal static int Sanitize(int rays)=>System.Math.Clamp(rays/RaysPerUnit,1,MaximumRays/RaysPerUnit)*RaysPerUnit;
     #endregion

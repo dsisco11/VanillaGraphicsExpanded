@@ -27,7 +27,8 @@ internal sealed class CloudVolumeUpdates(CloudVolumeStorage storage,CloudVolumeD
         if(step==Step.Density)
         {
             if(!density.Poll(storage))return;
-            if(density.UpdateCompleted)step=storage.Ready?Step.Lighting:Step.Idle;
+            // An incoming geometry profile must finish before its new transport can publish.
+            if(density.UpdateCompleted)step=storage.Ready&&storage.Pending is null?Step.Lighting:Step.Idle;
             return;
         }
         if(fence is null)return;

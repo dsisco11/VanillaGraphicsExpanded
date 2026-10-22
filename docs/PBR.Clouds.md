@@ -170,7 +170,7 @@ rather than every vertical block. Empty columns with no previous support enqueue
 The snapshot advances after barriers and certificate checks without retaining a native texture.
 
 Generation intersects each voxel with native cuboids. Detail-off stores summed exact overlap-volume
-fractions times native extinction. Detail-on averages eight stratified points inside each nonempty
+fractions times native extinction. At Medium, detail-on averages eight stratified points inside each nonempty
 overlap using bounded stationary noise and connected-face erosion. Half-float overflow fails the
 batch instead of clamping extinction. Generation explicitly narrows to a representable half value,
 compares its packed 16-bit representation exactly with the old R16F texel, and stores only changes. A shared block flag counts
@@ -292,8 +292,8 @@ Failures withdraw sampling until reset; the view consumes only successful publis
 `CloudVolumeDirect` consumes the frozen work batch and authoritative stored density only. Each
 occupied node traces toward its relevant source through retained cell DDA with coarse empty skipping to the finite
 domain exit. It accumulates actual segment lengths in metres,
-saturates optical depth at 80 without early termination, and stores dimensionless exp(-tau) in
-RG16F. Empty nodes skip integration. Incomplete rays and nonfinite arithmetic set the channel's
+at Medium and above saturates optical depth at80 without early termination, and stores dimensionless exp(-tau) in
+RG16F. Very Low/Low instead permit their declared completed-interval optical exit with zero residual transmission. Empty nodes skip integration. Incomplete rays and nonfinite arithmetic set the channel's
 failure bit; no failed batch advances completion, and partial in-place writes withdraw sampling.
 
 Activation initializes each newly relevant channel to unshadowed across the bounded allocation
@@ -307,13 +307,13 @@ channels without RG read-modify-write races. Reset/context/executable changes re
 certificates; storage retains ownership of all fields.
 
 `CloudVolumeDiffuse` refines at most 128 selected blocks after ordered direct completion. Each
-256-thread group processes 32 voxels with eight independent ray lanes per voxel; eight Y slices
+256-thread group processes 256/N voxels with N independent ray lanes per voxel; N Y slices
 cover a complete 8x4x8 block. A leader validates each node once, all lanes reach the shared-memory
-barriers, and the leader combines eight results in the declared direction order. The two shared
-arrays use 4608 bytes per group. Any failed ray rejects the node/batch through the existing failure
-mask. Every occupied node gathers eight normalized cube-corner rays, equally weighted, through stored density
+barriers, and the leader combines N results in the declared direction order. The two shared
+arrays use 4096+4096/N bytes per group (4608 at Medium). Any failed ray rejects the node/batch through the existing failure
+mask. Every occupied node gathers the profile-selected normalized, balanced directions with equal weights through stored density
 along exact constant-cell intervals. Each ray continues through empty gaps until the finite domain exit
-or the explicit 400-metre transport closure. The incoming sum is
+or the profile range closure (400 metres at Medium), unless a lower-profile optical exit omits the tail. The incoming sum is
 `sum(T_before*alpha*(Q(sample,-rayDirection)+D_read(sample)))+T_end*Environment`, with
 `alpha=1-exp(-sigma*actualSegmentMetres)`, albedo .9, HG g=.6 and
 `Q=.9*sum(currentIlluminance*cachedTransmission*HG)`. The new isotropic source is .9 times the
@@ -358,7 +358,7 @@ unqualified.
 ### Stored-volume view and configuration
 
 In ConfigLib, set native cloud mode to **Volumetric**. `Clouds.Detail`, `SelfShadowing`, `Diffuse`
-and `StopTransmittance` control stored-field features. `Clouds.LightingRaysPerUpdate` controls persisted-lighting throughput. `TraceScale` and `FullResolutionReference`
+control stored-field features as advanced disable switches; `Clouds.Quality` selects the workload profile. `Clouds.LightingRaysPerUpdate` controls persisted-lighting throughput. `TraceScale` and `FullResolutionReference`
 govern view resolution. Configuration snapshots commit at the Before preparation boundary;
 view-only changes retain compatible density and lighting. Reload or mode release resets a latched
 failure. `CloudStoredVolumeConsumer` is the sole Volumetric consumer, drawing at OIT .31.
@@ -434,7 +434,7 @@ state and skips only certified empty support. Occupied intervals use exact voxel
 actual clipped metre lengths and cell-constant R16F density, RG16F transmission and scaled diffuse
 RGB. There is no native descriptor/procedural-noise lookup or low layer sample cap. Reduced views use screen-space sampling history; full reference remains deterministic.
 Operation-limit failure discards the whole pixel prefix. Optional optical termination occurs only
-after a completed segment and compiles out when StopTransmittance is zero.
+after a completed segment at the profile threshold. The internal zero-threshold reference variant compiles the exit out.
 
 One retained plane/crossing set switches between fine cells and coarse empty blocks along the original ray. Empty blocks jump to
 coarse exits; occupied cells advance all tied voxel axes once. Physical indices wrap explicitly at
@@ -588,15 +588,61 @@ release all view history without clearing compatible cloud-space density or illu
 screen resources add no solver fence, CPU wait or new 3D field. User-run temporal appearance and
 measured total performance remain separate acceptance activities.
 
+## Cloud quality profiles
+
+`Clouds.Quality` selects 0 Very Low, 1 Low, 2 Medium (default), 3 High or 4 Very High.
+It does not change TraceScale, the four-frame fresh-ray cadence, grid spacing or memory limits.
+
+| Level | Shape samples per overlap | Diffuse directions / range | View stop | Direct/diffuse stop | Default update rays |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Very Low | 1 | 2 / 100 | .020 | .020 | 20,480 |
+| Low | 1 | 4 / 200 | .010 | .005 | 40,960 |
+| Medium | 8 | 8 / 400 | .005 | disabled | 81,920 |
+| High | 27 | 16 / 600 | .0025 | disabled | 163,840 |
+| Very High | 64 | 32 / 800 | .00125 | disabled | 327,680 |
+
+Detail, SelfShadowing and Diffuse remain advanced disable switches at every level. A positive
+LightingRaysPerUpdate overrides the table's budget; zero selects it automatically. Stopping is
+owned by the profile, with no separate persisted stopping control. Each capture resolves one
+immutable profile at configuration application, not during voxel/ray execution. Structural profile
+choices compile into generation, transport and scheduler executables. Existing disabled feature
+variants still remove their samplers and dispatches.
+
+Lower levels sacrifice angular/range detail, generation quadrature and faint transport tails.
+A direct optical exit stores zero remaining visibility; a diffuse exit drops the remaining source
+and environment tail after a completed interval. This can darken illumination or strengthen shadows.
+Medium and above retain full direct-domain transport and the declared finite-range environment
+closure. Safety-limit or arithmetic failure never becomes a valid optical exit. Diffuse directions
+are two opposite diagonal rays at Very Low, four balanced horizontal diagonals at Low, eight cube
+corners at Medium, and two/four rotated cubes at High/Very High. Weights are equal and nonnegative;
+the material albedo, HG response, encoding bounds and coherent iteration remain unchanged.
+
+Budget accounting charges N rays per positive diffuse origin and one per direct origin/source.
+A 256-thread diffuse group covers 256/N origins; N slices cover each complete physical block.
+The fixed shortlist and whole-block capacities can leave allowance unused. An override too small
+to fit even one occupied block cannot refresh that block; it never exceeds the user's ray limit.
+More rays per voxel can increase refresh latency despite a larger total budget. No profile promises
+an FPS ratio or physical convergence.
+
+Profile changes finish the current frozen update before replacing executables. Changed density
+quadrature/detail uses bounded replacement storage while the last drawable snapshot remains visible.
+Lighting-only changes preserve geometry and drawable fields, revoke scheduler/solver certificates,
+and refresh compatible stale illumination under the new rule. Budget-only changes retain all
+compatible history. The existing grid, guards, metadata, 512 MiB working and 1 GiB peak limits are
+unchanged; profile variants add executable storage, not persistent volume or screen textures.
+Coarser density, separate lighting grids and changed temporal cadence are deferred design options.
+They are not part of this control: the shared lattice avoids new resampling/identity contracts,
+and the established cadence retains its validated history expiry and motion behavior.
+
 ## Persisted lighting update budget
 
-`Clouds.LightingRaysPerUpdate` sets an upper ray budget per submitted lighting update, not per rendered frame or view pixel. Its range is2,560..327,680 in2,560-ray steps, default81,920. Each unit reserves512 direct rays and2,048 diffuse rays. One positive stored voxel/source costs one direct ray; one positive diffuse voxel costs eight gather rays. Disabled solvers/sources and insufficient demand leave allowance unused; it never transfers between solvers. Budget changes retain fields, pending ages, fair cursors and view history; in-flight updates finish under their frozen setting.
+`Clouds.LightingRaysPerUpdate` sets an upper ray budget per submitted lighting update, not per rendered frame or view pixel. Zero (the persisted default) selects the quality profile budget; positive overrides range from2,560..327,680 in2,560-ray steps. Medium resolves to81,920. Each unit reserves512 direct rays and2,048 diffuse rays. One positive stored voxel/source costs one direct ray; one positive diffuse voxel costs the profile direction count in gather rays. Disabled solvers/sources and insufficient demand leave allowance unused; it never transfers between solvers. Budget changes retain fields, pending ages, fair cursors and view history; in-flight updates finish under their frozen setting.
 
 Generation records exact represented positive-cell counts in the existing occupancy word: bits0..1 retain traversal support, bit2 certifies the origin count and bits3..11 store0..256 positive cells. Circular maintenance recounts retained cells as it clears entering/guard cells. These counts are independent of the conservative traversal halo. Certified zero-origin blocks retain pending demand but receive no lighting jobs. Unknown support remains conservative. Density/source changes still invalidate dependent occupied receivers across the domain.
 
-Selection retains the original shortlist sizes (default64 direct and32 diffuse priority candidates, plus half as many fair candidates). Their unique union can refill unused ray capacity, bounded at256 direct source jobs and128 diffuse blocks. Complete-block updates preserve coherent diffuse repair and successful-only publication. Fair service reserves the original half-block capacity in rays, rounding odd jobs upward; priority uses remaining allowance. Candidate limits and whole-block rounding can underspend even with more pending work. No partial block is stamped fresh. The default reserves16,384 direct and65,536 diffuse rays; a higher budget changes throughput, not numerical transport.
+Selection derives direct shortlist capacity from the direct ray allowance and diffuse capacity from its ray allowance divided by the actual rays per full block, capped at128. Medium defaults to64 direct and32 diffuse priority candidates, plus half as many fair candidates. Cheaper angular rules can therefore refresh more origins within their ray limit. Their unique union can refill unused ray capacity, bounded at256 direct source jobs and128 diffuse blocks. Complete-block updates preserve coherent diffuse repair and successful-only publication. Fair service reserves the original half-block capacity in rays, rounding odd jobs upward and admitting at least one whole diffuse block when its full ray allowance can fit it; priority uses remaining allowance. Candidate limits and whole-block rounding can underspend even with more pending work. No partial block is stamped fresh. The default reserves16,384 direct and65,536 diffuse rays; a higher budget changes throughput, not numerical transport.
 
-The same fixed4MiB working scratch accommodates all settings without geometry/history reallocation. More than64 direct candidates uses the compiled1,024-key selector; smaller pools use256keys. Existing fenced status reports separate ray allowances, charged rays and unknown jobs. Certified charges are actual ray launches for successful work; unknown charges are bounds. Developer diagnostics report occupied origins, backlog/age, unused allowance and empty origin lanes after completion. Ordinary rendering adds no diagnostic scan or synchronous readback.
+The same fixed4MiB working scratch accommodates all settings without geometry/history reallocation. More than64 candidates in either list uses the compiled1,024-key selector; smaller pools use256keys. Existing fenced status reports separate ray allowances, charged rays and unknown jobs. Certified charges are actual ray launches for successful work; unknown charges are bounds. Developer diagnostics report occupied origins, backlog/age, unused allowance and empty origin lanes after completion. Ordinary rendering adds no diagnostic scan or synchronous readback.
 
 ## Native compatibility and qualification
 

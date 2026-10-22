@@ -21,9 +21,9 @@ Authority and scope
     rendering framework. Explicitly authorized promotion/removal belongs to Phases 8.4/8.5.
     Phase 8.4 adds screen-space temporal
     sampling reuse to the view; persistent density and illumination remain independently retained.
-  Production LightingRaysPerUpdate controls persisted-lighting throughput:2560..327680 rays,
-    default81920, in2560-ray units (two direct block-source jobs plus one diffuse block).
-    Maximum queue capacity is256direct/128diffuse; numerical ray schedules are unchanged.
+  Production LightingRaysPerUpdate controls persisted-lighting throughput: zero selects the quality
+    profile's budget (81920 at default Medium); positive overrides use2560..327680 rays in2560-ray units.
+    Maximum queue capacity is256direct/128diffuse; actual diffuse ray accounting follows the profile.
     Four MiB scratch per working set supports the range without geometry/history reallocation.
   Shared TraceScale and FullResolutionReference controls govern view resolution. Full draws directly;
     half/quarter use compact spatial reconstruction. Exact constant-cell intervals are implemented;
@@ -2389,51 +2389,73 @@ Phase 8.8 - Spend persisted-lighting ray budgets on occupied voxels
       metadata remain truthful. Any rejected compaction alternative and remaining limitations are
       explicit. Final package and user-run appearance/performance acceptance remain Phase9.
 Phase 8.9 - Provide five compiled cloud-quality workload levels
+  Proposed implementation profiles (recorded before runtime edits):
+    Level/name    shape samples  diffuse rays/range  view stop  transport stop  default ray budget
+    0 Very Low    1              2 / 100            .020       .020            20480
+    1 Low         1              4 / 200            .010       .005            40960
+    2 Medium      8              8 / 400            .005       disabled        81920
+    3 High        27             16 / 600           .0025      disabled        163840
+    4 Very High   64             32 / 800           .00125     disabled        327680
+    All retain the current density/lighting grid and four-frame cadence; resident volume and
+    screen-target payloads stay unchanged. Lower angular/range/detail work sacrifices illumination
+    and shaping detail. Optical exits omit the remaining tail, including its environment closure,
+    and can darken transport. Higher levels spend more work without promising a measured FPS result.
+    Keep Detail/SelfShadowing/Diffuse as explicit advanced disable controls. Quality owns view
+    termination; remove the redundant StopTransmittance control. LightingRaysPerUpdate=0 selects
+    the profile budget; positive values retain the explicit ray-limit override.
+    Grid and cadence alternatives remain evaluation items, not implicitly delivered changes.
+  Grid/cadence evaluation: keep the accepted lattice and four-frame cadence for these profiles.
+    The maximum current working/replacement/drawable payload is992.052MiB against1GiB; increasing
+    grid resolution is not admitted. Coarser density could reduce cells and traversal but changes
+    accepted thin-cloud shape. Independent coarse lighting requires separate mapping, occupancy,
+    publication and gather contracts. Those prototypes are explicitly deferred; no measured grid
+    improvement is claimed. Cadence changes likewise remain deferred; existing four-frame coverage
+    and seven-frame expiry are retained without weakening rejection or requesting new acceptance.
   Depends on: Phase8.8 occupied-work accounting and the delivered temporal/sampling contracts.
   Outcome: one Cloud Quality control selects five coherent workload profiles, independently of
     TraceScale. Levels0..4 are Very Low, Low, Medium, High and Very High. Level2 is the default
     and matches the current default implementation; level0 is reduced-quality volumetric rendering,
     not Off. Existing native cloud mode remains responsible for disabling clouds.
-  [ ] Reconcile PBR.CloudVolume.Proposal.md / Selected representation and numerical contract,
+  [x] Reconcile PBR.CloudVolume.Proposal.md / Selected representation and numerical contract,
       Rendering the published volume, Temporal view sampling contract, Metadata, budgets and source
       changes, and Nonblocking updates and drawable publication; consult PBR.Clouds.md / Stored-volume
       temporal view and Persisted lighting update budget. Inventory current compiled feature choices,
       solver work, memory and quality controls; reuse existing captures and focused receipts.
-  [ ] Record the exact level2 baseline before changing code: detail, self-shadowing and diffuse on;
+  [x] Record the exact level2 baseline before changing code: detail, self-shadowing and diffuse on;
       view StopTransmittance .005; eight diffuse directions with400-unit gathers;81920lighting rays
       per update;19.53125horizontal spacing and64interior vertical cells; eight shape samples per
       cuboid overlap when detail is enabled; one fresh ray per2x2reduced tile in four frames.
       TraceScale stays independent, retaining its current default; FullResolutionReference remains
       a separate bypass. Preserve the middle profile's transport, cadence, storage and stopping rules.
-  [ ] Define a concrete five-row profile table before implementation, with two cheaper levels and
+  [x] Define a concrete five-row profile table before implementation, with two cheaper levels and
       two more expensive levels surrounding that baseline. Assign every selected workload knob,
       expected sacrifice, affected pass and memory cost. Keep structural workloads ordered across
       levels without promising measured FPS or equal speedup in every scene. Differentiate view
       integration, density generation, lighting throughput and lighting refresh latency.
-  [ ] Add the persisted0..4Cloud Quality setting, sanitization, default2 and localized ConfigLib
+  [x] Add the persisted0..4Cloud Quality setting, sanitization, default2 and localized ConfigLib
       control through existing settings owners. Resolve precedence with Detail, SelfShadowing,
       Diffuse, StopTransmittance and LightingRaysPerUpdate explicitly; avoid a saved preset that
       contradicts the effective settings. Retain intended advanced controls with documented precedence
       or remove redundant controls cleanly. No migrations, compatibility aliases or extra preset system.
-  [ ] Resolve one immutable quality profile at settings-change boundaries. Use precompiled shader
+  [x] Resolve one immutable quality profile at settings-change boundaries. Use precompiled shader
       options/constants for structural paths, direction counts, quadrature and sampling layouts;
       disabled features must remove their interfaces and work. Keep variant counts bounded by valid
       profiles rather than independently multiplying every quality knob. CPU dispatch budgets may
       change launch sizes; dynamic scene validity remains runtime data. Do not branch on a quality
       uniform per voxel or ray, poll settings each frame, or introduce parallel renderer implementations.
-  [ ] Implement quality-dependent view termination and direct/diffuse transmittance exits. Preserve
+  [x] Implement quality-dependent view termination and direct/diffuse transmittance exits. Preserve
       level2's existing rules; lower tiers may discard more residual transport and higher tiers less.
       Specify omitted-tail/environment treatment and resulting shadow/brightness tradeoffs. Only
       completed intervals may contribute. Keep exact occupied-cell traversal, conservative empty-space
       support and finite-value safety; never use the2048safety limit as a quality sample cap or accept
       an incomplete ray prefix as completed transport.
-  [ ] Implement tiered diffuse direction counts and gather distances with balanced normalized
+  [x] Implement tiered diffuse direction counts and gather distances with balanced normalized
       direction sets and coherent retained iterations. Lower tiers reduce angular/range work; higher
       tiers increase it. Preserve scattering units and albedo/source accounting. Adapt Phase8.8's
       eight-direction baseline accounting to actual profile rays, including capacities, scratch,
       rounding and fair selection. Define lighting-update budgets separately so fewer rays per voxel
       do not silently exceed the user's actual work limit or merely reduce refresh throughput.
-  [ ] Implement tiered generation detail/quadrature and evaluate coarser density and independently
+  [x] Implement tiered generation detail/quadrature and evaluate coarser density and independently
       coarser lighting grids as profile controls. Preserve exact native cuboid overlap for base
       coverage. Reduced density resolution sacrifices shape and traversal detail; reduced lighting
       resolution sacrifices illumination detail while retaining density shape. Select layouts from
@@ -2441,34 +2463,59 @@ Phase 8.9 - Provide five compiled cloud-quality workload levels
       metadata, initialization and resident/peak replacement storage. Never exceed existing memory
       limits implicitly for upper tiers; revise the agreed contract before requiring a larger ceiling.
       Explicitly record any evaluated grid control deferred rather than claiming it is delivered.
-  [ ] Evaluate tiered fresh-ray cadence at unchanged history resolution. If adopted, define exact
+  [x] Evaluate tiered fresh-ray cadence at unchanged history resolution. If adopted, define exact
       coverage schedules, raw-target layouts, reference bypass
       and refresh-age interaction for each cadence. Lower cadence trades response/noise for fewer
       view traces; higher cadence increases work and responsiveness. Preserve validated reprojection,
       foreground clipping, paired payloads and no-fresh expiry. Do not weaken history rejection to
       mask insufficient fresh coverage; obtain user acceptance before changing the approved cadence.
-  [ ] Implement coherent profile transitions through existing ownership/publication boundaries.
+  [x] Implement coherent profile transitions through existing ownership/publication boundaries.
       Budget-only changes retain compatible fields/history; geometry, lighting algorithm or sampling
       layout changes invalidate only affected state. Freeze in-flight solver settings, preserve the
       completed drawable publication while replacements initialize and retire old resources safely.
       Charge replacement peaks and bound startup work; no synchronous CPU readbacks or GPU waits.
-  [ ] Extend focused existing settings/binding/GPU fixtures for the five profile mappings, exact
+  [x] Extend focused existing settings/binding/GPU fixtures for the five profile mappings, exact
       middle-baseline equivalence, actual ray/dispatch accounting, compiled resource exclusion,
       transition/failure safety and unrefreshed-history expiry where cadence changes. Reuse unchanged
       evidence and target affected cases; no full permutation matrix, approximation-quality,
       convergence, noise or image-error thresholds. Use cached incremental builds/tests through
       subagents; reserve canonical packaging for Phase9.
-  [ ] Compare affected per-pass and independent total GPU cost at fixed TraceScale, scene and
+  [x] Compare affected per-pass and independent total GPU cost at fixed TraceScale, scene and
       publication state, separating generation/update bursts from steady view cost. Report memory,
       actual rays, refresh latency and contention; measure only missing evidence. Obtain user-run
       review of thin clouds, silhouettes, shadow softness/leaks, internal lighting, motion/trails and
       weather response across the five levels. Keep ordinary rendering free of diagnostic work.
       Reconcile proposal/current docs, perform second review and independent completion audit.
-  [ ] Completion: all five levels are selectable, default level2 preserves the recorded current
+  [x] Completion: all five levels are selectable, default level2 preserves the recorded current
       baseline, lower/upper levels have explicit implemented workload and appearance tradeoffs,
       compiled paths and resource lifecycles are verified, and measured evidence and user acceptance
       are recorded truthfully. Any deferred grid/cadence alternative remains explicit. Never launch
       or close the game or infer a performance guarantee from shader counts alone.
+
+Phase 8.9 verification
+  Five compiled profiles and automatic/explicit ray-budget precedence are implemented. Second source
+    review and independent audit found no remaining source defect after transition/accounting fixes.
+    Incremental Debug build passed; focused validation receipts are in artifacts/CloudQuality/.
+    Nine focused contracts passed: eight in focused.trx and corrected Work coverage in work-final.trx.
+    The original Work failure inserted reconfiguration into an environment-only assertion; the fixture
+    now checks those contracts separately. Two measurement entrypoints passed in measurements.trx.
+    Final cached build passed0errors; user appearance approval completes the checklist.
+    Independent final receipt audit confirmed the superseding Work result, raw measurement medians
+    and stated limitations; the required five-level appearance review is now user-approved.
+  Narrow warm measurements, levels0..4 in order, median milliseconds:
+    generation32blocks .0113/.0123/.0297/.0799/.1761;
+    direct64jobs .0481/.0471/.0471/.0471/.0471;
+    one-block diffuse copy+gather .0328/.0307/.0317/.0338/.0358;
+    independent unchanged update1.3988/1.4193/1.8309/5.0790/4.2639;
+    independent evolving update2.1115/3.3915/3.5656/3.4273/5.4057;
+    1920x1080quarter view .5079/.5048/.7229/.5048/2.6808.
+    Diffuse rays per256 occupied origins are512/1024/2048/4096/8192. These small-fixture timings
+    include contention/outliers and are nonmonotonic; no reliable live FPS improvement is established.
+    Pass brackets must not be summed into total cost. Full scope/raw samples/backlog/age accounting:
+    artifacts/CloudQuality/measurement-output.txt and measurements.trx.
+    Fixed guarded55x66x55 storage8,649,648bytes and view targets15,422,400bytes across tiers;
+    no new profile-dependent texture allocation. Full-domain memory remains governed by the proposal.
+  User approved the five-level appearance review on2026-10-22: "looks fine to me, approved."
 
 Phase 8.10 - Evaluate spatiotemporal blue-noise scheduling of cloud refreshes
   Depends on: Phase8.7's corrected and user-accepted lighting-transition behavior. Do not start this

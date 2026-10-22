@@ -11,6 +11,25 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
 {
     private readonly string gpu=fixture.GLRenderer;
     #region Public API
+    /// <summary>Measures complete screen integration at fixed resolution and fields across the five view profiles.</summary>
+    [Fact]
+    public void RecordQualityProfileViewCost()
+    {
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,1920,1080);
+        using var timer=GpuTimerQuery.Create("Tests.Cloud.Quality.View");
+        foreach(int level in Enumerable.Range(0,5))
+        {
+            var profile=CloudVolumeQuality.Resolve(level);var times=new List<double>();
+            var settings=CloudVolumeViewSettings.Default with{Quality=level,Stop=profile.ViewStop};
+            for(int sample=0;sample<4;sample++)
+            {
+                scene.AdvanceFrame();scene.PrepareDraw(settings);
+                timer.Begin();Assert.True(scene.DrawOnly());timer.End();
+                double ms=timer.GetResultNanoseconds()/1e6;if(sample>0)times.Add(ms);
+            }
+            times.Sort();output.WriteLine($"Quality {level}: complete view median={times[1]:F4}ms, 1920x1080, quarter trace, identical authored fields, target bytes={scene.ViewTargetBytes}; one warmup/three samples, preparation/readback excluded, CPU submission and uncontrolled contention included.");
+        }
+    }
     /// <summary>The actual full-view shader consumes stored density and Q plus D once, with independent valid calibrations.</summary>
     [Fact]
     public void StoredViewUsesVoxelTransportAndNativeProducts()
@@ -401,6 +420,14 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             var first=solution.Drawable!;
             scene.Draw(CloudVolumeViewSettings.Default with{Detail=false},solution:solution);
             Assert.True(solution.Drawable!.Revision>first.Revision);Assert.Same(first.Density,solution.Drawable.Density);
+            scene.Draw(CloudVolumeViewSettings.Default with{Detail=false,LightingRaysPerUpdate=163840},solution:solution);
+            Assert.Same(first.Density,solution.Drawable.Density); // Throughput changes retain compatible geometry.
+            var retained=solution.Drawable;
+            var low=CloudVolumeViewSettings.Default with{Detail=true,Quality=0,Stop=.02f,LightingRaysPerUpdate=20480};
+            solution.Reconfigure(low);Assert.Same(retained,solution.Drawable);
+            scene.Draw(low,solution:solution);Assert.NotSame(retained.MaterialIdentity,solution.Drawable!.MaterialIdentity);
+            solution.Reconfigure(CloudVolumeViewSettings.Default with{Detail=false});
+            scene.Draw(CloudVolumeViewSettings.Default with{Detail=false},solution:solution);
             scene.QueueUpdate(solution,CloudVolumeViewSettings.Default with{Detail=false},retireAndResubmit:true);
             var coherent=solution.Storage.Published.Diffuse;var encoding=solution.Storage.Published.Encoding;
             solution.ReconfigureLighting();

@@ -14,6 +14,13 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper output):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Records complete unchanged and density-changing updates at fixed geometry for all quality profiles.</summary>
+    [Fact]
+    public void RecordQualityProfileUpdates()
+    {
+        EnsureShaderTestAvailable();
+        foreach(int quality in Enumerable.Range(0,5))MeasureCompleteUpdates(quality,true);
+    }
     /// <summary>Separates maximum metadata selection from fixed nonempty direct and diffuse transport.</summary>
     [Fact]
     public void RecordMatchedComputeWork()
@@ -105,12 +112,14 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         output.WriteLine($"Matched copy scene: {domain.Size}x66x{domain.Size}, same-scale RGBA16F fields; full read/write payload={domain.CopyBytes} bytes; repair payload={32L*256*16} bytes plus bounded list/counter traffic. Includes dispatch and required visibility barriers; allocation/clears outside timing. Retained-list GPU completion and drawable publication are included in the separate complete-update sequence, not this isolated bandwidth bracket.");
     }
     /// <summary>Times every real deferred update callback through publication, excluding view draws and simulated frame waits.</summary>
-    private void MeasureCompleteUpdates()
+    private void MeasureCompleteUpdates(int quality=2,bool profileOnly=false)
     {
         using var map=DynamicTexture2D.Create(20,20,PixelInternalFormat.Rgba32f);
         using var camera=TestFrameCamera.CreateFromProjection([1,0,0,0,0,1,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0],1,1,.1f,1000);
-        using var solution=new CloudVolumeSolution(Programs.Api,true);
-        var settings=CloudVolumeViewSettings.Default;solution.Prepare(settings);
+        using var solution=new CloudVolumeSolution(Programs.Api,true,quality);
+        var profile=CloudVolumeQuality.Resolve(quality);
+        var settings=CloudVolumeViewSettings.Default with{Quality=quality,Stop=profile.ViewStop,LightingRaysPerUpdate=profile.LightingRays};solution.Prepare(settings);
+        output.WriteLine($"Quality {quality}: shape axis={profile.ShapeAxis}, diffuse directions={profile.Directions}, gather distance={profile.GatherDistance}, ray budget={profile.LightingRays}; fixed width20/grid, one startup warmup before measurement.");
         var lighting=new AtmosphereLighting(Vector3.UnitY,Vector3.One,Vector3.One,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
             {Moon=Vector3.UnitX,Lunar=Vector3.One};
         var input=new CloudMapInput(new object(),1,1,1,1,1,0,new(map.TextureId,2,3,4,20,50,5),default);
@@ -119,7 +128,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         using var timer=GpuTimerQuery.Create("Tests.Cloud.CompleteUpdate");uint frame=0;
         // Startup allocation, initialization and first publication warm the complete owning path outside the reported samples.
         Complete(false);
-        foreach(string scenario in new[]{"unchanged","wind only","same-content upload","evolving","source change","empty occupancy","disabled lighting jobs","sparse evolving"})
+        foreach(string scenario in profileOnly?new[]{"unchanged","evolving"}:new[]{"unchanged","wind only","same-content upload","evolving","source change","empty occupancy","disabled lighting jobs","sparse evolving"})
         {
             var samples=new List<double>();var cpuSamples=new List<double>();var callbacks=new List<int>();
             for(int sample=0;sample<3;sample++)
@@ -146,8 +155,8 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
                 if(header[16]>0)using(var read=fields.Scratch.MapScope<uint>(CloudVolumeWork.DirectListWord*4,(int)header[16],MapBufferAccessMask.MapReadBit))selectedDirect=read.Span.ToArray();
                 if(header[17]>0)using(var read=fields.Scratch.MapScope<uint>(CloudVolumeWork.DiffuseListWord*4,(int)header[17],MapBufferAccessMask.MapReadBit))selectedDiffuse=read.Span.ToArray();
                 long directRays=selectedDirect.Sum(job=>(long)((occupied[job/2]&4u)!=0?(occupied[job/2]>>3)&511u:256u));
-                long diffuseRays=selectedDiffuse.Sum(job=>8L*((occupied[job]&4u)!=0?(occupied[job]>>3)&511u:256u));
-                output.WriteLine($"Positive scheduling support: exact blocks={occupied.Count(v=>(v&4u)!=0)}, eligible origins={occupied.Where(v=>(v&4u)!=0).Sum(v=>(long)((v>>3)&511u))}, selected direct/diffuse origin rays={directRays}/{diffuseRays}; unknown support charges conservative256 origins per block. Reserved block-capacity rays={header[16]*256L}/{header[17]*2048L}. Metadata maps outside timings.");
+                long diffuseRays=selectedDiffuse.Sum(job=>(long)profile.Directions*((occupied[job]&4u)!=0?(occupied[job]>>3)&511u:256u));
+                output.WriteLine($"Positive scheduling support: exact blocks={occupied.Count(v=>(v&4u)!=0)}, eligible origins={occupied.Where(v=>(v&4u)!=0).Sum(v=>(long)((v>>3)&511u))}, selected direct/diffuse origin rays={directRays}/{diffuseRays}; unknown support charges conservative256 origins per block. Reserved block-capacity rays={header[16]*256L}/{header[17]*256L*profile.Directions}. Metadata maps outside timings.");
                 uint directAge=0,diffuseAge=0,completionAge=0;
                 for(int r=0;r<fields.Domain.Blocks;r++)
                 {
@@ -164,7 +173,8 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
             var ordered=samples.Order().ToArray();
             output.WriteLine($"Complete deferred update {scenario}: median {ordered[1]:F4} ms GPU, {cpuSamples.Order().ElementAt(1):F4} ms CPU Poll/Submit; summed callback samples {string.Join(", ",samples.Select(t=>t.ToString("F4")))} ms; callbacks {string.Join(", ",callbacks)}.");
         }
-        output.WriteLine("Actual CloudVolumeSolution.Poll/Submit, width20, default detail/shadows/diffuse until separately labelled disabled-job case; raw extinction .25/.2505 or genuinely empty zero, heights[-2,2] native=>[-100,100] metres, density budget4096 and lighting allowance16384 direct/65536 diffuse rays. Includes validation/snapshot, observation, generation/occupancy, selection, direct/diffuse completion, coherent copy and publication as scheduled. Startup/native upload/view draws/test inter-frame waits excluded; CPU submission gaps included. CPU stopwatch measures only Poll/Submit calls, excluding logging, diagnostic maps, timer/fence waits and native upload; this is headless submission cost, not live engine CPU time. Callbacks simulate rendered frames with fences forced complete between callbacks, not actual game latency/FPS. Final publication callback does not submit the next chain in this fixture; normalized job counts are fixture callback ratios, not measured live throughput. Instrumentation adds three fixed metadata maps and up to two bounded selected-list maps outside timing; age statistics exclude certified empty blocks. Useful selected jobs denote occupied eligible block jobs, not a count of nonzero contributing voxel rays. Changed density blocks use exact arithmetic comparison without approximation thresholds. Production CPU readbacks are source-audited separately: density summary and combined lighting status/diffuse count after final fence, plus descriptor validation for new observations.");
+        output.WriteLine("Actual CloudVolumeSolution.Poll/Submit, width20, default detail/shadows/diffuse until separately labelled disabled-job case; raw extinction .25/.2505 or genuinely empty zero, heights[-2,2] native=>[-100,100] metres, density budget4096 and profile-specific lighting allowance as listed above. Includes validation/snapshot, observation, generation/occupancy, selection, direct/diffuse completion, coherent copy and publication as scheduled. Startup/native upload/view draws/test inter-frame waits excluded; CPU submission gaps included. CPU stopwatch measures only Poll/Submit calls, excluding logging, diagnostic maps, timer/fence waits and native upload; this is headless submission cost, not live engine CPU time. Callbacks simulate rendered frames with fences forced complete between callbacks, not actual game latency/FPS. Final publication callback does not submit the next chain in this fixture; normalized job counts are fixture callback ratios, not measured live throughput. Instrumentation adds three fixed metadata maps and up to two bounded selected-list maps outside timing; age statistics exclude certified empty blocks. Useful selected jobs denote occupied eligible block jobs, not a count of nonzero contributing voxel rays. Changed density blocks use exact arithmetic comparison without approximation thresholds. Production CPU readbacks are source-audited separately: density summary and combined lighting status/diffuse count after final fence, plus descriptor validation for new observations.");
+        if(profileOnly)MeasureQualityPasses(solution.Storage.Published,quality,lighting);
 
         /// <summary>Advances one complete retained publication while keeping test waits outside each GPU timer interval.</summary>
         (double Milliseconds,int Callbacks,double CpuMilliseconds) Complete(bool measure)
@@ -195,6 +205,29 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
             }
             throw new InvalidOperationException("Bounded test update did not produce a completed publication.");
         }
+    }
+    /// <summary>Isolates generation and direct transport on fixed block coordinates after total-update measurement.</summary>
+    private void MeasureQualityPasses(CloudVolumeFields fields,int quality,AtmosphereLighting lighting)
+    {
+        var d=fields.Domain;var regions=Enumerable.Range(0,d.Blocks).Where(r=>r%d.BlocksX>0&&r%d.BlocksX<d.BlocksX-1&&
+            r/(d.BlocksX*d.BlocksY)>0&&r/(d.BlocksX*d.BlocksY)<d.BlocksX-1&&
+            (r/d.BlocksX)%d.BlocksY is 7 or 8).Take(32).Select(r=>(uint)r).ToArray();
+        Assert.Equal(32,regions.Length);
+        using(var count=fields.Scratch.MapScope<uint>(16,1,MapBufferAccessMask.MapWriteBit))count.Span[0]=32;
+        foreach(int offset in new[]{64,16768,17024})
+            using(var list=fields.Scratch.MapScope<uint>(offset*4,32,MapBufferAccessMask.MapWriteBit))regions.CopyTo(list.Span);
+        using var summary=GpuShaderStorageBuffer.Create();summary.UploadData(new uint[8]);
+        using var generation=CloudVolumeDensityProgram.Create(Programs.Api,3,true,quality:quality);
+        generation.Capture(d,fields.DensityState.WindowX,fields.DensityState.WindowZ,fields.DensityState,1000,false);
+        generation.Descriptors=new(fields.Descriptors,TextureAccess.ReadWrite);generation.Density=new(fields.Density,TextureAccess.ReadWrite,Layered:true);
+        generation.Regions=fields.Regions;generation.Occupancy=fields.Occupancy;generation.Scratch=fields.Scratch;generation.Summary=summary;
+        Measure($"Quality {quality} generation32 fixed blocks",()=>generation.Dispatch(32));
+        using var solar=CloudVolumeDirectProgram.Create(Programs.Api,1,quality);
+        using var lunar=CloudVolumeDirectProgram.Create(Programs.Api,2,quality);
+        solar.Capture(d,lighting.Sun,0);lunar.Capture(d,lighting.Moon,0);
+        foreach(var p in new[]{solar,lunar}){p.Density=fields.Density;p.Occupancy=fields.Occupancy;p.Scratch=fields.Scratch;p.Direct=new(fields.Direct,TextureAccess.ReadWrite,Layered:true);}
+        Measure($"Quality {quality} direct64 fixed block-source jobs",()=>{solar.Dispatch(32);Barrier();lunar.Dispatch(32);});
+        output.WriteLine($"Quality {quality} pass bracket: guarded {d.Size}x66x{d.Size}, storage bytes={d.Bytes}; identical32 physical blocks, typed generation and direct programs, allocation/compilation outside warmup+three query samples; CPU submission included.");
     }
     /// <summary>Measures queue work at maximum coverage using metadata only and resetting identical input before each trial.</summary>
     private void MeasureDensitySelection()

@@ -18,6 +18,8 @@ internal sealed class CloudVolumeSolution:IDisposable
     private readonly CloudVolumeDiffuse diffuse;
     private readonly CloudVolumePublication publication;
     private readonly CloudVolumeUpdates updates;
+    private int quality;
+    private bool detail;
     private uint? submittedFrame;
     private CloudVolumeIdentity? asyncIdentity;
     private uint asyncFrame;
@@ -32,11 +34,12 @@ internal sealed class CloudVolumeSolution:IDisposable
     internal string? Failure {get;private set;}
     #region Public API
     /// <summary>Creates independently owned algorithm components and typed executable factories.</summary>
-    internal CloudVolumeSolution(ICoreAPI api,bool detail)
+    internal CloudVolumeSolution(ICoreAPI api,bool detail,int quality=2)
     {
+        this.detail=detail;this.quality=quality;
         Storage=new(()=>CloudVolumeMaintenanceProgram.Create(api),()=>CloudVolumeCopyProgram.Create(api),submission);
-        density=new((op,shared)=>CloudVolumeDensityProgram.Create(api,op,detail,shared),submission);work=new((op,large,shared)=>CloudVolumeWorkProgram.Create(api,op,large,shared),submission);
-        direct=new(op=>CloudVolumeDirectProgram.Create(api,op),submission);diffuse=new(shadows=>CloudVolumeDiffuseProgram.Create(api,shadows),submission);
+        density=new((op,shared)=>CloudVolumeDensityProgram.Create(api,op,this.detail,shared,this.quality),submission);work=new((op,large,shared)=>CloudVolumeWorkProgram.Create(api,op,large,shared,this.quality),submission,quality);
+        direct=new(op=>CloudVolumeDirectProgram.Create(api,op,this.quality),submission);diffuse=new(shadows=>CloudVolumeDiffuseProgram.Create(api,shadows,this.quality),submission);
         publication=new((op,shared)=>CloudVolumePublishProgram.Create(api,op,shared));updates=new(Storage,density,work,direct,diffuse,publication,submission);
     }
     /// <summary>Prepares only selected solvers before consumer ownership transfers.</summary>
@@ -67,6 +70,17 @@ internal sealed class CloudVolumeSolution:IDisposable
         if(Failure is not null||!current()||submittedFrame==input.Frame)return;
         try{submittedFrame=input.Frame;Admission.Observe(lighting);updates.Submit(input,map,lighting,camera,settings,Admission,current);}
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error)){Failure=error.Message;Storage.Withdraw();}
+    }
+    /// <summary>Changes compiled transport only after the previous update retires, retaining drawable storage.</summary>
+    internal void Reconfigure(CloudVolumeViewSettings next)
+    {
+        if(UpdatePending)throw new InvalidOperationException("Cloud profile changed during an unfinished update.");
+        bool geometry=detail!=next.Detail||(next.Detail&&CloudVolumeQuality.Resolve(quality).ShapeAxis!=CloudVolumeQuality.Resolve(next.Quality).ShapeAxis);
+        quality=next.Quality;detail=next.Detail;
+        // Frozen old commands are retired before factories begin selecting the new profile.
+        RenderingCleanup.Run(updates.Dispose,diffuse.Reset,direct.Reset,()=>work.Reconfigure(next.Quality));
+        if(geometry){density.Reset();Storage.ReplaceGeometry();}
+        submittedFrame=null;asyncIdentity=null;
     }
     /// <summary>Revokes lighting certificates after feature changes while preserving compatible density and source envelopes.</summary>
     internal void ReconfigureLighting()

@@ -1,4 +1,5 @@
 #version 430 core
+@import "quality.glsl"
 @import "traversal.glsl"
 layout(local_size_x=8,local_size_y=4,local_size_z=8) in;
 layout(std140) uniform VolumeDirect
@@ -45,7 +46,7 @@ void main()
         CloudVolumeGrid grid;grid.size=directSize.xyz;grid.blocks=blocks;grid.slot=directSlots.xy;
         grid.first=directFirst.xyz;grid.cell=directCell.xyz;grid.minimum=directMinimum.xyz;grid.maximum=directMaximum.xyz;
         CloudVolumeRay ray=CloudVolumeBegin(grid,position,directDirection.xyz,3.402823e38);
-        float tau=0;
+        float tau=0;bool opticalExit=false;
         for(int i=0;i<2048;i++)
         {
             vec2 interval;bool occupied;if(!CloudVolumeNext(grid,ray,interval,occupied))break;
@@ -54,10 +55,13 @@ void main()
                 float sigma=texelFetch(volumeDensity,ray.sampleCell,0).r;
                 if(isnan(sigma)||isinf(sigma)||sigma<0){ray.failed=true;break;}
                 tau=min(80.0,tau+sigma*(interval.y-interval.x));
+                #if VGE_VOLUME_QUALITY<2
+                if(!ray.failed&&tau>=-log(VOLUME_TRANSPORT_STOP)){opticalExit=true;break;}
+                #endif
             }
         }
-        if(!CloudVolumeComplete(ray)){atomicOr(scratch[25],1u<<uint(source));return;}
-        transmission=exp(-tau);
+        if(!opticalExit&&!CloudVolumeComplete(ray)){atomicOr(scratch[25],1u<<uint(source));return;}
+        transmission=opticalExit?0:exp(-tau);
         if(isnan(transmission)||isinf(transmission)){atomicOr(scratch[25],1u<<uint(source));return;}
     }
     vec4 value=imageLoad(directOutput,p);value[source]=transmission;imageStore(directOutput,p,value);

@@ -11,9 +11,53 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 
 /// <summary>Checks the declared diffuse recurrence and coherent partial publication without convergence/image gates.</summary>
 [Collection("GPU")][Trait("Category","GPU")]
-public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShaderFunctionalTestBase(fixture)
+public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITestOutputHelper output):LumOnShaderFunctionalTestBase(fixture)
 {
     #region Public API
+    /// <summary>Every compiled profile charges its actual directions and completes the same occupied block.</summary>
+    [Fact]
+    public void QualityProfilesChargeActualDiffuseDirections()
+    {
+        EnsureShaderTestAvailable();
+        using var storage=new VolumeStorage(()=>CloudVolumeMaintenanceProgram.Create(Programs.Api),()=>CloudVolumeCopyProgram.Create(Programs.Api));
+        var d=new CloudVolumeDomain(10,default,-100,100);var environment=new Vector3(2,3,4);
+        storage.Request(d,new(new object(),1,1),new(new Vector3(4)),environment,()=>true);
+        while(!storage.InitializeNext(()=>true)){}
+        Assert.True(storage.PublishPending(()=>true,()=>true));var fields=storage.Published;
+        var density=new float[d.Voxels];
+        for(int z=8;z<16;z++)for(int y=8;y<12;y++)for(int x=8;x<16;x++)density[(z*66+y)*d.Size+x]=.0078125f;
+        fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
+        int region=(d.BlocksY+2)*d.BlocksX+1;
+        var occupancy=new uint[d.Blocks];occupancy[region]=5u|(256u<<3);
+        fields.Occupancy.UploadData(occupancy);
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=1;
+        var light=new AtmosphereLighting(Vector3.UnitY,Vector3.Zero,environment,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty);
+        var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();
+        foreach(int level in Enumerable.Range(0,5))
+        {
+            var profile=CloudVolumeQuality.Resolve(level);
+            using var work=new CloudVolumeWork((op,large,shared)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large,shared,level),quality:level);
+            using var solver=new CloudVolumeDiffuse(shadows=>CloudVolumeDiffuseProgram.Create(Programs.Api,shadows,level));
+            solver.Prepare(false);
+            using var timer=GpuTimerQuery.Create("Tests.Cloud.Quality.Diffuse");var times=new List<double>();
+            for(int sample=0;sample<4;sample++)
+            {
+                Assert.True(work.Select(storage,light,(uint)(level*4+sample+1),planes,()=>true,directEnabled:false,lightingRays:profile.LightingRays),work.Failure);
+                Assert.True(work.TryBatch(storage,out var batch));
+                using(var args=batch!.Commands.MapScope<uint>(12,3,MapBufferAccessMask.MapReadBit))
+                {Assert.Equal(1u,args.Span[0]);Assert.Equal((uint)profile.Directions,args.Span[1]);Assert.Equal(1u,args.Span[2]);}
+                timer.Begin();Assert.True(solver.Update(storage,work,()=>true,deferStatus:true),solver.Failure);timer.End();
+                work.SubmitCompletion(storage,()=>true);
+                using(var fence=GpuFence.Insert())Assert.NotEqual(WaitSyncStatus.WaitFailed,fence.Wait(TimeSpan.FromSeconds(5)));
+                Assert.True(solver.Complete(storage,work,()=>true),solver.Failure);
+                Assert.Equal(1,solver.LastJobs);Assert.Equal((uint)(256*profile.Directions),work.Statistics.DiffuseRays);
+                Assert.True(work.Statistics.DiffuseRays<=work.Statistics.DiffuseAllowance);
+                Assert.Equal(0u,work.Statistics.UnknownDiffuseJobs);
+                double ms=timer.GetResultNanoseconds()/1e6;if(sample>0)times.Add(ms);
+            }
+            times.Sort();output.WriteLine($"Quality {level}: {profile.Directions} directions, {work.Statistics.DiffuseRays} rays, one occupied block; warmed diffuse update median={times[1]:F4}ms (copy/gather submission included, selector/status excluded; contention uncontrolled, no live speed claim).");
+        }
+    }
     /// <summary>Gathers a constant physical source, preserves untouched cells through rescaling, and rejects failed destinations.</summary>
     [Fact]
     public void DiffuseTransportPreservesCoherentHistoryAndCommitsOnlySuccessfulBatches()

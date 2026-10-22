@@ -1,4 +1,5 @@
 #version 430 core
+@import "quality.glsl"
 layout(local_size_x=256) in;
 layout(std140) uniform VolumeWork
 {
@@ -97,12 +98,15 @@ void Sort(int count)
     }
 }
 /** Bounds candidate refill effort and existing complete-block list capacities independently of ray cost. */
-int Budget(int kind){return int(workFirst.w)*(kind==0?2:1);}
+int Budget(int kind){return kind==0?int(workFirst.w)*2:clamp(int(workFirst.w)*8/VOLUME_DIRECTIONS,1,128);}
 /** Keeps the admitted direct/diffuse ray allocation, including an odd whole-block fair reservation. */
 uint RayAllowance(int kind,bool fair)
 {
     int jobs=int(workFirst.w)*(kind==0?2:1);
-    return uint(fair?(jobs+1)/2:jobs)*uint(kind==0?256:2048);
+    uint allowance=uint(fair?(jobs+1)/2:jobs)*uint(kind==0?256:2048);
+    // High angular counts must still allow fair service of one complete occupied block.
+    if(fair&&kind==1)allowance=max(allowance,min(uint(jobs)*2048u,256u*uint(VOLUME_DIRECTIONS)));
+    return allowance;
 }
 /** Assigns the odd leftover job to fair service so the smallest budget cannot starve it. */
 int FairQuota(int kind){return (Budget(kind)+1)/2;}
@@ -196,7 +200,7 @@ void Emit(int kind,int groups)
         for(int i=0;i<quota;i++)
         {
             uint job=scratch[sourceOffset+i];if(job==Invalid)break;
-            uint cost=Origins(kind==0?int(job)/2:int(job))*uint(kind==0?1:8);
+            uint cost=Origins(kind==0?int(job)/2:int(job))*uint(kind==0?1:VOLUME_DIRECTIONS);
             if(used+cost>RayAllowance(kind,true))break;
             scratch[list+count++]=job;used+=cost;
             scratch[18+kind]=(job+1u)%uint(workExtent.w*(kind==0?2:1));
@@ -205,7 +209,7 @@ void Emit(int kind,int groups)
         {
             uint job=scratch[sourceOffset+quota+i*3+2];if(job==Invalid)break;
             bool duplicate=false;for(int n=0;n<count;n++)duplicate=duplicate||scratch[list+n]==job;
-            uint cost=Origins(kind==0?int(job)/2:int(job))*uint(kind==0?1:8);
+            uint cost=Origins(kind==0?int(job)/2:int(job))*uint(kind==0?1:VOLUME_DIRECTIONS);
             if(!duplicate&&used+cost<=RayAllowance(kind,false)){scratch[list+count++]=job;used+=cost;}
         }
         for(int i=0;i<count;i++)
@@ -220,8 +224,8 @@ void Emit(int kind,int groups)
     // Unknown support reserves 256 origins and is reported separately from exact ray counts.
     scratch[40+kind]=RayAllowance(kind,false);scratch[42+kind]=used;scratch[44+kind]=unknown;
     if(kind==0)scratch[46]=uint(workStamps.z)|(workSettings.y!=0?4u:0u);
-    else scratch[47]=uint(count)*256u-used/8u;
-    commands[kind*3]=uint(count);commands[kind*3+1]=kind==0?1u:8u;commands[kind*3+2]=1u;
+    else scratch[47]=uint(count)*256u-used/uint(VOLUME_DIRECTIONS);
+    commands[kind*3]=uint(count);commands[kind*3+1]=kind==0?1u:uint(VOLUME_DIRECTIONS);commands[kind*3+2]=1u;
     if(kind==1)
     {
         // Keep full re-encoding and bounded previous-block repair independently indirect.

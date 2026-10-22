@@ -19,14 +19,37 @@ public sealed class CloudVolumeSelectionTests
         foreach(var (reference,scale,divisor) in new[]{(false,CloudTraceScale.Half,2),(true,CloudTraceScale.Quarter,1),(false,CloudTraceScale.Quarter,4)})
         {
             var previous=staged.Settings;config.TraceScale=scale;config.FullResolutionReference=reference;
-            config.Detail=false;config.SelfShadowing=false;config.Diffuse=false;config.StopTransmittance=0;
+            config.Detail=false;config.SelfShadowing=false;config.Diffuse=false;
             staged.Request(config);Assert.Equal(previous,staged.Settings);staged.Apply();
-            Assert.Equal(new CloudVolumeViewSettings(false,false,false,0,divisor),staged.Settings);
+            Assert.Equal(new CloudVolumeViewSettings(false,false,false,.005f,divisor),staged.Settings);
         }
-        config.TraceScale=(CloudTraceScale)3;config.StopTransmittance=float.NaN;
-        Assert.Equal(4,config.Capture().TraceDivisor);Assert.Equal(.005f,config.StopTransmittance);
+        config.TraceScale=(CloudTraceScale)3;
+        Assert.Equal(4,config.Capture().TraceDivisor);
         config.LightingRaysPerUpdate=int.MaxValue;Assert.Equal(327680,config.Capture().LightingRaysPerUpdate);
         config.LightingRaysPerUpdate=-1;Assert.Equal(2560,config.Capture().LightingRaysPerUpdate);
+        config.LightingRaysPerUpdate=9000;Assert.Equal(7680,config.Capture().LightingRaysPerUpdate);
+        config.LightingRaysPerUpdate=0;
+        Assert.Equal(2,config.Quality);
+        foreach(var (level,shape,directions,distance,stop,transport,rays) in new[]{
+            (0,1,2,100,.02f,.02f,20480),(1,1,4,200,.01f,.005f,40960),
+            (2,2,8,400,.005f,0f,81920),(3,3,16,600,.0025f,0f,163840),(4,4,32,800,.00125f,0f,327680)})
+        {
+            config.Quality=level;var captured=config.Capture();
+            Assert.Equal(new CloudVolumeQuality(level,shape,directions,distance,stop,transport,rays),CloudVolumeQuality.Resolve(level));
+            Assert.Equal(level,captured.Quality);Assert.Equal(stop,captured.Stop);Assert.Equal(rays,captured.LightingRaysPerUpdate);
+            staged.Request(config);config.Quality=(level+1)%5;staged.Apply();
+            Assert.Equal(captured,staged.Settings); // A queued profile cannot change beneath a retained update.
+            foreach(int budget in new[]{2560,rays,327680})
+            {
+                config.Quality=level;config.LightingRaysPerUpdate=budget;
+                Assert.Equal(budget,config.Capture().LightingRaysPerUpdate);
+                Assert.InRange(CloudVolumeLightingBudget.Candidates(budget,true,directions),1,256);
+                Assert.InRange(CloudVolumeLightingBudget.Candidates(budget,false,directions),1,128);
+            }
+            config.LightingRaysPerUpdate=0;
+        }
+        config.Quality=-1;Assert.Equal(0,config.Capture().Quality);
+        config.Quality=99;Assert.Equal(4,config.Capture().Quality);
         config.LightingRaysPerUpdate=9000;Assert.Equal(7680,config.Capture().LightingRaysPerUpdate);
         var copy=JsonConvert.DeserializeObject<CloudRenderingSettings>(JsonConvert.SerializeObject(config))!;
         Assert.Equal(config.Capture(),copy.Capture());
@@ -39,7 +62,7 @@ public sealed class CloudVolumeSelectionTests
         var document=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
         var controls=document["settings"]!.Children<JProperty>().SelectMany(p=>p.Value.Children<JProperty>()).Select(p=>p.Value)
             .Where(p=>((string?)p["code"])?.StartsWith("Clouds.")==true).ToArray();
-        string[] expected=["Detail","SelfShadowing","Diffuse","StopTransmittance","TraceScale","FullResolutionReference","LightingRaysPerUpdate"];
+        string[] expected=["Detail","SelfShadowing","Diffuse","Quality","TraceScale","FullResolutionReference","LightingRaysPerUpdate"];
         Assert.Equal(expected.Select(s=>"Clouds."+s).Order(),controls.Select(p=>(string)p["code"]!).Order());
         var serialized=JObject.Parse(JsonConvert.SerializeObject(new CloudRenderingSettings()));
         Assert.Equal(expected.Order(),serialized.Properties().Select(p=>p.Name).Order());

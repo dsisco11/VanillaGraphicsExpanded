@@ -3,7 +3,6 @@
   "file": "VanillaGraphicsExpanded.json",
   "settings": {
     "boolean": {
-      "CLOUD_LIGHTING_RAYS": { "code": "Clouds.LightingRaysPerUpdate", "clientSide": true, "name": "Clouds/LightingRaysPerUpdate", "ingui": "vanillagraphicsexpanded:config-cloud-lighting-rays", "comment": "vanillagraphicsexpanded:config-cloud-lighting-rays-tooltip", "default": 81920, "range": { "min": 2560, "max": 327680, "step": 2560 }, "weight": 25.85 },
       "STORED_DETAIL": { "code": "Clouds.Detail", "clientSide": true, "name": "Clouds/Detail", "ingui": "vanillagraphicsexpanded:config-cloud-detail", "default": true, "weight": 25.81 },
       "STORED_SHADOWS": { "code": "Clouds.SelfShadowing", "clientSide": true, "name": "Clouds/SelfShadowing", "ingui": "vanillagraphicsexpanded:config-cloud-shadows", "default": true, "weight": 25.82 },
       "STORED_DIFFUSE": { "code": "Clouds.Diffuse", "clientSide": true, "name": "Clouds/Diffuse", "ingui": "vanillagraphicsexpanded:config-cloud-diffuse", "default": true, "weight": 25.83 },
@@ -198,6 +197,8 @@
       }
     },
     "integer": {
+      "CLOUD_QUALITY": { "code": "Clouds.Quality", "clientSide": true, "name": "Clouds/Quality", "ingui": "vanillagraphicsexpanded:config-cloud-quality", "comment": "vanillagraphicsexpanded:config-cloud-quality-tooltip", "default": 2, "values": [0,1,2,3,4], "weight": 25.02 },
+      "CLOUD_LIGHTING_RAYS": { "code": "Clouds.LightingRaysPerUpdate", "clientSide": true, "name": "Clouds/LightingRaysPerUpdate", "ingui": "vanillagraphicsexpanded:config-cloud-lighting-rays", "comment": "vanillagraphicsexpanded:config-cloud-lighting-rays-tooltip", "default": 0, "range": { "min": 0, "max": 327680, "step": 2560 }, "weight": 25.85 },
       "CLOUD_TRACE_SCALE": {
         "code": "Clouds.TraceScale",
         "clientSide": true,
@@ -491,7 +492,6 @@
       }
     },
     "float": {
-      "STORED_STOP": { "code": "Clouds.StopTransmittance", "clientSide": true, "name": "Clouds/StopTransmittance", "ingui": "vanillagraphicsexpanded:config-cloud-stop", "default": 0.005, "range": { "min": 0, "max": 0.005, "step": 0.001 }, "weight": 25.84 },
       "POST_BLOOMSTRENGTH": {
         "code": "Postprocessing.BloomStrength",
         "clientSide": true,

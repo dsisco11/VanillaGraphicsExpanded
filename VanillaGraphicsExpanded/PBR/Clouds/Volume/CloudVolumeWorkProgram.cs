@@ -7,14 +7,18 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Selects or completes bounded lighting work through independently compiled structural operations.</summary>
-[ShaderProgram("Contract","cloud_volume/work",22)]
+[ShaderProgram("Contract","cloud_volume/work",110)]
 [ShaderStage("Contract",ShaderStageKind.Compute,"cloud_volume/work.csh")]
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(Operation))]
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(LargeBudget))]
+[ShaderUse("Contract",ShaderStageKind.Compute,nameof(Quality))]
 internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudVolumeWorkBindings
 {
     private readonly PackedUniformBuffer inputs;
     #region Public API
+    /// <summary>Selects one compiled workload profile for the entire executable lifetime.</summary>
+    [ShaderOptionReference(typeof(CloudVolumeQualityOptions),nameof(CloudVolumeQualityOptions.Level))]
+    internal static partial ShaderOption<int> Quality {get;}
     /// <summary>Selects list production or successful-only completion metadata writes.</summary>
     [ShaderOption("VGE_VOLUME_WORK_OPERATION",0,Domain=new object[]{0,1,2,3,4,5,6,7,8,9,10})]
     internal static partial ShaderOption<int> Operation { get; }
@@ -22,10 +26,10 @@ internal sealed partial class CloudVolumeWorkProgram : GpuComputeProgram,ICloudV
     [ShaderOption("VGE_VOLUME_WORK_LARGE_BUDGET",false)]
     internal static partial ShaderOption<bool> LargeBudget {get;}
     /// <summary>Loads only the selected work executable.</summary>
-    internal static CloudVolumeWorkProgram Create(ICoreAPI api,int operation,bool largeBudget=false,PackedUniformBuffer? shared=null)
+    internal static CloudVolumeWorkProgram Create(ICoreAPI api,int operation,bool largeBudget=false,PackedUniformBuffer? shared=null,int quality=2)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
-        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(LargeBudget,largeBudget),out var pipeline,
+        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(LargeBudget,largeBudget).With(Quality,quality),out var pipeline,
             out string log,"Cloud.Volume.Work",layout:layout))throw new InvalidOperationException(log);
         return new(pipeline!,shared);
     }

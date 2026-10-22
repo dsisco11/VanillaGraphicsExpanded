@@ -42,7 +42,7 @@ float Shape(vec3 p,ivec2 cell,vec4 column)
     return smoothstep(0.0,2.0,max(e,0.0))*(1.0+.15*(2.0*Noise(p+volumeNoiseOrigin.xyz)-1.0));
 }
 #endif
-/** Integrates exact cuboid overlap, with eight generation-only shape samples when detail is enabled. */
+/** Integrates exact cuboid overlap, with profile-selected generation-only shape samples when detail is enabled. */
 float CellDensity(vec3 lo)
 {
     vec3 hi=lo+volumeCell.xyz;
@@ -59,8 +59,8 @@ float CellDensity(vec3 lo)
         float factor=1;
         #if VGE_VOLUME_DENSITY_DETAIL
         factor=0;
-        for(int iz=0;iz<2;iz++)for(int iy=0;iy<2;iy++)for(int ix=0;ix<2;ix++)
-            factor+=Shape(a+size*(vec3(ix,iy,iz)*.5+.25),cell,c)*.125;
+        for(int iz=0;iz<VOLUME_SHAPE_AXIS;iz++)for(int iy=0;iy<VOLUME_SHAPE_AXIS;iy++)for(int ix=0;ix<VOLUME_SHAPE_AXIS;ix++)
+            factor+=Shape(a+size*((vec3(ix,iy,iz)+.5)/float(VOLUME_SHAPE_AXIS)),cell,c)/float(VOLUME_SHAPE_AXIS*VOLUME_SHAPE_AXIS*VOLUME_SHAPE_AXIS);
         #endif
         density+=c.x*(size.x*size.y*size.z/voxelVolume)*factor;
     }

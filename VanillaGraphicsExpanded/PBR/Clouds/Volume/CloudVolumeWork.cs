@@ -8,8 +8,9 @@ using VanillaGraphicsExpanded.Rendering.Integration;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Owns fair lighting queues while separating selection, completed work and compatible retained history.</summary>
-internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVolumeWorkProgram> createProgram,CloudVolumeSubmission? submission=null):IDisposable
+internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVolumeWorkProgram> createProgram,CloudVolumeSubmission? submission=null,int quality=2):IDisposable
 {
+    private int directions=CloudVolumeQuality.Resolve(quality).Directions;
     private readonly CloudVolumeSubmission submission=submission??new();
     /// <summary>Exposes prepared executable footprints to the enclosing update boundary.</summary>
     internal System.Collections.Generic.IEnumerable<GpuComputeProgram> SubmissionPrograms=>System.Linq.Enumerable.OfType<GpuComputeProgram>(programs);
@@ -22,6 +23,8 @@ internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVo
     private GpuIndirectBuffer? commands;
     private PackedUniformBuffer? inputs;
     private CloudVolumeWorkBatch? batch;
+    private CloudVolumeFields? retainedFields;
+    private int retainedSources;
     private uint revision;
     private bool largeBudget;
     private int completed,pendingCompletion;
@@ -52,11 +55,12 @@ internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVo
             lightingRays=CloudVolumeLightingBudget.Sanitize(lightingRays);
             Prepare(lightingRays);
             bool same=batch is not null&&ReferenceEquals(batch.Fields,fields);
-            if(same&&(frame<batch!.Frame||revision==uint.MaxValue))throw new InvalidOperationException("Cloud work counters require reset.");
-            if(!same)revision=0;
+            bool retained=ReferenceEquals(retainedFields,fields);
+            if((same&&frame<batch!.Frame)||((same||retained)&&revision==uint.MaxValue))throw new InvalidOperationException("Cloud work counters require reset.");
+            if(!same&&!retained)revision=0;
             revision++;
             int active=directEnabled?((lighting.Solar!=Vector3.Zero?1:0)|(lighting.Lunar!=Vector3.Zero?2:0)):0;
-            int newly=active&~(same?batch!.ActiveSources:0),dirty=same?0:7;
+            int newly=active&~(same?batch!.ActiveSources:ReferenceEquals(retainedFields,fields)?retainedSources:0),dirty=same?0:7;
             if(same)
             {
                 var prior=batch!;
@@ -70,6 +74,7 @@ internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVo
             SelectLists(fields,frame,active,dirty,newly,diffuseEnabled,current,densityPending,lightingRays);
             batch=new(fields,lighting,frame,revision,fields.Revision,fields.DensityState.Revision,
                 fields.DensityState.CompletedFrame,active,newly,directEnabled,diffuseEnabled,commands!);
+            retainedFields=null;retainedSources=0;
             completed=pendingCompletion=0;Ready=true;return true;
         }
         catch(Exception error)when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
@@ -126,10 +131,17 @@ internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVo
     #endregion
 
     #region Lifetime
+    /// <summary>Replaces profile executables without falsely reactivating already valid direct channels.</summary>
+    internal void Reconfigure(int nextQuality=2)
+    {
+        var fields=batch?.Fields??retainedFields;int sources=batch?.ActiveSources??retainedSources;uint priorRevision=revision;
+        Reset();retainedFields=fields;retainedSources=sources;revision=priorRevision;
+        directions=CloudVolumeQuality.Resolve(nextQuality).Directions;
+    }
     /// <summary>Revokes queued certificates and programs while leaving field ownership with storage.</summary>
     internal void Reset()
     {
-        Ready=failed=false;Failure=null;batch=null;revision=0;completed=pendingCompletion=0;LastDiffuseCopyBytes=0;Statistics=default;
+        Ready=failed=false;Failure=null;batch=null;retainedFields=null;retainedSources=0;revision=0;completed=pendingCompletion=0;LastDiffuseCopyBytes=0;Statistics=default;
         Action[] release=new Action[13];
         for(int i=0;i<programs.Length;i++){int slot=i;release[i]=()=>{programs[slot]?.Dispose();programs[slot]=null;};}
         release[11]=()=>{commands?.Dispose();commands=null;};
@@ -146,7 +158,7 @@ internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVo
     {
         if(lightingRays!=0)
         {
-            bool large=CloudVolumeLightingBudget.Candidates(lightingRays,true)>64;
+            bool large=CloudVolumeLightingBudget.Candidates(lightingRays,true)>64||CloudVolumeLightingBudget.Candidates(lightingRays,false,directions)>64;
             if(large!=largeBudget)
             {
                 // Selection runs only after the preceding update retires. Changing capacity retains
@@ -178,7 +190,7 @@ internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVo
     {
         var d=fields.Domain;
         int direct=active==0?0:(d.Blocks*2+255)/256,indirect=diffuse?(d.Blocks+255)/256:0;
-        int directCandidates=CloudVolumeLightingBudget.Candidates(lightingRays,true),diffuseCandidates=CloudVolumeLightingBudget.Candidates(lightingRays,false);
+        int directCandidates=CloudVolumeLightingBudget.Candidates(lightingRays,true),diffuseCandidates=CloudVolumeLightingBudget.Candidates(lightingRays,false,directions);
         int directStride=(directCandidates+1)/2+3*directCandidates+1,diffuseStride=(diffuseCandidates+1)/2+3*diffuseCandidates+1;
         // Persistent membership occupies the unused scratch tail, above all reduction temporaries.
         if(SummaryA+direct*directStride+indirect*diffuseStride>SummaryB||

@@ -65,7 +65,9 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
         Assert.True(work.Select(storage,lighting,9,planes,()=>true,lightingRays:2560),work.Failure);
         Assert.Equal(8u,Read(fields.Regions,9,1)[0]);
         using(var flag=fields.Scratch.MapScope<uint>(6*4,1,MapBufferAccessMask.MapWriteBit))flag.Span[0]=1;
+        work.Reconfigure(); // Algorithm changes refresh transport without treating retained channels as newly enabled.
         Assert.True(work.Select(storage,lighting,10,planes,()=>true),work.Failure);
+        Assert.True(work.TryBatch(storage,out var retainedBatch));Assert.Equal(0,retainedBatch!.NewlyActive);
         Assert.Contains(Read(fields.Scratch,CloudVolumeWork.DirectListWord,64),job=>job%2==1u);
         lighting=lighting with{Lunar=Vector3.Zero};
         Assert.True(work.Select(storage,lighting,11,planes,()=>true),work.Failure);

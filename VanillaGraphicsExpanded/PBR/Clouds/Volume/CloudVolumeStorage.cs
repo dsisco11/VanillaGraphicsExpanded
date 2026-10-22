@@ -21,6 +21,8 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
     private (nint Handle, long Generation) context;
     private ulong maintenanceRevision, copyRevision;
     private bool available, disposed;
+    /// <summary>Requires fresh geometry while retaining the previous complete domain and drawable.</summary>
+    internal bool GeometryReplacement {get;private set;}
     internal bool Ready => available && active is not null && ExecutablesCurrent();
     internal CloudVolumeFields Published => Ready ? active! : throw new InvalidOperationException("Cloud volume is unavailable.");
     internal CloudVolumeFields? Pending => pending;
@@ -54,7 +56,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
         if ((identity is not null && !identity.Matches(source)) || (pendingIdentity is not null && !pendingIdentity.Matches(source))) RetireFields();
         // An admitted initial fill cannot chase later placements or heights indefinitely.
         if (pending is not null) return;
-        if (Ready && active!.Domain.CanScroll(domain))
+        if (!GeometryReplacement && Ready && active!.Domain.CanScroll(domain))
         {
             if (active.Domain != domain) Scroll(domain, active.Encoding.Encode(fallbackPhysical), current);
             return;
@@ -62,7 +64,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
         if (checked(StorageBytes + domain.Bytes) > CloudVolumeDomain.PeakLimit) throw new NotSupportedException("Cloud volume replacement exceeds the peak payload limit.");
         try
         {
-            pending = new CloudVolumeFields(domain, encoding); pendingFallback = fallback; pendingIdentity = source;
+            pending = new CloudVolumeFields(domain, encoding); GeometryReplacement=false; pendingFallback = fallback; pendingIdentity = source;
             if (!current() || !ExecutablesCurrent()) throw new InvalidOperationException("Cloud allocation lost its certificate.");
         }
         catch { RetirePending(); throw; }
@@ -103,6 +105,8 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
     #endregion
 
     #region Publication and lifetime
+    /// <summary>Requests a bounded same-layout regeneration after the prior update has retired.</summary>
+    internal void ReplaceGeometry(){RetirePending();GeometryReplacement=true;}
     /// <summary>Withdraws sampling after failed in-place density work until explicit lifecycle recovery.</summary>
     internal void Withdraw() => available = false;
 
@@ -249,7 +253,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
     /// <summary>Revokes sampling before retiring both complete and incomplete field sets.</summary>
     private void RetireFields()
     {
-        available = false; var retired = active; active = null; identity = null;
+        available = false; GeometryReplacement=false; var retired = active; active = null; identity = null;
         RenderingCleanup.Run(() => retired?.Dispose(), RetirePending);
     }
     #endregion

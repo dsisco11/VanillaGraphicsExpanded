@@ -6,14 +6,18 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.PBR.Clouds.Volume;
 
 /// <summary>Owns one structural generation operation, compiling procedural detail out when disabled.</summary>
-[ShaderProgram("Contract","cloud_volume/density",28)]
+[ShaderProgram("Contract","cloud_volume/density",140)]
 [ShaderStage("Contract",ShaderStageKind.Compute,"cloud_volume/density.csh")]
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(Operation))]
 [ShaderUse("Contract",ShaderStageKind.Compute,nameof(Detail))]
+[ShaderUse("Contract",ShaderStageKind.Compute,nameof(Quality))]
 internal sealed partial class CloudVolumeDensityProgram : GpuComputeProgram, ICloudVolumeDensityBindings
 {
     private readonly PackedUniformBuffer inputs;
     #region Public API
+    /// <summary>Selects one compiled workload profile for the entire executable lifetime.</summary>
+    [ShaderOptionReference(typeof(CloudVolumeQualityOptions),nameof(CloudVolumeQualityOptions.Level))]
+    internal static partial ShaderOption<int> Quality {get;}
     /// <summary>Selects validation, observation, selection, generation, occupancy repair or completion.</summary>
     [ShaderOption("VGE_VOLUME_DENSITY_OPERATION",0,Domain=new object[]{0,1,2,3,4,5,6,7,8,9,10,11,12,13})]
     internal static partial ShaderOption<int> Operation { get; }
@@ -21,10 +25,10 @@ internal sealed partial class CloudVolumeDensityProgram : GpuComputeProgram, ICl
     [ShaderOption("VGE_VOLUME_DENSITY_DETAIL",true)]
     internal static partial ShaderOption<bool> Detail { get; }
     /// <summary>Loads only the selected structural operation and density variant.</summary>
-    internal static CloudVolumeDensityProgram Create(ICoreAPI api,int operation,bool detail,PackedUniformBuffer? shared=null)
+    internal static CloudVolumeDensityProgram Create(ICoreAPI api,int operation,bool detail,PackedUniformBuffer? shared=null,int quality=2)
     {
         var layout=new GpuProgramLayout();layout.RegisterContract(Contract.Stages[0].Bindings);
-        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(Detail,detail),
+        if(!GpuComputePipeline.TryCreateFromAssets(api,new ShaderSettings(Contract).With(Operation,operation).With(Detail,detail).With(Quality,quality),
             out var pipeline,out string log,"Cloud.Volume.Density",layout:layout)) throw new InvalidOperationException(log);
         return new(pipeline!,shared);
     }

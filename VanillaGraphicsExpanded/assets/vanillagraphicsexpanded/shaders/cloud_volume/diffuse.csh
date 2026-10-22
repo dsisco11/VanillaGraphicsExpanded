@@ -1,8 +1,9 @@
 #version 430 core
+@import "quality.glsl"
 @import "traversal.glsl"
 @import "encoding.glsl"
 layout(local_size_x=256) in;
-shared vec4 gatherNodes[32];
+shared vec4 gatherNodes[256/VOLUME_DIRECTIONS];
 shared vec4 gatherValues[256];
 layout(std140) uniform VolumeDiffuse
 {
@@ -37,7 +38,7 @@ float VolumeDiffusePhase(float cosine)
 /** Gathers first scattering plus the coherent old isotropic source, then closes the ray once with environment. */
 bool VolumeDiffuseGather(CloudVolumeGrid grid,vec3 origin,vec3 direction,out vec3 incoming)
 {
-    CloudVolumeRay ray=CloudVolumeBegin(grid,origin,direction,400);
+    CloudVolumeRay ray=CloudVolumeBegin(grid,origin,direction,VOLUME_GATHER_DISTANCE);
     vec3 solar=.9*diffuseSolar.rgb*VolumeDiffusePhase(dot(-direction,diffuseSun.xyz));
     vec3 lunar=.9*diffuseLunar.rgb*VolumeDiffusePhase(dot(-direction,diffuseMoon.xyz));
     float transmission=1;incoming=vec3(0);
@@ -59,10 +60,31 @@ bool VolumeDiffuseGather(CloudVolumeGrid grid,vec3 origin,vec3 direction,out vec
         float stepTransmission=exp(-sigma*(interval.y-interval.x));
         incoming+=transmission*(1-stepTransmission)*(solar*visibility.x+lunar*visibility.y+oldSource);
         transmission*=stepTransmission;
+        #if VGE_VOLUME_QUALITY<2
+        // A completed interval may omit the remaining transport and environment tail.
+        if(!ray.failed&&transmission<=VOLUME_TRANSPORT_STOP)return VolumeDiffuseFinite(incoming);
+        #endif
     }
     if(!CloudVolumeComplete(ray))return false;
     incoming+=transmission*diffuseEnvironment.rgb;
     return VolumeDiffuseFinite(incoming);
+}
+/** Uses balanced unit direction sets; Medium retains the original cube-corner order. */
+vec3 VolumeDiffuseDirection(int index)
+{
+    #if VGE_VOLUME_QUALITY==0
+    return vec3(index==0?-1:1)*.5773502691896258;
+    #elif VGE_VOLUME_QUALITY==1
+    return vec3((index&1)==0?-1:1,0,(index&2)==0?-1:1)*.7071067811865475;
+    #else
+    vec3 direction=vec3((index&1)==0?-1:1,(index&2)==0?-1:1,(index&4)==0?-1:1)*.5773502691896258;
+    // Additional rotated cubes retain antipodal balance and equal nonnegative weights.
+    int group=index/8;
+    if(group==1)direction=vec3(.8*direction.x-.6*direction.z,direction.y,.6*direction.x+.8*direction.z);
+    if(group==2)direction=vec3(direction.x,.8*direction.y-.6*direction.z,.6*direction.y+.8*direction.z);
+    if(group==3)direction=vec3(.8*direction.x-.6*direction.y,.6*direction.x+.8*direction.y,direction.z);
+    return direction;
+    #endif
 }
 /** Refines only selected physical blocks while leaving the copied destination elsewhere untouched. */
 void main()
@@ -70,8 +92,8 @@ void main()
     int region=int(scratch[16640+int(gl_WorkGroupID.x)]);
     ivec3 blocks=ivec3(diffuseSlots.z,diffuseSlots.w,diffuseSlots.z);
     ivec3 block=ivec3(region%blocks.x,(region/blocks.x)%blocks.y,region/(blocks.x*blocks.y));
-    int lane=int(gl_LocalInvocationIndex),rayIndex=lane%8,node=lane/8;
-    int voxel=int(gl_WorkGroupID.y)*32+node;
+    int lane=int(gl_LocalInvocationIndex),rayIndex=lane%VOLUME_DIRECTIONS,node=lane/VOLUME_DIRECTIONS;
+    int voxel=int(gl_WorkGroupID.y)*(256/VOLUME_DIRECTIONS)+node;
     ivec3 p=block*ivec3(8,4,8)+ivec3(voxel%8,(voxel/8)%4,voxel/32);
     CloudVolumeGrid grid;grid.size=diffuseSize.xyz;grid.blocks=blocks;grid.slot=diffuseSlots.xy;
     grid.first=diffuseFirst.xyz;grid.cell=diffuseCell.xyz;grid.minimum=diffuseMinimum.xyz;grid.maximum=diffuseMaximum.xyz;
@@ -93,7 +115,7 @@ void main()
     barrier();vec4 info=gatherNodes[node];vec3 incoming=vec3(0);bool valid=info.w>=0;
     if(info.w==2)
     {
-        vec3 direction=vec3((rayIndex&1)==0?-1:1,(rayIndex&2)==0?-1:1,(rayIndex&4)==0?-1:1)*.5773502691896258;
+        vec3 direction=VolumeDiffuseDirection(rayIndex);
         valid=VolumeDiffuseGather(grid,info.xyz,direction,incoming);
     }
     gatherValues[lane]=vec4(incoming,valid?1:0);barrier();
@@ -103,10 +125,10 @@ void main()
     {
         source=vec3(0);
         // Preserve the declared direction order and arithmetic weights while tracing independently.
-        for(int i=0;i<8;i++)
+        for(int i=0;i<VOLUME_DIRECTIONS;i++)
         {
-            vec4 value=gatherValues[node*8+i];valid=valid&&value.w!=0;
-            source+=value.rgb*(.9/8.0);
+            vec4 value=gatherValues[node*VOLUME_DIRECTIONS+i];valid=valid&&value.w!=0;
+            source+=value.rgb*(.9/float(VOLUME_DIRECTIONS));
         }
     }
     if(!valid||!VolumeDiffuseFinite(source)){atomicOr(scratch[25],4u);return;}

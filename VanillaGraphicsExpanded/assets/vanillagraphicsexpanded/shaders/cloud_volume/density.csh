@@ -1,4 +1,5 @@
 #version 430 core
+@import "quality.glsl"
 #if VGE_VOLUME_DENSITY_OPERATION==3
 layout(local_size_x=8,local_size_y=4,local_size_z=8) in;
 #elif VGE_VOLUME_DENSITY_OPERATION==2 || VGE_VOLUME_DENSITY_OPERATION>=6

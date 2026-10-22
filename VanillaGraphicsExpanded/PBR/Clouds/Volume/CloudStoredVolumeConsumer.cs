@@ -23,8 +23,8 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     private GpuFramebuffer? target;
     private CloudVolumeViewSettings settings;
     private AtmosphereLighting? admitted;
-    private bool prepared,failed,disposed;
-    internal string DiagnosticText=>$"{CloudStoredVolumeDiagnostics.Describe(solution,failed)}\nLighting ray budget per update: {settings.LightingRaysPerUpdate:N0}\nView targets: {view?.TargetBytes??0:N0} bytes (trace divisor {settings.TraceDivisor}; full resolution draws directly)."+
+    private bool prepared,failed,disposed,configurationPending;
+    internal string DiagnosticText=>$"{CloudStoredVolumeDiagnostics.Describe(solution,failed)}\nCloud quality: {settings.Quality} (Medium=2); diffuse rays per voxel: {CloudVolumeQuality.Resolve(settings.Quality).Directions}\nLighting ray budget per update: {settings.LightingRaysPerUpdate:N0}\nView targets: {view?.TargetBytes??0:N0} bytes (trace divisor {settings.TraceDivisor}; full resolution draws directly)."+
         (CloudStoredVolumeDiagnostics.Mode>=5?"\nTemporal: fresh green; carry blue; fallback orange; invalid red. Weight0..1; age0..7.\nReject0=accepted,1=frame,2=projection,4=support,5=depth,6=nonfinite,7=distance,8=age,9=failed ray,10=bounds,11=reactive. See PBR.Clouds.md for rejection colors.":string.Empty);
 
     #region Public API
@@ -46,11 +46,14 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
         var next=selection();
         try
         {
-            if(prepared && next==settings) return true;
-            bool transport=solution is not null && (next.Detail!=settings.Detail || next.SelfShadowing!=settings.SelfShadowing || next.Diffuse!=settings.Diffuse);
-            if(transport) {if(next.Detail!=settings.Detail){solution!.Dispose();solution=null;}else solution!.ReconfigureLighting();}
+            if(prepared && next==settings){configurationPending=false;return true;}
+            // Defer a changed profile until its frozen producer chain completes; continue drawing it.
+            if(prepared&&solution is {UpdatePending:true}){configurationPending=true;return true;}
+            configurationPending=false;
+            bool transport=solution is not null && (next.Detail!=settings.Detail || next.SelfShadowing!=settings.SelfShadowing || next.Diffuse!=settings.Diffuse || next.Quality!=settings.Quality);
+            if(transport)solution!.Reconfigure(next);
             settings=next;
-            solution??=new(api,settings.Detail);solution.Prepare(settings);
+            solution??=new(api,settings.Detail,settings.Quality);solution.Prepare(settings);
             solution.Admission.Observe(lighting);
             if(view is null)
             {
@@ -120,7 +123,10 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
             try {CloudStoredVolumeDiagnostics.Observe(solution,input.Frame);}
             catch(Exception error) when(!EngineBoundaryRestoreException.IsRestorationFailure(error))
             {api.Logger.Warning("[VGE] Cloud lighting diagnostics unavailable: {0}",error.Message);}
-            solution.Submit(input,map,lighting,VgeFrameRenderer.Current,settings,Current);
+            // Reach an idle boundary for a pending settings change rather than immediately
+            // resubmitting another old-profile update every time a fence retires.
+            if(!configurationPending||solution.UpdatePending)
+                solution.Submit(input,map,lighting,VgeFrameRenderer.Current,settings,Current);
             if(solution.Failure is not null)throw new InvalidOperationException(solution.Failure);
         }
         catch(Exception error) when(!EngineBoundaryRestoreException.IsRestorationFailure(error)) {Fail(error);}
