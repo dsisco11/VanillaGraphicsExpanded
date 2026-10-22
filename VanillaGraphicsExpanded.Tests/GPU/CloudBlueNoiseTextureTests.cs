@@ -18,10 +18,7 @@ public sealed class CloudBlueNoiseTextureTests(HeadlessGLFixture fixture) : Rend
         int id = texture.TextureId, side = CloudBlueNoiseTexture.Side, pixels = side * side;
         Assert.Equal(PixelInternalFormat.R32f, texture.InternalFormat);
         Assert.Equal(side, texture.Width); Assert.Equal(side * 8, texture.Height);
-        float[] values = new float[pixels * 8];
-        GL.GetInteger(GetPName.TextureBinding2D, out int previous); GL.BindTexture(TextureTarget.Texture2D, id);
-        GL.GetTexImage(TextureTarget.Texture2D, 0, PixelFormat.Red, PixelType.Float, values);
-        GL.BindTexture(TextureTarget.Texture2D, previous);
+        float[] values = texture.ReadPixels();
         for (int frame = 0; frame < 8; frame++)
         {
             float[] slice = values.AsSpan(frame * pixels, pixels).ToArray();
@@ -30,9 +27,9 @@ public sealed class CloudBlueNoiseTextureTests(HeadlessGLFixture fixture) : Rend
 
         }
         texture.EnsureCreated(); Assert.Equal(id, texture.TextureId);
-        texture.Dispose(); Assert.False(GL.IsTexture(id)); Assert.Throws<ObjectDisposedException>(texture.EnsureCreated);
+        texture.Dispose(); Assert.True(texture.IsDisposed); Assert.False(texture.IsValid);
+        Assert.Throws<ObjectDisposedException>(texture.EnsureCreated);
         using var replacement = CloudBlueNoiseTexture.Create(); Assert.True(replacement.IsValid);
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     #endregion

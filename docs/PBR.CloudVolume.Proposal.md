@@ -107,7 +107,7 @@ Traverse exact physical voxel entry/exit intervals with retained DDA state, skip
 
 Voxel boundaries can appear harder and cached lighting can change abruptly between cells; the selected coarse shape requires user-run appearance review. There is no automated approximation-quality gate. Bucket responses still use each cell interval's near endpoint and the atmospheric/local medium is still evaluated at the contribution-weighted representative distance; those depth-dependent effects remain approximations. All three bucket products and six native outputs remain. Reduced views use blue-noise distributed spatial sampling and temporal reprojection; full-resolution reference bypasses both. Exact occupied-cell intervals are unchanged.
 
-The view obeys the shared cloud resolution controls: FullResolutionReference selects divisor1, otherwise TraceScale selects divisor2 (half) or4 (quarter, the default). Stage applied settings through the existing change-driven configuration boundary. Resolution changes retain compatible density and lighting. Compile the divisor as a structural shader option; full resolution draws native OIT directly with no spatial reconstruction or intermediate targets. Reduced views trace at ceil(viewport/divisor) with exact occupied-cell intervals, then reconstruct at full resolution. Reduced view history retains compatible physical integration results across frames. Compare complete trace-plus-reconstruction cost separately from unchanged-setting arithmetic savings.
+The view obeys the shared cloud resolution controls: FullResolutionReference selects divisor1, otherwise TraceResolution selects1 quarter (divisor4, default),2 half (divisor2) or3 full (divisor1). Stage applied settings through the existing change-driven configuration boundary. Resolution changes retain compatible density and lighting. Compile the divisor as a structural shader option; full resolution draws native OIT directly with no spatial reconstruction or intermediate targets. Reduced views trace at ceil(viewport/divisor) with exact occupied-cell intervals, then reconstruct at full resolution. Reduced view history retains compatible physical integration results across frames. Compare complete trace-plus-reconstruction cost separately from unchanged-setting arithmetic savings.
 
 Each reduced pixel stores one RGBA32F integrated premultiplied radiance/opacity value, one RGB32F three-bucket transmission value and one RGBA32F clip-depth/completion/representative-distance/receipt record. This compact layout is the implementation, with no expanded-output alternative or runtime selector. Clip to the minimum material/particle/liquid projection depth over the corresponding two-by-two (half) or four-by-four (quarter) full-resolution footprint using hardware depth gathers. Full resolution clips only its own pixel. Completion zero is invalid, one complete with contribution, two complete with exactly zero weight. Initialize neutral compact values and invalid metadata before tracing; a failed prefix never becomes a valid sample.
 
@@ -139,7 +139,7 @@ The base field payload above is 22 bytes per voxel: 2 density + 4 direct + 16 di
 | 512 × 64 × 512 | 352 MiB | 19.5 units |
 | 1024 × 64 × 1024 | 1,408 MiB | 9.8 units |
 
-These illustrate the tradeoff; the selected contract below adopts the middle option with explicit guards and overhead. At 50-unit native column width, the first option has very little horizontal shape resolution. Across an 800-unit vertical extent, 64 cells are 12.5 units tall; they cannot preserve two-unit edge detail. The old lighting-only allocation and memory ceiling cannot simply carry over.
+These illustrate the tradeoff; the selected contract below adopts the middle option with explicit guards and overhead. At 50-unit native column width, the first option has very little horizontal shape resolution. Across an 800-unit vertical extent, 64 cells are 12.5 units tall; they cannot preserve two-unit edge detail. Density and retained lighting require complete memory accounting together.
 
 Before implementation planning fixes constants, select a memory ceiling, domain extent and density resolution together, and record the resulting smallest representable cloud feature. If affordable dense storage cannot represent the intended clouds, revise the layout toward sparse occupied bricks or multiple coverage levels before building a full solver. Do not compensate by reintroducing procedural density into every view sample, silently shrinking visible coverage, or claiming cuboid style makes resolution irrelevant.
 
@@ -277,7 +277,7 @@ At Medium the diffuse recurrence uses eight equally weighted cube-corner directi
 
 The five compiled workloads and their configuration precedence are specified in
 [PBR.Clouds.md / Cloud quality profiles](PBR.Clouds.md#cloud-quality-profiles). Level2 is Medium
-and preserves the numerical baseline above. TraceScale and FullResolutionReference remain
+and preserves the numerical baseline above. TraceResolution and FullResolutionReference remain
 independent. Detail/SelfShadowing/Diffuse can disable features at any level. Zero lighting-ray
 budget resolves the profile default; a positive override remains a strict separate solver budget.
 Quality owns view termination; there is no separate persisted stopping threshold.
@@ -297,8 +297,8 @@ reset affected scheduling/solver certificates and refresh under the new rule. Bu
 retain compatible fields and screen history. No new CPU readback, wait, screen pass or volume is
 required. All levels retain the current shared density/lighting lattice, guards and memory limits.
 Coarser density and independent lighting grids remain deferred: they require measured shape/lighting
-tradeoffs and a separate mapping/publication contract. Fresh-ray cadence is unchanged; altered
-cadence also remains deferred pending explicit appearance acceptance.
+tradeoffs and a separate mapping/publication contract. All quality levels share the approved temporal
+refresh schedule; quality selection does not alter its coverage or expiry contract.
 
 ### Shared rendering obligations
 
@@ -306,7 +306,10 @@ Preserve change-driven consumer enablement described in [Rendering.Enablement.md
 
 ## Qualification risks retained by this selection
 
-The selected coarse shape, lighting refresh latency, full-field copy traffic and reconstructed view cost are unqualified until measured and reviewed in game. Distance fields remain a conditional follow-up rather than a second mandatory allocation. This specification selects an implementable experiment; it does not claim that the experiment is already fast enough or visually accepted.
+Coarse shape, lighting refresh latency, full-field copy traffic and reconstructed view cost require
+separate structural, measured and user-reviewed evidence, recorded in the linked tasklist. Fixture
+timings do not establish live startup/replacement spikes, driver memory residency or an FPS bound.
+Distance fields are not part of the selected allocation or traversal implementation.
 
 ### Temporal view sampling contract
 

@@ -26,7 +26,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
     public void RecordMatchedComputeWork()
     {
         EnsureShaderTestAvailable();
-        output.WriteLine($"GPU: {fixture.GLRenderer}. Standalone headless context; the game remains running and GPU contention is uncontrolled. Registers, spills, occupancy, eligible warps and stall counters unavailable through this timer fixture.");
+        output.WriteLine($"GPU: {fixture.GLRenderer}. Standalone headless context; other GPU activity is uncontrolled. Registers, spills, occupancy, eligible warps and stall counters unavailable through this timer fixture.");
         MeasureDensitySelection();
         MeasureDiffuseRepair();
         var domain=new CloudVolumeDomain(20,default,-100,100);

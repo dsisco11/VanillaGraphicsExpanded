@@ -48,7 +48,7 @@ public sealed class WaterRefractionConfigTests
         Assert.Equal(2,config.WaterRefractionBackgroundScale);
     }
 
-    /// <summary>Shipped controls form a separate group and retain numeric choices rather than string mappings.</summary>
+    /// <summary>Water quality uses the quality slider group while feature controls retain numeric values.</summary>
     [Fact]
     public void WaterControlsUseOwnGroupAndNumericChoices()
     {
@@ -64,10 +64,14 @@ public sealed class WaterRefractionConfigTests
             var setting = settings[codes[index]];
             Assert.Equal(codes[index],setting["name"]!.Value<string>());
             Assert.True(setting["clientSide"]!.Value<bool>());
-            Assert.Equal((index + 2) / 10.0,setting["weight"]!.Value<double>());
-            Assert.Null(setting["mapping"]); Assert.Null(setting["range"]);
+            if(index==1)Assert.True(setting["weight"]!.Value<double>()<separator["weight"]!.Value<double>());
+            else Assert.True(setting["weight"]!.Value<double>()>separator["weight"]!.Value<double>());
+            Assert.Null(setting["mapping"]);
         }
-        Assert.Equal(new[] {0,1,2,3},settings[codes[1]]["values"]!.Values<int>());
+        Assert.Null(settings[codes[1]]["values"]);
+        var qualityRange=settings[codes[1]]["range"]!;
+        Assert.Equal(0,qualityRange["min"]!.Value<int>());Assert.Equal(3,qualityRange["max"]!.Value<int>());
+        Assert.Equal(1,qualityRange["step"]!.Value<int>());
         Assert.Equal(new[] {1,2},settings[codes[2]]["values"]!.Values<int>());
         Assert.Equal(2,settings[codes[1]]["default"]!.Value<int>());
         Assert.Equal(2,settings[codes[2]]["default"]!.Value<int>());

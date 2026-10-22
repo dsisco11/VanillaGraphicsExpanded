@@ -218,7 +218,8 @@ recentered coverage also dirties global lighting because maintenance may already
 support and finite transport exits changed. Field-owned LayoutChanged survives submission until
 successful density completion, independently of the changed-texel count.
 explicit recovery resets both the generator and its storage. Context/executable identity is checked
-on both sides of work. Driver execution time, summary-read stalls and live appearance are unqualified.
+on both sides of work. Driver execution time and summary-read stalls depend on the workload;
+functional checks do not establish live frame-time bounds.
 
 `cloud_volume/traversal.glsl` provides the stored-density DDA used by ray consumers.
 It clips rays to the finite native rectangle and admitted vertical band, handles zero direction
@@ -298,9 +299,9 @@ failure bit; no failed batch advances completion, and partial in-place writes wi
 
 Activation initializes each newly relevant channel to unshadowed across the bounded allocation
 before selected updates. This full-field image pass has no ray integrals; its read/write traffic
-and GPU cost are separate from the configured direct transport allowance and remain unqualified. Compatible
+and GPU cost are separate from the configured direct transport allowance and scale with allocation extent. Compatible
 direction-stale values survive ordinary direction changes. Brightness/environment changes reuse
-direct transmission; future consumers apply current illuminance and phase separately. Disabled
+direct transmission; the view applies current illuminance and phase separately. Disabled
 direct work creates no transport program and dispatches no integrals. Solar/lunar variants compile
 source selection independently and execute with image barriers between them, preserving companion
 channels without RG read-modify-write races. Reset/context/executable changes revoke the solver's
@@ -352,13 +353,13 @@ bits suppress completion; a failed destination never swaps or changes published 
 Completion occurs against the unchanged work certificate before the texture/scale publication,
 which advances its field revision. Successful updates request further refinement without resetting
 pending ages. Resetting the solver releases executables while field-owned envelopes persist;
-retiring the field retires its envelopes. Live appearance, copy cost and refresh latency remain
-unqualified.
+retiring the field retires its envelopes. Copy cost and refresh latency depend on changed coverage,
+source revisions, the selected workload and its ray allowance.
 
 ### Stored-volume view and configuration
 
 In ConfigLib, set native cloud mode to **Volumetric**. `Clouds.Detail`, `SelfShadowing`, `Diffuse`
-control stored-field features as advanced disable switches; `Clouds.Quality` selects the workload profile. `Clouds.LightingRaysPerUpdate` controls persisted-lighting throughput. `TraceScale` and `FullResolutionReference`
+control stored-field features as advanced disable switches; `Clouds.Quality` selects the workload profile. `Clouds.LightingRaysPerUpdate` controls persisted-lighting throughput. `TraceResolution` and `FullResolutionReference`
 govern view resolution. Configuration snapshots commit at the Before preparation boundary;
 view-only changes retain compatible density and lighting. Reload or mode release resets a latched
 failure. `CloudStoredVolumeConsumer` is the sole Volumetric consumer, drawing at OIT .31.
@@ -427,7 +428,7 @@ revoke queue/executable certificates and request refresh while compatible densit
 remain. Resize releases framebuffer metadata without clearing material-space history. Reload,
 mode release and world/context teardown retire all owned resources.
 
-`CloudVolumeViewRenderer` uses the shared `TraceScale` (half/quarter) and `FullResolutionReference` controls. Full resolution draws directly into native OIT without intermediate targets. Reduced views trace into private ceil-divided targets, then reconstruct the
+`CloudVolumeViewRenderer` uses the shared `TraceResolution` (1 quarter, 2 half, 3 full) and `FullResolutionReference` controls. Full resolution draws directly into native OIT without intermediate targets. Reduced views trace into private ceil-divided targets, then reconstruct the
 six native Transparent products at full resolution through existing graphics pipelines. It clips against finite stored coverage,
 material depth, particle visibility and liquid depth at mip zero. Coarse DDA retains traversal
 state and skips only certified empty support. Occupied intervals use exact voxel boundaries,
@@ -606,7 +607,7 @@ measured total performance remain separate acceptance activities.
 ## Cloud quality profiles
 
 `Clouds.Quality` selects 0 Very Low, 1 Low, 2 Medium (default), 3 High or 4 Very High.
-It does not change TraceScale, the four-frame fresh-ray cadence, grid spacing or memory limits.
+It does not change TraceResolution, the four-frame fresh-ray cadence, grid spacing or memory limits.
 
 | Level | Shape samples per overlap | Diffuse directions / range | View stop | Direct/diffuse stop | Default update rays |
 | --- | ---: | ---: | ---: | ---: | ---: |

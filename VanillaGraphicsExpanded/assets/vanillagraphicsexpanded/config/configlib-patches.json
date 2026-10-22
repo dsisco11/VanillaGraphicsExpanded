@@ -3,9 +3,9 @@
   "file": "VanillaGraphicsExpanded.json",
   "settings": {
     "boolean": {
-      "STORED_DETAIL": { "code": "Clouds.Detail", "clientSide": true, "name": "Clouds/Detail", "ingui": "vanillagraphicsexpanded:config-cloud-detail", "default": true, "weight": 25.81 },
-      "STORED_SHADOWS": { "code": "Clouds.SelfShadowing", "clientSide": true, "name": "Clouds/SelfShadowing", "ingui": "vanillagraphicsexpanded:config-cloud-shadows", "default": true, "weight": 25.82 },
-      "STORED_DIFFUSE": { "code": "Clouds.Diffuse", "clientSide": true, "name": "Clouds/Diffuse", "ingui": "vanillagraphicsexpanded:config-cloud-diffuse", "default": true, "weight": 25.83 },
+      "STORED_DETAIL": { "code": "Clouds.Detail", "clientSide": true, "name": "Clouds/Detail", "ingui": "vanillagraphicsexpanded:config-cloud-detail", "default": true, "weight": 0.52 },
+      "STORED_SHADOWS": { "code": "Clouds.SelfShadowing", "clientSide": true, "name": "Clouds/SelfShadowing", "ingui": "vanillagraphicsexpanded:config-cloud-shadows", "default": true, "weight": 0.53 },
+      "STORED_DIFFUSE": { "code": "Clouds.Diffuse", "clientSide": true, "name": "Clouds/Diffuse", "ingui": "vanillagraphicsexpanded:config-cloud-diffuse", "default": true, "weight": 0.54 },
       "CLOUD_REFERENCE": {
         "code": "Clouds.FullResolutionReference",
         "clientSide": true,
@@ -13,7 +13,7 @@
         "ingui": "vanillagraphicsexpanded:config-cloud-reference",
         "comment": "vanillagraphicsexpanded:config-cloud-reference-tooltip",
         "default": false,
-        "weight": 25
+        "weight": 0.56
       },
       "CAMERA_ENABLED": {
         "code": "CameraExposure.Enabled",
@@ -197,17 +197,17 @@
       }
     },
     "integer": {
-      "CLOUD_QUALITY": { "code": "Clouds.Quality", "clientSide": true, "name": "Clouds/Quality", "ingui": "vanillagraphicsexpanded:config-cloud-quality", "comment": "vanillagraphicsexpanded:config-cloud-quality-tooltip", "default": 2, "values": [0,1,2,3,4], "weight": 25.02 },
-      "CLOUD_LIGHTING_RAYS": { "code": "Clouds.LightingRaysPerUpdate", "clientSide": true, "name": "Clouds/LightingRaysPerUpdate", "ingui": "vanillagraphicsexpanded:config-cloud-lighting-rays", "comment": "vanillagraphicsexpanded:config-cloud-lighting-rays-tooltip", "default": 0, "range": { "min": 0, "max": 327680, "step": 2560 }, "weight": 25.85 },
-      "CLOUD_TRACE_SCALE": {
-        "code": "Clouds.TraceScale",
+      "CLOUD_QUALITY": { "code": "Clouds.Quality", "clientSide": true, "name": "Clouds/Quality", "ingui": "vanillagraphicsexpanded:config-cloud-quality", "comment": "vanillagraphicsexpanded:config-cloud-quality-tooltip", "default": 2, "range": { "min": 0, "max": 4, "step": 1 }, "weight": 0.05 },
+      "CLOUD_LIGHTING_RAYS": { "code": "Clouds.LightingRaysPerUpdate", "clientSide": true, "name": "Clouds/LightingRaysPerUpdate", "ingui": "vanillagraphicsexpanded:config-cloud-lighting-rays", "comment": "vanillagraphicsexpanded:config-cloud-lighting-rays-tooltip", "default": 0, "range": { "min": 0, "max": 327680, "step": 2560 }, "weight": 0.55 },
+      "CLOUD_TRACE_RESOLUTION": {
+        "code": "Clouds.TraceResolution",
         "clientSide": true,
-        "name": "Clouds/TraceScale",
-        "ingui": "vanillagraphicsexpanded:config-cloud-trace-scale",
-        "comment": "vanillagraphicsexpanded:config-cloud-trace-scale-tooltip",
-        "default": 4,
-        "weight": 25.01,
-        "values": [2, 4]
+        "name": "Clouds/TraceResolution",
+        "ingui": "vanillagraphicsexpanded:config-cloud-trace-resolution",
+        "comment": "vanillagraphicsexpanded:config-cloud-trace-resolution-tooltip",
+        "default": 1,
+        "weight": 0.51,
+        "range": { "min": 1, "max": 3, "step": 1 }
       },
       "POST_BLOOMLEVELS": {
         "code": "Postprocessing.BloomLevels",
@@ -245,7 +245,7 @@
         "comment": "vanillagraphicsexpanded:config-shading-quality-tooltip",
         "default": 3,
         "weight": 0,
-        "values": [0, 1, 2, 3]
+        "range": { "min": 0, "max": 3, "step": 1 }
       },
       "WATER_REFRACTION_QUALITY": {
         "code": "WaterRefractionQuality",
@@ -254,8 +254,8 @@
         "ingui": "vanillagraphicsexpanded:config-water-quality",
         "comment": "vanillagraphicsexpanded:config-water-quality-tooltip",
         "default": 2,
-        "weight": 0.3,
-        "values": [0, 1, 2, 3]
+        "weight": 0.06,
+        "range": { "min": 0, "max": 3, "step": 1 }
       },
       "WATER_REFRACTION_BACKGROUND_SCALE": {
         "code": "WaterRefractionBackgroundScale",
@@ -962,7 +962,8 @@
     }
   },
   "formatting": [
-    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-clouds", "weight": 24.9 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-graphics-quality", "weight": -0.1 },
+    { "type": "separator", "title": "vanillagraphicsexpanded:config-section-clouds", "weight": 0.5 },
     {
       "type": "separator",
       "title": "vanillagraphicsexpanded:config-section-postprocessing",

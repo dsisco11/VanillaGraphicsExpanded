@@ -16,14 +16,14 @@ public sealed class CloudVolumeSelectionTests
     {
         var config=new CloudRenderingSettings();var staged=new CloudVolumeConfiguration();
         Assert.Equal(CloudVolumeViewSettings.Default,config.Capture());
-        foreach(var (reference,scale,divisor) in new[]{(false,CloudTraceScale.Half,2),(true,CloudTraceScale.Quarter,1),(false,CloudTraceScale.Quarter,4)})
+        foreach(var (reference,resolution,divisor) in new[]{(false,CloudTraceResolution.Half,2),(true,CloudTraceResolution.Quarter,1),(false,CloudTraceResolution.Quarter,4),(false,CloudTraceResolution.Full,1)})
         {
-            var previous=staged.Settings;config.TraceScale=scale;config.FullResolutionReference=reference;
+            var previous=staged.Settings;config.TraceResolution=resolution;config.FullResolutionReference=reference;
             config.Detail=false;config.SelfShadowing=false;config.Diffuse=false;
             staged.Request(config);Assert.Equal(previous,staged.Settings);staged.Apply();
             Assert.Equal(new CloudVolumeViewSettings(false,false,false,.005f,divisor),staged.Settings);
         }
-        config.TraceScale=(CloudTraceScale)3;
+        config.TraceResolution=(CloudTraceResolution)99;
         Assert.Equal(4,config.Capture().TraceDivisor);
         config.LightingRaysPerUpdate=int.MaxValue;Assert.Equal(327680,config.Capture().LightingRaysPerUpdate);
         config.LightingRaysPerUpdate=-1;Assert.Equal(2560,config.Capture().LightingRaysPerUpdate);
@@ -62,7 +62,7 @@ public sealed class CloudVolumeSelectionTests
         var document=JObject.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory,"assets/config/configlib-patches.json")));
         var controls=document["settings"]!.Children<JProperty>().SelectMany(p=>p.Value.Children<JProperty>()).Select(p=>p.Value)
             .Where(p=>((string?)p["code"])?.StartsWith("Clouds.")==true).ToArray();
-        string[] expected=["Detail","SelfShadowing","Diffuse","Quality","TraceScale","FullResolutionReference","LightingRaysPerUpdate"];
+        string[] expected=["Detail","SelfShadowing","Diffuse","Quality","TraceResolution","FullResolutionReference","LightingRaysPerUpdate"];
         Assert.Equal(expected.Select(s=>"Clouds."+s).Order(),controls.Select(p=>(string)p["code"]!).Order());
         var serialized=JObject.Parse(JsonConvert.SerializeObject(new CloudRenderingSettings()));
         Assert.Equal(expected.Order(),serialized.Properties().Select(p=>p.Name).Order());

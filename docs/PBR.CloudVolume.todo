@@ -2611,28 +2611,125 @@ Phase 8.10 verification
 Phase 9 - Qualify the frozen implementation and reconcile documentation
   Depends on: Phase8.6 including8.6.1,8.6.2 and8.6.3, plus Phases8.7,8.8,8.9 and8.10's selected outcome.
   Outcome: measured total cost, memory and user appearance determine candidate acceptance.
-  [ ] Freeze the candidate and run canonical packaging/required final checks once. Verify delivered
+  [x] Freeze the candidate and run canonical packaging/required final checks once. Verify delivered
       assets, selectable settings and cleanup; do not treat older candidate receipts as qualification.
   [ ] Measure total/per-pass GPU time and resident/peak memory at stated hardware/settings/resolution.
       Include startup, steady views, camera motion, wind, evolving weather, light transitions and
       recenter/replacement. Report update spikes, density/lighting backlog, age and fallback coverage.
-  [ ] Compare matched view resolutions and label default-resolution differences. Separate illumination
+  [x] Compare matched view resolutions and label default-resolution differences. Separate illumination
       amortization from per-pixel view cost; disclose running-game contention and measurement limits.
-  [ ] Obtain user-run appearance review for shape/thin layers, volume continuity, grid/seam motion,
+  [x] Obtain user-run appearance review for shape/thin layers, volume continuity, grid/seam motion,
       stable lighting, leakage, fallback transitions and stale-weather response. Never launch the
       game, invent acceptance, or replace review with automated approximation thresholds.
-  [ ] Reconcile all proposal requirements and selected decisions with delivered code, documentation and
+  [x] Reconcile all proposal requirements and selected decisions with delivered code, documentation and
       focused evidence. Audit removable ownership and ensure no rejected prototype dependencies remain.
-  [ ] Record acceptance or concrete outstanding limitations. If quality/memory/cost is unacceptable,
+  [x] Record acceptance or concrete outstanding limitations. If quality/memory/cost is unacceptable,
       record the limitation and propose the next decision rather than silently shrinking coverage,
       adding procedural density or changing the approved temporal sampling/retention contract.
-  [ ] Completion: package, correctness, GPU measurements and human appearance results are distinguished;
+  [x] Completion: package, correctness, GPU measurements and human appearance results are distinguished;
       all required acceptance is satisfied or explicitly left open. Promotion/removal authority is
       already explicit in8.4/8.5; do not recreate parallel implementations as a qualification fallback.
 
+Phase 9 qualification record (closed with explicit measurement limitations)
+  Freeze: runtime/source commit f0b02a31811767b4d5a3c923b91f96033dd0bcac, clean worktree at entry.
+    Runtime remains frozen: no transport, budget, shader or lifecycle change. Qualification edits
+    reconcile documentation and replace one legacy test's raw GL readback with GpuTexture.ReadPixels
+    and owner-state assertions. This test-only cleanup does not change the packaged assembly/assets.
+  Traceability: package/assets/settings -> canonical build.ps1/CakeBuild and proposal / Ownership and
+    integration + Quality workloads -> fresh Release package/catalog verification. Structural and
+    functional checks -> proposal / Selected representation, publication and temporal contracts;
+    PBR.Clouds.md / resources, configuration and temporal view; PBR.Atmosphere.Publication.md and
+    Rendering.Enablement.md -> final cloud/ownership/lifecycle contracts and independent source audit.
+    Measurements -> proposal / Evaluation and acceptance + Layout and memory limits -> fresh authored
+    compute/view fixtures, exact owned payload, explicit exclusions rather than live extrapolation.
+  User review: on2026-10-22 the user accepted the final implementation's appearance and performance
+    for the requested camera/wind/weather/light/recenter, thin-layer/seam/leakage/fallback review:
+    "Looks acceptable; performance acceptable". The user then confirmed the older capture was old
+    and explicitly stated "you dont need a new capture". No new live capture is required/requested.
+    The older capture remains historical evidence, not frozen-implementation GPU qualification.
+  Settings evidence: configured debug data directory's saved cloud settings are Quality2,TraceScale4,
+    FullResolutionReference=false,Detail/SelfShadowing/Diffuse=true,LightingRaysPerUpdate327680.
+    Saved client extent is2020x980; this is persisted configuration, not an observed live viewport.
+    Older4K statements are context only. Fixtures state their own resolution/domain/budget; the
+    default Medium81920-ray workload is not silently equated with the saved327680-ray override.
+  Scope limitation accepted under the completion rule above: current fixture measurements and owned
+    payload accounting do not quantify live startup/update spikes, actual recenter/replacement
+    latency or driver-resident/peak VRAM. User appearance/performance acceptance is separate evidence.
+    These quantities remain explicitly unmeasured; no FPS guarantee or measured live speedup follows.
+    Do not add a new capture requirement, change quality/coverage/budgets, or relaunch the game to fill
+    those gaps. The broad live-measurement task and numerical-live-cost final acceptance remain
+    unchecked deliberately. They are not claims of completed measurements or a request for a new
+    capture; this phase closes under its explicit accepted-limitations rule.
+  Package: canonical ./build.ps1 --configuration=Release --spirv=true succeeded once through Cake,
+    3m45.11s (initial sandbox launch failed before Cake ran). All clean paths were verified within
+    the workspace. Releases/vanillagraphicsexpanded_999.99.9.zip is6770282bytes, SHA256
+    96F5D8376A7D949DE69F1B034FBC8FE02B0EC65BF4B8767A199DA5C620E5D2D1.
+    Verification matched1130ZIP files,356source assets and761manifest binary hashes/lengths. All
+    seven cloud controls are present. Retired implementation/noise prototype files are absent;
+    one empty retired directory entry is inert. Package, publish and test runtime assemblies match
+    SHA256 F491B955DBA57E89B963AF26C986F2DCAA3156D90A136F07922C95FA1CE0B831.
+  Final Release correctness: test build passed0errors/169warnings in2m16.98s;110cloud/ownership/
+    publication/lifecycle/encoding/quality/temporal contracts passed with0failures/skips in12s.
+    Both existing measurement fixtures passed in3s. The test-only ReadPixels cleanup passed its
+    affected case separately (602ms) after a cached18.60s build; unchanged results were reused.
+    A logging-only correction removes an unconditional game-running claim; numeric workloads and
+    runtime binaries are unchanged, so no redundant build/measurement was required for that text.
+  Fresh GPU measurements: RTX4090, authored fixtures, uncontrolled other GPU activity. Outside-sandbox
+    inventory at2026-10-22T21:26:05.998Z observed no VintageStory process; this supersedes the legacy
+    hardcoded running-game phrase in the raw receipt and is not proof of an idle GPU. No game was
+    launched or closed. Registers/occupancy/stall counters and live engine CPU time are unmeasured.
+  Matched view extent:3440x1377, quarter trace, Medium, authored uniform density/direct/diffuse,
+    diagnostics on; three warmed samples. Occupied view total median1.2964ms cold/full-reduced trace
+    versus1.0813ms with temporal reuse; empty view .1905/.1864ms. These are the same output/trace
+    resolutions, not a full-resolution-reference versus quarter-resolution comparison or a comparison
+    with a removed renderer. Separate reused trace/filter/composition queries .0809/.0993/.9001ms;
+    do not sum their independently measured values into total. Cold/reused fresh rays296700/74390;
+    reuse carried222310pixels, fallback0, maximum age4. Diagnostic targets35316760bytes plus32768atlas
+    bytes. Single changing-input samples cover camera1.0435ms, wind1.1049, weather/light1.0711,
+    foreground depth1.0537 and same-allocation identity replacement1.0598; these are not live latency
+    distributions or actual volume reallocation measurements. Full/half performance is not measured.
+  Retained updates: width20,55x66x55, default Medium81920-ray budget, frozen density/detail/shadows/
+    diffuse contracts. Complete deferred-update GPU medians: unchanged1.3240ms, wind1.3691,
+    same-content upload2.5897, evolving2.9768, source change1.3025, empty2.1791, disabled lighting.7639,
+    sparse evolving2.4801. Non-evolving sequences generally use2simulated callbacks; changed-density
+    sequences use3. Queries sum complete callback submissions with forced fences between callbacks;
+    they exclude startup allocation/native uploads and are not a per-rendered-frame total. CPU
+    Poll/Submit medians range1.1354..2.7714ms, not total live CPU frame cost. Do not add these update
+    figures to the separately measured view and call the result an engine cloud-stage measurement.
+  Isolated workload medians: maximum-domain density selection.2959ms, full diffuse copy.1280,
+    bounded32-block repair.0061, direct.0645, diffuse.0993, combined transport/copy.1659,
+    dirty publication.0154. Isolated passes do not replace the independent whole-update totals.
+    Unchanged density backlog0 and lighting backlog298..426direct/245diffuse; evolving245changed
+    density blocks/backlog0 and490/245lighting backlog; sparse165changed/backlog0 and165/165lighting
+    backlog. Maximum observed pending ages38direct/51diffuse and completion age53are simulated
+    callback ages, not wall-clock responsiveness. Positive origins43264dense/4688sparse/0empty;
+    empty support launches0rays, e.g. unchanged actual direct/diffuse rays12976/65024 and sparse
+    2588/11808within their separate allowances. These counts are not full-block upper estimates.
+  Owned memory: source-accounted maximum working394825104bytes, stable working/drawable/raw645417104,
+    replacement peak1040242208(992.052MiB), within the volume-only1GiB admission bound. Screen targets,
+    shared engine resources and driver overhead are additional. At4K, normal quarter screen payload
+    including atlas is53427968bytes(50.953MiB), half213613568(203.718MiB), full-reference0; these are
+    format/accounting values, not driver residency measurements. Maximum volume+4Kquarter totals
+    666.471MiB stable/1043.005MiB replacement before driver/shared-engine overhead. The1GiB limit is
+    not a claim that total process VRAM fits1GiB. Fixture allocation/format tests verify accounting
+    and bounded publication; live residency and replacement spikes remain unmeasured as stated.
+  Reconciliation/second review: authoritative stored density feeds view/direct/diffuse; coarse/fine
+    DDA, half encoding, occupied-origin budgets, fair service, bounded dirty publication and nonblocking
+    fences remain intact. Native OIT/depth/atmosphere and change-driven enablement are unchanged.
+    Shared reprojection/scheduling, compile-time quality/disabled features and retirement tests cover
+    the selected design. No distance-field/precomputed-perturbation-volume/retired renderer dependency remains. Permanent
+    docs describe current behavior and avoid implying that fixture receipts prove live timing.
+  Independent completion audit reviewed proposal coverage, sources, final Release receipts, package
+    identities, approval and measurement limitations; no unresolved implementation defect remains.
+    Phase9 is closed with the explicitly open quantitative live limits above, not full live-GPU
+    qualification or a guaranteed performance claim. No budget, resolution or coverage was lowered.
+  Receipts: artifacts/CloudQualification/commands.txt,package-verification.txt,assembly-identities.txt,
+    focused-release.trx,measurements-release.trx,measurement-output.txt,contention.txt,
+    abstraction-release.trx and their build logs. Existing incremental receipts are context only.
+
 Final acceptance
-  [ ] View, direct and diffuse consumers use the persistent 3D density and reusable lighting fields.
-  [ ] Agreed memory/feature coverage, bounded updates, conservative traversal and lifecycle hold.
+  [x] View, direct and diffuse consumers use the persistent 3D density and reusable lighting fields.
+  [x] Agreed memory/feature coverage, bounded updates, conservative traversal and lifecycle hold.
   [ ] User accepts appearance and measured total cost at the stated configuration; no FPS guarantee
       is inferred from architecture or headless tests.
-  [ ] Proposal/current docs match implementation; outstanding work and deferred alternatives are explicit.
+  [x] Proposal/current docs match implementation; outstanding work and deferred alternatives are explicit.

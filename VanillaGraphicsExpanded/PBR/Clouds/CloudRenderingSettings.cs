@@ -8,8 +8,8 @@ namespace VanillaGraphicsExpanded.PBR.Clouds;
 [JsonObject(MemberSerialization.OptIn)]
 public sealed class CloudRenderingSettings
 {
-    /// <summary>Selects half or quarter view dimensions before temporal spatial sampling.</summary>
-    [JsonProperty] public CloudTraceScale TraceScale {get;set;}=CloudTraceScale.Quarter;
+    /// <summary>Selects quarter, half or full view dimensions through the resolution slider.</summary>
+    [JsonProperty] public CloudTraceResolution TraceResolution {get;set;}=CloudTraceResolution.Quarter;
     /// <summary>Bypasses reduced tracing and history for direct full-resolution comparison.</summary>
     [JsonProperty] public bool FullResolutionReference {get;set;}
     /// <summary>Compiles density shaping and erosion during stored-density generation.</summary>
@@ -30,7 +30,8 @@ public sealed class CloudRenderingSettings
     {
         Quality=Math.Clamp(Quality,0,4);
         LightingRaysPerUpdate=LightingRaysPerUpdate==0?0:CloudVolumeLightingBudget.Sanitize(LightingRaysPerUpdate);
-        if(TraceScale is not (CloudTraceScale.Half or CloudTraceScale.Quarter))TraceScale=CloudTraceScale.Quarter;
+        if(TraceResolution is not (CloudTraceResolution.Quarter or CloudTraceResolution.Half or CloudTraceResolution.Full))
+            TraceResolution=CloudTraceResolution.Quarter;
 
     }
     /// <summary>Freezes features and resolution together for the early render boundary.</summary>
@@ -38,7 +39,9 @@ public sealed class CloudRenderingSettings
     {
         Sanitize();
         var profile=CloudVolumeQuality.Resolve(Quality);
-        return new(Detail,SelfShadowing,Diffuse,profile.ViewStop,FullResolutionReference?1:(int)TraceScale,
+        // Slider values describe increasing resolution; shader variants consume dimension divisors.
+        int divisor=TraceResolution switch{CloudTraceResolution.Quarter=>4,CloudTraceResolution.Half=>2,_=>1};
+        return new(Detail,SelfShadowing,Diffuse,profile.ViewStop,FullResolutionReference?1:divisor,
             LightingRaysPerUpdate==0?profile.LightingRays:LightingRaysPerUpdate,Quality);
     }
     #endregion
