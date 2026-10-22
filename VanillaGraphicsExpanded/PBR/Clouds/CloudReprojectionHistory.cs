@@ -30,8 +30,8 @@ internal sealed class CloudReprojectionHistory
             && contentCompatible
             && camera.Projection.SequenceEqual(projection);
         // Raw uploads, completed lighting publications and fog inputs evolve during normal
-        // weather and day/night progression. Current-neighborhood clamping bounds that response
-        // without resetting convergence at publication cadence. Only the discrete aerial/local
+        // weather and day/night progression. Observation blending handles colour evolution;
+        // coverage bounds remain independent of publication cadence. Only the discrete aerial/local
         // underwater transport switch changes medium identity; rolled-back uploads remain invalid.
         // Placement already contains the native view origin and residual wind. Removing the
         // integer center shift and adding committed wind reconstructs the previous material

@@ -547,7 +547,15 @@ coordinate, preserving its own confidence and age. It does not reconstruct an al
 bilinear footprint through floating-point matrix roundoff. Any rotation or material translation uses
 normal reprojection; foreground depth is still checked in the previous scene camera independently.
 
-Only fresh updates can be constrained by neighborhood bounds, requiring four same-support, distance-compatible observations spanning two pixels on each axis. A single observation cannot erase history. Supported-bound replacement explicitly rejects prior information. The fresh prior weight is min(count,7)/(min(count,7)+1), multiplied by clamp(1-4*opacity delta,0,1) and clamp(1-max RGB delta/max RGB peak,0,1). Count is 1/(1-effective prior weight), up to eight, rather than an admission/frame counter. A carry transports confidence without an independent-observation increment; zero weight or a clipping replacement starts at one. Counts describe declared blend confidence, not statistical independence of correlated rays.
+Only fresh updates can be constrained by neighborhood bounds, requiring four same-support, distance-compatible observations spanning two pixels on each axis. A single observation cannot erase history. Bounds apply to opacity and bucket transmission; RGB differences alone do not replace history. Supported coverage-bound replacement explicitly rejects prior information. The fresh prior weight is min(count,7)/(min(count,7)+1), multiplied by clamp(1-4*opacity delta,0,1). Colour changes retain that response instead of accelerating selected fresh pixels ahead of their carried neighbours. Count is 1/(1-effective prior weight), up to eight, rather than an admission/frame counter. A carry transports confidence without an independent-observation increment; zero weight or a clipping replacement starts at one. Counts describe declared blend confidence, not statistical independence of correlated rays.
+
+At saturated confidence and unchanged coverage, each fresh observation retains7/8 of the remaining
+lighting-step difference. Eighteen fresh observations reduce that difference below one tenth;
+stationary four-frame sampling reaches them within72 rendered frames. Response is frame-dependent,
+not a guaranteed wall-clock latency, and foreground/support rejection can start a new observation.
+The response uses the ordinary ray schedule, targets and passes with no transition burst. It does
+not synchronize stored illumination: completed direct/diffuse blocks may still represent different
+source ages while bounded transport work refreshes them.
 
 For a fully qualified bilinear footprint, refresh age is `sum(weight * tapAge)` and confidence is
 the weighted harmonic mean `1 / sum(weight / min(tapCount,8))`, clamped to [1,8]. These weights

@@ -2239,12 +2239,12 @@ Phase 8.7 - Diagnose and correct pixelated cloud lighting transitions
   reprojection fixes. Complete and obtain appearance acceptance before the8.10 scheduling experiment.
   Outcome: significant lighting changes propagate coherently without a conspicuous pixelated
   convergence pattern, with bounded response latency and measured update/view cost.
-  [ ] Consult PBR.CloudVolume.Proposal.md / Metadata, budgets and source changes, Nonblocking updates
+  [x] Consult PBR.CloudVolume.Proposal.md / Metadata, budgets and source changes, Nonblocking updates
       and drawable publication, and Temporal view sampling contract; consult PBR.Clouds.md /
       Stored-volume temporal view and Persisted lighting update budget. Map the current path from
       changed light inputs through retained direct/diffuse work, publication, fresh view traces,
       temporal reactivity/carry and final reconstruction. Reuse existing evidence and diagnostics.
-  [ ] Attribute the pattern before changing behavior. Compare current stored-lighting values and
+  [x] Attribute the pattern before changing behavior. Compare current stored-lighting values and
       freshly integrated cloud results with accumulated history during a controlled lighting change.
       Use existing history bypass and stored-volume diagnostics where possible. Hold camera,
       density, lighting-update budget and view resolution fixed; a full-resolution reference also
@@ -2252,34 +2252,61 @@ Phase 8.7 - Diagnose and correct pixelated cloud lighting transitions
       matched controls if required, rather than adding a permanent alternate rendering path.
       Distinguish staggered volume publication from screen refresh cadence, source-colour reactivity
       and any interaction between them. Record evidence rather than assuming one exclusive cause.
-  [ ] If screen history is responsible, evaluate coherent response using the existing temporal
+  [x] If screen history is responsible, evaluate coherent response using the existing temporal
       machinery: prevent freshly traced pixels from jumping disproportionately ahead of carried
       neighbors while retaining real lighting response and disocclusion. Consider a short bounded
       increase in fresh-pixel coverage only when justified by the observed transition; specify its
       trigger, duration, extra work, layout and return to normal cadence before implementation.
       Do not globally invalidate history on routine day/night, weather or fog changes.
-  [ ] If retained volume lighting is responsible, evaluate update ordering, publication coherence
+  [x] If retained volume lighting is responsible, evaluate update ordering, publication coherence
       or blending of completed lighting values at the owning volume boundary. Preserve bounded
       work, nonblocking publication, valid completed data and direct/diffuse dependencies. Account
       explicitly for response latency, any additional state/storage and worst-case update bursts.
       Avoid masking volume inconsistency with a screen-space filter. Address both stages only if
       evidence demonstrates both contribute.
-  [ ] Select the smallest evidence-backed correction and reconcile its response/cost tradeoffs with
+  [x] Select the smallest evidence-backed correction and reconcile its response/cost tradeoffs with
       the proposal before implementation. Prefer existing passes, resources and owning abstractions.
       Do not introduce subpixel jitter, a separate spatial-filter/upscale pass, unbounded history,
       permanent extra rays or new large lighting buffers as a default remedy. Any justified added
       work must have an explicit bound; user-configured shader-path selection uses compile-time options.
-  [ ] Extend focused existing fixtures for the selected state transitions and declared blend math,
+  [x] Extend focused existing fixtures for the selected state transitions and declared blend math,
       publication validity, bounded update/response timing, foreground reveal and lifecycle.
       Verify actual refresh/update work without approximation-quality, noise or image-error gates.
       Use subagents for cached incremental builds/tests; no broad matrices, repeated baseline
       reproduction, routine packaging or mandatory new capture when existing evidence suffices.
-  [ ] Measure only missing affected-pass and independent total cost, including transition bursts,
+  [x] Measure only missing affected-pass and independent total cost, including transition bursts,
       with matched settings and stated contention. Obtain user-run review of strong lighting changes,
       ordinary day/night/weather evolution, stationary clouds, camera motion and trails. Never launch
       or close the game. Reconcile current docs, perform second review and independent audit, and
       leave the phase open if the original pixelated transition remains unacceptable. Only then
       permit8.10 to evaluate scheduling improvements against this corrected baseline.
+  Completed; appearance and response accepted by the user on2026-10-22:
+    Matched16x16 fixture,8x8 history, fixed density/direct/diffuse and solar30->120 reproduced
+    a screen-history transition:16 fresh pixels changed while48 carried pixels retained old colour.
+    In an authored uniform RGB1->4 step with unchanged coverage/count8, fresh output was3.34375
+    (prior weight.21875), while carries stayed1. Removing RGB-only reactivity/bounds gives1.375
+    (prior weight.875) without changing carries, ray scheduling, allocations or passes. Opacity,
+    bucket, foreground, support, distance, failure and expiry rules remain active. Proposal/current
+    docs specify the slower eight-observation response. An independently authored diffuse halfspace
+    remains visible through same-resolution history bypass; this demonstrates the separate volume
+    mechanism, not that it caused the user's scene. No volume publication policy is changed without
+    live evidence that the remaining transition originates there.
+    Baseline/post probe receipts: artifacts/CloudLightingTransition/lighting-transition-baseline.trx
+    and lighting-transition-post.trx. At3840x2160 quarter trace, diagnostic capture off, three separate
+    filter samples were.146432/.149504/.141312ms before and.144384/.145408/.141312ms after;
+    independent total medians1.701888/2.290688ms are noisy and do not establish a speed improvement
+    or regression. Game/GPU contention was uncontrolled. No transition burst or extra GPU work.
+    Temporary diagnostic tests/helpers are removed after collecting receipts; existing temporal
+    contract checks retain declared blend/work coverage. Cached Release build and3 existing GPU
+    checks passed (lighting-transition-final.trx): blend/refresh arithmetic, support/expiry/foreground,
+    camera motion and native transport/composition. Second review found no new resource or lifecycle
+    change. Independent completion audit found no confirmed implementation defect. The user reviewed
+    the delivered appearance/response and accepted it: "it looks good." Independent closeout review
+    confirmed that the existing receipts remain applicable and no implementation drift occurred.
+    The conditional volume-owner task is satisfied by evaluation: no live evidence justified changing
+    volume publication, and the accepted screen-history correction required no such change. Fixture
+    evidence does not prove exclusive scene causality. Any future volume-origin pattern must be
+    attributed before changing publication. Later phases remain outstanding.
 
 Phase 8.8 - Spend persisted-lighting ray budgets on occupied voxels
   Depends on: Phase 8.5 and the delivered LightingRaysPerUpdate control. Independent of8.6's

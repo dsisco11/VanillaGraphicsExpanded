@@ -198,7 +198,7 @@ void main()
         // A failed ray is never repaired using previous completed prefixes.
         if(!StoredTemporalFinite(data,bins,meta)){StoredTemporalReject(9);return;}
     }
-    vec4 low=vec4(3.402823e38),high=vec4(0);vec3 lowBins=vec3(1),highBins=vec3(0);
+    float lowOpacity=1,highOpacity=0;vec3 lowBins=vec3(1),highBins=vec3(0);
     float best=3.402823e38;int bounds=0;ivec2 lo=ivec2(2),hi=ivec2(-2);
     // Sparse neighbors initialize holes and may bound a FRESH update only with spatially
     // spanning, same-support evidence. One observation never defines clipping bounds.
@@ -209,7 +209,7 @@ void main()
         vec4 m=texelFetch(reconstructMetadata,s,0),c=texelFetch(reconstructCloud,s,0);vec3 b=texelFetch(reconstructBins,s,0).rgb;
         if(!StoredTemporalFinite(c,b,m)||abs(m.x-depth)>2e-5)continue;
         if(fresh&&m.y==meta.y&&abs(m.z-meta.z)<=max(2.0,meta.z*.05))
-        {low=min(low,c);high=max(high,c);lowBins=min(lowBins,b);highBins=max(highBins,b);bounds++;lo=min(lo,ivec2(x,y));hi=max(hi,ivec2(x,y));}
+        {lowOpacity=min(lowOpacity,c.a);highOpacity=max(highOpacity,c.a);lowBins=min(lowBins,b);highBins=max(highBins,b);bounds++;lo=min(lo,ivec2(x,y));hi=max(hi,ivec2(x,y));}
         float score=float(x*x+y*y);
         if(!fresh&&score<best){best=score;data=c;bins=b;meta=m;}
     }
@@ -231,14 +231,15 @@ void main()
     if(fresh&&accepted)
     {
         bool clipped=bounds>=4&&all(greaterThanEqual(hi-lo,ivec2(2)))&&
-            (any(lessThan(old,low))||any(greaterThan(old,high))||any(lessThan(oldBins,lowBins))||any(greaterThan(oldBins,highBins)));
+            (old.a<lowOpacity||old.a>highOpacity||any(lessThan(oldBins,lowBins))||any(greaterThan(oldBins,highBins)));
         // A complete clipping replacement is an explicit rejection, never a growing counter.
         if(clipped)StoredTemporalReason(10);
         else
         {
-            float peak=max(max(max(data.r,data.g),data.b),max(max(old.r,old.g),old.b));
-            float delta=max(max(abs(data.r-old.r),abs(data.g-old.g)),abs(data.b-old.b));
-            float reactive=clamp(1-abs(old.a-data.a)*4,0,1)*clamp(1-delta/max(peak,1e-6),0,1);
+            // Colour changes are lighting observations, not evidence of changed coverage.
+            // Keep their declared response instead of making sparse fresh pixels jump ahead
+            // of carried neighbours. Geometry still reacts through opacity and support gates.
+            float reactive=clamp(1-abs(old.a-data.a)*4,0,1);
             weight=min(count,7)/(min(count,7)+1)*reactive;
             if(weight==0)StoredTemporalReason(11);
         }

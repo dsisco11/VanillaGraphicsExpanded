@@ -152,7 +152,7 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         Assert.True(scene.HistoryCompatible);Assert.NotEmpty(scene.HistoryDiagnostics);
         Assert.Equal(108*8*8+44*4*4,scene.ViewTargetBytes);
         // One independently authored observation cannot define a neighborhood range. Its
-        // explicit half-radiance reactivity leaves .4 old weight and confidence5/3.
+        // radiance change retains .8 old weight and confidence5 when support is unchanged.
         var priorCloud=new float[metadata.Length];var priorBins=Enumerable.Repeat(.5f,8*8*3).ToArray();
         for(int i=0;i<metadata.Length;i+=4)
         {
@@ -168,12 +168,28 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
         for(int channel=0;channel<3;channel++)Assert.Equal(single[channel],ordinary[channel]);
         Assert.Empty(ordinary[3]);Assert.Equal(single[4],ordinary[4]);
         int observed=Enumerable.Range(0,64).Single(p=>single[3][p*4+1]==1)*4;
-        Assert.InRange(Math.Abs(single[0][observed]-1.6f),0,2e-6f);
-        Assert.InRange(Math.Abs(single[2][observed+3]-5f/3),0,2e-6f);
+        Assert.InRange(Math.Abs(single[0][observed]-1.2f),0,2e-6f);
+        Assert.InRange(Math.Abs(single[2][observed+3]-5f),0,2e-6f);
         Assert.Equal(0,single[3][observed+2]);
+        // A uniform current RGB change retains compatible old illumination;
+        // all sixteen fresh locations use the same declared observation response as one ray.
+        var uniformRays=new float[rayCloud.Length];var uniformMeta=new float[rayMeta.Length];
+        for(int p=0;p<16;p++){Array.Copy(rayCloud,0,uniformRays,p*4,4);Array.Copy(rayMeta,0,uniformMeta,p*4,4);}
+        var uniformStep=scene.FilterAuthored(uniformRays,Enumerable.Repeat(.5f,4*4*3).ToArray(),uniformMeta);
+        int uniformFresh=0,uniformCarry=0;
+        for(int p=0;p<64;p++)
+        {
+            int i=p*4;
+            if(uniformStep[3][i+1]==1){uniformFresh++;Assert.Equal(1.2f,uniformStep[0][i],5);Assert.Equal(5,uniformStep[2][i+3],5);}
+            if(uniformStep[3][i+1]==2){uniformCarry++;Assert.Equal(1,uniformStep[0][i]);Assert.Equal(4,uniformStep[2][i+3]);}
+        }
+        Assert.Equal(16,uniformFresh);Assert.Equal(48,uniformCarry);
         rayCloud[0]=rayCloud[1]=rayCloud[2]=0;
         var reactive=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta);
-        Assert.Equal(0,reactive[3][observed]);Assert.Equal(1,reactive[2][observed+3]);Assert.Equal(11,reactive[3][observed+2]);
+        Assert.Equal(.8f,reactive[0][observed],5);Assert.Equal(5,reactive[2][observed+3],5);Assert.Equal(0,reactive[3][observed+2]);
+        rayCloud[3]=.25f;
+        var changedOpacity=scene.FilterAuthored(rayCloud,Enumerable.Repeat(.5f,4*4*3).ToArray(),rayMeta);
+        Assert.Equal(0,changedOpacity[3][observed]);Assert.Equal(1,changedOpacity[2][observed+3]);Assert.Equal(11,changedOpacity[3][observed+2]);
         rayCloud[3]=0;rayMeta[1]=2;rayMeta[2]=0;
         var empty=scene.FilterAuthored(rayCloud,Enumerable.Repeat(1f,4*4*3).ToArray(),rayMeta);
         Assert.Equal(2,empty[2][observed+1]);Assert.Equal(1,empty[2][observed+3]);
