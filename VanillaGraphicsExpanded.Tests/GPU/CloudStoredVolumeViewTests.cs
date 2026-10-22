@@ -11,6 +11,42 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
 {
     private readonly string gpu=fixture.GLRenderer;
     #region Public API
+    /// <summary>Checks actual trace/filter agreement, odd-edge coverage and bounded refresh across the periodic schedule.</summary>
+    [Fact]
+    public void RefreshSchedulesCoverOddTilesWithoutStarvation()
+    {
+        EnsureShaderTestAvailable();using var scene=new CloudStoredVolumeViewScene(Programs,18,14);
+        scene.SetMaterialDepthRamp();
+        var settings=CloudVolumeViewSettings.Default with{TraceDivisor=2};
+        // Exercise two complete periods of the delivered schedule, including unsigned wrap.
+        {
+            scene.ReleaseViewTargets();
+            scene.AdvanceFrame(absoluteFrame:uint.MaxValue-32);scene.Draw(settings);
+            var last=Enumerable.Repeat(-1,63).ToArray();var seen=new HashSet<int>();
+            var replay=new List<int[]>();
+            for(int frame=0;frame<64;frame++)
+            {
+                scene.AdvanceFrame();scene.Draw(settings);Assert.True(scene.HistoryCompatible);
+                var raw=scene.TraceReceipts;var receipt=scene.HistoryDiagnostics;var selected=new List<int>();int fresh=0;
+                for(int pixel=0;pixel<63;pixel++)if(receipt[pixel*4+1]==1)
+                {
+                    fresh++;seen.Add(pixel);selected.Add(pixel);
+                    int source=(pixel/9/2)*5+(pixel%9/2);
+                    Assert.True(raw[source*4+1]>=1);
+                    // Half-resolution depth gathering starts at this destination's full-pixel
+                    // footprint. Distinct depths catch an address mismatch even for empty clouds.
+                    float expected=.2f+((pixel/9)*2*18+(pixel%9)*2)*.001f;
+                    Assert.Equal(expected,raw[source*4],5);
+                    if(last[pixel]>=0)Assert.InRange(frame-last[pixel],1,7);
+                    last[pixel]=frame;
+                }
+                Assert.Equal(20,fresh);
+                // Check aligned sweeps; partial edge tiles intentionally repeat their clamped pixel.
+                if(frame%4==3){Assert.Equal(63,seen.Count);seen.Clear();}
+                if(frame<32)replay.Add(selected.ToArray());else Assert.Equal(replay[frame-32],selected);
+            }
+        }
+    }
     /// <summary>Measures complete screen integration at fixed resolution and fields across the five view profiles.</summary>
     [Fact]
     public void RecordQualityProfileViewCost()
@@ -120,9 +156,10 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
             temporal.SetDepths(50,50,50);temporal.AdvanceFrame();temporal.Draw(settings);
             Assert.All(temporal.HistoryReceipts.Where((_,i)=>i%4==3),count=>Assert.InRange(count,0,1));
             // Removed density is observed at each pixel's next scheduled fresh ray; no global
-            // content reset is required. The four-phase sweep removes all retained contribution.
+            // content reset is required. Across changing sweeps every pixel is revisited within
+            // seven frames; this is an exact removal/coverage contract, not an image-quality gate.
             temporal.SeedDensity(0);float[][] cleared=[];
-            for(int phase=0;phase<4;phase++){temporal.AdvanceFrame();cleared=temporal.Draw(settings);}
+            for(int phase=0;phase<7;phase++){temporal.AdvanceFrame();cleared=temporal.Draw(settings);}
             Assert.All(cleared[1],value=>Assert.Equal(1,value));
             temporal.AdvanceFrame(cameraCut:true);temporal.Draw(settings);Assert.False(temporal.HistoryCompatible);
             temporal.ReleaseViewTargets();temporal.AdvanceFrame();temporal.Draw(settings);

@@ -498,8 +498,8 @@ require measured performance and user appearance review.
 
 ### Stored-volume temporal view
 
-Reduced tracing refreshes one location per 2x2 reduced tile in each four-frame cycle. The existing
-cloud blue-noise masks distribute tile phases; initial/incompatible views trace every reduced pixel.
+Reduced tracing refreshes one location per 2x2 reduced tile each frame and covers every pixel in
+each aligned four-frame sweep; initial/incompatible views trace every reduced pixel.
 Every fresh ray integrates complete exact voxel intervals. A physically smaller raw target and two alternating
 history targets prevent read/write feedback. The raw target has ceil(history width/2) by ceil(history height/2) texels; the view maps each ray onto its selected reduced-grid location. Cold frames trace the full reduced grid into invalid previous-history storage before filtering into the disjoint destination. Compact metadata is RGBA32F: clip depth, completion,
 representative distance and raw traversal visits or filtered history count. Radiance stays physical
@@ -510,7 +510,22 @@ rotation-only reconstruction provide the view history certificate and sampling s
 reads an atlas with an explicit mask count; `interleaved_sampling.glsl` maps a supplied rank to a
 four-frame 2x2 schedule without depending on clouds or a texture layout. The stored-volume payload
 adapter owns filtering of its compact radiance/opacity and bucket values without borrowing previous
-transport or shadow-cache state. The temporal pass distinguishes freshly traced, history-only and spatial-fallback locations. Compatible untraced pixels preserve prior physical transport without blending toward neighbors. Fallback fills unsupported holes but has zero observation confidence and cannot become reusable history. Failed fresh rays remain invalid. A newly empty ray rejects contributing history; removal is normally observed within the four-frame trace cycle.
+transport or shadow-cache state. The temporal pass distinguishes freshly traced, history-only and spatial-fallback locations. Compatible untraced pixels preserve prior physical transport without blending toward neighbors. Fallback fills unsupported holes but has zero observation confidence and cannot become reusable history. Failed fresh rays remain invalid. A newly empty ray rejects contributing history; removal is observed within at most seven frames under the constrained schedule.
+
+The default compiled constrained schedule reads one of eight32x32spatial masks per four-frame
+sweep, repeating every32frames. Both trace and temporal classification call `sampling.glsl` with
+the same frame and tile. The existing32KiB atlas is reused, with one selection lookup. Its masks
+come from deterministic tileable void-and-cluster generation; cyclic phase-label rotations for
+masks1..7 are selected by four coordinate-descent passes minimizing equal adjacent-sweep orders,
+including wrap. This is a constrained schedule, with no genuine STBN spectral claim.
+
+Ordinary pixels refresh once per aligned sweep with1..7frame gaps.
+The existing expiry-at-seven gate remains strict: a seven-frame gap carries only through
+age six before a fresh trace. Odd-edge tiles clamp their selected coordinate and can repeat an edge
+pixel. The32-frame period wraps seamlessly with the unsigned frame counter. Cold/resize frames
+and full-reference bypass retain their existing behavior. Fixed-centre rays, temporal confidence,
+lighting response, target sizes and persisted-volume work selection are unchanged. From an arbitrary
+schedule position,18fresh observations require at most75frames.
 
 Camera reconstruction and projection use rendering-owned `camera_reprojection.glsl`, also consumed
 by LumOn velocity generation and its history debug projection. UV uses the OpenGL bottom-left
@@ -556,7 +571,7 @@ Only fresh updates can be constrained by neighborhood bounds, requiring four sam
 
 At saturated confidence and unchanged coverage, each fresh observation retains7/8 of the remaining
 lighting-step difference. Eighteen fresh observations reduce that difference below one tenth;
-stationary four-frame sampling reaches them within72 rendered frames. Response is frame-dependent,
+the schedule reaches them within75 rendered frames. Response is frame-dependent,
 not a guaranteed wall-clock latency, and foreground/support rejection can start a new observation.
 The response uses the ordinary ray schedule, targets and passes with no transition burst. It does
 not synchronize stored illumination: completed direct/diffuse blocks may still represent different

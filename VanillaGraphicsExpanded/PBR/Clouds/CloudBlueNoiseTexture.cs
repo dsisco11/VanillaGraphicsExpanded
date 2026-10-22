@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
-/// <summary>Owns eight spatial blue-noise rank masks for primary cloud rays, independent of reconstruction phases.</summary>
+/// <summary>Owns spatial rank masks and their constrained cyclic refresh-phase labels.</summary>
 internal sealed class CloudBlueNoiseTexture : GpuTexture
 {
     internal const int Side = 32;
@@ -40,7 +40,7 @@ internal sealed class CloudBlueNoiseTexture : GpuTexture
     /// <summary>Restricts construction to the exception-safe upload factory.</summary>
     private CloudBlueNoiseTexture() { }
 
-    /// <summary>Builds independent tileable spatial rank masks once; frame selection does not regenerate noise.</summary>
+    /// <summary>Builds tileable spatial masks and deterministically relabels their periodic sweep phases once.</summary>
     private static float[] CreateMasks()
     {
         var data = new float[Side * Side * Frames];
@@ -51,7 +51,7 @@ internal sealed class CloudBlueNoiseTexture : GpuTexture
             var mask = VoidAndClusterGenerator.GenerateRankMap(config);
             BlueNoiseConversions.ToNormalizedF32(mask).CopyTo(data, frame * Side * Side);
         }
-        return data;
+        return CloudRefreshSchedule.Create(data,Side,Frames);
     }
     #endregion
 }

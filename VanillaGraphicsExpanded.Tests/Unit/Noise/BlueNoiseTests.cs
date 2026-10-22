@@ -6,6 +6,17 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Noise;
 
 public sealed class BlueNoiseTests
 {
+    /// <summary>Schedule relabeling is deterministic, preserves complete ranks and leaves baseline slice zero intact.</summary>
+    [Fact]
+    public void CloudRefreshSchedulePreservesRanksAndBaseline()
+    {
+        const int side=8,pixels=side*side;
+        var input=Enumerable.Range(0,pixels*8).Select(i=>((i*17)%pixels+.5f)/pixels).ToArray();
+        var result=VanillaGraphicsExpanded.PBR.Clouds.CloudRefreshSchedule.Create(input,side,8);
+        Assert.Equal(result,VanillaGraphicsExpanded.PBR.Clouds.CloudRefreshSchedule.Create(input,side,8));
+        Assert.Equal(input[..pixels],result[..pixels]);
+        for(int slice=0;slice<8;slice++)Assert.Equal(input.AsSpan(slice*pixels,pixels).ToArray().Order(),result.AsSpan(slice*pixels,pixels).ToArray().Order());
+    }
     private static BlueNoiseConfig CreateFastConfig(uint seed, bool tileable)
     {
         return new BlueNoiseConfig(

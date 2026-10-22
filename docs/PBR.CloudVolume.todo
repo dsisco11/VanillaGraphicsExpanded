@@ -2523,38 +2523,90 @@ Phase 8.10 - Evaluate spatiotemporal blue-noise scheduling of cloud refreshes
   any cadence selected by8.9 before comparing schedules; hold that cadence fixed in the comparison.
   Outcome: determine whether a spatially and temporally optimized refresh schedule improves the
   distribution of screen-space lighting updates at the same ray budget and acceptable total cost.
-  [ ] Consult PBR.CloudVolume.Proposal.md / Temporal view sampling contract and PBR.Clouds.md /
+  [x] Consult PBR.CloudVolume.Proposal.md / Temporal view sampling contract and PBR.Clouds.md /
       Stored-volume temporal view, plus the accepted lighting-transition fix. Record the actual
       current refresh schedule, per-pixel refresh intervals and history-expiry contract. Distinguish
       screen-space refresh scheduling from persistent-volume work selection and subpixel ray jitter.
-  [ ] Define a constrained schedule candidate with fixed-centre rays and the existing compact raw
+  [x] Define a constrained schedule candidate with fixed-centre rays and the existing compact raw
       layout: one refreshed pixel per ordinary2x2tile per frame, complete coverage per four-frame
       sweep, and bounded inter-refresh gaps compatible with history expiry. Account for transitions
       between sweeps, partial odd tiles, cold frames, frame wrap, resize and full-reference bypass.
       Do not substitute an independently changing STBN rank that repeats or starves selected pixels.
-  [ ] Evaluate an authored/generated schedule optimized across space and time under those constraints.
+  [x] Evaluate an authored/generated schedule optimized across space and time under those constraints.
       Document its source, representation, period, generation method and actual guarantees. Applying
       a permutation or scheduling constraint to STBN does not automatically preserve STBN spectra;
       describe an unqualified result as a constrained schedule rather than claiming genuine STBN.
       Compare against the existing fixed spatial-rank four-frame cycle at identical settings.
-  [ ] Prototype through the existing blue-noise/schedule ownership and GPU abstractions, sharing the
+  [x] Prototype through the existing blue-noise/schedule ownership and GPU abstractions, sharing the
       exact selection rule between trace and temporal classification. Prefer one schedule lookup;
       account for any extra texture storage, reads or arithmetic. Add no subpixel ray jitter, spatial
       filtering pass, history-length increase or additional rays to obtain the comparison. Use
       compile-time options for any temporary algorithm selection; retain no unused experiment path.
-  [ ] Extend focused existing tests only for schedule coverage, maximum refresh gap, odd boundaries,
+  [x] Extend focused existing tests only for schedule coverage, maximum refresh gap, odd boundaries,
       deterministic replay, frame/lifecycle transitions and trace/filter agreement. Reuse unchanged
       evidence and cached incremental builds/tests through subagents. Do not add noise, convergence
       or approximation-quality pass/fail thresholds, broad matrices or routine packaging.
-  [ ] Compare affected pass and independent total GPU cost only where new evidence is needed; report
+  [x] Compare affected pass and independent total GPU cost only where new evidence is needed; report
       asset/resident memory, actual ray counts, refresh latency and running-game contention. Obtain
       user-run comparison of significant lighting changes, stationary views, motion and foreground
       reveal after the lighting fix. Do not attribute persistent-volume update artifacts to scheduling.
-  [ ] Select the delivered schedule from measured cost and user appearance review, or retain the
+  [x] Select the delivered schedule from measured cost and user appearance review, or retain the
       current schedule and remove the prototype if no worthwhile benefit is established. Reconcile
       proposal/current docs with that decision and record second review and independent audit.
       Completion means an accepted selection or explicit rejected-experiment result, not mandatory
       adoption of STBN. Never launch or close the game for acceptance.
+
+Phase 8.10 verification
+  Traceability: schedule/expiry -> proposal / Temporal view sampling contract and PBR.Clouds.md /
+    Stored-volume temporal view -> fixed-centre rays, unchanged observation response, strict age<7,
+    shared trace/filter addressing and exact voxel transport. Parent atmosphere publication contract
+    remains unchanged. Phase8.7 lighting response is accepted; Phase8.9 retained the four-frame cadence.
+  Baseline: BlueNoiseRank(mask0) offsets frame%4 in each2x2tile. Ordinary pixels refresh exactly
+    every4frames; partial tiles clamp. Cold/incompatible/resize frames trace the full reduced grid;
+    full-reference bypasses temporal targets. Expiry rejects prior support at age7.
+  Prototype: existing eight32x32R32F masks, one per aligned four-frame sweep,32-frame period.
+    Deterministic void-and-cluster seeds0x434C4F55+sweep provide spatial rank masks. Four bounded
+    coordinate-descent passes choose cyclic label rotations of masks1..7 to minimize identical
+    adjacent-sweep phase orders, including periodic wrap; mask0 remains the exact baseline.
+    Spatial rank populations survive relabeling; genuine STBN spectra are unqualified. This is a
+    constrained schedule, not a claim that independent masks plus constraints become genuine STBN.
+  Guarantees: one ray per ordinary/partial tile each compatible frame; each pixel visited in every
+    aligned sweep; ordinary inter-refresh gap1..7frames, including sweep transitions. Age6is the
+    final carry before a fresh trace after a7-frame gap. Period32divides uint range; wrap is seamless.
+    Complete arbitrary four-frame windows are NOT guaranteed. Removal latency increases from4to7
+    frames worst case;18fresh observations take at most75rather than72frames from an arbitrary phase.
+  Cost model: unchanged32KiB GPU atlas and32KiB retained CPU mask cache, no new asset file, texture,
+    target, pass or ray. One lookup remains shared by tracing/classification; candidate adds frame/4
+    and modulo8integer selection. CPU generation adds a32KiB temporary clone and bounded229376
+    neighbor-label comparisons before upload, once per process. Full-reference compiles sampling out.
+  Selection: user approved the constrained schedule on2026-10-22: "approved. it looks good."
+    The fixed-cycle comparison option, renderer/fixture toggle and one-off timing fixture are removed;
+    both production consumers now unconditionally share the approved selection rule.
+  Verification: cached incremental Debug test-project build succeeded0errors/188warnings in7m20s.
+    Build-tool identity changes invalidated cached records, requiring787production/868fixture variants
+    (166.48s/165.74s compilation/publication). No clean, full test matrix or packaging was requested.
+    Focused checks passed14cases in5s: deterministic rank/baseline preservation, odd9x7grid coverage,
+    max gaps, uint wrap,32-frame replay, spatially distinctive trace/filter clip-depth agreement,
+    existing cold/full-reference/resource/motion/temporal contracts and registry pairings. The timing
+    fixture passed separately in2s. All builds/tests used the validation subagent.
+  GPU comparison: RTX4090,1920x1080output, quarter trace, default Medium, diagnostics off, identical
+    authored fields. Each independent total/per-pass measurement spans32frames after a cold warmup.
+    Baseline total median0.4895ms; separately measured trace/filter/compose0.0369/0.0584/0.3799ms.
+    Constrained total median0.4536ms; separate trace/filter/compose0.0358/0.0553/0.3615ms.
+    Each launches32400rays per compatible frame, with13348800screen-target bytes plus32768atlas bytes.
+    Separate pass medians are not summed into total. Uncontrolled contention and fixed run order
+    prevent a speedup claim; no live FPS or visual benefit is established. The game was not launched
+    or closed; its process was not visible in the sandbox, so concurrent game activity is unverified.
+    Receipts: artifacts/CloudSchedule/build.log,focused.trx,measurements.trx,measurement-output.txt.
+  Second source review checked shared selection, mask-zero preservation, bounded gaps/expiry, wrap,
+    cold/reference lifecycle, compile variants and physical transport. Independent source/document
+    and comparison-receipt audit found no defect. User selection is approved and the unselected path
+    is removed. Cleanup build passed0errors/188warnings in7m38.44s; all14focused cases passed in4s,
+    with no failures/skips. Receipts: artifacts/CloudSchedule/closeout-build.log and closeout-focused.trx.
+    The unchanged approved algorithm reuses the comparison cost evidence; no additional timing run,
+    visual review, full matrix or packaging was required for removal of the unselected branch.
+    Independent closeout audit verified source, linked documents, final receipts, approval and cleanup;
+    no unresolved requirement remains. Phase8.10 is complete; Phase9 remains open.
 
 Phase 9 - Qualify the frozen implementation and reconcile documentation
   Depends on: Phase8.6 including8.6.1,8.6.2 and8.6.3, plus Phases8.7,8.8,8.9 and8.10's selected outcome.

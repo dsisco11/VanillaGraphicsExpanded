@@ -3,8 +3,7 @@
 @import "../includes/vge_frame_ubo.glsl"
 #if VGE_STORED_VIEW_TRACE_DIVISOR != 1
 @import "../includes/cloud_temporal_parameters.glsl"
-@import "../includes/blue_noise.glsl"
-@import "../includes/interleaved_sampling.glsl"
+@import "sampling.glsl"
 uniform sampler2D viewBlueNoise;
 #endif
 /** Maps physically compact rays onto their blue-noise-selected reduced-grid positions. */
@@ -15,8 +14,7 @@ vec2 StoredViewUv()
     if(cloudHistory.x>.5)
     {
         ivec2 tile=ivec2(gl_FragCoord.xy);
-        float rank=BlueNoiseRank(viewBlueNoise,tile,0u,8);
-        return (vec2(InterleavedSampleLocation2x2(rank,tile,vgeFrame.frameIndex,ivec2(size)))+.5)/size;
+        return (vec2(StoredRefreshLocation(viewBlueNoise,tile,vgeFrame.frameIndex,ivec2(size)))+.5)/size;
     }
     #endif
     return gl_FragCoord.xy/size;

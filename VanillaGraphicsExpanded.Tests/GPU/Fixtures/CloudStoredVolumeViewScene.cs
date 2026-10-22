@@ -159,6 +159,12 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         visibility.UploadDataImmediate(Enumerable.Repeat(Depth(particles),count).ToArray());
         liquid.UploadDataImmediate(Enumerable.Repeat(Depth(water),count).ToArray());
     }
+    /// <summary>Gives every full-resolution texel a distinct clip depth to certify compact trace addressing.</summary>
+    internal void SetMaterialDepthRamp()
+    {
+        var depths=Enumerable.Range(0,material.Width*material.Height).Select(i=>.2f+i*.001f).ToArray();
+        material.UploadDataImmediate(depths);
+    }
     /// <summary>Authors a material-depth discontinuity while keeping particle and liquid clips independent.</summary>
     internal void SetMaterialDepthColumns(int firstBackground,float foreground,float background)
     {
@@ -209,9 +215,9 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
     /// <summary>Models a new material owner reusing identical drawable allocations.</summary>
     internal void ReplaceViewMaterialIdentity(){replacementIdentity=new object();}
     /// <summary>Advances a complete camera/native frame pair without changing cloud storage identity.</summary>
-    internal void AdvanceFrame(float materialMotion=0,bool cameraCut=false,float yaw=0)
+    internal void AdvanceFrame(float materialMotion=0,bool cameraCut=false,float yaw=0,uint? absoluteFrame=null)
     {
-        var bytes=camera.Bytes.ToArray();uint frame=input.Frame+1;
+        var bytes=camera.Bytes.ToArray();uint frame=absoluteFrame??unchecked(input.Frame+1);
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(396,4),frame);
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(bytes.AsSpan(508,4),cameraCut?1u:0u);
         var v=System.Runtime.InteropServices.MemoryMarshal.Cast<byte,float>(bytes.AsSpan());

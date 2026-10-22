@@ -3,8 +3,7 @@
 @import "../includes/pbr_frame_lighting.glsl"
 @import "../includes/cloud_temporal_parameters.glsl"
 @import "../includes/camera_reprojection.glsl"
-@import "../includes/blue_noise.glsl"
-@import "../includes/interleaved_sampling.glsl"
+@import "sampling.glsl"
 uniform sampler2D temporalBlueNoise;
 uniform sampler2D reconstructCloud;
 uniform sampler2D reconstructBins;
@@ -57,8 +56,8 @@ float StoredTemporalDepth(vec2 uv)
 bool StoredTemporalFresh(ivec2 p,ivec2 size,out ivec2 source)
 {
     source=p;if(cloudHistory.x<.5)return true;
-    source=p/2;float rank=BlueNoiseRank(temporalBlueNoise,source,0u,8);
-    return all(equal(p,InterleavedSampleLocation2x2(rank,source,vgeFrame.frameIndex,size)));
+    source=p/2;
+    return all(equal(p,StoredRefreshLocation(temporalBlueNoise,source,vgeFrame.frameIndex,size)));
 }
 /** Classifies one history tap without relaxing foreground, support, distance or expiry gates. */
 float StoredTemporalTap(vec4 old,float age,float kind,float depth,float distance)

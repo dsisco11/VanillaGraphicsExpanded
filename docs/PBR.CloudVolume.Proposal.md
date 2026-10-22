@@ -323,9 +323,26 @@ UV is bottom-left OpenGL; cloud lookup requires finite half-open [0,1) coverage 
 Surface validity and boundary policies remain surface-owned. These helpers do not replace the
 volume-specific range, classification, foreground, age or confidence contracts below.
 
-Reduced views retain two compact physical history sets and a disjoint current trace set at half their width/height. Incompatible frames reuse the invalid previous-history set as full reduced-grid trace scratch before filtering into the other set. One blue-noise ranked location per two-by-two reduced tile is refreshed on each of four phases; initial or incompatible views trace all reduced pixels. Every fresh ray retains exact occupied-cell transport. Full resolution bypasses temporal targets. Commit history only after successful final composition.
+Reduced views retain two compact physical history sets and a disjoint current trace set at half their width/height. Incompatible frames reuse the invalid previous-history set as full reduced-grid trace scratch before filtering into the other set. One location per two-by-two reduced tile is refreshed each frame, with complete coverage in every aligned four-frame sweep; initial or incompatible views trace all reduced pixels. Every fresh ray retains exact occupied-cell transport. Full resolution bypasses temporal targets. Commit history only after successful final composition.
 
-A compatible untraced pixel carries hardware-filtered prior transport unchanged; neighboring current observations supply spatial fallback only when history is unavailable. Fallback has zero independent-observation count and cannot seed reusable history. A failed fresh ray remains invalid. Certified empty fresh rays reject contributing history. Removed cloud support is therefore observed at the next fresh phase, normally within four frames, rather than triggering a blanket publication reset.
+The compiled constrained refresh schedule uses eight spatial rank masks, one per four-frame sweep,
+with a32-frame period. Each32x32mask is seeded by the
+existing tileable void-and-cluster generator; four deterministic coordinate-descent passes choose
+cyclic phase-label rotations for masks1..7 to reduce identical phase orders between adjacent sweeps,
+including the periodic boundary. Relabeling preserves each mask's spatial phase populations; it
+has not been spectrally qualified as genuine spatiotemporal blue noise. The shared sampling helper
+performs one atlas lookup for both trace addressing and temporal classification. No ray-position jitter is introduced.
+
+Every ordinary tile traces one pixel each frame and each pixel once per aligned sweep. Refresh gaps
+are1..7frames across sweep boundaries; seven-frame expiry still admits
+the last carried support before the next fresh trace. Partial tiles clamp to their final row/column
+and can repeat that edge pixel. The period divides the unsigned frame-counter range, so wrap is a
+normal period boundary. Cold/resize/incompatible frames trace the full reduced grid; full reference
+bypasses this schedule. The atlas remains32KiB with no extra screen targets or sampling reads.
+Eighteen fresh observations take at most75frames from an arbitrary schedule position;
+this is a response bound, not an appearance guarantee.
+
+A compatible untraced pixel carries hardware-filtered prior transport unchanged; neighboring current observations supply spatial fallback only when history is unavailable. Fallback has zero independent-observation count and cannot seed reusable history. A failed fresh ray remains invalid. Certified empty fresh rays reject contributing history. Removed cloud support is therefore observed at the next fresh phase, within at most seven frames under the constrained schedule, rather than triggering a blanket publication reset.
 
 For untraced pixels with zero relative material translation, establish the previous address from
 the rotated viewing direction without guessing cloud distance. Classification and representative
@@ -345,7 +362,7 @@ Admit every exactly nonzero bilinear metadata tap before two hardware-filtered t
 
 Only fresh pixels may use neighborhood bounds, and only with at least four same-support, distance-compatible fresh observations spanning two pixels in both axes. Unsupported sparse bounds do nothing. Bound opacity and bucket transmission, which describe integrated coverage; a radiance-only change does not establish different geometric support. If supported coverage bounds exclude prior transport, reject its contribution and reset confidence to one rather than claiming a clipped sample survived. Fresh blend weight is min(previous count,7)/(min(previous count,7)+1), multiplied by opacity reactivity clamp(1-4*abs(delta opacity),0,1). RGB changes do not reduce prior weight or trigger neighborhood replacement. Values remain physical until native composition. Routine lighting/weather/fog/exposure changes do not revoke the CPU certificate.
 
-Colour changes therefore retain the declared observation response instead of making selected fresh pixels jump ahead of carried neighbours. At saturated confidence and unchanged coverage, the remaining step difference is multiplied by7/8 on each fresh observation;18 observations reduce it below one tenth. With stationary four-frame refresh this takes at most72 rendered frames, not a fixed wall-clock duration. This is response arithmetic, not a visual-quality guarantee. Foreground, empty/support, distance, failure and expiry rejection remain independent. No extra rays, texture reads, targets, passes or transition bursts are required. This screen response cannot synchronize partially refreshed diffuse or direct volume blocks: those remain completed but potentially stale publications under the existing transport budget and require separate evidence before changing their publication policy.
+Colour changes therefore retain the declared observation response instead of making selected fresh pixels jump ahead of carried neighbours. At saturated confidence and unchanged coverage, the remaining step difference is multiplied by7/8 on each fresh observation;18 observations reduce it below one tenth. With stationary sampling this takes at most75 rendered frames, not a fixed wall-clock duration. This is response arithmetic, not a visual-quality guarantee. Foreground, empty/support, distance, failure and expiry rejection remain independent. No extra rays, texture reads, targets, passes or transition bursts are required. This screen response cannot synchronize partially refreshed diffuse or direct volume blocks: those remain completed but potentially stale publications under the existing transport budget and require separate evidence before changing their publication policy.
 
 History count is the declared equivalent observation confidence 1/(1-effective prior weight), capped at eight on fresh updates. Carry transports confidence and increments refresh age; it never invents an independent observation. Zero prior weight and clipping replacement produce count one. Each support tap must have refresh age below seven before admission. Diagnostics distinguish address admission from actual old weight and from fallback. Screen allocation and bandwidth are additional to volume payload. User-run stationary, edge, camera/wind, ghosting and dynamic lighting/weather review and measured total cost remain acceptance requirements.
 
