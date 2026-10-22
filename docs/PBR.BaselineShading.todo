@@ -205,7 +205,7 @@ Tasks
     - Preserve engine storage ownership, sampling policy and attachment replacement/retirement;
       migrate direct lighting, composite/display resolve, liquids and water-volume inputs together.
 
-  ☐ Implement physically motivated volumetric clouds integrated with the sky.
+  ✔ Implement physically motivated volumetric clouds integrated with the sky. @done(26-10-22 15:46)
     - Current design: docs/PBR.CloudVolume.Proposal.md. Implementation and remaining qualification:
       docs/PBR.CloudVolume.todo. Stored density/lighting is the sole Volumetric implementation;
       retired procedural and lighting-only plans are inactive design records.
