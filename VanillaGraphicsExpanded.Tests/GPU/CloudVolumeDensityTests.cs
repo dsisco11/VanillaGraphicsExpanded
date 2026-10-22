@@ -35,10 +35,16 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         using(var words=fields.Occupancy.MapScope<uint>(0,fields.Domain.Blocks,MapBufferAccessMask.MapReadBit))
         {
             int last=fields.Domain.BlocksX-1,y=33/4;
-            Assert.Equal(1u,words.Span[y*fields.Domain.BlocksX]);
-            Assert.Equal(1u,words.Span[(last*fields.Domain.BlocksY+y)*fields.Domain.BlocksX+last]);
+            Assert.Equal(1u,words.Span[y*fields.Domain.BlocksX]&3u);
+            Assert.Equal(1u,words.Span[(last*fields.Domain.BlocksY+y)*fields.Domain.BlocksX+last]&3u);
+            // Origin counts describe stored positive cells, not neighboring traversal support.
+            Assert.All(words.Span.ToArray(),value=>Assert.Equal(4u,value&4u));
+            Assert.Equal(9u,words.Span.ToArray().Aggregate(0u,(sum,value)=>sum+((value>>3)&511u)));
+            Assert.Contains(words.Span.ToArray(),value=>value==5u);
         }
         uint actual=fields.DensityState.CompletedFrame;
+        // Consume the membership dirty flag as the scheduler does after building its retained list.
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=0;
         input=input with{Frame=2,Generation=2,Upload=2};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         Assert.Equal(0,fields.DensityState.Selected);Assert.Equal(actual,fields.DensityState.CompletedFrame);
@@ -57,6 +63,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         Assert.InRange(fields.DensityState.Selected,1,fields.Domain.BlocksX*fields.Domain.BlocksX);
         Assert.InRange(fields.DensityState.Changed,1,fields.DensityState.Selected);
         AssertStoredRepresentation(.02f/12.5f,Sample(probe,fields,output,point));
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapReadBit))Assert.Equal(0u,membership.Span[0]);
         // Move the layer to disjoint support, ensuring old cells are cleared as new ones fill.
         data[column+2]=2;data[column+3]=2+1f/50;map.UploadDataImmediate(data);
         input=input with{Frame=6,Generation=5,Upload=5};
@@ -64,6 +71,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         Assert.Equal(0,Sample(probe,fields,output,point));
         AssertStoredRepresentation(.02f/12.5f,Sample(probe,fields,output,point+new Vector3(0,100,0)));
         Assert.InRange(fields.DensityState.Changed,1,fields.DensityState.Selected);
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapReadBit))Assert.Equal(1u,membership.Span[0]);
         // Recenter an already-empty field: changed transport coverage still dirties lighting,
         // and entering/guard occupancy must repair even when no generated texel changes.
         Array.Clear(data);
@@ -73,6 +81,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         map.UploadDataImmediate(data);input=input with{Frame=7,Generation=6,Upload=6};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,MapBufferAccessMask.MapWriteBit))dirty.Span[0]=0;
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=0;
         data[column]=2e-10f;map.UploadDataImmediate(data);input=input with{Frame=8,Generation=7,Upload=7};
         Assert.True(density.Update(storage,input,map,encoding,Vector3.One,()=>true),density.Failure);
         Assert.True(fields.DensityState.Selected>0);Assert.Equal(0,fields.DensityState.Changed);
@@ -82,7 +91,8 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         Assert.Equal(0,fields.DensityState.Changed);Assert.False(fields.DensityState.LayoutChanged);
         using(var dirty=fields.Scratch.MapScope<uint>(6*4,1,MapBufferAccessMask.MapReadBit))Assert.Equal(1u,dirty.Span[0]);
         using(var occupied=fields.Occupancy.MapScope<uint>(0,fields.Domain.Blocks,MapBufferAccessMask.MapReadBit))
-            Assert.All(occupied.Span.ToArray(),value=>Assert.Equal(0u,value));
+            Assert.All(occupied.Span.ToArray(),value=>Assert.Equal(4u,value));
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapReadBit))Assert.Equal(0u,membership.Span[0]);
         var retained=fields.Density;Assert.True(retained.IsValid);
         data[column]=-1;map.UploadDataImmediate(data);input=input with{Frame=10,Generation=8,Upload=8};
         Assert.False(density.Update(storage,input,map,encoding,Vector3.One,()=>true));

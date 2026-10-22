@@ -2313,52 +2313,78 @@ Phase 8.8 - Spend persisted-lighting ray budgets on occupied voxels
     view-history correction; both must finish before final qualification.
   Outcome: occupied cloud material receives the lighting work, with explicit accounting for useful
     rays rather than treating conservative block capacity as actual tracing throughput.
-  [ ] Reconcile PBR.CloudVolume.Proposal.md / Density generation, Metadata, budgets and source changes,
+  Implementation and measurement record (2026-10-22):
+    User approved removal of the expanded candidate-pool and slab-compaction experiments, and
+    directed persistent occupancy scheduling. Exact positive-origin counts share occupancy metadata;
+    stable compact physical-block IDs share the existing4MiB scratch. Rebuild only on zero/positive
+    membership changes, including maintenance; lighting changes retain the list. Original shortlists
+    remain bounded, admitting their unique fair/priority union under exact separate ray allowances.
+    Nine focused GPU cases passed in artifacts/CloudOccupiedWork/phase88-final.trx; no approximation
+    quality thresholds. Review covers scratch bounds, ownership, physical fair cursors, source demand,
+    completion/failure safety and linked density/budget/publication contracts.
+    Complete-update fixture medians: unchanged1.361ms versus earlier1.159ms; evolving2.716ms versus
+    earlier2.387ms. Evolving work increased to92-96direct/40-48diffuse jobs under16384/65536ray limits.
+    Sparse evolving measured2.522ms, with no earlier identical-case baseline. These are submitted
+    update costs across callbacks, not per-rendered-frame timings or live acceptance.
+    Maximum-domain current batched selector atdefaultbudget: stable dense1.109ms, sparse.738ms,
+    partial.971ms, empty.529ms; first rebuild+selection1.837/.755/1.498/.721ms respectively.
+    The historical selector used a different submission boundary, so its timings do not establish
+    a controlled kernel comparison. The game remained running; contention and CPU submission gaps
+    affect query intervals. No net speedup is established. Keep the approved implementation;
+    any decision to remove it requires user approval. Do not equate higher ray utilization with FPS.
+    Follow-up measurement-only eligibility correction excludes halo-only blocks from pending ages;
+    ComputeWork passed1/1 in phase88-age.trx. With unchanged runtime, that rerun measured1.595ms
+    unchanged,6.411ms evolving and3.670ms sparse; even disabled lighting rose from.813to3.302ms.
+    This variation prevents a reliable speedup/regression attribution. Both receipts are retained.
+    Second review and independent completion audit passed; live performance qualification remains Phase9.
+  [x] Reconcile PBR.CloudVolume.Proposal.md / Density generation, Metadata, budgets and source changes,
       and Nonblocking updates and drawable publication; consult PBR.Clouds.md / Persisted lighting
       update budget. Inventory actual scheduling, traversal occupancy, empty-lane skips and dispatch
       costs. Separate selected blocks, occupied origin voxels, launched rays and completed updates.
       Reuse existing capture/fixture evidence; gather only missing measurements.
-  [ ] Separate exact positive-density scheduling support from conservative traversal support.
+  [x] Separate exact positive-density scheduling support from conservative traversal support.
       Maintain own-block nonempty information or occupied-voxel counts during density generation
       and maintenance, without rescanning the full density field every update. Do not remove the
       traversal halo solely to improve scheduling: independently prove any tighter traversal support
       against exact-cell semantics before changing it. Pending/unknown support stays conservative.
       Handle entering/departing cells, circular seams, guards, replacement and failed updates.
-  [ ] Exclude blocks with no occupied origin voxels from direct/diffuse selection while preserving
+  [x] Exclude blocks with no occupied origin voxels from direct/diffuse selection while preserving
       their pending revisions. Reintroduce them when density becomes positive, retaining demand age
       and fair service. Prioritize initialized/stale/visible work through existing owning policies;
       changing source direction or remote density must still enqueue dependent occupied receivers.
-  [ ] Evaluate and implement occupied-voxel job compaction where total measured cost supports it.
-      Compare exact-support block selection first, then compact per-voxel or sub-block work against
-      its list construction, metadata, dispatch and maintenance cost. Avoid a persistent global list
-      unless its lifecycle and measured benefit justify it. Use existing GPU buffers, typed programs,
-      indirect dispatch and barriers; no CPU job-list readback or generic scheduling framework.
-  [ ] Define LightingRaysPerUpdate accounting for the selected algorithm. Charge one direct ray per
+  [x] Implement the approved persistent occupancy-directed block list. Remove the expanded candidate
+      pool and slab-compaction experiments. Build ascending occupied physical IDs only when density
+      generation or maintenance changes zero/positive membership; reuse the list for lighting-only
+      changes and nonzero density changes. Keep current counts for exact ray charges. Compare stable
+      scheduling and membership rebuild costs for sparse and dense content, including complete updates.
+      Use existing GPU scratch, typed programs, indirect dispatch and barriers; no CPU job-list readback
+      or generic scheduling framework. Preserve the full-domain metadata merge for remote invalidation.
+  [x] Define LightingRaysPerUpdate accounting for the selected algorithm. Charge one direct ray per
       occupied voxel/source and eight diffuse rays per occupied voxel; retain the current solver
       allocation ratio unless explicitly revised. Refill unused empty-origin capacity with eligible
       occupied work within bounded selection effort. State granularity, rounding and underspend when
       insufficient work exists; do not silently change the budget's meaning or trace beyond it.
       Preserve the default/range, relevant-source rules and individual ray/scattering schedules.
-  [ ] Preserve coherent partial-update publication. If selected work no longer covers complete blocks,
+  [x] Preserve coherent partial-update publication. If selected work no longer covers complete blocks,
       do not stamp a whole block fresh after a partial voxel update. Define partial completion and
       fair cursors explicitly, preserve untouched destination values and diffuse repair history, and
       publish only successful dirty regions. Keep one coherent diffuse source per gather iteration,
       nonblocking fences, failure withdrawal and retained field/view identities.
       Charge all added metadata/scratch and peak replacement storage against the existing limits.
-  [ ] Extend existing debug statistics with eligible occupied voxels, actual direct/diffuse ray counts,
+  [x] Extend existing debug statistics with eligible occupied voxels, actual direct/diffuse ray counts,
       reserved-versus-used budget, empty dispatch work and oldest pending age. Reuse deferred status
       and developer diagnostics; no new synchronous runtime readbacks or per-frame diagnostic scans.
-  [ ] Extend focused existing fixtures for sparse/halo-only/empty blocks, partial occupancy, source
+  [x] Extend focused existing fixtures for sparse/halo-only/empty blocks, partial occupancy, source
       activation, density changes, seams/recentering and minimum/default/maximum budgets. Verify exact
       selection/bounds, no duplicate origin/source jobs, fairness, complete metadata and failed-update
       safety. No approximation-quality or convergence thresholds. Run cached incremental builds and
       affected tests through subagents; avoid broad matrices or routine packaging.
-  [ ] Compare total selection, compaction, tracing, repair and publication cost at matched settings
+  [x] Compare total selection, compaction, tracing, repair and publication cost at matched settings
       and occupied content. Include sparse and dense cases plus evolving weather; report useful rays,
-      refresh age, memory and contention. Reject compaction that costs more overall; retain measured
-      exact-support scheduling gains without claiming that higher ray utilization alone means speedup.
+      refresh age, memory and contention. Discuss measured regressions before removing an experiment;
+      do not revert it without user approval. Do not claim higher ray utilization alone means speedup.
       Reconcile proposal/current documentation, perform second review and independent completion audit.
-  [ ] Completion: empty origin regions no longer consume lighting jobs, the selected implementation
+  [x] Completion: empty origin regions no longer consume lighting jobs, the selected implementation
       demonstrably directs bounded work to occupied density, and ray accounting plus completion
       metadata remain truthful. Any rejected compaction alternative and remaining limitations are
       explicit. Final package and user-run appearance/performance acceptance remain Phase9.

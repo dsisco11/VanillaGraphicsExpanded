@@ -17,6 +17,12 @@ layout(std430) buffer WorkCommands {uint commands[];};
 layout(std430) readonly buffer WorkOccupancy {uint occupancy[];};
 const int DirectJobs=16384,DiffuseJobs=16640;
 const uint Invalid=0xffffffffu;
+/** Returns certified positive origin count; unknown maintenance support reserves a complete block. */
+uint Origins(int region)
+{
+    uint support=occupancy[region];
+    return (support&4u)!=0u?(support>>3u)&511u:((support&3u)!=0u?256u:0u);
+}
 #if VGE_VOLUME_WORK_LARGE_BUDGET
 const int SelectionEntries=1024;
 #else
@@ -24,6 +30,7 @@ const int SelectionEntries=256;
 #endif
 shared uvec3 keys[SelectionEntries];
 shared uint pendingCount;
+@import "occupancy_schedule.glsl"
 
 /** Uses a conservative native-local AABB, treating a block spanning the logical seam as visible. */
 bool Visible(int region)
@@ -43,7 +50,7 @@ bool Pending(int job,int kind)
     int region=kind==0?job/2:job;
     // Retain demand without spending transport jobs on certified empty space. A later
     // density publication makes the same pending revisions eligible automatically.
-    if(occupancy[region]==0u)return false;
+    if(Origins(region)==0u)return false;
     if(kind==1)return workSettings.y!=0&&(regions[region*16]&4u)!=0u;
     int source=job%2;
     return (workStamps.z&(1<<source))!=0&&(regions[region*16+5+source*2]!=regions[region*16+6+source*2]||regions[region*16+6+source*2]==0u);
@@ -89,8 +96,14 @@ void Sort(int count)
         barrier();
     }
 }
-/** Returns block-job capacities from the admitted ray budget, preserving fair service for odd counts. */
+/** Bounds candidate refill effort and existing complete-block list capacities independently of ray cost. */
 int Budget(int kind){return int(workFirst.w)*(kind==0?2:1);}
+/** Keeps the admitted direct/diffuse ray allocation, including an odd whole-block fair reservation. */
+uint RayAllowance(int kind,bool fair)
+{
+    int jobs=int(workFirst.w)*(kind==0?2:1);
+    return uint(fair?(jobs+1)/2:jobs)*uint(kind==0?256:2048);
+}
 /** Assigns the odd leftover job to fair service so the smallest budget cannot starve it. */
 int FairQuota(int kind){return (Budget(kind)+1)/2;}
 /** Accounts for exact fair indices, three-word priority keys and one backlog word. */
@@ -112,8 +125,9 @@ void StoreTop(int targetOffset,int quota,bool fair)
 void Candidates(bool initial)
 {
     int lane=int(gl_LocalInvocationIndex);
-    int oldDirect=workReduction.z,oldDiffuse=workReduction.w;
-    int nextDirect=initial?oldDirect:(oldDirect+3)/4,nextDiffuse=initial?oldDiffuse:(oldDiffuse+3)/4;
+    int level=workSettings.z;
+    int nextDirect=int(scratch[52+level*2]),nextDiffuse=int(scratch[53+level*2]);
+    int oldDirect=initial?nextDirect:int(scratch[50+level*2]),oldDiffuse=initial?nextDiffuse:int(scratch[51+level*2]);
     int kind=int(gl_WorkGroupID.x)<nextDirect?0:1;
     int group=int(gl_WorkGroupID.x)-(kind==0?0:nextDirect);
     int fairQuota=FairQuota(kind),priorityQuota=Budget(kind),stride=SummaryStride(kind);
@@ -123,8 +137,13 @@ void Candidates(bool initial)
     uint job=Invalid;uvec3 priority=uvec3(Invalid);
     if(initial)
     {
-        int candidate=group*256+lane,total=workExtent.w*(kind==0?2:1);
-        if(candidate<total&&Pending(candidate,kind)){job=uint(candidate);priority=PriorityKey(job,kind);atomicAdd(pendingCount,1u);}
+        int candidate=group*256+lane,total=int(scratch[49])*(kind==0?2:1);
+        if(candidate<total)
+        {
+            uint region=scratch[OccupiedList+(kind==0?candidate/2:candidate)];
+            uint physicalJob=kind==0?region*2u+uint(candidate%2):region;
+            if(Pending(int(physicalJob),kind)){job=physicalJob;priority=PriorityKey(job,kind);atomicAdd(pendingCount,1u);}
+        }
     }
     else if(lane<4)
     {
@@ -169,30 +188,40 @@ void Candidates(bool initial)
 void Emit(int kind,int groups)
 {
     int list=kind==0?DirectJobs:DiffuseJobs,budget=Budget(kind),quota=FairQuota(kind),count=0;
-    uint backlog=0u;
+    uint backlog=0u,used=0u,unknown=0u;
     if(groups!=0)
     {
-        int sourceOffset=Summary(workReduction.x,kind,0,workReduction.z);
+        int sourceOffset=Summary(workReduction.x,kind,0,int(scratch[52+workSettings.z*2]));
         backlog=scratch[sourceOffset+SummaryStride(kind)-1];
         for(int i=0;i<quota;i++)
         {
             uint job=scratch[sourceOffset+i];if(job==Invalid)break;
-            scratch[list+count++]=job;scratch[18+kind]=(job+1u)%uint(workExtent.w*(kind==0?2:1));
+            uint cost=Origins(kind==0?int(job)/2:int(job))*uint(kind==0?1:8);
+            if(used+cost>RayAllowance(kind,true))break;
+            scratch[list+count++]=job;used+=cost;
+            scratch[18+kind]=(job+1u)%uint(workExtent.w*(kind==0?2:1));
         }
-        for(int i=0;i<budget&&count<budget;i++)
+        for(int i=0;i<budget&&count<(kind==0?256:128);i++)
         {
             uint job=scratch[sourceOffset+quota+i*3+2];if(job==Invalid)break;
             bool duplicate=false;for(int n=0;n<count;n++)duplicate=duplicate||scratch[list+n]==job;
-            if(!duplicate)scratch[list+count++]=job;
+            uint cost=Origins(kind==0?int(job)/2:int(job))*uint(kind==0?1:8);
+            if(!duplicate&&used+cost<=RayAllowance(kind,false)){scratch[list+count++]=job;used+=cost;}
         }
         for(int i=0;i<count;i++)
         {
             int job=int(scratch[list+i]),region=kind==0?job/2:job;
+            if((occupancy[region]&4u)==0u)unknown++;
             regions[region*16]|=uint(kind==0?512<<(job%2):2048);
         }
     }
     scratch[16+kind]=uint(count);scratch[22+kind]=backlog;
-    commands[kind*3]=uint(count);commands[kind*3+1]=kind==0?1u:uint(workSettings.w);commands[kind*3+2]=1u;
+    // This is solver accounting, consumed with the existing fenced completion status.
+    // Unknown support reserves 256 origins and is reported separately from exact ray counts.
+    scratch[40+kind]=RayAllowance(kind,false);scratch[42+kind]=used;scratch[44+kind]=unknown;
+    if(kind==0)scratch[46]=uint(workStamps.z)|(workSettings.y!=0?4u:0u);
+    else scratch[47]=uint(count)*256u-used/8u;
+    commands[kind*3]=uint(count);commands[kind*3+1]=kind==0?1u:8u;commands[kind*3+2]=1u;
     if(kind==1)
     {
         // Keep full re-encoding and bounded previous-block repair independently indirect.
@@ -210,8 +239,8 @@ void Emit(int kind,int groups)
             else scratch[17024u+lunar++]=job/2u;
         }
         scratch[29]=solar;scratch[30]=lunar;
-        commands[6]=solar;commands[7]=uint(workSettings.z);commands[8]=1u;
-        commands[9]=lunar;commands[10]=uint(workSettings.z);commands[11]=1u;
+        commands[6]=solar;commands[7]=1u;commands[8]=1u;
+        commands[9]=lunar;commands[10]=1u;commands[11]=1u;
     }
 }
 /** Runs barrier-separated initialization, parallel merge, hierarchical selection or successful-only completion. */
@@ -240,7 +269,9 @@ void main()
     #elif VGE_VOLUME_WORK_OPERATION==3
     Candidates(false);
     #elif VGE_VOLUME_WORK_OPERATION==4
-    if(id!=0u)return;Emit(0,workReduction.z);Emit(1,workReduction.w);
+    if(id!=0u)return;Emit(0,int(scratch[52+workSettings.z*2]));Emit(1,int(scratch[53+workSettings.z*2]));
+    #elif VGE_VOLUME_WORK_OPERATION>=6
+    OccupancySchedule();
     #else
     if(id!=0u)return;
     uint mask=uint(workSlots.w);

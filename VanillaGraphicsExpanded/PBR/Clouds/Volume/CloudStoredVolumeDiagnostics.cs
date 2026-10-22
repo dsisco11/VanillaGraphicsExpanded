@@ -21,12 +21,23 @@ internal static class CloudStoredVolumeDiagnostics
         if(source is not null&&source.TryGetTarget(out var prior)&&ReferenceEquals(prior,solution)&&now-lastRead<Stopwatch.Frequency)return;
         var fields=solution.Storage.Published;var d=fields.Domain;
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
-        using var header=fields.Scratch.MapScope<uint>(0,28,MapBufferAccessMask.MapReadBit);
+        using var header=fields.Scratch.MapScope<uint>(0,52,MapBufferAccessMask.MapReadBit);
         uint pendingAge=0,completedAge=0,fallback=0,directCompleted=0,diffuseCompleted=0;
+        long occupiedOrigins=0,eligibleDirect=0,eligibleDiffuse=0;int unknownBlocks=0;
+        var rays=solution.WorkStatistics;
+        using var support=fields.Occupancy.MapScope<uint>(0,d.Blocks,MapBufferAccessMask.MapReadBit);
         using(var regions=fields.Regions.MapScope<uint>(0,d.Blocks*16,MapBufferAccessMask.MapReadBit))
             for(int b=0;b<regions.Span.Length;b+=16)
             {
                 var r=regions.Span.Slice(b,16);
+                uint origins=support.Span[b/16];
+                if((origins&4u)==0u){unknownBlocks++;continue;}
+                occupiedOrigins+=(origins>>3)&511u;
+                if(((origins>>3)&511u)==0u)continue;
+                uint count=(origins>>3)&511u;
+                for(int s=0;s<2;s++)if((rays.ActiveSolvers&(1u<<s))!=0u&&r[5+s*2]!=r[6+s*2])eligibleDirect+=count;
+                if((rays.ActiveSolvers&4u)!=0u&&(r[0]&4u)!=0u)eligibleDiffuse+=count;
+                if((r[0]&2)!=0)pendingAge=Math.Max(pendingAge,frame-r[9]);
                 if((r[0]&4)!=0)pendingAge=Math.Max(pendingAge,frame-r[14]);
                 if(r[13]==0)fallback++;else completedAge=Math.Max(completedAge,frame-r[15]);
                 if(r[10]==frame)directCompleted++;if(r[11]==frame)directCompleted++;
@@ -37,7 +48,13 @@ internal static class CloudStoredVolumeDiagnostics
             $"Density selected/remaining: {fields.DensityState.Selected} / {fields.DensityState.Remaining}\n"+
             $"Direct selected/actual: {header.Span[16]} / {directCompleted}; diffuse: {header.Span[17]} / {diffuseCompleted}\n"+
             $"Lighting backlog direct/diffuse: {header.Span[22]} / {header.Span[23]}\n"+
-            $"Oldest diffuse pending/completed age: {pendingAge} / {completedAge} frames; fallback blocks: {fallback}\n"+
+            $"Occupied origins: {occupiedOrigins:N0}; unknown blocks: {unknownBlocks}\n"+
+            $"Compact occupied blocks: {header.Span[49]}; rebuild generation/frame: {header.Span[51]}/{header.Span[50]}\n"+
+            $"Pending eligible origins direct/diffuse: {eligibleDirect:N0}/{eligibleDiffuse:N0}\n"+
+            $"Direct rays/allowance: {rays.DirectRays:N0}/{rays.DirectAllowance:N0}; diffuse: {rays.DiffuseRays:N0}/{rays.DiffuseAllowance:N0}\n"+
+            $"Unknown selected jobs (ray charges are bounds): {rays.UnknownDirectJobs}/{rays.UnknownDiffuseJobs}\n"+
+            $"Empty dispatched origins direct/diffuse: {header.Span[16]*256L-rays.DirectRays:N0}/{rays.EmptyDiffuseOrigins:N0}\n"+
+            $"Oldest occupied lighting pending/completed age: {pendingAge} / {completedAge} frames; fallback blocks: {fallback}\n"+
             $"Diffuse copy bytes: {solution.Diffuse.LastCopyBytes:N0}; jobs: {solution.Diffuse.LastJobs}\n"+
             "Density/region/age/fallback overlays use stored fields only. Readback is developer-only, once per second.";
         lastRead=now;source=new(solution);

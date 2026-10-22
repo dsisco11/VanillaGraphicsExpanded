@@ -10,7 +10,7 @@ internal interface ICloudVolumeMaintenanceBindings
     /// <summary>Supplies bounded slots, offsets, work ranges and initialized source values.</summary>
     [ShaderBinding("VolumeMaintenance", ShaderBindingKind.UniformBlock, 0, ShaderStageKind.Compute)]
     CpuUniformBuffer Inputs { get; }
-    /// <summary>Resets only newly admitted or guard density texels.</summary>
+    /// <summary>Resets entering/guard density and counts retained positive cells in each changed block.</summary>
     [ShaderBinding("densityField", ShaderBindingKind.Image, 0, ShaderStageKind.Compute, TextureTarget=ShaderTextureTarget.Texture3D)]
     GpuTextureBinding Density { set; }
     /// <summary>Initializes direct visibility without a relocation spare.</summary>
@@ -28,5 +28,8 @@ internal interface ICloudVolumeMaintenanceBindings
     /// <summary>Initializes empty occupancy and conservatively marks changed blocks.</summary>
     [ShaderBinding("Occupancy", ShaderBindingKind.StorageBlock, 1, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer? Occupancy { set; }
+    /// <summary>Invalidates the retained occupied-region list only when positive membership changes.</summary>
+    [ShaderBinding("MaintenanceScratch",ShaderBindingKind.StorageBlock,2,ShaderStageKind.Compute)]
+    GpuShaderStorageBuffer? Scratch { set; }
     #endregion
 }

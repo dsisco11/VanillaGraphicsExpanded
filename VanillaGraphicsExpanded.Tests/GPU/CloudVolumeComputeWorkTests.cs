@@ -119,15 +119,16 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         using var timer=GpuTimerQuery.Create("Tests.Cloud.CompleteUpdate");uint frame=0;
         // Startup allocation, initialization and first publication warm the complete owning path outside the reported samples.
         Complete(false);
-        foreach(string scenario in new[]{"unchanged","wind only","same-content upload","evolving","source change","empty occupancy","disabled lighting jobs"})
+        foreach(string scenario in new[]{"unchanged","wind only","same-content upload","evolving","source change","empty occupancy","disabled lighting jobs","sparse evolving"})
         {
             var samples=new List<double>();var cpuSamples=new List<double>();var callbacks=new List<int>();
             for(int sample=0;sample<3;sample++)
             {
-                if(scenario is "evolving" or "empty occupancy")
+                if(scenario is "evolving" or "empty occupancy" or "sparse evolving")
                 {
-                    for(int i=0;i<400;i++)native[i*4]=scenario=="empty occupancy"?0:sample%2==0?.2505f:.25f;
+                    for(int i=0;i<400;i++)native[i*4]=scenario=="empty occupancy"||scenario=="sparse evolving"&&i%17!=0?0:sample%2==0?.2505f:.25f;
                     map.UploadDataImmediate(native);input=input with{Upload=input.Upload+1};
+                    if(scenario=="sparse evolving")settings=settings with{SelfShadowing=true,Diffuse=true};
                 }
                 if(scenario=="source change")lighting=lighting with{Sun=sample%2==0?Vector3.UnitX:Vector3.UnitY,Lunar=sample%2==0?Vector3.Zero:Vector3.One};
                 if(scenario=="wind only")input=input with{Placement=input.Placement with{Offset=new Vector3(sample+1,0,sample+2),WindX=(sample+1)*.1}};
@@ -140,10 +141,18 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
                 using(var read=fields.Scratch.MapScope<uint>(0,32,MapBufferAccessMask.MapReadBit))header=read.Span.ToArray();
                 using(var read=fields.Regions.MapScope<uint>(0,fields.Domain.Blocks*16,MapBufferAccessMask.MapReadBit))records=read.Span.ToArray();
                 using(var read=fields.Occupancy.MapScope<uint>(0,fields.Domain.Blocks,MapBufferAccessMask.MapReadBit))occupied=read.Span.ToArray();
+                // Deferred metadata gives exact positive-origin counts independently of the traversal halo.
+                uint[] selectedDirect=[],selectedDiffuse=[];
+                if(header[16]>0)using(var read=fields.Scratch.MapScope<uint>(CloudVolumeWork.DirectListWord*4,(int)header[16],MapBufferAccessMask.MapReadBit))selectedDirect=read.Span.ToArray();
+                if(header[17]>0)using(var read=fields.Scratch.MapScope<uint>(CloudVolumeWork.DiffuseListWord*4,(int)header[17],MapBufferAccessMask.MapReadBit))selectedDiffuse=read.Span.ToArray();
+                long directRays=selectedDirect.Sum(job=>(long)((occupied[job/2]&4u)!=0?(occupied[job/2]>>3)&511u:256u));
+                long diffuseRays=selectedDiffuse.Sum(job=>8L*((occupied[job]&4u)!=0?(occupied[job]>>3)&511u:256u));
+                output.WriteLine($"Positive scheduling support: exact blocks={occupied.Count(v=>(v&4u)!=0)}, eligible origins={occupied.Where(v=>(v&4u)!=0).Sum(v=>(long)((v>>3)&511u))}, selected direct/diffuse origin rays={directRays}/{diffuseRays}; unknown support charges conservative256 origins per block. Reserved block-capacity rays={header[16]*256L}/{header[17]*2048L}. Metadata maps outside timings.");
                 uint directAge=0,diffuseAge=0,completionAge=0;
                 for(int r=0;r<fields.Domain.Blocks;r++)
                 {
-                    if((occupied[r]&1)==0)continue;
+                    // Pending revisions in halo-only blocks are retained but are not eligible origins.
+                    if((occupied[r]&4u)!=0?((occupied[r]>>3)&511u)==0:(occupied[r]&3u)==0)continue;
                     int b=r*16;
                     bool pendingDirect=settings.SelfShadowing&&(records[b+5]!=records[b+6]||lighting.Lunar!=Vector3.Zero&&records[b+7]!=records[b+8]);
                     if(pendingDirect)directAge=Math.Max(directAge,frame-records[b+9]);
@@ -155,7 +164,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
             var ordered=samples.Order().ToArray();
             output.WriteLine($"Complete deferred update {scenario}: median {ordered[1]:F4} ms GPU, {cpuSamples.Order().ElementAt(1):F4} ms CPU Poll/Submit; summed callback samples {string.Join(", ",samples.Select(t=>t.ToString("F4")))} ms; callbacks {string.Join(", ",callbacks)}.");
         }
-        output.WriteLine("Actual CloudVolumeSolution.Poll/Submit, width20, default detail/shadows/diffuse until separately labelled disabled-job case; raw extinction .25/.2505 or genuinely empty zero, heights[-2,2] native=>[-100,100] metres, budgets4096/64/32. Includes validation/snapshot, observation, generation/occupancy, selection, direct/diffuse completion, coherent copy and publication as scheduled. Startup/native upload/view draws/test inter-frame waits excluded; CPU submission gaps included. CPU stopwatch measures only Poll/Submit calls, excluding logging, diagnostic maps, timer/fence waits and native upload; this is headless submission cost, not live engine CPU time. Callbacks simulate rendered frames with fences forced complete between callbacks, not actual game latency/FPS. Final publication callback does not submit the next chain in this fixture; normalized job counts are fixture callback ratios, not measured live throughput. Instrumentation adds three metadata maps outside timing; age statistics exclude certified empty blocks. Useful selected jobs denote occupied eligible block jobs, not a count of nonzero contributing voxel rays. Changed density blocks use exact arithmetic comparison without approximation thresholds. Production CPU readbacks are source-audited separately: density summary and combined lighting status/diffuse count after final fence, plus descriptor validation for new observations.");
+        output.WriteLine("Actual CloudVolumeSolution.Poll/Submit, width20, default detail/shadows/diffuse until separately labelled disabled-job case; raw extinction .25/.2505 or genuinely empty zero, heights[-2,2] native=>[-100,100] metres, density budget4096 and lighting allowance16384 direct/65536 diffuse rays. Includes validation/snapshot, observation, generation/occupancy, selection, direct/diffuse completion, coherent copy and publication as scheduled. Startup/native upload/view draws/test inter-frame waits excluded; CPU submission gaps included. CPU stopwatch measures only Poll/Submit calls, excluding logging, diagnostic maps, timer/fence waits and native upload; this is headless submission cost, not live engine CPU time. Callbacks simulate rendered frames with fences forced complete between callbacks, not actual game latency/FPS. Final publication callback does not submit the next chain in this fixture; normalized job counts are fixture callback ratios, not measured live throughput. Instrumentation adds three fixed metadata maps and up to two bounded selected-list maps outside timing; age statistics exclude certified empty blocks. Useful selected jobs denote occupied eligible block jobs, not a count of nonzero contributing voxel rays. Changed density blocks use exact arithmetic comparison without approximation thresholds. Production CPU readbacks are source-audited separately: density summary and combined lighting status/diffuse count after final fence, plus descriptor validation for new observations.");
 
         /// <summary>Advances one complete retained publication while keeping test waits outside each GPU timer interval.</summary>
         (double Milliseconds,int Callbacks,double CpuMilliseconds) Complete(bool measure)

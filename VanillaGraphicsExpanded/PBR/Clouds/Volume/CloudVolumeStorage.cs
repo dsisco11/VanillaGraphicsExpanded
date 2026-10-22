@@ -168,7 +168,7 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
             caps.MaxTextureSize < domain.Width || caps.MaxImageUnits < 4 || caps.MaxComputeImageUniforms < 4 ||
             caps.MaxComputeTextureImageUnits < 1 || caps.MaxCombinedTextureImageUnits < 1 ||
             caps.MaxUniformBufferBindings < 1 || caps.MaxUniformBlockSize < 80 ||
-            caps.MaxShaderStorageBufferBindings < 2 || caps.MaxComputeShaderStorageBlocks < 2 ||
+            caps.MaxShaderStorageBufferBindings < 3 || caps.MaxComputeShaderStorageBlocks < 3 ||
             caps.MaxShaderStorageBlockSize < Math.Max(domain.Blocks * 64L, CloudVolumeDomain.ScratchBytes - 4096) ||
             caps.MaxComputeWorkGroupInvocations < 256 || caps.MaxComputeWorkGroupSize.Length < 3 ||
             caps.MaxComputeWorkGroupCount.Length < 3 || domain.Bytes > CloudVolumeDomain.ResidentLimit)
@@ -208,11 +208,11 @@ internal sealed class CloudVolumeStorage(Func<CloudVolumeMaintenanceProgram> cre
     {
         var target = next ?? fields.Domain;
         maintenance!.Capture(target, next is null ? null : fields.Domain, fallback, start, count);
-        maintenance.Density = new(fields.Density, TextureAccess.WriteOnly, Layered: true);
+        maintenance.Density = new(fields.Density, TextureAccess.ReadWrite, Layered: true);
         maintenance.Direct = new(fields.Direct, TextureAccess.WriteOnly, Layered: true);
         maintenance.Diffuse = new(fields.Diffuse, TextureAccess.WriteOnly, Layered: true);
         maintenance.Spare = new(fields.DiffuseSpare, TextureAccess.WriteOnly, Layered: true);
-        maintenance.Regions = fields.Regions; maintenance.Occupancy = fields.Occupancy;
+        maintenance.Regions = fields.Regions; maintenance.Occupancy = fields.Occupancy;maintenance.Scratch=fields.Scratch;
         submission.Run(maintenance, () => maintenance.Dispatch(count));
     }
 

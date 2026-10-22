@@ -143,7 +143,7 @@ bool CloudVolumeNext(CloudVolumeGrid grid,inout CloudVolumeRay ray,out vec2 inte
     if(classify)
     {
         int id=(ray.block.z*grid.blocks.y+ray.block.y)*grid.blocks.x+ray.block.x;
-        ray.occupancyState=volumeOccupancy[id]==0u?1u:2u;
+        ray.occupancyState=(volumeOccupancy[id]&3u)==0u?1u:2u;
         if(wasCoarse&&ray.occupancyState==2u)
         {
             CloudVolumeEnterCells(grid,ray);

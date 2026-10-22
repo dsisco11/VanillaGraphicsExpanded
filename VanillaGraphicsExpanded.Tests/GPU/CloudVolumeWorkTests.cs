@@ -24,7 +24,7 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
         storage.Request(domain,new(new object(),1,1),new(Vector3.One),Vector3.Zero,()=>true);
         while(!storage.InitializeNext(()=>true)){}
         Assert.True(storage.PublishPending(()=>true,()=>true));var fields=storage.Published;
-        using var work=new CloudVolumeWork((op,large)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large));
+        using var work=new CloudVolumeWork((op,large,shared)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large,shared));
         var lighting=new AtmosphereLighting(Vector3.UnitY,Vector3.One,Vector3.One,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
             {Moon=Vector3.UnitX,Lunar=Vector3.One};
         var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();
@@ -33,6 +33,8 @@ public sealed class CloudVolumeWorkTests(HeadlessGLFixture fixture):LumOnShaderF
         Assert.Equal(0u,Read(fields.Regions,6,1)[0]);Assert.Equal(0u,Read(fields.Regions,13,1)[0]);
         // Empty blocks keep uncompleted demand; becoming occupied must make it eligible again.
         fields.Occupancy.UploadData(Enumerable.Repeat(1u,domain.Blocks).ToArray());
+        // The fixture replaces density-producer metadata directly, including its membership invalidation.
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=1;
         var directSeen=new HashSet<uint>();var diffuseSeen=new HashSet<uint>();
         for(uint frame=1;frame<=5;frame++)
         {

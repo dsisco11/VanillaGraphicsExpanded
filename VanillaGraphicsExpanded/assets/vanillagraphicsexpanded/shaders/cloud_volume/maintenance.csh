@@ -8,12 +8,15 @@ layout(std140) uniform VolumeMaintenance
     ivec4 blockRange;
     vec4 fallbackSource;
 };
-layout(r16f) writeonly uniform image3D densityField;
+layout(r16f) uniform image3D densityField;
 layout(rg16f) writeonly uniform image3D directField;
 layout(rgba16f) writeonly uniform image3D diffuseField;
 layout(rgba16f) writeonly uniform image3D diffuseSpare;
 layout(std430) buffer Regions { uint regions[]; };
 layout(std430) buffer Occupancy { uint occupancy[]; };
+layout(std430) buffer MaintenanceScratch {uint scratch[];};
+shared uint origins,changed;
+
 
 /** Recovers logical coordinates without assuming a physical block is contiguous across the seam. */
 ivec3 Logical(ivec3 p) { return ivec3((p.x-firstSlot.x+extentMode.x)%extentMode.x,p.y,(p.z-firstSlot.z+extentMode.z)%extentMode.z); }
@@ -31,20 +34,25 @@ void main()
     if(int(gl_WorkGroupID.x)>=blockRange.y) return;
     ivec3 b=ivec3(id%blockRange.z,(id/blockRange.z)%blockRange.w,id/(blockRange.z*blockRange.w));
     ivec3 origin=b*ivec3(8,4,8), p=origin+ivec3(gl_LocalInvocationID);
-    if(all(lessThan(p,extentMode.xyz)) && ResetCell(p))
+    if(gl_LocalInvocationIndex==0u){origins=0u;changed=0u;}
+    barrier();
+    bool inRange=all(lessThan(p,extentMode.xyz));
+    bool reset=inRange&&ResetCell(p);
+    if(reset)
     {
+        atomicOr(changed,1u);
         imageStore(densityField,p,vec4(0)); imageStore(directField,p,vec4(1,1,0,0));
         imageStore(diffuseField,p,fallbackSource); imageStore(diffuseSpare,p,fallbackSource);
     }
+    barrier();
+    // Only a block touched by maintenance needs recounting. Unchanged blocks keep their
+    // certificate without reading density. Reset lanes never read uninitialized memory.
+    if(changed!=0u&&inRange&&!reset&&imageLoad(densityField,p).r>0)
+    atomicAdd(origins,1u);
+    barrier();
     if(gl_LocalInvocationIndex==0u)
     {
-        bool changed=extentMode.w==0;
-        for(int z=0;z<8 && !changed;z++) for(int y=0;y<4 && !changed;y++) for(int x=0;x<8 && !changed;x++)
-        {
-            ivec3 q=origin+ivec3(x,y,z);
-            if(all(lessThan(q,extentMode.xyz)) && ResetCell(q)) changed=true;
-        }
-        if(changed)
+        if(changed!=0u)
         {
             int record=id*16;
             if(extentMode.w==0)
@@ -61,7 +69,9 @@ void main()
                 regions[record+10]=0u; regions[record+11]=0u; regions[record+13]=0u; regions[record+15]=0u;
             }
             // A scroll may leave neighboring filtered support; conservative occupied is safe until density repair.
-            occupancy[id]=extentMode.w==0?0u:2u;
+            uint previousSupport=occupancy[id];
+            if((previousSupport&4u)==0u||(((previousSupport>>3u)&511u)!=0u)!=(origins!=0u))atomicOr(scratch[48],1u);
+            occupancy[id]=4u|(origins<<3u)|(extentMode.w==0?0u:2u);
         }
     }
 }

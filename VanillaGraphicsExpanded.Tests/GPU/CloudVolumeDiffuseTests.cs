@@ -28,8 +28,9 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShad
         var density=Enumerable.Repeat(.0078125f,d.Voxels).ToArray();
         fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=1;
         fields.Direct.UploadDataImmediate(Enumerable.Repeat(float.NaN,d.Voxels*2).ToArray(),0,0,0,d.Size,66,d.Size);
-        using var work=new CloudVolumeWork((op,large)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large));
+        using var work=new CloudVolumeWork((op,large,shared)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large,shared));
         using var solver=new CloudVolumeDiffuse(shadows=>CloudVolumeDiffuseProgram.Create(Programs.Api,shadows));
         var light=new AtmosphereLighting(Vector3.UnitY,Vector3.Zero,environment,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty);
         var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();
@@ -85,6 +86,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShad
         Assert.Equal(retainedValue,Query(probe,fields,result,retainedPoint));
         fields.Density.UploadDataImmediate(new float[d.Voxels],0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(new uint[d.Blocks]);
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=1;
         var repairHistory=ReadWords(fields,CloudVolumeWork.RepairListWord,32);
         Assert.True(work.Select(storage,light with{Environment=new Vector3(1000)},5,planes,()=>true,directEnabled:false));
         coherent=fields.Diffuse;var encoding=fields.Encoding;
@@ -104,6 +106,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture):LumOnShad
         Assert.True(solver.Update(storage,work,()=>true));Assert.Same(coherent,fields.Diffuse);
         fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=1;
         // Exercise the actual compiled cached-shadow path after real ordered direct completion.
         light=light with{Solar=Vector3.One,Lunar=Vector3.One,Moon=-Vector3.UnitX};
         using var direct=new CloudVolumeDirect(op=>CloudVolumeDirectProgram.Create(Programs.Api,op));

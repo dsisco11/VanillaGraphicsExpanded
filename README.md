@@ -88,7 +88,7 @@ This project includes launch configurations for debugging graphics with [RenderD
 1. **Install RenderDoc** from <https://renderdoc.org/>
 2. **Configure the RenderDoc path** in VS Code:
    - Open `.vscode/settings.json`
-   - Set `vanillaGraphicsExpanded.renderdocPath` to your RenderDoc installation folder
+   - Set `renderdoc.path` to your RenderDoc installation folder
    - Default: `C:/Program Files/RenderDoc`
 
    For Visual Studio, set the `RENDERDOC_PATH` system environment variable instead.
@@ -131,7 +131,7 @@ Debugger** activity and wait for a manual capture triggered in Nsight.
 
 1. Install [NVIDIA Nsight Graphics](https://developer.nvidia.com/nsight-graphics).
 2. Configure the installation root (not the `host` subdirectory):
-   - **VS Code:** Set `vanillaGraphicsExpanded.nsightGraphicsPath` in
+   - **VS Code:** Set `nsightGraphics.path` in
      `.vscode/settings.json`. The default is
      `C:\Program Files\NVIDIA Corporation\Nsight Graphics 2026.3.1`.
    - **Visual Studio:** Set the `NSIGHT_GRAPHICS_PATH` system environment variable

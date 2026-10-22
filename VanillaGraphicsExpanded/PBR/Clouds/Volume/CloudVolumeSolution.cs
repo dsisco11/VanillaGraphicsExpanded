@@ -12,6 +12,8 @@ internal sealed class CloudVolumeSolution:IDisposable
     private readonly CloudVolumeSubmission submission=new();
     private readonly CloudVolumeDensity density;
     private readonly CloudVolumeWork work;
+    /// <summary>Exposes the most recently fenced solver accounting without exposing scheduler ownership.</summary>
+    internal CloudVolumeWorkStatistics WorkStatistics=>work.Statistics;
     private readonly CloudVolumeDirect direct;
     private readonly CloudVolumeDiffuse diffuse;
     private readonly CloudVolumePublication publication;
@@ -33,7 +35,7 @@ internal sealed class CloudVolumeSolution:IDisposable
     internal CloudVolumeSolution(ICoreAPI api,bool detail)
     {
         Storage=new(()=>CloudVolumeMaintenanceProgram.Create(api),()=>CloudVolumeCopyProgram.Create(api),submission);
-        density=new((op,shared)=>CloudVolumeDensityProgram.Create(api,op,detail,shared),submission);work=new((op,large)=>CloudVolumeWorkProgram.Create(api,op,large),submission);
+        density=new((op,shared)=>CloudVolumeDensityProgram.Create(api,op,detail,shared),submission);work=new((op,large,shared)=>CloudVolumeWorkProgram.Create(api,op,large,shared),submission);
         direct=new(op=>CloudVolumeDirectProgram.Create(api,op),submission);diffuse=new(shadows=>CloudVolumeDiffuseProgram.Create(api,shadows),submission);
         publication=new((op,shared)=>CloudVolumePublishProgram.Create(api,op,shared));updates=new(Storage,density,work,direct,diffuse,publication,submission);
     }

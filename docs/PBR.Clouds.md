@@ -110,12 +110,12 @@ View and transport fetch exact physical texels for piecewise-constant cells; tex
 state. Maximum field-set accounting is 394,825,104 bytes, including the 4 MiB parameter/scratch
 allowance. The allocated scratch buffer uses 4,190,208 bytes and the maintenance/copy UBOs use
 128 bytes. Density operations use five independent 128-byte UBOs plus one shared 128-byte selector
-UBO, a 32-byte validation/completion summary and 12-byte indirect arguments. Lighting work uses six
-208-byte UBOs and 72-byte indirect arguments.
+UBO, a 32-byte validation/completion summary and 12-byte indirect arguments. Lighting work uses one shared
+208-byte UBO and 180-byte indirect arguments.
 Direct transport uses three 128-byte UBOs; diffuse transport uses two 208-byte UBOs. The combined
-addition is 2932 bytes. The view owns one 240-byte UBO across its variants and block publication
+addition is 2000 bytes. The view owns one 240-byte UBO across its variants and block publication
 shares a 16-byte UBO across its three compiled operations and owns a 16-byte argument record,
-plus two 64-byte temporal parameter blocks, leaving 636 bytes reserved inside that allowance. Reconstruction borrows the
+plus two 64-byte temporal parameter blocks, leaving 1568 bytes reserved inside that allowance. Reconstruction borrows the
 shared frame UBO without owning a separate parameter buffer.
 Screen-sized trace/history targets and the 32 KiB blue-noise texture are charged separately below.
 A separate drawable snapshot owns R16F density, RG16F direct,
@@ -263,15 +263,15 @@ until the new channel is solved. Camera/frustum, fog and exposure changes retain
 Both finite nonzero sources remain eligible regardless of relative brightness; there is no faint-light
 cutoff or weighted budget partition. Intensity changes retain transmission and affect diffuse demand.
 Successful direct/diffuse publication requests later diffuse refinement without restarting pending
-ages. The selector admits all physical blocks conservatively; empty-node work reduction belongs
-to the solver, and total refresh latency remains a measurement concern.
+ages. The selector visits a retained compact list of blocks with positive stored density; certified
+empty blocks keep pending demand without receiving transport jobs.
 
 Work selection uses barrier-separated initialization, a 256-lane parallel region merge, local
 classification and hierarchical top-K reduction, then bounded final list emission. Each pending
 candidate's priority/frustum and waiting age are calculated once. Shared-memory sorting retains
 the configured fair and priority candidate counts per disjoint chunk. Four-child
 reductions preserve those exact global winners; the final emitter removes fair/priority overlap.
-The priority oversupply ensures that excluding fair winners still fills the remaining budget.
+The priority shortlist supplies unique jobs after fair winners; bounded candidates can leave ray allowance unused.
 Stable job-index ties and cyclic cursors define deterministic priority ordering and fair-service bounds.
 Only the bounded final emitter and completion loops use a single lane; there is no whole-domain
 serial scan or repeated visibility calculation inside a heap comparator.
@@ -279,8 +279,10 @@ serial scan or repeated visibility calculation inside a heap comparator.
 At maximum extent, the first summary level contains 562 direct and 281 diffuse chunks. Its
 packed indices/priority keys/counts occupy words 32768..663050; the quarter-sized reduction spare
 occupies at most 800000..958355, alternating levels after SSBO barriers. Both fit existing scratch;
-no full per-job array or extra GPU allocation is needed. The source-domain extent determines
-reduction dispatch sizes; no CPU job readback or queue selection is introduced.
+a compact ascending physical-block list occupies words970576..1042400 at maximum extent, with
+counts/offsets in970000..970575. No extra GPU allocation is needed. GPU-produced occupied counts
+determine indirect reduction dimensions; the host submits a bounded number of levels with
+no CPU job readback. Work operations share one208-byte uniform record and180-byte command buffer.
 
 Solvers report successful channels through `Complete` against the unchanged selected batch.
 GPU failure bits suppress combined completion writes; a final status/count read verifies rejection without
@@ -412,8 +414,11 @@ Lighting work selection synchronizes each 256-lane group's eligible count before
 initial and reduction groups publish invalid winner slots and zero backlog without either sorting
 network; nonempty groups retain exact fair/priority ordering. Region demand and pending ages are
 unchanged, and empty selection does not advance its fair cursor. Later occupancy/source changes
-make retained demand eligible without an auxiliary active list or CPU count read. The bounded merge
-and candidate scans remain; this skips empty-group sorting rather than eliminating domain traversal.
+make retained demand eligible. Exact zero-to-positive or positive-to-zero density membership changes
+mark the compact block list dirty; count/prefix/scatter rebuild it before selection. Lighting-only
+changes and positive-density value changes reuse it. The demand merge still visits all region
+metadata so remote source/density invalidation reaches dependent occupied receivers; candidate
+classification visits only compact occupied IDs. No CPU count read is introduced.
 
 `CloudVolumeCoordinates` converts the current camera/native placement into the published domain's
 material coordinates, including during replacement; native wind translation enters once. View
@@ -585,22 +590,14 @@ measured total performance remain separate acceptance activities.
 
 ## Persisted lighting update budget
 
-`Clouds.LightingRaysPerUpdate` sets an upper ray budget for each submitted lighting update, not
-per rendered frame or per view pixel. It ranges from 2,560 to 327,680 in steps of 2,560; the default
-is 81,920. Each unit admits two direct block-source jobs (up to 512 rays) and one diffuse block
-(up to 2,048 rays across eight directions per occupied voxel). Disabled sources/features, empty
-voxels and partial edge blocks reduce actual traced rays; unused work is not reassigned between solvers.
-Changing the budget preserves density, illumination, pending ages, fair cursors and view history.
-A pending update finishes under its frozen budget before a later update uses the new setting.
+`Clouds.LightingRaysPerUpdate` sets an upper ray budget per submitted lighting update, not per rendered frame or view pixel. Its range is2,560..327,680 in2,560-ray steps, default81,920. Each unit reserves512 direct rays and2,048 diffuse rays. One positive stored voxel/source costs one direct ray; one positive diffuse voxel costs eight gather rays. Disabled solvers/sources and insufficient demand leave allowance unused; it never transfers between solvers. Budget changes retain fields, pending ages, fair cursors and view history; in-flight updates finish under their frozen setting.
 
-The maximum is 256 direct jobs and 128 diffuse blocks. Scheduler summaries scale with the selected
-count; budgets above the default use a precompiled 1,024-key selection variant. The default retains
-the 256-key variant. Both use 256-thread groups. The fixed scratch allowance is 4 MiB per working
-field set, three MiB more than the smallest-capacity allocation; all field sets reserve the maximum
-so changing this work control does not reallocate density or lighting. Maximum summary ranges remain
-separate from headers, lists and one another. The previous diffuse repair list holds up to 128 blocks.
-A higher budget trades GPU work per update for faster spatial refresh, without changing each ray's
-exact-cell traversal, the scattering directions or density generation. This is not a frame-time guarantee.
+Generation records exact represented positive-cell counts in the existing occupancy word: bits0..1 retain traversal support, bit2 certifies the origin count and bits3..11 store0..256 positive cells. Circular maintenance recounts retained cells as it clears entering/guard cells. These counts are independent of the conservative traversal halo. Certified zero-origin blocks retain pending demand but receive no lighting jobs. Unknown support remains conservative. Density/source changes still invalidate dependent occupied receivers across the domain.
+
+Selection retains the original shortlist sizes (default64 direct and32 diffuse priority candidates, plus half as many fair candidates). Their unique union can refill unused ray capacity, bounded at256 direct source jobs and128 diffuse blocks. Complete-block updates preserve coherent diffuse repair and successful-only publication. Fair service reserves the original half-block capacity in rays, rounding odd jobs upward; priority uses remaining allowance. Candidate limits and whole-block rounding can underspend even with more pending work. No partial block is stamped fresh. The default reserves16,384 direct and65,536 diffuse rays; a higher budget changes throughput, not numerical transport.
+
+The same fixed4MiB working scratch accommodates all settings without geometry/history reallocation. More than64 direct candidates uses the compiled1,024-key selector; smaller pools use256keys. Existing fenced status reports separate ray allowances, charged rays and unknown jobs. Certified charges are actual ray launches for successful work; unknown charges are bounds. Developer diagnostics report occupied origins, backlog/age, unused allowance and empty origin lanes after completion. Ordinary rendering adds no diagnostic scan or synchronous readback.
+
 ## Native compatibility and qualification
 
 Native lookup resources and cloudmap.fsh remain available for native map production.

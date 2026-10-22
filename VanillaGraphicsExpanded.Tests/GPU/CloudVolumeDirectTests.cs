@@ -28,7 +28,7 @@ public sealed class CloudVolumeDirectTests(HeadlessGLFixture fixture):LumOnShade
         var density=Enumerable.Repeat(sigma,d.Voxels).ToArray();
         fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
-        using var work=new CloudVolumeWork((op,large)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large));
+        using var work=new CloudVolumeWork((op,large,shared)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large,shared));
         using var solver=new CloudVolumeDirect(op=>CloudVolumeDirectProgram.Create(Programs.Api,op));
         var lighting=new AtmosphereLighting(Vector3.UnitY,Vector3.One,Vector3.One,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty)
             {Moon=-Vector3.UnitX,Lunar=Vector3.One};

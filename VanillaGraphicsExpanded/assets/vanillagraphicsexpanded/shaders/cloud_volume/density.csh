@@ -28,6 +28,8 @@ layout(std430) buffer DensitySummary { uint summary[]; };
 layout(std430) buffer DensityCommands { uint commands[]; };
 #if VGE_VOLUME_DENSITY_OPERATION==3
 shared uint densityChanged;
+shared uint densityOrigins;
+
 #endif
 
 /** Maps float bits to unsigned ordering for a tiny GPU envelope reduction. */
@@ -109,7 +111,7 @@ void main()
     uint job=gl_WorkGroupID.x;if(job>=scratch[4])return;
     int region=int(scratch[64+job]);
     ivec3 block=ivec3(region%volumeExtent.w,(region/volumeExtent.w)%volumeSettings.y,region/(volumeExtent.w*volumeSettings.y));
-    if(gl_LocalInvocationIndex==0u)densityChanged=0u;
+    if(gl_LocalInvocationIndex==0u){densityChanged=0u;densityOrigins=0u;}
     barrier();
     ivec3 p=block*ivec3(8,4,8)+ivec3(gl_LocalInvocationID);
     if(all(lessThan(p,ivec3(volumeExtent.x,volumeExtent.y,volumeExtent.x))))
@@ -122,6 +124,7 @@ void main()
         // Compare packed representations so narrowing participates directly in the decision,
         // rather than relying on a pack/unpack float expression surviving shader optimization.
         uint encoded=packHalf2x16(vec2(density,0))&65535u;
+        if(encoded!=0u)atomicAdd(densityOrigins,1u);
         uint previous=packHalf2x16(vec2(imageLoad(densityOutput,p).r,0))&65535u;
         if(encoded!=previous)
         {
@@ -129,6 +132,15 @@ void main()
         }
     }
     barrier();
+    // Reuse the generation lanes to count the represented positive cells. Traversal's
+    // halo/dirty bits remain independent; unknown maintenance support has no count certificate.
+    if(gl_LocalInvocationIndex==0u)
+    {
+        uint previousSupport=occupancy[region];
+        if((previousSupport&4u)==0u||(((previousSupport>>3u)&511u)!=0u)!=(densityOrigins!=0u))atomicOr(scratch[48],1u);
+        atomicAnd(occupancy[region],3u);
+        atomicOr(occupancy[region],4u|(densityOrigins<<3u));
+    }
     if(gl_LocalInvocationIndex==0u&&densityChanged!=0u)
     {
         atomicAdd(summary[7],1u);
@@ -144,14 +156,14 @@ void main()
     if(id>=uint(volumeStamps.z)||(occupancy[id]&2u)==0u)return;
     int region=int(id);ivec3 b=ivec3(region%volumeExtent.w,(region/volumeExtent.w)%volumeSettings.y,region/(volumeExtent.w*volumeSettings.y));
     ivec3 origin=b*ivec3(8,4,8);bool occupied=false;
-    // Include one texel around the physical block: hardware trilinear support extends across its boundary.
+    // Retain the conservative traversal halo independently of exact origin support.
     for(int z=-1;z<=8&&!occupied;z++)for(int y=-1;y<=4&&!occupied;y++)for(int x=-1;x<=8&&!occupied;x++)
     {
         ivec3 p=origin+ivec3(x,y,z);if(p.y<0||p.y>=volumeExtent.y)continue;
         p.x=(p.x+volumeExtent.x)%volumeExtent.x;p.z=(p.z+volumeExtent.x)%volumeExtent.x;
         occupied=texelFetch(storedDensity,p,0).r>0;
     }
-    occupancy[id]=occupied?1u:0u;
+    occupancy[id]=(occupancy[id]&~3u)|(occupied?1u:0u);
     #elif VGE_VOLUME_DENSITY_OPERATION==5
     if(id==0u)scratch[31]=summary[0]!=0u?8u:0u;
     if(id>=uint(volumeStamps.z)||summary[0]!=0u)return;
