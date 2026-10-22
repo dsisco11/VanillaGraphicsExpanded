@@ -1967,7 +1967,7 @@ Phase 8.6 - Preserve effective cloud temporal history between fresh traces
 
     Closeout audit -> independent affected-scope review confirms the delivered retention fix,
       final split-age/compiled-diagnostic resources, documentation and evidence satisfy8.6 as
-      explicitly closed by the user. No required core item remains open.8.6.1,8.6.2,8.6.3,8.7
+      explicitly closed by the user. No required core item remains open.8.6.1,8.6.2,8.6.3,8.8
       and9 remain unchecked; edge flicker and full visual/performance acceptance are not claimed.
 
 Phase 8.6.1 - Retain compatible temporal observations at cloud boundaries
@@ -2227,14 +2227,61 @@ Phase 8.6.5 - Coverage-retention experiments (cancelled and removed)
   program. No game launch, package, benchmark or index mutation. Receipts: artifacts/CloudCoverage.
   Remaining issue: significant lighting changes still need diagnosis of persistent-volume publication
   versus sparse screen-space refresh and source-colour response. This rollback does not claim to fix
-  that lighting transition. Establish its source before proposing further rendering changes.
+  that lighting transition. Phase8.7 diagnoses and corrects its source before further rendering changes.
 
 Phase 8.6.6 - Alternative cloud jitter comparison (cancelled)
   STBN versus PMJ is no longer a prerequisite or planned cloud implementation. Revisit subpixel
   antialiasing only for a separately established need; jitter is not the selected remedy for lighting
   update convergence. No jitter comparison or spatial filter is authorized by this rollback.
 
-Phase 8.7 - Spend persisted-lighting ray budgets on occupied voxels
+Phase 8.7 - Diagnose and correct pixelated cloud lighting transitions
+  Depends on: the fixed-centre view restored after8.6.4/8.6.5 and the accepted8.6.1-8.6.3
+  reprojection fixes. Complete and obtain appearance acceptance before the8.10 scheduling experiment.
+  Outcome: significant lighting changes propagate coherently without a conspicuous pixelated
+  convergence pattern, with bounded response latency and measured update/view cost.
+  [ ] Consult PBR.CloudVolume.Proposal.md / Metadata, budgets and source changes, Nonblocking updates
+      and drawable publication, and Temporal view sampling contract; consult PBR.Clouds.md /
+      Stored-volume temporal view and Persisted lighting update budget. Map the current path from
+      changed light inputs through retained direct/diffuse work, publication, fresh view traces,
+      temporal reactivity/carry and final reconstruction. Reuse existing evidence and diagnostics.
+  [ ] Attribute the pattern before changing behavior. Compare current stored-lighting values and
+      freshly integrated cloud results with accumulated history during a controlled lighting change.
+      Use existing history bypass and stored-volume diagnostics where possible. Hold camera,
+      density, lighting-update budget and view resolution fixed; a full-resolution reference also
+      changes sampling resolution and cannot alone isolate history. Use an existing fixture for
+      matched controls if required, rather than adding a permanent alternate rendering path.
+      Distinguish staggered volume publication from screen refresh cadence, source-colour reactivity
+      and any interaction between them. Record evidence rather than assuming one exclusive cause.
+  [ ] If screen history is responsible, evaluate coherent response using the existing temporal
+      machinery: prevent freshly traced pixels from jumping disproportionately ahead of carried
+      neighbors while retaining real lighting response and disocclusion. Consider a short bounded
+      increase in fresh-pixel coverage only when justified by the observed transition; specify its
+      trigger, duration, extra work, layout and return to normal cadence before implementation.
+      Do not globally invalidate history on routine day/night, weather or fog changes.
+  [ ] If retained volume lighting is responsible, evaluate update ordering, publication coherence
+      or blending of completed lighting values at the owning volume boundary. Preserve bounded
+      work, nonblocking publication, valid completed data and direct/diffuse dependencies. Account
+      explicitly for response latency, any additional state/storage and worst-case update bursts.
+      Avoid masking volume inconsistency with a screen-space filter. Address both stages only if
+      evidence demonstrates both contribute.
+  [ ] Select the smallest evidence-backed correction and reconcile its response/cost tradeoffs with
+      the proposal before implementation. Prefer existing passes, resources and owning abstractions.
+      Do not introduce subpixel jitter, a separate spatial-filter/upscale pass, unbounded history,
+      permanent extra rays or new large lighting buffers as a default remedy. Any justified added
+      work must have an explicit bound; user-configured shader-path selection uses compile-time options.
+  [ ] Extend focused existing fixtures for the selected state transitions and declared blend math,
+      publication validity, bounded update/response timing, foreground reveal and lifecycle.
+      Verify actual refresh/update work without approximation-quality, noise or image-error gates.
+      Use subagents for cached incremental builds/tests; no broad matrices, repeated baseline
+      reproduction, routine packaging or mandatory new capture when existing evidence suffices.
+  [ ] Measure only missing affected-pass and independent total cost, including transition bursts,
+      with matched settings and stated contention. Obtain user-run review of strong lighting changes,
+      ordinary day/night/weather evolution, stationary clouds, camera motion and trails. Never launch
+      or close the game. Reconcile current docs, perform second review and independent audit, and
+      leave the phase open if the original pixelated transition remains unacceptable. Only then
+      permit8.10 to evaluate scheduling improvements against this corrected baseline.
+
+Phase 8.8 - Spend persisted-lighting ray budgets on occupied voxels
   Depends on: Phase 8.5 and the delivered LightingRaysPerUpdate control. Independent of8.6's
     view-history correction; both must finish before final qualification.
   Outcome: occupied cloud material receives the lighting work, with explicit accounting for useful
@@ -2288,8 +2335,8 @@ Phase 8.7 - Spend persisted-lighting ray budgets on occupied voxels
       demonstrably directs bounded work to occupied density, and ray accounting plus completion
       metadata remain truthful. Any rejected compaction alternative and remaining limitations are
       explicit. Final package and user-run appearance/performance acceptance remain Phase9.
-Phase 8.8 - Provide five compiled cloud-quality workload levels
-  Depends on: Phase8.7 occupied-work accounting and the delivered temporal/sampling contracts.
+Phase 8.9 - Provide five compiled cloud-quality workload levels
+  Depends on: Phase8.8 occupied-work accounting and the delivered temporal/sampling contracts.
   Outcome: one Cloud Quality control selects five coherent workload profiles, independently of
     TraceScale. Levels0..4 are Very Low, Low, Medium, High and Very High. Level2 is the default
     and matches the current default implementation; level0 is reduced-quality volumetric rendering,
@@ -2329,7 +2376,7 @@ Phase 8.8 - Provide five compiled cloud-quality workload levels
       an incomplete ray prefix as completed transport.
   [ ] Implement tiered diffuse direction counts and gather distances with balanced normalized
       direction sets and coherent retained iterations. Lower tiers reduce angular/range work; higher
-      tiers increase it. Preserve scattering units and albedo/source accounting. Adapt Phase8.7's
+      tiers increase it. Preserve scattering units and albedo/source accounting. Adapt Phase8.8's
       eight-direction baseline accounting to actual profile rays, including capacities, scratch,
       rounding and fair selection. Define lighting-update budgets separately so fewer rays per voxel
       do not silently exceed the user's actual work limit or merely reduce refresh throughput.
@@ -2370,8 +2417,47 @@ Phase 8.8 - Provide five compiled cloud-quality workload levels
       are recorded truthfully. Any deferred grid/cadence alternative remains explicit. Never launch
       or close the game or infer a performance guarantee from shader counts alone.
 
+Phase 8.10 - Evaluate spatiotemporal blue-noise scheduling of cloud refreshes
+  Depends on: Phase8.7's corrected and user-accepted lighting-transition behavior. Do not start this
+  experiment while that issue remains unresolved. Reconcile
+  any cadence selected by8.9 before comparing schedules; hold that cadence fixed in the comparison.
+  Outcome: determine whether a spatially and temporally optimized refresh schedule improves the
+  distribution of screen-space lighting updates at the same ray budget and acceptable total cost.
+  [ ] Consult PBR.CloudVolume.Proposal.md / Temporal view sampling contract and PBR.Clouds.md /
+      Stored-volume temporal view, plus the accepted lighting-transition fix. Record the actual
+      current refresh schedule, per-pixel refresh intervals and history-expiry contract. Distinguish
+      screen-space refresh scheduling from persistent-volume work selection and subpixel ray jitter.
+  [ ] Define a constrained schedule candidate with fixed-centre rays and the existing compact raw
+      layout: one refreshed pixel per ordinary2x2tile per frame, complete coverage per four-frame
+      sweep, and bounded inter-refresh gaps compatible with history expiry. Account for transitions
+      between sweeps, partial odd tiles, cold frames, frame wrap, resize and full-reference bypass.
+      Do not substitute an independently changing STBN rank that repeats or starves selected pixels.
+  [ ] Evaluate an authored/generated schedule optimized across space and time under those constraints.
+      Document its source, representation, period, generation method and actual guarantees. Applying
+      a permutation or scheduling constraint to STBN does not automatically preserve STBN spectra;
+      describe an unqualified result as a constrained schedule rather than claiming genuine STBN.
+      Compare against the existing fixed spatial-rank four-frame cycle at identical settings.
+  [ ] Prototype through the existing blue-noise/schedule ownership and GPU abstractions, sharing the
+      exact selection rule between trace and temporal classification. Prefer one schedule lookup;
+      account for any extra texture storage, reads or arithmetic. Add no subpixel ray jitter, spatial
+      filtering pass, history-length increase or additional rays to obtain the comparison. Use
+      compile-time options for any temporary algorithm selection; retain no unused experiment path.
+  [ ] Extend focused existing tests only for schedule coverage, maximum refresh gap, odd boundaries,
+      deterministic replay, frame/lifecycle transitions and trace/filter agreement. Reuse unchanged
+      evidence and cached incremental builds/tests through subagents. Do not add noise, convergence
+      or approximation-quality pass/fail thresholds, broad matrices or routine packaging.
+  [ ] Compare affected pass and independent total GPU cost only where new evidence is needed; report
+      asset/resident memory, actual ray counts, refresh latency and running-game contention. Obtain
+      user-run comparison of significant lighting changes, stationary views, motion and foreground
+      reveal after the lighting fix. Do not attribute persistent-volume update artifacts to scheduling.
+  [ ] Select the delivered schedule from measured cost and user appearance review, or retain the
+      current schedule and remove the prototype if no worthwhile benefit is established. Reconcile
+      proposal/current docs with that decision and record second review and independent audit.
+      Completion means an accepted selection or explicit rejected-experiment result, not mandatory
+      adoption of STBN. Never launch or close the game for acceptance.
+
 Phase 9 - Qualify the frozen implementation and reconcile documentation
-  Depends on: Phase8.6 including8.6.1,8.6.2 and8.6.3, plus Phases8.7 and8.8.
+  Depends on: Phase8.6 including8.6.1,8.6.2 and8.6.3, plus Phases8.7,8.8,8.9 and8.10's selected outcome.
   Outcome: measured total cost, memory and user appearance determine candidate acceptance.
   [ ] Freeze the candidate and run canonical packaging/required final checks once. Verify delivered
       assets, selectable settings and cleanup; do not treat older candidate receipts as qualification.
