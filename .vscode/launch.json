@@ -8,11 +8,11 @@
             "name": "Launch Client",
             "type": "coreclr",
             "request": "launch",
-            "program": "${config:vanillaGraphicsExpanded.renderdocPath}/renderdoccmd.exe",
-            "preLaunchTask": "build + tail (RenderDoc)",
-            "postDebugTask": "stop + scan: VintageStory client-debug.log",
+            "program": "${config:renderdoc.path}/renderdoccmd.exe",
+            "preLaunchTask": "build-and-tail",
+            "postDebugTask": "stop-and-scan-clientlog",
             "env": {
-                "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
+                "VGE_DATA_PATH": "${config:vsmod.debugGame.dataPath}"
             },
             "args": [
                 "capture",
@@ -21,11 +21,11 @@
                 "--openWorld", "TestWorld",
                 "--tracelog",
                 "--dataPath",
-                "${config:vanillaGraphicsExpanded.dataPath}",
+                "${config:vsmod.debugGame.dataPath}",
                 "--addModPath",
-                "${workspaceFolder}/VanillaGraphicsExpanded/bin/Debug/Mods",
+                "${config:vsmod.projectFolder}/bin/Debug/Mods",
                 "--addOrigin",
-                "${workspaceFolder}/VanillaGraphicsExpanded/assets"
+                "${config:vsmod.projectFolder}/assets"
             ],
             "cwd": "${env:VINTAGE_STORY}",
             "console": "internalConsole",
@@ -36,18 +36,18 @@
             "name": "Launch Client (Nsight Graphics)",
             "type": "coreclr",
             "request": "launch",
-            "program": "${config:vanillaGraphicsExpanded.nsightGraphicsPath}\\host\\windows-desktop-nomad-x64\\ngfx.exe",
-            "preLaunchTask": "build + tail (Nsight Graphics)",
-            "postDebugTask": "stop + scan: VintageStory client-debug.log",
+            "program": "${config:nsightGraphics.path}\\host\\windows-desktop-nomad-x64\\ngfx.exe",
+            "preLaunchTask": "build-and-tail",
+            "postDebugTask": "stop-and-scan-clientlog",
             "env": {
-                "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
+                "VGE_DATA_PATH": "${config:vsmod.debugGame.dataPath}"
             },
             "args": [
                 "--activity", "OpenGL Frame Debugger",
                 "--wait-hotkey",
                 "--exe", "${env:VINTAGE_STORY}\\Vintagestory.exe",
                 "--dir", "${env:VINTAGE_STORY}",
-                "--args", "--openWorld TestWorld --tracelog --dataPath \"${config:vanillaGraphicsExpanded.dataPath}\" --addModPath \"${workspaceFolder}\\VanillaGraphicsExpanded\\bin\\Debug\\Mods\" --addOrigin \"${workspaceFolder}\\VanillaGraphicsExpanded\\assets\""
+                "--args", "--openWorld TestWorld --tracelog --dataPath \"${config:vsmod.debugGame.dataPath}\" --addModPath \"${workspaceFolder}\\VanillaGraphicsExpanded\\bin\\Debug\\Mods\" --addOrigin \"${workspaceFolder}\\VanillaGraphicsExpanded\\assets\""
             ],
             "cwd": "${env:VINTAGE_STORY}",
             "console": "internalConsole",
@@ -61,14 +61,14 @@
             "program": "C:/Program Files/PowerShell/7/pwsh.exe",
             "preLaunchTask": "Build (dotnet)",
             "env": {
-                "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
+                "VGE_DATA_PATH": "${config:vsmod.debugGame.dataPath}"
             },
             "args": [
                 "-NoProfile",
                 "-File", "${workspaceFolder}/tools/Start-ClientCpuProfile.ps1",
                 "-WorkspaceRoot", "${workspaceFolder}",
                 "-GameRoot", "${env:VINTAGE_STORY}",
-                "-DataPath", "${config:vanillaGraphicsExpanded.dataPath}"
+                "-DataPath", "${config:vsmod.debugGame.dataPath}"
             ],
             "cwd": "${workspaceFolder}",
             "console": "integratedTerminal",
@@ -87,16 +87,16 @@
             },
             "preLaunchTask": "Build (dotnet)",
             "env": {
-                "VGE_DATA_PATH": "${config:vanillaGraphicsExpanded.dataPath}"
+                "VGE_DATA_PATH": "${config:vsmod.debugGame.dataPath}"
             },
             "args": [
                 "--tracelog",
                 "--dataPath",
-                "${config:vanillaGraphicsExpanded.dataPath}",
+                "${config:vsmod.debugGame.dataPath}",
                 "--addModPath",
-                "${workspaceFolder}/VanillaGraphicsExpanded/bin/Debug/Mods",
+                "${config:vsmod.projectFolder}/bin/Debug/Mods",
                  "--addOrigin",
-                 "${workspaceFolder}/VanillaGraphicsExpanded/assets"
+                 "${config:vsmod.projectFolder}/assets"
             ],
             "console": "internalConsole",
             "stopAtEntry": false

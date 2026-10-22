@@ -2,7 +2,7 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "tail: VintageStory client-debug.log",
+            "label": "tail-clientlog-start",
             "command": "pwsh",
             "type": "process",
             "args": [
@@ -10,7 +10,7 @@
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                "$env:VGE_DATA_PATH = '${config:vanillaGraphicsExpanded.dataPath}'; if ([string]::IsNullOrWhiteSpace($env:VGE_DATA_PATH) -or -not [System.IO.Path]::IsPathFullyQualified($env:VGE_DATA_PATH)) { throw 'Set VGE_DATA_PATH to an absolute automation data directory and restart the IDE.' }; $log = Join-Path $env:VGE_DATA_PATH 'Logs/client-debug.log'; $sentinel = '== VSLOGTAIL STOP =='; New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null; if (-not (Test-Path -LiteralPath $log)) { New-Item -ItemType File -Path $log | Out-Null }; Write-Host '== VSLOGTAIL BEGIN =='; Write-Host $log; Write-Host '== VSLOGTAIL READY =='; Get-Content -Path $log -Tail 50 | ForEach-Object { Write-Host $_ }; $fs = [System.IO.File]::Open($log, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite); try { $fs.Seek(0, [System.IO.SeekOrigin]::End) | Out-Null; $sr = New-Object System.IO.StreamReader($fs); while($true) { $line = $sr.ReadLine(); if($null -ne $line) { if($line -eq $sentinel) { break }; Write-Host $line } else { Start-Sleep -Milliseconds 200 } } } finally { if($sr) { $sr.Dispose() }; $fs.Dispose() }; Write-Host '== VSLOGTAIL STOPPED =='"
+                "$env:VGE_DATA_PATH = '${config:vsmod.debugGame.dataPath}'; if ([string]::IsNullOrWhiteSpace($env:VGE_DATA_PATH) -or -not [System.IO.Path]::IsPathFullyQualified($env:VGE_DATA_PATH)) { throw 'Set VGE_DATA_PATH to an absolute automation data directory and restart the IDE.' }; $log = Join-Path $env:VGE_DATA_PATH 'Logs/client-debug.log'; $sentinel = '== VSLOGTAIL STOP =='; New-Item -ItemType Directory -Force -Path (Split-Path $log) | Out-Null; if (-not (Test-Path -LiteralPath $log)) { New-Item -ItemType File -Path $log | Out-Null }; Write-Host '== VSLOGTAIL BEGIN =='; Write-Host $log; Write-Host '== VSLOGTAIL READY =='; Get-Content -Path $log -Tail 50 | ForEach-Object { Write-Host $_ }; $fs = [System.IO.File]::Open($log, [System.IO.FileMode]::Open, [System.IO.FileAccess]::Read, [System.IO.FileShare]::ReadWrite); try { $fs.Seek(0, [System.IO.SeekOrigin]::End) | Out-Null; $sr = New-Object System.IO.StreamReader($fs); while($true) { $line = $sr.ReadLine(); if($null -ne $line) { if($line -eq $sentinel) { break }; Write-Host $line } else { Start-Sleep -Milliseconds 200 } } } finally { if($sr) { $sr.Dispose() }; $fs.Dispose() }; Write-Host '== VSLOGTAIL STOPPED =='"
             ],
             "isBackground": true,
             "problemMatcher": {
@@ -34,7 +34,7 @@
             }
         },
         {
-            "label": "stop: VintageStory client-debug.log tail",
+            "label": "tail-clientlog-stop",
             "command": "pwsh",
             "type": "process",
             "args": [
@@ -42,7 +42,7 @@
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                "$env:VGE_DATA_PATH = '${config:vanillaGraphicsExpanded.dataPath}'; if ([string]::IsNullOrWhiteSpace($env:VGE_DATA_PATH) -or -not [System.IO.Path]::IsPathFullyQualified($env:VGE_DATA_PATH)) { throw 'Set VGE_DATA_PATH to an absolute automation data directory and restart the IDE.' }; $log = Join-Path $env:VGE_DATA_PATH 'Logs/client-debug.log'; Add-Content -Path $log -Value '== VSLOGTAIL STOP =='; Write-Host '== VSLOGTAIL STOP SIGNALLED =='"
+                "$env:VGE_DATA_PATH = '${config:vsmod.debugGame.dataPath}'; if ([string]::IsNullOrWhiteSpace($env:VGE_DATA_PATH) -or -not [System.IO.Path]::IsPathFullyQualified($env:VGE_DATA_PATH)) { throw 'Set VGE_DATA_PATH to an absolute automation data directory and restart the IDE.' }; $log = Join-Path $env:VGE_DATA_PATH 'Logs/client-debug.log'; Add-Content -Path $log -Value '== VSLOGTAIL STOP =='; Write-Host '== VSLOGTAIL STOP SIGNALLED =='"
             ],
             "problemMatcher": [],
             "presentation": {
@@ -55,7 +55,7 @@
             }
         },
         {
-            "label": "scan: VintageStory client-debug.log",
+            "label": "scan-clientlog",
             "command": "pwsh",
             "type": "process",
             "args": [
@@ -63,7 +63,7 @@
                 "-ExecutionPolicy",
                 "Bypass",
                 "-Command",
-                "$env:VGE_DATA_PATH = '${config:vanillaGraphicsExpanded.dataPath}'; if ([string]::IsNullOrWhiteSpace($env:VGE_DATA_PATH) -or -not [System.IO.Path]::IsPathFullyQualified($env:VGE_DATA_PATH)) { throw 'Set VGE_DATA_PATH to an absolute automation data directory and restart the IDE.' }; $log = Join-Path $env:VGE_DATA_PATH 'Logs/client-debug.log'; if (-not (Test-Path $log)) { exit 0 }; $i = 0; Get-Content -Path $log | ForEach-Object { $i++; $l = $_; if($l -eq '== VSLOGTAIL STOP ==') { return }; if($l -match '\\[(?:Error|VGE)\\]') { Write-Host ('{0}:{1}: {2}' -f $log, $i, $l) } }"
+                "$env:VGE_DATA_PATH = '${config:vsmod.debugGame.dataPath}'; if ([string]::IsNullOrWhiteSpace($env:VGE_DATA_PATH) -or -not [System.IO.Path]::IsPathFullyQualified($env:VGE_DATA_PATH)) { throw 'Set VGE_DATA_PATH to an absolute automation data directory and restart the IDE.' }; $log = Join-Path $env:VGE_DATA_PATH 'Logs/client-debug.log'; if (-not (Test-Path $log)) { exit 0 }; $i = 0; Get-Content -Path $log | ForEach-Object { $i++; $l = $_; if($l -eq '== VSLOGTAIL STOP ==') { return }; if($l -match '\\[(?:Error|VGE)\\]') { Write-Host ('{0}:{1}: {2}' -f $log, $i, $l) } }"
             ],
             "problemMatcher": {
                 "owner": "vintagestory-logscan",
@@ -85,28 +85,19 @@
             }
         },
         {
-            "label": "stop + scan: VintageStory client-debug.log",
+            "label": "stop-and-scan-clientlog",
             "dependsOn": [
-                "stop: VintageStory client-debug.log tail",
-                "scan: VintageStory client-debug.log"
+                "tail-clientlog-stop",
+                "scan-clientlog"
             ],
             "dependsOrder": "sequence",
             "problemMatcher": []
         },
         {
-            "label": "build + tail (RenderDoc)",
+            "label": "build-and-tail",
             "dependsOn": [
                 "Build (dotnet)",
-                "tail: VintageStory client-debug.log"
-            ],
-            "dependsOrder": "parallel",
-            "problemMatcher": []
-        },
-        {
-            "label": "build + tail (Nsight Graphics)",
-            "dependsOn": [
-                "Build (dotnet)",
-                "tail: VintageStory client-debug.log"
+                "tail-clientlog-start"
             ],
             "dependsOrder": "parallel",
             "problemMatcher": []
@@ -122,10 +113,10 @@
                 "Debug",
                 "--tl:off",
                 "-v:minimal",
-                "${workspaceFolder}/VanillaGraphicsExpanded/VanillaGraphicsExpanded.csproj"
+                "${config:vsmod.projectFolder}/VanillaGraphicsExpanded.csproj"
             ],
             "options": {
-                "cwd": "${workspaceFolder}/VanillaGraphicsExpanded",
+                "cwd": "${config:vsmod.projectFolder}",
                 "env": {
                     "MSBUILDDISABLENODEREUSE": "1"
                 }
@@ -185,7 +176,7 @@
             "type": "dotnet",
             "task": "clean",
             "options": {
-                "cwd": "${workspaceFolder}/VanillaGraphicsExpanded.Tests"
+                "cwd": "${config:vsmod.projectFolder}.Tests"
             },
             "problemMatcher": "$msCompile",
             "presentation": {
@@ -205,7 +196,7 @@
             ],
             "dependsOrder": "sequence",
             "options": {
-                "cwd": "${workspaceFolder}/VanillaGraphicsExpanded.Tests"
+                "cwd": "${config:vsmod.projectFolder}.Tests"
             },
             "problemMatcher": "$msCompile",
             "presentation": {
