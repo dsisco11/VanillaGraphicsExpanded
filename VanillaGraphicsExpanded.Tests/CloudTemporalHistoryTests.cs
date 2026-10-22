@@ -123,27 +123,6 @@ public sealed class CloudTemporalHistoryTests
         history.Commit(resumed,camera12);
         Assert.True(history.Capture(first with{Frame=13},camera13,5,4,temporal,true));
     }
-    /// <summary>Only successfully committed cloud frames preserve the cold observation epoch across uint frame wrap.</summary>
-    [Fact]
-    public void SamplingEpochTracksSuccessfulCloudFramesAndRestartsAfterGaps()
-    {
-        var history=new CloudReprojectionHistory();uint first=uint.MaxValue-1;var input=Input(first);
-        using var old=Camera(first);using var last=Camera(uint.MaxValue);using var wrapped=Camera(0);
-        using var resumed=Camera(2);using var temporal=new CloudTemporalParameters();
-        Assert.False(history.Capture(input,old,5,4,temporal,true));
-        Assert.Equal(first,MemoryMarshal.Read<uint>(temporal.Bytes.Slice(44,4)));history.Commit(input,old);
-        var next=input with{Frame=uint.MaxValue};Assert.True(history.Capture(next,last,5,4,temporal,true));
-        Assert.Equal(first,MemoryMarshal.Read<uint>(temporal.Bytes.Slice(44,4)));history.Commit(next,last);
-        next=input with{Frame=0};Assert.True(history.Capture(next,wrapped,5,4,temporal,true));
-        Assert.Equal(first,MemoryMarshal.Read<uint>(temporal.Bytes.Slice(44,4)));
-        // A failed final draw does not commit. Resuming later traces the entire grid at
-        // point zero rather than charging skipped opportunities to retained confidence.
-        next=input with{Frame=2};Assert.False(history.Capture(next,resumed,5,4,temporal,true));
-        Assert.Equal(2u,MemoryMarshal.Read<uint>(temporal.Bytes.Slice(44,4)));
-        history.Commit(next,resumed);history.Invalidate();
-        Assert.False(history.Capture(next,resumed,5,4,temporal,true));
-        Assert.Equal(2u,MemoryMarshal.Read<uint>(temporal.Bytes.Slice(44,4)));
-    }
     #endregion
     #region Private
     /// <summary>Creates a coherent numerical content certificate without allocating native resources.</summary>

@@ -40,9 +40,8 @@ The runtime code that owns this is:
 
 - `VanillaGraphicsExpanded/Rendering/PmjJitterTexture.cs`
 
-This general GPU owner uses `Noise/PmjCache`, `PmjGenerator` and `PmjConversions`. LumOn and
-volumetric clouds own separate texture instances and lifetimes; clouds do not read LumOn settings
-or depend on LumOn being enabled.
+This general GPU owner uses `Noise/PmjCache`, `PmjGenerator` and `PmjConversions`. LumOn owns
+its texture instance and refreshes it when the configured sequence changes.
 
 It generates:
 
@@ -105,8 +104,6 @@ Automated regression coverage:
   - the texture is created as `RG16` with expected dimensions
   - GPU readback matches CPU packing for a fixed seed
 
-Cloud view sampling has a separate consumed-observation index and pixel digital shift, described
-in [PBR.Clouds.md](PBR.Clouds.md). It reuses provisioning rather than LumOn's frame/probe indexing.
 
 ## References
 
