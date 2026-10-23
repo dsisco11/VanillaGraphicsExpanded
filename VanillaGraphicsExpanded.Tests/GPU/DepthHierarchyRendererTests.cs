@@ -42,7 +42,8 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
         try {
             Assert.True(VgeShaderPrograms.RegisterAll(api.Object));Assert.Equal(8.7,owner.RenderOrder);
             events.Render(EnumRenderStage.Before);Assert.Null(DepthHierarchyRenderer.Texture);
-            events.Render(EnumRenderStage.Opaque);var first=DepthHierarchyRenderer.Texture!;Assert.NotNull(first);
+            using var resourceObserver=new ResourceCallObserver(); resourceObserver.Calibrate(terrain.Depth.TextureId); StateCache.Current.InvalidateAll();
+            events.Render(EnumRenderStage.Opaque);resourceObserver.Record("depth-first-publication");var first=DepthHierarchyRenderer.Texture!;Assert.NotNull(first);
             Assert.Same(VgeFrameRenderer.Current,DepthHierarchyRenderer.View);
             Assert.Equal(UboPacking.ReadUInt32(VgeFrameRenderer.Current.Bytes,396),DepthHierarchyRenderer.FrameIndex);
             Assert.True(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,3,out var borrowed));
@@ -52,6 +53,7 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,8,3,out borrowed));Assert.Null(borrowed);
             Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,4,out borrowed));Assert.Null(borrowed);
             for(int mip=0;mip<first.MipLevels;mip++)Assert.All(first.ReadPixels(mip),v=>Assert.Equal(.4f,v));
+            resourceObserver.RecordPixels("depth-first-output",Enumerable.Range(0,first.MipLevels).SelectMany(mip=>first.ReadPixels(mip)));
             terrain.Depth.UploadDataImmediate(Enumerable.Repeat(.7f,21).ToArray());events.Render(EnumRenderStage.Opaque);
             Assert.All(first.ReadPixels(0),v=>Assert.Equal(.4f,v));
             // Mutating a reused view buffer cannot make the old depth generation current again.
@@ -60,8 +62,9 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,3,out borrowed));Assert.Null(borrowed);
             events.Render(EnumRenderStage.Before);Assert.Null(DepthHierarchyRenderer.Texture);
             Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,3,out borrowed));Assert.Null(borrowed);
-            events.Render(EnumRenderStage.Opaque);Assert.Same(first,DepthHierarchyRenderer.Texture);
+            resourceObserver.Reset(); events.Render(EnumRenderStage.Opaque); resourceObserver.Record("depth-stable-publication"); Assert.Same(first,DepthHierarchyRenderer.Texture);
             Assert.All(first.ReadPixels(0),v=>Assert.Equal(.7f,v));
+            resourceObserver.RecordPixels("depth-stable-output",Enumerable.Range(0,first.MipLevels).SelectMany(mip=>first.ReadPixels(mip)));
             owner.SetEnabled(false);
             Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(first.IsValid);
             events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);

@@ -60,7 +60,7 @@ Existing pass and lifetime guards retain their rules. Move only the state that m
 
 Add an abstract `HandleMetadataChange` contract to `GpuResource`. Supply a change description identifying the affected metadata family and, where available, values established by the command. Each resource type explicitly defines how it updates or refreshes its represented metadata; types without applicable mutable metadata explicitly handle that case.
 
-StateCache dispatches notifications for metadata-altering commands to all live wrappers associated with the affected handle. Texture storage dimensions, format and allocated mip information; buffer storage size; and represented VAO configuration are examples. The exact coverage is derived from metadata actually held by the existing wrappers.
+StateCache dispatches notifications for all OpenGL commands capable of altering metadata represented by the resource wrappers, to all live wrappers associated with the affected handle. Texture storage dimensions, format and allocated mip information; buffer storage size; and represented VAO configuration are examples. Coverage is derived from the OpenGL API and extension specifications, never restricted to commands currently called by VGE or the engine. Include bound-target, direct-state-access, multi-object, extension and managed overload variants. An unavailable capability may prevent execution on a particular context; lack of a current caller does not remove the support obligation.
 
 For bound-target commands, resolve the affected object from the applicable context binding state. For direct-state-access commands, use their explicit object ID. Preserve existing unknown-state reconciliation rather than guessing the target from stale cache entries.
 
@@ -74,7 +74,7 @@ Notifications cover metadata only. Producer content readiness and frame qualific
 
 Use one common resource mechanism for owned and borrowed wrappers. Keep resource-specific binding effects in the corresponding StateCache implementations. Deleting a texture still records its actual implicit unbinding and invalidates affected image/restoration knowledge; disposing a non-owning wrapper does not imply those native effects.
 
-Extend the existing GL redirection adapters for the concrete metadata mutations and deletion signatures needed by the supported wrappers and native consumers. Reconcile VGE's own direct GL calls with that same route. Cover relevant overloads and list-deletion paths, preserving existing command ordering and behavior. Do not add producer teardown hooks to duplicate notifications available at the GL command boundary.
+Extend the existing GL redirection adapters for the complete API-derived metadata mutation and resource deletion command set, including all applicable overloads and list-deletion paths. Reconcile VGE's own direct GL calls with that same route. Existing call sites provide integration examples, not a coverage whitelist. Missing OpenTK entry points or unsupported extension plumbing must receive explicit implementation dispositions rather than being silently omitted. Preserve existing command ordering and behavior. Do not add producer teardown hooks to duplicate notifications available at the GL command boundary.
 
 Notification registration, dispatch and retirement follow the existing rendering-thread and context rules. The resource lookup is separate from binding knowledge: a valid handle does not prove that an object is currently bound. Existing engine-boundary capture, invalidation and restoration remain authoritative.
 
@@ -101,7 +101,7 @@ The implementation must demonstrate:
 - Owning and borrowed aliases share identity; borrowed disposal leaves native storage and other aliases intact; releasing a handle performs no native deletion.
 - Deletion invalidates all aliases, reused names receive fresh identity, kinds and context generations do not collide, and delayed disposal/deletion cannot affect a replacement.
 - Existing pass, lifetime, deferred-deletion and detach behavior remains correct with shared handles.
-- Covered metadata commands update every associated wrapper, including bound-target and direct-state-access paths where used. Failed operations and refresh failures cannot leave metadata falsely current.
+- Every applicable API metadata command has an implementation and verification disposition, including bound-target, direct-state-access, multi-object, extension and managed overload variants regardless of current usage. Commands update every associated wrapper; failed operations and refresh failures cannot leave metadata falsely current. Capability-limited test hardware does not waive command support.
 - Metadata revisions invalidate dependent validation appropriately while stable resources retain existing texture-bind suppression.
 - Context retirement, engine-boundary restoration, unknown binding state and unrelated bindings retain their existing correctness guarantees.
 - Native integration coverage is exercised through the actual redirection mechanism, including the cloud/depth mutation and deletion paths. No dedicated borrowed-texture registry or lifecycle-only teardown hook is required.

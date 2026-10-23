@@ -19,6 +19,37 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>Records native acquisition and stable generation costs while checking publication and restored bindings.</summary>
+    [Fact]
+    public void RecordNativeMapResourceBaseline()
+    {
+        fixture.EnsureContextValid();
+        using var native = new NativeMap();
+        using var observer = new ResourceCallObserver();
+        observer.Calibrate(native.Raw1.TextureId);
+        int previous = GL.GetInteger(GetPName.TextureBinding2D);
+        int draw = GL.GetInteger(GetPName.DrawFramebufferBinding);
+        int read = GL.GetInteger(GetPName.ReadFramebufferBinding);
+        var adapter = new CloudNativeMapAdapter(native.Owner, 5);
+        observer.Record("cloud-map-acquisition");
+        Assert.Equal(previous, GL.GetInteger(GetPName.TextureBinding2D));
+        Assert.Equal(draw, GL.GetInteger(GetPName.DrawFramebufferBinding));
+        Assert.Equal(read, GL.GetInteger(GetPName.ReadFramebufferBinding));
+        adapter.BeginGeneration(); adapter.BeginUpload(); native.Upload(); adapter.CompleteUpload(true);
+        adapter.CompleteGeneration(10, true);
+        observer.Reset();
+        for (uint frame = 11; frame < 19; frame++)
+        {
+            adapter.BeginGeneration(); adapter.CompleteGeneration(frame, true);
+            Assert.True(adapter.Publication.TryGet(native.Owner, 5, frame, out var input));
+            Assert.Equal(native.Map.TextureId, input.Storage.Map);
+        }
+        observer.Record("cloud-map-eight-stable-generations");
+        adapter.Retire();
+        Assert.True(GL.IsTexture(native.Map.TextureId));
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
+    }
+
     /// <summary>Late acquisition waits for uploads, observes errors and copies current placement while preserving native resources.</summary>
     [Fact]
     public void StorageUploadsAndGlErrorsControlPublication()
