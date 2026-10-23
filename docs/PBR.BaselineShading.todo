@@ -420,6 +420,8 @@ Tasks
   ☐ Investigate and resolve excessive game loading times.
 
   ☐ Preserve texture binding caching for lifecycle-aware borrowed rendering inputs.
+    - Proposal: [Lifecycle-aware borrowed texture binding caching](Rendering.BorrowedTextureCaching.Proposal.md)
+      (approved). Plan: [Rendering.BorrowedTextureCaching.todo](Rendering.BorrowedTextureCaching.todo).
     - Inspect raw integer sampler inputs, including cloud scene/visibility/liquid depth. Reuse or
       extend existing borrowed resource references so allocation identity and retirement are known.
     - Allow unchanged tracked inputs to retain texture-unit cache knowledge while preserving the
