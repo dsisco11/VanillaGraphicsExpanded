@@ -1,6 +1,6 @@
 # Shared GPU resource handles and metadata notifications
 
-Status: proposed; awaiting approval. This document describes the design and acceptance criteria. It does not authorize implementation or prescribe a phased checklist.
+Status: approved. Implementation plan: [Rendering.GpuResourceHandles.todo](Rendering.GpuResourceHandles.todo). This document defines the authoritative design and acceptance criteria; approval and planning do not begin implementation.
 
 ## Intent
 

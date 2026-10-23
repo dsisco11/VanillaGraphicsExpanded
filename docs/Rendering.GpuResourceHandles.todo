@@ -1,0 +1,196 @@
+Shared GPU resource handles and metadata notifications
+=====================================================
+
+Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
+Status: approved design; implementation has not started. All tasks remain open.
+
+Goal and governing contracts
+  Extract shared native identity, validity and allocation-wide existing usage-guard state into
+  GpuResourceHandle. Retain wrapper disposal, ownership and deletion scheduling in GpuResource.
+  StateCache provides one common lookup and notification mechanism for all supported owning and
+  non-owning resource wrappers. Typed wrappers implement abstract HandleMetadataChange.
+  Handles identify one native object incarnation by context generation, resource kind and native-width
+  ID. They never own storage, delete on release, retarget to replacements or regain validity after deletion.
+  Preserve existing context/thread restrictions, ownership, guard rules, scheduling, render order,
+  shader algorithms, content readiness and frame qualification. Reuse existing guard enforcement.
+  No GpuResourceLifetime, dedicated borrowed-resource registry, duplicate binding/validation cache,
+  shared-context namespace generalization, or producer teardown hook duplicating GL notifications.
+  Keep identity, common registration/dispatch, typed metadata handling and native adapters in files
+  with those respective responsibilities. Follow repository comment and region conventions.
+  Use subagents for every build/test invocation. Keep source, unit, GPU integration, package and live
+  evidence distinct. Never launch the game for visual acceptance. Creating this plan changes no runtime.
+
+Open questions and decision gates
+  ☐ Determine exact resource kinds, mutable metadata fields and GL overloads in use from source;
+    do not equate existing EngineStateCallMap coverage with interception of all GL operations.
+  ☐ Establish how command success and refresh failure are represented without changing existing
+    error handling; command arguments alone must not certify a rejected operation's result.
+  ☐ Specify retiring-versus-deleted handle state and queued-deletion identity checks, preserving
+    existing scheduling and preventing delayed work from affecting a reused native name.
+  ☐ Select non-owning wrapper association and expired-entry cleanup mechanics with bounded retention.
+  ☐ Resolve unsupported external command paths before enabling persistent tracking for their consumers.
+    Conservative handling is required for gaps; an unresolved required path is not completed coverage.
+  These are implementation decisions within the proposal. Any required scope change must be reported
+  for explicit review rather than silently weakening acceptance or broadening the architecture.
+
+Phase 1: Inventory resource contracts and capture the baseline
+  Outcome: the complete wrapper/command coverage and comparison conditions are explicit.
+
+  ☐ Read the source proposal and current repository instructions; inventory GpuResource subclasses,
+    GpuResourceKind values, constructors/acquisition, context-free declarations, ownership, Detach,
+    ReleaseHandle, disposal, manager queues and existing pass/lifetime enforcement points.
+  ☐ Produce a coverage matrix mapping each represented metadata field to its changing commands,
+    relevant overloads, bound-target/DSA addressing, current VGE/native callers and notification route.
+    Include texture storage/mips, buffer storage and represented VAO configuration; explicitly identify
+    types without mutable metadata and resource kinds currently deleted directly through GL.
+  ☐ Inspect EngineStateCalls, EngineStateCallMap and target discovery against actual native cloud/depth
+    mutation and deletion call sites, including list deletion, framebuffer rebuild and cleanup.
+    Record which external acquisition paths can provide continuing command coverage.
+  ☐ Record shader validation assumptions about wrapper identity and immutable metadata, existing
+    engine-boundary restoration, image bindings and context retirement dependencies.
+  ☐ Resolve and document the decision gates above with concrete interfaces and state transitions.
+    Separate proposal requirements from chosen implementation mechanics.
+  ☐ Capture reproducible baseline source/binary identity, configurations, fixture inputs and tooling.
+    Have subagents run relevant existing tests and canonical build/package verification; preserve
+    baseline failures. Retain baseline artifacts sufficient for matched comparison after integration.
+    Capture actual native-bind and metadata-query counts for cloud/depth paths and corresponding
+    output/restored-state checks. Record instrumentation limitations without substituting estimates.
+  ☐ Completion: every existing wrapper and required native path has an explicit disposition, decisions
+    are recorded, and baseline receipts support attributable comparison. No runtime migration yet.
+
+Phase 2: Establish shared handles and the common resource mechanism
+  Depends on Phase 1.
+  Outcome: common identity and registration primitives are testable before changing consumer behavior.
+
+  ☐ Introduce GpuResourceHandle with immutable native-width identity and context/kind separation,
+    validity/retirement state and metadata revision. No native-owning disposal or finalizer.
+  ☐ Add common StateCache lookup/acquisition, association removal and context retirement handling.
+    Live aliases reuse a handle; deletion removes its entry; reused IDs create fresh handles.
+    Initial external acquisition validates resource kind and metadata under the established coverage
+    contract, without requiring producer-specific allocation certificates.
+  ☐ Implement non-owning wrapper associations, explicit unregister and expired-association cleanup.
+    Ensure repeated acquisition cannot create competing live identities after wrapper collection.
+  ☐ Define metadata-change descriptions and dispatch support with typed metadata-family information.
+    Keep common identity independent of resource-specific binding effects and wrapper metadata queries.
+  ☐ Prepare allocation-wide state for existing usage guards without introducing duplicate guard policy.
+  ☐ Have subagents verify identity sharing, kind/context separation, native-width IDs, irreversible
+    revocation, name reuse, no deletion on handle release, cleanup and context retirement.
+  ☐ Completion: primitives satisfy identity/retention contracts; existing wrappers remain operational.
+    New tracking is not advertised to consumers before lifecycle and command coverage are integrated.
+
+Phase 3: Integrate wrapper ownership and native retirement
+  Depends on Phase 2.
+  Outcome: existing resource implementations use shared handles with correct ownership and deletion.
+
+  ☐ Refactor GpuResource and its existing implementations to reference shared handles while retaining
+    wrapper-local disposal and ownership. Combine wrapper state and handle validity in validity checks.
+    Preserve initialization of CPU declarations and existing originating-context restrictions.
+  ☐ Move only alias-wide pass/lifetime guard state to the shared handle; reuse current checks and
+    release paths. Verify references cannot bypass existing guard rules by using another wrapper.
+  ☐ Integrate GpuResourceManager scheduling: mark retiring allocations unavailable to managed use,
+    carry originating identity through queued work and reject stale deletion of replacement objects.
+    Preserve eventual native deletion and its binding effects in the originating context.
+  ☐ Route every in-scope resource kind's deletion through common StateCache notification, including
+    current direct-GL deletion branches. Extend exact native adapters and relevant overload/list paths.
+    Preserve existing error handling and command ordering; do not assume whole-list rollback.
+  ☐ Preserve borrowed disposal as association/local-state retirement only. Preserve Detach as ownership
+    transfer with surviving shared identity; borrowed transfer remains rejected. Observed external
+    deletion must prevent later owning-wrapper disposal from deleting a reused name.
+  ☐ Retain resource-specific texture/image/boundary retirement and actual implicit-unbinding behavior.
+    Context retirement must not issue deletion or restore names into another context generation.
+  ☐ Have subagents test owning/borrowed aliases, repeated disposal, external deletion, same-name reuse,
+    queued deletion, detach, guards, context retirement and unaffected bindings/restoration.
+    Exercise native deletion through actual EngineStateCallMap redirection, not only direct fixtures.
+  ☐ Completion: all inventoried lifecycle paths pass; no parallel borrowed lifetime mechanism exists.
+    Persistent consumer metadata remains gated on the next phase's complete mutation coverage.
+
+Phase 4: Implement metadata notifications and revision-aware validation
+  Depends on Phase 3.
+  Outcome: observed metadata changes are reflected in every associated wrapper before dependent use.
+
+  ☐ Add abstract HandleMetadataChange to GpuResource and explicit implementations for every concrete
+    resource type. Types without relevant mutable metadata explicitly express that disposition.
+  ☐ Implement the Phase 1 command matrix through StateCache and existing native call adapters.
+    Reconcile VGE direct calls to use the same notification route; cover used bound-target and DSA
+    variants and relevant overloads. Resolve bound resources using existing unknown-state recovery.
+  ☐ Dispatch after native operations with proven resulting metadata. Use established command values
+    where sufficient and targeted queries otherwise. Rejected commands must not publish invented state.
+    Failed refresh marks affected metadata unavailable; dispatch must not leave other wrappers falsely
+    current if one handler fails. Preserve existing error handling and context/thread contracts.
+  ☐ Advance metadata revision for surviving-object metadata changes without replacing handle identity.
+    Update existing shader/input validation history and dependent publication checks to revalidate
+    changed metadata. Keep complete-input failure behavior and avoid a second validation cache.
+  ☐ Ensure metadata notifications do not change content readiness or frame qualification contracts.
+  ☐ Have subagents test alias refresh, dimensions/format/mips, buffer size and represented VAO state;
+    bound/DSA and unknown-state resolution; rejected operations and refresh failure; context isolation;
+    previously validated inputs after incompatible changes; and stable-input binding suppression.
+    Exercise required native commands through actual redirection and reconcile every matrix row.
+  ☐ Completion: all required metadata paths are covered and stale metadata cannot remain usable.
+    Handle continuity, validation revision changes and native binding knowledge remain distinct.
+
+Phase 5: Integrate persistent cloud and depth resources
+  Depends on Phases 3 and 4 and their verified native coverage.
+  Outcome: cloud/depth consumers use the common resource mechanism without repeated stable acquisition.
+
+  ☐ Update CloudNativeMapAdapter/CloudNativeRuntime and cloud consumers to retain common tracked
+    native map wrappers across stable object lifetimes; reacquire after deletion, refresh after metadata
+    changes and reject invalid resources before dependent use.
+  ☐ Integrate native primary/visibility and liquid depth acquisition with ScreenResourceManager and
+    DepthHierarchyRenderer as applicable. Verify native rebuild/replacement paths use covered commands.
+    Share existing owned material depth directly where GpuTexture is accepted.
+  ☐ Migrate eligible raw sampler inputs to typed wrappers and ordinary StateCache binding behavior.
+    Retain conservative paths for unsupported raw IDs; record their exact coverage limitations.
+  ☐ Reconcile existing allocation hooks: remove lifecycle-only work made redundant by StateCache;
+    retain observations needed by CloudMapPublication and content generation. Preserve world/owner
+    selection, uploads, frame readiness, synchronous use and consumer disposal authority.
+  ☐ Have subagents verify cloud/depth replacement, same-name reuse, surviving-object metadata changes,
+    rebuild failures, world/context teardown, stale content rejection and direct owned-resource sharing.
+    Confirm unknown/external binding state still binds correctly and stable known slots skip binds.
+  ☐ Completion: intended consumers use common tracking with verified coverage and unchanged content
+    qualification. No lifecycle-only producer teardown hook or dedicated borrowed registry is needed.
+
+Phase 6: Qualify the integrated design and reconcile documentation
+  Depends on Phase 5.
+  Outcome: a reproducible candidate satisfies the proposal with measured costs and explicit evidence limits.
+
+  ☐ Freeze candidate source/binary identity and repeat matched baseline fixtures through subagents.
+    Measure actual metadata queries and native binds, separately accounting for registration, dispatch
+    and retirement costs. Compare outputs and restored state; disclose regressions and limitations.
+  ☐ Have subagents run relevant regression suites and canonical build/package verification for the
+    candidate. Verify package identity and required generated assets against tested outputs.
+  ☐ Verify bounded associations through repeated acquisition, disposal, collection and context cycles;
+    ensure no old wrapper/queued retirement can affect a replacement allocation.
+  ☐ Remove temporary migration scaffolding and obsolete duplicated identity/notification paths.
+    Reconcile the full command matrix and all temporary compatibility dispositions; retain intentional
+    conservative raw-ID support with its documented boundary.
+  ☐ Update Rendering.ShaderBindingState.md and relevant resource/cloud architecture documentation to
+    describe current implemented responsibilities, command coverage, ownership and metadata behavior.
+    Keep permanent docs free of phase narratives and removed implementation history.
+  ☐ Perform a second review against every proposal section and resolve discrepancies. Record source,
+    unit, GPU integration, package and measurement evidence separately; do not claim appearance or
+    frame-time benefits from headless checks. Any live appearance acceptance is user-run and separately
+    reported; unmeasured runtime performance remains unclaimed.
+  ☐ Completion: proposal coverage, regression/package receipts, measurements, cleanup and current-state
+    documentation agree for the same candidate; unresolved required work is explicitly left open.
+
+Proposal traceability
+  Intent/responsibilities: governing contracts; Phases 2–5.
+  Shared identity and context/retention: Phases 1–3 and 6.
+  Ownership, disposal, detach, guards and scheduling: Phases 1 and 3.
+  Abstract metadata notifications, failures and revisions: Phases 1, 2 and 4.
+  StateCache/native coverage and binding behavior: Phases 1, 3 and 4.
+  Cloud/depth consumers and content contracts: Phase 5.
+  Scope, source layout and documentation: governing contracts; Phases 2–6.
+  Acceptance and measurements: baseline in Phase 1; focused verification in Phases 2–5; Phase 6.
+
+Final acceptance
+  ☐ Every proposal requirement is implemented and verified, or an explicit deferral is approved with
+    its rationale and consequences. Conservative handling alone does not complete a required migration.
+  ☐ Shared handles preserve identity, ownership, guard, deletion, transfer and context contracts across
+    aliases; released handles never delete native storage and stale work never affects reused names.
+  ☐ Metadata notifications and revision-aware validation cover the inventoried supported paths;
+    native integration evidence uses actual redirection and unknown/error paths remain correct.
+  ☐ Common tracking supports the intended cloud/depth consumers without duplicated lifetime systems,
+    while render/content behavior and existing state restoration remain correct.
+  ☐ Required tests, package checks, cleanup, documentation and measured call/cost comparisons are
+    complete for the qualified candidate. Live appearance and frame-time claims match actual evidence.
