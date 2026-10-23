@@ -2,16 +2,12 @@ GPU resource metadata registry and typed resource wrappers
 =========================================================
 
 Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
-Status: Revised plan awaiting user approval. Phase 1 reopened; execution has not resumed.
-Runtime migration has not started. Existing inventory and baseline receipts are retained as evidence,
-but their previous completion does not establish completion of the revised Phase 1 contract.
+Status: Phase 1 complete after second review and independent completion audit. Runtime migration has not started.
+Reconciled design documents and retained baseline receipts satisfy the revised Phase 1 contract.
 
 Planning authority
-  The governing contracts below record the agreed manager-owned metadata direction and supersede
-  conflicting design decisions in the linked proposal and inventory. Phase 1 must reconcile those
-  documents before implementation begins. The API coverage matrix remains useful evidence of command
-  coverage; its notification routes and field mappings require review against the revised design.
-  Stop after this planning revision for user approval before resuming Phase 1 work.
+  The governing contracts record the agreed manager-owned metadata direction. The linked proposal,
+  inventory and API matrix agree with those contracts; later implementation remains governed by them.
 
 Goal and governing contracts
   Define one canonical metadata struct for each resource kind. GpuResourceManager owns the common
@@ -27,8 +23,7 @@ Goal and governing contracts
   accessors. The manager owns canonical state; wrapper structs are synchronized snapshots.
   Retain wrapper-local ownership, disposal, subresource selection and authored policy outside native
   metadata structs. Retain existing ownership and deletion scheduling responsibilities.
-  Reassess whether a separate GpuResourceHandle has a necessary remaining responsibility during
-  Phase 1; its introduction is not a prerequisite or a settled design decision.
+  The manager entry supplies shared registration state; no separate GpuResourceHandle is required.
   Preserve existing context/thread restrictions, ownership, guard rules, scheduling, render order,
   shader algorithms, content readiness and frame qualification. Reuse existing guard enforcement.
   No GpuResourceLifetime, dedicated borrowed-resource registry, duplicate binding/validation cache,
@@ -39,23 +34,23 @@ Goal and governing contracts
   Use subagents for every build/test invocation. Keep source, unit, GPU integration, package and live
   evidence distinct. Never launch the game for visual acceptance. Creating this plan changes no runtime.
 
-Design decisions and implementation gates (reopened)
-  ☐ Map every resource kind and represented native metadata field to a canonical struct, separating
+Resolved design decisions and implementation gates
+  ☑ Map every resource kind and represented native metadata field to a canonical struct, separating
     native metadata from wrapper-local policy. Define registration, initialization and publication APIs.
-  ☐ Reconcile resource kinds and represented fields from source with ALL metadata-altering GL commands
+  ☑ Reconcile resource kinds and represented fields from source with ALL metadata-altering GL commands
     and overloads from the API/extension specifications, regardless of current usage;
     do not equate existing EngineStateCallMap coverage with interception of all GL operations.
-  ☐ Establish how command success and metadata-refresh failure affect canonical entries and wrapper
+  ☑ Establish how command success and metadata-refresh failure affect canonical entries and wrapper
     snapshots without changing existing
     error handling; command arguments alone must not certify a rejected operation's result.
-  ☐ Specify registration, pending deletion, deletion and context retirement transitions, preserving
+  ☑ Specify registration, pending deletion, deletion and context retirement transitions, preserving
     existing scheduling and preventing old wrappers or delayed work from affecting reused names.
     Use entry removal, association invalidation and cancellation/validation of queued work; do not
     reintroduce generation-based registry keys. Decide whether a separate handle remains useful.
-  ☐ Select non-owning wrapper association and expired-association cleanup mechanics with bounded retention.
-  ☐ Define where metadata revisions, dependent validation and existing alias-wide usage guards belong;
+  ☑ Select non-owning wrapper association and expired-association cleanup mechanics with bounded retention.
+  ☑ Define where metadata revisions, dependent validation and existing alias-wide usage guards belong;
     keep the generic metadata notification implementation a typed snapshot assignment.
-  ☐ Resolve unsupported external command paths before enabling persistent tracking for their consumers.
+  ☑ Resolve unsupported external command paths before enabling persistent tracking for their consumers.
     Conservative handling is required for gaps; an unresolved required path is not completed coverage.
   Revised decisions must be recorded in the proposal, inventory and API coverage matrix as applicable.
   Command support itself remains implementation work in later phases.
@@ -64,7 +59,7 @@ Design decisions and implementation gates (reopened)
 
 Phase 1: Reconcile the metadata registry design, inventory and baseline
   Outcome: canonical metadata schemas, manager/wrapper responsibilities, complete command coverage
-  and comparison conditions are explicit. This phase is reopened and awaits approval to resume.
+  and comparison conditions are explicit. The revised design and retained evidence passed second review and independent audit.
   Inventory and selected mechanics: [Rendering.GpuResourceHandles.Inventory.md](Rendering.GpuResourceHandles.Inventory.md).
 
   ☑ Read the source proposal and current repository instructions; inventory GpuResource subclasses,
@@ -81,17 +76,17 @@ Phase 1: Reconcile the metadata registry design, inventory and baseline
     Record which external acquisition paths can provide continuing command coverage.
   ☑ Record shader validation assumptions about wrapper identity and immutable metadata, existing
     engine-boundary restoration, image bindings and context retirement dependencies.
-  ☐ Review the retained inventory against the revised governing contracts. Map every wrapper field to
+  ☑ Review the retained inventory against the revised governing contracts. Map every wrapper field to
     canonical metadata, wrapper-local state or existing derived behavior; identify structs for each kind,
     including types with no mutable native metadata. Record how CPU declarations initialize before
     native registration and how external resources acquire their initial canonical metadata.
-  ☐ Resolve and document the reopened decision gates with concrete interfaces and state transitions.
+  ☑ Resolve and document the reopened decision gates with concrete interfaces and state transitions.
     Specify GpuResourceManager registry ownership and update/publication ordering, generic-base
     migration, association cleanup, deletion/name reuse and context-scoped registry retirement.
     Record the decision on a separate handle and its responsibilities, if any.
-  ☐ Review existing shader validation, guard and publication assumptions against manager-owned metadata
+  ☑ Review existing shader validation, guard and publication assumptions against manager-owned metadata
     and typed snapshots. Specify revision/invalidation behavior without moving content into metadata.
-  ☐ Reconcile the proposal, inventory and API coverage matrix with this plan. Replace obsolete abstract
+  ☑ Reconcile the proposal, inventory and API coverage matrix with this plan. Replace obsolete abstract
     per-wrapper refresh handlers, StateCache-owned registry and generation-key assumptions. Review ALL
     API command variants against the final struct fields, not only commands currently called.
   ☑ Capture reproducible baseline source/binary identity, configurations, fixture inputs and tooling.
@@ -99,10 +94,10 @@ Phase 1: Reconcile the metadata registry design, inventory and baseline
     baseline failures. Retain baseline artifacts sufficient for matched comparison after integration.
     Capture actual native-bind and metadata-query counts for cloud/depth paths and corresponding
     output/restored-state checks. Record instrumentation limitations without substituting estimates.
-  ☐ Confirm the retained baseline receipts remain attributable to the unchanged runtime and suitable
+  ☑ Confirm the retained baseline receipts remain attributable to the unchanged runtime and suitable
     for the revised comparison. Supplement only identified gaps; do not rerun valid baseline work
     merely because the design decisions were reopened.
-  ☐ Completion: canonical structs and manager/generic-wrapper contracts are documented; linked
+  ☑ Completion: canonical structs and manager/generic-wrapper contracts are documented; linked
     planning documents agree; every existing wrapper and applicable API command family/variant has an explicit
     implementation and verification disposition, decisions
     are recorded, and baseline receipts support attributable comparison. No runtime migration yet.
@@ -125,8 +120,8 @@ Phase 2: Establish canonical metadata and the manager registry
     and distribute it; wrappers must not independently query GL to refresh their snapshots.
   ☐ Introduce GpuResource<TMetadata> with the protected metadata field and public
     HandleMetadataChanged(TMetadata data) assignment implementation.
-  ☐ Implement the agreed placement of metadata revisions and existing alias-wide usage-guard state.
-    Add a separate handle only if Phase 1 establishes its necessary responsibility.
+  ☐ Implement entry-owned metadata/storage revisions and existing alias-wide usage-guard state.
+    Keep registration internal to the manager; no separate handle abstraction is needed.
   ☐ Have subagents verify canonical entry sharing, kind/context separation, native-width IDs, snapshot
     publication, name reuse, non-owning registration, cleanup and context retirement.
   ☐ Completion: primitives satisfy identity/retention contracts; existing wrappers remain operational.

@@ -21,7 +21,7 @@ indirect effects; a missing spelling must be added, never inferred to be out of 
 additions require the same classification. The command list below records the current expansion.
 
 Implementation means a StateCache route that executes the native command, identifies affected object
-incarnations, and updates or invalidates represented metadata after its actual effect. Bound operations
+registrations, and forwards the actual effect to GpuResourceManager to update or invalidate canonical metadata. Bound operations
 resolve selectors; DSA uses explicit names; multi-texture operations use explicit units; multi-bind and
 list operations process all affected objects. Proxy texture targets alter proxy state, not a texture
 object, and must not notify a bound object. Preserve errors, partial success, and existing binding effects.
@@ -34,12 +34,34 @@ capability-gated native delegate with the specification's ABI. Capability absenc
 not adapter implementation. Existing assembly interception boundaries remain explicit; arbitrary native
 code bypassing the StateCache is not silently tracked.
 
+## Canonical destinations and publication route
+
+The [canonical schema mapping](Rendering.GpuResourceHandles.Inventory.md#canonical-metadata-schemas-and-field-migration)
+is the field-level destination for this matrix. T1–T5 target GpuTextureMetadata (including buffer/view
+associations); B1 targets GpuBufferMetadata; R1 targets GpuRenderbufferMetadata; F1 targets framebuffer
+attachment/default metadata while routing remains in StateCache. V1 invalidates VAO entry revision and
+helper assumptions; it does not introduce a full layout mirror. P1 refreshes native program facts and
+invalidates derived preparation. L1 retires entries/aliases and reconciles affected dependencies. C1/I1
+apply those same destinations only where their execution has a represented metadata effect.
+
+Every route is native command -> StateCache observation -> context's GpuResourceManager -> canonical
+struct update -> typed wrapper snapshots -> existing dependent validation/publication. Read canonical
+facts once per change, not once per wrapper. Texture and renderbuffer changes also project selected
+GpuImageMetadata to associated framebuffer images. Each kind has one canonical struct even when several
+wrapper classes expose different aspects. No borrowed registry, StateCache metadata registry, abstract
+per-wrapper query handler or generation-based resource key is introduced.
+
+All previously enumerated API families/variants remain in scope. Moving fields to canonical structs
+does not narrow API coverage. Empty per-kind structs and owner-only fields retain the explicit semantic
+dispositions below. Initial fixed shader type acquisition requires no new mutable shader-storage family.
+The metadata revision used to invalidate stale assumptions is registration bookkeeping, not GPU contents.
+
 ## Families, implementation and verification
 
 | ID | Metadata / API family | Implementation obligation | Verification obligation |
 | --- | --- | --- | --- |
 | T1 | Image definitions: TexImage 1D/2D/3D/4D, compressed image definitions, CopyTexImage, immutable/multisample storage, DSA and EXT multi-texture equivalents, external-memory and sparse allocation | Refresh affected dimensions, format, samples, level allocation and immutable-storage facts. Copy definitions change storage even though their source is pixels. Same object retains identity. Unsupported typed dimensionality must become explicitly unavailable, never falsely represented by a 2D/3D snapshot. | Allocate/redefine every supported target/dimension, nonzero mip and cube face; rejected allocation retains actual facts; cover pointer/array variants, DSA, explicit unit and extension aliases. |
-| T2 | GenerateMipmap, GenerateTextureMipmap, GenerateMultiTexMipmap and aliases | Refresh the generated mip range; preserve base/max-level semantics. | Missing levels become allocated; same handle/revision change; base level other than zero; failed/incomplete cube generation. |
+| T2 | GenerateMipmap, GenerateTextureMipmap, GenerateMultiTexMipmap and aliases | Refresh the generated mip range; preserve base/max-level semantics. | Missing levels become allocated; same registration/revision change; base level other than zero; failed/incomplete cube generation. |
 | T3 | Texture buffer whole/range attachment, texture views and renderbuffer-backed textures | Refresh source association, format, range and selected levels/layers; a view has its own native identity. Preserve whole-buffer sentinel conventions and backing dependencies. | Change backing/range; delete or resize backing; view source identity versus view identity; reject invalid ranges without assumed success. |
 | T4 | All texture parameter setters, bound/DSA/multi-texture and integer/float/vector forms | Classify pname effect. Refresh represented facts if affected; retain owner-only policy distinctions. Track legacy automatic-mipmap enablement and parameters used to resolve affected levels. Do not invent wrapper metadata for unrepresented parameters. | Parameter-family coverage and pname-dependent effects; automatic-mipmap/base/max-level cases; unchanged storage does not spuriously replace identity. |
 | T5 | Subimage/copy-subimage/compressed-subimage variants under compatibility automatic mip generation | Ordinary texel writes are content. When legacy GENERATE_MIPMAP is enabled, the resulting generated level allocation is metadata and must receive T2 handling. | With automatic generation off, no metadata work; with it on, refreshed derived level storage. Preserve producer content certificates independently. |
@@ -48,7 +70,7 @@ code bypassing the StateCache is not silently tracked.
 | F1 | Framebuffer texture/renderbuffer attachment, face/layer/multiview variants, default-parameter and draw/read-routing variants | Refresh attachment identity/subresource and derived target metadata; preserve ownership. Route draw/read-buffer commands through the existing routing cache. Classify default-FBO parameters separately from window-system surface publication. | All attachment forms, detach via zero, split read/draw targets, partial configurations and affected publication revisions. |
 | V1 | Vertex attribute pointer/format/binding/divisor/enables, vertex-buffer multi-bind, element-buffer binding, compatibility array configuration | Revise represented VAO configuration and stale helper assumptions. Resolve current VAO and latched buffer dependencies. Compatibility-only attributes absent from wrappers have an explicit no-represented-field effect, not an omitted adapter. | Bound/DSA, multi-bind partial failure, generic/integer/double formats, enablement/divisor, EBO association, stale helper use and unrelated VAOs. |
 | P1 | Link/binary installation, shader-program creation, interface block bindings and link-input configuration | Invalidate reflected executable layout on actual relink/binary/interface changes; use existing preparation flow. Attach/detach/bind-location/transform-feedback declarations affect the next link rather than inventing an immediate new executable. | Successful/failed relink, binary replacement, block-binding changes, deferred link-input effects, prepared submission revalidation. |
-| L1 | Deletion of every represented kind, all aliases and array/ref/pointer forms | Revoke the captured incarnation; preserve deferred native destruction and resource-specific unbinding. ARB generic object deletion resolves shader/program kind. Propagate affected attachment/VAO metadata. | Each kind, lists and duplicate/zero names, queued old identity, same-name replacement, aliases and retained native references. |
+| L1 | Deletion of every represented kind, all aliases and array/ref/pointer forms | Retire the captured registration; preserve deferred native destruction and resource-specific unbinding. ARB generic object deletion resolves shader/program kind. Propagate affected attachment/VAO metadata. | Each kind, lists and duplicate/zero names, queued old identity, same-name replacement, aliases and retained native references. |
 | C1 | Display-list/command-list execution and compatibility state restoration | Account for metadata commands executed indirectly. Compilation alone must not publish execution effects. At execution, reconcile potentially affected represented metadata when exact effects are unavailable; preserve binding restoration. | Compile versus execute, repeated list execution, restored parameter/client-array state, changed metadata observed before dependent use. |
 | I1 | External storage association and sparse residency operations | Storage attachment/replacement receives corresponding T/B metadata refresh. Residency-only commitment, access flags and performance hints have no represented-size/format change; explicitly preserve that distinction. Interop registration/mapping that defines texture storage must refresh it. | Extension-capability tests for association changes; commitment without dimension changes; unavailable imports cannot publish valid metadata. |
 

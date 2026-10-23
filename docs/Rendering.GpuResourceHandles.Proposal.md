@@ -1,112 +1,144 @@
-# Shared GPU resource handles and metadata notifications
+# Canonical GPU resource metadata and notifications
 
-Status: approved. Implementation plan: [Rendering.GpuResourceHandles.todo](Rendering.GpuResourceHandles.todo). This document defines the authoritative design and acceptance criteria; approval and planning do not begin implementation.
+Status: approved direction, reconciled with the manager-owned metadata design. Implementation checklist:
+[Rendering.GpuResourceHandles.todo](Rendering.GpuResourceHandles.todo). This is a design contract, not
+an assertion that the runtime migration is implemented.
 
 ## Intent
 
-Give owning and non-owning GPU wrappers a common resource identity and a common route for deletion and metadata notifications. Extract shared allocation responsibilities from `GpuResource` into `GpuResourceHandle`. Let StateCache observe native operations and notify the wrappers associated with the affected handle.
-
-An owning texture and a borrowed texture referring to the same native object should share its identity and validity. Borrowed textures should require neither a dedicated registry nor a separate lifetime authority. Persistent borrowed metadata and texture binding caching then follow from the normal resource mechanism.
+Give owning and non-owning GPU wrappers canonical native metadata and a common notification mechanism.
+`GpuResourceManager` owns the registry. StateCache observes native operations and forwards metadata
+changes to the manager, which updates its canonical struct and publishes typed snapshots to wrappers.
+Borrowed resources participate in this same mechanism, preserving normal binding caching.
 
 ## Current behavior
 
-- [GpuResource](../VanillaGraphicsExpanded/Rendering/GpuResource.cs) combines wrapper disposal, native identity, ownership policy, usage guards, context capture and deletion scheduling. Its validity check currently uses the wrapper's native ID and disposal state.
-- [BorrowedTexture](../VanillaGraphicsExpanded/Rendering/BorrowedTexture.cs) derives from `GpuTexture`, queries texture metadata at construction, does not own storage and rejects ownership transfer. Its caller currently has to retire stale metadata.
-- [StateCache.TextureLifetime](../VanillaGraphicsExpanded/Rendering/StateCache.TextureLifetime.cs) records the binding and restoration consequences of native texture deletion. It does not currently notify a general registry of resource wrappers.
-- [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) maps supported GL signatures to `EngineStateCalls`. This supplies the existing redirection mechanism, but coverage is determined by its concrete adapters; it is not blanket interception of every GL operation. Storage-changing texture and buffer commands require coverage work.
-- `GpuResource.DeleteOrEnqueue` already routes textures, buffers, vertex arrays and several other kinds through StateCache. Some kinds, including queries, shaders and sync objects, still use direct GL deletion paths. Common lifetime notification must include those paths before claiming support for every existing resource kind.
+[GpuResource](../VanillaGraphicsExpanded/Rendering/GpuResource.cs) currently combines identity, disposal,
+ownership, usage guards, context capture and deletion scheduling. [BorrowedTexture](../VanillaGraphicsExpanded/Rendering/BorrowedTexture.cs)
+queries metadata at construction and relies on callers to retire stale data. [GpuResourceManager](../VanillaGraphicsExpanded/Rendering/GpuResourceManager.cs)
+currently schedules uploads and deletion; it has no canonical metadata registry.
+[StateCache.TextureLifetime](../VanillaGraphicsExpanded/Rendering/StateCache.TextureLifetime.cs) handles
+texture deletion's binding/restoration effects. [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs)
+redirects specific GL signatures, not every operation. Mutation and deletion coverage requires expansion,
+including kinds currently deleted directly through GL.
 
 ## Responsibilities
 
 | Component | Responsibility |
 | --- | --- |
-| `GpuResourceHandle` | Shared identity and validity for one native object incarnation, plus the allocation-wide state required by existing usage guards. |
-| `GpuResource` | Wrapper-local disposal, ownership policy, deletion scheduling, association with a handle, and the abstract metadata-change contract. |
-| Typed resource wrappers | Resource-specific operations and metadata, including implementation of metadata-change handling. |
-| StateCache | Common resource lookup, deletion and context-retirement notifications, metadata-change dispatch, and existing native binding knowledge. |
-| Rendering integrations | Selection of resources and their content/readiness contracts. |
+| GpuResourceManager | Context-scoped registry, canonical metadata, registration validity, shared existing guard state, snapshot publication and deferred deletion. |
+| GpuResource | Wrapper-local ownership/disposal, association with a registration, and existing deletion scheduling contract. |
+| GpuResource<TMetadata> | Protected metadata struct; public HandleMetadataChanged(TMetadata data) implementation assigns that snapshot. |
+| Typed resource wrappers | Resource-specific operations and metadata accessors; authored policy remains local. |
+| StateCache | Executes/observes native operations and forwards changes to the manager; retains binding/restoration knowledge. |
+| Rendering integrations | Resource selection, producer content readiness and frame qualification. |
 
-There is no `GpuResourceLifetime` class or borrowed-texture-specific tracking system in this design.
+There is no separate `GpuResourceLifetime`, public `GpuResourceHandle`, or borrowed-resource registry.
+The manager entry already supplies the registration state needed by wrappers and queued deletion.
 
-## Shared handle identity
+## Canonical metadata and registration
 
-`GpuResourceHandle` is a non-owning managed reference to one native object incarnation. It carries resource kind, native ID and originating context identity, including context generation. Use a native-width ID so the representation also accommodates pointer-shaped GL handles.
+Each resource kind has a canonical struct. The manager uses per-kind registries keyed by native-width
+ID. Each registry belongs to one manager/context lifetime. No context generation or incarnation counter
+belongs in the resource key. Existing context checks remain at manager selection/native execution.
 
-StateCache maintains a common lookup by context identity, resource kind and native ID. Wrappers referring to the same live object share the same handle. Numeric equality across resource kinds or contexts does not imply shared identity.
+Wrappers of the same native object receive snapshots of the same canonical metadata. Deletion removes
+its entry, invalidates associated wrappers and cancels obsolete queued deletion. A reused numeric ID
+receives a fresh entry. Old wrappers never regain validity. Pending work retains its original entry
+association and never reacquires by numeric ID at drain time. Context retirement discards the registry.
+Registration neither grants native ownership nor deletes storage when a reference is released.
 
-Deletion permanently invalidates the handle and removes its live lookup entry. A later object using the same numeric ID receives a new handle. An old handle must never be retargeted or become valid again. Context retirement likewise invalidates its handles without issuing native deletion into another context.
+`GpuResource<TMetadata> : GpuResource where TMetadata : struct` declares `protected TMetadata metadata;`
+and public non-virtual `void HandleMetadataChanged(TMetadata data)` whose body assigns `metadata = data`.
+Existing resource abstractions inherit this base directly or through their existing typed superclass.
+Native metadata properties become accessors over this field; IDs, availability and revision are
+registration state. Ownership, disposal, authored policy and selected subresources remain local.
 
-Holding or releasing a handle does not control native ownership. The handle has no native-deleting disposal or finalizer; ordinary managed reference release is sufficient. The registry and notification associations must not indefinitely retain abandoned wrappers. Use non-owning wrapper associations with explicit removal on wrapper disposal and cleanup of expired associations.
+The [inventory](Rendering.GpuResourceHandles.Inventory.md#canonical-metadata-schemas-and-field-migration)
+specifies structs, field migration and the image projection for attachments that can reference textures
+or renderbuffers. Collections inside snapshots are immutable after publication. Programs keep native
+interface facts separate from authored preparation policy. Types without retained native metadata use
+an empty per-kind struct. Default framebuffer zero uses existing surface publication, not a registry entry.
 
-Resource identity follows the project's existing registered-context model. Shared-context namespace generalization is outside this proposal; preserve current context restrictions.
+External acquisition validates kind and captures initial metadata once. Existing entries supply subsequent
+snapshots without repeated queries. Created names may register before storage initialization, with metadata
+unavailable until established. CPU declarations register only upon native realization. Unsupported external
+mutation/deletion paths retain conservative handling; registration alone cannot promise continuing validity.
+No producer-specific allocation certificate is needed for a live object with covered subsequent commands.
 
-Initial acquisition of an existing external object validates its kind and obtains current metadata. Continued validity relies on the covered StateCache command paths. Creation interception is useful where already present, but a producer-specific allocation certificate is not required merely to register a live external object whose subsequent mutation and deletion are observed. Unsupported external paths must not silently acquire persistent tracking guarantees.
+Associations are weak and explicitly removed on disposal. Prune expired references on acquisition,
+publication, unregister and teardown. Entries persist until native deletion or context retirement even
+when wrappers are collected. Shared-context namespace generalization remains outside scope.
 
-## Ownership and wrapper lifecycle
+## Ownership, retirement and guards
 
-`GpuResource` retains ownership policy. Owning abstractions such as `GpuTexture` and `GpuVao` continue to request native deletion through their existing deletion/scheduling flow. `BorrowedTexture` remains non-owning. Sharing a handle never grants another wrapper deletion authority or creates a second owner.
+Owning abstractions retain deletion authority and the existing deletion/scheduling flow. Borrowed disposal
+only removes that wrapper's association and local state; it does not delete, invalidate other aliases or
+unbind native storage. Owner retirement makes the entry unavailable to managed use while queued deletion
+waits for its original context. Old queued work cannot delete a replacement with the same numeric ID.
+Observed external deletion also prevents subsequent owner disposal from deleting a replacement.
 
-Disposing a borrowed wrapper removes that wrapper's association and retires its local state. It neither invalidates the shared handle nor deletes or unbinds the native resource. Other wrappers remain usable.
+`Detach` transfers ownership and removes the transferring wrapper's association while preserving the
+live entry for other aliases. Borrowed transfer stays rejected. Native replacement registers the new
+object rather than retargeting old aliases. Context retirement issues no GL deletion into another context.
 
-Disposing an owner preserves existing retirement checks and scheduling semantics. A scheduled deletion must prevent further managed use of the retiring allocation, while the eventual native delete still applies the existing StateCache binding effects. Queued work must retain the originating identity and must never retire a later incarnation that reuses its numeric name.
+Existing pass/lifetime checks and releases remain authoritative. Move only alias-wide counters into the
+manager entry; declaration-only counters remain local until realization. Do not add another mutation guard
+at the native adapter boundary. Preserve static framebuffer locks and existing retirement scheduling.
 
-Native deletion observed independently of an owning wrapper invalidates the shared handle. A later owner disposal must not delete a replacement object using the old ID. Wrapper validity combines local disposal state with shared handle validity.
+## Metadata publication and validation
 
-`Detach` continues to transfer ownership, not destroy the object. It retires the detaching wrapper while preserving the live object's identity for remaining references. Borrowed wrappers continue to reject ownership transfer. Subsequent deletion by the recipient must pass through the supported observation path for those references to remain tracked.
+StateCache forwards metadata-changing commands to the manager. Typed manager readers establish a complete
+canonical candidate once, then the manager commits it and assigns snapshots to all associated wrappers.
+Wrappers do not independently query native metadata. Generic notification is only assignment; manager
+publication coordinates availability, revisions and existing dependent observers outside that method.
 
-Existing pass and lifetime guards retain their rules. Move only the state that must be shared across aliases into the handle, and reuse existing enforcement points. This proposal does not introduce another guarding policy or duplicate pre-mutation checks.
+Publish after native operations, using arguments only where actual results are established, otherwise
+using targeted readback. Preserve existing error handling. A nonthrowing GL call does not prove success;
+rejected commands must not publish requested values as actual facts. Failed refresh leaves affected
+metadata unavailable. Assign snapshots before exposing availability and notifying dependents; one failure
+must not silently leave other affected consumers presenting stale data as current.
 
-## Metadata notifications
+Surviving-object metadata changes preserve registration but advance appropriate metadata/storage revisions.
+Existing shader input validation and prepared executable/attachment publication must account for these
+revisions. Keep complete-input validation before resource publication and reuse the existing validation
+history. A valid registration does not imply that the native resource is bound.
 
-Add an abstract `HandleMetadataChange` contract to `GpuResource`. Supply a change description identifying the affected metadata family and, where available, values established by the command. Each resource type explicitly defines how it updates or refreshes its represented metadata; types without applicable mutable metadata explicitly handle that case.
+## Command coverage and consumers
 
-StateCache dispatches notifications for all OpenGL commands capable of altering metadata represented by the resource wrappers, to all live wrappers associated with the affected handle. Texture storage dimensions, format and allocated mip information; buffer storage size; and represented VAO configuration are examples. Coverage is derived from the OpenGL API and extension specifications, never restricted to commands currently called by VGE or the engine. Include bound-target, direct-state-access, multi-object, extension and managed overload variants. An unavailable capability may prevent execution on a particular context; lack of a current caller does not remove the support obligation.
+The [API matrix](Rendering.GpuResourceHandles.ApiCoverage.md) covers ALL OpenGL commands capable of changing
+represented metadata, independent of current callers: bound, DSA, multi-object, extension and managed
+overload variants. Bound commands use existing unknown-state reconciliation; explicit commands use their
+named objects/units. All deletion kinds and list paths must use the common notification route. Preserve
+command ordering, actual binding effects and per-object failures. Missing binding APIs require explicit
+adapter dispositions. Capability-limited hardware does not waive implementation support.
 
-For bound-target commands, resolve the affected object from the applicable context binding state. For direct-state-access commands, use their explicit object ID. Preserve existing unknown-state reconciliation rather than guessing the target from stale cache entries.
+Only metadata effects belong here. Content uploads, readiness and frame qualification retain their
+existing contracts. A command that also defines storage contributes that metadata effect. Preserve engine
+boundary restoration, texture/image binding knowledge and independent routing caches. VGE direct calls
+use the same notification route; no producer teardown hook duplicates observed GL deletion.
 
-Publish updated metadata after the native operation. Derive metadata from command arguments where the result is established; query only when required to determine the actual resulting metadata. A rejected operation must not publish an assumed successful result. Preserve existing error handling, and make metadata unavailable when a refresh cannot establish valid state. One failing refresh must not leave other associated wrappers silently presenting stale metadata as current.
+Retain cloud-map and native depth wrappers across stable lifetimes once their required commands are
+covered. Share owned material depth directly. Migrate eligible raw sampler inputs to typed wrappers and
+ordinary binding caching. Unsupported raw paths remain conservative. Preserve world/owner selection,
+cloud publication, upload completion and consumer disposal authority. Keep allocation-hook observations
+needed for content certificates while removing redundant lifecycle-only work.
 
-Replacing storage on a surviving GL object keeps its object handle identity but changes its metadata revision. Wrappers must expose the current metadata before their next dependent operation. Existing shader/input validation history must account for that revision wherever it previously assumed metadata was immutable for a wrapper. Previously validated submissions cannot silently reuse incompatible dimensions or formats after a change.
+## Layout and acceptance
 
-Notifications cover metadata only. Producer content readiness and frame qualification retain their existing contracts.
+Keep metadata schemas, manager registration/publication, wrapper operations and native adapters in files
+with separate responsibilities. Preserve render order, shader algorithms, ownership and source conventions.
+No second binding/validation cache or parallel lifetime registry is introduced. Permanent architecture
+documents describe implemented behavior when migration occurs.
 
-## StateCache integration and coverage
+Acceptance requires canonical metadata and coherent snapshots for every existing wrapper, correct
+ownership/detach/guard/queue/context behavior, deletion/name-reuse safety and bounded weak associations.
+Verify all API matrix rows, failed commands, unavailable metadata, alias publication, dependent revalidation,
+unknown state and stable binding suppression through actual native redirection where capabilities permit.
+Explicitly record unexecuted native capability cases rather than claiming full native qualification.
 
-Use one common resource mechanism for owned and borrowed wrappers. Keep resource-specific binding effects in the corresponding StateCache implementations. Deleting a texture still records its actual implicit unbinding and invalidates affected image/restoration knowledge; disposing a non-owning wrapper does not imply those native effects.
-
-Extend the existing GL redirection adapters for the complete API-derived metadata mutation and resource deletion command set, including all applicable overloads and list-deletion paths. Reconcile VGE's own direct GL calls with that same route. Existing call sites provide integration examples, not a coverage whitelist. Missing OpenTK entry points or unsupported extension plumbing must receive explicit implementation dispositions rather than being silently omitted. Preserve existing command ordering and behavior. Do not add producer teardown hooks to duplicate notifications available at the GL command boundary.
-
-Notification registration, dispatch and retirement follow the existing rendering-thread and context rules. The resource lookup is separate from binding knowledge: a valid handle does not prove that an object is currently bound. Existing engine-boundary capture, invalidation and restoration remain authoritative.
-
-## Consumer integration
-
-Use the common handle mechanism to retain borrowed native cloud-map and depth wrappers across stable resource lifetimes. Share an existing owned material-depth texture directly where the consumer already accepts `GpuTexture`. Eligible raw sampler inputs can use the typed wrapper contract and ordinary texture binding cache.
-
-Cloud publication, world/owner selection, upload completion and frame/readiness checks remain integration responsibilities. Review existing allocation hooks according to those responsibilities: remove lifecycle-only work made redundant by StateCache, while retaining observations still required to establish valid cloud content.
-
-Preserve conservative handling for raw IDs whose mutation/deletion paths are not covered. Do not infer persistent tracking merely from a successful `GL.IsTexture` check.
-
-## Scope and layout
-
-The proposal covers the shared handle extraction, integration with existing `GpuResource` implementations, metadata notifications for represented mutable metadata, command-path coverage, and the cloud/depth consumers that motivated persistent borrowing. It preserves resource ownership, render order, shader algorithms and content publication semantics.
-
-Keep handle identity, common StateCache registration/dispatch, typed metadata handling and native call adaptation in files with those individual responsibilities. Do not add a second binding cache, a parallel shader validation cache, or a producer-specific lifetime registry.
-
-Permanent architecture documentation should be reconciled with implemented behavior when implementation occurs.
-
-## Acceptance evidence
-
-The implementation must demonstrate:
-
-- Owning and borrowed aliases share identity; borrowed disposal leaves native storage and other aliases intact; releasing a handle performs no native deletion.
-- Deletion invalidates all aliases, reused names receive fresh identity, kinds and context generations do not collide, and delayed disposal/deletion cannot affect a replacement.
-- Existing pass, lifetime, deferred-deletion and detach behavior remains correct with shared handles.
-- Every applicable API metadata command has an implementation and verification disposition, including bound-target, direct-state-access, multi-object, extension and managed overload variants regardless of current usage. Commands update every associated wrapper; failed operations and refresh failures cannot leave metadata falsely current. Capability-limited test hardware does not waive command support.
-- Metadata revisions invalidate dependent validation appropriately while stable resources retain existing texture-bind suppression.
-- Context retirement, engine-boundary restoration, unknown binding state and unrelated bindings retain their existing correctness guarantees.
-- Native integration coverage is exercised through the actual redirection mechanism, including the cloud/depth mutation and deletion paths. No dedicated borrowed-texture registry or lifecycle-only teardown hook is required.
-- Retained wrapper counts remain bounded through disposal, collection and context retirement.
-
-Measure actual metadata-query and native-bind counts for the migrated consumers against the current implementation. Distinguish those savings from registration/notification costs. Headless correctness and call-count evidence do not establish in-game appearance or frame-time improvements.
-
-Builds and tests are executed through subagents under the repository workflow. Approval of this proposal precedes creation of its implementation checklist.
+Compare actual metadata queries/native binds and outputs/restored state with the retained baseline.
+Measure registration/publication/retirement costs separately. Subagents run builds/tests and canonical
+package checks. Remove temporary ResourceCallObserver tooling after matched measurements, retain replay
+receipts, and verify the clean suite/package. Headless evidence proves neither live appearance nor frame-time
+improvements; game visual acceptance remains user-run.

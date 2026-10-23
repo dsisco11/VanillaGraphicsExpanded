@@ -1,4 +1,4 @@
-# GPU resource handle implementation inventory
+# GPU resource metadata implementation inventory
 
 Planning companion to [the approved proposal](Rendering.GpuResourceHandles.Proposal.md) and
 [implementation checklist](Rendering.GpuResourceHandles.todo). This records the source inventory and
@@ -13,17 +13,17 @@ sync. Registration must occur when a native object exists, not merely when a CPU
 
 | Kind | Existing wrappers / acquisition | Metadata and disposition |
 | --- | --- | --- |
-| Texture | `GpuTexture`: `Texture2D`, `Texture3D`, `DynamicTexture2D` (including `DepthTexture`, `StencilTexture`, `DepthStencilTexture`), `DynamicTexture3D`, `DynamicTextureCube`, `PmjJitterTexture`, `PBR/Clouds/CloudBlueNoiseTexture` | Allocation helpers generate/bind/allocate. Target, dimensions, internal format, allocated mips, immutable-layered flag and storage generation participate in validation/dependencies. Replacement attaches a new handle; in-place storage mutation advances the existing handle revision. Filter mode is an owner policy, not a complete snapshot of arbitrary GL sampler parameters. |
-| Texture | `BorrowedTexture(int)` | Validates `IsTexture`, queries target/base dimensions/format and mip widths. Non-owning; transfer rejected; dispose is local only. Same live native object must share the owner's handle. |
+| Texture | `GpuTexture`: `Texture2D`, `Texture3D`, `DynamicTexture2D` (including `DepthTexture`, `StencilTexture`, `DepthStencilTexture`), `DynamicTexture3D`, `DynamicTextureCube`, `PmjJitterTexture`, `PBR/Clouds/CloudBlueNoiseTexture` | Allocation helpers generate/bind/allocate. Target, dimensions, internal format, allocated mips, immutable-layered flag and storage generation participate in validation/dependencies. Replacement registers the new object; in-place mutation updates canonical metadata and entry revision. Filter mode is an owner policy, not a complete snapshot of arbitrary GL sampler parameters. |
+| Texture | `BorrowedTexture(int)` | Validates `IsTexture`, queries target/base dimensions/format and mip widths. Non-owning; transfer rejected; dispose is local only. Same live native object must share the owner's canonical entry. |
 | Texture | `GpuBufferView`, derived `GpuBufferTexture` | Own the texture name, not the buffer. Buffer ID, format, offset and size describe the view; track texture association changes. Whole-buffer views currently use size zero as a sentinel, not a cached capacity; preserve that convention. |
-| Texture | `GpuTextureView` | Owns a distinct texture object sharing immutable storage, with source reference/ID/generation, target, format, base/count levels and layers. It gets its own object handle, never the source texture's handle. Preserve current source-generation validation. |
+| Texture | `GpuTextureView` | Owns a distinct texture object sharing immutable storage, with source reference/ID/generation, target, format, base/count levels and layers. It gets its own canonical texture entry, distinct from its source. Preserve current source-generation validation. |
 | Buffer | `GpuBufferObject`: `GpuVbo`, `GpuEbo`, `GpuUniformBuffer`, `GpuShaderStorageBuffer`, `GpuAtomicCounterBuffer`, `GpuIndirectBuffer`, `GpuPixelPackBuffer`, `GpuPixelUnpackBuffer` | CreateBuffers with GenBuffer fallback; size/usage are storage metadata. Target is the wrapper's intended binding role. EBO index type/count are authored interpretation/content extent, not discoverable from GL bytes. Pack/unpack methods return mapping pointers to their callers; they do not retain a mapping snapshot for notification to refresh. |
 | Framebuffer | `GpuFramebuffer`: `DynamicGpuFramebuffer`, `StaticGpuFramebuffer` | Generated owners and external non-owning wraps. Attachment dictionary, wrapped extent, surface/pass metadata and dirty publication. External attachment changes refresh actual attachment descriptions, preserving ownership of existing image wrappers. Window-surface format/samples remain on the explicit surface publication path; default framebuffer zero is not a native object handle. Static attachment locks stay in force. |
-| Texture / Renderbuffer | `GpuFramebufferAttachment` | Constructors immediately allocate owned backing storage, or factories retain a typed/raw external image; base `OwnsResource=false`, but owned backing storage is released through its existing disposal queue/finalizer mechanism. Share the backing handle. Selected mip/layer/cube face remain local view choices. External dimensions/format/samples must refresh. `Detach` rejected. |
+| Texture / Renderbuffer | `GpuFramebufferAttachment` | Constructors immediately allocate owned backing storage, or factories retain a typed/raw external image; base `OwnsResource=false`, but owned backing storage is released through its existing disposal queue/finalizer mechanism. Associate with the backing entry and receive an image metadata projection. Selected mip/layer/cube face remain local view choices. External dimensions/format/samples must refresh. `Detach` rejected. |
 | Renderbuffer | `GpuRenderbuffer.Create` / `Wrap` | Create owns; Wrap borrows. Storage format, width, height and actual sample count refresh from native storage. Preserve current transfer semantics rather than treating every wrapper as an owner. |
-| VertexArray | `GpuVao.Create` | Wrapper retains ID/debug name, not a complete attribute mirror. `GpuVertexAttribBinding` is a value configuration helper holding VAO/index/buffer/offset/stride/divisor. Preserve authored geometry descriptions; make stale helper reuse detectable by handle/revision, or resolve current facts before fallback use. No invented global VAO layout cache. |
+| VertexArray | `GpuVao.Create` | Wrapper retains ID/debug name, not a complete attribute mirror. `GpuVertexAttribBinding` is a value configuration helper holding VAO/index/buffer/offset/stride/divisor. Preserve authored geometry descriptions; make stale helper reuse detectable by registration/revision, or resolve current facts before fallback use. No invented global VAO layout cache. |
 | Program | `GpuProgramObject.Create` / `Adopt`, `GpuComputePipeline` | Binding cache/layout and executable revision/context. Compute declarations can begin without an executable and later install one; acquire on installation in its actual context. Relink/binary replacement invalidates prepared executable metadata; existing owner preparation must establish a usable layout again. `Shaders/GpuProgram` and `GpuComputeProgram` are composition owners, not additional GpuResource subclasses. |
-| Shader | `GpuShaderModule` | Adopt/compile/load shader, fixed shader type and authored binding contract. Shader compilation data is not a mutable storage descriptor; program link preparation remains responsible for reflected interfaces. Explicit no-storage-metadata handler. |
+| Shader | `GpuShaderModule` | Adopt/compile/load shader, fixed shader type and authored binding contract. Shader compilation data is not a mutable storage descriptor; program link preparation remains responsible for reflected interfaces. Fixed shader type becomes canonical metadata; no mutable storage refresh. |
 | Query | `GpuQuery` | Generated name; results are queried on demand. No retained mutable resource metadata. |
 | Sync | `GpuFence` | FenceSync creates pointer-shaped native identity; signal/wait result is queried, not cached storage metadata. |
 | TransformFeedback | `GpuTransformFeedback` | Generated object; no retained binding/configuration snapshot in wrapper. StateCache binding state remains separate. |
@@ -48,7 +48,7 @@ Existing enforcement sites: `GpuResource.RequireMutableStorage`/retirement; text
 dynamic resize; renderbuffer allocation; framebuffer Configuration/PassMetadata/SurfaceMetadata/
 Publication; `StaticGpuFramebuffer` frozen attachment references; `RenderPassTargets` pass references;
 `RenderPassSequence` lifetime references; `GpuProgramLifetime` and compute scopes. Move their alias-wide
-counters to the handle, retaining the same checks and releases. Declaration-only state remains local
+counters to the manager entry, retaining the same checks and releases. Declaration-only state remains local
 until realization. Do not introduce a second mutation guard at the adapter boundary.
 
 `GpuResourceManager` drains managed cleanup before native deletion, defers live foreign contexts and
@@ -62,58 +62,119 @@ The controlling coverage matrix is [Rendering.GpuResourceHandles.ApiCoverage.md]
 
 ## Concrete implementation decisions
 
-These are selected mechanics within the proposal, not additional acceptance requirements.
+These mechanics specify the revised future implementation, not behavior already implemented.
 
-* `GpuResourceHandle` carries immutable `(contextHandle, contextGeneration, kind, nint id)` and a unique
-  managed incarnation, `Live -> Retiring -> Deleted` or `Live/Retiring -> ContextRetired`. Terminal states
-  never revive. Metadata availability and `ulong MetadataRevision` are separate from native existence.
-* `StateCache.AcquireResource(kind, id)` returns the existing live handle or registers a validated object;
-  `AssociateResource(handle, wrapper)` / `UnregisterResource(handle, wrapper)` maintain weak wrapper
-  references. The context registry holds handles strongly until observed deletion/context retirement,
-  so collecting all wrappers cannot create competing incarnations. Prune expired associations on
-  acquisition, dispatch, unregister and context cleanup; keep no strong wrapper references. Retention
-  is bounded by live registered native objects plus live associations, not by number of acquisitions.
-  Owning creation uses `RegisterCreatedResource(kind, id)` at the existing creation boundary: generated
-  names can be reserved before first bind and have unavailable storage metadata until initialized.
-  External acquisition must validate the realized object; a generated name alone is insufficient.
-  CPU-only compute declarations and default framebuffer zero have no object handle. Compute installation
-  transfers the candidate handle association with its executable; it does not create a new incarnation.
-  `StateCache.Current` is thread-static today, so the resource lookup must be keyed by registered context
-  generation rather than treated as another thread-local binding dictionary. Keep the common lookup in
-  StateCache's resource partial, synchronize retirement/registration access, and subscribe once to
-  `RenderContextRegistry.Retiring`. Thread-local binding invalidation must not clear live identities.
-* `GpuResource.HandleMetadataChange(in GpuResourceMetadataChange change)` is abstract. The description
-  carries family, affected subresource and revision plus established values when available. Native
-  metadata readers are typed; common dispatch does not inspect texture fields. Mark affected metadata
-  unavailable before dispatch, visit every live association even if one fails, and publish a wrapper's
-  current revision only after its complete refresh succeeds. Publish handle metadata availability only
-  after all applicable refreshes succeed; one failure therefore keeps dependent use fail-closed across
-  aliases. Exceptions follow existing caller policy. A later successful refresh can restore metadata,
-  never a deleted handle. New associations must refresh against the current revision before becoming usable.
-* Default mutation mechanics use targeted native readback of represented fields after the command;
-  do not drain `GetError` or assume a nonthrowing GL call succeeded. Initialize query outputs to invalid
-  sentinels, validate the complete result and object/context identity. A rejected command may therefore
-  report unchanged actual storage; it must not report requested storage. Unqueryable/unsupported facts
-  remain unavailable. Existing caller-owned error boundaries remain untouched. Use arguments without
-  readback only where an existing validated operation establishes them; measure refresh costs separately.
-* `GpuDeletionCommand` carries the originating handle/incarnation in addition to the existing context.
-  Owner retirement atomically marks Retiring; drain deletes only that registered incarnation in its
-  live origin context. Observed external deletion terminally retires it and removes the lookup, so an
-  old queue item/owner cannot delete its replacement. Raw deletion adapters still execute the requested
-  native command and apply binding consequences; they resolve notification identity at execution.
-  Failed deletion leaves managed use unavailable and preserves existing shutdown policy. List adapters
-  preserve native ordering and per-object outcomes rather than treating a list as an atomic transaction.
-  Managed enqueue paths capture the identity before leaving the owning context; they must not reacquire
-  a handle by numeric ID at drain time. Worker retirement changes only thread-safe handle state and
-  queues work; registry mutation and native metadata queries remain on the origin context thread.
-* Wrapper native replacement detaches its old association and acquires a new handle. `Detach` removes
-  only the transferring wrapper association, keeping the live registry entry and other aliases intact.
-  No native deletion is attached to handle release. Context retirement removes entries and invalidates
-  aliases without issuing GL calls. Shared-context namespaces remain outside scope.
-* Metadata revisions augment existing `ShaderInputValidation.InputKey`, not a parallel history. Retain
-  complete-input validation before publication and independent StateCache binding comparisons. Metadata
-  refresh also feeds existing attachment observers and source-generation dependencies. Availability is
-  checked at dependent operations, including concrete `new IsValid` paths.
+### Canonical metadata schemas and field migration
+
+Each struct is a value snapshot. Variable-length members are immutable after publication. Lifecycle,
+availability and revisions belong to the manager entry, not native metadata. Native IDs/ranges use
+native-width representation; narrower existing accessors must reject values they cannot represent.
+
+| Kind / canonical struct | Native fields and wrapper migration | Local or derived state | API families |
+| --- | --- | --- | --- |
+| Texture / `GpuTextureMetadata` | Target; per-level/per-face dimensions, format, samples and allocated state; immutable storage/level count; base/max levels and legacy automatic-mipmap state needed to interpret effects. Optional buffer association (ID/format/offset/range/whole-buffer mode), texture-view range (base/count levels/layers) and renderbuffer association. `GpuTexture` and all subclasses, `GpuBufferView`/`GpuBufferTexture` and `GpuTextureView` use this struct; their native descriptor fields become accessors. | FilterMode, labels, streaming and uploads remain local. The managed view source/reference/ID certificate and captured source storage revision remain dependency state: arbitrary external views do not expose a queryable source name. `StorageGeneration` reads entry storage revision; source validation also checks its original registration. | T1–T5, I1, L1, C1 |
+| Buffer / `GpuBufferMetadata` | Actual byte capacity and usage; `sizeBytes/usage` become accessors in `GpuBufferObject`, inherited by VBO/EBO/UBO/SSBO/atomic/indirect/pixel pack/unpack wrappers. | Intended target, EBO index type/count, queued uploads, mapping scopes, growth policy and labels remain local. No content or mapping-ownership mirror. | B1, I1, L1 |
+| Renderbuffer / `GpuRenderbufferMetadata` | Width/height/format and actual samples; `storage/width/height/samples` become accessors. | Ownership and labels remain local. | R1, L1 |
+| Framebuffer / `GpuFramebufferMetadata` | Immutable attachment descriptors keyed by slot: kind/ID, mip, layer/face, layered state and represented multiview selection; attachmentless default dimensions/layers/samples where applicable. Image facts resolve through backing entries. | Retained image wrappers/ownership, frozen locks, dirty/publication state, viewport fallback extent and surface metadata stay local. The wrapper dictionary reconciles from descriptors rather than independently defining native facts. Pass extent/format are derived; routing stays in existing StateCache routing cache. | F1, backing T/R changes, L1, C1 |
+| VertexArray / `GpuVertexArrayMetadata` | Empty struct: `GpuVao` has no retained native layout fields. Entry revision invalidates represented helper assumptions; no full attribute mirror. | `GpuVertexAttribBinding` is an authored value helper, not a resource. Capture registration/revision for its facts; after mutation, resolve the selected current buffer/offset/stride/divisor before fallback reuse or reject unavailable facts. Vertex contents stay external. | V1, L1, C1 |
+| Program / `GpuProgramMetadata` | Native executable/interface availability and immutable native interface facts used by existing preparation. `GpuProgramObject` and `GpuComputePipeline` share this type. Reflected facts no longer have independent authoritative mutable copies in `bindingCache/programLayout`. | Existing `GpuProgramLayout` remains a derived prepared interface combining native facts with authored contract/policy, stamped with entry revision. Settings, callbacks and context stay local. Owner installation revision remains local across replacement objects; native relink revision is entry-owned. | P1, L1 |
+| Shader / `GpuShaderMetadata` | Fixed shader type; `shaderType` becomes an accessor. | Authored BindingContract and compilation inputs stay local; no mutable storage descriptor. | acquisition, L1 |
+| Query / `GpuQueryMetadata` | Empty struct. | Results queried on demand. | L1 |
+| Sync / `GpuSyncMetadata` | Empty struct; pointer ID is registration state. | Signal/wait results queried on demand. | L1 |
+| TransformFeedback / `GpuTransformFeedbackMetadata` | Empty struct. | No retained configuration mirror. | L1 |
+| Sampler / `GpuSamplerMetadata` | Empty struct. | No retained parameter snapshot. | L1 |
+| ProgramPipeline / `GpuProgramPipelineMetadata` | Empty struct. | No retained stage/program mirror. | L1 |
+| Semaphore / `GpuSemaphoreMetadata` | Empty struct. | Import ownership/capability policy remains local. | L1; I1 no represented mutation |
+| MemoryObject / `GpuMemoryObjectMetadata` | Empty struct. | Import ownership/capability policy remains local. | L1; I1 no represented mutation |
+
+`GpuFramebufferAttachment` represents either image kind and derives from `GpuResource<GpuImageMetadata>`.
+The manager projects selected dimensions, format and samples from canonical texture/renderbuffer metadata
+into that image struct. Local mip/layer/cube-face selection determines the projection. Former external
+width/height/format/sample fields become accessors; backing reference, ownership and selection remain
+local. Projection uses canonical data without another query or entry. Unsupported selections make that
+association unavailable. It is a typed view of the backing entry, not a second canonical metadata source.
+
+### Manager API and generic base
+
+Use per-kind dictionaries keyed by `nint` inside the context-scoped manager. Each value contains its
+canonical struct, weak associations, metadata availability/revisions and existing shared guard counters.
+No separate `GpuResourceHandle` is needed: the internal entry supplies registration state. References
+to that entry are neither generation counters nor registry keys.
+
+Planned internal operation contracts:
+
+- `RegisterCreatedResource(kind, id)` registers a created/reserved name without inventing storage.
+- `AcquireResource(kind, id)` reuses existing canonical metadata or validates/captures an external object.
+  A generated but unrealized external name is insufficient.
+- `AssociateResource(entry, wrapper)` / `UnregisterResource(entry, wrapper)` initialize typed snapshots,
+  maintain weak associations and prune expired references. Image associations include local selection.
+- `RefreshMetadata(entry, change)` establishes a complete canonical candidate once, updates the entry,
+  then publishes typed snapshots. Per-kind manager readers query GL; wrappers do not. Untracked commands
+  still execute normally without eagerly populating a speculative registry of every native object.
+- `RetireResource(entry)` / `ObserveDeletion(kind, id)` integrate scheduled owner retirement and observed
+  native deletion, invalidate associations and cancel obsolete queued work.
+
+`GpuResource<TMetadata> : GpuResource where TMetadata : struct` declares `protected TMetadata metadata;`
+and public non-virtual `void HandleMetadataChanged(TMetadata data) { metadata = data; }`. Native metadata
+accessors read this field. The non-generic base retains disposal/ownership and its manager association.
+Manager publication handles validity/revision and dependent observers outside this simple assignment.
+No abstract per-wrapper metadata-query handler remains.
+
+CPU declarations retain requested creation parameters locally until native realization. Register in the
+actual owning context. Default framebuffer zero stays on surface publication with no native entry.
+Program installation transfers the candidate association without duplicate registration. Unregistered
+or offline paths remain conservative until a live manager exists; a thread-local StateCache does not
+confer persistent tracking. A fresh registered context lifetime requires a fresh manager/registry;
+never retarget an existing manager. Preserve existing RenderContextRegistry checks at the manager
+boundary, not in resource keys. Subscribe once per manager to context retirement, unsubscribe on shutdown.
+Native queries and registry mutation occur on the owning context thread. Worker retirement only marks
+existing entry state atomically and queues work; existing exception policy remains.
+
+### Publication, failure and validation
+
+Mark affected metadata unavailable before refresh. Read represented fields into one complete candidate;
+do not drain GetError or assume a nonthrowing native call succeeded. Initialize outputs to invalid
+sentinels and validate results in the original context. Rejected operations publish actual unchanged
+facts, never requested values. Use arguments only when an existing validated operation establishes the
+result. Unqueryable facts stay unavailable; do not invent storage.
+
+Commit canonical metadata, assign all typed snapshots, then expose the revision as available and notify
+existing dependents. Do not invoke arbitrary dependent observers between assignments. Failed refresh
+keeps all affected aliases unavailable. If a projection or dependent notification fails, continue other
+notifications and keep affected dependent use unavailable under existing error policy. Successful later
+refresh may recover metadata, never a deleted registration. New associations receive a current snapshot
+before becoming usable. Collections shared through struct copies must be immutable.
+
+Entry MetadataRevision advances for changed facts or executable/configuration invalidation. StorageRevision
+advances for storage replacement effects, including equal-sized reallocation where existing source
+storage dependencies require it. Neither is an ID generation. Existing owner notification paths consume
+manager publication once without duplicate increments. Extend existing ShaderInputValidation.InputKey
+with registration/revision alongside current facts; preserve complete-input validation and the existing
+cache. Program preparation rebuilds derived layouts for the current native revision. Attachment projections
+and framebuffer observers invalidate pass metadata without bypassing frozen locks. Native binding
+knowledge, producer content readiness and frame qualification remain independent.
+
+### Retirement, ownership and retention
+
+Entry states are Live -> Retiring -> Deleted or Live/Retiring -> ContextRetired; terminal entries never
+revive. Owner retirement makes the entry unavailable to managed use and queues native deletion under
+existing policy. A queue item retains its original entry; execution requires that exact entry still be
+registered in the original manager. Never reacquire by numeric ID during drain. External deletion removes
+the entry, invalidates wrappers and cancels pending deletion. Reused names get new entries; old owners
+cannot delete them. Native deferred destruction remains intact: notification concerns the deleted name
+and affected represented dependencies, not a claim that driver storage has already been reclaimed.
+List outcomes preserve ordering and per-object failures. Failed deletion keeps managed retirement unavailable.
+
+Borrowed disposal only unregisters its association. Detach unregisters the transferring wrapper while
+preserving the live native entry; borrowed transfer remains rejected. Replacement detaches the old
+association and acquires the new object. Alias-wide guard counters live in the entry with existing
+checks/releases; declaration-only state remains local until realization. Do not duplicate mutation
+guards at adapters. Context retirement clears the registry, invalidates aliases and discards pending
+native work without issuing GL into another context.
+
+Strong entry retention is bounded by live registered native objects. Weak associations are pruned on
+acquisition, publication, unregister and teardown. Wrapper collection cannot erase a live tracked
+object's metadata; registration never adds native ownership.
 
 ## Native coverage and consumer gates
 
@@ -168,7 +229,7 @@ signatures in the matrix, and `BufferStorage(BufferTarget,int,IntPtr,BufferStora
 ## Validation and restoration dependencies
 
 `ShaderPreparedSubmission` checks lifetime each use; `ShaderInputValidation` keys already contain wrapper,
-numeric ID, target/format/dimensions/mips or view/range/capacity. They lack incarnation/revision and assume
+numeric ID, target/format/dimensions/mips or view/range/capacity. They lack registration revision and assume
 wrapper fields are current. Raw sampler submission checks `IsTexture` and invalidates its unit before
 binding. Typed publication can suppress known-equal binds. Preserve both paths until coverage permits migration.
 
@@ -176,7 +237,7 @@ binding. Typed publication can suppress known-equal binds. Preserve both paths u
 texture bindings after deletion. `StateCache.ResourceSlots` keys all image view parameters and indexed
 buffer ranges. `StateCache.BoundaryBindings` captures/reconciles incoming state and refuses restoration
 of retired names. Context retirement and unknown-state recovery remain independent of resource validity;
-a shared live handle is never evidence that an object is bound. Review source as authoritative over the
+a live registration is never evidence that an object is bound. Review source as authoritative over the
 historical findings in `Rendering.ShaderBindingState.md`; its Prepared resource submission section
 describes the current validation path.
 
@@ -184,6 +245,11 @@ describes the current validation path.
 ## Reproducible baseline
 
 Source HEAD: `35e1481c9d6f94ef8de4fdded5499bccf6a11867`; runtime implementation unchanged.
+Applicability rechecked for the manager-owned metadata plan: all 40 artifact-manifest entries and
+2,701 source-manifest paths match their recorded hashes; runtime/build sources match the baseline.
+The retained 105-case and 3-case test receipts and package/test shader identities remain valid.
+No baseline rerun was needed for documentation-only reconciliation. New registration/publication costs
+remain implementation measurements, not costs claimed by these baseline fixtures.
 [Baseline artifacts](../artifacts/gpu-resource-handles-baseline/) retain the source archive, final test
 instrumentation patch/source manifest, full test-output ZIP, canonical package ZIP, binary/package
 SHA256 manifests and exact fixture outputs. [replay.ps1](../artifacts/gpu-resource-handles-baseline/replay.ps1)
