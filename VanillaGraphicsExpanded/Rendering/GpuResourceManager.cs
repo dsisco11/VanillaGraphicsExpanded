@@ -9,7 +9,7 @@ using Vintagestory.API.Client;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Drives resource uploads and deferred disposal on the engine render thread.</summary>
-internal sealed class GpuResourceManager : IRenderer, IDisposable
+internal sealed partial class GpuResourceManager : IRenderer, IDisposable
 {
     internal const EnumRenderStage Stage = EnumRenderStage.AfterFinalComposition;
     private const double RenderOrderValue = 0.9999;
@@ -131,6 +131,7 @@ internal sealed class GpuResourceManager : IRenderer, IDisposable
         {
             DrainDeletionQueue();
         }
+        RetireMetadataRegistry();
         while (deletionQueue.TryDequeue(out _)) { }
         while (bufferUploadQueue.TryDequeue(out _)) { }
     }

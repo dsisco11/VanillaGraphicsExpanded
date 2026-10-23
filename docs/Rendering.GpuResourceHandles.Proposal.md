@@ -16,7 +16,9 @@ Borrowed resources participate in this same mechanism, preserving normal binding
 [GpuResource](../VanillaGraphicsExpanded/Rendering/GpuResource.cs) currently combines identity, disposal,
 ownership, usage guards, context capture and deletion scheduling. [BorrowedTexture](../VanillaGraphicsExpanded/Rendering/BorrowedTexture.cs)
 queries metadata at construction and relies on callers to retire stale data. [GpuResourceManager](../VanillaGraphicsExpanded/Rendering/GpuResourceManager.cs)
-currently schedules uploads and deletion; it has no canonical metadata registry.
+now also provides canonical metadata registration/publication primitives and the generic snapshot base.
+Existing wrappers and consumers still use their original paths; lifecycle and command integration remain
+unchecked in the implementation checklist.
 [StateCache.TextureLifetime](../VanillaGraphicsExpanded/Rendering/StateCache.TextureLifetime.cs) handles
 texture deletion's binding/restoration effects. [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs)
 redirects specific GL signatures, not every operation. Mutation and deletion coverage requires expansion,
@@ -27,20 +29,22 @@ including kinds currently deleted directly through GL.
 | Component | Responsibility |
 | --- | --- |
 | GpuResourceManager | Context-scoped registry, canonical metadata, registration validity, shared existing guard state, snapshot publication and deferred deletion. |
-| GpuResource | Wrapper-local ownership/disposal, association with a registration, and existing deletion scheduling contract. |
-| GpuResource<TMetadata> | Protected metadata struct; public HandleMetadataChanged(TMetadata data) implementation assigns that snapshot. |
+| GpuResource | Native identity, wrapper-local ownership/disposal and existing deletion scheduling contract. No metadata members or notification contract. |
+| GpuResource<TMetadata> | Protected metadata struct and public HandleMetadataChanged(TMetadata data) that assigns the snapshot. No registration, availability, revision or subscription state. |
 | Typed resource wrappers | Resource-specific operations and metadata accessors; authored policy remains local. |
 | StateCache | Executes/observes native operations and forwards changes to the manager; retains binding/restoration knowledge. |
 | Rendering integrations | Resource selection, producer content readiness and frame qualification. |
 
-There is no separate `GpuResourceLifetime`, public `GpuResourceHandle`, or borrowed-resource registry.
-The manager entry already supplies the registration state needed by wrappers and queued deletion.
+The readonly value `GpuResourceHandle` contains resource kind and native-width ID as a registry key.
+It carries no ownership or lifetime state. There is no separate `GpuResourceLifetime` or borrowed-resource
+registry; registration membership and the entries used by queued deletion stay inside the manager.
 
 ## Canonical metadata and registration
 
-Each resource kind has a canonical struct. The manager uses per-kind registries keyed by native-width
-ID. Each registry belongs to one manager/context lifetime. No context generation or incarnation counter
-belongs in the resource key. Existing context checks remain at manager selection/native execution.
+Each resource kind has a canonical struct. The manager owns one `ConcurrentDictionary<GpuResourceHandle,
+GpuResourceRegistration>` for its context lifetime. Entries retain canonical metadata and a concurrent
+collection of weak resource recipients. No context generation or incarnation counter belongs in the
+resource key. Existing context checks remain at manager selection/native execution.
 
 Wrappers of the same native object receive snapshots of the same canonical metadata. Deletion removes
 its entry, invalidates associated wrappers and cancels obsolete queued deletion. A reused numeric ID
@@ -51,8 +55,11 @@ Registration neither grants native ownership nor deletes storage when a referenc
 `GpuResource<TMetadata> : GpuResource where TMetadata : struct` declares `protected TMetadata metadata;`
 and public non-virtual `void HandleMetadataChanged(TMetadata data)` whose body assigns `metadata = data`.
 Existing resource abstractions inherit this base directly or through their existing typed superclass.
-Native metadata properties become accessors over this field; IDs, availability and revision are
-registration state. Ownership, disposal, authored policy and selected subresources remain local.
+Native metadata properties become accessors over this field. The generic base handles snapshot assignment;
+the non-generic base has no metadata responsibilities. The manager owns registration validity,
+availability, revisions and subscription membership. Metadata-dependent validation asks the manager
+about the wrapper's original association; neither base stores that association or runs a tracking state machine.
+Ownership, disposal, authored policy and selected subresources remain local.
 
 The [inventory](Rendering.GpuResourceHandles.Inventory.md#canonical-metadata-schemas-and-field-migration)
 specifies structs, field migration and the image projection for attachments that can reference textures
@@ -66,9 +73,15 @@ unavailable until established. CPU declarations register only upon native realiz
 mutation/deletion paths retain conservative handling; registration alone cannot promise continuing validity.
 No producer-specific allocation certificate is needed for a live object with covered subsequent commands.
 
-Associations are weak and explicitly removed on disposal. Prune expired references on acquisition,
+Recipients are weak and explicitly removed on disposal. Use a concurrent dictionary as a removable
+recipient set; no per-wrapper association object or projection delegate is needed. Registration lookup
+and recipient removal can run on other threads. Native acquisition, association initialization and
+metadata publication remain on the originating context thread. Prune expired references on acquisition,
 publication, unregister and teardown. Entries persist until native deletion or context retirement even
 when wrappers are collected. Shared-context namespace generalization remains outside scope.
+The entry finds recipients by wrapper identity for explicit removal; wrappers retain neither a weak slot
+nor a registration back-reference. The manager retains original association identity through weak keys,
+so assigning snapshot data or reusing a numeric name cannot restore a retired association.
 
 ## Ownership, retirement and guards
 
@@ -91,7 +104,9 @@ at the native adapter boundary. Preserve static framebuffer locks and existing r
 StateCache forwards metadata-changing commands to the manager. Typed manager readers establish a complete
 canonical candidate once, then the manager commits it and assigns snapshots to all associated wrappers.
 Wrappers do not independently query native metadata. Generic notification is only assignment; manager
-publication coordinates availability, revisions and existing dependent observers outside that method.
+publication maintains availability and revisions and coordinates existing dependent observers outside
+that method. Pending owner retirement, deletion and context retirement make the original association
+unusable in the manager; refresh failures leave its metadata unavailable until a complete recovery.
 
 Publish after native operations, using arguments only where actual results are established, otherwise
 using targeted readback. Preserve existing error handling. A nonthrowing GL call does not prove success;

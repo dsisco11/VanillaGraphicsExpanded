@@ -15,11 +15,14 @@ public abstract class GpuResource : IDisposable
     private readonly (nint Handle, long Generation) nativeContext = Integration.RenderContextRegistry.Current();
     protected virtual (nint Handle, long Generation) NativeProgramContext => default;
 
-
+    /// <summary>Exposes the wrapper's native resource kind.</summary>
+    internal GpuResourceKind Kind => ResourceKind;
 
     #region Public API
+    /// <summary>Reports whether this wrapper has been disposed.</summary>
     public bool IsDisposed => Volatile.Read(ref disposed) != 0;
 
+    /// <summary>Reports whether this wrapper retains a nonzero native identity and has not been disposed.</summary>
     public bool IsValid => ResourceId != 0 && !IsDisposed;
 
     /// <summary>

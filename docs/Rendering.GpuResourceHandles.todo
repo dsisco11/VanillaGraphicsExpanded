@@ -2,8 +2,8 @@ GPU resource metadata registry and typed resource wrappers
 =========================================================
 
 Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
-Status: Phase 1 complete after second review and independent completion audit. Runtime migration has not started.
-Reconciled design documents and retained baseline receipts satisfy the revised Phase 1 contract.
+Status: Phase 2 foundations implemented and verified. Wrapper migration has not started.
+Canonical metadata and manager registry primitives are implemented and verified; later integration remains unchecked.
 
 Planning authority
   The governing contracts record the agreed manager-owned metadata direction. The linked proposal,
@@ -12,7 +12,8 @@ Planning authority
 Goal and governing contracts
   Define one canonical metadata struct for each resource kind. GpuResourceManager owns the common
   registry of native resource metadata within its context lifetime. Key entries by resource kind and
-  native-width ID, or use per-kind dictionaries keyed by ID; no context-generation or incarnation key.
+  native-width ID through a readonly GpuResourceHandle value in a manager-owned ConcurrentDictionary.
+  Entries retain canonical metadata and concurrent weak recipients; no context-generation or incarnation key.
   Deletion removes the entry and invalidates its associated wrappers. Reused IDs receive fresh entries.
   Context destruction retires the manager's registry and associations together.
   StateCache forwards observed metadata-altering commands to GpuResourceManager, which updates the
@@ -21,9 +22,15 @@ Goal and governing contracts
   HandleMetadataChanged(TMetadata data) implementation that assigns the stored struct. Existing
   resource abstractions derive from this base and expose native metadata through inherited-field
   accessors. The manager owns canonical state; wrapper structs are synchronized snapshots.
+  The manager owns metadata availability, revisions, subscription membership and retirement state.
+  GpuResource<TMetadata> only stores and assigns typed metadata snapshots; it has no tracking state
+  machine or lifecycle notification handlers. Non-generic GpuResource retains native identity,
+  ownership and lifecycle only. Metadata-dependent validation queries the manager's original association.
+  No registry-entry or weak recipient-slot back-reference is stored in wrappers.
   Retain wrapper-local ownership, disposal, subresource selection and authored policy outside native
   metadata structs. Retain existing ownership and deletion scheduling responsibilities.
-  The manager entry supplies shared registration state; no separate GpuResourceHandle is required.
+  GpuResourceHandle is only the kind/ID value key. The manager entry supplies shared registration state;
+  no separate owning or lifetime-bearing handle object is required.
   Preserve existing context/thread restrictions, ownership, guard rules, scheduling, render order,
   shader algorithms, content readiness and frame qualification. Reuse existing guard enforcement.
   No GpuResourceLifetime, dedicated borrowed-resource registry, duplicate binding/validation cache,
@@ -106,26 +113,75 @@ Phase 2: Establish canonical metadata and the manager registry
   Depends on Phase 1.
   Outcome: typed metadata storage, registration and publication primitives are testable before migration.
 
-  ☐ Define the canonical metadata structs approved in Phase 1, with native metadata separated from
+  ☑ Define the canonical metadata structs approved in Phase 1, with native metadata separated from
     ownership, content and wrapper-local policy. Preserve native-width IDs.
-  ☐ Add GpuResourceManager registry lookup/acquisition, association removal and context retirement.
+  ☑ Add GpuResourceManager registry lookup/acquisition, association removal and context retirement.
     Live aliases share a canonical entry; deletion removes it; reused IDs create fresh entries.
     Scope the registry to the manager's context lifetime; keys contain resource kind and ID only.
     Initial external acquisition validates resource kind and metadata under the established coverage
     contract, without requiring producer-specific allocation certificates.
-  ☐ Implement non-owning wrapper associations, explicit unregister and expired-association cleanup.
+  ☑ Implement non-owning wrapper associations, explicit unregister and expired-association cleanup.
     Ensure wrapper collection does not discard canonical metadata for a still-tracked native object.
-  ☐ Implement manager-owned typed metadata updates and snapshot publication, including initial
+  ☑ Implement manager-owned typed metadata updates and snapshot publication, including initial
     registration and the agreed unavailable-metadata behavior. Refresh canonical data once per change
     and distribute it; wrappers must not independently query GL to refresh their snapshots.
-  ☐ Introduce GpuResource<TMetadata> with the protected metadata field and public
+  ☑ Introduce GpuResource<TMetadata> with the protected metadata field and public
     HandleMetadataChanged(TMetadata data) assignment implementation.
-  ☐ Implement entry-owned metadata/storage revisions and existing alias-wide usage-guard state.
-    Keep registration internal to the manager; no separate handle abstraction is needed.
-  ☐ Have subagents verify canonical entry sharing, kind/context separation, native-width IDs, snapshot
+  ☑ Implement entry-owned metadata/storage revisions and existing alias-wide usage-guard state.
+    Keep registration internal to the manager; GpuResourceHandle carries only the concurrent map key.
+  ☑ Have subagents verify canonical entry sharing, kind/context separation, native-width IDs, snapshot
     publication, name reuse, non-owning registration, cleanup and context retirement.
-  ☐ Completion: primitives satisfy identity/retention contracts; existing wrappers remain operational.
+  ☑ Completion: primitives satisfy identity/retention contracts; existing wrappers remain operational.
     New tracking is not advertised to consumers before lifecycle and command coverage are integrated.
+
+  Initial foundation qualification: second review and independent completion audit passed. Release build passed; 124 related tests passed
+  (105 existing and 19 new), with no failures or skips. Canonical Release SPIR-V packaging passed;
+  the packaged runtime matches the tested DLL and all 761 packaged shaders match tested assets.
+  Receipts: [tests](../artifacts/gpu-resource-metadata-phase2/regression-final-v3.trx),
+  [build](../artifacts/gpu-resource-metadata-phase2/build-final-v3.log),
+  [package](../artifacts/gpu-resource-metadata-phase2/package-final-v2.log),
+  [identity](../artifacts/gpu-resource-metadata-phase2/identity-final-v3.json).
+
+  Concurrent-container revision: one ConcurrentDictionary keyed by the kind/ID GpuResourceHandle value
+  replaces per-kind maps and a registry-wide lock. Entries retain canonical metadata and a concurrent
+  weak resource recipient set; typed/image dispatch needs no association objects or projection delegates.
+  Identity lookup and recipient removal support concurrent callers; native acquisition, recipient
+  initialization and metadata publication retain originating-context thread affinity.
+  Release SPIR-V build passed; 126 related tests passed with no failures or skips. The three concurrent
+  lookup/removal/publication/retirement tests also passed five repetitions (15 test executions).
+  Receipts: [build](../artifacts/gpu-resource-concurrent-registry/build-final.log),
+  [tests](../artifacts/gpu-resource-concurrent-registry/regression-final.trx).
+  The package/identity receipts above qualify the initial foundation candidate, before this revision.
+
+  Earlier manager-notification correction (wrapper-local state superseded below): resources retain neither registration references nor weak recipient
+  slots. The manager pushes initial/changed metadata, recoverable unavailability, revision snapshots and
+  terminal retirement. Old or delayed availability notifications cannot revive retired wrappers.
+  Release SPIR-V build passed; 128 related tests passed with no failures or skips. Six concurrent and
+  retirement cases passed ten repetitions (60 test executions).
+  Receipts: [build](../artifacts/gpu-resource-notifications/build.log),
+  [tests](../artifacts/gpu-resource-notifications/related.trx).
+
+  Earlier generic metadata boundary correction (tracking responsibilities superseded below): only GpuResource<TMetadata> owns metadata snapshots,
+  availability, revisions, selected-image metadata and manager notification handlers. Manager entries
+  dispatch through an internal recipient interface implemented only by the generic class.
+  Non-generic GpuResource has no metadata members or notification contract.
+  Release SPIR-V build passed with 0 errors; 128 related tests passed with no failures or skips,
+  including retired validity through a non-generic resource reference.
+  Receipts: [build](../artifacts/generic-metadata-boundary/build.log),
+  [tests](../artifacts/generic-metadata-boundary/related.trx).
+
+  Manager-owned tracking correction: GpuResource<TMetadata> retains the snapshot field and assignment
+  handler, with no subscription state machine, availability/revision copies, metadata validity override
+  or lifecycle notification interface. Manager entries own recipient membership and successful snapshot
+  delivery; canonical availability, revisions and retirement remain entry-owned. A manager-owned weak-key
+  association table preserves original registration identity without retaining wrappers or storing
+  back-references in them. Metadata-dependent validation queries this original association, so direct
+  snapshot assignment and native ID reuse cannot revive retired associations.
+  MetadataImageSelection remains temporary scaffolding until the explicit Phase 3 migration below.
+  Release SPIR-V build passed with 0 errors; 128 related tests passed with no failures or skips.
+  Six concurrency/retirement cases also passed five repetitions (30 additional test executions).
+  Receipts: [build](../artifacts/manager-metadata-tracking/build.log),
+  [tests](../artifacts/manager-metadata-tracking/related.trx).
 
 Phase 3: Integrate wrapper ownership and native retirement
   Depends on Phase 2.
@@ -134,8 +190,18 @@ Phase 3: Integrate wrapper ownership and native retirement
   ☐ Migrate every existing resource abstraction to GpuResource<TMetadata> using its canonical struct.
     Replace duplicated native metadata fields with accessors over the inherited metadata snapshot.
     Retain wrapper-local disposal, ownership, subresource selection and authored policy. Initialize
-    snapshots from manager registration and combine wrapper state with registration validity checks.
+    snapshots from manager publication; validate availability, revisions and retirement through manager
+    APIs. Resolve shared guards and membership through manager APIs without storing
+    registration or weak recipient-slot references in wrappers.
     Preserve initialization of CPU declarations and existing originating-context restrictions.
+  ☐ Move MetadataImageSelection out of GpuResource<TMetadata> into the image-specific wrapper
+    (GpuFramebufferAttachment) during wrapper migration. Its current placement is temporary foundation
+    scaffolding, not the intended generic-base contract. Neither GpuResource nor GpuResource<TMetadata>
+    should retain image-specific selection fields or dependencies after this migration.
+    Update manager image association/projection to read mip/layer/cube-face/layered selection from the
+    image-specific wrapper, and adapt the image projection fixtures to that wrapper boundary.
+    Verify canonical backing metadata still produces the correct selected-image snapshot and that
+    unsupported selections remain unavailable without affecting other aliases.
   ☐ Integrate alias-wide pass/lifetime guard state at the location agreed in Phase 1; reuse current checks and
     release paths. Verify references cannot bypass existing guard rules by using another wrapper.
   ☐ Integrate GpuResourceManager scheduling: mark retiring allocations unavailable to managed use,
@@ -154,6 +220,7 @@ Phase 3: Integrate wrapper ownership and native retirement
     queued deletion, detach, guards, context retirement and unaffected bindings/restoration.
     Exercise native deletion through actual EngineStateCallMap redirection, not only direct fixtures.
   ☐ Completion: all inventoried lifecycle paths pass; no parallel borrowed lifetime mechanism exists.
+    Image selection belongs to the image-specific wrapper; both resource bases are image-independent.
     Persistent consumer metadata remains gated on the next phase's complete mutation coverage.
 
 Phase 4: Implement metadata notifications and revision-aware validation

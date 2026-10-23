@@ -12,9 +12,10 @@ core/compatibility features and extensions whose supported API includes `gl` or 
 are a separate API; a desktop extension is included even if its name has an OES suffix. The retained
 registry snapshot has SHA256 `B9CA2CFA5C676E901C20D34AF3407F1687CDE0F1336A5FF7A8974D04C7494AD3`.
 The [expanded matrix](../artifacts/gpu-resource-handles-baseline/api-command-matrix.csv) preserves native
-signatures; [the expansion script](../artifacts/gpu-resource-handles-baseline/classify-api.ps1) and
+signatures from the retained baseline expansion; [the expansion script](../artifacts/gpu-resource-handles-baseline/classify-api.ps1) and
 [registry snapshot](../artifacts/gpu-resource-handles-baseline/gl.xml) make that enumeration reproducible.
-These are API inspection artifacts, not reflection tests or a whitelist of callers.
+These are API inspection artifacts, not reflection tests or a whitelist of callers. The expanded names
+below also include subsequent field-to-command reconciliation; retain the baseline artifacts unchanged.
 
 The family rules are authoritative over the helper's name matching. Review semantics for aliases and
 indirect effects; a missing spelling must be added, never inferred to be out of scope. Future registry
@@ -69,7 +70,7 @@ The metadata revision used to invalidate stale assumptions is registration bookk
 | R1 | RenderbufferStorage, named storage, multisample/coverage/advanced-sample aliases | Refresh actual dimensions, format and sample values, propagate to dependent attachments. | Bound/DSA allocation, rounded sample counts, rejection and alias refresh. |
 | F1 | Framebuffer texture/renderbuffer attachment, face/layer/multiview variants, default-parameter and draw/read-routing variants | Refresh attachment identity/subresource and derived target metadata; preserve ownership. Route draw/read-buffer commands through the existing routing cache. Classify default-FBO parameters separately from window-system surface publication. | All attachment forms, detach via zero, split read/draw targets, partial configurations and affected publication revisions. |
 | V1 | Vertex attribute pointer/format/binding/divisor/enables, vertex-buffer multi-bind, element-buffer binding, compatibility array configuration | Revise represented VAO configuration and stale helper assumptions. Resolve current VAO and latched buffer dependencies. Compatibility-only attributes absent from wrappers have an explicit no-represented-field effect, not an omitted adapter. | Bound/DSA, multi-bind partial failure, generic/integer/double formats, enablement/divisor, EBO association, stale helper use and unrelated VAOs. |
-| P1 | Link/binary installation, shader-program creation, interface block bindings and link-input configuration | Invalidate reflected executable layout on actual relink/binary/interface changes; use existing preparation flow. Attach/detach/bind-location/transform-feedback declarations affect the next link rather than inventing an immediate new executable. | Successful/failed relink, binary replacement, block-binding changes, deferred link-input effects, prepared submission revalidation. |
+| P1 | Link/binary installation, shader-program creation, interface block bindings, sampler/image unit assignments and link-input configuration | Invalidate reflected executable layout on actual relink/binary/interface changes; use existing preparation flow. Uniform1i/1iv and ProgramUniform1i/1iv affect retained native unit facts only at sampler/image locations. Bindless-handle assignment at those locations makes the unsupported unit representation unavailable. Ordinary numeric uniforms remain content. Attach/detach/bind-location/transform-feedback declarations affect the next link rather than inventing an immediate new executable. | Successful/failed relink, binary replacement, block/unit-binding changes, sampler/image array locations, ordinary numeric writes excluded, bindless unavailability, deferred link-input effects, prepared submission revalidation. |
 | L1 | Deletion of every represented kind, all aliases and array/ref/pointer forms | Retire the captured registration; preserve deferred native destruction and resource-specific unbinding. ARB generic object deletion resolves shader/program kind. Propagate affected attachment/VAO metadata. | Each kind, lists and duplicate/zero names, queued old identity, same-name replacement, aliases and retained native references. |
 | C1 | Display-list/command-list execution and compatibility state restoration | Account for metadata commands executed indirectly. Compilation alone must not publish execution effects. At execution, reconcile potentially affected represented metadata when exact effects are unavailable; preserve binding restoration. | Compile versus execute, repeated list execution, restored parameter/client-array state, changed metadata observed before dependent use. |
 | I1 | External storage association and sparse residency operations | Storage attachment/replacement receives corresponding T/B metadata refresh. Residency-only commitment, access flags and performance hints have no represented-size/format change; explicitly preserve that distinction. Interop registration/mapping that defines texture storage must refresh it. | Extension-capability tests for association changes; commitment without dimension changes; unavailable imports cannot publish valid metadata. |
@@ -128,6 +129,14 @@ Individual extension definitions in the registry control capability/ABI/behavior
 ### P1 executable interface
 
 `glAttachObjectARB`, `glAttachShader`, `glBindAttribLocation`, `glBindAttribLocationARB`, `glBindFragDataLocation`, `glBindFragDataLocationEXT`, `glBindFragDataLocationIndexed`, `glCreateShaderProgramEXT`, `glCreateShaderProgramv`, `glCreateShaderProgramvEXT`, `glDetachObjectARB`, `glDetachShader`, `glLinkProgram`, `glLinkProgramARB`, `glProgramBinary`, `glProgramParameteri`, `glProgramParameteriARB`, `glProgramParameteriEXT`, `glShaderStorageBlockBinding`, `glTransformFeedbackVaryings`, `glTransformFeedbackVaryingsEXT`, `glTransformFeedbackVaryingsNV`, `glUniformBlockBinding`.
+
+Retained sampler/image unit facts also require `glUniform1i`, `glUniform1iARB`, `glUniform1iv`,
+`glUniform1ivARB`, `glProgramUniform1i`, `glProgramUniform1iEXT`, `glProgramUniform1iv`,
+`glProgramUniform1ivEXT`. Classify their destination location; numeric uniform writes add no metadata work.
+The unsupported bindless equivalent must make unit facts unavailable: `glUniformHandleui64ARB`,
+`glUniformHandleui64vARB`, `glProgramUniformHandleui64ARB`, `glProgramUniformHandleui64vARB`,
+`glUniformHandleui64NV`, `glUniformHandleui64vNV`, `glProgramUniformHandleui64NV`,
+`glProgramUniformHandleui64vNV`. All spellings are present in the retained registry snapshot.
 
 ### R1 renderbuffer storage
 
