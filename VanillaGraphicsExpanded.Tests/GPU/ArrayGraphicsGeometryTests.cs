@@ -18,8 +18,7 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
     public void StreamingStorageChangesAreVisibleAndBounded()
     {
         EnsureContextValid();
-        using var programs = new ComponentShaderPrograms();
-        var shader = programs.Create<RasterDepthReductionShaderProgram>();
+        using var programs = new ComponentShaderPrograms(); var shader = programs.Create<RasterDepthReductionShaderProgram>();
         using var lifetime = new GraphicsPipelineLifetime();
         var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12)]);
         using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, layout,
@@ -34,12 +33,16 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
         {
             commands.BeginPass(new(target, [new(0)])); commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport }); commands.Draw(geometry, new(0, 3));
+#if DEBUG
             long draws = StateCache.Current.DrawSubmissions;
+#endif
             Assert.Throws<ArgumentOutOfRangeException>(() => commands.Draw(geometry, new(1, 3)));
             Assert.Throws<ArgumentOutOfRangeException>(() => commands.Draw(geometry, new(0, 3, BaseVertex: 1)));
             buffer.UploadData(new float[] { -1, -1, 0 });
             Assert.Throws<ArgumentOutOfRangeException>(() => commands.Draw(geometry, new(0, 3)));
+#if DEBUG
             Assert.Equal(draws, StateCache.Current.DrawSubmissions);
+#endif
         }));
         Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
         geometry.Dispose(); Assert.True(buffer.IsValid);
@@ -54,7 +57,8 @@ public sealed class ArrayGraphicsGeometryTests(HeadlessGLFixture fixture) : Rend
     public void ProceduralAndInstancedRangesRejectOverflow()
     {
         EnsureContextValid();
-        using var programs = new ComponentShaderPrograms(); var shader = programs.Create<RasterDepthReductionShaderProgram>();
+        using var programs = new ComponentShaderPrograms();
+        var shader = programs.Create<RasterDepthReductionShaderProgram>();
         using var procedural = new ArrayGraphicsGeometry(new([]), PrimitiveType.Triangles, new Dictionary<int, GpuVbo>(), 3);
         var description = new GraphicsPipelineDesc(shader.GraphicsIdentity!, new([]), new([new(PixelInternalFormat.R32f)]), DynamicPipelineState.Viewport);
         procedural.Validate(description, new(0, 3));

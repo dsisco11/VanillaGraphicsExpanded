@@ -32,7 +32,10 @@ internal sealed class AmbientOcclusionSceneFixture : IDisposable
     internal DynamicTexture2D Position { get; }
     internal Texture3D Surface { get; }
     internal VgeFrameUniformBuffer Camera { get; }
-    internal long HierarchyBytes=>hierarchy.StorageBytes;
+    /// <summary>Derives fixture reporting bytes from the known hierarchy geometry without production instrumentation.</summary>
+    internal long HierarchyBytes => hierarchy.Texture is { } texture
+        ? Enumerable.Range(0, texture.MipLevels).Sum(level => 4L * Math.Max(1, texture.Width >> level) * Math.Max(1, texture.Height >> level))
+        : 0;
 
     #region Input ownership
     /// <summary>Projects planes and exact corner intersections using the same camera later borrowed by AO and lighting.</summary>

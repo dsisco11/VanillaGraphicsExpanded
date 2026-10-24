@@ -18,7 +18,9 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
     public void CompleteAdmissionWithoutFieldsCannotMutateNativeState()
     {
         var cache = Prepare();
+#if DEBUG
         long queries = cache.BoundaryQueries, calls = cache.FixedFunctionCalls;
+#endif
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("SparseEmpty",
             new PipelineStateCoverage(completeGraphics: true)), out var boundary));
         boundary!.Run(() =>
@@ -29,7 +31,10 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
             Assert.Throws<InvalidOperationException>(() => cache.SetSampleMask(0, uint.MaxValue));
             Assert.Throws<InvalidOperationException>(() => cache.SetDitherEnabled(false));
         });
-        Assert.Equal(queries, cache.BoundaryQueries); Assert.Equal(calls, cache.FixedFunctionCalls);
+#if DEBUG
+        Assert.Equal(queries, cache.BoundaryQueries);
+        Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -60,20 +65,28 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
             stencil: StencilStateKnowledge.FrontStencilFunction,
             sampling: SamplingStateKnowledge.SampleCoverage, output: OutputStateKnowledge.Dither, sampleMaskWords: true);
         var declaration = new EngineBoundaryDeclaration("SparseGroups", coverage);
+#if DEBUG
         long reads = cache.BoundaryQueries;
+#endif
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var boundary), cache.BoundaryEntryFailure?.ToString());
+#if DEBUG
         Assert.Equal(known ? 0 : 6 + GpuSupport.Graphics.MaxSampleMaskWords, cache.BoundaryQueries - reads);
+#endif
         boundary!.Run(() =>
         {
             cache.SetStencilFunction(StencilFace.Front, StencilFunction.Always, 1, 0xff);
             cache.SetSampleCoverage(.75f, false); cache.SetDitherEnabled(false);
             for (int index = 0; index < GpuSupport.Graphics.MaxSampleMaskWords; index++) cache.SetSampleMask(index, 0);
             // Even a known identical value must be rejected when the operation has no authority for its group.
+#if DEBUG
             long calls = cache.FixedFunctionCalls;
+#endif
             Assert.Throws<InvalidOperationException>(() => cache.SetStencilFunction(StencilFace.FrontAndBack, StencilFunction.Always, 1, 0xff));
             Assert.Throws<InvalidOperationException>(() => cache.SetSampleCoverageEnabled(false));
             Assert.Throws<InvalidOperationException>(() => cache.SetLineWidth(1));
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             if (invalidate) cache.Invalidate(EPipelineState.Stencil | EPipelineState.Sampling | EPipelineState.OutputInterpretation);
         });
         Assert.Equal((int)StencilFunction.Greater, GL.GetInteger(GetPName.StencilFunc));
@@ -87,9 +100,15 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
             GL.GetInteger((GetIndexedPName)All.SampleMaskValue, index, out int mask);
             Assert.Equal(0x5a5aa5a5u, unchecked((uint)mask));
         }
-        reads = cache.BoundaryQueries; long callsAfter = cache.FixedFunctionCalls;
+#if DEBUG
+        reads = cache.BoundaryQueries;
+        long callsAfter = cache.FixedFunctionCalls;
+#endif
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var warm)); warm!.Dispose();
-        Assert.Equal(reads, cache.BoundaryQueries); Assert.Equal(callsAfter, cache.FixedFunctionCalls);
+#if DEBUG
+        Assert.Equal(reads, cache.BoundaryQueries);
+        Assert.Equal(callsAfter, cache.FixedFunctionCalls);
+#endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -108,12 +127,16 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
             {
                 commands.BeginPass(new(target, [new(0, AttachmentLoad.Clear,
                     Clear: ColorClearValue.Float(1, .5f, .75f, 1))], area: new(1, 1, 2, 2)));
+#if DEBUG
                 long calls = cache.FixedFunctionCalls;
+#endif
                 Assert.Throws<InvalidOperationException>(() => cache.SetLineWidth(1));
                 Assert.Throws<InvalidOperationException>(() => cache.SetSampleCoverage(.5f, false));
                 Assert.Throws<InvalidOperationException>(() => cache.SetStencilFunction(StencilFace.Front, StencilFunction.Always, 0, 0xff));
                 Assert.Throws<InvalidOperationException>(() => cache.SetLogicOperation(LogicOp.Copy));
+#if DEBUG
                 Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             }));
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest));
             int[] box = new int[4]; GL.GetInteger(GetPName.ScissorBox, box); Assert.Equal(new[] { 0, 0, 1, 1 }, box);
@@ -148,9 +171,13 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
         {
             Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("NoClearWrites",
                 new PipelineStateCoverage(completeGraphics: true)), out var boundary));
+#if DEBUG
             long calls = cache.FixedFunctionCalls;
+#endif
             boundary!.Run(() => RenderPassOperations.Load(description, new(0, 0, 2, 2)));
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest)); Assert.True(GL.IsEnabled(EnableCap.Dither));
             Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
             bool[] mask = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, 0, mask);
@@ -179,10 +206,14 @@ public sealed class SparseStateCoverageTests(HeadlessGLFixture fixture) : Render
         GL.GetInteger((GetIndexedPName)GetPName.BlendEquationAlpha, 1, out int alphaEquation);
         boundary!.Run(() =>
         {
+#if DEBUG
             long calls = cache.FixedFunctionCalls;
+#endif
             Assert.Throws<InvalidOperationException>(() => cache.SetBlendFunc(GlBlendFunc.Default));
             Assert.Throws<InvalidOperationException>(() => cache.SetBlendFuncIndexed(0, GlBlendFunc.Default));
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             cache.SetBlendFuncIndexed(1, GlBlendFunc.Default);
             cache.SetBlendEquationIndexed(1, BlendEquationMode.Min, BlendEquationMode.Max);
         });

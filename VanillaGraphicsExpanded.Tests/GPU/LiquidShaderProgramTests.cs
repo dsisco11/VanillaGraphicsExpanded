@@ -41,14 +41,19 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         try
         {
             using (surface.UseScope()) { using (volume.UseScope()) { } }
+#if DEBUG
             long bytesBefore = ring.BytesWritten;
-            long before = ring.AllocationsWritten, start = System.Diagnostics.Stopwatch.GetTimestamp();
+            long start = System.Diagnostics.Stopwatch.GetTimestamp();
+            long before = ring.AllocationsWritten;
+#endif
             for (int iteration = 0; iteration < 32; iteration++)
             { using (surface.UseScope()) { using (volume.UseScope()) { } } }
+#if DEBUG
             long copies = ring.AllocationsWritten - before;
             Assert.Equal(0, copies);
             Assert.Equal(bytesBefore, ring.BytesWritten);
             output.WriteLine($"uniform-publication nestedPairs=32 allocations={copies} copiedBytes={ring.BytesWritten - bytesBefore} elapsedMs={System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds:R}");
+#endif
             using (surface.UseScope())
             {
                 Assert.Equal(new float[] { 1, 2, 3 }, ReadDraw(out _, out _).AsSpan(16, 3).ToArray());
@@ -187,8 +192,7 @@ public sealed class LiquidShaderProgramTests(HeadlessGLFixture fixture, ITestOut
         TestUniformRing.EnsureFrame();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var atmosphere = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
-        AssignTextures(surface, texture, atmosphere, sharedCamera, sharedLights);
-        AssignTextures(volume, texture, atmosphere, sharedCamera, sharedLights);
+        AssignTextures(surface, texture, atmosphere, sharedCamera, sharedLights); AssignTextures(volume, texture, atmosphere, sharedCamera, sharedLights);
         var uniforms = new DefaultShaderUniforms { ColorMapRects4 = new float[160] };
         float[] projection = [1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1];
         var captureApi = CreateFrameCaptureApi(uniforms, projection);

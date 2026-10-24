@@ -73,13 +73,17 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
         foreach(bool batched in new[]{false,true})
         {
             int boundaries=submission.Boundaries,barriers=submission.Barriers;
+#if DEBUG
             long binds=StateCache.Current.ResourceSlotBindCount,textures=StateCache.Current.TextureBindCount;
+#endif
             Measure(batched?"Batched transport/copy boundary":"Standalone transport/copy boundaries",()=>
             {
                 if(batched)submission.Batch(new GpuComputeProgram[]{solar,lunar,copy,diffuse},Ordered);
                 else Ordered();
             });
+#if DEBUG
             output.WriteLine($"Matched four-dispatch submission ({(batched?"batched":"standalone")}): boundaries={(submission.Boundaries-boundaries)/4}, barriers={(submission.Barriers-barriers)/4}, image/indexed binds={(StateCache.Current.ResourceSlotBindCount-binds)/4.0}, texture binds={(StateCache.Current.TextureBindCount-textures)/4.0} per sample; program dispatch scopes unchanged.");
+#endif
         }
         var dirty=new uint[domain.Blocks*16];foreach(int r in regions)dirty[r*16]=8192|16384;
         using var publication=new CloudVolumePublication((op,shared)=>CloudVolumePublishProgram.Create(Programs.Api,op,shared));publication.Publish(fields,0,domain.Bytes);
@@ -189,13 +193,17 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
                 if(!published)
                 {
                     int boundaries=solution.Submission.Boundaries,dispatches=solution.Submission.Dispatches,barriers=solution.Submission.Barriers;
+#if DEBUG
                     long binds=StateCache.Current.ResourceSlotBindCount;
+#endif
                     started=System.Diagnostics.Stopwatch.GetTimestamp();solution.Submit(observation,map,lighting,camera,settings,()=>true);
                     cpu+=System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds;
                     int count=solution.Submission.Dispatches-dispatches;
                     Assert.Equal(1,solution.Submission.Boundaries-boundaries);
                     Assert.Equal(count+1,solution.Submission.Barriers-barriers);
+#if DEBUG
                     if(measure)output.WriteLine($"Update submission: dispatches={count}, boundaries=1, barriers={count+1}, actual image/indexed binds={StateCache.Current.ResourceSlotBindCount-binds}; previous per-pass path requires {count} boundaries and {count*2} per-pass barriers, plus one post-refine barrier only when diffuse runs.");
+#endif
                 }
                 if(measure)timer.End();
                 using var completed=GpuFence.Insert();

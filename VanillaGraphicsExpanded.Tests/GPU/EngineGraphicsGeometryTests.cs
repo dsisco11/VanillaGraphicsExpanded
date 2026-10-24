@@ -49,9 +49,13 @@ public sealed class EngineGraphicsGeometryTests(HeadlessGLFixture fixture) : Ren
                 Assert.Throws<InvalidOperationException>(commands.EndPass);
             };
             commands.Draw(geometry, new(0, 3));
+#if DEBUG
             long queries = StateCache.Current.BoundaryQueries;
+#endif
             commands.Draw(geometry, new(0, 3));
+#if DEBUG
             Assert.Equal(queries, StateCache.Current.BoundaryQueries);
+#endif
             native.Mesh.IndicesCount = 2;
             Assert.ThrowsAny<Exception>(() => commands.Draw(geometry, new(0, 3)));
             native.Mesh.IndicesCount = 3;

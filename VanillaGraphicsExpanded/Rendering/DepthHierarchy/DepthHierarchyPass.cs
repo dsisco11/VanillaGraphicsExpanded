@@ -11,8 +11,10 @@ internal sealed class DepthHierarchyPass : IDisposable
     #region Public API
     /// <summary>Gets the owned hierarchy borrowed by AO and indirect lighting.</summary>
     internal DynamicTexture2D? Texture { get; private set; }
-    /// <summary>Gets logical payload bytes across all hierarchy levels.</summary>
+#if DEBUG
+    /// <summary>Gets logical payload bytes across all hierarchy levels for diagnostics.</summary>
     internal long StorageBytes { get; private set; }
+#endif
     /// <summary>Gets the counter and coarse-tail staging bytes.</summary>
     internal int ScratchBytes { get; private set; }
     /// <summary>Allocates persistent storage for an extent and prepares the typed compute executable.</summary>
@@ -41,7 +43,9 @@ internal sealed class DepthHierarchyPass : IDisposable
                 for (int level = 0; level < levels; level++)
                 {
                     int bytes = checked(4 * Math.Max(1, width >> level) * Math.Max(1, height >> level));
+#if DEBUG
                     StorageBytes += bytes;
+#endif
                     if (level > 6) ScratchBytes += bytes;
                 }
                 if (ScratchBytes > limits.MaxShaderStorageBlockSize)
@@ -86,7 +90,10 @@ internal sealed class DepthHierarchyPass : IDisposable
     public void Dispose()
     {
         resources.Dispose(); resources = new(); tail = null; Texture = null;
-        StorageBytes = 0; ScratchBytes = 0; shader = null;
+#if DEBUG
+        StorageBytes = 0;
+#endif
+        ScratchBytes = 0; shader = null;
     }
     #endregion
     #region Private

@@ -64,14 +64,20 @@ public sealed class DirectLightingSubmissionTests(HeadlessGLFixture fixture, ITe
         scene.Neutral();
         var pipeline = scene.Candidate.PrepareBoundaryPipeline()!;
         var shader = pipeline.Shader;
+#if DEBUG
         int reflection = shader.GraphicsInterface!.ReflectionQueries;
         long queries = StateCache.Current.BoundaryQueries, calls = StateCache.Current.FixedFunctionCalls;
+#endif
         timer.Restart();
         Assert.True(scene.Candidate.RenderLighting(scene.Actual));
         timer.Stop();
+#if DEBUG
         output.WriteLine($"Whole repeated submission {timer.Elapsed.TotalMilliseconds:F3} ms; fixed-function calls {StateCache.Current.FixedFunctionCalls - calls}; repeated production draw boundary queries: {StateCache.Current.BoundaryQueries - queries}; graphics reflection queries: {shader.GraphicsInterface.ReflectionQueries - reflection}");
+#endif
         Assert.Same(pipeline, scene.Candidate.PrepareBoundaryPipeline());
+#if DEBUG
         Assert.Equal(reflection, shader.GraphicsInterface.ReflectionQueries);
+#endif
         shader.InvalidateAssets();
         Assert.True(scene.Candidate.RenderLighting(scene.Actual)); Compare(scene, false);
         Assert.NotSame(pipeline, scene.Candidate.PrepareBoundaryPipeline());

@@ -18,6 +18,7 @@ internal sealed partial class StateCache
             return System.Math.Max(1, GpuSupport.ShaderStorageBufferOffsetAlignment);
         }
     }
+#if DEBUG
     /// <summary>Counts actual image and indexed-buffer binds, independently of cache comparisons.</summary>
     internal long ResourceSlotBindCount { get; private set; }
     /// <summary>Counts texture cache observations separately from actual driver texture binds.</summary>
@@ -32,6 +33,7 @@ internal sealed partial class StateCache
     internal long TextureBindCount { get; private set; }
     /// <summary>Counts successful driver sampler binds through this context cache.</summary>
     internal long SamplerBindCount { get; private set; }
+#endif
     /// <summary>Includes all parameters that select an image view.</summary>
     private readonly record struct ImageBinding(int Texture, int Level, bool Layered, int Layer, TextureAccess Access, SizedInternalFormat Format);
     /// <summary>Distinguishes whole-buffer bindings from ranges even when their offsets match.</summary>
@@ -48,10 +50,14 @@ internal sealed partial class StateCache
     internal void BindImageTexture(int unit, int texture, int level, bool layered, int layer, TextureAccess access, SizedInternalFormat format)
     {
         var binding = new ImageBinding(texture, level, layered, layer, access, format);
+#if DEBUG
         ImageCacheChecks++;
+#endif
         if (imageBindings.TryGetValue(unit, out var previous) && previous == binding) return;
         GL.BindImageTexture(unit, texture, level, layered, layer, access, format);
+#if DEBUG
         ResourceSlotBindCount++;
+#endif
         imageBindings[unit] = binding;
     }
 

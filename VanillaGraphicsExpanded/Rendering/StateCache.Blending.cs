@@ -46,7 +46,9 @@ internal sealed partial class StateCache
         // Global operations affect the entire context output range, including unrouted slots.
         for (int i = 0; i < count; i++) blendKnown[i] &= ~BlendStateKnowledge.Enabled;
         if (enabled) GL.Enable(EnableCap.Blend); else GL.Disable(EnableCap.Blend);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         for (int i = 0; i < count; i++) { blend[i].Enabled = enabled; blendKnown[i] |= BlendStateKnowledge.Enabled; }
     }
     /// <summary>Establishes Enabled for one draw output; uniformity is always derived from all outputs.</summary>
@@ -57,7 +59,9 @@ internal sealed partial class StateCache
         if (blendKnown[index].HasFlag(BlendStateKnowledge.Enabled) && blend[index].Enabled == enabled) return;
         blendKnown[index] &= ~BlendStateKnowledge.Enabled;
         if (enabled) GL.Enable(IndexedEnableCap.Blend, index); else GL.Disable(IndexedEnableCap.Blend, index);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         blend[index].Enabled = enabled;
         blendKnown[index] |= BlendStateKnowledge.Enabled;
     }
@@ -75,7 +79,9 @@ internal sealed partial class StateCache
         // Global operations affect the entire context output range, including unrouted slots.
         for (int i = 0; i < count; i++) blendKnown[i] &= ~BlendStateKnowledge.Factors;
         GL.BlendFuncSeparate(func.SrcRgb, func.DstRgb, func.SrcAlpha, func.DstAlpha);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         for (int i = 0; i < count; i++) { blend[i].Factors = func; blendKnown[i] |= BlendStateKnowledge.Factors; }
     }
     /// <summary>Establishes Factors for one draw output; uniformity is always derived from all outputs.</summary>
@@ -87,7 +93,9 @@ internal sealed partial class StateCache
         if (blendKnown[index].HasFlag(BlendStateKnowledge.Factors) && blend[index].Factors == func) return;
         blendKnown[index] &= ~BlendStateKnowledge.Factors;
         GL.BlendFuncSeparate(index, func.SrcRgb, func.DstRgb, func.SrcAlpha, func.DstAlpha);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         blend[index].Factors = func;
         blendKnown[index] |= BlendStateKnowledge.Factors;
     }
@@ -104,7 +112,9 @@ internal sealed partial class StateCache
         // Global operations affect the entire context output range, including unrouted slots.
         for (int i = 0; i < count; i++) blendKnown[i] &= ~BlendStateKnowledge.WriteMask;
         GL.ColorMask(mask.R, mask.G, mask.B, mask.A);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         for (int i = 0; i < count; i++) { blend[i].WriteMask = mask; blendKnown[i] |= BlendStateKnowledge.WriteMask; }
     }
     /// <summary>Establishes WriteMask for one draw output; uniformity is always derived from all outputs.</summary>
@@ -115,7 +125,9 @@ internal sealed partial class StateCache
         if (blendKnown[index].HasFlag(BlendStateKnowledge.WriteMask) && blend[index].WriteMask == mask) return;
         blendKnown[index] &= ~BlendStateKnowledge.WriteMask;
         GL.ColorMask(index, mask.R, mask.G, mask.B, mask.A);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         blend[index].WriteMask = mask;
         blendKnown[index] |= BlendStateKnowledge.WriteMask;
     }

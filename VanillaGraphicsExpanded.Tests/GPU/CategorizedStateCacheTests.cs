@@ -34,11 +34,15 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
             AssertOutput(last, alpha, new[] { true, false, false, false });
             AssertOutput(0, GlBlendFunc.Default, new[] { true, true, true, true });
             var saved = cache.CopyBlendValues();
+#if DEBUG
             long calls = cache.FixedFunctionCalls;
+#endif
             cache.SetBlendEnabledIndexed(last, false);
             cache.SetBlendFuncIndexed(last, alpha);
             cache.SetColorMaskIndexed(last, red);
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             cache.SetBlendEnabled(true);
             cache.SetBlendFunc(GlBlendFunc.Default);
             cache.SetColorMask(GlColorMask.All);
@@ -50,11 +54,15 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
             Assert.False(saved[last].Enabled);
             Assert.Equal(alpha, saved[last].Factors);
             Assert.Equal(red, saved[last].WriteMask);
+#if DEBUG
             calls = cache.FixedFunctionCalls;
+#endif
             cache.SetBlendEnabled(true);
         cache.SetBlendFunc(GlBlendFunc.Default);
         cache.SetColorMask(GlColorMask.All);
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             Assert.Throws<ArgumentOutOfRangeException>(() => cache.SetColorMaskIndexed(cache.MaxDrawBuffers, red));
             Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError, GL.GetError());
         }
@@ -83,8 +91,13 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         cache.SetPatchVertices(4);
         };
         establish();
-        long calls = cache.FixedFunctionCalls; establish();
+#if DEBUG
+        long calls = cache.FixedFunctionCalls;
+#endif
+        establish();
+#if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         Assert.True(GL.IsEnabled(EnableCap.DepthTest));
         Assert.False(GL.IsEnabled(EnableCap.CullFace));
         Assert.False(GL.IsEnabled(EnableCap.ScissorTest));
@@ -101,7 +114,9 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         Assert.Throws<ArgumentOutOfRangeException>(() => cache.SetPointSize(float.NaN));
         Assert.Throws<ArgumentOutOfRangeException>(() => cache.SetPatchVertices(0));
         Assert.Throws<ArgumentOutOfRangeException>(() => cache.SetPatchVertices(GL.GetInteger(GetPName.MaxPatchVertices) + 1));
+#if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         Assert.True(Read<DepthStateKnowledge>(cache, "depthKnown").HasFlag(DepthStateKnowledge.Comparison));
         Assert.Equal((int)DepthFunction.Greater, GL.GetInteger(GetPName.DepthFunc));
         Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError, GL.GetError());
@@ -109,7 +124,9 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         Assert.False(Read<RasterizerStateKnowledge>(cache, "rasterizerKnown").HasFlag(RasterizerStateKnowledge.LineWidth));
         Assert.True(Read<RasterizerStateKnowledge>(cache, "rasterizerKnown").HasFlag(RasterizerStateKnowledge.PointSize));
         Assert.True(Read<DepthStateKnowledge>(cache, "depthKnown").HasFlag(DepthStateKnowledge.WriteEnabled)); establish();
+#if DEBUG
         Assert.Equal(calls + 2, cache.FixedFunctionCalls);
+#endif
         cache.SetCapability(EnableCap.DepthTest, false);
         cache.SetDepthWriteMask(true);
         cache.SetDepthFunc(DepthFunction.Less);
@@ -140,16 +157,22 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         Assert.True(knowledge.HasFlag(DepthStateKnowledge.Comparison));
         Assert.False(knowledge.HasFlag(DepthStateKnowledge.TestEnabled));
         Assert.False(knowledge.HasFlag(DepthStateKnowledge.WriteEnabled));
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
+#endif
         EngineStateCalls.Viewport(3, 5, 17, 19);
         EngineStateCalls.ClearColor(.2f, .3f, .4f, .5f);
+#if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         cache.Invalidate(EPipelineState.Depth);
         Assert.True(Read<DynamicDrawStateKnowledge>(cache, "dynamicKnown").HasFlag(DynamicDrawStateKnowledge.Viewport));
         cache.Invalidate(EPipelineState.Viewport);
         Assert.True(Read<bool>(cache, "clearColorKnown"));
         EngineStateCalls.Viewport(3, 5, 17, 19);
+#if DEBUG
         Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
         cache.ApplyDynamic(new DynamicDrawState { Width = 1, Height = 1 });
         Assert.Equal(new[] { 0, 0, 1, 1 }, Viewport());
         Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError, GL.GetError());
@@ -168,17 +191,25 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         var request = new DynamicDrawState { Width = limit[0] + 1, Height = limit[1] + 1 };
         cache.ApplyDynamic(request);
         Assert.Equal(new[] { 0, 0, limit[0], limit[1] }, Viewport());
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
+#endif
         cache.ApplyDynamic(request);
+#if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         cache.SetClearColor(-2, 3, .5f, 4);
         float[] actual = new float[4];
         GL.GetFloat(GetPName.ColorClearValue, actual);
         var cached = Read<OpenTK.Mathematics.Vector4>(cache, "clearColor");
         Assert.Equal(new[] { cached.X, cached.Y, cached.Z, cached.W }, actual);
+#if DEBUG
         calls = cache.FixedFunctionCalls;
+#endif
         cache.SetClearColor(-2, 3, .5f, 4);
+#if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         cache.ApplyDynamic(new DynamicDrawState { Width = 1, Height = 1 });
         cache.SetClearColor(0, 0, 0, 0);
         cache.InvalidateAll();
@@ -195,15 +226,21 @@ public sealed class CategorizedStateCacheTests(HeadlessGLFixture fixture)
         var cache = StateCache.Current;
         cache.InvalidateAll();
         cache.SetDepthFunc(DepthFunction.Greater);
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
+#endif
         Assert.Same(cache, StateCache.Current);
         StateCache.Current.SetDepthFunc(DepthFunction.Greater);
+#if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         Assert.True(Read<DepthStateKnowledge>(cache, "depthKnown").HasFlag(DepthStateKnowledge.Comparison));
         cache.InvalidateAll();
         Assert.False(Read<DepthStateKnowledge>(cache, "depthKnown").HasFlag(DepthStateKnowledge.Comparison));
         cache.SetDepthFunc(DepthFunction.Greater);
+#if DEBUG
         Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
         Assert.Equal((int)DepthFunction.Greater, GL.GetInteger(GetPName.DepthFunc));
         cache.SetDepthFunc(DepthFunction.Less);
         cache.InvalidateAll();

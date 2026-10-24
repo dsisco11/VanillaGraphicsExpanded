@@ -4,15 +4,21 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     [System.ThreadStatic] private static StateCache? current;
+#if DEBUG
     /// <summary>Counts successful native fixed-function, dynamic and clear-value transitions.</summary>
     internal long FixedFunctionCalls { get; private set; }
+#endif
 
+#if DEBUG
     /// <summary>Counts native draw commands issued through the owned VAO and element-buffer helpers.</summary>
     internal long DrawSubmissions { get; private set; }
+#endif
 
     #region Public API
+#if DEBUG
     /// <summary>Records one issued draw without retaining per-draw history or querying driver state.</summary>
     internal void RecordDrawSubmission() => DrawSubmissions++;
+#endif
     /// <summary>Returns the rendering thread's cache; renderer lifecycle and external mutations own invalidation.</summary>
     public static StateCache Current => current ??= new StateCache();
     /// <summary>Forgets mutable knowledge without changing native state or diagnostic totals.</summary>

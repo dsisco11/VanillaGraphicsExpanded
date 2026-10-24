@@ -62,7 +62,9 @@ internal sealed class CloudSimpleGeometry : GraphicsGeometry
         using var vertex = StateCache.Current.BindVertexArrayScope(receipt.Vao);
         using var element = StateCache.Current.BindBufferScope(BufferTarget.ElementArrayBuffer, receipt.Elements);
         GL.DrawElementsInstanced(PrimitiveType.Triangles, 36, DrawElementsType.UnsignedInt, IntPtr.Zero, instances);
+#if DEBUG
         StateCache.Current.RecordDrawSubmission();
+#endif
     }
     /// <summary>Expires only the synchronous adapter; the native mesh retains disposal authority.</summary>
     public override void Dispose() => disposed = true;

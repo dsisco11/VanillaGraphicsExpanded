@@ -64,7 +64,9 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
             depth: DepthStateKnowledge.TestEnabled | DepthStateKnowledge.WriteEnabled,
             globalBlend: BlendStateKnowledge.Enabled | BlendStateKnowledge.WriteMask));
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var scope));
+#if DEBUG
         long reads = cache.BoundaryQueries;
+#endif
         scope!.Run(() =>
         {
             cache.SetCapability(EnableCap.DepthTest, false); cache.SetDepthWriteMask(false);
@@ -78,9 +80,14 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
             bool[] mask = new bool[4]; GL.GetBoolean(GetIndexedPName.ColorWritemask, i, mask);
             Assert.Equal(new[] { i % 2 == 0, true, true, false }, mask);
         }
+#if DEBUG
         Assert.Equal(reads, cache.BoundaryQueries);
         long calls = cache.FixedFunctionCalls;
-        scope.Dispose(); Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
+        scope.Dispose();
+#if DEBUG
+        Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         cache.SetBlendEnabled(false); cache.SetColorMask(GlColorMask.All);
     }
 
@@ -90,18 +97,28 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
     {
         var cache = Prepare();
         var declaration = new EngineBoundaryDeclaration("Depth", new PipelineStateCoverage(depth: (DepthStateKnowledge.TestEnabled | DepthStateKnowledge.Comparison | DepthStateKnowledge.WriteEnabled)));
+#if DEBUG
         long reads = cache.BoundaryQueries, calls = cache.FixedFunctionCalls;
+#endif
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var cold));
         cold!.Dispose();
-        Assert.Equal(3, cache.BoundaryQueries - reads); Assert.Equal(calls, cache.FixedFunctionCalls);
+#if DEBUG
+        Assert.Equal(3, cache.BoundaryQueries - reads);
+        Assert.Equal(calls, cache.FixedFunctionCalls);
         reads = cache.BoundaryQueries;
         long checks = cache.BoundaryErrorChecks;
+#endif
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var warm)); warm!.Dispose();
-        Assert.Equal(reads, cache.BoundaryQueries); Assert.Equal(calls, cache.FixedFunctionCalls);
+#if DEBUG
+        Assert.Equal(reads, cache.BoundaryQueries);
+        Assert.Equal(calls, cache.FixedFunctionCalls);
         Assert.Equal(0, cache.BoundaryErrorChecks - checks);
+#endif
         cache.Invalidate(EPipelineState.Depth); cache.SetDepthFunc(DepthFunction.Less);
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var partial)); partial!.Dispose();
+#if DEBUG
         Assert.Equal(2, cache.BoundaryQueries - reads);
+#endif
     }
 
     /// <summary>Unknown external mutations require ending managed authority and invalidate only declared categories.</summary>
@@ -113,9 +130,17 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
         var failure = new InvalidOperationException("external");
         Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => cache.ExecuteExternal(EPipelineState.Depth, () =>
         { GL.DepthFunc(DepthFunction.Less); throw failure; })));
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
-        cache.SetPointSize(2); Assert.Equal(calls, cache.FixedFunctionCalls);
-        cache.SetDepthFunc(DepthFunction.Greater); Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
+        cache.SetPointSize(2);
+#if DEBUG
+        Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
+        cache.SetDepthFunc(DepthFunction.Greater);
+#if DEBUG
+        Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Empty"), out var scope));
         try { Assert.Throws<InvalidOperationException>(() => cache.ExecuteExternal(EPipelineState.Depth, () => GL.DepthMask(false))); }
         finally { scope!.Dispose(); }
@@ -182,10 +207,21 @@ public sealed class EngineBoundaryRestorationTests(HeadlessGLFixture fixture)
         Assert.Throws<EngineBoundaryRestoreException>(() => scope!.Dispose());
         var known = (DepthStateKnowledge)typeof(StateCache).GetField("depthKnown", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(cache)!;
         Assert.False(known.HasFlag(DepthStateKnowledge.WriteEnabled));
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
-        cache.SetPointSize(2); Assert.Equal(calls, cache.FixedFunctionCalls);
-        cache.SetDepthWriteMask(true); Assert.Equal(calls + 1, cache.FixedFunctionCalls);
-        scope!.Dispose(); Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
+        cache.SetPointSize(2);
+#if DEBUG
+        Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
+        cache.SetDepthWriteMask(true);
+#if DEBUG
+        Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
+        scope!.Dispose();
+#if DEBUG
+        Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
     }
 
     /// <summary>Explicit invalidation does not cancel an active scope or skip its cleanup owners.</summary>

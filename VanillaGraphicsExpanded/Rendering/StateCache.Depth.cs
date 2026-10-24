@@ -12,7 +12,9 @@ internal sealed partial class StateCache
         if (depthKnown.HasFlag(DepthStateKnowledge.Comparison) && depth.Comparison == function) return;
         depthKnown &= ~DepthStateKnowledge.Comparison;
         GL.DepthFunc(function);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         depth.Comparison = function;
         depthKnown |= DepthStateKnowledge.Comparison;
     }
@@ -23,7 +25,9 @@ internal sealed partial class StateCache
         if (depthKnown.HasFlag(DepthStateKnowledge.WriteEnabled) && depth.WriteEnabled == enabled) return;
         depthKnown &= ~DepthStateKnowledge.WriteEnabled;
         GL.DepthMask(enabled);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         depth.WriteEnabled = enabled;
         depthKnown |= DepthStateKnowledge.WriteEnabled;
     }

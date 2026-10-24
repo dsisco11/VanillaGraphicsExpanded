@@ -120,7 +120,9 @@ internal sealed partial class StateCache
     private void SetEnable(EnableCap cap, bool enabled)
     {
         if (enabled) GL.Enable(cap); else GL.Disable(cap);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
     }
     #endregion
 }

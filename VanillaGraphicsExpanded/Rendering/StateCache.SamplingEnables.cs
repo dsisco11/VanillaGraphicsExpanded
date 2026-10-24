@@ -17,7 +17,9 @@ internal sealed partial class StateCache
         samplingKnown &= ~SamplingStateKnowledge.Multisample;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.Multisample); else GL.Disable(EnableCap.Multisample);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         sampling.Multisample = enabled;
         samplingKnown |= SamplingStateKnowledge.Multisample;
@@ -32,7 +34,9 @@ internal sealed partial class StateCache
         samplingKnown &= ~SamplingStateKnowledge.SampleCoverageEnabled;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.SampleCoverage); else GL.Disable(EnableCap.SampleCoverage);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         sampling.SampleCoverageEnabled = enabled;
         samplingKnown |= SamplingStateKnowledge.SampleCoverageEnabled;
@@ -47,7 +51,9 @@ internal sealed partial class StateCache
         samplingKnown &= ~SamplingStateKnowledge.SampleMask;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.SampleMask); else GL.Disable(EnableCap.SampleMask);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         sampling.SampleMask = enabled;
         samplingKnown |= SamplingStateKnowledge.SampleMask;
@@ -62,7 +68,9 @@ internal sealed partial class StateCache
         samplingKnown &= ~SamplingStateKnowledge.SampleAlphaToCoverage;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.SampleAlphaToCoverage); else GL.Disable(EnableCap.SampleAlphaToCoverage);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         sampling.SampleAlphaToCoverage = enabled;
         samplingKnown |= SamplingStateKnowledge.SampleAlphaToCoverage;
@@ -77,7 +85,9 @@ internal sealed partial class StateCache
         samplingKnown &= ~SamplingStateKnowledge.SampleAlphaToOne;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.SampleAlphaToOne); else GL.Disable(EnableCap.SampleAlphaToOne);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         sampling.SampleAlphaToOne = enabled;
         samplingKnown |= SamplingStateKnowledge.SampleAlphaToOne;
@@ -97,7 +107,9 @@ internal sealed partial class StateCache
         samplingKnown &= ~SamplingStateKnowledge.SampleShading;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.SampleShading); else GL.Disable(EnableCap.SampleShading);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         sampling.SampleShading = enabled;
         samplingKnown |= SamplingStateKnowledge.SampleShading;

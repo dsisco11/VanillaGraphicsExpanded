@@ -27,23 +27,33 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         GL.DepthFunc(DepthFunction.Greater);
         GL.DepthMask(false);
         var declaration = new EngineBoundaryDeclaration("Depth", new PipelineStateCoverage(depth: (DepthStateKnowledge.TestEnabled | DepthStateKnowledge.Comparison | DepthStateKnowledge.WriteEnabled)));
+#if DEBUG
         long queries = cache.BoundaryQueries;
         long calls = cache.FixedFunctionCalls;
+#endif
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var first), cache.BoundaryEntryFailure?.ToString());
+#if DEBUG
         Assert.Equal(3, cache.BoundaryQueries - queries);
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         Assert.True(first!.Snapshot.Depth.TestEnabled);
         Assert.Equal(DepthFunction.Greater, first.Snapshot.Depth.Comparison);
         Assert.False(first.Snapshot.Depth.WriteEnabled);
         cache.ReleaseEngineBoundary(first);
+#if DEBUG
         queries = cache.BoundaryQueries;
+#endif
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var warm));
+#if DEBUG
         Assert.Equal(queries, cache.BoundaryQueries);
+#endif
         cache.ReleaseEngineBoundary(warm!);
         cache.Invalidate(EPipelineState.Depth);
         cache.SetDepthFunc(DepthFunction.Less);
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var partial));
+#if DEBUG
         Assert.Equal(2, cache.BoundaryQueries - queries);
+#endif
         Assert.Equal(DepthFunction.Less, partial!.Snapshot.Depth.Comparison);
         cache.ReleaseEngineBoundary(partial);
     }
@@ -72,11 +82,15 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
             Assert.Equal(7, saved.Dynamic.X); Assert.Equal(9, saved.Dynamic.Y);
             Assert.Equal(31, saved.Dynamic.Width); Assert.Equal(37, saved.Dynamic.Height);
             Assert.Equal(new Vector4(.2f, .4f, .6f, .8f), saved.ClearColor);
+#if DEBUG
             long queries = cache.BoundaryQueries, capabilities = GpuSupport.CaptureCount;
+#endif
             cache.ApplyDynamic(new DynamicDrawState { Width = 11, Height = 13 });
             cache.SetPatchVertices(3);
+#if DEBUG
             Assert.Equal(queries, cache.BoundaryQueries);
             Assert.Equal(capabilities, GpuSupport.CaptureCount);
+#endif
         }
         finally { cache.ReleaseEngineBoundary(scope!); GL.Disable(EnableCap.ScissorTest); cache.InvalidateAll(); }
     }
@@ -96,11 +110,15 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
             GL.ColorMask(i, i % 2 == 0, true, false, true);
         }
         var declaration = new EngineBoundaryDeclaration("Mixed", new PipelineStateCoverage(globalBlend: BlendStateKnowledge.All));
+#if DEBUG
         long queries = cache.BoundaryQueries;
+#endif
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var scope), cache.BoundaryEntryFailure?.ToString());
         try
         {
+#if DEBUG
             Assert.Equal(count * 8, cache.BoundaryQueries - queries);
+#endif
             cache.SetBlendEnabled(false); cache.SetBlendFunc(GlBlendFunc.Default); cache.SetColorMask(GlColorMask.All);
             cache.Invalidate(EPipelineState.Blend | EPipelineState.ColorMask);
             for (int i = 0; i < count; i++)
@@ -120,11 +138,15 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
     {
         var cache = Prepare();
         var declaration = new EngineBoundaryDeclaration("WriteOnly", new PipelineStateCoverage(depth: DepthStateKnowledge.WriteEnabled));
+#if DEBUG
         long queries = cache.BoundaryQueries;
+#endif
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var scope));
         try
         {
+#if DEBUG
             Assert.Equal(1, cache.BoundaryQueries - queries);
+#endif
             Assert.Equal(DepthStateKnowledge.WriteEnabled, scope!.Snapshot.Coverage.Depth);
             var known = (DepthStateKnowledge)typeof(StateCache).GetField("depthKnown", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(cache)!;
             Assert.Equal(DepthStateKnowledge.WriteEnabled, known);
@@ -148,9 +170,14 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         {
             var bits = GlPipelineStateMask.From(GlPipelineStateId.DepthTestEnable) | GlPipelineStateMask.From(GlPipelineStateId.ColorMask);
             var pipeline = new GlPipelineDesc(bits, default);
+#if DEBUG
             long calls = cache.FixedFunctionCalls;
+#endif
             Assert.Throws<InvalidOperationException>(() => cache.Apply(pipeline));
-            Assert.Equal(calls, cache.FixedFunctionCalls); Assert.True(GL.IsEnabled(EnableCap.DepthTest));
+#if DEBUG
+            Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
+            Assert.True(GL.IsEnabled(EnableCap.DepthTest));
         }
         finally { cache.ReleaseEngineBoundary(scope!); }
     }
@@ -181,9 +208,14 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
                 () => { _ = cache.PatchVertices; },
                 () => { _ = cache.ProvokingVertex; }
             ];
+#if DEBUG
             long calls = cache.FixedFunctionCalls, queries = cache.BoundaryQueries;
+#endif
             foreach (var operation in operations) Assert.Throws<InvalidOperationException>(operation);
-            Assert.Equal(calls, cache.FixedFunctionCalls); Assert.Equal(queries, cache.BoundaryQueries);
+#if DEBUG
+            Assert.Equal(calls, cache.FixedFunctionCalls);
+            Assert.Equal(queries, cache.BoundaryQueries);
+#endif
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { cache.ReleaseEngineBoundary(scope!); }
@@ -198,14 +230,20 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("OneOutput", coverage), out var scope));
         try
         {
+#if DEBUG
             long calls = cache.FixedFunctionCalls;
+#endif
             Assert.Throws<InvalidOperationException>(() => cache.SetBlendEnabled(false));
             Assert.Throws<InvalidOperationException>(() => cache.SetBlendFunc(GlBlendFunc.Default));
             Assert.Throws<InvalidOperationException>(() => cache.SetColorMask(GlColorMask.All));
             Assert.Throws<InvalidOperationException>(() => cache.SetBlendEnabledIndexed(1, false));
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             cache.SetBlendEnabledIndexed(0, !scope!.Snapshot.BlendAt(0).Enabled);
+#if DEBUG
             Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
             Assert.Equal(BlendStateKnowledge.None, scope.Snapshot.Coverage.BlendAt(1));
         }
         finally { cache.ReleaseEngineBoundary(scope!); }
@@ -218,11 +256,16 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         var cache = Prepare();
         GL.DepthMask(false);
         GL.Enable((EnableCap)(-1)); // Deterministic native error before the checked incoming read.
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
+#endif
         var declaration = new EngineBoundaryDeclaration("Failure", new PipelineStateCoverage(depth: DepthStateKnowledge.WriteEnabled));
         Assert.False(cache.TryBeginEngineBoundary(declaration, out var failed));
         Assert.Null(failed); Assert.NotNull(cache.BoundaryEntryFailure);
-        Assert.Equal(calls, cache.FixedFunctionCalls); Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
+#if DEBUG
+        Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
+        Assert.False(GL.GetBoolean(GetPName.DepthWritemask));
         var known = (DepthStateKnowledge)typeof(StateCache).GetField("depthKnown", BindingFlags.NonPublic | BindingFlags.Instance)!.GetValue(cache)!;
         Assert.Equal(DepthStateKnowledge.None, known);
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var valid));
@@ -237,13 +280,17 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         // Exercise the post-read error path with a real failing GL query, without a production test hook.
         var query = typeof(StateCache).GetMethod("QueryBoundary", BindingFlags.NonPublic | BindingFlags.Instance)!
             .MakeGenericMethod(typeof(int));
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
         long reads = cache.BoundaryQueries;
+#endif
         var failure = Assert.Throws<TargetInvocationException>(() => query.Invoke(cache,
             [new Func<int>(() => GL.GetInteger((GetPName)(-1)))]));
         Assert.IsType<InvalidOperationException>(failure.InnerException);
+#if DEBUG
         Assert.Equal(reads + 1, cache.BoundaryQueries);
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -256,9 +303,13 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var scope));
         try
         {
+#if DEBUG
             long queries = cache.BoundaryQueries;
+#endif
             Assert.Throws<InvalidOperationException>(() => cache.TryBeginEngineBoundary(declaration, out _));
+#if DEBUG
             Assert.Equal(queries, cache.BoundaryQueries);
+#endif
         }
         finally { cache.ReleaseEngineBoundary(scope!); }
         var invalid = new PipelineStateCoverage(indexedBlend: new Dictionary<int, BlendStateKnowledge> { [cache.MaxDrawBuffers] = BlendStateKnowledge.Enabled });
@@ -275,10 +326,14 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         try
         {
             GLFW.MakeContextCurrent(null);
+#if DEBUG
             long queries = cache.BoundaryQueries;
+#endif
             Assert.False(cache.TryBeginEngineBoundary(declaration, out var failed));
             Assert.Null(failed);
+#if DEBUG
             Assert.Equal(queries, cache.BoundaryQueries);
+#endif
         }
         finally { fixture.MakeCurrent(); cache.InvalidateAll(); }
     }
@@ -292,10 +347,14 @@ public sealed class EngineBoundaryEntryTests(HeadlessGLFixture fixture)
         RenderContextRegistry.Retire(fixture);
         try
         {
+#if DEBUG
             long queries = cache.BoundaryQueries;
+#endif
             Assert.False(cache.TryBeginEngineBoundary(declaration, out var missing));
             Assert.Null(missing);
+#if DEBUG
             Assert.Equal(queries, cache.BoundaryQueries);
+#endif
         }
         finally { RenderContextRegistry.RegisterCurrent(fixture, static owner => ((HeadlessGLFixture)owner).IsContextValid); }
         Assert.True(cache.TryBeginEngineBoundary(declaration, out var scope));

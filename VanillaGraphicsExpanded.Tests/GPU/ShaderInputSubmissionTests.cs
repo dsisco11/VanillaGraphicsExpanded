@@ -45,9 +45,13 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.True(block.IsDirty);
             Assert.True(block.TryBindTo(first, LumOnUpsampleParamsUbo.BlockName, "Tests.SharedBlock"));
             Assert.False(block.IsDirty);
+#if DEBUG
             Assert.Equal(2, ring.AllocationsWritten);
+#endif
             Assert.True(block.TryBindTo(second, LumOnUpsampleParamsUbo.BlockName, "Tests.SharedBlock"));
+#if DEBUG
             Assert.Equal(2, ring.AllocationsWritten);
+#endif
             Assert.Equal(0.25f, SubmittedDepthSigma());
             GL.GetInteger((GetIndexedPName)All.UniformBufferStart, 14, out int originalOffset);
             GL.GetInteger((GetIndexedPName)All.UniformBufferBinding, 14, out int originalBuffer);
@@ -60,11 +64,15 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Equal(0.75f, SubmittedDepthSigma());
             Assert.True(block.TryBindToSlot(14));
             Assert.Equal(0.25f, SubmittedDepthSigma());
+#if DEBUG
             Assert.Equal(3, ring.AllocationsWritten);
+#endif
             block.SetBytes(bytes);
             Assert.True(block.TryBindToSlot(14));
             Assert.Equal(0.75f, SubmittedDepthSigma());
+#if DEBUG
             Assert.Equal(4, ring.AllocationsWritten);
+#endif
             // Earlier submitted snapshots remain intact after a changed publication.
             GL.BindBuffer(BufferTarget.UniformBuffer, originalBuffer);
             float[] original = new float[1];
@@ -74,31 +82,43 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             first.InvalidateAssets();
             first.EnsureReady();
             Assert.True(block.TryBindTo(first, LumOnUpsampleParamsUbo.BlockName, "Tests.SharedBlock"));
+#if DEBUG
             Assert.Equal(4, ring.AllocationsWritten);
+#endif
             ring.EndFrame();
             Assert.Throws<InvalidOperationException>(() => block.TryBindToSlot(14));
+#if DEBUG
             Assert.Equal(4, ring.AllocationsWritten);
+#endif
             // Both another page and wraparound invalidate the borrowed range even when bytes are unchanged.
             for (int frame = 1; frame <= 2; frame++)
             {
                 ring.BeginFrame(frame);
                 Assert.True(block.TryBindToSlot(14));
                 Assert.Equal(0.75f, SubmittedDepthSigma());
+#if DEBUG
                 Assert.Equal(4 + frame, ring.AllocationsWritten);
+#endif
                 ring.EndFrame();
             }
             ring.BeginFrame(2);
             Assert.True(block.TryBindToSlot(14));
+#if DEBUG
             Assert.Equal(7, ring.AllocationsWritten);
+#endif
             Assert.Equal(0.75f, SubmittedDepthSigma());
             replacement.BeginFrame(0);
             GpuUniformRingSystem.SetCurrent(replacement);
             Assert.True(block.TryBindToSlot(14));
+#if DEBUG
             Assert.Equal(1, replacement.AllocationsWritten);
+#endif
             block.Dispose();
             Assert.True(block.TryBindToSlot(14));
+#if DEBUG
             Assert.Equal(2, replacement.AllocationsWritten);
             Assert.Equal(64, replacement.BytesWritten);
+#endif
             Assert.Equal(0.75f, SubmittedDepthSigma());
             replacement.Dispose();
             Assert.Throws<ObjectDisposedException>(() => block.TryBindToSlot(14));
@@ -125,22 +145,28 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, previous.TextureId);
             Assert.False(shader.TryUse());
             Assert.True(parameters.IsDirty);
+#if DEBUG
             Assert.Equal(0, ring.AllocationsWritten);
+#endif
             Assert.True(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int retained));
             Assert.Equal(previous.TextureId, retained);
             shader.HzbDepth = desired;
             using (shader.UseScope())
             {
                 Assert.False(parameters.IsDirty);
+#if DEBUG
                 Assert.Equal(1, ring.AllocationsWritten);
+#endif
                 Assert.True(StateCache.Current.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out int published));
                 Assert.Equal(desired.TextureId, published);
             }
             using (shader.UseScope()) { }
             var validation = (ShaderInputValidation)typeof(RasterDepthReductionShaderProgram)
                 .GetField("__validation_HzbDepth", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(shader)!;
+#if DEBUG
             Assert.Equal(1, validation.EntryResolutions);
             Assert.Equal(1, validation.CompatibilityChecks);
+#endif
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
     }
@@ -174,10 +200,14 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
                 shader.HzbDepth = mip == 0 ? first : second;
                 shader.SrcMip = 2;
                 shader.SrcMip = mip;
+#if DEBUG
                 Assert.Equal(mip, ring.AllocationsWritten);
+#endif
                 Assert.Equal(priorTexture, BoundTextures()[0]);
                 draws.RenderQuadTo(shader, target);
+#if DEBUG
                 Assert.Equal(mip + 1, ring.AllocationsWritten);
+#endif
                 Assert.Equal(mip, BitConverter.SingleToInt32Bits(SubmittedDepthSigma()));
                 priorTexture = mip == 0 ? first.TextureId : second.TextureId;
                 Assert.Equal(priorTexture, BoundTextures()[0]);
@@ -225,7 +255,9 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
                 Assert.Equal(0f, SubmittedDepthSigma(8));
                 Assert.Equal(0f, SubmittedDepthSigma(16));
             }
+#if DEBUG
             Assert.Equal(3, ring.AllocationsWritten);
+#endif
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
     }
@@ -265,7 +297,9 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             shader.HoleFillRadius = 3;
             shader.HoleFillMinConfidence = 0.5f;
 
+#if DEBUG
             Assert.Equal(0, ring.AllocationsWritten);
+#endif
             Assert.Equal(priorTextures, BoundTextures());
             Assert.Null(ShaderProgramBase.CurrentShaderProgram);
             GpuUniformRingSystem.ClearCurrent();
@@ -274,20 +308,28 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             Assert.Null(ShaderProgramBase.CurrentShaderProgram);
             GpuUniformRingSystem.SetCurrent(ring);
             ((IGpuProgram)shader).Activate();
+#if DEBUG
             Assert.Equal(2, ring.AllocationsWritten);
+#endif
             shader.Stop();
             shader.UpsampleDepthSigma = 0.75f;
+#if DEBUG
             Assert.Equal(2, ring.AllocationsWritten);
+#endif
             Assert.Equal(12f, UboPacking.ReadFloat(Parameters(shader).Bytes, 4));
             shader.Use();
+#if DEBUG
             Assert.Equal(3, ring.AllocationsWritten);
+#endif
             // End the direct use borrow before replacing the executable and reusing its uniform page.
             shader.Stop();
             shader.InvalidateAssets();
             GL.Finish();
             ring.BeginFrame(1);
             shader.Use();
+#if DEBUG
             Assert.Equal(5, ring.AllocationsWritten);
+#endif
             Assert.Equal(0.75f, SubmittedDepthSigma());
             Assert.Equal(shader.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(0.75f, UboPacking.ReadFloat(Parameters(shader).Bytes, 0));
@@ -322,13 +364,19 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             shader.PmjJitter = texture;
             shader.DepthDiscontinuityThreshold = 0.25f;
             shader.DepthDiscontinuityThreshold = 0.75f;
+#if DEBUG
             Assert.Equal(0, ring.AllocationsWritten);
+#endif
             Assert.Equal(priorTextures, BoundTextures());
             shader.Use();
+#if DEBUG
             Assert.Equal(2, ring.AllocationsWritten);
+#endif
             Assert.Equal(0.75f, SubmittedDepthSigma(48));
             shader.Use();
+#if DEBUG
             Assert.Equal(2, ring.AllocationsWritten);
+#endif
             Assert.Equal(0.75f, SubmittedDepthSigma(48));
             shader.Stop();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -350,7 +398,9 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             var shader = programs.Create<LumOnUpsampleShaderProgram>();
             ((ILumOnFrameShader)shader).FrameInputs = frameCamera;
             Assert.False(shader.TryUse());
+#if DEBUG
             Assert.Equal(0, ring.AllocationsWritten);
+#endif
             Assert.Null(ShaderProgramBase.CurrentShaderProgram);
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
@@ -386,8 +436,10 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             shader.PrimaryDepth = texture.TextureId;
 
             shader.Use();
+#if DEBUG
             Assert.Equal(1, ring.AllocationsWritten);
             Assert.Equal(VgeFrameUniformBuffer.PackedSize, ring.BytesWritten);
+#endif
             shader.Stop();
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }

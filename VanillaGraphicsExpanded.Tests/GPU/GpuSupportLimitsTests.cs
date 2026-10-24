@@ -82,11 +82,15 @@ public sealed class GpuSupportLimitsTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent();
         GpuSupport.EnsureCurrentContext();
+#if DEBUG
         long captures = GpuSupport.CaptureCount;
+#endif
         StateCache.Current.InvalidateAll();
         GL.GetInteger((GetPName)(-1));
         GpuSupport.EnsureCurrentContext();
+#if DEBUG
         Assert.Equal(captures, GpuSupport.CaptureCount);
+#endif
         Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -97,7 +101,9 @@ public sealed class GpuSupportLimitsTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent();
         GpuSupport.EnsureCurrentContext();
+#if DEBUG
         long captures = GpuSupport.CaptureCount;
+#endif
         GL.GetInteger((GetPName)(-1));
         var first = GpuSupport.Graphics;
         var second = GpuSupport.Graphics;
@@ -118,7 +124,9 @@ public sealed class GpuSupportLimitsTests(HeadlessGLFixture fixture)
         Assert.Equal(GpuSupport.MaxLineWidth, first.MaxLineWidth);
         Assert.Equal(GpuSupport.MinPointSize, first.MinPointSize);
         Assert.Equal(GpuSupport.MaxPointSize, first.MaxPointSize);
+#if DEBUG
         Assert.Equal(captures, GpuSupport.CaptureCount);
+#endif
         Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -130,7 +138,9 @@ public sealed class GpuSupportLimitsTests(HeadlessGLFixture fixture)
         fixture.MakeCurrent();
         GpuSupport.EnsureCurrentContext();
         var retained = GpuSupport.Graphics;
+#if DEBUG
         long captures = GpuSupport.CaptureCount;
+#endif
         int[] retainedCounts = retained.MaxComputeWorkGroupCount.ToArray();
         int[] retainedSizes = retained.MaxComputeWorkGroupSize.ToArray();
         // Immutable collection edits produce separate data without altering the published owner.
@@ -142,7 +152,9 @@ public sealed class GpuSupportLimitsTests(HeadlessGLFixture fixture)
         var current = GpuSupport.Graphics;
         Assert.NotSame(retained, current);
         Assert.Same(current, GpuSupport.Graphics);
+#if DEBUG
         Assert.Equal(captures + 1, GpuSupport.CaptureCount);
+#endif
         Assert.Equal(retainedCounts, retained.MaxComputeWorkGroupCount.ToArray());
         Assert.Equal(retainedSizes, retained.MaxComputeWorkGroupSize.ToArray());
         Assert.Equal(retainedCounts, current.MaxComputeWorkGroupCount.ToArray());
@@ -172,7 +184,9 @@ public sealed class GpuSupportLimitsTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent();
         GpuSupport.EnsureCurrentContext();
+#if DEBUG
         long captures = GpuSupport.CaptureCount;
+#endif
         var bindings = new GpuBindingContract();
         var contract = new GpuShaderContract("support-test", [
             new ShaderStageContract("test.vsh", "test.vsh", ShaderStageKind.Vertex, bindings),
@@ -185,7 +199,9 @@ public sealed class GpuSupportLimitsTests(HeadlessGLFixture fixture)
         // A location at the exclusive native limit proves omitted injection uses actual shared support.
         Assert.Throws<NotSupportedException>(() => new GraphicsPipelineDesc(shader,
             new([valid with { Location = GpuSupport.MaxVertexAttribs }]), targets, DynamicPipelineState.Viewport));
+#if DEBUG
         Assert.Equal(captures, GpuSupport.CaptureCount);
+#endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

@@ -34,7 +34,9 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
             Assert.Equal(3f, ReadSlot(13));
             Assert.Equal(7f, ReadSlot(14));
             Assert.False(block.IsDirty);
+#if DEBUG
             Assert.Equal(2, ring.AllocationsWritten);
+#endif
             ring.EndFrame();
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
@@ -59,7 +61,9 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
             Assert.Throws<InvalidOperationException>(() => block.TryBindToSlot(13));
             Assert.True(block.IsDirty);
             Assert.Equal(3f, ReadSlot(13));
+#if DEBUG
             Assert.Equal(1, ring.AllocationsWritten);
+#endif
             ring.EndFrame();
             ring.BeginFrame(1);
             Assert.True(block.TryBindToSlot(13));
@@ -92,8 +96,10 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
                     Assert.Equal(128f, ReadSlot(GpuBindingRegistry.Ubo.Object));
                 Assert.Equal(64f, ReadSlot(GpuBindingRegistry.Ubo.Object));
             }
+#if DEBUG
             Assert.Equal(2, ring.PersistentStorage.AllocationsWritten);
             Assert.Equal(3, ring.PersistentStorage.Bindings);
+#endif
             ring.EndFrame();
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
@@ -113,11 +119,15 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
         {
             shader.AtlasSize = new(64, 32);
             using (shader.UseScope()) { }
+#if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
+#endif
             shader.InvalidateAssets();
             shader.EnsureReady();
             using (shader.UseScope()) { }
+#if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
+#endif
             Assert.Equal(0, ring.PersistentStorage.PendingBytes);
             shader.Dispose();
             Assert.True(ring.PersistentStorage.PendingBytes > 0);
@@ -156,11 +166,15 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
             Assert.Throws<InvalidOperationException>(() => block.TryBindToSlot(13));
             Assert.True(block.IsDirty);
             Assert.Equal(1f, ReadSlot(13));
+#if DEBUG
             Assert.Equal(1, usage == UniformBufferUsage.MultiFrame ? ring.PersistentStorage.AllocationsWritten : ring.AllocationsWritten);
+#endif
             Assert.True(block.TryBindToSlot(13));
             Assert.False(block.IsDirty);
             Assert.Equal(2f, ReadSlot(13));
+#if DEBUG
             Assert.Equal(2, usage == UniformBufferUsage.MultiFrame ? ring.PersistentStorage.AllocationsWritten : ring.AllocationsWritten);
+#endif
             ring.EndFrame();
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
@@ -197,17 +211,23 @@ public sealed class UniformLifetimeSharingTests(HeadlessGLFixture fixture) : Ren
             Assert.True(block.TryBindTo(second, LumOnUpsampleParamsUbo.BlockName, "Shared.Persistent"));
             Assert.True(block.TryBindToSlot(13));
             Assert.Equal(0.25f, ReadSlot(13));
+#if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
             Assert.Equal(32, ring.PersistentStorage.BytesWritten);
             Assert.Equal(5, ring.PersistentStorage.Bindings);
+#endif
             using var incompatible = new PackedUniformBuffer(16, UniformBufferUsage.MultiFrame);
             Assert.Throws<InvalidOperationException>(() => incompatible.TryBindTo(second, LumOnUpsampleParamsUbo.BlockName, "Wrong.Layout"));
+#if DEBUG
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
+#endif
             // CPU packing disposal deliberately resets publication; unlike logical disposal it remains publishable.
             block.Dispose();
             Assert.True(block.TryBindToSlot(14));
             Assert.Equal(0.25f, ReadSlot(14));
+#if DEBUG
             Assert.Equal(2, ring.PersistentStorage.AllocationsWritten);
+#endif
             ring.EndFrame();
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }

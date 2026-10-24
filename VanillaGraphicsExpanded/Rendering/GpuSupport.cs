@@ -20,8 +20,10 @@ public static partial class GpuSupport
     private static (nint Handle, long Generation) cachedRegistration;
 
     #region Public API
+#if DEBUG
     /// <summary>Counts complete capability captures independently of mutable state reads.</summary>
     internal static long CaptureCount { get; private set; }
+#endif
 
     /// <summary>Reuses registered context capabilities without polling native strings on the draw path.</summary>
     internal static void EnsureCurrentContext()
@@ -103,7 +105,9 @@ public static partial class GpuSupport
             formatCapabilities.Clear();
 
             cachedRegistration = registration;
+#if DEBUG
             CaptureCount++;
+#endif
             Volatile.Write(ref cachedContextKey, contextKey);
             Volatile.Write(ref isInitialized, true);
         }

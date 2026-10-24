@@ -20,8 +20,10 @@ public static partial class VgeBuiltInDebugViews
     private const string PbrDebugViewId = "vge.lumon.pbr";
     private const string GBufferDebugViewId = "vge.lumon.gbuffers";
     private const string MotionDebugViewId = "vge.lumon.motion";
+#if DEBUG
     private const string GpuProfilerViewId = "vge.profiling.gpu";
     private const string GpuDebugGroupsViewId = "vge.profiling.gpuDebugGroups";
+#endif
     private const string GBufferOverlayViewId = "vge.gbuffer.overlay";
     private const string ToolsViewId = "vge.tools";
     private const string ArtifactsViewId = "vge.pbr.artifacts";
@@ -43,8 +45,10 @@ public static partial class VgeBuiltInDebugViews
         DebugViewRegistry.Instance.Register(CreatePbrDebugView());
         DebugViewRegistry.Instance.Register(CreateGBufferDebugView());
         DebugViewRegistry.Instance.Register(CreateMotionDebugView());
+#if DEBUG
         DebugViewRegistry.Instance.Register(CreateGpuProfilerView());
         DebugViewRegistry.Instance.Register(CreateGpuDebugGroupsView());
+#endif
         DebugViewRegistry.Instance.Register(CreateGBufferOverlayView(gBufferManager));
         DebugViewRegistry.Instance.Register(CreateWorldCellBoundsView());
         DebugViewRegistry.Instance.Register(CreateTraceSceneClipmapDebugView());

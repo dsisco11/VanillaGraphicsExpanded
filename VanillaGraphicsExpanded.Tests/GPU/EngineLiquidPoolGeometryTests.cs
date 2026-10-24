@@ -34,8 +34,13 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
         {
             commands.BeginPass(new(target, [new(0)])); commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport }); commands.Draw(geometry, new(0, 1));
+#if DEBUG
             long draws = StateCache.Current.DrawSubmissions, queries = StateCache.Current.BoundaryQueries;
-            commands.Draw(geometry, new(0, 1)); Assert.Equal(queries, StateCache.Current.BoundaryQueries);
+#endif
+            commands.Draw(geometry, new(0, 1));
+#if DEBUG
+            Assert.Equal(queries, StateCache.Current.BoundaryQueries);
+#endif
             storage.Pool.indicesStartsByte[1] = 1;
             Assert.ThrowsAny<Exception>(() => commands.Draw(geometry, new(0, 1)));
             storage.Pool.indicesStartsByte[1] = 0; storage.Pool.indicesSizes[0] = 6;
@@ -43,7 +48,9 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
             storage.Pool.indicesSizes[0] = 3; storage.Location.VerticesEnd = 4;
             Assert.ThrowsAny<Exception>(() => commands.Draw(geometry, new(0, 1)));
             storage.Location.VerticesEnd = 3;
+#if DEBUG
             Assert.Equal(draws + 1, StateCache.Current.DrawSubmissions);
+#endif
         }));
         Assert.InRange(target[0].ReadPixels()[0], .1999f, .2001f);
         int original = storage.Mesh.customDataIntVboId; storage.Mesh.customDataIntVboId = 0;

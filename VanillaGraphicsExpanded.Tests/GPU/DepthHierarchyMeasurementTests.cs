@@ -43,7 +43,9 @@ public sealed class DepthHierarchyMeasurementTests(HeadlessGLFixture fixture, IT
         }
         /// <summary>Reports the midpoint of the eight warm samples.</summary>
         double Median(List<double> samples)=>samples.Order().Skip(3).Take(2).Average();
+#if DEBUG
         log.WriteLine($"HZB {width}x{height}: raster GPU median={Median(rasterGpu):F4}ms CPU submission median={Median(rasterCpu):F4}ms; compute GPU median={Median(computeGpu):F4}ms CPU submission median={Median(computeCpu):F4}ms; hierarchy bytes={compute.StorageBytes}; scratch bytes={compute.ScratchBytes}; raster draws/framebuffers={compute.Texture.MipLevels}; compute dispatches=1 framebuffer targets=0 tail transfers={Math.Max(0,compute.Texture.MipLevels-7)}; GPU={GL.GetString(StringName.Renderer)}.");
+#endif
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     #endregion

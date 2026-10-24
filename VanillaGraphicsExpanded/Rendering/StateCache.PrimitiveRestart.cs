@@ -16,7 +16,9 @@ internal sealed partial class StateCache
         assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.RestartIndex;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.PrimitiveRestartIndex(index);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         assembly.RestartIndex = index;
         assemblyKnown |= PrimitiveAssemblyStateKnowledge.RestartIndex;

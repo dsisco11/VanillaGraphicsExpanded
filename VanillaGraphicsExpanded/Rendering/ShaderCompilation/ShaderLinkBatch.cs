@@ -32,10 +32,12 @@ internal sealed partial class ShaderLinkBatch : IDisposable
     internal bool Enabled { get; }
     internal int Outstanding => submitted.Count;
     internal int CompletedOutstanding => submitted.Count(entry => entry.Program?.Validated == true);
+#if DEBUG
     internal int PeakOutstanding { get; private set; }
     internal double SubmissionMilliseconds { get; private set; }
     internal double CompletionMilliseconds { get; private set; }
     internal int ConsumedCount { get; private set; }
+#endif
 
     #region Submission and consumption
     /// <summary>Submits a bounded window of exact settings; unsupported contexts retain ordinary synchronous loading.</summary>
@@ -99,10 +101,14 @@ internal sealed partial class ShaderLinkBatch : IDisposable
         {
             if (entry.Error != null)
                 throw new InvalidOperationException($"Shader submission failed for {plan.Settings.Contract.Identity}: {entry.Error.Message}", entry.Error);
+#if DEBUG
             long started = Stopwatch.GetTimestamp();
+#endif
             entry.Program!.Complete(batch.cancellation);
+#if DEBUG
             batch.CompletionMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             batch.ConsumedCount++;
+#endif
             // Refill only after this dependency completes so driver work never exceeds the window.
             batch.Fill();
             return entry.Program;
@@ -127,7 +133,9 @@ internal sealed partial class ShaderLinkBatch : IDisposable
         {
             var entry = submitted[index];
             if (entry.Program == null) continue;
+#if DEBUG
             long started = Stopwatch.GetTimestamp();
+#endif
             try { entry.Program.Complete(cancellation); }
             catch (OperationCanceledException) { throw; }
             catch (Exception error)
@@ -135,7 +143,9 @@ internal sealed partial class ShaderLinkBatch : IDisposable
                 entry.Program.Dispose();
                 submitted[index] = (entry.Plan, null, error);
             }
+#if DEBUG
             finally { CompletionMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds; }
+#endif
         }
     }
 
@@ -149,13 +159,19 @@ internal sealed partial class ShaderLinkBatch : IDisposable
             {
                 // Each asset callback can change context; never let the next plan adopt that context.
                 RequireOriginatingContext();
+#if DEBUG
                 long started = Stopwatch.GetTimestamp();
+#endif
                 var pending = new PendingShaderProgram(plan, source.Read, source.Digest, completionQuery);
+#if DEBUG
                 SubmissionMilliseconds += Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+#endif
                 submitted.Add((plan, pending, null));
             }
             catch (Exception error) { submitted.Add((plan, null, error)); }
+#if DEBUG
             PeakOutstanding = Math.Max(PeakOutstanding, submitted.Count);
+#endif
         }
     }
     #endregion

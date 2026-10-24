@@ -15,7 +15,9 @@ internal sealed partial class StateCache
         if (clearColorKnown && clearColor == value) return;
         clearColorKnown = false;
         GL.ClearColor(red, green, blue, alpha);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         clearColor = value;
         clearColorKnown = true;
     }

@@ -21,8 +21,10 @@ internal sealed class GpuPreparedBindings
 
     /// <summary>Provides deterministic contract indices independent of GPU binding slots.</summary>
     internal IReadOnlyList<Entry> Entries { get; }
+#if DEBUG
     /// <summary>Counts linked-interface queries during preparation, excluding context limit queries.</summary>
     internal int ReflectionQueries { get; private set; }
+#endif
 
     #region Public API
     /// <summary>Validates fixed resource assignments once before the candidate executable is published.</summary>
@@ -39,7 +41,9 @@ internal sealed class GpuPreparedBindings
         else
         {
             GL.GetProgramInterface(program, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out count);
+#if DEBUG
             ReflectionQueries++;
+#endif
         }
         ProgramProperty[] uniformProperties = [ProgramProperty.Location, ProgramProperty.Type, ProgramProperty.ArraySize];
         int[] values = new int[uniformProperties.Length];
@@ -50,7 +54,9 @@ internal sealed class GpuPreparedBindings
             {
                 GL.GetProgramResource(program, ProgramInterface.Uniform, resource, uniformProperties.Length,
                     uniformProperties, values.Length, out _, values);
+#if DEBUG
                 ReflectionQueries++;
+#endif
             }
             uniformResourceLocations.Add(resource, values[0]);
             var type = (ActiveUniformType)values[1];
@@ -87,7 +93,9 @@ internal sealed class GpuPreparedBindings
                 else
                 {
                     GL.GetUniform(program, values[0] + element, out slot);
+#if DEBUG
                     ReflectionQueries++;
+#endif
                 }
                 if (element == 0) baseSlot = slot;
                 if (slot < 0 || slot != baseSlot + element || !linked.TryAdd((kind, slot), (type, values[2], baseSlot)))
@@ -103,7 +111,9 @@ internal sealed class GpuPreparedBindings
         else
         {
             GL.GetProgram(program, GetProgramParameterName.ActiveAtomicCounterBuffers, out counters);
+#if DEBUG
             ReflectionQueries++;
+#endif
         }
         for (int counter = 0; counter < counters; counter++)
         {
@@ -112,7 +122,9 @@ internal sealed class GpuPreparedBindings
             else
             {
                 GL.GetActiveAtomicCounterBuffer(program, counter, AtomicCounterBufferParameter.AtomicCounterBufferBinding, out slot);
+#if DEBUG
                 ReflectionQueries++;
+#endif
             }
             if (!linked.TryAdd((ShaderBindingKind.AtomicCounter, slot), (default, 1, slot)))
                 throw new InvalidOperationException($"Ambiguous linked atomic counter binding {slot}.");
@@ -239,7 +251,9 @@ internal sealed class GpuPreparedBindings
         else
         {
             GL.GetProgramInterface(program, resourceInterface, ProgramInterfaceParameter.ActiveResources, out count);
+#if DEBUG
             ReflectionQueries++;
+#endif
         }
         ProgramProperty[] properties = [ProgramProperty.BufferBinding, ProgramProperty.BufferDataSize,
             ProgramProperty.ReferencedByVertexShader, ProgramProperty.ReferencedByTessControlShader,
@@ -253,7 +267,9 @@ internal sealed class GpuPreparedBindings
             else
             {
                 GL.GetProgramResource(program, resourceInterface, resource, properties.Length, properties, values.Length, out _, values);
+#if DEBUG
                 ReflectionQueries++;
+#endif
             }
             int slot = values[0];
             int stages = 0;

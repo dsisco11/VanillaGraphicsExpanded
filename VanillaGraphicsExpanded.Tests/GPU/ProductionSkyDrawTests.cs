@@ -60,26 +60,34 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
         scene.AssertRestored();
         scene.ReadPrefixes = false;
         scene.Initialize();
+#if DEBUG
         long start = StateCache.Current.FixedFunctionCalls;
+#endif
         List<string> standalone;
         using (var capture = new GraphicsTransitionCapture())
         {
             scene.Draw(false);
             standalone = [.. capture.Calls];
         }
+#if DEBUG
         long standaloneFixed = StateCache.Current.FixedFunctionCalls - start;
+#endif
         Assert.Equal(4, scene.Contexts.Count);
         scene.AssertRestored();
         float[][] expected = scene.Read();
         scene.Initialize();
+#if DEBUG
         start = StateCache.Current.FixedFunctionCalls;
+#endif
         List<string> shared;
         using (var capture = new GraphicsTransitionCapture())
         {
             scene.Draw(true);
             shared = [.. capture.Calls];
         }
+#if DEBUG
         long sharedFixed = StateCache.Current.FixedFunctionCalls - start;
+#endif
         Assert.Single(scene.Contexts);
         scene.AssertRestored();
         Assert.Equal(new[] { "CelestialGalaxyProgram", "CelestialStarProgram", "MoonProgram", "SunProgram", "AtmosphereSkyShaderProgram" }, scene.Draws);
@@ -90,7 +98,9 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
             Assert.True(MemoryMarshal.AsBytes(expected[image].AsSpan()).SequenceEqual(MemoryMarshal.AsBytes(actual[image].AsSpan())));
             Assert.All(actual[image], value => Assert.True(float.IsFinite(value)));
         }
+#if DEBUG
         Assert.True(sharedFixed < standaloneFixed, $"Fixed setters: {sharedFixed} vs {standaloneFixed}");
+#endif
         foreach (string prefix in new[] { "Framebuffer:", "Program:" })
             Assert.True(shared.Count(call => call.StartsWith(prefix)) < standalone.Count(call => call.StartsWith(prefix)), prefix);
         // This primary-like target already has the exact MRT route. Neither scheduling path should rewrite it.
@@ -99,8 +109,10 @@ public sealed class ProductionSkyDrawTests(HeadlessGLFixture fixture, ITestOutpu
         output.WriteLine("PRODUCTION_SKY_TRANSITIONS=" + JsonSerializer.Serialize(new
         {
             variation,
+#if DEBUG
             standaloneFixed,
             sharedFixed,
+#endif
             standalone,
             shared,
             colorPixels = actual[0].Length / 4,

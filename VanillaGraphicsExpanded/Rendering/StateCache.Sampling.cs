@@ -16,7 +16,9 @@ internal sealed partial class StateCache
         samplingKnown &= ~SamplingStateKnowledge.SampleCoverage;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.SampleCoverage(value, invert);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         sampling.SampleCoverage = (value, invert);
         samplingKnown |= SamplingStateKnowledge.SampleCoverage;
@@ -32,7 +34,9 @@ internal sealed partial class StateCache
         samplingKnown &= ~SamplingStateKnowledge.MinimumSampleShading;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.MinSampleShading(value);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         sampling.MinimumSampleShading = value;
         samplingKnown |= SamplingStateKnowledge.MinimumSampleShading;
@@ -46,7 +50,10 @@ internal sealed partial class StateCache
         if (sampleMasks.TryGetValue(index, out uint known) && known == value) return;
         sampleMasks.Remove(index);
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        GL.SampleMask((uint)index, value); FixedFunctionCalls++;
+        GL.SampleMask((uint)index, value);
+#if DEBUG
+        FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         sampleMasks[index] = value;
     }

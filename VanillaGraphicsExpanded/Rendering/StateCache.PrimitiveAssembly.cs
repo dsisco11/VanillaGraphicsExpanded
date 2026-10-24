@@ -14,7 +14,9 @@ internal sealed partial class StateCache
         if (assemblyKnown.HasFlag(PrimitiveAssemblyStateKnowledge.PatchVertices) && assembly.PatchVertices == count) return;
         assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PatchVertices;
         GL.PatchParameter(PatchParameterInt.PatchVertices, count);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         assembly.PatchVertices = count;
         assemblyKnown |= PrimitiveAssemblyStateKnowledge.PatchVertices;
     }

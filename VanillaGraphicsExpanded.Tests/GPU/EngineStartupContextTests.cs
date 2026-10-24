@@ -48,16 +48,22 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
             int[] actualViewport = new int[4];
             GL.GetInteger(GetPName.Viewport, actualViewport);
             Assert.Equal(new[] { 2, 3, 37, 41 }, actualViewport);
+#if DEBUG
             long captures = GpuSupport.CaptureCount;
+#endif
             EngineStateCalls.Viewport(2, 3, 37, 41);
             EngineRenderContext.RegisterCurrent();
             Assert.Equal(generation, RenderContextRegistry.Current().Generation);
+#if DEBUG
             Assert.Equal(captures, GpuSupport.CaptureCount);
+#endif
 
             RenderContextRegistry.Retire(owner);
             EngineStateCalls.Viewport(4, 5, 43, 47);
             Assert.True(RenderContextRegistry.Current().Generation > generation);
+#if DEBUG
             Assert.Equal(captures + 1, GpuSupport.CaptureCount);
+#endif
             GL.GetInteger(GetPName.Viewport, actualViewport);
             Assert.Equal(new[] { 4, 5, 43, 47 }, actualViewport);
 
@@ -91,13 +97,21 @@ public sealed class EngineStartupContextTests(HeadlessGLFixture fixture)
             ScreenManager.Platform = null;
             GpuSupport.EnsureCurrentContext();
             long generation = RenderContextRegistry.Current().Generation;
+#if DEBUG
             long captures = GpuSupport.CaptureCount;
+#endif
             EngineStateCalls.Viewport(0, 0, 1, 1);
+#if DEBUG
             long calls = StateCache.Current.FixedFunctionCalls;
+#endif
             EngineStateCalls.Viewport(0, 0, 1, 1);
+#if DEBUG
             Assert.Equal(calls, StateCache.Current.FixedFunctionCalls);
+#endif
             Assert.Equal(generation, RenderContextRegistry.Current().Generation);
+#if DEBUG
             Assert.Equal(captures, GpuSupport.CaptureCount);
+#endif
             Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError, GL.GetError());
         }
         finally

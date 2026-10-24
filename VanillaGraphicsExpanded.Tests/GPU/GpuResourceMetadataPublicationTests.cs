@@ -298,7 +298,9 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         cache.BindTexture(TextureTarget.TextureBuffer, 3, sentinel.TextureId);
         GL.ActiveTexture(TextureUnit.Texture3);
         cache.InvalidateAll();
+#if DEBUG
         long previousBindCount = cache.TextureBindCount;
+#endif
         try
         {
             using var view = generatedName
@@ -306,8 +308,10 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
                 : ranged
                     ? GpuBufferView.CreateRange(buffer.BufferId, SizedInternalFormat.R32f, offset, size)
                     : GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
+#if DEBUG
             if (generatedName) Assert.True(cache.TextureBindCount > previousBindCount);
             else Assert.Equal(previousBindCount, cache.TextureBindCount);
+#endif
             Assert.Equal((int)TextureUnit.Texture3, GL.GetInteger(GetPName.ActiveTexture));
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingBuffer));
             GL.ActiveTexture(TextureUnit.Texture0);

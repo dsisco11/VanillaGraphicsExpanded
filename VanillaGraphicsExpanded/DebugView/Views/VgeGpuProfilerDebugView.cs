@@ -1,3 +1,4 @@
+#if DEBUG
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -427,3 +428,5 @@ public static partial class VgeBuiltInDebugViews
         }
     }
 }
+
+#endif

@@ -15,7 +15,10 @@ internal sealed partial class StateCache
         if (outputKnown.HasFlag(OutputStateKnowledge.LogicOperation) && output.LogicOperation == operation) return;
         outputKnown &= ~OutputStateKnowledge.LogicOperation;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        GL.LogicOp(operation); FixedFunctionCalls++;
+        GL.LogicOp(operation);
+#if DEBUG
+        FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         output.LogicOperation = operation;
         outputKnown |= OutputStateKnowledge.LogicOperation;

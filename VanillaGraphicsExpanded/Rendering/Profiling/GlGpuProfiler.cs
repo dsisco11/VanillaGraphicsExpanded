@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 
 using VanillaGraphicsExpanded.Rendering;
 
@@ -7,16 +8,21 @@ using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.Rendering.Profiling;
 
+/// <summary>Provides GPU timing scopes whose measurement state exists only in DEBUG builds.</summary>
 public sealed class GlGpuProfiler : IDisposable
 {
+#if DEBUG
     private const int FramesInFlight = 16;
     private const int RollingWindow = 120;
     private const int BaselineSamples = 240;
+
+#endif
 
     private static readonly Lazy<GlGpuProfiler> LazyInstance = new(() => new GlGpuProfiler());
 
     public static GlGpuProfiler Instance => LazyInstance.Value;
 
+#if DEBUG
     private readonly object gate = new();
 
     private readonly Dictionary<string, EventState> events = new(StringComparer.Ordinal);
@@ -31,18 +37,31 @@ public sealed class GlGpuProfiler : IDisposable
 
     public bool EmitDebugGroups { get; set; } = true;
 
-    private GlGpuProfiler() { }
+#else
+    /// <summary>Profiling is unavailable in Release; setting this property enables no measurement work.</summary>
+    public bool Enabled { get => false; set { } }
+    /// <summary>Debug groups are unavailable through Release profiling scopes.</summary>
+    public bool EmitDebugGroups { get => false; set { } }
+#endif
 
+    #region Public API
+    /// <summary>Associates debug sample reporting with the client logger.</summary>
+    [Conditional("DEBUG")]
     public void Initialize(ICoreClientAPI capi)
     {
+#if DEBUG
         lock (gate)
         {
             this.capi = capi;
         }
+#endif
     }
 
+    /// <summary>Collects completed debug queries and advances the timing frame.</summary>
+    [Conditional("DEBUG")]
     public void BeginFrame(int width, int height)
     {
+#if DEBUG
         if (!Enabled)
         {
             return;
@@ -63,10 +82,14 @@ public sealed class GlGpuProfiler : IDisposable
                 stack.Clear();
             }
         }
+#endif
     }
 
+    /// <summary>Collects completed debug measurements without advancing the frame.</summary>
+    [Conditional("DEBUG")]
     public void Collect()
     {
+#if DEBUG
         if (!Enabled)
         {
             return;
@@ -76,18 +99,13 @@ public sealed class GlGpuProfiler : IDisposable
         {
             CollectInternal();
         }
+#endif
     }
 
-    private void CollectInternal()
-    {
-        foreach (var (_, evt) in events)
-        {
-            evt.CollectResolvedSamples(capi);
-        }
-    }
-
+    /// <summary>Starts a debug timing scope, or returns an empty value scope in Release.</summary>
     public GlGpuProfilerScope Scope(string name)
     {
+#if DEBUG
         if (!Enabled)
         {
             return default;
@@ -106,36 +124,98 @@ public sealed class GlGpuProfiler : IDisposable
 
             return new GlGpuProfilerScope(this, token, group);
         }
+#else
+        return default;
+#endif
     }
 
-    internal int BeginEvent(string name)
+    /// <summary>Returns available debug samples; Release reports measurement unavailability.</summary>
+    public bool TryGetStats(string name, out GpuProfileStats stats)
     {
-        if (!Enabled)
+#if DEBUG
+        lock (gate)
         {
-            return 0;
+            if (events.TryGetValue(name, out var evt))
+            {
+                stats = evt.GetStats();
+                return true;
+            }
         }
 
-        if (!events.TryGetValue(name, out var evt))
-        {
-            evt = new EventState(name);
-            events[name] = evt;
-        }
-
-        evt.EnsureResolution(width, height);
-
-        int slot = frameIndex % FramesInFlight;
-        if (!evt.TryBegin(slot, out var beginQuery))
-        {
-            return 0;
-        }
-
-        beginQuery.Issue();
-
-        var token = new EventToken(name, slot);
-        stack.Push(token);
-        return token.Id;
+        stats = default;
+        return false;
+#else
+        stats = default;
+        return false;
+#endif
     }
 
+    /// <summary>Returns collected debug samples, or an empty snapshot when profiling is unavailable.</summary>
+    public GpuProfileEntry[] GetSnapshot(
+        GpuProfileSort sort = GpuProfileSort.Name,
+        string? prefix = null,
+        int maxEntries = 128)
+    {
+#if DEBUG
+        lock (gate)
+        {
+            if (events.Count == 0)
+            {
+                return [];
+            }
+
+            var list = new List<GpuProfileEntry>(Math.Min(events.Count, maxEntries));
+            foreach (var (name, evt) in events)
+            {
+                if (prefix != null && !name.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                list.Add(new GpuProfileEntry(name, evt.GetStats()));
+                if (list.Count >= maxEntries)
+                {
+                    break;
+                }
+            }
+
+            list.Sort(sort switch
+            {
+                GpuProfileSort.LastMs => static (a, b) => b.Stats.LastMs.CompareTo(a.Stats.LastMs),
+                GpuProfileSort.AvgMs => static (a, b) => b.Stats.AvgMs.CompareTo(a.Stats.AvgMs),
+                GpuProfileSort.MaxMs => static (a, b) => b.Stats.MaxMs.CompareTo(a.Stats.MaxMs),
+                _ => static (a, b) => string.CompareOrdinal(a.Name, b.Name)
+            });
+
+            return list.ToArray();
+        }
+#else
+        return [];
+#endif
+    }
+
+    /// <summary>Releases debug timing resources; the Release facade owns no GPU state.</summary>
+    [Conditional("DEBUG")]
+    public void Dispose()
+    {
+#if DEBUG
+        lock (gate)
+        {
+            foreach (var (_, evt) in events)
+            {
+                evt.Dispose();
+            }
+
+            events.Clear();
+            stack.Clear();
+            capi = null;
+        }
+#endif
+    }
+
+#if DEBUG
+    /// <summary>Completes the matching active timing query.</summary>
+    [Conditional("DEBUG")]
     internal void EndEvent(int tokenId)
     {
         if (!Enabled || tokenId == 0)
@@ -170,75 +250,57 @@ public sealed class GlGpuProfiler : IDisposable
         evt.MarkPending(token.Slot);
     }
 
-    public bool TryGetStats(string name, out GpuProfileStats stats)
+#endif
+
+    /// <summary>Implements deterministic cleanup through the same debug-only disposal operation.</summary>
+    void IDisposable.Dispose() => Dispose();
+
+    #endregion
+
+    #region Private
+    /// <summary>Creates the process-wide facade without allocating Release measurement state.</summary>
+    private GlGpuProfiler() { }
+
+#if DEBUG
+    /// <summary>Collects available query results for each retained debug event.</summary>
+    private void CollectInternal()
     {
-        lock (gate)
+        foreach (var (_, evt) in events)
         {
-            if (events.TryGetValue(name, out var evt))
-            {
-                stats = evt.GetStats();
-                return true;
-            }
-        }
-
-        stats = default;
-        return false;
-    }
-
-    public GpuProfileEntry[] GetSnapshot(
-        GpuProfileSort sort = GpuProfileSort.Name,
-        string? prefix = null,
-        int maxEntries = 128)
-    {
-        lock (gate)
-        {
-            if (events.Count == 0)
-            {
-                return [];
-            }
-
-            var list = new List<GpuProfileEntry>(Math.Min(events.Count, maxEntries));
-            foreach (var (name, evt) in events)
-            {
-                if (prefix != null && !name.StartsWith(prefix, StringComparison.Ordinal))
-                {
-                    continue;
-                }
-
-                list.Add(new GpuProfileEntry(name, evt.GetStats()));
-                if (list.Count >= maxEntries)
-                {
-                    break;
-                }
-            }
-
-            list.Sort(sort switch
-            {
-                GpuProfileSort.LastMs => static (a, b) => b.Stats.LastMs.CompareTo(a.Stats.LastMs),
-                GpuProfileSort.AvgMs => static (a, b) => b.Stats.AvgMs.CompareTo(a.Stats.AvgMs),
-                GpuProfileSort.MaxMs => static (a, b) => b.Stats.MaxMs.CompareTo(a.Stats.MaxMs),
-                _ => static (a, b) => string.CompareOrdinal(a.Name, b.Name)
-            });
-
-            return list.ToArray();
+            evt.CollectResolvedSamples(capi);
         }
     }
 
-    public void Dispose()
+    /// <summary>Reserves and issues the start query for one named event.</summary>
+    private int BeginEvent(string name)
     {
-        lock (gate)
+        if (!Enabled)
         {
-            foreach (var (_, evt) in events)
-            {
-                evt.Dispose();
-            }
-
-            events.Clear();
-            stack.Clear();
-            capi = null;
+            return 0;
         }
+
+        if (!events.TryGetValue(name, out var evt))
+        {
+            evt = new EventState(name);
+            events[name] = evt;
+        }
+
+        evt.EnsureResolution(width, height);
+
+        int slot = frameIndex % FramesInFlight;
+        if (!evt.TryBegin(slot, out var beginQuery))
+        {
+            return 0;
+        }
+
+        beginQuery.Issue();
+
+        var token = new EventToken(name, slot);
+        stack.Push(token);
+        return token.Id;
     }
 
+    /// <summary>Retains the identity of one active debug query interval.</summary>
     private readonly record struct EventToken(string Name, int Slot)
     {
         private static int NextId;
@@ -246,6 +308,7 @@ public sealed class GlGpuProfiler : IDisposable
         public int Id { get; } = ++NextId;
     }
 
+    /// <summary>Owns timestamp queries and rolling statistics for one debug event.</summary>
     private sealed class EventState : IDisposable
     {
         private readonly string name;
@@ -272,11 +335,13 @@ public sealed class GlGpuProfiler : IDisposable
         private float baselineMax = float.NegativeInfinity;
         private bool baselineLogged;
 
+        /// <summary>Initializes the named debug measurement state.</summary>
         public EventState(string name)
         {
             this.name = name;
         }
 
+        /// <summary>Resets baseline accumulation when the output extent changes.</summary>
         public void EnsureResolution(int width, int height)
         {
             if (this.width == width && this.height == height)
@@ -294,6 +359,7 @@ public sealed class GlGpuProfiler : IDisposable
             baselineLogged = false;
         }
 
+        /// <summary>Reserves a timestamp query when its frame slot has retired.</summary>
         public bool TryBegin(int slot, out GpuTimestampQuery query)
         {
             if (pending[slot])
@@ -313,6 +379,7 @@ public sealed class GlGpuProfiler : IDisposable
             return true;
         }
 
+        /// <summary>Gets the matching end timestamp query for the frame slot.</summary>
         public bool TryEnd(int slot, out GpuTimestampQuery query)
         {
             query = endQueries[slot] ?? GpuTimestampQuery.Create(debugName: $"{name}.End[{slot}]");
@@ -326,11 +393,13 @@ public sealed class GlGpuProfiler : IDisposable
             return true;
         }
 
+        /// <summary>Marks a completed interval for later asynchronous readback.</summary>
         public void MarkPending(int slot)
         {
             pending[slot] = true;
         }
 
+        /// <summary>Collects ready timestamp pairs without waiting for the GPU.</summary>
         public void CollectResolvedSamples(ICoreClientAPI? capi)
         {
             for (int slot = 0; slot < FramesInFlight; slot++)
@@ -379,6 +448,7 @@ public sealed class GlGpuProfiler : IDisposable
             }
         }
 
+        /// <summary>Updates the bounded rolling window and its extrema.</summary>
         private void AddSample(float ms)
         {
             lastMs = ms;
@@ -407,6 +477,7 @@ public sealed class GlGpuProfiler : IDisposable
             }
         }
 
+        /// <summary>Logs one completed debug baseline for the current extent.</summary>
         private void AccumulateBaseline(ICoreClientAPI capi, float ms)
         {
             if (baselineLogged)
@@ -428,6 +499,7 @@ public sealed class GlGpuProfiler : IDisposable
             }
         }
 
+        /// <summary>Builds the current available measurement snapshot.</summary>
         public GpuProfileStats GetStats()
         {
             float avg = windowCount > 0 ? windowSum / windowCount : 0f;
@@ -444,6 +516,7 @@ public sealed class GlGpuProfiler : IDisposable
                 Height: height);
         }
 
+        /// <summary>Retires all owned debug timestamp queries.</summary>
         public void Dispose()
         {
             for (int i = 0; i < FramesInFlight; i++)
@@ -458,4 +531,6 @@ public sealed class GlGpuProfiler : IDisposable
             }
         }
     }
+#endif
+    #endregion
 }

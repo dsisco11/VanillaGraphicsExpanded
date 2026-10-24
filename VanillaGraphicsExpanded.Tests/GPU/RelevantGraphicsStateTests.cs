@@ -100,8 +100,13 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
             {
                 cache.ApplyGraphicsState(triangle, Dynamics());
                 Assert.Equal(4, GL.GetFloat(GetPName.LineWidth));
+#if DEBUG
                 long calls = cache.FixedFunctionCalls;
-                cache.SetLineWidth(4); Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
+                cache.SetLineWidth(4);
+#if DEBUG
+                Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
                 cache.ApplyGraphicsState(line, Dynamics());
                 Assert.Equal(2, GL.GetFloat(GetPName.LineWidth));
                 cache.ApplyGraphicsState(triangle, Dynamics());
@@ -120,9 +125,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
     [Fact]
     public void ScissorAndPointPayloadsBecomeRelevantWithoutInheritingIntent()
     {
-        fixture.MakeCurrent();
-        var cache = StateCache.Current;
-        cache.UseProgram(0);
+        fixture.MakeCurrent(); var cache = StateCache.Current; cache.UseProgram(0);
         var triangle = Description(raster: new() { PointSize = 2 });
         var clipped = Description(raster: new() { Scissor = true });
         var shaderPoints = Description(raster: new() { ProgramPointSize = true, PointSize = 2 }, topology: PrimitiveType.Points);
@@ -156,7 +159,9 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
     [Fact]
     public void SparseOutputActivationPreservesAndRestoresGroupedBlendOperands()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current; cache.UseProgram(0);
+        fixture.MakeCurrent();
+        var cache = StateCache.Current;
+        cache.UseProgram(0);
         var sparse = Description(targets: new([new(PixelInternalFormat.Rgba8), new(null, true), new(PixelInternalFormat.Rgba8)]));
         var active = Description(targets: sparse.Targets,
             blending: [new(), new(), new() { Enabled = true, RgbEquation = BlendEquationMode.Min,

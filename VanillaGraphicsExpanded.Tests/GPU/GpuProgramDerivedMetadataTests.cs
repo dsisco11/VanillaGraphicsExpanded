@@ -39,7 +39,11 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             var nativeRefresh=Patch(nameof(SetUnits));
             try { SetUnits(3,program.ProgramId,location,0); } finally { nativeRefresh.UnpatchAll(nativeRefresh.Id); }
             var after=layout.BinaryInterface!.PreparedBindings;
-            Assert.NotSame(before,after); Assert.Equal(0,after.ReflectionQueries); Assert.False(program.NeedsNativePreparation);
+            Assert.NotSame(before,after);
+#if DEBUG
+            Assert.Equal(0,after.ReflectionQueries);
+#endif
+            Assert.False(program.NeedsNativePreparation);
             var binding=after.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"inputs")); Assert.True(binding.Active); Assert.Equal(2,binding.Contract.Binding.ArrayLength);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
@@ -125,7 +129,10 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             var before=layout.BinaryInterface!.PreparedBindings; int location=GL.GetUniformLocation(program.ProgramId,"images[0]");
             var nativeRefresh=Patch(nameof(SetUnits));
             try { SetUnits(3,program.ProgramId,location+1,4); } finally { nativeRefresh.UnpatchAll(nativeRefresh.Id); }
-            Assert.NotSame(before,layout.BinaryInterface!.PreparedBindings); Assert.Equal(0,layout.BinaryInterface.PreparedBindings.ReflectionQueries);
+            Assert.NotSame(before,layout.BinaryInterface!.PreparedBindings);
+#if DEBUG
+            Assert.Equal(0,layout.BinaryInterface.PreparedBindings.ReflectionQueries);
+#endif
             Assert.True(layout.BinaryInterface.PreparedBindings.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Image,"images")).Active); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { StateCache.Current.DeleteShader(shader); if(native!=0) StateCache.Current.DeleteProgram(native); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }

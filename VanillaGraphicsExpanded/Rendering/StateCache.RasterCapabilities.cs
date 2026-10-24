@@ -17,7 +17,9 @@ internal sealed partial class StateCache
         rasterizerKnown &= ~RasterizerStateKnowledge.DepthClamp;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.DepthClamp); else GL.Disable(EnableCap.DepthClamp);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.DepthClamp = enabled;
         rasterizerKnown |= RasterizerStateKnowledge.DepthClamp;
@@ -32,7 +34,9 @@ internal sealed partial class StateCache
         rasterizerKnown &= ~RasterizerStateKnowledge.RasterizerDiscard;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.RasterizerDiscard); else GL.Disable(EnableCap.RasterizerDiscard);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.RasterizerDiscard = enabled;
         rasterizerKnown |= RasterizerStateKnowledge.RasterizerDiscard;
@@ -47,7 +51,9 @@ internal sealed partial class StateCache
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonOffsetFill;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.PolygonOffsetFill); else GL.Disable(EnableCap.PolygonOffsetFill);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.PolygonOffsetFill = enabled;
         rasterizerKnown |= RasterizerStateKnowledge.PolygonOffsetFill;
@@ -62,7 +68,9 @@ internal sealed partial class StateCache
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonOffsetLine;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.PolygonOffsetLine); else GL.Disable(EnableCap.PolygonOffsetLine);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.PolygonOffsetLine = enabled;
         rasterizerKnown |= RasterizerStateKnowledge.PolygonOffsetLine;
@@ -77,7 +85,9 @@ internal sealed partial class StateCache
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonOffsetPoint;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.PolygonOffsetPoint); else GL.Disable(EnableCap.PolygonOffsetPoint);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.PolygonOffsetPoint = enabled;
         rasterizerKnown |= RasterizerStateKnowledge.PolygonOffsetPoint;
@@ -92,7 +102,9 @@ internal sealed partial class StateCache
         rasterizerKnown &= ~RasterizerStateKnowledge.ProgramPointSize;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.ProgramPointSize); else GL.Disable(EnableCap.ProgramPointSize);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.ProgramPointSize = enabled;
         rasterizerKnown |= RasterizerStateKnowledge.ProgramPointSize;

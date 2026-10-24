@@ -16,7 +16,9 @@ internal sealed partial class StateCache
         assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PrimitiveRestart;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.PrimitiveRestart); else GL.Disable(EnableCap.PrimitiveRestart);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         assembly.PrimitiveRestart = enabled;
         assemblyKnown |= PrimitiveAssemblyStateKnowledge.PrimitiveRestart;
@@ -36,7 +38,9 @@ internal sealed partial class StateCache
         assemblyKnown &= ~PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.PrimitiveRestartFixedIndex); else GL.Disable(EnableCap.PrimitiveRestartFixedIndex);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         assembly.PrimitiveRestartFixedIndex = enabled;
         assemblyKnown |= PrimitiveAssemblyStateKnowledge.PrimitiveRestartFixedIndex;

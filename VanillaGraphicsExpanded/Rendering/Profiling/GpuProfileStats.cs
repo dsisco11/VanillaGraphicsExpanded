@@ -1,5 +1,6 @@
 namespace VanillaGraphicsExpanded.Rendering.Profiling;
 
+/// <summary>Describes collected debug GPU timing samples.</summary>
 public readonly record struct GpuProfileStats(
     float LastMs,
     float AvgMs,

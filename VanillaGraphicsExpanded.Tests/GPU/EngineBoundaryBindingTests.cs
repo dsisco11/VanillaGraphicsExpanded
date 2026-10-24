@@ -18,8 +18,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     [InlineData(true)]
     public void BorrowedResourceFootprintRestoresNativeState(bool invalidate)
     {
-        fixture.MakeCurrent();
-        var cache = StateCache.Current;
+        fixture.MakeCurrent(); var cache = StateCache.Current;
         int texture = GL.GenTexture(), sampler = GL.GenSampler(), buffer = GL.GenBuffer(), array = GL.GenVertexArray();
         int read = GL.GenFramebuffer(), draw = GL.GenFramebuffer();
         try
@@ -73,12 +72,17 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
             Assert.Equal(sampler, GL.GetInteger(GetPName.SamplerBinding));
             GL.ActiveTexture(TextureUnit.Texture5);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
+#if DEBUG
             long reads = cache.BoundaryQueries, textureCalls = cache.TextureBindCount, resourceCalls = cache.ResourceSlotBindCount;
             long checks = cache.BoundaryErrorChecks;
+#endif
             Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Warm"), out var warm, footprint)); warm!.Dispose();
-            Assert.Equal(reads, cache.BoundaryQueries); Assert.Equal(textureCalls, cache.TextureBindCount);
+#if DEBUG
+            Assert.Equal(reads, cache.BoundaryQueries);
+            Assert.Equal(textureCalls, cache.TextureBindCount);
             Assert.Equal(resourceCalls, cache.ResourceSlotBindCount);
             Assert.Equal(checks, cache.BoundaryErrorChecks);
+#endif
         }
         finally
         {
@@ -111,7 +115,8 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     [Fact]
     public void InvalidFootprintDoesNotBeginOptionalWork()
     {
-        fixture.MakeCurrent(); var cache = StateCache.Current;
+        fixture.MakeCurrent();
+        var cache = StateCache.Current;
         cache.ActiveTexture(3);
         Assert.False(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Invalid"), out var scope,
             new EngineBoundaryResources([(int.MaxValue, TextureTarget.Texture2D)])));
@@ -129,8 +134,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent(); using var programs = new ComponentShaderPrograms();
         var previous = programs.Create<GpuProgramUseScopeTests.CountingShader>();
-        var inner = programs.Create<GpuProgramUseScopeTests.CountingShader>();
-        Assert.True(inner.EnsureReady());
+        var inner = programs.Create<GpuProgramUseScopeTests.CountingShader>(); Assert.True(inner.EnsureReady());
         using (previous.UseScope())
         {
             var footprint = EngineBoundaryResources.From(inner.ProgramLayout.BinaryInterface!.PreparedBindings);
@@ -197,7 +201,8 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent(); using var programs = new ComponentShaderPrograms();
         var previous = programs.Create<GpuProgramUseScopeTests.CountingShader>();
-        var inner = programs.Create<GpuProgramUseScopeTests.CountingShader>(); Assert.True(inner.EnsureReady());
+        var inner = programs.Create<GpuProgramUseScopeTests.CountingShader>();
+        Assert.True(inner.EnsureReady());
         using (previous.UseScope())
         {
             try

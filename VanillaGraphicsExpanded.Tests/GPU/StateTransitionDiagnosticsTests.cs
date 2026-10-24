@@ -24,7 +24,9 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
         try
         {
             Assert.Equal(ErrorCode.NoError, GL.GetError());
+#if DEBUG
             long checks = cache.BoundaryErrorChecks, queries = cache.BoundaryQueries, calls = cache.FixedFunctionCalls;
+#endif
             GL.Enable((EnableCap)(-1));
             cache.SetLineSmooth(true);
             cache.SetLineSmooth(true);
@@ -32,9 +34,11 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
             cache.SetLineSmooth(false);
             cache.SetPointSpriteOrigin(PointSpriteCoordOriginParameter.LowerLeft);
             cache.SetPointSpriteOrigin(PointSpriteCoordOriginParameter.LowerLeft);
+#if DEBUG
             Assert.Equal(3, cache.FixedFunctionCalls - calls);
             Assert.Equal(checks, cache.BoundaryErrorChecks);
             Assert.Equal(queries, cache.BoundaryQueries);
+#endif
             Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());
             Assert.False(GL.IsEnabled(EnableCap.LineSmooth));
         }
@@ -49,12 +53,16 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
         var cache = StateCache.Current;
         using var pack = cache.SetPixelPackScope(new(1));
         using var unpack = cache.SetPixelUnpackScope(new(1));
+#if DEBUG
         long checks = cache.BoundaryErrorChecks, queries = cache.BoundaryQueries;
+#endif
         GL.Enable((EnableCap)(-1));
         cache.SetPixelPackState(new(1));
         cache.SetPixelUnpackState(new(1));
+#if DEBUG
         Assert.Equal(checks, cache.BoundaryErrorChecks);
         Assert.Equal(queries, cache.BoundaryQueries);
+#endif
         Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());
     }
 
@@ -73,7 +81,9 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
         try
         {
             Assert.Equal(ErrorCode.NoError, GL.GetError());
+#if DEBUG
             long checks = cache.BoundaryErrorChecks, queries = cache.BoundaryQueries;
+#endif
             // An unrelated pending error must survive normal changes and both scope disposals.
             if (!enabled) GL.Enable((EnableCap)(-1));
             using (cache.SetPixelPackScope(pack with { Alignment = pack.Alignment == 1 ? 4 : 1 }))
@@ -82,8 +92,10 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
                 Assert.NotEqual(pack.Alignment, GL.GetInteger(GetPName.PackAlignment));
                 Assert.NotEqual(unpack.Alignment, GL.GetInteger(GetPName.UnpackAlignment));
             }
+#if DEBUG
             Assert.Equal(enabled ? 8 : 0, cache.BoundaryErrorChecks - checks);
             Assert.Equal(queries, cache.BoundaryQueries);
+#endif
             Assert.Equal(enabled ? ErrorCode.NoError : ErrorCode.InvalidEnum, GL.GetError());
             Assert.Equal(pack.Alignment, GL.GetInteger(GetPName.PackAlignment));
             Assert.Equal(unpack.Alignment, GL.GetInteger(GetPName.UnpackAlignment));
@@ -104,12 +116,18 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
             cache.SetLineSmooth(false);
             GL.Enable((EnableCap)(-1));
             Assert.Throws<InvalidOperationException>(() => cache.SetLineSmooth(true));
+#if DEBUG
             long calls = cache.FixedFunctionCalls, checks = cache.BoundaryErrorChecks;
+#endif
             cache.SetLineSmooth(false);
+#if DEBUG
             Assert.Equal(calls + 1, cache.FixedFunctionCalls);
             Assert.Equal(checks + 2, cache.BoundaryErrorChecks);
+#endif
             cache.SetLineSmooth(false);
+#if DEBUG
             Assert.Equal(checks + 2, cache.BoundaryErrorChecks);
+#endif
             Assert.False(GL.IsEnabled(EnableCap.LineSmooth));
         }
         finally { GlDebug.CheckStateTransitions = diagnostics; }
@@ -129,10 +147,14 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
             Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("RasterDiagnostics",
                 new PipelineStateCoverage(rasterizer: RasterizerStateKnowledge.LineSmooth)), out var boundary));
             cache.SetLineSmooth(true);
+#if DEBUG
             long checks = cache.BoundaryErrorChecks, calls = cache.FixedFunctionCalls;
+#endif
             boundary!.Dispose();
+#if DEBUG
             Assert.Equal(2, cache.BoundaryErrorChecks - checks);
             Assert.Equal(1, cache.FixedFunctionCalls - calls);
+#endif
             Assert.False(GL.IsEnabled(EnableCap.LineSmooth));
         }
         finally { GlDebug.CheckStateTransitions = diagnostics; }

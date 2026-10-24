@@ -97,7 +97,9 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
         using var elementScope = StateCache.Current.BindBufferScope(BufferTarget.ElementArrayBuffer, elements);
         GL.MultiDrawElements(PrimitiveType.Triangles, pool.indicesSizes, DrawElementsType.UnsignedInt,
             pool.indicesStartsByte, pool.indicesGroupsCount);
+#if DEBUG
         StateCache.Current.RecordDrawSubmission();
+#endif
     }
 
     /// <summary>Retires this adapter without deleting engine-owned meshes or buffers.</summary>

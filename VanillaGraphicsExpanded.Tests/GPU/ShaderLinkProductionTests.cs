@@ -31,6 +31,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
         {
             using var policy = disable ? ShaderLinkBatch.UseSynchronousForTesting() : null;
             using var assets = new BinaryShaderApiFixture();
+#if DEBUG
             double submitted = 0, completed = 0;
             int consumed = 0, peak = 0;
             using var observations = ShaderLinkBatch.ObserveForTesting(batch =>
@@ -40,6 +41,7 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
                 consumed += batch.ConsumedCount;
                 peak = Math.Max(peak, batch.PeakOutstanding);
             });
+#endif
             long started = Stopwatch.GetTimestamp();
             Assert.True(VgeShaderPrograms.RegisterAll(assets.Api), string.Join('\n', assets.Logs));
             Assert.Empty(assets.Reads);
@@ -51,8 +53,10 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             Assert.True(GpuShaderProgramLibraries.Preload(assets.Api, selected));
             double startup = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double startupUse = ObserveHzb(assets, depth, target);
+#if DEBUG
             output.WriteLine($"Startup driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
             submitted = completed = 0; consumed = peak = 0;
+#endif
             Assert.Equal(selected.Length, assets.PreparedPrograms.Count);
             Assert.Equal(LumOnDebugShaderProgram.Contracts.Count(), LumOnDebugShaderProgramFamily.GetAll().Count());
             foreach (var program in assets.PreparedPrograms.Values) Assert.True(GL.IsProgram(program.ProgramId));
@@ -70,8 +74,10 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             Assert.True(GpuShaderProgramLibraries.Preload(assets.Api, changed.ToImmutableArray()));
             double configuration = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double configurationUse = ObserveHzb(assets, depth, target);
+#if DEBUG
             output.WriteLine($"Configuration driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
             submitted = completed = 0; consumed = peak = 0;
+#endif
             Assert.Empty(assets.ScheduledTasks);
             for (int index = 0; index < changed.Length; index++)
             {
@@ -85,7 +91,9 @@ public sealed class ShaderLinkProductionTests(HeadlessGLFixture fixture, ITestOu
             Assert.True(GpuShaderProgramLibraries.Preload(assets.Api, selected));
             double reload = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             double reloadUse = ObserveHzb(assets, depth, target);
+#if DEBUG
             output.WriteLine($"Re-registration driver counters: submit={submitted:F3} ms, completion={completed:F3} ms, consumed={consumed}, peak={peak}");
+#endif
             Assert.Equal(selected.Length, assets.PreparedPrograms.Count);
             output.WriteLine($"Production mode={(disable ? "sync" : "batch")}, registered={assets.PreparedPrograms.Count}, changed={changed.Length}, startup={startup:F3} ms, configuration={configuration:F3} ms, re-registration={reload:F3} ms; HZB use+readback startup={startupUse:F3}/configuration={configurationUse:F3}/re-registration={reloadUse:F3} ms.");
             Assert.Equal(ErrorCode.NoError, GL.GetError());

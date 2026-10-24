@@ -67,12 +67,16 @@ public partial class GpuProgramLayout
     /// <summary>Resolves standalone locations from the owned binary interface or an external GLSL program.</summary>
     internal int GetUniformLocation(int programId, string name)
     {
+#if DEBUG
         UniformNameResolutions++;
+#endif
         return BinaryInterface?.GetUniformLocation(name) ?? GL.GetUniformLocation(programId, name);
     }
 
+#if DEBUG
     /// <summary>Counts named uniform resolution requests, including engine compatibility lookups.</summary>
     internal long UniformNameResolutions { get; private set; }
+#endif
 
     /// <summary>Supplies optional resource names for diagnostics without changing any resource slots.</summary>
     private void GetResourceName(int programId, ProgramInterface kind, int index, int capacity, out int length, out string name)

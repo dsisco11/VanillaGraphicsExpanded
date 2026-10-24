@@ -50,17 +50,21 @@ public sealed class UniformLifetimeMeasurementTests(HeadlessGLFixture fixture, I
                 ring.PersistentStorage.Collect();
             }
             long waterCopies = 8L * frame.SizeBytes + 32L * draw.SizeBytes;
+#if DEBUG
             Assert.Equal(48, ring.AllocationsWritten);
             Assert.Equal(waterCopies + 8L * resolve.SizeBytes, ring.BytesWritten);
             Assert.Equal(1, ring.PersistentStorage.AllocationsWritten);
             Assert.Equal(resolve.SizeBytes, ring.PersistentStorage.BytesWritten);
             Assert.Equal(32, ring.PersistentStorage.Bindings);
+#endif
             Assert.Equal(0, ring.PersistentStorage.PendingBytes);
+#if DEBUG
             output.WriteLine($"backendMapped={ring.UsesPersistentMapping}; publications={publications}; waterCopies={waterCopies}; " +
                 $"referenceStableAllocations=8; referenceStableBytes={8 * resolve.SizeBytes}; retainedAllocations={ring.PersistentStorage.AllocationsWritten}; " +
                 $"retainedBytes={ring.PersistentStorage.BytesWritten}; retainedBinds={ring.PersistentStorage.Bindings}; " +
                 $"residentBytes={ring.PersistentStorage.ResidentBytes}; pendingBytes={ring.PersistentStorage.PendingBytes}; fencePolls={ring.PersistentStorage.FencePolls}; " +
                 $"transientResidentBytes={ring.PageCount * ring.PageSizeBytes}; transientFenceWaits={ring.FenceWaits}; retainedBlockingWaits=0; CPU/GPU/live timings unmeasured.");
+#endif
         }
         finally { GpuUniformRingSystem.ClearCurrent(); }
     }

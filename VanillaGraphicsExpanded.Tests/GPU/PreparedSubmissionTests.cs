@@ -31,24 +31,36 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
             ShaderPreparedSubmission.ValidateImage(binding, view, ref history);
             ShaderPreparedSubmission.Image(binding, view);
         }
+#if DEBUG
         Assert.Equal(1, history.EntryResolutions);
         Assert.Equal(1, history.CompatibilityChecks);
+#endif
         texture.Resize(4, 4);
         ShaderPreparedSubmission.ValidateImage(binding, view, ref history);
+#if DEBUG
         Assert.Equal(2, history.CompatibilityChecks);
+#endif
         var invalid = view with { Level = 3 };
         Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(binding, invalid, ref history));
+#if DEBUG
         Assert.Equal(2, history.CompatibilityChecks);
+#endif
         ShaderPreparedSubmission.ValidateImage(binding, view, ref history);
+#if DEBUG
         Assert.Equal(2, history.CompatibilityChecks);
+#endif
         using var replacement = Load();
         binding = history.Resolve(new SubmissionTarget(replacement), identity);
         ShaderPreparedSubmission.ValidateImage(binding, view, ref history);
+#if DEBUG
         Assert.Equal(2, history.EntryResolutions);
         Assert.Equal(3, history.CompatibilityChecks);
+#endif
         texture.Dispose();
         Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(binding, view, ref history));
+#if DEBUG
         Assert.Equal(3, history.CompatibilityChecks);
+#endif
     }
     /// <summary>Array sampling and image writes use independent fixed slots without authored sampler locations.</summary>
     [Fact]
@@ -137,9 +149,13 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         first.EnsureCapacity(64, growExponentially: false);
         second.EnsureCapacity(64, growExponentially: false);
         cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, first.BufferId, 0, 32);
+#if DEBUG
         long count = cache.ResourceSlotBindCount;
+#endif
         cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, first.BufferId, 0, 32);
+#if DEBUG
         Assert.Equal(count, cache.ResourceSlotBindCount);
+#endif
         cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, second.BufferId, 0, 64);
         cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, first.BufferId, 0, 32);
         Assert.True(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.ShaderStorageBuffer, 0, out int restored, out nint offset, out nint size));
@@ -153,11 +169,17 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         Assert.Equal(0, cleared);
         using var image = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         image.BindImageUnit(7, TextureAccess.WriteOnly);
+#if DEBUG
         count = cache.ResourceSlotBindCount;
+#endif
         image.BindImageUnit(7, TextureAccess.WriteOnly);
+#if DEBUG
         Assert.Equal(count, cache.ResourceSlotBindCount);
+#endif
         image.BindImageUnit(7, TextureAccess.ReadOnly);
+#if DEBUG
         Assert.Equal(count + 1, cache.ResourceSlotBindCount);
+#endif
         cache.InvalidateAll();
         Assert.False(cache.TryGetCachedImageTexture(7, out _));
         Assert.False(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.ShaderStorageBuffer, 0, out _, out _, out _));

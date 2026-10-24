@@ -18,7 +18,10 @@ internal sealed partial class StateCache
         if (equal) return;
         ForgetBlendEquations();
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        GL.BlendEquationSeparate(rgb, alpha); FixedFunctionCalls++;
+        GL.BlendEquationSeparate(rgb, alpha);
+#if DEBUG
+        FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         for (int i = 0; i < count; i++) { blend[i].Equations = (rgb, alpha); blendKnown[i] |= BlendStateKnowledge.Equations; }
     }
@@ -33,7 +36,10 @@ internal sealed partial class StateCache
         if (TryGetCachedBlendEquation(index, out var known) && known == (rgb, alpha)) return;
         ForgetBlendEquation(index);
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        GL.BlendEquationSeparate(index, rgb, alpha); FixedFunctionCalls++;
+        GL.BlendEquationSeparate(index, rgb, alpha);
+#if DEBUG
+        FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         blend[index].Equations = (rgb, alpha); blendKnown[index] |= BlendStateKnowledge.Equations;
     }

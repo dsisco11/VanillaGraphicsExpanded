@@ -16,7 +16,9 @@ internal sealed partial class StateCache
         depthKnown &= ~DepthStateKnowledge.DepthRange;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.DepthRange(near, far);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         depth.DepthRange = (near, far);
         depthKnown |= DepthStateKnowledge.DepthRange;

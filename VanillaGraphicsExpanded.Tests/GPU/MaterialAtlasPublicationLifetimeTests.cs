@@ -30,7 +30,9 @@ public sealed class MaterialAtlasPublicationLifetimeTests(HeadlessGLFixture fixt
                 new float[] { .5f, .25f, 8, 0 }, textureOwner: owner.MaterialParamsTexture);
             Assert.NotEqual(TextureStageOutcome.Rejected, stage.Outcome);
             DrainUploads();
+#if DEBUG
             Assert.True(TextureStreamingSystem.GetDiagnosticsSnapshot().DroppedInvalid > 0);
+#endif
             Assert.Equal(before, destination.MaterialParamsTexture.ReadPixels());
         }
         finally { TextureStreamingSystem.Dispose(); }
@@ -98,18 +100,22 @@ public sealed class MaterialAtlasPublicationLifetimeTests(HeadlessGLFixture fixt
                 Assert.True(page.TryPublishMaterial(page.MaterialParamsTexture.TextureId, new(0, 0, 1, 4), dark, false));
             float[] bright = Enumerable.Range(0, 4).SelectMany(_ => new float[] { .5f, .25f, 8, .125f }).ToArray();
             Assert.True(page.TryPublishMaterial(page.MaterialParamsTexture.TextureId, new(0, 0, 1, 4), bright, false));
-            var queued = manager.GetDiagnosticsSnapshot();
-            Assert.True(queued.Pending > 0);
-            if (route is 2 or 4) Assert.True(queued.Pending >= 4);
-            if (route is 3 or 4) Assert.True(queued.Fallback.QueueFull > 0);
-            if (route == 1) Assert.True(queued.StageCopyStaged > 0);
+            int pending = manager.PendingCount;
+            Assert.True(pending > 0);
+            if (route is 2 or 4) Assert.True(pending >= 4);
+#if DEBUG
+            if (route is 3 or 4) Assert.True(manager.GetDiagnosticsSnapshot().Fallback.QueueFull > 0);
+            if (route == 1) Assert.True(manager.GetDiagnosticsSnapshot().StageCopyStaged > 0);
+#endif
             store.ReplaceMaterialParamsTextureWithData(7, 1, 4,
                 Enumerable.Range(0, 4).SelectMany(_ => new float[] { .5f, .25f, 0 }).ToArray());
             Assert.True(store.TryGetPageTextures(7, out var replacement));
             int identity = replacement.MaterialParamsTexture.TextureId;
             float[] retained = replacement.MaterialParamsTexture.ReadPixels();
             DrainUploads();
+#if DEBUG
             Assert.True(manager.GetDiagnosticsSnapshot().DroppedInvalid > 0);
+#endif
             Assert.Equal(identity, replacement.MaterialParamsTexture.TextureId);
             Assert.Equal(retained, replacement.MaterialParamsTexture.ReadPixels());
             Assert.Equal(256, store.MaximumEmissionNits);
@@ -122,9 +128,9 @@ public sealed class MaterialAtlasPublicationLifetimeTests(HeadlessGLFixture fixt
     /// <summary>Drains the bounded test queue, including cold-backend fallback and reclaimed mapped transfers.</summary>
     private static void DrainUploads()
     {
-        for (int tick = 0; tick < 32 && TextureStreamingSystem.GetDiagnosticsSnapshot().Pending > 0; tick++)
+        for (int tick = 0; tick < 32 && TextureStreamingSystem.Manager.PendingCount > 0; tick++)
             TextureStreamingSystem.TickOnRenderThread();
-        Assert.Equal(0, TextureStreamingSystem.GetDiagnosticsSnapshot().Pending);
+        Assert.Equal(0, TextureStreamingSystem.Manager.PendingCount);
     }
     #endregion
 }

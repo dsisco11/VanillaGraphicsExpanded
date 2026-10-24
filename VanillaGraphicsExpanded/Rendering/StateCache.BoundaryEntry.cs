@@ -11,10 +11,12 @@ internal sealed partial class StateCache
     private bool resolvingBoundary;
     /// <summary>Retains the last optional entry failure for the adapter's diagnostics.</summary>
     internal Exception? BoundaryEntryFailure { get; private set; }
+#if DEBUG
     /// <summary>Counts boundary mutable-state value reads; native error-status checks are excluded.</summary>
     internal long BoundaryQueries { get; private set; }
     /// <summary>Counts native error-status checks separately from state reads and mutation calls.</summary>
     internal long BoundaryErrorChecks { get; private set; }
+#endif
 
     #region Public API
     /// <summary>Returns no token when incoming state cannot be resolved; never changes native drawing state.</summary>

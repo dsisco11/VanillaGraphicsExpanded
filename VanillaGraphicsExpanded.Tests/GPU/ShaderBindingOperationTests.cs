@@ -28,14 +28,18 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
         var cache = StateCache.Current;
         var prepared = pipeline.ProgramLayout.BinaryInterface!.PreparedBindings;
+#if DEBUG
         int reflection = prepared.ReflectionQueries;
         long names = pipeline.ProgramLayout.UniformNameResolutions;
         long interfaceNames = pipeline.ProgramLayout.BinaryInterface.UniformNameResolutions;
+#endif
         ulong revision = Revision(shader);
         Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+#if DEBUG
         long uploads = ring.AllocationsWritten, bytes = ring.BytesWritten;
         long imageChecks = cache.ImageCacheChecks;
         long imageBinds = cache.ResourceSlotBindCount;
+#endif
         const int repeats = 8;
         // Measure only publication. Readback and resource creation deliberately stay outside the interval.
         for (int use = 0; use < repeats; use++)
@@ -47,6 +51,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
             GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
         }
         Assert.Equal(revision, Revision(shader));
+#if DEBUG
         Assert.Equal(uploads, ring.AllocationsWritten);
         Assert.Equal(bytes, ring.BytesWritten);
         Assert.Equal(imageChecks + repeats, cache.ImageCacheChecks);
@@ -54,12 +59,17 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(reflection, prepared.ReflectionQueries);
         Assert.Equal(names, pipeline.ProgramLayout.UniformNameResolutions);
         Assert.Equal(interfaceNames, pipeline.ProgramLayout.BinaryInterface.UniformNameResolutions);
+#endif
         var validation = History<ShaderInputValidation>(shader, "Output");
+#if DEBUG
         Assert.Equal(1, validation.EntryResolutions);
         Assert.Equal(1, validation.CompatibilityChecks);
+#endif
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.FramebufferBarrierBit);
         Assert.Equal(new float[] { 7, 5, 0, 0 }, result.ReadPixels());
+#if DEBUG
         output.WriteLine($"Generated owner: {repeats * 3} assignment attempts/skips; 0 revision changes; preparation reflection queries {reflection}; steady-state reflection/name resolutions 0; {repeats} submissions/image cache checks; entry resolutions 1; compatibility checks 1; numeric GL uploads 0; repeated block copies/allocations 0; repeated image or UBO range binds 0.");
+#endif
 
         using var arrays = Load("prepared_binding", PreparedBindingComputeShader.Contract);
         var table = arrays.ProgramLayout.BinaryInterface!.PreparedBindings;
@@ -71,6 +81,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         var view = new GpuTextureBinding(result, TextureAccess.WriteOnly);
         ShaderPreparedSubmission.SamplerArray(input, desired);
         ShaderPreparedSubmission.Image(image, view);
+#if DEBUG
         long textures = cache.TextureBindCount, samplers = cache.SamplerBindCount;
         long textureChecks = cache.TextureCacheChecks, samplerChecks = cache.SamplerCacheChecks;
         imageChecks = cache.ImageCacheChecks;
@@ -78,6 +89,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         reflection = table.ReflectionQueries;
         names = arrays.ProgramLayout.UniformNameResolutions;
         interfaceNames = arrays.ProgramLayout.BinaryInterface.UniformNameResolutions;
+#endif
         for (int use = 0; use < repeats; use++)
         {
             ShaderPreparedSubmission.ValidateSamplerArray(input, desired);
@@ -85,6 +97,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
             ShaderPreparedSubmission.SamplerArray(input, desired);
             ShaderPreparedSubmission.Image(image, view);
         }
+#if DEBUG
         Assert.Equal(textures, cache.TextureBindCount);
         Assert.Equal(samplers, cache.SamplerBindCount);
         Assert.Equal(imageBinds, cache.ResourceSlotBindCount);
@@ -94,25 +107,34 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(reflection, table.ReflectionQueries);
         Assert.Equal(names, arrays.ProgramLayout.UniformNameResolutions);
         Assert.Equal(interfaceNames, arrays.ProgramLayout.BinaryInterface.UniformNameResolutions);
+#endif
         arrays.Dispatch(1);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
         Assert.Equal(new float[] { 11, 22, 33, 44 }, result.ReadPixels());
+#if DEBUG
         output.WriteLine($"Managed array: preparation reflection queries {reflection}; {repeats} full-set validations/publications; {repeats * 2} texture cache checks; {repeats * 2} sampler cache checks; {repeats} image cache checks; steady-state reflection/name resolutions 0; texture/sampler/image binds 0.");
+#endif
 
         using var buffer = GpuShaderStorageBuffer.Create();
         buffer.EnsureCapacity(64, growExponentially: false);
         cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, buffer.BufferId, 0, 32);
+#if DEBUG
         long bufferChecks = cache.IndexedBufferCacheChecks;
         long bufferBinds = cache.ResourceSlotBindCount;
+#endif
         for (int use = 0; use < repeats; use++)
             cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, buffer.BufferId, 0, 32);
+#if DEBUG
         Assert.Equal(bufferChecks + repeats, cache.IndexedBufferCacheChecks);
         Assert.Equal(bufferBinds, cache.ResourceSlotBindCount);
+#endif
         Assert.True(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.ShaderStorageBuffer, 0, out int retained, out nint offset, out nint size));
         Assert.Equal(buffer.BufferId, retained);
         Assert.Equal((nint)0, offset);
         Assert.Equal((nint)32, size);
+#if DEBUG
         output.WriteLine($"Indexed buffer range: {repeats} cache checks; repeated buffer binds 0; retained allocation, offset and size verified.");
+#endif
     }
 
     /// <summary>Borrowed numeric IDs are checked and rebound even when unchanged, and retirement fails before publication.</summary>
@@ -128,18 +150,26 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         int borrowedId = texture.TextureId;
         var cache = StateCache.Current;
+#if DEBUG
         long binds = cache.TextureBindCount;
+#endif
         for (int use = 0; use < 3; use++)
         {
             ShaderPreparedSubmission.ValidateSampler(input, borrowedId);
             ShaderPreparedSubmission.Sampler(input, borrowedId);
         }
+#if DEBUG
         Assert.Equal(binds + 3, cache.TextureBindCount);
+#endif
         texture.Dispose();
+#if DEBUG
         binds = cache.TextureBindCount;
+#endif
         Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateSampler(input, borrowedId));
+#if DEBUG
         Assert.Equal(binds, cache.TextureBindCount);
         output.WriteLine("Raw engine ID: 3 lifetime validations, 3 texture binds despite identical ID; retired retained ID rejected before publication. These binds are intentional ownership-boundary work.");
+#endif
     }
     #endregion
 

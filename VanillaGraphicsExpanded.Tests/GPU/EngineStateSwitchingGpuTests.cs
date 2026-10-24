@@ -142,9 +142,13 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         try
         {
             cache.BindSampler(3, sampler);
+#if DEBUG
             long bindsBefore = cache.TextureBindCount;
+#endif
             ChangeTexture(texture);
+#if DEBUG
             Assert.Equal(bindsBefore + 1, cache.TextureBindCount);
+#endif
             Assert.True(cache.TryGetCachedActiveTextureUnit(out int unit));
             Assert.Equal(3, unit);
             Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out int cachedTexture));
@@ -183,10 +187,14 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
 
             // Simulate losing only active-unit knowledge while retaining snapshots on multiple units.
             cache.Invalidate(EPipelineState.ActiveTextureUnit);
+#if DEBUG
             long bindsBefore = cache.TextureBindCount;
+#endif
             EngineStateCalls.BindTexture(TextureTarget.Texture2D, nextTexture);
 
+#if DEBUG
             Assert.Equal(bindsBefore + 1, cache.TextureBindCount);
+#endif
             Assert.False(cache.TryGetCachedActiveTextureUnit(out _));
             Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 1, out _));
             Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out _));

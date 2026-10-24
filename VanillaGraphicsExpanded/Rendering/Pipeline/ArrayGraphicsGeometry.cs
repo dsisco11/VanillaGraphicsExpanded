@@ -81,7 +81,9 @@ internal sealed class ArrayGraphicsGeometry : GraphicsGeometry
     {
         vao.Bind();
         GL.DrawArraysInstanced(topology, draw.FirstIndex, draw.IndexCount, draw.InstanceCount);
+#if DEBUG
         StateCache.Current.RecordDrawSubmission();
+#endif
     }
 
     /// <inheritdoc />

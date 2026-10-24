@@ -112,7 +112,9 @@ public sealed class SpirvGraphicsLifecycleTests : RenderTestBase
             Assert.True(GL.IsProgram(current));
             assets.Overrides.Clear();
             Assert.True(program.CompileAndLink());
+#if DEBUG
             output.WriteLine($"Runtime reload driver link: {program.LastSpirvLinkMilliseconds:F3} ms");
+#endif
         }
         finally
         {

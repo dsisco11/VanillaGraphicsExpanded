@@ -28,7 +28,8 @@ Core:
 - `VanillaGraphicsExpanded/Rendering/TextureStreamingManager.cs`
   - `TextureStreamingManager` (queue + scheduler)
   - `TextureStreamingSettings` (budgets + backend configuration)
-  - `TextureStreamingDiagnostics` (counters snapshot)
+  - `TextureStreamingDiagnostics` (DEBUG-only counters snapshot)
+  - `PendingCount` and `Backend` expose actual operational state in every build; upload budgets, queue ordering, backpressure and retirement do not depend on diagnostic totals.
   - Upload request contracts (`TextureUploadRequest`, `TextureUploadTarget`, `TextureUploadRegion`, `TextureUploadData`)
   - Backends: `PersistentMappedPboRing`, `TripleBufferedPboPool`
   - GPU sync helper: `GpuFence`
@@ -245,7 +246,7 @@ Configuration note:
 
 ## 10. Diagnostics
 
-`TextureStreamingManager` maintains counters:
+In DEBUG builds, `TextureStreamingManager` maintains diagnostic counters:
 - `Enqueued`, `Uploaded`, `UploadedBytes`
 - `FallbackUploads` (direct uploads used)
 - `DroppedInvalid` (rejected by validation)
@@ -253,8 +254,12 @@ Configuration note:
 - `Pending` (queue depth)
 - `Backend` (None / PersistentMappedRing / TripleBuffered)
 
-Snapshot access:
+Snapshot access (DEBUG only):
 - `TextureStreamingSystem.GetDiagnosticsSnapshot()`
+
+`TextureStreamingManager.PendingCount` and `Backend` expose actual pending work and the active
+backend in every configuration. Release retains upload budgets, sequence ordering, queue occupancy
+and resource retirement; it contains no diagnostic snapshot or counter accumulation.
 
 ## 11. Known Limitations / Pitfalls
 

@@ -27,10 +27,12 @@ internal static class TextureStreamingSystem
         Manager.UpdateSettings(settings);
     }
 
+#if DEBUG
     public static TextureStreamingDiagnostics GetDiagnosticsSnapshot()
     {
         return Manager.GetDiagnosticsSnapshot();
     }
+#endif
 
     public static TextureStageResult StageCopy(
         int textureId,

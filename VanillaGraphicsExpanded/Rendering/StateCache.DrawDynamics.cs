@@ -16,7 +16,9 @@ internal sealed partial class StateCache
         dynamicKnown &= ~DynamicDrawStateKnowledge.Scissor;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.Scissor(x, y, width, height);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         dynamicState.Scissor = (x, y, width, height);
         dynamicKnown |= DynamicDrawStateKnowledge.Scissor;
@@ -32,7 +34,9 @@ internal sealed partial class StateCache
         dynamicKnown &= ~DynamicDrawStateKnowledge.BlendConstant;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.BlendColor(r, g, b, a);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         dynamicState.BlendConstant = (r, g, b, a);
         dynamicKnown |= DynamicDrawStateKnowledge.BlendConstant;

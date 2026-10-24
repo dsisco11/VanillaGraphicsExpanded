@@ -23,13 +23,17 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
         {
             cache.BindTexture(TextureTarget.Texture2D, 1, texture);
             cache.BindSampler(1, sampler);
+#if DEBUG
             long textures = cache.TextureBindCount, samplers = cache.SamplerBindCount;
+#endif
             cache.ActiveTexture(0);
             cache.BindTexture(TextureTarget.Texture2D, 1, texture);
             cache.BindTextureOnActiveUnit(TextureTarget.Texture2D, texture);
             cache.BindSampler(1, sampler);
+#if DEBUG
             Assert.Equal(textures, cache.TextureBindCount);
             Assert.Equal(samplers, cache.SamplerBindCount);
+#endif
             Assert.Equal((int)TextureUnit.Texture1, GL.GetInteger(GetPName.ActiveTexture));
             Assert.Equal(texture, GL.GetInteger(GetPName.TextureBinding2D));
             Assert.Equal(sampler, GL.GetInteger(GetPName.SamplerBinding));
@@ -40,15 +44,19 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
             cache.Invalidate(EPipelineState.Bindings);
             cache.BindTexture(TextureTarget.Texture2D, 1, texture);
             cache.BindSampler(1, sampler);
+#if DEBUG
             Assert.Equal(textures + 1, cache.TextureBindCount);
             Assert.Equal(samplers + 1, cache.SamplerBindCount);
+#endif
             Assert.Equal(texture, GL.GetInteger(GetPName.TextureBinding2D));
             Assert.Equal(sampler, GL.GetInteger(GetPName.SamplerBinding));
             // An unknown active unit cannot authorize suppression or a guessed per-unit update.
             GL.ActiveTexture(TextureUnit.Texture2);
             cache.Invalidate(EPipelineState.ActiveTextureUnit);
             cache.BindTextureOnActiveUnit(TextureTarget.Texture2D, texture);
+#if DEBUG
             Assert.Equal(textures + 2, cache.TextureBindCount);
+#endif
             Assert.Equal((int)TextureUnit.Texture2, GL.GetInteger(GetPName.ActiveTexture));
             Assert.Equal(texture, GL.GetInteger(GetPName.TextureBinding2D));
             Assert.False(cache.TryGetCachedActiveTextureUnit(out _));
@@ -142,12 +150,18 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
                 else cache.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, first);
             }
             Bind();
+#if DEBUG
             long calls = cache.ResourceSlotBindCount;
+#endif
             Bind();
+#if DEBUG
             Assert.Equal(calls, cache.ResourceSlotBindCount);
+#endif
             cache.BindBuffer(BufferTarget.UniformBuffer, second);
             Bind();
+#if DEBUG
             Assert.Equal(calls + 1, cache.ResourceSlotBindCount);
+#endif
             Assert.Equal(first, GL.GetInteger(GetPName.UniformBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

@@ -124,6 +124,8 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, callerRead.FboId);
         GL.ReadBuffer(ReadBufferMode.None);
         GL.Viewport(1, 2, 3, 4);
+        // Raw test setup bypasses interception; scopes must recover these external selections.
+        StateCache.Current.Invalidate(EPipelineState.FramebufferBindings);
         using var wrappedSource = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
         using var wrappedDestination = DynamicGpuFramebuffer.Wrap(destination.FboId, width: 2, height: 2);
         using var blitter = new GpuFramebufferBlitter(wrapped ? wrappedSource : source, wrapped ? wrappedDestination : destination);

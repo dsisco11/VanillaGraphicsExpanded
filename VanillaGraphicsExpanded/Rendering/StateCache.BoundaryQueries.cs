@@ -176,7 +176,9 @@ internal sealed partial class StateCache
     private T QueryBoundary<T>(Func<T> read)
     {
         if (ReadBoundaryError() != ErrorCode.NoError) throw new InvalidOperationException("Native error before boundary query.");
+#if DEBUG
         BoundaryQueries++;
+#endif
         T value = read();
         if (ReadBoundaryError() != ErrorCode.NoError) throw new InvalidOperationException("Native boundary query failed.");
         return value;
@@ -185,7 +187,9 @@ internal sealed partial class StateCache
     /// <summary>Measures native error polling without conflating it with saved-value resolution.</summary>
     private ErrorCode ReadBoundaryError()
     {
+#if DEBUG
         BoundaryErrorChecks++;
+#endif
         return GL.GetError();
     }
     #endregion

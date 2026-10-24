@@ -21,7 +21,9 @@ internal sealed partial class StateCache
         if (back) stencilKnown &= ~StencilStateKnowledge.BackStencilFunction;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.StencilFuncSeparate(face, function, reference, mask);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (front) { stencil.FrontStencilFunction = (function, reference, mask); stencilKnown |= StencilStateKnowledge.FrontStencilFunction; }
         if (back) { stencil.BackStencilFunction = (function, reference, mask); stencilKnown |= StencilStateKnowledge.BackStencilFunction; }
@@ -41,7 +43,9 @@ internal sealed partial class StateCache
         if (back) stencilKnown &= ~StencilStateKnowledge.BackStencilMask;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.StencilMaskSeparate(face, mask);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (front) { stencil.FrontStencilMask = mask; stencilKnown |= StencilStateKnowledge.FrontStencilMask; }
         if (back) { stencil.BackStencilMask = mask; stencilKnown |= StencilStateKnowledge.BackStencilMask; }
@@ -61,7 +65,9 @@ internal sealed partial class StateCache
         if (back) stencilKnown &= ~StencilStateKnowledge.BackStencilOperation;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.StencilOpSeparate(face, fail, depthFail, pass);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (front) { stencil.FrontStencilOperation = (fail, depthFail, pass); stencilKnown |= StencilStateKnowledge.FrontStencilOperation; }
         if (back) { stencil.BackStencilOperation = (fail, depthFail, pass); stencilKnown |= StencilStateKnowledge.BackStencilOperation; }

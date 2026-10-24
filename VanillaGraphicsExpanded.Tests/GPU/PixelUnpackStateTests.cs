@@ -92,9 +92,11 @@ public sealed class PixelUnpackStateTests(HeadlessGLFixture fixture) : RenderTes
             manager.Enqueue(new(texture, TextureUploadTarget.For2DArray(), TextureUploadRegion.For2DArray(0, 0, 0, 1, 1, 2),
                 PixelFormat.Rgba, PixelType.UnsignedByte, TextureUploadData.From(source), UnpackRowLength: 2, UnpackImageHeight: 2));
             manager.TickOnRenderThread();
+#if DEBUG
             Assert.Equal(1, manager.GetDiagnosticsSnapshot().Uploaded);
             Assert.Equal(pbo ? 0 : 1, manager.GetDiagnosticsSnapshot().FallbackUploads);
-            if (pbo) Assert.Equal(TextureStreamingBackendKind.TripleBuffered, manager.GetDiagnosticsSnapshot().Backend);
+#endif
+            if (pbo) Assert.Equal(TextureStreamingBackendKind.TripleBuffered, manager.Backend);
             AssertState(incoming);
             byte[] actual = new byte[8];
             using (cache.SetPixelPackScope(new(1)))

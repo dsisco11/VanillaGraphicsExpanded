@@ -28,9 +28,9 @@ public sealed class PhotometricMaterialAtlasTests(HeadlessGLFixture fixture) : R
         using var store = new MaterialAtlasTextureStore();
         store.SyncToAtlasPages([(7, 8, 8)], false);
         Assert.True(store.TryUploadMaterialParamsTile(7, new(0, 0, 8, 8), loaded, 0));
-        for (int tick = 0; tick < 8 && TextureStreamingSystem.GetDiagnosticsSnapshot().Pending > 0; tick++)
+        for (int tick = 0; tick < 8 && TextureStreamingSystem.Manager.PendingCount > 0; tick++)
             TextureStreamingSystem.TickOnRenderThread();
-        Assert.Equal(0, TextureStreamingSystem.GetDiagnosticsSnapshot().Pending);
+        Assert.Equal(0, TextureStreamingSystem.Manager.PendingCount);
         Assert.True(store.TryGetPageTextures(7, out var page));
         float[] actual = page.MaterialParamsTexture.ReadPixels();
         for (int pixel = 0; pixel < 64; pixel++)
@@ -54,9 +54,9 @@ public sealed class PhotometricMaterialAtlasTests(HeadlessGLFixture fixture) : R
         store.SyncToAtlasPages([(7, 1, 1)], false);
         Assert.True(store.TryUploadMaterialParamsTile(7, new(0, 0, 1, 1), [.5f, 0, coefficient], .25f));
         // A cold streaming backend retains the initial staged fallback until a later tick.
-        for (int tick = 0; tick < 8 && TextureStreamingSystem.GetDiagnosticsSnapshot().Pending > 0; tick++)
+        for (int tick = 0; tick < 8 && TextureStreamingSystem.Manager.PendingCount > 0; tick++)
             TextureStreamingSystem.TickOnRenderThread();
-        Assert.Equal(0, TextureStreamingSystem.GetDiagnosticsSnapshot().Pending);
+        Assert.Equal(0, TextureStreamingSystem.Manager.PendingCount);
         Assert.True(store.TryGetPageTextures(7, out var page));
         float stored = page.MaterialParamsTexture.ReadPixels()[2];
         Assert.InRange(stored, 0, upperHalf);

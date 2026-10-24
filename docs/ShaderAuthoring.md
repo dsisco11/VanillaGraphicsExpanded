@@ -258,7 +258,7 @@ The C# builds passed while reusing unchanged shader artifacts.
 A warmed sequence of 32 nested surface/volume scopes previously performed 288 whole-block
 allocations and copied 462,336 payload bytes. It now performs zero additional allocations or
 copies, while restoring each owner's distinct GPU-visible draw values. Changed blocks and new
-epochs still require their first upload. `AllocationsWritten` and `BytesWritten` count successful
+epochs still require their first upload. `AllocationsWritten` and `BytesWritten` are available only in DEBUG builds and count successful
 copies independently of binding; alignment padding is excluded from bytes. CPU timing varied
 between runs, so this establishes copy/allocation savings, not a CPU or GPU speedup. Receipts
 are retained in `artifacts/WaterLagAnalysis/uniform-reuse-*`.

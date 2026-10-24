@@ -12,7 +12,9 @@ internal sealed partial class StateCache
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.LineWidth) && rasterizer.LineWidth == width) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.LineWidth;
         GL.LineWidth(width);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         rasterizer.LineWidth = width;
         rasterizerKnown |= RasterizerStateKnowledge.LineWidth;
     }
@@ -24,7 +26,9 @@ internal sealed partial class StateCache
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PointSize) && rasterizer.PointSize == size) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.PointSize;
         GL.PointSize(size);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         rasterizer.PointSize = size;
         rasterizerKnown |= RasterizerStateKnowledge.PointSize;
     }
@@ -36,7 +40,9 @@ internal sealed partial class StateCache
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.ProvokingVertex) && rasterizer.ProvokingVertex == mode) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.ProvokingVertex;
         GL.ProvokingVertex(mode);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         rasterizer.ProvokingVertex = mode;
         rasterizerKnown |= RasterizerStateKnowledge.ProvokingVertex;
     }

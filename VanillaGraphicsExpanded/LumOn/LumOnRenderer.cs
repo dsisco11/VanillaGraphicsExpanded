@@ -269,7 +269,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         lightingPassesComplete = true;
 
         // Update debug timing from resolved GPU profiler samples (avoid stalls)
+#if DEBUG
         UpdateGpuTimingCountersFromProfiler();
+#endif
 
         // Reset debug counters
         debugCounters.Reset();
@@ -1276,6 +1278,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
 
     #region GPU Profiling
 
+#if DEBUG
     private void UpdateGpuTimingCountersFromProfiler()
     {
         // Sample resolved GPU profiler values. These typically represent a recent completed frame,
@@ -1301,7 +1304,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             debugCounters.GatherPassMs +
             debugCounters.UpsamplePassMs;
     }
+#endif
 
+#if DEBUG
     private static void UpdateCounter(string name, Action<float> setter)
     {
         if (GlGpuProfiler.Instance.TryGetStats(name, out var stats))
@@ -1309,6 +1314,7 @@ public partial class LumOnRenderer : IRenderer, IDisposable
             setter(stats.LastMs);
         }
     }
+#endif
 
     #endregion
 

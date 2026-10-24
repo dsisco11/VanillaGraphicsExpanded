@@ -132,7 +132,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
             Directory.CreateDirectory(output);
             File.WriteAllText(Path.Combine(output,$"production-{width}x{height}-q{quality}-scene{scene}.json"),JsonSerializer.Serialize(new {
                 width,height,quality,scene,capturedAtUtc=DateTime.UtcNow,gamePids,contended=gamePids.Length>0,
-                renderer=GL.GetString(StringName.Renderer),hierarchyBytes=hierarchy.StorageBytes,
+                renderer=GL.GetString(StringName.Renderer),hierarchyBytes=Enumerable.Range(0,hierarchy.Texture!.MipLevels).Sum(level=>4L*Math.Max(1,width>>level)*Math.Max(1,height>>level)),
                 addedMaskBytes=current.StorageBytes-frozen.StorageBytes,
                 description="Actual production owner versus frozen old owner. Identical mutable single-filter publication policy. Full GPU queries include hierarchy, mask generation where applicable, raw horizon, filter and reconstruction. Preparation, allocations, readback and query waits excluded. Game-open timings do not prove live frame-time improvement.",
                 referenceMilliseconds=before,candidateMilliseconds=after,pairedSavingsMilliseconds=before.Zip(after,(a,b)=>a-b).ToArray()

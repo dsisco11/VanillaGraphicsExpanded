@@ -1,3 +1,4 @@
+#if DEBUG
 using VanillaGraphicsExpanded.Rendering.Profiling;
 
 namespace VanillaGraphicsExpanded.DebugView;
@@ -17,3 +18,5 @@ public static partial class VgeBuiltInDebugViews
             },
             activationMode: DebugViewActivationMode.Toggle);
 }
+
+#endif

@@ -72,7 +72,9 @@ internal sealed class ManagedGraphicsGeometry : GraphicsGeometry
         StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, elements.BufferId);
         GL.DrawElementsInstancedBaseVertex(topology, draw.IndexCount, DrawElementsType.UnsignedInt,
             (IntPtr)((long)draw.FirstIndex * sizeof(uint)), draw.InstanceCount, draw.BaseVertex);
+#if DEBUG
         StateCache.Current.RecordDrawSubmission();
+#endif
     }
 
     /// <inheritdoc />

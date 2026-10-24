@@ -29,7 +29,11 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
             harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.IsProgram),new[]{typeof(int)}),prefix:new HarmonyMethod(typeof(GpuProgramCandidateMetadataTests),nameof(CountValidity)));
             harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.GetProgramInterface),new[]{typeof(int),typeof(ProgramInterface),typeof(ProgramInterfaceParameter),typeof(int).MakeByRefType()}),prefix:new HarmonyMethod(typeof(GpuProgramCandidateMetadataTests),nameof(CountInterface)));
             statusQueries=validityQueries=interfaceQueries=0;
-            using var candidate=ShaderProgramLink.Submit(new[]{shader},false,out _);
+            using var candidate=ShaderProgramLink.Submit(new[]{shader},false
+#if DEBUG
+                , out _
+#endif
+                );
             Assert.Equal(0,statusQueries); Assert.Equal(0,validityQueries); Assert.Equal(0,interfaceQueries);
             var manager=GpuResourceManagerSystem.CurrentManager!; var entry=manager.GetResourceRegistration(candidate)!;
             Assert.False(manager.IsResourceMetadataAvailable(candidate));
@@ -37,7 +41,12 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
             Assert.Same(entry,manager.GetResourceRegistration(candidate)); Assert.True(manager.IsResourceMetadataAvailable(candidate));
             statusQueries=validityQueries=interfaceQueries=0;
             var prepared=new GpuProgramInterface(candidate.ProgramId,new[]{new GpuBindingContract()});
-            Assert.Equal(0,prepared.PreparedBindings.ReflectionQueries); Assert.Equal(0,statusQueries); Assert.Equal(0,validityQueries); Assert.Equal(0,interfaceQueries);
+#if DEBUG
+            Assert.Equal(0,prepared.PreparedBindings.ReflectionQueries);
+#endif
+            Assert.Equal(0,statusQueries);
+            Assert.Equal(0,validityQueries);
+            Assert.Equal(0,interfaceQueries);
             GL.IsProgram(candidate.ProgramId); Assert.Equal(1,validityQueries); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteShader(shader); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }

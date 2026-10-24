@@ -65,7 +65,9 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         Assert.True(program.CompileAndLink(), string.Join('\n', assets.Logs));
         Assert.False(GL.IsProgram(old));
         Assert.Equal(0, batch.Outstanding);
+#if DEBUG
         Assert.Equal(enabled ? 2 : 0, batch.PeakOutstanding);
+#endif
         using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
         target.BindWithViewport();
         RenderFullscreenQuad(program.ProgramId);
@@ -178,7 +180,9 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
                 Assert.Contains("originating native context generation", program.PreparationFailure!.Message);
                 Assert.Equal(installed, program.ProgramId);
                 Assert.Equal(revision, program.ExecutableRevision);
+#if DEBUG
                 Assert.Equal(0, batch.ConsumedCount);
+#endif
                 Assert.Throws<InvalidOperationException>(batch.Dispose);
                 Assert.Equal(outstanding, batch.Outstanding);
                 Assert.Equal(sentinel.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
@@ -375,7 +379,9 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
         program.Initialize(assets.Api);
         Assert.True(program.CompileAndLink());
         Assert.Equal(nested ? 1 : 0, outer.Outstanding);
+#if DEBUG
         Assert.Equal(1, outer.PeakOutstanding);
+#endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #region Binary cache coordination
@@ -451,7 +457,9 @@ public sealed class ShaderLinkBatchTests(HeadlessGLFixture fixture, ITestOutputH
                 GL.Finish();
                 double firstUse = System.Diagnostics.Stopwatch.GetElapsedTime(use).TotalMilliseconds;
                 GL.UseProgram(0);
+#if DEBUG
                 output.WriteLine($"Mode={(disable ? "sync" : "batch")}, enabled={batch.Enabled}, count=4, submit={submitted:F3} ms, load={loaded:F3} ms, completion={batch.CompletionMilliseconds:F3} ms, first two draws+finish={firstUse:F3} ms, total={loaded + firstUse:F3} ms");
+#endif
             }
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());

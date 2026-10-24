@@ -17,7 +17,9 @@ internal sealed class GraphicsExecutableInterface
     internal IReadOnlyList<PackagedInterfaceVariable> DeclaredOutputs { get; }
     internal PrimitiveType? GeometryInput { get; }
     internal PrimitiveType? TessellationOutput { get; }
+#if DEBUG
     internal int ReflectionQueries { get; private set; }
+#endif
 
     #region Public API
     /// <summary>Inspects the linked interface once and the exact captured binary used for specialization or binary-cache loading.</summary>
@@ -31,14 +33,18 @@ internal sealed class GraphicsExecutableInterface
         if (plan.Stages.Any(s => s.Stage.Kind == ShaderStageKind.Geometry))
         {
             GL.GetProgram(program, GetProgramParameterName.GeometryInputType, out int input);
+#if DEBUG
             ReflectionQueries++;
+#endif
             GeometryInput = (PrimitiveType)input;
         }
         if (plan.Stages.Any(s => s.Stage.Kind == ShaderStageKind.TessellationEvaluation))
         {
             GL.GetProgram(program, GetProgramParameterName.TessGenMode, out int mode);
             GL.GetProgram(program, GetProgramParameterName.TessGenPointMode, out int points);
+#if DEBUG
             ReflectionQueries += 2;
+#endif
             TessellationOutput = points != 0 ? PrimitiveType.Points
                 : (All)mode == All.Isolines ? PrimitiveType.Lines : PrimitiveType.Triangles;
         }
@@ -50,7 +56,9 @@ internal sealed class GraphicsExecutableInterface
     private IReadOnlyList<Variable> ReadVariables(int program, ProgramInterface kind)
     {
         GL.GetProgramInterface(program, kind, ProgramInterfaceParameter.ActiveResources, out int count);
+#if DEBUG
         ReflectionQueries++;
+#endif
         ProgramProperty[] properties = kind == ProgramInterface.ProgramOutput
             ? [ProgramProperty.Location, ProgramProperty.Type, ProgramProperty.ArraySize, ProgramProperty.LocationIndex]
             : [ProgramProperty.Location, ProgramProperty.Type, ProgramProperty.ArraySize];
@@ -59,7 +67,9 @@ internal sealed class GraphicsExecutableInterface
         for (int index = 0; index < count; index++)
         {
             GL.GetProgramResource(program, kind, index, properties.Length, properties, values.Length, out _, values);
+#if DEBUG
             ReflectionQueries++;
+#endif
             // Built-ins have no user location; custom clip distances are unsupported.
             if (values[0] >= 0)
             {

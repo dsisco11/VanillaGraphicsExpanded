@@ -92,9 +92,13 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
         }
         try
         {
+#if DEBUG
             long startup = StateCache.Current.DrawSubmissions;
+#endif
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
+#if DEBUG
             Assert.Equal(startup, StateCache.Current.DrawSubmissions);
+#endif
             Assert.False(AtmosphereSkyDrawHook.Prefix());
         atmosphere.Publish(new(Vector3.UnitY, Vector3.One, Vector3.One, Vector3.Zero, Vector3.Zero,
             ImmutableArray.Create(.5f, .25f, .125f, 1f)) { Width = 1, Height = 1 });
@@ -123,13 +127,17 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
                 ShaderProgramBase.CurrentShaderProgram = null;
                 StateCache.Current.UseProgram(0);
                 StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, liquidDepth.TextureId);
+#if DEBUG
                 long before = StateCache.Current.DrawSubmissions;
+#endif
                 using (var hostile = new HostileFullscreenState())
                 {
                     sky.OnRenderFrame(0, EnumRenderStage.Opaque);
                     hostile.AssertRestored();
                 }
+#if DEBUG
                 Assert.True(before + 1 == StateCache.Current.DrawSubmissions, string.Join(Environment.NewLine, assets.Logs));
+#endif
                 Assert.Null(ShaderProgramBase.CurrentShaderProgram);
                 Assert.Equal(0, GL.GetInteger(GetPName.CurrentProgram));
                 int activeUnit = StateCache.Current.GetActiveTextureUnit();
@@ -169,9 +177,13 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
             Mock.Get(render).Verify(value => value.DeleteMesh(It.IsAny<MeshRef>()), Times.Never);
             Mock.Get(render).Verify(value => value.UploadMesh(It.IsAny<MeshData>()), Times.Never);
             frames[(int)EnumFrameBuffer.LiquidDepth] = null!;
+#if DEBUG
             long missing = StateCache.Current.DrawSubmissions;
+#endif
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
+#if DEBUG
             Assert.Equal(missing, StateCache.Current.DrawSubmissions);
+#endif
             Assert.False(AtmosphereSkyDrawHook.Prefix());
             // A resource exception latches owned drawing until reload without reviving vanilla.
             frames[(int)EnumFrameBuffer.LiquidDepth] = new FrameBufferRef { DepthTextureId = liquidDepth.TextureId, Width = 2, Height = 2 };
@@ -179,12 +191,16 @@ public sealed class AtmosphereSkyIntegrationTests(HeadlessGLFixture fixture) : R
             // Camera inversion belongs to the shared frame owner; fail the sky-owned effect capture instead.
             Mock.Get(render).SetupGet(value => value.ShaderUniforms).Throws(new InvalidOperationException("Fixture sky capture failure."));
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
+#if DEBUG
             Assert.Equal(missing, StateCache.Current.DrawSubmissions);
+#endif
             Assert.False(AtmosphereSkyDrawHook.Prefix());
             Mock.Get(render).SetupGet(value => value.ShaderUniforms).Returns(uniforms);
             Reload();
             sky.OnRenderFrame(0, EnumRenderStage.Opaque);
+#if DEBUG
             Assert.True(missing + 1 == StateCache.Current.DrawSubmissions, string.Join(Environment.NewLine, assets.Logs));
+#endif
             Assert.False(AtmosphereSkyDrawHook.Prefix());
             sky.Dispose();
             events.Verify(value => value.UnregisterRenderer(sky, EnumRenderStage.Opaque), Times.Once);

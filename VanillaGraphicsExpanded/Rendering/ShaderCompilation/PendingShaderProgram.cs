@@ -15,7 +15,9 @@ internal sealed class PendingShaderProgram : IDisposable
     internal int Program => program?.ProgramId ?? 0;
     internal PreparedProgramBinary Inputs { get; }
     internal bool Cached { get; }
+#if DEBUG
     internal double LinkSubmissionMilliseconds { get; }
+#endif
     internal bool Validated => completed;
     internal List<(ShaderStageKind Kind, int Shader, GpuBindingContract Contract, GpuShaderModule Owner)> Stages { get; } = new();
     private readonly GetProgramParameterName completionQuery;
@@ -46,8 +48,14 @@ internal sealed class PendingShaderProgram : IDisposable
                 var stage = SpirvStageLoader.Load(selection, read: Inputs.Read, deferCompletion: true);
                 Stages.Add((selection.Stage.Kind, stage.ShaderId, selection.Stage.Bindings, stage));
             }
-            program = ShaderProgramLink.Submit(Stages.Select(stage => stage.Shader).ToArray(), Inputs.Key != null, out double elapsed);
+            program = ShaderProgramLink.Submit(Stages.Select(stage => stage.Shader).ToArray(), Inputs.Key != null
+#if DEBUG
+                , out double elapsed
+#endif
+                );
+#if DEBUG
             LinkSubmissionMilliseconds = elapsed;
+#endif
         }
         catch { Dispose(); throw; }
     }

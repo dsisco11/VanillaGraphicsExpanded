@@ -29,7 +29,9 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
         using var output = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var inputs = new UniformStateBuffer { Scalar = 7, Values = [2, 3], Vector = Vector3.Zero, Transform = Matrix4x4.Identity };
         Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+#if DEBUG
         long allocations = ring.AllocationsWritten, bytes = ring.BytesWritten;
+#endif
         // The same desired values must reach each executable, including A after B and a fresh A replacement.
         foreach (var pipeline in new[] { a, a, b, a, c })
         {
@@ -43,8 +45,10 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
             GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
             Assert.Equal(ReferenceEquals(pipeline, b) ? new float[] { 8, 6, 1, 2 } : new float[] { 7, 5, 0, 1 }, output.ReadPixels());
         }
+#if DEBUG
         Assert.Equal(1, ring.AllocationsWritten - allocations);
         Assert.Equal(128, ring.BytesWritten - bytes);
+#endif
     }
     /// <summary>Defaults upload once; changed values and failed-resource retry retain correct data.</summary>
     [Fact]
@@ -57,13 +61,17 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
         using var shader = new UniformStateComputeShader(pipeline!);
         using var output = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+#if DEBUG
         long allocations = ring.AllocationsWritten;
+#endif
         float[] desired = [2, 3];
         shader.Values = desired;
         desired[0] = 99;
         // Resource failure precedes block publication, including first-use defaults.
         Assert.Throws<InvalidOperationException>(() => shader.Dispatch(1));
+#if DEBUG
         Assert.Equal(0, ring.AllocationsWritten - allocations);
+#endif
         shader.Output = new(output, TextureAccess.WriteOnly);
         shader.Dispatch(1);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
@@ -71,25 +79,35 @@ public sealed class ShaderUniformStateTests(HeadlessGLFixture fixture) : RenderT
         shader.Dispatch(1);
         // Order repeated writes to the same image before submitting changed values.
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit);
+#if DEBUG
         Assert.Equal(1, ring.AllocationsWritten - allocations);
+#endif
         shader.Scalar = 7;
         shader.Vector = new Vector3(8, 0, 0);
         shader.Transform = Matrix4x4.CreateScale(9);
         shader.Values = [4, 6];
         shader.Output = default;
         Assert.Throws<InvalidOperationException>(() => shader.Dispatch(1));
+#if DEBUG
         Assert.Equal(1, ring.AllocationsWritten - allocations);
+#endif
         shader.Output = new(output, TextureAccess.WriteOnly);
         Assert.Equal(7, shader.Scalar);
         Assert.Equal(new float[] { 4, 6 }, shader.Values);
         shader.Dispatch(1);
+#if DEBUG
         Assert.Equal(2, ring.AllocationsWritten - allocations);
+#endif
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
         Assert.Equal(new float[] { 7, 10, 8, 9 }, output.ReadPixels());
+#if DEBUG
         Assert.Equal(2, ring.AllocationsWritten - allocations);
+#endif
         shader.Scalar = 7;
         shader.Dispatch(1);
+#if DEBUG
         Assert.Equal(2, ring.AllocationsWritten - allocations);
+#endif
     }
     #endregion
 

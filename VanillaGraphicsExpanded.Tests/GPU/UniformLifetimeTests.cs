@@ -36,9 +36,11 @@ public sealed class UniformLifetimeTests(HeadlessGLFixture fixture) : RenderTest
         Assert.NotSame(original.Retained, changed.Retained);
         Assert.Equal(123u, Observe(original));
         Assert.Equal(456u, Observe(changed));
+#if DEBUG
         Assert.Equal(2, ring.PersistentStorage.AllocationsWritten);
         Assert.Equal(32, ring.PersistentStorage.BytesWritten);
         Assert.Equal(6, ring.PersistentStorage.Bindings);
+#endif
         ring.EndFrame();
     }
 
@@ -118,14 +120,18 @@ public sealed class UniformLifetimeTests(HeadlessGLFixture fixture) : RenderTest
         Assert.Equal(first.Offset, Publish(frame, ring, 3, 1).Offset);
         var single = Publish(draw, ring, 4, 1);
         Assert.NotEqual(single.Offset, Publish(draw, ring, 4, 1).Offset);
+#if DEBUG
         Assert.Equal(3, ring.AllocationsWritten);
+#endif
         var changed = Publish(frame, ring, 5, 2);
         Assert.Equal(3u, Observe(first));
         Assert.Equal(5u, Observe(changed));
         // Re-entering an open frame must seal and retire pending writes before resetting its page.
         ring.BeginFrame(0);
         Publish(frame, ring, 5, 2);
+#if DEBUG
         Assert.Equal(5, ring.AllocationsWritten);
+#endif
         ring.EndFrame();
     }
 

@@ -26,9 +26,15 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         try
         {
             cache.ApplyGraphicsState(a, dynamics); AssertNative(a);
+#if DEBUG
             long calls = cache.FixedFunctionCalls, queries = cache.BoundaryQueries, errors = cache.BoundaryErrorChecks;
+#endif
             cache.ApplyGraphicsState(a, dynamics);
-            Assert.Equal(calls, cache.FixedFunctionCalls); Assert.Equal(queries, cache.BoundaryQueries); Assert.Equal(errors, cache.BoundaryErrorChecks);
+#if DEBUG
+            Assert.Equal(calls, cache.FixedFunctionCalls);
+            Assert.Equal(queries, cache.BoundaryQueries);
+            Assert.Equal(errors, cache.BoundaryErrorChecks);
+#endif
             cache.ApplyGraphicsState(b, dynamics); AssertNative(b);
             cache.ApplyGraphicsState(a, dynamics); AssertNative(a);
             // Explicit external invalidation must force native re-establishment, even for identical intent.
@@ -64,16 +70,28 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
         EngineStateCalls.BlendEquation(BlendEquationMode.Max);
         EngineStateCalls.BlendEquationSeparate(1, BlendEquationMode.FuncSubtract, BlendEquationMode.Min);
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
+#endif
         EngineStateCalls.BlendEquationSeparate(1, BlendEquationMode.FuncSubtract, BlendEquationMode.Min);
+#if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         EngineStateCalls.BlendEquation(BlendEquationMode.Max);
+#if DEBUG
         Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
         for (int i = 0; i < cache.MaxDrawBuffers; i++)
         {
             GL.GetInteger((GetIndexedPName)GetPName.BlendEquationRgb, i, out int equation); Assert.Equal((int)BlendEquationMode.Max, equation);
         }
-        calls = cache.FixedFunctionCalls; EngineStateCalls.BlendEquation(BlendEquationMode.Max); Assert.Equal(calls, cache.FixedFunctionCalls);
+#if DEBUG
+        calls = cache.FixedFunctionCalls;
+#endif
+        EngineStateCalls.BlendEquation(BlendEquationMode.Max);
+#if DEBUG
+        Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         cache.ApplyGraphicsState(Pipeline(false), Dynamics());
     }
     /// <summary>Missing draw values reject before any native transition or knowledge publication.</summary>
@@ -82,9 +100,14 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
         cache.ApplyGraphicsState(Pipeline(false), Dynamics());
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
+#endif
         Assert.Throws<ArgumentException>(() => cache.ApplyGraphicsState(Pipeline(true), new()));
-        Assert.Equal(calls, cache.FixedFunctionCalls); Assert.False(GL.IsEnabled(EnableCap.StencilTest));
+#if DEBUG
+        Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
+        Assert.False(GL.IsEnabled(EnableCap.StencilTest));
     }
 
     /// <summary>Explicit dynamic slots remain required and validated even when their static selectors are dormant.</summary>
@@ -107,13 +130,17 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         cache.SetScissor(4, 3, 2, 1); cache.SetBlendConstant(.5f, .6f, .7f, .8f);
         cache.SetStencilFunction(StencilFace.Front, StencilFunction.Always, 7, 0xff);
         cache.SetStencilFunction(StencilFace.Back, StencilFunction.Always, 9, 0xff);
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
+#endif
         foreach (var invalid in new[] { valid with { Scissor = null }, valid with { Scissor = (0, 0, -1, 1) },
             valid with { StencilReference = null }, valid with { StencilReference = (256, 0) },
             valid with { BlendConstant = null }, valid with { BlendConstant = (float.NaN, 0, 0, 0) } })
         {
             Assert.Throws<ArgumentException>(() => cache.ApplyGraphicsState(dormant, invalid));
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         }
         try
         {
@@ -188,14 +215,24 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
         var description = Pipeline(false);
-        cache.ApplyGraphicsState(description, Dynamics()); long calls = cache.FixedFunctionCalls;
+        cache.ApplyGraphicsState(description, Dynamics());
+#if DEBUG
+        long calls = cache.FixedFunctionCalls;
+#endif
         cache.SetDepthFunc(description.DepthStencil.DepthComparison); cache.SetScissor(2, 4, 11, 13); cache.SetBlendConstant(.125f, .25f, .5f, .75f);
+#if DEBUG
         calls = cache.FixedFunctionCalls;
+#endif
         cache.Invalidate(EPipelineState.Sampling);
         cache.SetDepthFunc(description.DepthStencil.DepthComparison); cache.SetScissor(2, 4, 11, 13); cache.SetBlendConstant(.125f, .25f, .5f, .75f);
+#if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
         GL.SampleCoverage(.25f, true);
-        cache.SetSampleCoverage(1, false); Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+        cache.SetSampleCoverage(1, false);
+#if DEBUG
+        Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
         Assert.Equal(1, GL.GetFloat(GetPName.SampleCoverageValue)); Assert.False(GL.GetBoolean(GetPName.SampleCoverageInvert));
     }
     /// <summary>Insufficient declared coverage rejects the complete request before its first native mutation.</summary>
@@ -205,9 +242,13 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         fixture.MakeCurrent(); var cache = StateCache.Current; cache.InvalidateAll();
         var pipeline = Pipeline(false);
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Insufficient", new PipelineStateCoverage(completeGraphics: true)), out var scope));
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
+#endif
         scope!.Run(() => Assert.Throws<InvalidOperationException>(() => cache.ApplyGraphicsState(pipeline, Dynamics())));
+#if DEBUG
         Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
     }
     /// <summary>Opt-in checking withdraws failed category knowledge so a later retry reaches the driver.</summary>
     [Fact]
@@ -219,8 +260,14 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
         {
             GlDebug.CheckStateTransitions = true; GL.Enable((EnableCap)(-1));
             Assert.Throws<InvalidOperationException>(() => cache.SetSampleCoverage(.5f, false));
-            long calls = cache.FixedFunctionCalls; cache.SetSampleCoverage(.5f, false);
-            Assert.Equal(calls + 1, cache.FixedFunctionCalls); Assert.Equal(.5f, GL.GetFloat(GetPName.SampleCoverageValue));
+#if DEBUG
+            long calls = cache.FixedFunctionCalls;
+#endif
+            cache.SetSampleCoverage(.5f, false);
+#if DEBUG
+            Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
+            Assert.Equal(.5f, GL.GetFloat(GetPName.SampleCoverageValue));
         }
         finally { GlDebug.CheckStateTransitions = false; cache.SetSampleCoverage(1, false); }
     }
@@ -271,12 +318,16 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
             cache.SetScissor(2, 4, 11, 13);
             cache.SetBlendConstant(.125f, .25f, .5f, .75f);
             cache.Invalidate(EPipelineState.Viewport);
+#if DEBUG
             long calls = cache.FixedFunctionCalls, queries = cache.BoundaryQueries, checks = cache.BoundaryErrorChecks;
+#endif
             cache.SetScissor(2, 4, 11, 13);
             cache.SetBlendConstant(.125f, .25f, .5f, .75f);
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
             Assert.Equal(queries, cache.BoundaryQueries);
             Assert.Equal(checks, cache.BoundaryErrorChecks);
+#endif
             // Capturing a viewport must not claim warm scissor/constant fields as restorable.
             Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("ViewportOnly",
                 new PipelineStateCoverage(dynamic: DynamicDrawStateKnowledge.Viewport)), out var scope));
@@ -285,12 +336,18 @@ public sealed class CompleteGraphicsStateTests(HeadlessGLFixture fixture)
             int[] scissor = new int[4]; GL.GetInteger(GetPName.ScissorBox, scissor);
             Assert.Equal(new[] { 2, 4, 11, 13 }, scissor);
             cache.Invalidate(EPipelineState.ScissorRectangle);
+#if DEBUG
             calls = cache.FixedFunctionCalls;
+#endif
             cache.SetBlendConstant(.125f, .25f, .5f, .75f);
             cache.ApplyDynamic(Dynamics().Viewport!.Value);
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             cache.SetScissor(2, 4, 11, 13);
+#if DEBUG
             Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
         }
         finally { cache.ApplyGraphicsState(Pipeline(false), Dynamics()); }
     }

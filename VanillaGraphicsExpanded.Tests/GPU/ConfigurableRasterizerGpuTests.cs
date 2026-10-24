@@ -24,8 +24,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         fixture.MakeCurrent();
         Assert.Equal(GL.GetInteger(GetPName.MaxClipDistances), GpuSupport.Graphics.MaxClipDistances);
         output.WriteLine($"Raster core: {GL.GetString(StringName.Version)}; {GL.GetString(StringName.Renderer)}; ClipControl={GpuSupport.Graphics.ClipControl}");
-        var cache = StateCache.Current;
-        cache.InvalidateAll();
+        var cache = StateCache.Current; cache.InvalidateAll();
         var first = Pipeline(new() { LineSmooth = true, PolygonSmooth = true,
             PointSpriteOrigin = PointSpriteCoordOriginParameter.LowerLeft });
         var second = Pipeline(new());
@@ -41,18 +40,26 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             cache.SetClipDistance(1, false);
             cache.ApplyConfigurableRaster(first);
             Assert.False(GL.IsEnabled(EnableCap.ClipDistance0));
+#if DEBUG
             long calls = cache.FixedFunctionCalls;
+#endif
             cache.ApplyConfigurableRaster(first);
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             cache.ApplyConfigurableRaster(second);
             cache.ApplyConfigurableRaster(first);
             Assert.False(GL.IsEnabled(EnableCap.ClipDistance0));
             EngineStateCalls.Enable(EnableCap.ClipDistance0);
             cache.SetDepthFunc(DepthFunction.Less);
+#if DEBUG
             calls = cache.FixedFunctionCalls;
+#endif
             cache.Invalidate(EPipelineState.ConfigurableRaster);
             cache.SetDepthFunc(DepthFunction.Less);
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             Assert.True(cache.TryBeginEngineBoundary(Declaration(), out var scope));
             var failure = new InvalidOperationException("fixture");
             Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => scope!.Run(() => {
@@ -70,8 +77,14 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             GlDebug.CheckStateTransitions = true;
             GL.Enable((EnableCap)(-1));
             Assert.Throws<InvalidOperationException>(() => cache.SetLineSmooth(false));
-            calls = cache.FixedFunctionCalls; cache.SetLineSmooth(false);
-            Assert.Equal(calls + 1, cache.FixedFunctionCalls); Assert.False(GL.IsEnabled(EnableCap.LineSmooth));
+#if DEBUG
+            calls = cache.FixedFunctionCalls;
+#endif
+            cache.SetLineSmooth(false);
+#if DEBUG
+            Assert.Equal(calls + 1, cache.FixedFunctionCalls);
+#endif
+            Assert.False(GL.IsEnabled(EnableCap.LineSmooth));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { GlDebug.CheckStateTransitions = false; cache.ApplyConfigurableRaster(second); }
@@ -82,7 +95,8 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
     public void TextureUploadRefreshesUnpackKnowledge()
     {
         using var context = new CompatibilityContext(fixture, output);
-        var cache = StateCache.Current; cache.InvalidateAll();
+        var cache = StateCache.Current;
+        cache.InvalidateAll();
         using var texture = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R16);
         cache.SetPixelUnpackState(new(8));
         texture.UploadDataImmediate(new ushort[] { 17 });

@@ -36,7 +36,9 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
             coefficients.UploadDataImmediate(Enumerable.Repeat(.75f, coefficients.Width * coefficients.Height * 28).ToArray(), 0, 0, 0, coefficients.Width, coefficients.Height, 7);
             buffers.HasPublishedIndirect = true;
             var revision = buffers.HistoryRevision;
+#if DEBUG
             long draws = StateCache.Current.DrawSubmissions;
+#endif
             using (var hostile = new HostileFullscreenState())
             {
                 buffers.ClearHistory();
@@ -47,7 +49,9 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
             }
             Assert.False(buffers.HasPublishedIndirect);
             Assert.True(buffers.HistoryRevision > revision);
+#if DEBUG
             Assert.Equal(draws, StateCache.Current.DrawSubmissions);
+#endif
         }
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -60,7 +64,9 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var target = CreateRenderTarget(4, 4, PixelInternalFormat.Rgba32f);
+#if DEBUG
         long draws = StateCache.Current.DrawSubmissions;
+#endif
         using var hostile = new HostileFullscreenState();
         var expected = new ArithmeticException("after clear");
         bool Run() => GraphicsCommandContext.TryRun("ClearOnlyFixture", [], true, commands =>
@@ -73,7 +79,9 @@ public sealed class LumOnHistorySubmissionTests(HeadlessGLFixture fixture) : Ren
         hostile.AssertRestored();
         float[] pixels = target[0].ReadPixels();
         for (int i = 0; i < pixels.Length; i++) Assert.Equal(new[] { .25f, .5f, .75f, 1 }[i % 4], pixels[i]);
+#if DEBUG
         Assert.Equal(draws, StateCache.Current.DrawSubmissions);
+#endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

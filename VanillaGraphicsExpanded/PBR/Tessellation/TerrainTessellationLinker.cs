@@ -29,7 +29,11 @@ internal static class TerrainTessellationLinker
                 debugName is null ? null : $"{debugName}.tess-control")) return false;
             if (!GpuShaderModule.TryCompileGlsl(ShaderType.TessEvaluationShader, header + sources.Evaluation, out evaluation, out error,
                 debugName is null ? null : $"{debugName}.tess-evaluation")) return false;
-            candidate = ShaderProgramLink.Submit([vertex, control!.ShaderId, evaluation!.ShaderId, fragment], false, out _);
+            candidate = ShaderProgramLink.Submit([vertex, control!.ShaderId, evaluation!.ShaderId, fragment], false
+#if DEBUG
+                , out _
+#endif
+                );
             if (!ShaderProgramLink.Validate(candidate, out error)) return false;
             // The linked executable retains the stages; the engine continues owning vertex/fragment.
             candidate.DetachShader(control.ShaderId);

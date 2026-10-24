@@ -80,7 +80,9 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         {
             render.RenderMesh(mesh);
             completed = true;
+#if DEBUG
             StateCache.Current.RecordDrawSubmission();
+#endif
         }
         finally { StateCache.Current.ObserveEngineMeshDraw(vao, completed); }
     }

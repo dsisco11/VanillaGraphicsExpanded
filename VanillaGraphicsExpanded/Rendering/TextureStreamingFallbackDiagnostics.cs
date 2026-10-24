@@ -1,3 +1,4 @@
+#if DEBUG
 namespace VanillaGraphicsExpanded.Rendering;
 
 internal readonly record struct TextureStreamingFallbackDiagnostics(
@@ -7,3 +8,5 @@ internal readonly record struct TextureStreamingFallbackDiagnostics(
     long NoPersistentSupport,
     long Oversize,
     long Disabled);
+
+#endif

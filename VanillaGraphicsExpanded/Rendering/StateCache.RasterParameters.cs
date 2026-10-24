@@ -18,7 +18,10 @@ internal sealed partial class StateCache
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.ClipControl) && rasterizer.ClipOrigin == origin && rasterizer.ClipDepth == depth) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.ClipControl;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        GL.ClipControl(origin, depth); FixedFunctionCalls++;
+        GL.ClipControl(origin, depth);
+#if DEBUG
+        FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.ClipOrigin = origin; rasterizer.ClipDepth = depth;
         rasterizerKnown |= RasterizerStateKnowledge.ClipControl;
@@ -31,7 +34,10 @@ internal sealed partial class StateCache
         if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PointSpriteOrigin) && rasterizer.PointSpriteOrigin == value) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.PointSpriteOrigin;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        GL.PointParameter(PointParameterName.PointSpriteCoordOrigin, (int)value); FixedFunctionCalls++;
+        GL.PointParameter(PointParameterName.PointSpriteCoordOrigin, (int)value);
+#if DEBUG
+        FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.PointSpriteOrigin = value; rasterizerKnown |= RasterizerStateKnowledge.PointSpriteOrigin;
     }

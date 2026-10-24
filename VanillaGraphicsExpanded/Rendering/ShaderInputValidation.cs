@@ -11,10 +11,12 @@ internal struct ShaderInputValidation
     private GpuPreparedBindings.Entry validated;
     private InputKey key;
     private bool hasValidation;
+#if DEBUG
     /// <summary>Counts successful compatibility checks, excluding lifetime checks and context cache comparisons.</summary>
     internal int CompatibilityChecks { get; private set; }
     /// <summary>Counts entry resolutions on installed executable changes rather than each use.</summary>
     internal int EntryResolutions { get; private set; }
+#endif
 
     /// <summary>Captures the resource facts on which compatibility depends, independently of wrapper equality.</summary>
     internal readonly record struct InputKey(object Resource, nint Handle, int Target, int Format,
@@ -33,7 +35,9 @@ internal struct ShaderInputValidation
             identity = inputIdentity;
             selected = current.Resolve(inputIdentity);
             hasValidation = false;
+#if DEBUG
             EntryResolutions++;
+#endif
         }
         return selected;
     }
@@ -48,7 +52,9 @@ internal struct ShaderInputValidation
         validated = binding;
         key = input;
         hasValidation = true;
+#if DEBUG
         CompatibilityChecks++;
+#endif
     }
 
     /// <summary>Snapshots allocation metadata already owned by the texture without driver queries.</summary>

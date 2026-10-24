@@ -1,5 +1,6 @@
 namespace VanillaGraphicsExpanded.Rendering.Profiling;
 
+/// <summary>Selects the ordering of collected GPU timing samples.</summary>
 public enum GpuProfileSort
 {
     Name = 0,

@@ -304,7 +304,8 @@ sampler and image calls; an isolated indexed-buffer interval measures unchanged 
 The raw-ID interval deliberately validates and rebinds each borrowed handle, then rejects the same
 retained integer after retirement. An equal raw engine ID does not establish allocation identity.
 
-`GpuPreparedBindings.ReflectionQueries` counts its linked-interface inspection calls, excluding
+Rendering diagnostic counters exist only in DEBUG builds. `GpuPreparedBindings.ReflectionQueries`
+counts its linked-interface inspection calls, excluding
 context-limit queries. Stable preparation counters and the layout/interface named-resolution
 counters supplement source review: generated submission resolves numeric identities through
 retained `ShaderInputValidation`, and `ShaderPreparedSubmission` performs no executable reflection

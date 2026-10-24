@@ -32,6 +32,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
     private long nextSequenceId;
 
+#if DEBUG
     private readonly long[] priorityEnqueued = new long[3];
     private readonly long[] priorityDrained = new long[3];
     private readonly long[] priorityFallback = new long[3];
@@ -53,12 +54,20 @@ internal sealed class TextureStreamingManager : IDisposable
     private long fallbackOversize;
     private long fallbackDisabled;
 
+#endif
+
     public TextureStreamingManager(TextureStreamingSettings? settings = null)
     {
         this.settings = settings ?? TextureStreamingSettings.Default;
         commandQueue = new SingleChannelUploadQueue(DefaultQueueCapacity);
         scheduler = new StablePriorityUploadScheduler();
     }
+
+    /// <summary>Returns outstanding commands across the primary, carry-over and overflow queues.</summary>
+    public int PendingCount => commandQueue.Count + Volatile.Read(ref carryOverCount) + Volatile.Read(ref overflowFallbackCount);
+
+    /// <summary>Returns the active upload backend without collecting diagnostic totals.</summary>
+    public TextureStreamingBackendKind Backend => backend?.Kind ?? TextureStreamingBackendKind.None;
 
     public TextureStreamingSettings Settings
     {
@@ -113,12 +122,15 @@ internal sealed class TextureStreamingManager : IDisposable
 
         if (!commandQueue.TryEnqueue(cmd))
         {
+#if DEBUG
             Interlocked.Increment(ref priorityFailed[GetPriorityIndex(request.Priority)]);
+#endif
             return;
         }
-
+#if DEBUG
         Interlocked.Increment(ref enqueued);
         Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex(request.Priority)]);
+#endif
     }
 
     public TextureStageResult StageCopy(
@@ -155,7 +167,9 @@ internal sealed class TextureStreamingManager : IDisposable
 
         if (!commandQueue.TryAcquireEnqueueSlot(out UploadEnqueueToken token))
         {
+#if DEBUG
             TrackFallbackReason(TextureStageFallbackReason.QueueFull);
+#endif
             return EnqueueOwnedFallbackToOverflow(
                 textureId,
                 target,
@@ -220,17 +234,21 @@ internal sealed class TextureStreamingManager : IDisposable
             if (!commandQueue.TryEnqueue(token, cmd))
             {
                 commandQueue.ReleaseEnqueueSlot(token);
+#if DEBUG
                 Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+#endif
                 return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
             }
-
+#if DEBUG
             Interlocked.Increment(ref enqueued);
             Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
             Interlocked.Increment(ref stageCopyStaged);
+#endif
             return TextureStageResult.StagedToPersistentRing();
         }
-
+#if DEBUG
         TrackFallbackReason(fallbackReason);
+#endif
 
         OwnedCpuUploadBuffer owned = CopyToOwnedCpuBuffer(data.Slice(0, requiredBytes), requiredBytes);
 
@@ -248,7 +266,9 @@ internal sealed class TextureStreamingManager : IDisposable
         {
             commandQueue.ReleaseEnqueueSlot(token);
             owned.Dispose();
+#if DEBUG
             TrackFallbackReason(TextureStageFallbackReason.QueueFull);
+#endif
             return EnqueueOwnedFallbackToOverflow(
                 textureId,
                 target,
@@ -262,9 +282,10 @@ internal sealed class TextureStreamingManager : IDisposable
                 unpackRowLength,
                 unpackImageHeight);
         }
-
+#if DEBUG
         Interlocked.Increment(ref enqueued);
         Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+#endif
         return TextureStageResult.EnqueuedFallback();
     }
 
@@ -303,7 +324,9 @@ internal sealed class TextureStreamingManager : IDisposable
 
         if (!commandQueue.TryAcquireEnqueueSlot(out UploadEnqueueToken token))
         {
+#if DEBUG
             TrackFallbackReason(TextureStageFallbackReason.QueueFull);
+#endif
             ReadOnlySpan<byte> bytes0 = MemoryMarshal.AsBytes(data.Slice(0, requiredElements));
             return EnqueueOwnedFallbackToOverflow(
                 textureId,
@@ -365,17 +388,21 @@ internal sealed class TextureStreamingManager : IDisposable
             if (!commandQueue.TryEnqueue(token, cmd))
             {
                 commandQueue.ReleaseEnqueueSlot(token);
+#if DEBUG
                 Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+#endif
                 return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
             }
-
+#if DEBUG
             Interlocked.Increment(ref enqueued);
             Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
             Interlocked.Increment(ref stageCopyStaged);
+#endif
             return TextureStageResult.StagedToPersistentRing();
         }
-
+#if DEBUG
         TrackFallbackReason(fallbackReason);
+#endif
 
         OwnedCpuUploadBuffer owned = CopyToOwnedCpuBuffer(bytes, requiredBytes);
 
@@ -393,7 +420,9 @@ internal sealed class TextureStreamingManager : IDisposable
         {
             commandQueue.ReleaseEnqueueSlot(token);
             owned.Dispose();
+#if DEBUG
             TrackFallbackReason(TextureStageFallbackReason.QueueFull);
+#endif
             return EnqueueOwnedFallbackToOverflow(
                 textureId,
                 target,
@@ -407,9 +436,10 @@ internal sealed class TextureStreamingManager : IDisposable
                 unpackRowLength,
                 unpackImageHeight);
         }
-
+#if DEBUG
         Interlocked.Increment(ref enqueued);
         Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+#endif
         return TextureStageResult.EnqueuedFallback();
     }
 
@@ -448,7 +478,9 @@ internal sealed class TextureStreamingManager : IDisposable
 
         if (!commandQueue.TryAcquireEnqueueSlot(out UploadEnqueueToken token))
         {
+#if DEBUG
             TrackFallbackReason(TextureStageFallbackReason.QueueFull);
+#endif
             ReadOnlySpan<byte> bytes0 = MemoryMarshal.AsBytes(data.Slice(0, requiredElements));
             return EnqueueOwnedFallbackToOverflow(
                 textureId,
@@ -510,17 +542,21 @@ internal sealed class TextureStreamingManager : IDisposable
             if (!commandQueue.TryEnqueue(token, cmd))
             {
                 commandQueue.ReleaseEnqueueSlot(token);
+#if DEBUG
                 Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+#endif
                 return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
             }
-
+#if DEBUG
             Interlocked.Increment(ref enqueued);
             Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
             Interlocked.Increment(ref stageCopyStaged);
+#endif
             return TextureStageResult.StagedToPersistentRing();
         }
-
+#if DEBUG
         TrackFallbackReason(fallbackReason);
+#endif
 
         OwnedCpuUploadBuffer owned = CopyToOwnedCpuBuffer(bytes, requiredBytes);
 
@@ -538,7 +574,9 @@ internal sealed class TextureStreamingManager : IDisposable
         {
             commandQueue.ReleaseEnqueueSlot(token);
             owned.Dispose();
+#if DEBUG
             TrackFallbackReason(TextureStageFallbackReason.QueueFull);
+#endif
             return EnqueueOwnedFallbackToOverflow(
                 textureId,
                 target,
@@ -552,9 +590,10 @@ internal sealed class TextureStreamingManager : IDisposable
                 unpackRowLength,
                 unpackImageHeight);
         }
-
+#if DEBUG
         Interlocked.Increment(ref enqueued);
         Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+#endif
         return TextureStageResult.EnqueuedFallback();
     }
 
@@ -595,7 +634,9 @@ internal sealed class TextureStreamingManager : IDisposable
 
         if (!commandQueue.TryAcquireEnqueueSlot(out UploadEnqueueToken token))
         {
+#if DEBUG
             TrackFallbackReason(TextureStageFallbackReason.QueueFull);
+#endif
             ReadOnlySpan<byte> bytes0 = MemoryMarshal.AsBytes(data.Slice(0, requiredElements));
             return EnqueueOwnedFallbackToOverflow(
                 textureId,
@@ -659,17 +700,21 @@ internal sealed class TextureStreamingManager : IDisposable
             if (!commandQueue.TryEnqueue(token, cmd))
             {
                 commandQueue.ReleaseEnqueueSlot(token);
+#if DEBUG
                 Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+#endif
                 return TextureStageResult.Rejected(TextureStageRejectReason.QueueFull);
             }
-
+#if DEBUG
             Interlocked.Increment(ref enqueued);
             Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
             Interlocked.Increment(ref stageCopyStaged);
+#endif
             return TextureStageResult.StagedToPersistentRing();
         }
-
+#if DEBUG
         TrackFallbackReason(fallbackReason);
+#endif
 
         OwnedCpuUploadBuffer owned = CopyToOwnedCpuBuffer(bytes, requiredBytes);
 
@@ -687,7 +732,9 @@ internal sealed class TextureStreamingManager : IDisposable
         {
             commandQueue.ReleaseEnqueueSlot(token);
             owned.Dispose();
+#if DEBUG
             TrackFallbackReason(TextureStageFallbackReason.QueueFull);
+#endif
             return EnqueueOwnedFallbackToOverflow(
                 textureId,
                 target,
@@ -702,9 +749,10 @@ internal sealed class TextureStreamingManager : IDisposable
                 unpackImageHeight,
                 textureOwner);
         }
-
+#if DEBUG
         Interlocked.Increment(ref enqueued);
         Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+#endif
         return TextureStageResult.EnqueuedFallback();
     }
 
@@ -777,8 +825,9 @@ internal sealed class TextureStreamingManager : IDisposable
                 {
                     break;
                 }
-
+#if DEBUG
                 AccumulatePriorityCounts(work.AsSpan(workCount, drained), priorityDrained);
+#endif
                 workCount += drained;
             }
 
@@ -786,7 +835,9 @@ internal sealed class TextureStreamingManager : IDisposable
             {
                 work[workCount++] = overflowCmd;
                 Interlocked.Decrement(ref overflowFallbackCount);
+#if DEBUG
                 Interlocked.Increment(ref priorityDrained[GetPriorityIndex(overflowCmd.Priority)]);
+#endif
             }
 
             scheduler.Sort(work, workCount);
@@ -825,7 +876,9 @@ internal sealed class TextureStreamingManager : IDisposable
                         && backend is PersistentMappedPboRing retiredRing
                         && cmd.PboUpload.BufferId == retiredRing.BufferId)
                         retiredRing.SubmitUpload(cmd.PboUpload);
+#if DEBUG
                     Interlocked.Increment(ref droppedInvalid);
+#endif
                     continue;
                 }
 
@@ -834,7 +887,9 @@ internal sealed class TextureStreamingManager : IDisposable
                 {
                     if (cmd.ByteCount <= 0 || cmd.RowLength <= 0 || cmd.ImageHeight <= 0)
                     {
+#if DEBUG
                         Interlocked.Increment(ref droppedInvalid);
+#endif
                         continue;
                     }
 
@@ -845,7 +900,9 @@ internal sealed class TextureStreamingManager : IDisposable
                     if (cmd.OwnedBuffer is null || cmd.ByteCount <= 0 || cmd.RowLength <= 0 || cmd.ImageHeight <= 0)
                     {
                         cmd.OwnedBuffer?.Dispose();
+#if DEBUG
                         Interlocked.Increment(ref droppedInvalid);
+#endif
                         continue;
                     }
 
@@ -859,7 +916,9 @@ internal sealed class TextureStreamingManager : IDisposable
                     }
                     else if (!TryPrepareRequest(request, out prepared))
                     {
+#if DEBUG
                         Interlocked.Increment(ref droppedInvalid);
+#endif
                         continue;
                     }
                 }
@@ -871,7 +930,9 @@ internal sealed class TextureStreamingManager : IDisposable
                 {
                     if (backend is not PersistentMappedPboRing ring || cmd.PboUpload.BufferId != ring.BufferId)
                     {
+#if DEBUG
                         Interlocked.Increment(ref droppedInvalid);
+#endif
                         continue;
                     }
 
@@ -897,8 +958,10 @@ internal sealed class TextureStreamingManager : IDisposable
                     }
                     else if (allowDirectUploads && TryUploadDirectFromOwnedBytes(owned, prepared))
                     {
+#if DEBUG
                         Interlocked.Increment(ref fallbackUploads);
                         Interlocked.Increment(ref priorityFallback[GetPriorityIndex(request.Priority)]);
+#endif
                         uploadedThisFrame = true;
                     }
 
@@ -909,7 +972,9 @@ internal sealed class TextureStreamingManager : IDisposable
                     else
                     {
                         CarryOver(work, i, workCount - i);
+#if DEBUG
                         Interlocked.Increment(ref deferredCount);
+#endif
                         return;
                     }
                 }
@@ -928,8 +993,10 @@ internal sealed class TextureStreamingManager : IDisposable
                 {
                     if (allowDirectUploads && TryUploadDirect(prepared))
                     {
+#if DEBUG
                         Interlocked.Increment(ref fallbackUploads);
                         Interlocked.Increment(ref priorityFallback[GetPriorityIndex(request.Priority)]);
+#endif
                         uploadedThisFrame = true;
                     }
                 }
@@ -937,14 +1004,18 @@ internal sealed class TextureStreamingManager : IDisposable
                 if (!uploadedThisFrame)
                 {
                     CarryOver(work, i, workCount - i);
+#if DEBUG
                     Interlocked.Increment(ref deferredCount);
+#endif
                     return;
                 }
 
                 uploads++;
                 bytes += byteCount;
+#if DEBUG
                 Interlocked.Increment(ref uploaded);
                 Interlocked.Add(ref uploadedBytes, byteCount);
+#endif
             }
         }
         finally
@@ -960,6 +1031,8 @@ internal sealed class TextureStreamingManager : IDisposable
         return max;
     }
 
+#if DEBUG
+    /// <summary>Captures diagnostic totals without altering upload scheduling.</summary>
     public TextureStreamingDiagnostics GetDiagnosticsSnapshot()
     {
         TextureStreamingPriorityDiagnostics priority = new(
@@ -994,12 +1067,13 @@ internal sealed class TextureStreamingManager : IDisposable
             FallbackUploads: Interlocked.Read(ref fallbackUploads),
             DroppedInvalid: Interlocked.Read(ref droppedInvalid),
             Deferred: Interlocked.Read(ref deferredCount),
-            Pending: commandQueue.Count + Volatile.Read(ref carryOverCount) + Volatile.Read(ref overflowFallbackCount),
-            Backend: backend?.Kind ?? TextureStreamingBackendKind.None,
+            Pending: PendingCount,
+            Backend: Backend,
             Priority: priority,
             StageCopyStaged: Interlocked.Read(ref stageCopyStaged),
             Fallback: fallback);
     }
+#endif
 
     private bool TryStageCopyToPersistentRing(
         ReadOnlySpan<byte> bytes,
@@ -1328,7 +1402,9 @@ internal sealed class TextureStreamingManager : IDisposable
     {
         if (!commandQueue.TryAcquireEnqueueSlot(out UploadEnqueueToken token))
         {
+#if DEBUG
             TrackFallbackReason(TextureStageFallbackReason.QueueFull);
+#endif
 
             OwnedCpuUploadBuffer owned0 = CopyToOwnedCpuBuffer(bytes, byteCount);
             long overflowSequenceId = Interlocked.Increment(ref nextSequenceId);
@@ -1343,8 +1419,10 @@ internal sealed class TextureStreamingManager : IDisposable
 
             overflowFallbackQueue.Enqueue(overflowCmd);
             Interlocked.Increment(ref overflowFallbackCount);
+#if DEBUG
             Interlocked.Increment(ref enqueued);
             Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+#endif
             return true;
         }
 
@@ -1369,17 +1447,21 @@ internal sealed class TextureStreamingManager : IDisposable
             if (!commandQueue.TryEnqueue(token, cmd))
             {
                 commandQueue.ReleaseEnqueueSlot(token);
+#if DEBUG
                 Interlocked.Increment(ref priorityFailed[GetPriorityIndex((int)priority)]);
+#endif
                 return false;
             }
-
+#if DEBUG
             Interlocked.Increment(ref enqueued);
             Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
             Interlocked.Increment(ref stageCopyStaged);
+#endif
             return true;
         }
-
+#if DEBUG
         TrackFallbackReason(fallbackReason);
+#endif
 
         OwnedCpuUploadBuffer owned = CopyToOwnedCpuBuffer(bytes, byteCount);
 
@@ -1398,14 +1480,16 @@ internal sealed class TextureStreamingManager : IDisposable
             commandQueue.ReleaseEnqueueSlot(token);
             overflowFallbackQueue.Enqueue(fallbackCmd);
             Interlocked.Increment(ref overflowFallbackCount);
-
+#if DEBUG
             Interlocked.Increment(ref enqueued);
             Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+#endif
             return true;
         }
-
+#if DEBUG
         Interlocked.Increment(ref enqueued);
         Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex((int)priority)]);
+#endif
         return true;
     }
 
@@ -1445,37 +1529,53 @@ internal sealed class TextureStreamingManager : IDisposable
 
         overflowFallbackQueue.Enqueue(cmd);
         Interlocked.Increment(ref overflowFallbackCount);
-
+#if DEBUG
         Interlocked.Increment(ref enqueued);
         Interlocked.Increment(ref priorityEnqueued[GetPriorityIndex(priority)]);
+#endif
 
         return TextureStageResult.EnqueuedFallback();
     }
 
+#if DEBUG
+    /// <summary>Records the diagnostic cause of a fallback without changing its upload route.</summary>
     private void TrackFallbackReason(TextureStageFallbackReason reason)
     {
         switch (reason)
         {
             case TextureStageFallbackReason.QueueFull:
+
                 Interlocked.Increment(ref fallbackQueueFull);
+
                 break;
             case TextureStageFallbackReason.RingFull:
+
                 Interlocked.Increment(ref fallbackRingFull);
+
                 break;
             case TextureStageFallbackReason.NotInitialized:
+
                 Interlocked.Increment(ref fallbackNotInitialized);
+
                 break;
             case TextureStageFallbackReason.NoPersistentSupport:
+
                 Interlocked.Increment(ref fallbackNoPersistentSupport);
+
                 break;
             case TextureStageFallbackReason.Oversize:
+
                 Interlocked.Increment(ref fallbackOversize);
+
                 break;
             case TextureStageFallbackReason.Disabled:
+
                 Interlocked.Increment(ref fallbackDisabled);
+
                 break;
         }
     }
+#endif
 
     private TripleBufferedPboPool EnsureFallbackPboPool()
     {
@@ -1613,6 +1713,8 @@ internal sealed class TextureStreamingManager : IDisposable
         }
     }
 
+#if DEBUG
+    /// <summary>Maps upload priority to its diagnostic bucket.</summary>
     private static int GetPriorityIndex(int priority)
     {
         if (priority < 0)
@@ -1628,6 +1730,7 @@ internal sealed class TextureStreamingManager : IDisposable
         return 1;
     }
 
+    /// <summary>Accumulates drained commands by priority for diagnostic reporting.</summary>
     private static void AccumulatePriorityCounts(ReadOnlySpan<UploadCommand> commands, long[] counters)
     {
         long low = 0;
@@ -1664,6 +1767,7 @@ internal sealed class TextureStreamingManager : IDisposable
             Interlocked.Add(ref counters[2], high);
         }
     }
+#endif
 
     private void EnsureCarryOverCapacity(int additional)
     {
@@ -2541,6 +2645,7 @@ internal readonly record struct TextureStreamingSettings(
         PboAlignment: 256);
 }
 
+#if DEBUG
 internal readonly record struct TextureStreamingDiagnostics(
     long Enqueued,
     long Uploaded,
@@ -2553,6 +2658,7 @@ internal readonly record struct TextureStreamingDiagnostics(
     TextureStreamingPriorityDiagnostics Priority,
     long StageCopyStaged,
     TextureStreamingFallbackDiagnostics Fallback);
+#endif
 
 internal readonly record struct TextureUploadTarget(TextureTarget BindTarget, TextureTarget UploadTarget)
 {

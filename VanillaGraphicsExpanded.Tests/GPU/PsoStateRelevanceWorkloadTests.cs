@@ -38,7 +38,11 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         }
         if (workload == "cloud") Assert.Contains("validated:active-blend-factors",current.Events);
         AssertDormantOutputPayloads(current.Events);
-        output.WriteLine("PSO_RELEVANCE_WORKLOAD=" + JsonSerializer.Serialize(new { workload, current.FixedCalls, current.Events,
+        output.WriteLine("PSO_RELEVANCE_WORKLOAD=" + JsonSerializer.Serialize(new { workload,
+#if DEBUG
+            current.FixedCalls,
+#endif
+            current.Events,
             renderer = GL.GetString(StringName.Renderer), version = GL.GetString(StringName.Version), exactNativeHandback = true }));
     }
     #endregion
@@ -110,19 +114,31 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
     {
         PsoNativeStateFingerprint.MakeDormantHostile();
         string before = PsoNativeStateFingerprint.Read();
+#if DEBUG
         long start = StateCache.Current.FixedFunctionCalls;
+#endif
         string[] events;
         using (var capture = new PsoNativeCallCapture()) { draw(); events = capture.Events.ToArray(); }
+#if DEBUG
         long calls = StateCache.Current.FixedFunctionCalls - start;
+#endif
         string after = PsoNativeStateFingerprint.Read();
         Assert.Equal(before, after);
         float[][] images = pixels();
         Assert.Contains(images.SelectMany(v => v), value => value > 0);
-        return new(calls, events, images);
+        return new(
+#if DEBUG
+            calls,
+#endif
+            events, images);
     }
     #endregion
     #endregion
 
     /// <summary>Retains actual pixel results and bounded emitted-wrapper events after independent native handback checks.</summary>
-    private sealed record Measurement(long FixedCalls, string[] Events, float[][] Pixels);
+    private sealed record Measurement(
+#if DEBUG
+        long FixedCalls,
+#endif
+        string[] Events, float[][] Pixels);
 }

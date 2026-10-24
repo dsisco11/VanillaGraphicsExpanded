@@ -1,7 +1,7 @@
 Command execution and metadata publication
 
-Status: Phases 1–2 complete after second review and independent completion audit.
-The narrower command-result policy is approved. Binding repairs are implemented; Phases 2a and 3–9 remain open.
+Status: Phases 1, 2 and 2a complete after second review and independent completion audit.
+The narrower command-result policy is approved. Binding repairs and DEBUG-only diagnostics are implemented; Phases 3–9 remain open.
 Source: [approved proposal](Rendering.CommandPublication.Proposal.md).
 Inherited contracts: [resource design](Rendering.GpuResourceHandles.Proposal.md),
 [inventory](Rendering.GpuResourceHandles.Inventory.md), [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
@@ -104,40 +104,76 @@ Phase 2: Centralize selector execution and repair binding knowledge
 
 Phase 2a: Confine rendering diagnostic counters to DEBUG builds
   Depends on Phase 2. Source: user-approved diagnostic-counter cleanup and DEBUG-only build policy.
-  Outcome: ordinary Release builds contain no diagnostic counter storage or updates; counters required
+  Outcome: ordinary Release builds contain no diagnostic counter storage or updates; a no-op profiler facade and empty value scope keep
+  render call sites configuration-independent. Counters required
   for rendering correctness remain available in every configuration. No instrumented Release variant,
   alternative instrumentation symbol, build switch or runtime counter-enablement mechanism is introduced.
 
-  ☐ Review counters across production Rendering and trace their readers before classifying them.
+  ☑ Review counters across production Rendering and trace their readers before classifying them.
     Preserve metadata/storage/executable/content revisions, VertexConfigurationEpoch, lifetime references,
     scope depth, queue occupancy/sequences, allocation budgets and fence serial/completion bookkeeping.
     These determine correctness and must not be guarded by DEBUG. Remove confirmed unread diagnostic
     counters, including GpuComputePipeline.spirvUsedCount, instead of retaining unused Debug instrumentation.
-  ☐ Guard StateCache diagnostic declarations and all increments/accumulation with #if DEBUG:
+  ☑ Guard StateCache diagnostic declarations and all increments/accumulation with #if DEBUG:
     ResourceSlotBindCount, TextureBindCount, SamplerBindCount, TextureCacheChecks, SamplerCacheChecks,
     ImageCacheChecks, IndexedBufferCacheChecks, FixedFunctionCalls, BoundaryQueries and BoundaryErrorChecks.
     Keep actual bindings, cache comparisons, native queries, error checks and restoration unconditional.
-  ☐ Apply the same separation to GpuSupport.CaptureCount, ShaderInputValidation.CompatibilityChecks,
+  ☑ Apply the same separation to GpuSupport.CaptureCount, ShaderInputValidation.CompatibilityChecks,
     GpuPreparedBindings/GraphicsExecutableInterface.ReflectionQueries, GpuUniformRingBuffer allocation/byte
     totals, PersistentUniformStorage allocation/byte/binding/fence-poll totals and ShaderLinkBatch.ConsumedCount.
     Preserve capability capture, validation/reflection, uniform uploads, fence polling and shader-link
     progression themselves. Retain ResidentBytes and other budget-enforcement state in Release.
-  ☐ Review TextureStreamingManager telemetry and GlGpuProfiler statistics and their consumers. Guard
-    diagnostic-only accumulation and the associated reporting/caller paths with DEBUG while retaining
+  ☑ Review TextureStreamingManager telemetry and GlGpuProfiler statistics and their consumers. Guard
+    diagnostic-only accumulation and reporting paths with DEBUG while retaining
     upload budgets, pending-work counts, ordering, scheduling and resource retirement in Release.
+    Keep GlGpuProfiler and its scope API available in both configurations: conditional void operations
+    and an empty Release scope contain the build policy inside the profiler. Scope callers need no
+    preprocessor guards. Measurement state, GPU queries and diagnostic UI remain DEBUG-only.
     Reconcile any mixed diagnostic/functional snapshot consumers without substituting fabricated zero
     statistics or disabling functional work along with telemetry.
-  ☐ Update affected tests and diagnostic consumers to compile in both configurations. Counter assertions
+  ☑ Update affected tests and diagnostic consumers to compile in both configurations. Counter assertions
     belong to Debug tests; keep functional rendering, state-restoration, error and lifetime assertions
     active in Release. Do not define DEBUG for Release or add an instrumented Release test configuration.
     Apply this DEBUG-only policy to diagnostic counters introduced by subsequent checklist work.
-  ☐ Have subagents build and run affected Debug and ordinary Release suites and canonical Release package
+  ☑ Have subagents build and run affected Debug and ordinary Release suites and canonical Release package
     checks. Verify Debug instrumentation still works, and review the compiled Release artifact to confirm
     diagnostic members and update operations are absent while functional counters remain. Reconcile
     affected documentation, perform a second review and independently audit the configuration boundary.
-  ☐ Completion: diagnostic counters are DEBUG-only or removed when unused; Release rendering retains
+  ☑ Completion: diagnostic counters are DEBUG-only or removed when unused; Release rendering retains
     all required behavior and bookkeeping, tests cover both configurations, and no instrumentation-enabled
     Release build path exists.
+
+  Initial verification: Debug and ordinary Release each passed 167/167 focused tests with no skips;
+  both test projects compiled with zero errors. Second review and independent completion audit passed.
+  Initial compiled-artifact inspection (before the approved no-op profiler API refinement) confirmed
+  52 diagnostic member families and 12 diagnostic types existed
+  only in Debug, with 18 checked functional revision/lifetime/epoch/budget/fence members retained
+  in both configurations; native operations and diagnostic member-reference tables were reviewed.
+  Receipts: artifacts/command-publication-phase2a-compiled-boundary.json and
+  artifacts/command-publication-phase2a-results/{debug,release}-verified.trx.
+  Canonical ./build.ps1 --configuration=Release --spirv=true passed; tested, published and packaged
+  runtime hashes match, and all 761 packaged SPIR-V files match tested/generated outputs.
+  See artifacts/command-publication-phase2a-package.log and
+  artifacts/command-publication-phase2a-package-identity.json. No instrumented Release path was added.
+  The framebuffer blit fixture now invalidates cached selections after raw GL setup; its unchanged
+  restoration/routing/pixel assertions pass in both configurations.
+  Broader qualification limit: the interrupted expanded Debug run recorded 921 passes and 10 failures.
+  Eight liquid/particle failures reproduced with the retained historical baseline runtime; their
+  failure-bearing sources match current HEAD. See artifacts/command-publication-phase2a-head-failures.log
+  and artifacts/command-publication-phase2a-baseline-failures-identity.json. The remaining two were
+  the corrected blit-fixture cases. This establishes focused configuration coverage, not a clean
+  full suite or live rendering/performance qualification; integrated qualification remains in Phase 9.
+
+  Approved profiler API refinement: render scope call sites use GlGpuProfiler without build guards.
+  Conditional void methods omit Release calls and argument evaluation; Release Scope and IDisposable
+  disposal are no-ops. Measurement state, native timing queries and reports remain DEBUG-only.
+  Debug and ordinary Release each passed 20/20 focused tests, including a real Debug timestamp sample,
+  Release unavailable/empty results, conditional argument omission and interface cleanup. Both builds
+  passed with zero errors. IL inspection confirms the shared facade/scope API, zero Release scope fields,
+  no Release event/locking/timestamp references and retained Debug measurement state. Receipts:
+  artifacts/profiler-noop-{debug,release}-tests.log and artifacts/profiler-noop-compiled-boundary.json.
+  Canonical Release packaging passed; tested/published/packaged runtime hashes and all 761 shader
+  outputs match. See artifacts/profiler-noop-package-identity.json.
 
 Phase 3: Establish manager creation and publication machinery
   Depends on Phase 2a. Sources: proposal Responsibilities, Initialization and Transactions; inventory

@@ -60,9 +60,14 @@ public sealed class WorldProbeCpuSubmissionTests(HeadlessGLFixture fixture) : Re
         StateCache.Current.InvalidateAll();
         try
         {
-            var first = Result(.25f, .5f); long before = StateCache.Current.DrawSubmissions;
+            var first = Result(.25f, .5f);
+#if DEBUG
+            long before = StateCache.Current.DrawSubmissions;
+#endif
             Assert.Equal(1, atlas.TryUpload(first, 1024));
+#if DEBUG
             Assert.Equal(before + 2, StateCache.Current.DrawSubmissions);
+#endif
             Assert.True(GL.IsEnabled(EnableCap.ScissorTest)); Assert.Equal((int)DepthFunction.Never, GL.GetInteger(GetPName.DepthFunc));
             int[] viewport = new int[4]; GL.GetInteger(GetPName.Viewport, viewport); Assert.Equal(new[] { 3, 4, 5, 6 }, viewport);
             bool[] mask = new bool[4]; GL.GetBoolean(GetPName.ColorWritemask, mask); Assert.All(mask, Assert.False);

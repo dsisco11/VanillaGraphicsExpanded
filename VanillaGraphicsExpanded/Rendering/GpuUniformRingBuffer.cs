@@ -66,13 +66,14 @@ internal sealed class GpuUniformRingBuffer : IDisposable
     public int PageSizeBytes => pageSizeBytes;
     public int PageCount => pageCount;
 
+#if DEBUG
     /// <summary>Counts successful copies into ring allocations independently of later resource binding.</summary>
     internal long AllocationsWritten { get; private set; }
-
     /// <summary>Counts payload bytes copied, excluding alignment padding and resource binding.</summary>
     internal long BytesWritten { get; private set; }
     /// <summary>Counts blocking waits for transient page reuse, independently of copied bytes.</summary>
     internal long FenceWaits { get; private set; }
+#endif
     public int UniformBufferOffsetAlignmentBytes
     {
         get
@@ -270,8 +271,10 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         // Failed native copies never become publications or successful-copy counter entries.
         if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Transient uniform upload failed.");
         writeOffsetBytes = endExclusive;
+#if DEBUG
         AllocationsWritten++;
         BytesWritten += data.Length;
+#endif
         return new Allocation(this, allocationEpoch, page, offset, data.Length);
     }
 
@@ -318,7 +321,9 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         var status = fence.Poll();
         while (status == WaitSyncStatus.TimeoutExpired)
         {
+#if DEBUG
             FenceWaits++;
+#endif
             status = fence.Wait(TimeSpan.FromMilliseconds(1));
         }
         if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Uniform page fence failed.");

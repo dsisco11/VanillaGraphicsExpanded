@@ -33,6 +33,7 @@ public class LumOnDebugCounters
     /// <summary>Probes rejected (disoccluded)</summary>
     public int TemporalRejectedProbes { get; set; }
 
+#if DEBUG
     /// <summary>Time spent building HZB depth pyramid (ms)</summary>
     public float HzbPassMs { get; set; }
 
@@ -63,16 +64,18 @@ public class LumOnDebugCounters
     /// <summary>Total frame time for LumOn passes (ms)</summary>
     public float TotalFrameMs { get; set; }
 
-    /// <summary>Phase 10: whether probe PIS is enabled for this frame</summary>
+#endif
+
+    /// <summary>Whether probe PIS is enabled for this frame</summary>
     public bool ProbePisEnabled { get; set; }
 
-    /// <summary>Phase 10: total texels traced per probe per frame (K)</summary>
+    /// <summary>Total texels traced per probe per frame (K)</summary>
     public int ProbePisK { get; set; }
 
-    /// <summary>Phase 10: exploration texels per probe per frame</summary>
+    /// <summary>Exploration texels per probe per frame</summary>
     public int ProbePisExploreCount { get; set; }
 
-    /// <summary>Phase 10: exploration fraction (used when ExploreCount is -1)</summary>
+    /// <summary>Exploration fraction (used when ExploreCount is -1)</summary>
     public float ProbePisExploreFraction { get; set; }
 
     /// <summary>
@@ -87,6 +90,7 @@ public class LumOnDebugCounters
         RayMisses = -1;
         TemporalValidProbes = 0;
         TemporalRejectedProbes = 0;
+#if DEBUG
         HzbPassMs = 0;
         ProbeAnchorPassMs = 0;
         ProbePisMaskPassMs = 0;
@@ -97,6 +101,7 @@ public class LumOnDebugCounters
         GatherPassMs = 0;
         UpsamplePassMs = 0;
         TotalFrameMs = 0;
+#endif
 
         ProbePisEnabled = false;
         ProbePisK = 0;
@@ -118,11 +123,13 @@ public class LumOnDebugCounters
             $"LumOn Probes: {ValidProbes}/{TotalProbes} valid, {EdgeProbes} edge",
             raysLine,
             $"Temporal: {TemporalValidProbes} valid, {TemporalRejectedProbes} rejected",
+#if DEBUG
             $"Time: {TotalFrameMs:F2}ms (HZB:{HzbPassMs:F2} A:{ProbeAnchorPassMs:F2} PM:{ProbePisMaskPassMs:F2} " +
             $"PIS:{(ProbePisEnabled ? "on" : "off")} K:{ProbePisK} E:{ProbePisExploreCount}({ProbePisExploreFraction:P0}) " +
             $"T:{ProbeTracePassMs:F2} " +
             $"Tp:{TemporalPassMs:F2} F:{ProbeAtlasFilterPassMs:F2} P:{ProbeAtlasProjectionPassMs:F2} " +
             $"G:{GatherPassMs:F2} U:{UpsamplePassMs:F2})"
+#endif
         ];
     }
 }

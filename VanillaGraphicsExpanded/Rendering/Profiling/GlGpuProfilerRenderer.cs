@@ -1,3 +1,4 @@
+#if DEBUG
 using System;
 
 using Vintagestory.API.Client;
@@ -35,3 +36,5 @@ public sealed class GlGpuProfilerRenderer : IRenderer, IDisposable
         capi.Event.UnregisterRenderer(this, EnumRenderStage.Before);
     }
 }
+
+#endif

@@ -79,6 +79,11 @@ atlas dimensions. Other candidates remain optional measured consumer tuning, not
 | Integration and source layout | Existing frame controller, GpuUniformBuffer and StateCache; renderer-owned teardown, native failure and targeted invalidation checks. |
 | Consumer migration, verification, measurements and completion | Consumer table above and mixed liquid/resolve workload; allocation/copy/bind/resident/pending/wait counters. |
 
+Allocation, copied-byte, binding and fence-poll/wait diagnostics are compiled only in DEBUG.
+Resident-byte budgets, allocation epochs, pending retirement and fence completion serials remain
+functional bookkeeping in every configuration. Release tests continue validating storage contents
+and retirement without diagnostic counter assertions.
+
 ## Measured allocation and storage results
 
 The matched fixture runs eight frames with four liquid draws per frame, identical shader settings,

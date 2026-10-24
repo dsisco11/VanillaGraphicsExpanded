@@ -35,14 +35,20 @@ public sealed class SkyRendererTests(HeadlessGLFixture fixture) : RenderTestBase
             Assert.Equal(2, events.Invocations.Count(call => call.Method.Name == nameof(IClientEventAPI.RegisterRenderer)));
             foreach (var pass in new[] { typeof(CelestialDrawPass), typeof(MoonDrawPass), typeof(SunDrawPass), typeof(AtmosphereSkyPass) })
                 Assert.False(typeof(IRenderer).IsAssignableFrom(pass));
+#if DEBUG
             long before = StateCache.Current.DrawSubmissions;
+#endif
             renderer.OnRenderFrame(0, EnumRenderStage.Opaque);
             renderer.OnRenderFrame(0, EnumRenderStage.OIT);
+#if DEBUG
             Assert.Equal(before, StateCache.Current.DrawSubmissions);
+#endif
             renderer.Dispose();
             renderer.OnRenderFrame(0, EnumRenderStage.Before);
             renderer.OnRenderFrame(0, EnumRenderStage.Opaque);
+#if DEBUG
             Assert.Equal(before, StateCache.Current.DrawSubmissions);
+#endif
             Assert.False(renderer.PrepareFrame());
         }
         Assert.False(SkyRenderer.IsEnabled);

@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Threading;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
@@ -132,7 +131,11 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
 #endif
         try
         {
-            candidate = ShaderProgramLink.Submit([computeShader.ShaderId], retrievableBinary, out _);
+            candidate = ShaderProgramLink.Submit([computeShader.ShaderId], retrievableBinary
+#if DEBUG
+                , out _
+#endif
+                );
             programId = candidate.ProgramId;
 #if DEBUG
             GlDebug.TryLabel(ObjectLabelIdentifier.Program, programId, debugName);
@@ -193,8 +196,6 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
         });
     }
     #endregion
-
-    private static int spirvUsedCount;
 
     /// <summary>Loads an explicitly identified compute selection from a caller-owned binary path.</summary>
     public static bool TryLoadFromSpirv(
@@ -265,7 +266,6 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
                     DriverProgramCache.Save(pipeline!.ProgramId, inputs);
                 }
                 pipeline!.InstalledSettings = settings;
-                Interlocked.Increment(ref spirvUsedCount);
                 return true;
             }
             finally { candidate?.Dispose(); }

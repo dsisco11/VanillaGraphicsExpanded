@@ -125,7 +125,9 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
             Assert.True(sharedFrame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
             var firstBinding = FrameBinding();
             Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+#if DEBUG
             long uploads = ring.AllocationsWritten;
+#endif
             var shadowProjection = Mat4f.Create(); shadowProjection[0] = 19;
             Mock.Get(cameraRender).SetupGet(value => value.CurrentProjectionMatrix).Returns(shadowProjection);
             publisher.OnRenderFrame(.016f, EnumRenderStage.Opaque);
@@ -133,7 +135,9 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
             Assert.Equal(publishedBytes, sharedFrame.Bytes.ToArray());
             Assert.True(sharedFrame.TryBindToSlot(GpuBindingRegistry.Ubo.Frame));
             Assert.Equal(firstBinding, FrameBinding());
+#if DEBUG
             Assert.Equal(uploads, ring.AllocationsWritten);
+#endif
             observe = () => throw new ArithmeticException("Draw observer failure.");
             Assert.Throws<ArithmeticException>(run);
             Assert.Null(LiquidGraphicsSubmission.ActiveInputs);

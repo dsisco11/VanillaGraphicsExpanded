@@ -103,9 +103,13 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
                 byte[] expectedLights = VgeLightsRenderer.Current.Bytes.ToArray();
                 Assert.Equal(expectedLights,ReadSnapshot(firstLights));
                 Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
+#if DEBUG
                 long lightCopies = ring.AllocationsWritten;
+#endif
                 engine.Use();
+#if DEBUG
                 Assert.Equal(lightCopies,ring.AllocationsWritten);
+#endif
                 // Resizing captures a fresh generation; the previously submitted ring slice stays immutable.
                 identity[0]=2;
                 Mock.Get(render).SetupGet(value => value.FrameWidth).Returns(32);
@@ -138,8 +142,7 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         }
         finally
         {
-            harmony.UnpatchAll(harmony.Id);
-            FrameShaderBindingHook.ClearUniformCache();
+            harmony.UnpatchAll(harmony.Id);FrameShaderBindingHook.ClearUniformCache();
             ShaderProgramBase.CurrentShaderProgram=previous;
             StateCache.Current.UseProgram(0);
         }

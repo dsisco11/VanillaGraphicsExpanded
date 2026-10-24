@@ -16,7 +16,9 @@ internal sealed partial class StateCache
         rasterizerKnown &= ~RasterizerStateKnowledge.CullMode;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.CullFace(mode);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.CullMode = mode;
         rasterizerKnown |= RasterizerStateKnowledge.CullMode;
@@ -31,7 +33,9 @@ internal sealed partial class StateCache
         rasterizerKnown &= ~RasterizerStateKnowledge.FrontFace;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.FrontFace(winding);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.FrontFace = winding;
         rasterizerKnown |= RasterizerStateKnowledge.FrontFace;
@@ -46,7 +50,9 @@ internal sealed partial class StateCache
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonOffset;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.PolygonOffset(factor, units);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.PolygonOffset = (factor, units);
         rasterizerKnown |= RasterizerStateKnowledge.PolygonOffset;
@@ -61,7 +67,9 @@ internal sealed partial class StateCache
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonModes;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         GL.PolygonMode(MaterialFace.FrontAndBack, mode);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.PolygonModes = mode;
         rasterizerKnown |= RasterizerStateKnowledge.PolygonModes;
@@ -75,7 +83,9 @@ internal sealed partial class StateCache
         // Preserve the native command and error behavior while withdrawing the common-mode fact.
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonModes;
         GL.PolygonMode(face, mode);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
     }
     #endregion
 }

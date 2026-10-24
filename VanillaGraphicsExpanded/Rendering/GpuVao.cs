@@ -287,7 +287,9 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
 
         Bind();
         GL.DrawElements(primitiveType, indexCount, indexType, (IntPtr)offsetBytes);
+#if DEBUG
         StateCache.Current.RecordDrawSubmission();
+#endif
     }
 
     public void DrawElements(PrimitiveType primitiveType, GpuEbo ebo, int indexCount = 0, int offsetBytes = 0)
@@ -313,7 +315,9 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         Bind();
         StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
         GL.DrawElements(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes);
+#if DEBUG
         StateCache.Current.RecordDrawSubmission();
+#endif
     }
 
     public void DrawElementsInstanced(
@@ -340,7 +344,9 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
 
         Bind();
         GL.DrawElementsInstanced(primitiveType, indexCount, indexType, (IntPtr)offsetBytes, instanceCount);
+#if DEBUG
         StateCache.Current.RecordDrawSubmission();
+#endif
     }
 
     public void DrawElementsInstanced(
@@ -371,7 +377,9 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         Bind();
         StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
         GL.DrawElementsInstanced(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes, instanceCount);
+#if DEBUG
         StateCache.Current.RecordDrawSubmission();
+#endif
     }
 
     public override string ToString()

@@ -35,7 +35,9 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
         var replacement = new object();
         cache.SetCapability(EnableCap.DepthTest, false);
         GL.UseProgram(sentinel.ProgramId);
+#if DEBUG
         long calls = cache.FixedFunctionCalls;
+#endif
         try
         {
             if (operationFailure)
@@ -62,7 +64,9 @@ public sealed class EngineBoundaryContextTests(HeadlessGLFixture fixture) : Rend
             Assert.Equal(0, observer.Calls);
             Assert.False(GL.IsEnabled(EnableCap.DepthTest));
             Assert.Equal(sentinel.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
+#endif
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally

@@ -110,7 +110,9 @@ internal sealed partial class StateCache
 
     public bool TryGetCachedBoundTexture(TextureTarget target, int unit, out int textureId)
     {
+#if DEBUG
         TextureCacheChecks++;
+#endif
         textureId = 0;
 
         if (unit < 0)
@@ -134,7 +136,9 @@ internal sealed partial class StateCache
 
     public bool TryGetCachedBoundSampler(int unit, out int samplerId)
     {
+#if DEBUG
         SamplerCacheChecks++;
+#endif
         samplerId = 0;
 
         if (unit < 0)
@@ -563,7 +567,9 @@ internal sealed partial class StateCache
         if (activeTextureUnit is int knownUnit &&
             TryGetCachedBoundTexture(target, knownUnit, out int cached) && cached == textureId) return;
         GL.BindTexture(target, textureId);
+#if DEBUG
         TextureBindCount++;
+#endif
 
         if (activeTextureUnit is int unit)
         {
@@ -591,7 +597,9 @@ internal sealed partial class StateCache
             // Selecting the unit is an observable side effect even when its texture matches.
             if (dict.TryGetValue(target, out int cached) && cached == textureId) return;
             GL.BindTexture(target, textureId);
+#if DEBUG
             TextureBindCount++;
+#endif
             dict[target] = textureId;
         }
         catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
@@ -688,7 +696,9 @@ internal sealed partial class StateCache
         try
         {
             GL.BindSampler(unit, samplerId);
+#if DEBUG
             SamplerBindCount++;
+#endif
             samplerBindingByUnit![unit] = samplerId;
         }
         catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
@@ -705,7 +715,9 @@ internal sealed partial class StateCache
         try
         {
             GL.BindSampler(unit, sampler.SamplerId);
+#if DEBUG
             SamplerBindCount++;
+#endif
             samplerBindingByUnit![unit] = sampler.SamplerId;
         }
         catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
@@ -864,13 +876,17 @@ internal sealed partial class StateCache
     public void BindBufferBase(BufferRangeTarget target, int index, int bufferId)
     {
         var binding = new IndexedBufferBinding(bufferId, 0, 0, false);
+#if DEBUG
         IndexedBufferCacheChecks++;
+#endif
         if (indexedBufferBindings.TryGetValue((target, index), out var previous) && previous == binding &&
             bufferBindingByTarget.GetValueOrDefault((BufferTarget)target) == bufferId) return;
         try
         {
             GL.BindBufferBase(target, index, bufferId);
+#if DEBUG
             ResourceSlotBindCount++;
+#endif
             indexedBufferBindings[(target, index)] = binding;
             bufferBindingByTarget[(BufferTarget)target] = bufferId;
         }
@@ -887,13 +903,17 @@ internal sealed partial class StateCache
     public void BindBufferRange(BufferRangeTarget target, int index, int bufferId, nint offsetBytes, nint sizeBytes)
     {
         var binding = new IndexedBufferBinding(bufferId, offsetBytes, sizeBytes, true);
+#if DEBUG
         IndexedBufferCacheChecks++;
+#endif
         if (indexedBufferBindings.TryGetValue((target, index), out var previous) && previous == binding &&
             bufferBindingByTarget.GetValueOrDefault((BufferTarget)target) == bufferId) return;
         try
         {
             GL.BindBufferRange(target, index, bufferId, (IntPtr)offsetBytes, (IntPtr)sizeBytes);
+#if DEBUG
             ResourceSlotBindCount++;
+#endif
             indexedBufferBindings[(target, index)] = binding;
             bufferBindingByTarget[(BufferTarget)target] = bufferId;
         }

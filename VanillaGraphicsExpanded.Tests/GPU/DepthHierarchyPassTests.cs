@@ -52,12 +52,18 @@ public sealed class DepthHierarchyPassTests(HeadlessGLFixture fixture) : LumOnSh
             }
             values=expected;w=nextW;h=nextH;
         }
-        Assert.Equal(.001f,values[0]);Assert.Equal(bytes,owner.StorageBytes);
+        Assert.Equal(.001f,values[0]);
+#if DEBUG
+        Assert.Equal(bytes,owner.StorageBytes);
+#endif
         // Restored mip accessibility is observable through readback of the complete chain above.
         Assert.Same(texture,owner.Texture);
         owner.Prepare(width,height,compute);Assert.Same(texture,owner.Texture);
         owner.Prepare(width+2,height+2,compute);Assert.False(texture.IsValid);
-        owner.Dispose();Assert.Null(owner.Texture);Assert.Equal(0,owner.StorageBytes);
+        owner.Dispose();Assert.Null(owner.Texture);
+#if DEBUG
+        Assert.Equal(0,owner.StorageBytes);
+#endif
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     /// <summary>The compute interruption restores borrowed image and indexed storage slots.</summary>

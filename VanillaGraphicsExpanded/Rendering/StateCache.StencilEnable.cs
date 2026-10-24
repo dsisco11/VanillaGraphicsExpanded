@@ -16,7 +16,9 @@ internal sealed partial class StateCache
         stencilKnown &= ~StencilStateKnowledge.TestEnabled;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.StencilTest); else GL.Disable(EnableCap.StencilTest);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         stencil.TestEnabled = enabled;
         stencilKnown |= StencilStateKnowledge.TestEnabled;

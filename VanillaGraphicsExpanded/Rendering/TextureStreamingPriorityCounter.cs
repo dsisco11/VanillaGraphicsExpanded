@@ -1,3 +1,4 @@
+#if DEBUG
 namespace VanillaGraphicsExpanded.Rendering;
 
 internal readonly record struct TextureStreamingPriorityCounter(
@@ -5,3 +6,5 @@ internal readonly record struct TextureStreamingPriorityCounter(
     long Drained,
     long Fallback,
     long Failed);
+
+#endif

@@ -50,7 +50,9 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
         GL.Enable(EnableCap.SampleMask); GL.SampleMask(0, 0); GL.BlendEquation(BlendEquationMode.Max);
         GL.DepthRange(.25, .75); cache.InvalidateAll();
         var description = Description(); var expected = new InvalidOperationException("after draw");
+#if DEBUG
         long submissions = cache.DrawSubmissions;
+#endif
         try
         {
             bool Run() => CompleteGraphicsBoundary.TryRun("FullscreenFixture", [description], [], true, _ =>
@@ -61,7 +63,9 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
             });
             if (fail) Assert.Same(expected, Assert.Throws<InvalidOperationException>(() => Run()));
             else Assert.True(Run());
+#if DEBUG
             Assert.Equal(submissions + 1, cache.DrawSubmissions);
+#endif
             Assert.True(GL.IsEnabled(EnableCap.RasterizerDiscard)); Assert.True(GL.IsEnabled(EnableCap.ScissorTest));
             Assert.True(GL.IsEnabled(EnableCap.SampleMask));
             GL.GetInteger((GetIndexedPName)All.SampleMaskValue, 0, out int mask); Assert.Equal(0, mask);

@@ -87,7 +87,9 @@ internal sealed class GpuProgramInterface
     /// <summary>Returns active standalone locations from the compiled interface.</summary>
     public int GetUniformLocation(string name)
     {
+#if DEBUG
         UniformNameResolutions++;
+#endif
         if (resources.Uniforms.TryGetValue(name, out int location)) return location;
         int bracket = name.IndexOf('[');
         if (bracket > 0 && name.EndsWith(']') && int.TryParse(name[(bracket + 1)..^1], out int index) &&
@@ -95,8 +97,10 @@ internal sealed class GpuProgramInterface
             index < resources.ArraySizes.GetValueOrDefault(location)) return location + index;
         return -1;
     }
+#if DEBUG
     /// <summary>Counts diagnostic and engine named-address requests independently of preparation.</summary>
     internal long UniformNameResolutions { get; private set; }
+#endif
     /// <summary>Returns a uniform block's numeric index, independent of optional shader names.</summary>
     public int GetUniformBlockIndex(string name) => resources.Blocks.GetValueOrDefault(name, -1);
     /// <summary>Returns a storage block's numeric index, independent of optional shader names.</summary>

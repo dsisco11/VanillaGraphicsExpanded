@@ -19,7 +19,9 @@ internal sealed partial class StateCache
             && dynamicState.Width == effective.Width && dynamicState.Height == effective.Height) return;
         dynamicKnown &= ~DynamicDrawStateKnowledge.Viewport;
         GL.Viewport(effective.X, effective.Y, effective.Width, effective.Height);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         // Store effective native dimensions rather than the potentially clamped request.
         dynamicState.X = effective.X; dynamicState.Y = effective.Y;
         dynamicState.Width = effective.Width; dynamicState.Height = effective.Height;

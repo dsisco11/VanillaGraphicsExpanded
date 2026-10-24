@@ -76,14 +76,17 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
         StateCache.Current.InvalidateAll();
         Assert.True(GraphicsCommandContext.TryRun("RegionClearAndDraw", [pipeline], true, commands =>
         {
+#if DEBUG
             long before = StateCache.Current.FixedFunctionCalls;
+#endif
             Assert.Throws<InvalidOperationException>(() => StateCache.Current.SetLineWidth(1));
+#if DEBUG
             Assert.Equal(before, StateCache.Current.FixedFunctionCalls);
+#endif
             commands.BeginPass(new(target, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(.9f, 0, 0, 1))],
                 area: new(1, 1, 2, 2)));
             commands.EndPass();
-            commands.BeginPass(new(target, [new(0)]));
-            commands.SetPipeline(pipeline); commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.BeginPass(new(target, [new(0)])); commands.SetPipeline(pipeline); commands.SetDynamicState(new() { Viewport = commands.PassViewport });
             commands.Draw(geometry, new(0, 3));
             Assert.False(GL.IsEnabled(EnableCap.ScissorTest));
             int[] rectangle = new int[4]; GL.GetInteger(GetPName.ScissorBox, rectangle);
@@ -156,27 +159,33 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
         GL.TexSubImage2D(TextureTarget.Texture2D, 1, 0, 0, 2, 2, PixelFormat.Red, PixelType.Float, new[] { .7f, .8f, .9f, 1f });
         using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
         var cache = StateCache.Current;
+#if DEBUG
         int graphicsQueries = shader.GraphicsInterface!.ReflectionQueries;
         int resourceQueries = pipeline.Bindings.ReflectionQueries;
+#endif
         shader.HzbDepth = first; shader.SrcMip = 0;
         Assert.True(GraphicsCommandContext.TryRun("SubmissionInputs", [pipeline], true, commands =>
         {
-            commands.BeginPass(new(target, [new(0)]));
-            commands.SetPipeline(pipeline);
-            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
-            commands.Draw(geometry, new(0, 3));
+            commands.BeginPass(new(target, [new(0)])); commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport }); commands.Draw(geometry, new(0, 3));
+#if DEBUG
             long calls = cache.FixedFunctionCalls, queries = cache.BoundaryQueries, draws = cache.DrawSubmissions;
+#endif
             commands.Draw(geometry, new(0, 3, InstanceCount: 2));
+#if DEBUG
             Assert.Equal(calls, cache.FixedFunctionCalls);
             Assert.Equal(queries, cache.BoundaryQueries);
             Assert.Equal(draws + 1, cache.DrawSubmissions);
+#endif
             shader.HzbDepth = second; shader.SrcMip = 1;
             commands.Draw(geometry, new(0, 3));
             commands.EndPass();
         }));
         Assert.InRange(target[0].ReadPixels()[0], .6999f, .7001f);
+#if DEBUG
         Assert.Equal(graphicsQueries, shader.GraphicsInterface.ReflectionQueries);
         Assert.Equal(resourceQueries, pipeline.Bindings.ReflectionQueries);
+#endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -205,7 +214,9 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
         using var target = CreateRenderTarget(1, 1, failure == "target" ? PixelInternalFormat.Rgba16f : PixelInternalFormat.R32f);
         if (failure != "resources") shader.HzbDepth = source;
         shader.SrcMip = 0;
+#if DEBUG
         long before = StateCache.Current.DrawSubmissions;
+#endif
         Assert.True(GraphicsCommandContext.TryRun("SubmissionFailure", [pipeline], true, commands =>
         {
             commands.BeginPass(new(target, [new(0)])); commands.SetPipeline(pipeline);
@@ -215,9 +226,13 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
             int baseVertex = failure == "negative-base" ? -1 : failure == "base-range" ? 1 : 0;
             Assert.ThrowsAny<Exception>(() => commands.Draw(geometry, new(0, failure == "range" ? 4 : 3,
                 BaseVertex: baseVertex, InstanceCount: failure == "instances" ? 0 : 1)));
+#if DEBUG
             Assert.Equal(before, StateCache.Current.DrawSubmissions);
+#endif
         }));
+#if DEBUG
         Assert.Equal(before, StateCache.Current.DrawSubmissions);
+#endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -243,7 +258,8 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
         int[] viewport = new int[4]; GL.GetInteger(GetPName.Viewport, viewport);
         Assert.Throws<ArithmeticException>(() => GraphicsCommandContext.TryRun("SubmissionThrow", [pipeline], true, commands =>
         {
-            commands.BeginPass(new(target, [new(0)])); commands.SetPipeline(pipeline);
+            commands.BeginPass(new(target, [new(0)]));
+            commands.SetPipeline(pipeline);
             commands.SetDynamicState(new() { Viewport = commands.PassViewport });
             commands.Draw(geometry, new(0, 3));
             throw new ArithmeticException("Fixture failure after submission.");
@@ -253,8 +269,10 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
         int[] restored = new int[4]; GL.GetInteger(GetPName.Viewport, restored); Assert.Equal(viewport, restored);
         Assert.True(GraphicsCommandContext.TryRun("SubmissionRetry", [pipeline], true, commands =>
         {
-            commands.BeginPass(new(target, [new(0)])); commands.SetPipeline(pipeline);
-            commands.SetDynamicState(new() { Viewport = commands.PassViewport }); commands.Draw(geometry, new(0, 3));
+            commands.BeginPass(new(target, [new(0)]));
+            commands.SetPipeline(pipeline);
+            commands.SetDynamicState(new() { Viewport = commands.PassViewport });
+            commands.Draw(geometry, new(0, 3));
         }));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

@@ -40,7 +40,9 @@ public abstract partial class GpuProgram
             candidate = pending?.TakeProgram() ?? GpuProgramObject.Create();
             program = candidate.ProgramId;
             bool cached = pending?.Cached ?? DriverProgramCache.TryLoad(program, inputs);
+#if DEBUG
             LastSpirvLinkMilliseconds = pending?.LinkSubmissionMilliseconds ?? 0;
+#endif
             if (!cached && pending == null)
             {
                 // A rejected binary candidate is never reused for normal linking.
@@ -52,10 +54,16 @@ public abstract partial class GpuProgram
                     var loaded = SpirvStageLoader.Load(selection, inputs.Read);
                     stages.Add((selection.Stage.Kind, loaded.ShaderId, selection.Stage.Bindings, loaded));
                 }
-                if (!TryCreate(stages, out candidate, out string infoLog, out double linkMilliseconds, inputs.Key != null))
+                if (!TryCreate(stages, out candidate, out string infoLog,
+#if DEBUG
+                    out double linkMilliseconds,
+#endif
+                    inputs.Key != null))
                     throw new InvalidOperationException("SPIR-V link failed: " + infoLog);
                 program = candidate!.ProgramId;
+#if DEBUG
                 LastSpirvLinkMilliseconds = linkMilliseconds;
+#endif
             }
 #if DEBUG
             GlDebug.ThrowIfErrors($"{ShaderName}: program {program} create/attach/link/status");
@@ -117,15 +125,25 @@ public abstract partial class GpuProgram
 
     /// <summary>Links caller-owned graphics stages, transferring the program only after a successful link.</summary>
     private static bool TryCreate(IReadOnlyList<(ShaderStageKind Kind, int Shader, GpuBindingContract Contract, GpuShaderModule Owner)> stages,
-        out GpuProgramObject? program, out string infoLog, out double linkMilliseconds, bool retrievableBinary = false)
+        out GpuProgramObject? program, out string infoLog,
+#if DEBUG
+        out double linkMilliseconds,
+#endif
+        bool retrievableBinary = false)
     {
         program = null;
         infoLog = string.Empty;
+#if DEBUG
         linkMilliseconds = 0;
+#endif
         GpuProgramObject? candidate = null;
         try
         {
-            candidate = ShaderProgramLink.Submit(stages.Select(stage => stage.Shader).ToArray(), retrievableBinary, out linkMilliseconds);
+            candidate = ShaderProgramLink.Submit(stages.Select(stage => stage.Shader).ToArray(), retrievableBinary
+#if DEBUG
+                , out linkMilliseconds
+#endif
+                );
             if (!ShaderProgramLink.Validate(candidate, out infoLog)) return false;
             // The caller retains temporary stages for retirement and owns the successfully linked candidate.
             program = candidate;
@@ -140,7 +158,9 @@ public abstract partial class GpuProgram
         finally { candidate?.Dispose(); }
     }
 
+#if DEBUG
     /// <summary>Last driver linking duration, excluding binary loading, specialization and draws; zero for executable cache hits.</summary>
     internal double LastSpirvLinkMilliseconds { get; private set; }
+#endif
     #endregion
 }

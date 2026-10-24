@@ -16,7 +16,9 @@ internal sealed partial class StateCache
         outputKnown &= ~OutputStateKnowledge.FramebufferSrgb;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.FramebufferSrgb); else GL.Disable(EnableCap.FramebufferSrgb);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         output.FramebufferSrgb = enabled;
         outputKnown |= OutputStateKnowledge.FramebufferSrgb;
@@ -31,7 +33,9 @@ internal sealed partial class StateCache
         outputKnown &= ~OutputStateKnowledge.Dither;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.Dither); else GL.Disable(EnableCap.Dither);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         output.Dither = enabled;
         outputKnown |= OutputStateKnowledge.Dither;
@@ -46,7 +50,9 @@ internal sealed partial class StateCache
         outputKnown &= ~OutputStateKnowledge.ColorLogicOp;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         if (enabled) GL.Enable(EnableCap.ColorLogicOp); else GL.Disable(EnableCap.ColorLogicOp);
+#if DEBUG
         FixedFunctionCalls++;
+#endif
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         output.ColorLogicOp = enabled;
         outputKnown |= OutputStateKnowledge.ColorLogicOp;

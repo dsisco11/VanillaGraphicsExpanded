@@ -31,16 +31,20 @@ public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture, ITe
         var relevance = pipeline.Relevance;
         double preparation = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
         var metadata = shader.GraphicsInterface!;
+#if DEBUG
         int queries = metadata.ReflectionQueries, resourceQueries = pipeline.Bindings.ReflectionQueries;
+#endif
         start = System.Diagnostics.Stopwatch.GetTimestamp();
         for (int i = 0; i < 100; i++) pipeline.ValidateTargets(description.Targets);
         Assert.Same(relevance, pipeline.Relevance);
         double validation = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
         Assert.Same(metadata, shader.GraphicsInterface);
+#if DEBUG
         Assert.Equal(queries, metadata.ReflectionQueries);
         Assert.Equal(resourceQueries, pipeline.Bindings.ReflectionQueries);
         output.WriteLine($"Preparation: {preparation:F3} ms; graphics queries={queries}; resource queries={resourceQueries}; " +
             $"100 retained validations: {validation:F3} ms; additional reflection queries=0.");
+#endif
         shader.InvalidateAssets();
         Assert.Throws<InvalidOperationException>(pipeline.Validate);
         Assert.True(shader.EnsureReady());
@@ -138,14 +142,18 @@ public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture, ITe
         var description = new GraphicsPipelineDesc(new("fixture", plan), new([]),
             new([new(PixelInternalFormat.Rgba16f)]), DynamicPipelineState.Viewport,
             assembly: new() { Topology = PrimitiveType.Patches });
+#if DEBUG
         int queries = metadata.ReflectionQueries;
+#endif
         var conservative = GraphicsStateRelevance.Derive(description, GpuSupport.Graphics);
         var prepared = GraphicsStateRelevance.Derive(description, GpuSupport.Graphics, metadata);
         Assert.True(conservative.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.PointSize));
         Assert.False(prepared.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth));
         Assert.False(prepared.Rasterizer.HasFlag(RasterizerStateKnowledge.PointSize));
         Assert.True(prepared.Rasterizer.HasFlag(RasterizerStateKnowledge.PolygonModes | RasterizerStateKnowledge.FrontFace));
+#if DEBUG
         Assert.Equal(queries, metadata.ReflectionQueries);
+#endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

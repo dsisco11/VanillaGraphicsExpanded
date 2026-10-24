@@ -686,7 +686,7 @@ live performance result. No game is launched for automated qualification.
 Separate GpuResourceCollection owners manage the shared hierarchy and AO's three visibility images.
 The hierarchy uses one typed compute dispatch and no framebuffer targets; AO retains its framebuffer borrowers.
 The compute owner retains its dispatch block and is retired on shader reload. A shared `DepthHierarchy`
-GPU profile scope records generation separately from either lighting consumer; LumOn reads that scope for its HZB timing counter.
+In DEBUG builds, a GPU profile scope records generation separately from either lighting consumer; LumOn reads that scope for its HZB timing counter. Release retains an empty value scope for configuration-independent callers; measurement state, GPU queries and reports are compiled only in DEBUG.
 Stable frames reuse storage; resize, reload, world teardown and disabled consumers withdraw publication and retire it.
 Disabling AO alone retires its visibility images while the hierarchy remains if indirect lighting requires it.
 Raw/filtered ceil-half images and full-resolution visibility use eight bytes per texel. AO payload is

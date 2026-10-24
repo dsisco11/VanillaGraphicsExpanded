@@ -18,11 +18,15 @@ internal sealed class PersistentUniformStorage : IDisposable
     private bool used;
     private bool disposed;
 
+#if DEBUG
     internal long AllocationsWritten { get; private set; }
     internal long BytesWritten { get; private set; }
     internal long Bindings { get; private set; }
+#endif
     internal int ResidentBytes { get; private set; }
+#if DEBUG
     internal long FencePolls { get; private set; }
+#endif
     internal int PendingBytes
     {
         get
@@ -76,7 +80,9 @@ internal sealed class PersistentUniformStorage : IDisposable
         selected.Slots[slot] = version;
         try { selected.Write(version.Offset, data); }
         catch { selected.Slots[slot] = null; version.Released = true; throw; }
+#if DEBUG
         AllocationsWritten++; BytesWritten += data.Length;
+#endif
         return version;
     }
 
@@ -88,7 +94,9 @@ internal sealed class PersistentUniformStorage : IDisposable
         if (!IsCurrent(version)) throw new InvalidOperationException("Stale uniform version.");
         version.LastUse = serial;
         used = true;
+#if DEBUG
         Bindings++;
+#endif
     }
 
     /// <summary>Withdraws logical ownership; latest submitted use still protects the physical slot.</summary>
@@ -120,7 +128,9 @@ internal sealed class PersistentUniformStorage : IDisposable
         RequireAlive();
         while (fences.TryPeek(out var batch))
         {
+#if DEBUG
             FencePolls++;
+#endif
             var status = batch.Fence.Poll();
             if (status == WaitSyncStatus.TimeoutExpired) break;
             if (status == WaitSyncStatus.WaitFailed) throw new InvalidOperationException("Uniform retirement fence failed.");

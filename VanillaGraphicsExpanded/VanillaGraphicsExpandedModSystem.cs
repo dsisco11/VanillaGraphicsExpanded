@@ -21,7 +21,9 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 {
     private ICoreClientAPI? capi;
     private GBufferManager? gBufferManager;
+#if DEBUG
     private GlGpuProfilerRenderer? gpuProfilerRenderer;
+#endif
     private VgeFrameRenderer? frameRenderer;
     private VgeLightsRenderer? lightsRenderer;
     private HarmonyLib.Harmony? harmony;
@@ -89,8 +91,12 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
         Rendering.Diagnostics.EngineFramebufferDebugLabels.ApplyDefaults(api.Render.FrameBuffers);
         PBR.HeldLighting.HeldLightSystem.Start(api, message => api.Logger.Error(message));
 
+#if DEBUG
         GlGpuProfiler.Instance.Initialize(api);
+#endif
+#if DEBUG
         gpuProfilerRenderer = new GlGpuProfilerRenderer(api);
+#endif
         frameRenderer = new VgeFrameRenderer(api);
         lightsRenderer = new VgeLightsRenderer(api);
 
@@ -292,14 +298,20 @@ public sealed class VanillaGraphicsExpandedModSystem : ModSystem, ILiveConfigura
 
 
 
+#if DEBUG
             TryCleanup(() => gpuProfilerRenderer?.Dispose(), cleanupFailures);
+#endif
+#if DEBUG
             gpuProfilerRenderer = null;
+#endif
             TryCleanup(() => lightsRenderer?.Dispose(), cleanupFailures);
             lightsRenderer = null;
             TryCleanup(() => frameRenderer?.Dispose(), cleanupFailures);
             frameRenderer = null;
 
+#if DEBUG
             TryCleanup(() => GlGpuProfiler.Instance.Dispose(), cleanupFailures);
+#endif
 
             if (capi != null)
             {
