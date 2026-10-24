@@ -208,7 +208,10 @@ These extend the checklist rather than hiding additional work in a generic catch
 
 The discussion below records the questions raised by this analysis. The resulting
 [approved proposal](Rendering.CommandPublication.Proposal.md) and
-[implementation checklist](Rendering.CommandPublication.todo) now govern their resolution and repairs.
+[implementation checklist](Rendering.CommandPublication.todo) now govern their resolution and repairs. The user subsequently approved controlled inputs/defaults/
+derivations with existing failure handling rather than universal post-command verification. Historical
+readback recommendations above are evidence of the reviewed implementation, not requirements to retain
+those reads. The proposal now maps each method/family to its narrowed disposition.
 
 Confirmed repeated work: realized-buffer double validity checks; shader stage discovery after creation;
 helper result constructors rereading supplied binding fields; full texture storage scan after base/max

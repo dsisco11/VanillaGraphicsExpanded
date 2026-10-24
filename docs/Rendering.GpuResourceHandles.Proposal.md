@@ -4,6 +4,11 @@ Status: approved direction, reconciled with the manager-owned metadata design. I
 [Rendering.GpuResourceHandles.todo](Rendering.GpuResourceHandles.todo). This is a design contract, not
 an assertion that the runtime migration is implemented.
 
+The approved [command-publication refinement](Rendering.CommandPublication.Proposal.md) controls
+creation and query policy: controlled inputs/defaults/derivations are authoritative under existing
+failure handling; external unknown facts and specifically justified outputs are acquired. No universal
+post-command verification or duplicate requested/actual metadata cache is required.
+
 ## Intent
 
 Give owning and non-owning GPU wrappers canonical native metadata and a common notification mechanism.
@@ -66,8 +71,9 @@ the non-generic base has no metadata responsibilities. The manager owns registra
 availability, revisions and subscription membership. Metadata-dependent validation asks the manager
 about the wrapper's original association; neither base stores that association or runs a tracking state machine.
 Ownership, disposal, authored policy and selected subresources remain local.
-Allocation loops, sampling policy, attachment-command selection and DSA fallback stay in their existing
-resource wrappers or upload helpers. Those helpers issue individual native commands through StateCache.
+Sampling, growth, streaming and attachment selection remain wrapper/helper policy. Manager creation
+orchestrates initialization records and allocation groups through explicit StateCache commands; existing
+upload helpers and capability-appropriate DSA/fallback paths remain in use.
 StateCache can defer publication across a complete command group; an interrupted group leaves metadata
 unavailable rather than publishing an intermediate configuration.
 
@@ -111,16 +117,17 @@ at the native adapter boundary. Preserve static framebuffer locks and existing r
 
 ## Metadata publication and validation
 
-StateCache forwards metadata-changing commands to the manager. Typed manager readers establish a complete
-canonical candidate once, then the manager commits it and assigns snapshots to all associated wrappers.
+StateCache forwards metadata-changing commands to the manager. Controlled commands build a complete
+candidate from inputs/defaults/derived facts; readers acquire external unknown state and justified outputs.
+The manager commits that candidate and assigns snapshots to all associated wrappers.
 Wrappers do not independently query native metadata. Generic notification is only assignment; manager
 publication maintains availability and revisions and coordinates existing dependent observers outside
 that method. Pending owner retirement, deletion and context retirement make the original association
 unusable in the manager; refresh failures leave its metadata unavailable until a complete recovery.
 
-Publish after native operations, using arguments only where actual results are established, otherwise
-using targeted readback. Preserve existing error handling. A nonthrowing GL call does not prove success;
-rejected commands must not publish requested values as actual facts. Failed refresh leaves affected
+Publish after native operations using the approved controlled-input policy. Preserve existing error
+handling; reported rejection must not publish success. This adds no universal detector for silent GL
+failures. Unknown external effects use invalidation/recovery without consuming errors. Failed refresh leaves affected
 metadata unavailable. Assign snapshots before exposing availability and notifying dependents; one failure
 must not silently leave other affected consumers presenting stale data as current.
 

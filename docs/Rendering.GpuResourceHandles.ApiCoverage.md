@@ -4,6 +4,15 @@ This is the API-derived planning matrix for [the proposal](Rendering.GpuResource
 Current callers do not define or limit coverage within the supported API scope. Every command in a family, every supported desktop extension
 variant and every managed overload has the implementation and verification obligation specified below.
 
+## Publication policy
+
+The [approved command-publication policy](Rendering.CommandPublication.Proposal.md#approved-command-result-policy)
+controls how the families below publish metadata. Here, "refresh" means make canonical facts current;
+it does not mandate native readback after controlled commands. Controlled inputs/defaults/derivations
+are authoritative under existing failure handling. Unknown external effects use acquisition/recovery;
+required driver-output reads are individually justified in that proposal. Existing scope, native-error,
+per-object outcome and lifecycle obligations remain. No broader command-success verification is added.
+
 ## Explicit API exclusions
 
 Interception is restricted to the managed native owners GL, GL.Ext and GL.Arb.
@@ -251,9 +260,11 @@ All spellings are present in the retained registry snapshot.
 Core named creation/storage/query behavior follows
 [ARB_direct_state_access](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_direct_state_access.txt).
 Named storage requires an initialized object; the direct creation path uses CreateRenderbuffers,
-while the bound fallback realizes generated names through binding. Rounded sample counts are read back.
+while the bound fallback realizes generated names through binding. Controlled sample requests use
+cached supported-count normalization; only the proposal's fallback requires allocation-time sample readback.
 The EXT coverage-sample overload remains supported even though the feature has vendor origins.
-The canonical Samples field retains actual RENDERBUFFER_SAMPLES readback.
+External unknown storage acquires RENDERBUFFER_SAMPLES; controlled storage uses its resolved supported
+count or the narrowly justified fallback result. No unconditional descriptor readback is required.
 
 `glNamedRenderbufferStorage`, `glNamedRenderbufferStorageEXT`, `glNamedRenderbufferStorageMultisample`, `glNamedRenderbufferStorageMultisampleCoverageEXT`, `glNamedRenderbufferStorageMultisampleEXT`, `glRenderbufferStorage`, `glRenderbufferStorageEXT`, `glRenderbufferStorageMultisample`, `glRenderbufferStorageMultisampleEXT`.
 
@@ -279,7 +290,8 @@ and cross-checks exactly representable offsets/sizes through native range querie
 dispatch leaves metadata unavailable. Whole-buffer mode follows the accepted command, because
 queries cannot distinguish whole-buffer binding from an explicit range of the same initial size.
 OpenGL 4.6 section 8.18 defines view-relative selection and the source-derived immutable level count.
-Read the exposed view level count before enumerating images; the source allocation's level count
+External view discovery reads the exposed view level count before enumerating images; controlled
+view creation uses its explicit range and known source metadata. The source allocation's level count
 must not widen the view's canonical image descriptors.
 
 The EXT direct-state-access renderbuffer texture commands retain their coverage obligation even

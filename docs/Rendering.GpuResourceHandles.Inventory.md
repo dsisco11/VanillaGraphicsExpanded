@@ -9,13 +9,24 @@ display lists, server/client attribute stacks, client default resets, legacy cli
 point smoothing, separate polygon face modes, line/polygon stipple and automatic mip generation. Modern retained operations remain required regardless of introduction date. The separate
 GpuCommandList RHI design is unaffected.
 
+## Publication mechanics authority
+
+The approved [command-publication contracts](Rendering.CommandPublication.Proposal.md) govern the
+planned migration. Controlled initialization/mutations use inputs, defaults and derived values, not
+full reader refresh. Native readers remain for external acquisition/recovery and listed output
+exceptions. The source inventories below describe existing paths to migrate; references to reader
+refresh, post-command verification and wrapper-owned allocation loops are not requirements to retain
+those mechanics. Ownership, original associations, context safety, dependency semantics and notification
+ordering remain required. No universal command-success detector or parallel requested/actual cache is added.
+
 ## Wrapper and ownership inventory
 
 Paths below are relative to `VanillaGraphicsExpanded/Rendering` unless stated otherwise. All wrappers
 inherit `GpuResource`'s local disposal, `Detach`/`ReleaseHandle`, captured manager/context and default
 ownership unless a row says otherwise. All native IDs are integers except `GpuFence`'s pointer-sized
 sync. Registration must occur when a native object exists, not merely when a CPU declaration is created.
-Resource wrappers retain allocation and sampling policy, attachment selection and upload fallback strategy.
+Resource wrappers retain growth/sampling policy, attachment selection and upload helper strategy.
+Manager creation orchestrates allocation from initialization records.
 StateCache executes their native commands and owns metadata publication, including deferred publication
 for complete texture allocation and framebuffer reattachment groups.
 
@@ -149,8 +160,9 @@ Planned internal operation contracts:
   qualified; retaining a registry entry alone does not qualify persistent consumer metadata.
 - `AssociateResource(entry, wrapper)` / `UnregisterResource(entry, wrapper)` initialize typed snapshots,
   maintain weak associations and prune expired references. Image associations include local selection.
-- `RefreshMetadata(entry, change)` establishes a complete canonical candidate once, updates the entry,
-  then publishes typed snapshots. Per-kind manager readers query GL; wrappers do not. Untracked commands
+- `RefreshMetadata(entry, change)` explicitly acquires/recovers unavailable native facts. Controlled
+  publication constructs a complete candidate from command facts without calling that reader. Both
+  commit through the manager and deliver typed snapshots; wrappers do not query. Untracked commands
   still execute normally without eagerly populating a speculative registry of every native object.
 - `RetireResource(entry)` / `ObserveDeletion(kind, id)` integrate scheduled owner retirement and observed
   native deletion, invalidate associations and cancel obsolete queued work.
@@ -168,7 +180,7 @@ StateCache owns native mutation execution and sends observed results to manager 
 never construct metadata candidates or call mutation refresh/publication themselves. Initial native
 acquisition and selected-image projection also belong to the manager, including tools without a registry.
 Requested buffer usage is separate allocation policy; requested texture dimensions/format/mips are
-command arguments, never temporarily installed in a native snapshot.
+command arguments until dispatch; the manager then publishes them under the controlled-input policy.
 Manager publication coordinates dependent observers outside the generic assignment.
 No abstract per-wrapper metadata-query handler remains.
 
@@ -188,9 +200,9 @@ checks observe retirement without wrapper notification handlers or GL calls. Exi
 Metadata readers select named queries only when the cached DSA capability permits them; otherwise
 known targets use existing binding scopes. Immutable-storage/view parameter queries use their own
 cached capabilities. Before texture-view
-queries are supported, immutable level counts come from the queried allocated image chain. View
-creation validates its requested range against the complete reader snapshot without repeating native
-validity or range queries. Context-local views retain an opaque storage certificate published by the
+queries are supported, immutable level counts come from the queried allocated image chain. External view
+acquisition validates discovered ranges; controlled view creation validates its inputs against known
+source metadata and derives the result without a full reader snapshot. Context-local views retain an opaque storage certificate published by the
 manager on the texture owner. Metadata-only failure and recovery preserve this certificate independently
 of snapshot availability; completed or interrupted storage updates replace it even when dimensions match.
 Views reject unavailable source image facts until refresh succeeds. No additional registry or generic-base
@@ -211,20 +223,21 @@ external deletion authority and never use owning construction cleanup.
 Context-local tools without a registration discard uncertified snapshots after a failed read or an
 interrupted command group. Empty descriptors represent unavailable facts, not native zero-sized storage.
 The manager retains only the established texture target for explicit native refresh (for example,
-SetMipRange); image binding rejects an empty image snapshot. Local framebuffer image validation refreshes
-its selected native image before dependent use and throws on failed reads or absent selections rather
-than retaining a previous projection. Registered resources retain canonical availability and recovery.
+SetMipRange); image binding rejects an empty image snapshot. Local framebuffer image validation projects
+available backing facts and recovers only unknown/invalidated backing before dependent use; failed
+reads or absent selections cannot retain a previous projection. Registered resources retain canonical availability and recovery.
 Managed texture views require available manager snapshots for both their own registration and their
 original source dependency before use. Metadata-only recovery restores usability; storage revision
 changes continue to reject views certified against the previous allocation.
 Failed replacement cleanup also clears the surviving texture wrapper's native ID after retiring the new
 name, so later disposal cannot delete a reused name.
 
-Mark affected metadata unavailable before refresh. Read represented fields into one complete candidate;
-do not drain GetError or assume a nonthrowing native call succeeded. Initialize outputs to invalid
-sentinels and validate results in the original context. Rejected operations publish actual unchanged
-facts, never requested values. Use arguments only when an existing validated operation establishes the
-result. Unqueryable facts stay unavailable; do not invent storage.
+Mark affected metadata unavailable during acquisition or grouped mutation. Controlled commands use
+inputs/defaults/derivations; external acquisition initializes read outputs to invalid sentinels and
+validates them in the original context. Do not drain GetError or add unconditional Is-object checks.
+Reported failures do not publish success. Silent native failure detection remains the existing error
+boundary; external uncertain effects remain unavailable until recovery. Unqueryable external facts
+stay unavailable. The command-publication proposal lists the justified read exceptions.
 
 Commit canonical metadata, assign all typed snapshots, then expose the revision as available and notify
 existing dependents. Do not invoke arbitrary dependent observers between assignments. Failed refresh

@@ -1,6 +1,7 @@
 Command execution and metadata publication
 
-Status: proposal approved by the user; implementation not started. All tasks below remain open.
+Status: Phase 1 complete after second review and independent completion audit.
+The narrower command-result policy is approved. Runtime implementation has not started; Phases 2–9 remain open.
 Source: [approved proposal](Rendering.CommandPublication.Proposal.md).
 Inherited contracts: [resource design](Rendering.GpuResourceHandles.Proposal.md),
 [inventory](Rendering.GpuResourceHandles.Inventory.md), [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
@@ -11,12 +12,12 @@ Goal
   Manager creation methods consume assignment-tracked initialization records and return nullable
   canonical metadata plus a success-only handle. Explicit StateCache command methods own native
   dispatch and completion. Lookup, acquisition/recovery and result publication have separate contracts.
-  Preserve established facts; query only unknown or driver-derived results and necessary verification.
+  Preserve controlled inputs and derived facts; acquire external unknowns and specifically justified outputs.
 
 Scope and ordering
   This checklist is the authoritative implementation sequence delegated by parent Phase 4f.
   The parent records architectural approval and gates later consumer integration on this entire checklist.
-  Phase 1 owns remaining contract decisions; Phase 2 repairs bindings; Phases 3–7 implement creation,
+  Phase 1 defines the settled contracts; Phase 2 repairs bindings; Phases 3–7 implement creation,
   publication and acquisition; Phase 8 handles supplied-metadata preparation; Phase 9 qualifies the whole.
   Parent phase markers are not prerequisites for individual child phases or separate implementation tasks.
   Completion evidence lives here; parent consumer/integrated qualification remains later.
@@ -25,37 +26,38 @@ Scope and ordering
   Retain GL/Core, Ext and Arb coverage and existing legacy/auxiliary-owner exclusions.
   Higher-level growth, streaming, sampling and content policy stays with existing wrappers/helpers.
 
-Open decisions
-  Command-family success evidence remains to be agreed: supplied values and nonthrowing calls do not
-  prove acceptance. Nullable results represent reported failure without swallowing required exceptions.
-  The exact creation-to-wrapper association handoff remains to be settled before implementation.
-  Initialization properties/defaults must be specified per family; record names alone do not settle them.
+Resolved direction
+  Controlled inputs/defaults/derivations are authoritative under existing failure handling. There is
+  no universal post-command verification or duplicate requested/actual snapshot system. The proposal
+  specifies external acquisition, narrow justified outputs, initialization defaults and wrapper handoff.
+  Preserve existing suppression, lifecycle checks and reported-failure cleanup. Silent native errors
+  are not newly detected by nullable returns; use existing diagnostics and explicit recovery.
 
 Phase 1: Settle creation and command-result contracts
   Sources: proposal, Initialization records, Separate three operations, Command execution, Transactions;
   analysis, Binding paths, Native observation pairs and acquisition/reader findings; inherited contracts.
   Outcome: concrete contracts permit implementation without hidden acceptance or ownership assumptions.
 
-  ☐ For every API coverage family and analyzed observer, specify established argument-derived facts,
-    required targeted verification, driver-derived reads and unknown-state recovery. Distinguish managed
+  ☑ For every API coverage family and analyzed observer, specify established argument-derived facts,
+    specifically justified output reads and unknown-state recovery. Distinguish managed
     commands from arbitrary intercepted calls, including rejected and partially successful multi-calls.
     Preserve native errors; no blanket GetError consumption or blanket Is-object queries.
-  ☐ Agree this result policy with the user before implementing it. Record resolved decisions in the
+  ☑ Agree this result policy with the user before implementing it. Record resolved decisions in the
     proposal; architecture approval alone does not settle this policy.
-  ☐ Define each initialization record's legal inputs, automatic private assignment mask, required values,
+  ☑ Define each initialization record's legal inputs, automatic private assignment mask, required values,
     conditional GL defaults, explicit creation-policy defaults and derivable outputs. Reject missing
     required allocation inputs instead of attempting to query them. Explicit zero/false differs from omission.
-  ☐ Specify nullable metadata plus out GpuResourceHandle success/failure semantics and the wrapper handoff:
+  ☑ Specify nullable metadata plus out GpuResourceHandle success/failure semantics and the wrapper handoff:
     manager-owned association and HandleMetadataChanged delivery, no wrapper snapshot assignment,
     no leaked handle between creation and association, and cleanup of provisional state on handoff failure.
     Preserve generated-name versus realized-object and context-free declaration contracts.
-  ☐ Specify internal operation/group/deferred state: original entry/context capture, exactly-once completion,
+  ☑ Specify internal operation/group/deferred state: original entry/context capture, exactly-once completion,
     affected availability, nested/alias grouping, interruption and recovery. Define context-local execution
     through the existing static manager path without a second registry or wrapper tracking state machine.
-  ☐ Reconcile proposal/inventory/API mechanics with this approved refinement. Retain the parent consumer
+  ☑ Reconcile proposal/inventory/API mechanics with this approved refinement. Retain the parent consumer
     gate without duplicating implementation tasks; record alternatives and reasons
     already described in the proposal rather than silently retaining the old full-refresh contract.
-  ☐ Completion: remaining decisions are explicit, the result policy is agreed, source contracts agree,
+  ☑ Completion: remaining decisions are explicit, the result policy is agreed, source contracts agree,
     and tasks below have no unresolved foundational prerequisite. No runtime change is required here.
 
 Phase 2: Centralize selector execution and repair binding knowledge
@@ -119,7 +121,8 @@ Phase 4: Migrate buffer and image creation and mutations
     DepthStencilTexture, PmjJitterTexture and CloudBlueNoiseTexture. Preserve constructor inputs,
     allocation choices and GpuLimits use. Derive established mip/face facts as GpuTextureLevelMetadata.
   ☐ Implement GpuRenderbufferInitialization -> GpuRenderbufferMetadata for GpuRenderbuffer.
-    Preserve driver-derived actual sample counts and capability-specific storage semantics.
+    Normalize supported sample requests through cached capabilities; use only the proposal's justified
+    fallback sample read. Preserve capability-specific storage semantics and avoid repeat allocation.
   ☐ Implement GpuBufferTextureInitialization -> GpuTextureMetadata for GpuBufferView/GpuBufferTexture,
     constructing GpuTextureBufferMetadata centrally. Preserve whole-buffer versus explicit-range semantics,
     native-width ranges, alignment, backing identity and dependency propagation.
@@ -133,7 +136,7 @@ Phase 4: Migrate buffer and image creation and mutations
     ConfigureTextureView and RefreshGeneratedTextureMetadata against this rule.
   ☐ Have subagents verify every migrated family's creation, replacement, failed allocation, defaults,
     output metadata, dependencies and DSA/fallback paths. Compare native queries to the binding-corrected
-    baseline; separate required verification/sample reads from eliminated descriptor rediscovery.
+    baseline; distinguish explicit output exceptions from eliminated descriptor rediscovery.
   ☐ Completion: all listed wrappers use manager creation, no wrapper authors canonical snapshots,
     and narrow image/buffer mutations no longer cause unrelated full reads.
 
