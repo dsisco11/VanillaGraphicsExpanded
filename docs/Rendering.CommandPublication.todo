@@ -1,0 +1,243 @@
+Command execution and metadata publication
+
+Status: proposal approved by the user; implementation not started. All tasks below remain open.
+Source: [approved proposal](Rendering.CommandPublication.Proposal.md).
+Inherited contracts: [resource design](Rendering.GpuResourceHandles.Proposal.md),
+[inventory](Rendering.GpuResourceHandles.Inventory.md), [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
+Evidence: [per-method analysis](Rendering.GpuResourceHandles.Analysis.md).
+Parent: [resource-handles checklist](Rendering.GpuResourceHandles.todo), Phase 4f (delegating phase).
+
+Goal
+  Manager creation methods consume assignment-tracked initialization records and return nullable
+  canonical metadata plus a success-only handle. Explicit StateCache command methods own native
+  dispatch and completion. Lookup, acquisition/recovery and result publication have separate contracts.
+  Preserve established facts; query only unknown or driver-derived results and necessary verification.
+
+Scope and ordering
+  This checklist is the authoritative implementation sequence delegated by parent Phase 4f.
+  The parent records architectural approval and gates later consumer integration on this entire checklist.
+  Phase 1 owns remaining contract decisions; Phase 2 repairs bindings; Phases 3–7 implement creation,
+  publication and acquisition; Phase 8 handles supplied-metadata preparation; Phase 9 qualifies the whole.
+  Parent phase markers are not prerequisites for individual child phases or separate implementation tasks.
+  Completion evidence lives here; parent consumer/integrated qualification remains later.
+  No recording/queues, GpuCommand/GpuCommandList implementation, StateCache rename, new lifetime keys,
+  second registry, full VAO mirror, content tracking or broader interception coverage is introduced.
+  Retain GL/Core, Ext and Arb coverage and existing legacy/auxiliary-owner exclusions.
+  Higher-level growth, streaming, sampling and content policy stays with existing wrappers/helpers.
+
+Open decisions
+  Command-family success evidence remains to be agreed: supplied values and nonthrowing calls do not
+  prove acceptance. Nullable results represent reported failure without swallowing required exceptions.
+  The exact creation-to-wrapper association handoff remains to be settled before implementation.
+  Initialization properties/defaults must be specified per family; record names alone do not settle them.
+
+Phase 1: Settle creation and command-result contracts
+  Sources: proposal, Initialization records, Separate three operations, Command execution, Transactions;
+  analysis, Binding paths, Native observation pairs and acquisition/reader findings; inherited contracts.
+  Outcome: concrete contracts permit implementation without hidden acceptance or ownership assumptions.
+
+  ☐ For every API coverage family and analyzed observer, specify established argument-derived facts,
+    required targeted verification, driver-derived reads and unknown-state recovery. Distinguish managed
+    commands from arbitrary intercepted calls, including rejected and partially successful multi-calls.
+    Preserve native errors; no blanket GetError consumption or blanket Is-object queries.
+  ☐ Agree this result policy with the user before implementing it. Record resolved decisions in the
+    proposal; architecture approval alone does not settle this policy.
+  ☐ Define each initialization record's legal inputs, automatic private assignment mask, required values,
+    conditional GL defaults, explicit creation-policy defaults and derivable outputs. Reject missing
+    required allocation inputs instead of attempting to query them. Explicit zero/false differs from omission.
+  ☐ Specify nullable metadata plus out GpuResourceHandle success/failure semantics and the wrapper handoff:
+    manager-owned association and HandleMetadataChanged delivery, no wrapper snapshot assignment,
+    no leaked handle between creation and association, and cleanup of provisional state on handoff failure.
+    Preserve generated-name versus realized-object and context-free declaration contracts.
+  ☐ Specify internal operation/group/deferred state: original entry/context capture, exactly-once completion,
+    affected availability, nested/alias grouping, interruption and recovery. Define context-local execution
+    through the existing static manager path without a second registry or wrapper tracking state machine.
+  ☐ Reconcile proposal/inventory/API mechanics with this approved refinement. Retain the parent consumer
+    gate without duplicating implementation tasks; record alternatives and reasons
+    already described in the proposal rather than silently retaining the old full-refresh contract.
+  ☐ Completion: remaining decisions are explicit, the result policy is agreed, source contracts agree,
+    and tasks below have no unresolved foundational prerequisite. No runtime change is required here.
+
+Phase 2: Centralize selector execution and repair binding knowledge
+  Depends on Phase 1. Sources: proposal Command execution; analysis Binding paths and Scopes;
+  API selector/routing semantics.
+  Outcome: acquisition can rely on correct binding scopes without unnecessary result rediscovery.
+
+  ☐ Refactor UseProgramBinding, BindVertexArray and BindProgramPipeline into self-contained execution
+    paths under the agreed policy. Preserve managed equal suppression and full-program stage semantics.
+  ☐ Repair BindBuffer(ElementArrayBuffer), VertexArrayElementBuffer and external buffer/vertex/program
+    selection observation. Maintain per-VAO EBO facts independently of VAO revision notifications.
+  ☐ Repair GpuVertexAttribBinding constructors, BindVertexBuffer, SetDivisor and RequireCurrentFacts:
+    keep established helper results, preserve stale-copy and original-owner checks, recover only unknown
+    fields. Do not introduce a full VAO layout mirror or weaken non-DSA stale-helper rejection.
+  ☐ Repair BindFramebufferScope capture to use known independent read/draw selections. Review
+    BindScopeTracker, BindBufferScope, BindTextureScope and CaptureBoundaryBindings restoration against
+    the same policy. Correct TryGetBufferBindingQuery's AtomicCounterBuffer binding token with a named enum.
+  ☐ Migrate selector/routing adapters to shared execution bookkeeping while preserving exact overloads,
+    actual external dispatch, errors, reentrancy and unknown-state recovery. Keep read/draw routing distinct.
+  ☐ Have subagents verify changed/equal/unknown/rejected bindings, external changes, DSA/fallback,
+    scopes, deletion/name reuse and helper revisions. Compare query/bind counts with analysis receipts.
+    Run affected builds/tests and canonical package checks; second-review and independently audit this binding increment.
+  ☐ Completion: binding restoration and metadata notifications remain correct; verified binding/query
+    baseline is available for subsequent acquisition work. No performance inference from counts alone.
+
+Phase 3: Establish manager creation and publication machinery
+  Depends on Phase 2. Sources: proposal Responsibilities, Initialization and Transactions; inventory
+  manager API, publication and lifecycle contracts. Outcome: one reusable creation/publication boundary.
+
+  ☐ Separate available lookup from native acquire/recover and established-result publication in
+    AcquireResource, AcquireWrapperMetadata, ObserveWrapperMetadata, PublishObservedMetadata,
+    RefreshMetadata and PublishMetadata. Remove default forced-refresh ambiguity without bypassing
+    genuinely unavailable state. Preserve canonical revisions, original association and weak recipients.
+  ☐ Implement the agreed initialization-record conventions and nullable creation result/handle protocol.
+    Canonical structs remain output-only and flag-free; setters track intent automatically. Empty records
+    and non-null empty metadata are valid where the resource has no optional inputs/represented facts.
+  ☐ Implement manager-owned creation commit, association and typed snapshot delivery, including local tools.
+    Failure cleans newly owned native objects/provisional entries, clears the output handle and leaves
+    borrowed dependencies intact. Preserve required exceptions, ownership, detach and retirement behavior.
+  ☐ Move begin/complete pairing inside explicit command methods where execution is immediate. Capture
+    original identity only where needed; simple selectors do not require heap transaction objects.
+    Introduce no mandatory per-call closure allocations or generic string/reflection dispatch.
+  ☐ Coordinate grouped initialization/updates by original manager entry, not individual wrapper. Suppress
+    repeated acquisition and double publication across aliases; publish coherent results only. Interrupted
+    groups leave affected facts unavailable while preserving unrelated established facts.
+  ☐ Have subagents verify assignment masks, omission/zero/false, conditional defaults, nullable success and
+    failure, handoff failure, cleanup, alias groups, reentrancy, context retirement and exactly-once delivery.
+  ☐ Completion: the common boundary is verified; family migrations can use it without inventing their
+    own acquisition, publication or failure protocols. Existing consumers remain functional during migration.
+
+Phase 4: Migrate buffer and image creation and mutations
+  Depends on Phase 3. Sources: proposal Resource coverage; analysis readers/observers; API B1, T1–T4, R1, I1.
+  Each task includes input/default definition, accepted-result publication, failure cleanup and call-site migration.
+
+  ☐ Implement GpuBufferInitialization -> GpuBufferMetadata for GpuBufferObject, GpuVbo, GpuEbo,
+    GpuUniformBuffer, GpuShaderStorageBuffer, GpuAtomicCounterBuffer, GpuIndirectBuffer,
+    GpuPixelPackBuffer and GpuPixelUnpackBuffer. Keep GpuBufferUploader's role and DSA/fallback dispatch;
+    remove RegisterBufferWrapper's duplicate validity reads without treating reserved names as realized.
+  ☐ Implement GpuTextureInitialization -> GpuTextureMetadata for GpuTexture, Texture2D, Texture3D,
+    DynamicTexture2D, DynamicTexture3D, DynamicTextureCube, DepthTexture, StencilTexture,
+    DepthStencilTexture, PmjJitterTexture and CloudBlueNoiseTexture. Preserve constructor inputs,
+    allocation choices and GpuLimits use. Derive established mip/face facts as GpuTextureLevelMetadata.
+  ☐ Implement GpuRenderbufferInitialization -> GpuRenderbufferMetadata for GpuRenderbuffer.
+    Preserve driver-derived actual sample counts and capability-specific storage semantics.
+  ☐ Implement GpuBufferTextureInitialization -> GpuTextureMetadata for GpuBufferView/GpuBufferTexture,
+    constructing GpuTextureBufferMetadata centrally. Preserve whole-buffer versus explicit-range semantics,
+    native-width ranges, alignment, backing identity and dependency propagation.
+  ☐ Implement GpuTextureViewInitialization -> GpuTextureMetadata for GpuTextureView, constructing
+    GpuTextureViewMetadata centrally. Preserve source identity/storage revision and view-relative levels.
+    Keep renderbuffer-backed texture associations on GpuTextureMetadata/GpuRenderbufferMetadata.
+  ☐ Migrate buffer/renderbuffer/texture storage, parameter, mip-generation and association command observers
+    to shared execution/publication. Update only affected fields; preserve native acceptance, interruption
+    and imported-storage semantics. Base/max changes must not scan unrelated storage; immutable content-only
+    mip generation must not invent storage changes. Review ObserveBufferView, TryObserveBufferAssociation,
+    ConfigureTextureView and RefreshGeneratedTextureMetadata against this rule.
+  ☐ Have subagents verify every migrated family's creation, replacement, failed allocation, defaults,
+    output metadata, dependencies and DSA/fallback paths. Compare native queries to the binding-corrected
+    baseline; separate required verification/sample reads from eliminated descriptor rediscovery.
+  ☐ Completion: all listed wrappers use manager creation, no wrapper authors canonical snapshots,
+    and narrow image/buffer mutations no longer cause unrelated full reads.
+
+Phase 5: Migrate framebuffer and executable resource creation and publication
+  Depends on Phase 4. Sources: proposal coverage/command examples; API F1/P1; analysis corresponding findings.
+
+  ☐ Implement GpuFramebufferInitialization -> GpuFramebufferMetadata for GpuFramebuffer,
+    DynamicGpuFramebuffer and StaticGpuFramebuffer. Construct GpuFramebufferImageMetadata centrally;
+    keep attachment ownership/static locks, proven multiview semantics and independent routing intact.
+  ☐ Refactor RequireNativeAttachment, ObserveFramebufferAttachment, BindFramebufferResource,
+    PublishRenderPassMetadata, GpuFramebufferAttachmentDiscovery.Read and ReconcileAttachmentMetadata
+    to avoid targeted verification followed by a full scan. Coordinate attachment groups and dependencies.
+    GpuFramebufferAttachment receives projected GpuImageMetadata; owned backing uses Phase 4 creation.
+    Default framebuffer/surface metadata retains its separate publication path.
+  ☐ Implement GpuShaderInitialization -> GpuShaderMetadata for GpuShaderModule: retain established fixed
+    stage without rediscovery; compilation/binary loading retains its existing success/lifetime boundary.
+  ☐ Implement GpuProgramInitialization -> GpuProgramMetadata for GpuProgramObject/GpuComputePipeline.
+    Fresh creation publishes an empty executable without reflection. Preserve GpuProgram/GpuComputeProgram
+    composition and existing deferred linking. AcquireCreatedProgramMetadata and AcquireProgramMetadata
+    follow separate creation versus discovery contracts.
+  ☐ Keep explicit pending identity/context for SubmitProgramLink/CompleteProgramLink behavior. Acquire
+    GpuProgramResourceMetadata and GpuProgramTextureUnitMetadata when executable results require it;
+    unit/block changes update affected facts without full interface reflection. Preserve unsupported-bindless
+    withdrawal, prepared-layout invalidation, full-stage selection and owner-controlled re-preparation.
+  ☐ Have subagents verify attachment groups/modes, failed/rejected commands, actual link outcomes,
+    deferred retirement/name reuse, unit/block updates, empty programs and unchanged render-pass facts.
+  ☐ Completion: framebuffer and executable creation/update paths satisfy canonical publication with
+    targeted acquisition and existing ownership, validation and preparation boundaries intact.
+
+Phase 6: Migrate remaining resource creation families
+  Depends on Phase 5. Sources: proposal Resource coverage; inventory per-kind schemas and lifecycle.
+  Each family uses the Phase 3 protocol, legal inputs only, nullable output and failure cleanup.
+
+  ☐ GpuVao: GpuVertexArrayInitialization -> GpuVertexArrayMetadata; preserve empty revision schema.
+  ☐ GpuProgramPipeline: GpuProgramPipelineInitialization -> GpuProgramPipelineMetadata.
+  ☐ GpuSampler: GpuSamplerInitialization -> GpuSamplerMetadata; retain authored sampling policy.
+  ☐ GpuQuery: GpuQueryInitialization -> GpuQueryMetadata; GpuTimerQuery/GpuTimestampQuery remain composition.
+  ☐ GpuFence: GpuSyncInitialization -> GpuSyncMetadata; preserve pointer-width identity and wait semantics.
+  ☐ GpuTransformFeedback: GpuTransformFeedbackInitialization -> GpuTransformFeedbackMetadata.
+  ☐ GpuSemaphore: GpuSemaphoreInitialization -> GpuSemaphoreMetadata; preserve import ownership.
+  ☐ GpuMemoryObject: GpuMemoryObjectInitialization -> GpuMemoryObjectMetadata; preserve import ownership.
+  ☐ Keep empty metadata empty; do not add queries or persistent fields to justify initialization records.
+    GpuVertexAttribBinding remains a helper with no additional canonical struct.
+  ☐ Have subagents verify creation/failure/cleanup and retained metadata/lifetime semantics per family;
+    exercise native capability paths where available and explicitly record unexecuted capability cases.
+  ☐ Completion: all proposal creation families are migrated and no generic wrapper metadata tracking exists.
+
+Phase 7: Finish external acquisition, recovery and adapter migration
+  Depends on Phase 6. Sources: complete analysis method inventory; proposal lookup/acquire/publication;
+  inventory association/dependency contracts and API coverage. Outcome: acquisition repairs are ready for audit.
+
+  ☐ Reconcile AcquireExternalImageTexture, AcquireImageMetadata, AcquireBufferTextureBacking,
+    AcquireRenderbufferTextureBacking, AssociateImageResource and AssignImageMetadata. Reuse available
+    covered entries for raw aliases; keep image projection query-free and retain original backing identity.
+  ☐ Migrate BorrowedTexture and external texture/renderbuffer/framebuffer/shader/program wrap/adopt paths
+    to lookup or acquisition without creation-time mutation. Unsupported external changes retain explicit
+    invalidation/recovery; registry membership alone does not certify observation coverage.
+  ☐ Reconcile GpuBufferMetadataReader, GpuTextureMetadataReader, GpuRenderbufferMetadataReader,
+    GpuRenderbufferTextureMetadataReader, GpuFramebufferMetadataReader, GpuShaderMetadataReader and
+    GpuProgramMetadataReader: preserve unknown-state discovery while narrowing result reads. Avoid repeat
+    context-local reads when established results suffice, without trusting stale snapshots after failure.
+  ☐ Reconcile every remaining BeginNative*/Complete observer in the analysis with immediate internal
+    execution, grouped or deferred handling. Migrate exact compiler-checked adapters; preserve each allowed
+    overload, external dispatch/error behavior, per-object failure and no-content-only metadata work.
+  ☐ Review CompleteResourceDeletion/WasResourceDeleted query policy separately from acquisition under
+    Phase 1's contract. Preserve retained shader/program deletion semantics and old-association safety.
+  ☐ Reconcile every analysis row with an implemented disposition and evidence; remove superseded forced
+    refresh paths, redundant checks and caller-managed pairing. Preserve required discovery and recovery.
+  ☐ Have subagents verify available/raw-alias/unknown/unavailable/local-tool scenarios, dependent invalidation,
+    failed commands, context loss, name reuse, supported adapters and binding-preserving fallback readers.
+    Run affected regressions/package checks, second-review and independently audit acquisition repairs.
+  ☐ Completion: all analyzed methods have verified dispositions; no foundation repair is deferred to consumers.
+
+Phase 8: Require supplied metadata for binding preparation
+  Depends on Phase 7. Sources: proposal Decisions and acceptance; Rendering.ShaderBindingState.md,
+  Prepared resource submission. Supplied-metadata-only preparation is already approved; no new design gate.
+
+  ☐ Make GpuPreparedBindings constructor require GpuProgramMetadata; remove optional/native query paths
+    and ReadBlocks reflection, and remove its program-ID parameter if unused. No hidden manager acquisition.
+  ☐ Update GpuProgramInterface and all callers to supply available complete metadata. Preserve fixed-slot,
+    activity, array, block-size/stage, atomic-counter and authored-contract validation and prepared tables.
+  ☐ Update StandaloneNumericInputTests and ReflectionQueries consumers to measure acquisition at its actual
+    boundary. Reject unavailable/incomplete facts rather than querying to fill gaps.
+  ☐ Have subagents verify valid/incomplete/incompatible snapshots and production preparation with zero
+    native acquisition from supplied snapshots. Reconcile current shader-binding docs, run affected
+    regressions/package checks, second-review and independently audit preparation.
+  ☐ Completion: preparation only validates and prepares supplied facts; no native acquisition fallback remains.
+
+Phase 9: Qualify and reconcile the complete foundation
+  Depends on Phase 8. Sources: proposal Decisions and acceptance; parent validation and downstream gates.
+
+  ☐ Freeze candidate source/binary identity. Have subagents run matched native query/bind probes against
+    analysis receipts, separating binding recovery, verification, driver discovery, creation and publication.
+    Measure allocation/dispatch overhead and check outputs/restored state, not merely reduced query counts.
+  ☐ Have subagents run affected suites and canonical build/package verification. Cover failures, interrupted
+    groups, aliases, dependencies, deferred work, ownership/disposal/detach, contexts and DSA/fallback paths.
+    Report capability gaps explicitly; headless receipts do not establish live appearance or frame time.
+  ☐ Remove temporary migration compatibility paths and newly introduced probe scaffolding; retain receipts.
+    Coordinate existing ResourceCallObserver removal with parent Phase 6 so its later measurements remain
+    possible. No automatic game launch; visual acceptance stays user-run.
+  ☐ Reconcile proposal/inventory/API contracts and current architecture documentation with implemented
+    behavior. Supply completion evidence for the delegating parent phase; leave consumer, RHI and
+    multi-bind work open. Do not mark the parent plan complete on this checklist's completion.
+  ☐ Perform a second review and independent completion audit against every proposal requirement, resource
+    family and analysis disposition. Resolve required findings before checking completion items.
+  ☐ Completion: all approved creation/publication/binding/preparation changes are implemented and verified,
+    unresolved evidence limits are explicit and parent consumer work can proceed on the repaired foundation.

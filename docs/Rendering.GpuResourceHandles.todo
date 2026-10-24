@@ -2,13 +2,15 @@ GPU resource metadata registry and typed resource wrappers
 =========================================================
 
 Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
-Status: Phases 1–4d complete. Joint binding/acquisition architectural discussion is next.
+Status: Phases 1–4e complete. Phase 4f delegates implementation to Rendering.CommandPublication.todo.
 Persistent consumer integration and integrated qualification remain unchecked.
 Phase 7 is a separately requested follow-on RHI design; it does not authorize runtime migration.
 
 Planning authority
   The governing contracts record the agreed manager-owned metadata direction. The linked proposal,
-  inventory and API matrix agree with those contracts; later implementation remains governed by them.
+  inventory and API matrix govern retained contracts. The approved CommandPublication proposal refines
+  creation and execution/publication mechanics; its checklist owns reconciliation of those mechanics
+  before implementation. Existing runtime behavior is not evidence that this refinement is implemented.
 
 Goal and governing contracts
   Define one canonical metadata struct for each resource kind. GpuResourceManager owns the common
@@ -941,131 +943,42 @@ Phase 4d: Analyze binding-cache behavior and metadata acquisition queries
     confirmed redundancies, required reads and unresolved questions. Completion requires coverage of
     every named method and a second review of findings against the current implementation and contracts.
 
-Phase 4e: Discuss and agree binding-cache and metadata acquisition architecture
-  Depends on Phase 4d. Discuss the findings with the user before implementing an architectural change.
-  Sources: Phase 4d findings and its linked proposal, inventory and API coverage contracts.
-  Outcome: an explicitly approved architectural direction before building further consumer integration.
+Phase 4e: Record the approved command-publication architecture
+  Depends on Phase 4d.
+  Decision: the user approved [the command-publication proposal](Rendering.CommandPublication.Proposal.md).
+  Sources: that proposal and [the analysis](Rendering.GpuResourceHandles.Analysis.md).
+  Outcome: the architectural direction and delegated implementation contract are explicit.
 
-  ☐ Discuss binding knowledge and resource metadata together while retaining their distinct ownership:
-    StateCache tracks selections and suppresses redundant commands; the manager owns resource facts
-    and typed publication. Agree when command-established facts can be retained, when external changes
-    invalidate them, and when queries are necessary. Notification alone must not imply invalidation.
-  ☐ Discuss how to distinguish VGE-established metadata, external acquisition, driver-derived facts
-    and recovery from unavailable state. Decide which layer owns each responsibility and whether
-    acquisition, registry lookup and command-result publication need separate APIs.
-  ☐ Decide whether each begin/complete observer needs its current structure, a simpler post-command
-    notification or another explicitly justified arrangement. Discuss token capture, availability
-    transitions, exception/rejection handling and grouped updates separately from readback policy.
-    Decide when managed commands and intercepted external calls can share behavior. Retaining a
-    notification mechanism does not require retaining its existing invalidation/query policy.
-  ☐ Review whether the begin/complete pattern is the best system-wide foundation, rather than merely
-    correcting individual observers. Compare concrete designs such as explicit begin/complete tokens,
-    scoped operation objects, centralized command execution with publication, and post-command
-    notifications. Use representative binding, allocation, association and program-link operations
-    to show each design's control flow, ownership, failure behavior and extension points.
-    Evaluate correctness, clarity, compiler-enforced usage, ease of testing, query/allocation overhead,
-    duplicated bookkeeping and the risk of missed or double completion/publication. Include grouped
-    operations, deferred completion and context/lifetime boundaries without assuming they all need
-    the same mechanism. Assess compatibility with the future GpuCommand/GpuCommandList RHI direction
-    in Phase 7 without implementing or prematurely committing that separate design.
-    Recommend the cleanest durable architecture from these tradeoffs, not preservation of the current
-    pattern merely because it exists or abstraction for its own sake. Discuss the recommendation with
-    the user and obtain approval before implementation; record rejected alternatives and reasons in
-    the planning decision. Expand 4f/4g as needed so approved foundational restructuring is completed
-    before further consumer integration, rather than deferred behind local fixes.
-  ☐ Compare concrete alternatives using the per-method findings, including targeted corrections versus
-    a broader refactor. Discuss query costs, complexity, correctness and migration impact without
-    preselecting a design or moving metadata authorship into resource wrappers by assumption.
-  ☐ Agree how commands establish successful results, how rejected commands preserve actual metadata,
-    and which facts still require native queries. Preserve manager-owned canonical state, typed
-    notifications, alias/dependency coherence, lifecycle identity, context and error-handling contracts.
-  ☐ Resolve how raw-ID aliases of VGE resources, externally mutable objects and context-local tools
-    select their acquisition/publication paths without introducing another authoritative registry.
-  ☐ Present a concrete recommendation and obtain the user's architectural approval. Record the decision
-    and reconcile the proposal, inventory and API matrix only with the approved changes.
-  ☐ Refine Phases 4f and 4g into method-specific implementation tasks from the approved decision.
-    Repair binding behavior first because acquisition uses binding scopes and cache recovery; then
-    repair acquisition against that corrected foundation. Neither implementation starts before this
-    shared architectural approval. Discussion approval does not establish implementation completion.
-    Assign approved selector/routing observer changes to 4f and resource metadata/storage observer
-    changes to 4g, with explicit dependencies for shared machinery so it is not redesigned twice.
-  ☐ Completion: the user has approved the architectural decision, unresolved foundation issues have
-    explicit implementation tasks and acceptance criteria, and Phase 5 is blocked until those tasks
-    are implemented and verified. Do not defer required foundation repairs to consumer integration.
+  ☑ Record the approved responsibility split: explicit StateCache command methods own dispatch and
+    completion; the manager owns creation, canonical facts and publication; wrappers supply initialization
+    records and receive snapshots. Retain internal grouping/deferred handling where operations require it.
+  ☑ Delegate remaining command-success policy, initialization-field/default contracts and wrapper handoff
+    decisions to Phase 1 of [Rendering.CommandPublication.todo](Rendering.CommandPublication.todo).
+    Its decision gate precedes runtime changes. Approval of the architecture does not settle those details.
+  ☑ Confirm the delegated checklist covers the analysis findings, initialization families, rejected and
+    interrupted operations, binding restoration, identity/context safety and supplied-metadata preparation.
+  ☑ Completion: the approved direction and remaining decisions have explicit owners in the delegated
+    checklist, and consumer integration remains gated on verified implementation in Phase 4f.
 
-Phase 4f: Repair binding-cache behavior under the approved architecture
-  Depends on Phase 4e and explicit architectural approval. Scope is binding repairs, not acquisition
-  redesign; Phase 4e must refine these tasks before implementation.
-  Sources: Phase 4d findings, Phase 4e decision and their reconciled linked contracts.
+Phase 4f: Implement and verify command publication
+  Depends on Phase 4e.
+  Sources: [approved proposal](Rendering.CommandPublication.Proposal.md) and
+  [authoritative implementation checklist](Rendering.CommandPublication.todo).
+  Outcome: repaired bindings, manager-owned creation/publication, targeted acquisition and preparation
+  from supplied metadata provide the verified foundation for consumer integration.
 
-  ☐ Repair UseProgramBinding, BindVertexArray and BindProgramPipeline according to the agreed
-    command-result contract, preserving equal-binding suppression and required selector semantics.
-  ☐ Repair BindBuffer(ElementArrayBuffer) and VertexArrayElementBuffer cache maintenance while
-    preserving VAO metadata notifications, helper revisions and named-command selection behavior.
-  ☐ Repair GpuVertexAttribBinding construction, BindVertexBuffer, SetDivisor and RequireCurrentFacts
-    so established managed facts are retained under the approved contract; preserve stale-copy safety.
-  ☐ Reconcile external buffer/VAO/program selector and framebuffer-routing observation with the agreed
-    invalidation rules. Preserve exact native calls, errors and genuinely unknown-state recovery.
-  ☐ Have subagents verify changed/unchanged/unknown bindings, rejected commands, external mutations,
-    DSA/fallback paths, deletion/name reuse, helper revisions and boundary restoration. Compare native
-    bind/query counts against Phase 4d evidence and qualify the resulting acquisition binding scopes.
-  ☐ Reconcile current documentation, run affected regressions and canonical package checks through
-    subagents, then perform second review and independent completion audit before checking off work.
-  ☐ Completion: approved binding repairs are verified, required metadata notifications remain intact,
-    and the corrected binding/query baseline is available for acquisition changes. No performance
-    claim follows from call counts alone.
-
-Phase 4g: Repair metadata acquisition under the approved architecture
-  Depends on completed Phase 4f and the Phase 4e architectural decision. Phase 4e must refine these
-  tasks into method-specific migrations before implementation.
-  Sources: Phase 4d per-method findings, Phase 4e decision, Phase 4f evidence and reconciled contracts.
-
-  ☐ Implement the approved disposition for each acquisition/publication/reader method analyzed in 4d.
-    Separate established managed facts from external discovery and driver-derived facts as agreed;
-    remove confirmed redundant reads without introducing wrapper-authored or duplicate metadata.
-  ☐ Apply the agreed policy to raw-ID aliases, existing entries, backing dependencies, unavailable
-    metadata and context-local tools. Preserve recovery, alias publication and native lifetime safety.
-  ☐ Have subagents measure acquisition queries against the corrected Phase 4f baseline, separating
-    acquisition reads from binding recovery. Verify failed commands, external changes, dependency
-    propagation, available-entry reuse and correctness across supported DSA/fallback paths.
-  ☐ Reconcile current documentation, run affected regressions and canonical package checks through
-    subagents, then perform second review and independent completion audit before checking off work.
-  ☐ Completion: all approved acquisition repairs are implemented and verified, per-method query
-    dispositions match evidence, and no required foundation repair is deferred to consumer integration.
-
-Phase 4h: Make GpuPreparedBindings consume supplied metadata exclusively
-  Depends on Phase 4g so the preparation boundary uses the corrected acquisition contract.
-  Approved implementation direction: GpuPreparedBindings only validates and prepares bindings from
-  supplied metadata. This decision does not require another alternatives analysis or approval gate.
-  Sources: [proposal](Rendering.GpuResourceHandles.Proposal.md),
-  [inventory](Rendering.GpuResourceHandles.Inventory.md),
-  [shader binding architecture](Rendering.ShaderBindingState.md).
-
-  ☐ Require a non-nullable GpuProgramMetadata snapshot in the GpuPreparedBindings constructor.
-    Remove the optional metadata argument and every direct-GL reflection/query fallback from the
-    constructor and ReadBlocks. Remove the program ID parameter if no remaining responsibility needs it.
-  ☐ Keep metadata acquisition outside GpuPreparedBindings. Update GpuProgramInterface and every
-    other caller to supply the snapshot through the manager-owned acquisition/publication boundary;
-    do not replace the removed GL calls with hidden acquisition inside GpuPreparedBindings.
-  ☐ Preserve existing fixed-slot contract validation, resource activity, arrays, block sizes/stage
-    checks, atomic-counter bindings, diagnostic projections and prepared lookup tables. Reject
-    unavailable or incomplete metadata explicitly; never query native state to fill missing facts.
-  ☐ Update StandaloneNumericInputTests to supply metadata while preserving its original validation
-    assertion. Reconcile ReflectionQueries and its consumers with the class's query-free responsibility;
-    count native acquisition at its actual boundary where measurement remains required.
-  ☐ Have subagents run focused preparation/contract tests covering valid snapshots, unavailable or
-    incomplete facts and incompatible contracts. Verify preparation from an already supplied snapshot
-    requires no native queries, and exercise production preparation through GpuProgramInterface.
-  ☐ Update current shader-binding documentation and reconcile the proposal/inventory responsibility
-    statements. Have subagents run affected builds/tests and canonical package verification, then
-    perform a second review and independent completion audit before checking off this subphase.
-  ☐ Completion: GpuPreparedBindings derives its prepared tables solely from supplied metadata and
-    contracts, all callers provide the required snapshot, and no native acquisition fallback remains.
+  ☐ Complete the CommandPublication checklist, including its decision gate, ordered implementation,
+    documentation reconciliation, delegated builds/tests/package checks and independent completion audit.
+    That checklist owns all detailed tasks and evidence; do not maintain a duplicate implementation here.
+  ☐ Verify its completion against the approved proposal and retained resource ownership, lifecycle,
+    context, interception and error-handling contracts before marking this parent phase complete.
+  ☐ Completion: the entire delegated checklist is implemented and verified. Proposal approval or a
+    partially completed child checklist does not release Phase 5's gate.
 
 Phase 5: Integrate persistent cloud and depth resources
-  Depends on Phases 3, 4, 4a–4h and their verified retained native coverage.
-  Gate: binding repairs in Phase 4f, acquisition repairs in Phase 4g and supplied-metadata preparation
-  in Phase 4h must be complete and verified before starting this phase.
+  Depends on Phases 3, 4, 4a–4f and their verified retained native coverage.
+  Gate: Phase 4f, including the entire CommandPublication checklist, must be complete and verified
+  before starting this phase.
   Outcome: cloud/depth consumers use the common resource mechanism without repeated stable acquisition.
 
   ☐ Update CloudNativeMapAdapter/CloudNativeRuntime and cloud consumers to retain common tracked
@@ -1228,8 +1141,8 @@ Proposal traceability
   Legacy fixed-function/compatibility exclusions and implementation removal: Phase 4b.
   GL/Core, EXT and ARB interception-owner restriction: Phase 4c.
   Joint binding/acquisition analysis and architectural approval: Phases 4d and 4e.
-  Binding-cache repairs followed by metadata acquisition repairs: Phases 4f and 4g.
-  GpuPreparedBindings validation/preparation from supplied metadata exclusively: Phase 4h.
+  Command-publication implementation, including binding/acquisition repairs and supplied-metadata
+  preparation: Phase 4f delegates to Rendering.CommandPublication.todo.
   Cloud/depth consumers and content contracts: Phase 5.
   Scope, source layout and documentation: governing contracts; Phases 2–6.
   Acceptance and measurements: baseline in Phase 1; focused verification in Phases 2–5; Phase 6.

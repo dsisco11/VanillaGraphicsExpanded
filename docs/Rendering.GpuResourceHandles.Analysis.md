@@ -204,7 +204,11 @@ These extend the checklist rather than hiding additional work in a generic catch
 | `StateCache.CompleteResourceDeletion` / `WasResourceDeleted` | All deletion routes: Is-kind getter, and delete status for retained shader/program objects. These are outcome checks, not metadata acquisition; record separately so future query policy includes owned deletion without assuming immediate physical reclamation. |
 | `GpuPreparedBindings` constructor / `ReadBlocks` | Production GpuProgramInterface supplies acquired metadata; optional fallback still queries GL. Already approved phase 4h removes this responsibility; do not duplicate that implementation in acquisition repairs. |
 
-## Decisions for phase 4e
+## Architectural decision inputs
+
+The discussion below records the questions raised by this analysis. The resulting
+[approved proposal](Rendering.CommandPublication.Proposal.md) and
+[implementation checklist](Rendering.CommandPublication.todo) now govern their resolution and repairs.
 
 Confirmed repeated work: realized-buffer double validity checks; shader stage discovery after creation;
 helper result constructors rereading supplied binding fields; full texture storage scan after base/max
@@ -219,7 +223,7 @@ and recovery from unavailable state where no accepted-result evidence exists. Na
 other fields are already established. Coverage-qualified raw aliases and unsupported third-party IDs
 must have distinct dispositions.
 
-The next discussion must settle: command acceptance evidence for controlled versus arbitrary external
+The analysis identified these decisions: command acceptance evidence for controlled versus arbitrary external
 commands; whether begin/complete tokens, scoped execution or centralized execution best enforce it;
 how full acquisition differs from narrow publication; how binding knowledge survives metadata updates;
 how groups/aliases/deferred linking fit the same rules; and how local tools retain conservative recovery.
@@ -229,9 +233,10 @@ implicitly selected. Repairs remain ordered binding first, acquisition second, s
 ## Verification status
 
 Source tracing, second review and independent completion audit are complete. Every named task and
-additional entry point has a disposition above; phase 4d is complete. Architecture approval and
-runtime repairs remain open in phases 4e–4h. The independent audit verified all 803 recorded
-source/binary identities against the current files. [Probe receipts](../artifacts/gpu-resource-phase4d/README.md),
+additional entry point has a disposition above; phase 4d is complete. Architecture approval is recorded
+in the linked proposal; runtime repairs remain delegated by Phase 4f to the CommandPublication checklist.
+The phase 4d independent audit verified all 803 recorded source/binary identities against the files at
+that review. [Probe receipts](../artifacts/gpu-resource-phase4d/README.md),
 [counts](../artifacts/gpu-resource-phase4d/counts.json),
 [source identities](../artifacts/gpu-resource-phase4d/source-identities.json) and
 [call-site index](../artifacts/gpu-resource-phase4d/source-calls.txt) retain reproducible evidence.
