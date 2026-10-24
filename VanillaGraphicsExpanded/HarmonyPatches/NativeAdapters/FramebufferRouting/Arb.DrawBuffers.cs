@@ -8,107 +8,23 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.FramebufferRouti
 internal static unsafe partial class Arb
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DrawBuffers(int @n, ref ArbDrawBuffers @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.DrawBuffers(@n, ref @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DrawBuffers(int @n, ref ArbDrawBuffers @bufs) => StateCache.Current.ExecuteArbDrawBuffers(@n, ref @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DrawBuffers(int @n, ArbDrawBuffers[] @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.DrawBuffers(@n, @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DrawBuffers(int @n, ArbDrawBuffers[] @bufs) => StateCache.Current.ExecuteArbDrawBuffers(@n, @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DrawBuffers(int @n, ArbDrawBuffers* @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.DrawBuffers(@n, @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DrawBuffers(int @n, ArbDrawBuffers* @bufs) => StateCache.Current.ExecuteArbDrawBuffers(@n, @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DrawBuffers(int @n, ref DrawBufferMode @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.DrawBuffers(@n, ref @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DrawBuffers(int @n, ref DrawBufferMode @bufs) => StateCache.Current.ExecuteArbDrawBuffers(@n, ref @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DrawBuffers(int @n, DrawBufferMode[] @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.DrawBuffers(@n, @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DrawBuffers(int @n, DrawBufferMode[] @bufs) => StateCache.Current.ExecuteArbDrawBuffers(@n, @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DrawBuffers(int @n, DrawBufferMode* @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.DrawBuffers(@n, @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DrawBuffers(int @n, DrawBufferMode* @bufs) => StateCache.Current.ExecuteArbDrawBuffers(@n, @bufs);
 
     #endregion
 }

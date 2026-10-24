@@ -54,6 +54,7 @@ internal sealed partial class StateCache
                 if (currentFramebuffer == id) currentFramebuffer = 0;
                 break;
             case GpuResourceKind.VertexArray:
+                VertexConfigurationEpoch++;
                 RecordBoundaryRetirement(EPipelineState.VertexArray, id);
                 elementArrayBufferByVao.Remove(id);
                 if (currentVao == id) currentVao = 0;

@@ -37,9 +37,15 @@ internal abstract class BindScopeTracker<TTracker> where TTracker : BindScopeTra
         int previous = Instance.GetCurrent();
         Push(previous);
 
-        if (id != previous)
+        try
         {
-            Instance.Bind(id);
+            if (id != previous) Instance.Bind(id);
+        }
+        catch
+        {
+            // A scope that never began must not leave an unmatched restoration frame.
+            PopOrDefault();
+            throw;
         }
 
         return previous;

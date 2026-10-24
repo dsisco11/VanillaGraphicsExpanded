@@ -157,36 +157,6 @@ internal sealed partial class StateCache
         return true;
     }
 
-    /// <summary>Selects an executable only when its binding is unknown or different.</summary>
-    public void UseProgram(int programId)
-    {
-        ProgramScopeTracker.ForgetCurrent();
-        UseProgramBinding(programId);
-    }
-
-    /// <summary>Binds through the single native cache without withdrawing an admitted owner.</summary>
-    private void UseProgramBinding(int programId)
-    {
-        if (currentProgramStagesKnown && currentProgram == programId) return;
-        currentProgram = null;
-        currentProgramStagesKnown = false;
-        try
-        {
-            GL.UseProgram(programId);
-            currentProgramStagesKnown = GetCurrentProgram() == programId;
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
-    }
-
-    /// <summary>Records a completed full-program installation, rather than a uniform-destination query.</summary>
-    public void NotifyProgramBound(int programId)
-    {
-        currentProgram = programId;
-        currentProgramStagesKnown = true;
-    }
-
     public void UnbindProgram()
     {
         UseProgram(0);
@@ -207,26 +177,6 @@ internal sealed partial class StateCache
         }
 
         return currentVao.Value;
-    }
-
-    /// <summary>Selects a VAO without discarding its retained element-buffer association.</summary>
-    public void BindVertexArray(int vaoId)
-    {
-        if (currentVao == vaoId) return;
-        currentVao = null;
-        try
-        {
-            GL.BindVertexArray(vaoId);
-            // Rejected selectors preserve the previous native VAO. Cache that result,
-            // not the requested name, before a bound metadata command selects its entry.
-            GetCurrentVao();
-
-            // A borrowed VAO may already own an EBO. Leave unknown associations uncached
-            // until queried or observed through BindBuffer rather than inventing a zero binding.
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
     }
 
     public void UnbindVertexArray()
@@ -318,10 +268,11 @@ internal sealed partial class StateCache
     /// <summary>Preserves actual bindings, optionally binding a temporary target; combined scopes preserve read and draw independently.</summary>
     public FramebufferScope BindFramebufferScope(FramebufferTarget target = FramebufferTarget.Framebuffer, int? fboId = null)
     {
-        int previousRead = GL.GetInteger(GetPName.ReadFramebufferBinding);
-        int previousDraw = GL.GetInteger(GetPName.DrawFramebufferBinding);
-        SetFramebufferCache(FramebufferTarget.ReadFramebuffer, previousRead);
-        SetFramebufferCache(FramebufferTarget.DrawFramebuffer, previousDraw);
+        // A one-direction scope neither changes nor needs to discover the other binding.
+        int previousRead = target == FramebufferTarget.DrawFramebuffer ? 0
+            : GetCurrentFramebuffer(FramebufferTarget.ReadFramebuffer);
+        int previousDraw = target == FramebufferTarget.ReadFramebuffer ? 0
+            : GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer);
         if (fboId.HasValue) BindFramebuffer(target, fboId.Value);
         return new FramebufferScope(this, target, previousRead, previousDraw);
     }
@@ -387,20 +338,6 @@ internal sealed partial class StateCache
         { currentProgramPipeline = 0; }
 
         return currentProgramPipeline.Value;
-    }
-
-    public void BindProgramPipeline(int pipelineId)
-    {
-        if (currentProgramPipeline == pipelineId) return;
-        currentProgramPipeline = null;
-        try
-        {
-            GL.BindProgramPipeline(pipelineId);
-            GetCurrentProgramPipeline();
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
     }
 
     public void UnbindProgramPipeline()
@@ -900,11 +837,12 @@ internal sealed partial class StateCache
             }
             finally
             {
-                // A rejected bind retains its old native value; recover it on demand.
+                // Publish the independent configuration revision; exceptions keep it unavailable.
                 observation.Complete(returned);
             }
-            // Retain binding suppression using the actual result, including a rejected bind.
-            if (returned) GetBoundBuffer(target);
+            // Revision publication and binding knowledge are independent. The observer
+            // invalidates aliases; this controlled command establishes only its EBO fact.
+            if (returned) observation.EstablishElementBinding(bufferId);
             return;
         }
 
@@ -964,29 +902,42 @@ internal sealed partial class StateCache
         }
     }
 
+    /// <summary>Captures known generic or VAO-owned binding facts before a temporary selection.</summary>
     public BufferScope BindBufferScope(BufferTarget target, int bufferId)
     {
+        int? vao = target == BufferTarget.ElementArrayBuffer ? GetCurrentVao() : null;
         int previous = GetBoundBuffer(target);
 
         BindBuffer(target, bufferId);
-        return new BufferScope(this, target, previous);
+        return new BufferScope(this, target, previous, vao);
     }
 
+    /// <summary>Restores the original buffer selector and, for element buffers, its owning VAO association.</summary>
     public readonly struct BufferScope : IDisposable
     {
         private readonly StateCache cache;
         private readonly BufferTarget target;
         private readonly int previous;
+        private readonly int? vao;
 
-        public BufferScope(StateCache cache, BufferTarget target, int previous)
+        /// <summary>Captures the generic selector or the original VAO-owned element selector.</summary>
+        public BufferScope(StateCache cache, BufferTarget target, int previous, int? vao = null)
         {
             this.cache = cache;
             this.target = target;
             this.previous = previous;
+            this.vao = vao;
         }
 
+        /// <summary>Restores an element association on its original VAO without changing a later selection.</summary>
         public void Dispose()
         {
+            if (vao.HasValue && cache.GetCurrentVao() != vao.Value)
+            {
+                using var selection = cache.BindVertexArrayScope(vao.Value);
+                cache.BindBuffer(target, previous);
+                return;
+            }
             cache.BindBuffer(target, previous);
         }
     }
@@ -1061,7 +1012,7 @@ internal sealed partial class StateCache
             BufferTarget.UniformBuffer => GetPName.UniformBufferBinding,
             BufferTarget.ShaderStorageBuffer => GetPName.ShaderStorageBufferBinding,
             BufferTarget.TextureBuffer => GetPName.TextureBuffer, // GL_TEXTURE_BUFFER_BINDING
-            BufferTarget.AtomicCounterBuffer => (GetPName)All.AtomicCounterBufferStart, // GL_ATOMIC_COUNTER_BUFFER_BINDING
+            BufferTarget.AtomicCounterBuffer => (GetPName)All.AtomicCounterBufferBinding, // GL_ATOMIC_COUNTER_BUFFER_BINDING
             BufferTarget.TransformFeedbackBuffer => GetPName.TransformFeedbackBufferBinding,
             _ => default
         };

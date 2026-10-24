@@ -32,10 +32,11 @@ public sealed class EngineFramebufferRoutingTests(HeadlessGLFixture fixture) : R
             using var calls = new GraphicsTransitionCapture();
             ChangeRouting(array);
             ChangeRouting(array);
-            Assert.Single(calls.Calls, call => call.StartsWith("Routing"));
+            // Exact intercepted calls remain observable even when their routing arguments repeat.
+            Assert.Equal(2, calls.Calls.Count(call => call.StartsWith("Routing")));
             Assert.Equal(DrawBuffersEnum.ColorAttachment1, cache.CaptureFramebufferDrawRouting(target.FboId)[0]);
             cache.SetDrawBuffer(DrawBufferMode.ColorAttachment0);
-            Assert.Equal(2, calls.Calls.Count(call => call.StartsWith("Routing")));
+            Assert.Equal(3, calls.Calls.Count(call => call.StartsWith("Routing")));
             Assert.Equal((int)DrawBufferMode.ColorAttachment0, GL.GetInteger(GetPName.DrawBuffer0));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }

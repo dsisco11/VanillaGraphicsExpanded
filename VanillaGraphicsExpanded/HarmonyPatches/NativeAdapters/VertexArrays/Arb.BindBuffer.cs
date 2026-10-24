@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.VertexArrays;
 internal static unsafe partial class Arb
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void BindBuffer(BufferTargetArb @target, int @buffer)
-    {
-        var observation = StateCache.BeginNativeBufferBinding((BufferTarget)@target);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BindBuffer(@target, @buffer);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void BindBuffer(BufferTargetArb @target, int @buffer) => StateCache.Current.ExecuteArbBindBuffer(@target, @buffer);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void BindBuffer(BufferTargetArb @target, uint @buffer)
-    {
-        var observation = StateCache.BeginNativeBufferBinding((BufferTarget)@target);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BindBuffer(@target, @buffer);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void BindBuffer(BufferTargetArb @target, uint @buffer) => StateCache.Current.ExecuteArbBindBuffer(@target, @buffer);
 
     #endregion
 }

@@ -17,6 +17,8 @@ internal sealed partial class StateCache
             returned = true;
         }
         finally { observation.Complete(returned); }
+        // Binding knowledge survives the independent configuration revision notification.
+        observation.EstablishElementBinding(buffer);
     }
 
     /// <summary>Executes VertexArrayVertexBuffer and invalidates retained VAO helper assumptions.</summary>

@@ -55,6 +55,9 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
             EngineStateCalls.BindBuffer(BufferTarget.ArrayBuffer, buffer);
             EngineStateCalls.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             EngineStateCalls.BindVertexArray(array);
+            // Exact external selectors leave affected facts unknown until a consumer recovers them.
+            Assert.Equal(array, cache.GetCurrentVao());
+            Assert.Equal(framebuffer, cache.GetCurrentFramebuffer(FramebufferTarget.DrawFramebuffer));
             EngineStateCalls.DeleteTexture(texture);
             Assert.True(cache.TryGetCachedActiveTextureUnit(out var activeUnit));
             Assert.Equal(0, activeUnit);

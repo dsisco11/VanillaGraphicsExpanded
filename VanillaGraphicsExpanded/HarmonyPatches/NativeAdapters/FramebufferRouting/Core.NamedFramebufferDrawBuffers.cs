@@ -8,107 +8,23 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.FramebufferRouti
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void NamedFramebufferDrawBuffers(int @framebuffer, int @n, ref DrawBuffersEnum @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
-        bool returned = false;
-        try
-        {
-            GL.NamedFramebufferDrawBuffers(@framebuffer, @n, ref @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void NamedFramebufferDrawBuffers(int @framebuffer, int @n, ref DrawBuffersEnum @bufs) => StateCache.Current.ExecuteCoreNamedFramebufferDrawBuffers(@framebuffer, @n, ref @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void NamedFramebufferDrawBuffers(int @framebuffer, int @n, DrawBuffersEnum[] @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
-        bool returned = false;
-        try
-        {
-            GL.NamedFramebufferDrawBuffers(@framebuffer, @n, @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void NamedFramebufferDrawBuffers(int @framebuffer, int @n, DrawBuffersEnum[] @bufs) => StateCache.Current.ExecuteCoreNamedFramebufferDrawBuffers(@framebuffer, @n, @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void NamedFramebufferDrawBuffers(int @framebuffer, int @n, DrawBuffersEnum* @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
-        bool returned = false;
-        try
-        {
-            GL.NamedFramebufferDrawBuffers(@framebuffer, @n, @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void NamedFramebufferDrawBuffers(int @framebuffer, int @n, DrawBuffersEnum* @bufs) => StateCache.Current.ExecuteCoreNamedFramebufferDrawBuffers(@framebuffer, @n, @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void NamedFramebufferDrawBuffers(uint @framebuffer, int @n, ref DrawBuffersEnum @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
-        bool returned = false;
-        try
-        {
-            GL.NamedFramebufferDrawBuffers(@framebuffer, @n, ref @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void NamedFramebufferDrawBuffers(uint @framebuffer, int @n, ref DrawBuffersEnum @bufs) => StateCache.Current.ExecuteCoreNamedFramebufferDrawBuffers(@framebuffer, @n, ref @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void NamedFramebufferDrawBuffers(uint @framebuffer, int @n, DrawBuffersEnum[] @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
-        bool returned = false;
-        try
-        {
-            GL.NamedFramebufferDrawBuffers(@framebuffer, @n, @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void NamedFramebufferDrawBuffers(uint @framebuffer, int @n, DrawBuffersEnum[] @bufs) => StateCache.Current.ExecuteCoreNamedFramebufferDrawBuffers(@framebuffer, @n, @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void NamedFramebufferDrawBuffers(uint @framebuffer, int @n, DrawBuffersEnum* @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
-        bool returned = false;
-        try
-        {
-            GL.NamedFramebufferDrawBuffers(@framebuffer, @n, @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void NamedFramebufferDrawBuffers(uint @framebuffer, int @n, DrawBuffersEnum* @bufs) => StateCache.Current.ExecuteCoreNamedFramebufferDrawBuffers(@framebuffer, @n, @bufs);
 
     #endregion
 }

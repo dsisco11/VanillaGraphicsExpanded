@@ -205,7 +205,6 @@ internal sealed partial class StateCache
     {
         if (bufferBindingByTarget.TryGetValue(target, out var value) && value.HasValue) return value.Value;
         if (!TryGetBufferBindingQuery(target, out var query)) throw new InvalidOperationException("Unsupported generic buffer footprint.");
-        if (target == BufferTarget.AtomicCounterBuffer) query = (GetPName)All.AtomicCounterBufferBinding;
         int result = QueryBoundary(() => GL.GetInteger(query));
         bufferBindingByTarget[target] = result;
         return result;

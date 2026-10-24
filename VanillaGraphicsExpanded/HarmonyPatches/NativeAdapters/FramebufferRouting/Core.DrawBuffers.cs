@@ -8,56 +8,14 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.FramebufferRouti
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DrawBuffers(int @n, ref DrawBuffersEnum @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.DrawBuffers(@n, ref @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DrawBuffers(int @n, ref DrawBuffersEnum @bufs) => StateCache.Current.ExecuteCoreDrawBuffers(@n, ref @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DrawBuffers(int @n, DrawBuffersEnum[] @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.DrawBuffers(@n, @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DrawBuffers(int @n, DrawBuffersEnum[] @bufs) => StateCache.Current.ExecuteCoreDrawBuffers(@n, @bufs);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DrawBuffers(int @n, DrawBuffersEnum* @bufs)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.DrawBuffers(@n, @bufs);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DrawBuffers(int @n, DrawBuffersEnum* @bufs) => StateCache.Current.ExecuteCoreDrawBuffers(@n, @bufs);
 
     #endregion
 }

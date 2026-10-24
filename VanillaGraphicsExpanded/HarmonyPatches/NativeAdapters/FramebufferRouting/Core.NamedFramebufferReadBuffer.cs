@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.FramebufferRouti
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void NamedFramebufferReadBuffer(int @framebuffer, ReadBufferMode @src)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, true);
-        bool returned = false;
-        try
-        {
-            GL.NamedFramebufferReadBuffer(@framebuffer, @src);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void NamedFramebufferReadBuffer(int @framebuffer, ReadBufferMode @src) => StateCache.Current.ExecuteCoreNamedFramebufferReadBuffer(@framebuffer, @src);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void NamedFramebufferReadBuffer(uint @framebuffer, ReadBufferMode @src)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, true);
-        bool returned = false;
-        try
-        {
-            GL.NamedFramebufferReadBuffer(@framebuffer, @src);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void NamedFramebufferReadBuffer(uint @framebuffer, ReadBufferMode @src) => StateCache.Current.ExecuteCoreNamedFramebufferReadBuffer(@framebuffer, @src);
 
     #endregion
 }

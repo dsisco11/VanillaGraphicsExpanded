@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Programs;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void ActiveProgram(int @program)
-    {
-        var observation = StateCache.BeginNativeProgramSelection(false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.ActiveProgram(@program);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void ActiveProgram(int @program) => StateCache.Current.ExecuteExtActiveProgram(@program);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void ActiveProgram(uint @program)
-    {
-        var observation = StateCache.BeginNativeProgramSelection(false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.ActiveProgram(@program);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void ActiveProgram(uint @program) => StateCache.Current.ExecuteExtActiveProgram(@program);
 
     #endregion
 }

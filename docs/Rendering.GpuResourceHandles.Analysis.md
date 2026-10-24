@@ -47,6 +47,15 @@ These rules apply to every row, including the reader and observer rows:
 
 ## Binding paths
 
+The binding increment in [CommandPublication](Rendering.CommandPublication.todo) implements these
+repairs; the rows below retain the original source baseline for comparison. Controlled selector
+transitions now retain inputs without post-bind queries. EBO commands retain per-VAO facts independently
+of revision publication. Known framebuffer scopes no longer issue binding getters, while cold
+single-direction scopes acquire only that direction. Helper result construction retains supplied fields;
+stale DSA getters acquire only the requested unknown field. Exact external selectors still dispatch
+unchanged and recover uncertain results lazily. These changes do not imply completion of the acquisition
+and publication findings later in this report.
+
 | Method and source | Production route and observations | Disposition |
 | --- | --- | --- |
 | `StateCache.UseProgramBinding` — `StateCache.Bindings.cs` | `UseProgram`, program-owner/scope and restoration paths converge here. Changed or unknown selection clears state, calls `UseProgram`, then `GetCurrentProgram`: one bind plus one query. Known equal selection skips both only with `currentProgramStagesKnown`. | Avoidable readback candidate for established managed transitions. Keep separate knowledge of full-stage installation: EXT stage/uniform-destination selectors cannot be equated to a full `UseProgram`. Raw rejected selectors need a defined recovery contract. |

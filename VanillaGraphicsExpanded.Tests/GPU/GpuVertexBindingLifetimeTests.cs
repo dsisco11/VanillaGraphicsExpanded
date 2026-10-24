@@ -1,4 +1,7 @@
 using OpenTK.Graphics.OpenGL;
+using System.Runtime.CompilerServices;
+using HarmonyLib;
+using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -36,21 +39,24 @@ public sealed class GpuVertexBindingLifetimeTests(HeadlessGLFixture fixture)
         }
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
-    /// <summary>A rejected DSA binding request cannot become the helper's cached buffer, offset or stride.</summary>
+    /// <summary>An intercepted rejected DSA binding request cannot become the helper's recovered buffer, offset or stride.</summary>
     [Fact]
     public void RejectedDirectBindingRetainsActualFacts()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = new Harmony("Tests.RejectedExternalVertexBinding");
+        harmony.Patch(AccessTools.Method(typeof(GpuVertexBindingLifetimeTests), nameof(RejectExternalBinding)),
+            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
         try
         {
             using var vao=GpuVao.Create(); using var buffer=GpuShaderStorageBuffer.Create(); buffer.Allocate(128);
             var helper=vao.GetBinding(1).BindVertexBuffer(buffer.BufferId,16,16);
-            var rejected=helper.BindVertexBuffer(int.MaxValue,32,24);
+            RejectExternalBinding(vao.VertexArrayId);
             Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
-            Assert.Equal(buffer.BufferId,rejected.BufferId); Assert.Equal(16,rejected.BaseOffsetBytes); Assert.Equal(16,rejected.StrideBytes);
+            Assert.Equal(buffer.BufferId,helper.BufferId); Assert.Equal(16,helper.BaseOffsetBytes); Assert.Equal(16,helper.StrideBytes);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Disposal or native deletion prevents old helpers from acquiring a replacement registration under the same name.</summary>
     [Theory]
@@ -121,5 +127,11 @@ public sealed class GpuVertexBindingLifetimeTests(HeadlessGLFixture fixture)
         }
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
+    #endregion
+
+    #region Private
+    /// <summary>Retains an exact external native call for production interception and rejection recovery.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void RejectExternalBinding(int vao) => GL.VertexArrayVertexBuffer(vao, 1, int.MaxValue, (IntPtr)32, 24);
     #endregion
 }

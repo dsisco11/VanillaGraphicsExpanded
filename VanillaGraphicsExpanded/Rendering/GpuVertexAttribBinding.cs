@@ -14,6 +14,12 @@ internal struct GpuVertexAttribBinding
     private readonly GpuVao? owner;
     private readonly (nint Handle, long Generation) context;
     private ulong metadataRevision;
+    private ulong localEpoch;
+    private BindingFacts knownFacts;
+
+    /// <summary>Identifies the selected binding fields retained by this helper value.</summary>
+    [Flags]
+    private enum BindingFacts { None = 0, Buffer = 1, Offset = 2, Stride = 4, Divisor = 8, All = 15 }
     private readonly int vaoId;
     private readonly int bindingIndex;
 
@@ -22,6 +28,8 @@ internal struct GpuVertexAttribBinding
     private int strideBytes;
     private int divisor;
 
+    #region Public API
+    #region Identity and binding facts
     /// <summary>
     /// Gets the VAO id this binding config targets.
     /// </summary>
@@ -35,50 +43,38 @@ internal struct GpuVertexAttribBinding
     /// <summary>
     /// Gets the buffer id bound to this binding (if known; primarily for fallback paths).
     /// </summary>
-    public int BufferId { get { RequireCurrentFacts(); return vboId; } }
+    public int BufferId { get { RequireCurrentFacts(BindingFacts.Buffer); return vboId; } }
 
     /// <summary>
     /// Gets the base byte offset for this binding (if known; primarily for fallback paths).
     /// </summary>
-    public nint BaseOffsetBytes { get { RequireCurrentFacts(); return baseOffsetBytes; } }
+    public nint BaseOffsetBytes { get { RequireCurrentFacts(BindingFacts.Offset); return baseOffsetBytes; } }
 
     /// <summary>
     /// Gets the stride (in bytes) for this binding (if known; primarily for fallback paths).
     /// </summary>
-    public int StrideBytes { get { RequireCurrentFacts(); return strideBytes; } }
+    public int StrideBytes { get { RequireCurrentFacts(BindingFacts.Stride); return strideBytes; } }
 
     /// <summary>
     /// Gets the instance divisor for this binding (0 for per-vertex).
     /// </summary>
-    public int Divisor { get { RequireCurrentFacts(); return divisor; } }
+    public int Divisor { get { RequireCurrentFacts(BindingFacts.Divisor); return divisor; } }
 
     /// <summary>Captures the owning wrapper so a retained helper cannot target a reused native name.</summary>
     public GpuVertexAttribBinding(GpuVao owner, int bindingIndex)
-        : this(owner, bindingIndex, vboId: 0, baseOffsetBytes: 0, strideBytes: 0, divisor: 0)
+        : this(owner, bindingIndex, vboId: 0, baseOffsetBytes: 0, strideBytes: 0, divisor: 0, discover: true)
     {
     }
 
-    /// <summary>Copies authored binding values with their owner's current metadata revision.</summary>
-    private GpuVertexAttribBinding(GpuVao owner, int bindingIndex, int vboId, nint baseOffsetBytes, int strideBytes, int divisor)
-    {
-        this.owner = owner;
-        context = Integration.RenderContextRegistry.Current();
-        metadataRevision = owner.ResourceManager?.GetResourceRegistration(owner)?.MetadataRevision ?? 0;
-        vaoId = owner.VertexArrayId;
-        this.bindingIndex = bindingIndex;
-        this.vboId = vboId;
-        this.baseOffsetBytes = baseOffsetBytes;
-        this.strideBytes = strideBytes;
-        this.divisor = divisor;
-        RequireCurrentFacts(refresh: GpuSupport.Graphics.SupportsArbDirectStateAccess);
-    }
+    #endregion
 
+    #region Configuration
     /// <summary>
     /// Binds a vertex buffer to this binding index within the VAO.
     /// </summary>
     public GpuVertexAttribBinding BindVertexBuffer(int vboId, nint offsetBytes, int strideBytes)
     {
-        RequireCurrentFacts();
+        RequireCurrentFacts(BindingFacts.Divisor);
         if (vaoId == 0)
         {
             Debug.WriteLine("[GpuVertexAttribBinding] Attempted to configure binding on invalid VAO (0)");
@@ -111,7 +107,7 @@ internal struct GpuVertexAttribBinding
     /// </summary>
     public GpuVertexAttribBinding SetDivisor(int divisor)
     {
-        RequireCurrentFacts();
+        RequireCurrentFacts(BindingFacts.Buffer | BindingFacts.Offset | BindingFacts.Stride);
         if (vaoId == 0)
         {
             return this;
@@ -264,9 +260,30 @@ internal struct GpuVertexAttribBinding
         CaptureRevision();
     }
 
+    #endregion
+    #endregion
+
     #region Private
-    /// <summary>Checks owner identity and refreshes only selected native binding facts after external mutation.</summary>
-    private void RequireCurrentFacts(bool refresh = false)
+    /// <summary>Copies authored binding values with their owner's current metadata revision.</summary>
+    private GpuVertexAttribBinding(GpuVao owner, int bindingIndex, int vboId, nint baseOffsetBytes, int strideBytes, int divisor, bool discover = false)
+    {
+        this.owner = owner;
+        context = Integration.RenderContextRegistry.Current();
+        metadataRevision = owner.ResourceManager?.GetResourceRegistration(owner)?.MetadataRevision ?? 0;
+        localEpoch = StateCache.Current.VertexConfigurationEpoch;
+        knownFacts = discover && GpuSupport.Graphics.SupportsArbDirectStateAccess
+            ? BindingFacts.None : BindingFacts.All;
+        vaoId = owner.VertexArrayId;
+        this.bindingIndex = bindingIndex;
+        this.vboId = vboId;
+        this.baseOffsetBytes = baseOffsetBytes;
+        this.strideBytes = strideBytes;
+        this.divisor = divisor;
+        RequireCurrentFacts(BindingFacts.All);
+    }
+
+    /// <summary>Checks original ownership and acquires only unknown fields needed by this operation.</summary>
+    private void RequireCurrentFacts(BindingFacts required = BindingFacts.None)
     {
         if (owner is null) return;
         ObjectDisposedException.ThrowIf(!owner.IsValid || owner.VertexArrayId != vaoId, owner);
@@ -278,31 +295,55 @@ internal struct GpuVertexAttribBinding
             throw new InvalidOperationException("The vertex array belongs to another resource context.");
         if (entry is not null && !manager!.IsResourceMetadataAvailable(owner))
             throw new InvalidOperationException("Vertex array metadata is unavailable.");
-        if (!refresh && entry is not null && entry.MetadataRevision == metadataRevision) return;
-        // Legacy emulation is an authored binding description, not a native binding-index
-        // mirror. External changes cannot be mapped back to that description reliably.
+        bool changed = entry is not null ? entry.MetadataRevision != metadataRevision
+            : localEpoch != StateCache.Current.VertexConfigurationEpoch;
+        // Fallback descriptions are authored per attribute, not native binding-index mirrors.
+        // A changed revision cannot be recovered reliably; retained copies must be rejected.
         if (!GpuSupport.Graphics.SupportsArbDirectStateAccess)
         {
-            if (entry is null) return;
-            throw new InvalidOperationException("The vertex binding changed; obtain and configure a new binding helper.");
+            if (changed) throw new InvalidOperationException("The vertex binding changed; obtain and configure a new binding helper.");
+            return;
         }
-        int buffer = -1, stride = -1, instances = -1;
-        long offset = -1;
-        GL.GetVertexArrayIndexed(vaoId, bindingIndex, (VertexArrayIndexedParameter)All.VertexBindingBuffer, out buffer);
-        GL.GetVertexArrayIndexed64(vaoId, bindingIndex, VertexArrayIndexed64Parameter.VertexBindingOffset, out offset);
-        GL.GetVertexArrayIndexed(vaoId, bindingIndex, (VertexArrayIndexedParameter)All.VertexBindingStride, out stride);
-        GL.GetVertexArrayIndexed(vaoId, bindingIndex, (VertexArrayIndexedParameter)All.VertexBindingDivisor, out instances);
-        if (buffer == -1 || offset < 0 || stride < 0 || instances < 0)
-            throw new InvalidOperationException("The selected vertex binding could not be acquired.");
-        vboId = buffer;
-        baseOffsetBytes = checked((nint)offset);
-        strideBytes = stride;
-        divisor = instances;
+        if (changed) knownFacts = BindingFacts.None;
+        BindingFacts missing = required & ~knownFacts;
+        if ((missing & BindingFacts.Buffer) != 0)
+        {
+            int value = -1;
+            GL.GetVertexArrayIndexed(vaoId, bindingIndex, (VertexArrayIndexedParameter)All.VertexBindingBuffer, out value);
+            if (value < 0) throw new InvalidOperationException("The selected vertex buffer could not be acquired.");
+            vboId = value;
+        }
+        if ((missing & BindingFacts.Offset) != 0)
+        {
+            long value = -1;
+            GL.GetVertexArrayIndexed64(vaoId, bindingIndex, VertexArrayIndexed64Parameter.VertexBindingOffset, out value);
+            if (value < 0) throw new InvalidOperationException("The selected vertex offset could not be acquired.");
+            baseOffsetBytes = checked((nint)value);
+        }
+        if ((missing & BindingFacts.Stride) != 0)
+        {
+            int value = -1;
+            GL.GetVertexArrayIndexed(vaoId, bindingIndex, (VertexArrayIndexedParameter)All.VertexBindingStride, out value);
+            if (value < 0) throw new InvalidOperationException("The selected vertex stride could not be acquired.");
+            strideBytes = value;
+        }
+        if ((missing & BindingFacts.Divisor) != 0)
+        {
+            int value = -1;
+            GL.GetVertexArrayIndexed(vaoId, bindingIndex, (VertexArrayIndexedParameter)All.VertexBindingDivisor, out value);
+            if (value < 0) throw new InvalidOperationException("The selected vertex divisor could not be acquired.");
+            divisor = value;
+        }
+        knownFacts |= missing;
         CaptureRevision();
     }
 
-    /// <summary>Accepts this helper's completed commands without certifying copies retained elsewhere.</summary>
-    private void CaptureRevision() => metadataRevision = owner?.ResourceManager?.GetResourceRegistration(owner)?.MetadataRevision ?? 0;
+    /// <summary>Accepts completed commands without certifying retained copies or unknown fields.</summary>
+    private void CaptureRevision()
+    {
+        metadataRevision = owner?.ResourceManager?.GetResourceRegistration(owner)?.MetadataRevision ?? 0;
+        localEpoch = StateCache.Current.VertexConfigurationEpoch;
+    }
     #endregion
 
     /// <summary>Selects named configuration commands using the shared capabilities.</summary>

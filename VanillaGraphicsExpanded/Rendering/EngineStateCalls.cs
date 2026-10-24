@@ -81,11 +81,11 @@ internal static partial class EngineStateCalls
 
     #region Bindings
     /// <summary>Records a native executable switch while retaining the surrounding engine shader lifecycle.</summary>
-    public static void UseProgram(int program) => CurrentCache.UseProgram(program);
+    public static void UseProgram(int program) => CurrentCache.ExecuteCoreUseProgram(program);
     /// <summary>Publishes the selected vertex array and its element-buffer association.</summary>
-    public static void BindVertexArray(int array) => CurrentCache.BindVertexArray(array);
+    public static void BindVertexArray(int array) => CurrentCache.ExecuteCoreBindVertexArray(array);
     /// <summary>Preserves combined and independent read/draw framebuffer targets.</summary>
-    public static void BindFramebuffer(FramebufferTarget target, int framebuffer) => CurrentCache.BindFramebuffer(target, framebuffer);
+    public static void BindFramebuffer(FramebufferTarget target, int framebuffer) => CurrentCache.ExecuteFramebufferBinding(target, framebuffer);
     /// <summary>Publishes a renderbuffer binding, preserving unsupported enum behavior.</summary>
     public static void BindRenderbuffer(RenderbufferTarget target, int renderbuffer)
     {
@@ -100,7 +100,7 @@ internal static partial class EngineStateCalls
     /// <summary>Publishes a sampler independently of texture binding.</summary>
     public static void BindSampler(int unit, int sampler) => CurrentCache.BindSampler(unit, sampler);
     /// <summary>Publishes generic and vertex-array-owned buffer bindings.</summary>
-    public static void BindBuffer(BufferTarget target, int buffer) => CurrentCache.BindBuffer(target, buffer);
+    public static void BindBuffer(BufferTarget target, int buffer) => CurrentCache.ExecuteCoreBindBuffer(target, buffer);
     /// <summary>Publishes an indexed whole-buffer binding and its generic binding side effect.</summary>
     public static void BindBufferBase(BufferRangeTarget target, int index, int buffer) => CurrentCache.BindBufferBase(target, index, buffer);
     /// <summary>Publishes an indexed range without truncating native offsets or sizes.</summary>
@@ -110,7 +110,7 @@ internal static partial class EngineStateCalls
     public static void BindImageTexture(int unit, int texture, int level, bool layered, int layer, TextureAccess access, SizedInternalFormat format) =>
         CurrentCache.BindImageTexture(unit, texture, level, layered, layer, access, format);
     /// <summary>Publishes a separable shader pipeline binding.</summary>
-    public static void BindProgramPipeline(int pipeline) => CurrentCache.BindProgramPipeline(pipeline);
+    public static void BindProgramPipeline(int pipeline) => CurrentCache.ExecuteCoreBindProgramPipeline(pipeline);
     /// <summary>Publishes transform-feedback binding without changing unsupported enum behavior.</summary>
     public static void BindTransformFeedback(TransformFeedbackTarget target, int feedback)
     {

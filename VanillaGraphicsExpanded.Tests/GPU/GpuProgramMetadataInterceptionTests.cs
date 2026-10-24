@@ -145,7 +145,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
         }
         finally { current=origin; manager.Dispose(); GpuResourceManagerSystem.Shutdown(); StateCache.Current.InvalidateAll(); }
     }
-    /// <summary>Exact program selectors and rejected signed selection leave bound units targeting the actual native program.</summary>
+    /// <summary>Exact external program selectors leave bound units targeting the actual program after rejected selection.</summary>
     [Theory]
     [InlineData(0)] [InlineData(1)]
     public void ProgramSelectorsRecoverActualTarget(int variant)
@@ -159,7 +159,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             var manager=GpuResourceManagerSystem.CurrentManager!; var a=manager.GetResourceRegistration(first)!; var b=manager.GetResourceRegistration(second)!;
             ulong ar=a.MetadataRevision,br=b.MetadataRevision;
             SelectProgram(variant,second.ProgramId); Assert.Equal(second.ProgramId,StateCache.Current.GetCurrentProgram());
-            StateCache.Current.UseProgram(int.MaxValue); Assert.Equal(ErrorCode.InvalidValue,GL.GetError());
+            SelectProgram(variant,int.MaxValue); Assert.Equal(ErrorCode.InvalidValue,GL.GetError());
             int location=GL.GetUniformLocation(second.ProgramId,"inputs[0]"); SetUnits(0,second.ProgramId,location,6);
             GL.GetUniform(second.ProgramId,location,out int actual); Assert.Equal(6,actual);
             Assert.Equal(ar,a.MetadataRevision); Assert.Equal(br+1,b.MetadataRevision);
@@ -179,7 +179,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests(HeadlessGLFixtur
             using var first=GpuProgramPipeline.Create(); using var second=GpuProgramPipeline.Create(); first.Bind();
             GL.ActiveShaderProgram(second.PipelineId,program.ProgramId); StateCache.Current.UseProgram(0);
             SelectPipeline(extension,second.PipelineId); Assert.Equal(second.PipelineId,StateCache.Current.GetCurrentProgramPipeline());
-            StateCache.Current.BindProgramPipeline(int.MaxValue); Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
+            SelectPipeline(extension,int.MaxValue); Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]"); SetUnits(0,program.ProgramId,location,5);
             GL.GetUniform(program.ProgramId,location,out int actual); Assert.Equal(5,actual);
             Assert.Equal(second.PipelineId,StateCache.Current.GetCurrentProgramPipeline()); Assert.Equal(ErrorCode.NoError,GL.GetError());

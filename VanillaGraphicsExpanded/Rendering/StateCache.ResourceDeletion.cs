@@ -73,6 +73,7 @@ internal sealed partial class StateCache
     {
         RecordBoundaryRetirement(EPipelineState.BufferBindings, buffer);
         if (buffer == 0) return;
+        VertexConfigurationEpoch++;
         foreach (var key in indexedBufferBindings.Where(pair => pair.Value.Buffer == buffer).Select(pair => pair.Key).ToArray())
             indexedBufferBindings.Remove(key);
         foreach (var key in bufferBindingByTarget.Where(pair => pair.Value == buffer).Select(pair => pair.Key).ToArray())

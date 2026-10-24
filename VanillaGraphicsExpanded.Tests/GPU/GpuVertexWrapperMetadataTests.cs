@@ -1,4 +1,7 @@
 using OpenTK.Graphics.OpenGL;
+using System.Runtime.CompilerServices;
+using HarmonyLib;
+using VanillaGraphicsExpanded.HarmonyPatches;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 namespace VanillaGraphicsExpanded.Tests.GPU;
@@ -51,6 +54,9 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
     public void BoundElementBufferRejectsInvalidNameWithoutCachingRequest()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        var harmony = new Harmony("Tests.RejectedExternalElementBinding");
+        harmony.Patch(AccessTools.Method(typeof(GpuVertexWrapperMetadataTests), nameof(BindExternalElement)),
+            transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
         try
         {
             using var vao=GpuVao.Create(); vao.Bind();
@@ -64,7 +70,7 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
             before=entry.MetadataRevision;
             cache.BindBuffer(BufferTarget.ElementArrayBuffer,buffer.BufferId);
             Assert.Equal(before,entry.MetadataRevision);
-            cache.BindBuffer(BufferTarget.ElementArrayBuffer,int.MaxValue);
+            BindExternalElement(int.MaxValue);
             Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
             // Native error reporting does not replace observation of the actual binding.
             Assert.Equal(GL.GetInteger(GetPName.ElementArrayBufferBinding), cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
@@ -76,7 +82,13 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
             Assert.Equal(ErrorCode.InvalidEnum,GL.GetError());
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
+    #endregion
+
+    #region Private
+    /// <summary>Preserves an external element selector for exact native dispatch and lazy rejection recovery.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void BindExternalElement(int buffer) => GL.BindBuffer(BufferTarget.ElementArrayBuffer, buffer);
     #endregion
 }

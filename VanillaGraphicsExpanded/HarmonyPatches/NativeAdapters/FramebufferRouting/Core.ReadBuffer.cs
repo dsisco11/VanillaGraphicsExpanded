@@ -8,22 +8,8 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.FramebufferRouti
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void ReadBuffer(ReadBufferMode @src)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, true);
-        bool returned = false;
-        try
-        {
-            GL.ReadBuffer(@src);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void ReadBuffer(ReadBufferMode @src) => StateCache.Current.ExecuteCoreReadBuffer(@src);
 
     #endregion
 }

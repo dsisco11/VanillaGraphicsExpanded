@@ -8,22 +8,8 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.FramebufferRouti
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DrawBuffer(DrawBufferMode @buf)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.DrawBuffer(@buf);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DrawBuffer(DrawBufferMode @buf) => StateCache.Current.ExecuteCoreDrawBuffer(@buf);
 
     #endregion
 }

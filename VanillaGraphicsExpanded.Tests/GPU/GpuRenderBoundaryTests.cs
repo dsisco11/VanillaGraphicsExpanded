@@ -21,10 +21,11 @@ public sealed class GpuRenderBoundaryTests(HeadlessGLFixture fixture) : RenderTe
         using var draw = CreateMRTRenderTarget(2, 2, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
         using var read = CreateRenderTarget(1, 1, PixelInternalFormat.Rgba32f);
         using var nested = CreateRenderTarget(3, 3, PixelInternalFormat.Rgba32f);
-        // Engine calls may bypass a primed managed cache.
+        // Raw writes outside supported interception explicitly withdraw primed binding knowledge.
         StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, nested.FboId);
         GL.BindFramebuffer(FramebufferTarget.DrawFramebuffer, defaultFramebuffer ? 0 : draw.FboId);
         GL.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
+        StateCache.Current.Invalidate(EPipelineState.Bindings);
         GL.ReadBuffer(ReadBufferMode.None);
         DrawBuffersEnum[] routing = [DrawBuffersEnum.ColorAttachment2, DrawBuffersEnum.None, DrawBuffersEnum.ColorAttachment0];
         if (defaultFramebuffer) { GL.DrawBuffer(DrawBufferMode.Back); StateCache.Current.Invalidate(EPipelineState.FramebufferRouting); }

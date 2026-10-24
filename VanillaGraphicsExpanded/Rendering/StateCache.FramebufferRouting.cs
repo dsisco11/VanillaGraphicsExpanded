@@ -8,10 +8,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     private readonly Dictionary<int, DrawBuffersEnum[]> framebufferDrawRouting = new();
-    /// <summary>Counts issued bound, named and single-selector routing operations.</summary>
-    internal long FramebufferRoutingCalls { get; private set; }
-    /// <summary>Counts native output-slot queries needed to resolve unknown routing.</summary>
-    internal long FramebufferRoutingQueries { get; private set; }
 
     #region Public API
     #region Publication
@@ -55,7 +51,6 @@ internal sealed partial class StateCache
             {
                 int value = -1;
                 GL.GetInteger(GetPName.DrawBuffer0 + i, out value);
-                FramebufferRoutingQueries++;
                 if (value < 0) throw new InvalidOperationException("Framebuffer routing is unavailable.");
                 route[i] = (DrawBuffersEnum)value;
             }
@@ -102,7 +97,6 @@ internal sealed partial class StateCache
                 if (single) GL.DrawBuffer((DrawBufferMode)route[0]);
                 else GL.DrawBuffers(count, route);
             }
-            FramebufferRoutingCalls++;
         }
         framebufferDrawRouting[framebuffer] = route;
     }

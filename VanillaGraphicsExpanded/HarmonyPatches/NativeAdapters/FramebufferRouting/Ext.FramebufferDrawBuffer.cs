@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.FramebufferRouti
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void FramebufferDrawBuffer(int @framebuffer, DrawBufferMode @mode)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.FramebufferDrawBuffer(@framebuffer, @mode);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void FramebufferDrawBuffer(int @framebuffer, DrawBufferMode @mode) => StateCache.Current.ExecuteExtFramebufferDrawBuffer(@framebuffer, @mode);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void FramebufferDrawBuffer(uint @framebuffer, DrawBufferMode @mode)
-    {
-        var observation = StateCache.BeginNativeFramebufferRouting(unchecked((int)@framebuffer), true, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.FramebufferDrawBuffer(@framebuffer, @mode);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void FramebufferDrawBuffer(uint @framebuffer, DrawBufferMode @mode) => StateCache.Current.ExecuteExtFramebufferDrawBuffer(@framebuffer, @mode);
 
     #endregion
 }

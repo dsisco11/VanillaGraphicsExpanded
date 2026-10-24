@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Programs;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void BindProgramPipeline(int @pipeline)
-    {
-        var observation = StateCache.BeginNativeProgramSelection(true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.BindProgramPipeline(@pipeline);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void BindProgramPipeline(int @pipeline) => StateCache.Current.ExecuteExtBindProgramPipeline(@pipeline);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void BindProgramPipeline(uint @pipeline)
-    {
-        var observation = StateCache.BeginNativeProgramSelection(true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.BindProgramPipeline(@pipeline);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void BindProgramPipeline(uint @pipeline) => StateCache.Current.ExecuteExtBindProgramPipeline(@pipeline);
 
     #endregion
 }

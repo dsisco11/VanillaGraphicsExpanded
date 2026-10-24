@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Programs;
 internal static unsafe partial class Arb
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void UseProgramObject(int @programObj)
-    {
-        var observation = StateCache.BeginNativeProgramSelection(false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.UseProgramObject(@programObj);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void UseProgramObject(int @programObj) => StateCache.Current.ExecuteArbUseProgramObject(@programObj);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void UseProgramObject(uint @programObj)
-    {
-        var observation = StateCache.BeginNativeProgramSelection(false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.UseProgramObject(@programObj);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void UseProgramObject(uint @programObj) => StateCache.Current.ExecuteArbUseProgramObject(@programObj);
 
     #endregion
 }

@@ -391,6 +391,18 @@ signatures in the matrix, and `BufferStorage(BufferTarget,int,IntPtr,BufferStora
 
 ## Validation and restoration dependencies
 
+Controlled program, VAO and pipeline selections retain submitted identities after dispatch and suppress
+known-equal calls. Exact external selectors execute each original overload and leave affected selections
+unknown for lazy recovery; querying CURRENT_PROGRAM does not certify full-program stage installation.
+Selector and routing execution resides in `Rendering/Commands`, behind compiler-checked native adapters.
+Framebuffer scopes capture only their affected read/draw directions through cached getters. Element-buffer
+scopes retain the original VAO association when another VAO becomes selected before restoration.
+Per-VAO element-buffer knowledge is independent of canonical VAO configuration revisions.
+Vertex-binding helper values retain established fields and acquire only requested unknown fields after
+an observed revision change. Context-local helpers use one conservative cache epoch instead of a second
+registry; observed vertex changes or buffer/VAO deletion expire those local facts. Non-DSA authored
+descriptions reject stale reuse. The resource wrappers and canonical empty VAO schema remain unchanged.
+
 `ShaderPreparedSubmission` checks lifetime each use; `ShaderInputValidation` keys already contain wrapper,
 numeric ID, target/format/dimensions/mips or view/range/capacity. They lack registration revision and assume
 wrapper fields are current. Raw sampler submission checks `IsTexture` and invalidates its unit before
