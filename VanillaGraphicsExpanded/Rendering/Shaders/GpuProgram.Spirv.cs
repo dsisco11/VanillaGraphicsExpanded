@@ -10,9 +10,7 @@ using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Spirv;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
-
 namespace VanillaGraphicsExpanded.Rendering.Shaders;
-
 /// <summary>Prepares binary graphics generations and transfers ownership only after successful linking and interface preparation.</summary>
 public abstract partial class GpuProgram
 {
@@ -29,7 +27,8 @@ public abstract partial class GpuProgram
         var context = Integration.RenderContextRegistry.Current();
         string domain = string.IsNullOrWhiteSpace(AssetDomain) ? ShaderImportsSystem.DefaultDomain : AssetDomain;
 
-        var stages = new List<(ShaderStageKind Kind, int Shader, GpuBindingContract Contract)>();
+        var stages = new List<(ShaderStageKind Kind, int Shader, GpuBindingContract Contract, GpuShaderModule Owner)>();
+        GpuProgramObject? candidate = null;
         int program = 0;
         try
         {
@@ -38,21 +37,24 @@ public abstract partial class GpuProgram
             // Synchronous asset callbacks must not allocate or transfer names on a changed context.
             if (context != Integration.RenderContextRegistry.Current())
                 throw new InvalidOperationException("Preparation requires its originating native context generation.");
-            program = pending?.DetachProgram() ?? GL.CreateProgram();
+            candidate = pending?.TakeProgram() ?? GpuProgramObject.Create();
+            program = candidate.ProgramId;
             bool cached = pending?.Cached ?? DriverProgramCache.TryLoad(program, inputs);
             LastSpirvLinkMilliseconds = pending?.LinkSubmissionMilliseconds ?? 0;
             if (!cached && pending == null)
             {
                 // A rejected binary candidate is never reused for normal linking.
-                StateCache.Current.DeleteProgram(program);
+                candidate.Dispose();
+                candidate = null;
                 program = 0;
                 foreach (var selection in plan.Stages)
                 {
                     var loaded = SpirvStageLoader.Load(selection, inputs.Read);
-                    stages.Add((selection.Stage.Kind, loaded.Shader, loaded.Contract));
+                    stages.Add((selection.Stage.Kind, loaded.ShaderId, selection.Stage.Bindings, loaded));
                 }
-                if (!TryCreate(stages, out program, out string infoLog, out double linkMilliseconds, inputs.Key != null))
+                if (!TryCreate(stages, out candidate, out string infoLog, out double linkMilliseconds, inputs.Key != null))
                     throw new InvalidOperationException("SPIR-V link failed: " + infoLog);
+                program = candidate!.ProgramId;
                 LastSpirvLinkMilliseconds = linkMilliseconds;
             }
 #if DEBUG
@@ -74,7 +76,7 @@ public abstract partial class GpuProgram
             foreach (var stage in stages)
             {
                 GL.DetachShader(program, stage.Shader);
-                StateCache.Current.DeleteShader(stage.Shader);
+                stage.Owner.Dispose();
             }
             stages.Clear();
             // A configuration edit can arrive while the driver works. Never publish superseded inputs.
@@ -86,14 +88,15 @@ public abstract partial class GpuProgram
                     PreparationFailure = new InvalidOperationException("Preparation was superseded by retirement, changed settings, assets or context.");
                     return false;
                 }
-                var candidate = GpuProgramObject.Adopt(program);
-                if (candidate.ResourceManager?.GetResourceRegistration(candidate)
+                if (candidate!.ResourceManager?.GetResourceRegistration(candidate)
                     is GpuResourceMetadataEntry<GpuProgramMetadata> { MetadataAvailable: true } entry)
                     layout.UseNativeMetadata(program, entry.Metadata, entry.MetadataRevision);
                 program = 0;
                 var previous = executable;
                 executable = candidate;
                 ProgramLayout.InstallCandidate(layout);
+                candidate.SetPreparedLayout(ProgramLayout);
+                candidate = null;
                 installedPlan = plan;
                 GraphicsIdentity = graphicsIdentity;
                 ExecutableContext = context;
@@ -107,26 +110,26 @@ public abstract partial class GpuProgram
         }
         finally
         {
-            if (program != 0) StateCache.Current.DeleteProgram(program);
-            foreach (var stage in stages) StateCache.Current.DeleteShader(stage.Shader);
+            candidate?.Dispose();
+            foreach (var stage in stages) stage.Owner.Dispose();
         }
     }
 
     /// <summary>Links caller-owned graphics stages, transferring the program only after a successful link.</summary>
-    private static bool TryCreate(IReadOnlyList<(ShaderStageKind Kind, int Shader, GpuBindingContract Contract)> stages,
-        out int program, out string infoLog, out double linkMilliseconds, bool retrievableBinary = false)
+    private static bool TryCreate(IReadOnlyList<(ShaderStageKind Kind, int Shader, GpuBindingContract Contract, GpuShaderModule Owner)> stages,
+        out GpuProgramObject? program, out string infoLog, out double linkMilliseconds, bool retrievableBinary = false)
     {
-        program = 0;
+        program = null;
         infoLog = string.Empty;
         linkMilliseconds = 0;
-        int candidate = 0;
+        GpuProgramObject? candidate = null;
         try
         {
             candidate = ShaderProgramLink.Submit(stages.Select(stage => stage.Shader).ToArray(), retrievableBinary, out linkMilliseconds);
             if (!ShaderProgramLink.Validate(candidate, out infoLog)) return false;
             // The caller retains temporary stages for retirement and owns the successfully linked candidate.
             program = candidate;
-            candidate = 0;
+            candidate = null;
             return true;
         }
         catch (Exception ex)
@@ -134,7 +137,7 @@ public abstract partial class GpuProgram
             infoLog = (infoLog.Length == 0 ? string.Empty : infoLog + "\n") + ex.Message;
             return false;
         }
-        finally { if (candidate != 0) StateCache.Current.DeleteProgram(candidate); }
+        finally { candidate?.Dispose(); }
     }
 
     /// <summary>Last driver linking duration, excluding binary loading, specialization and draws; zero for executable cache hits.</summary>

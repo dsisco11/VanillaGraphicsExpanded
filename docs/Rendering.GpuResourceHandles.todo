@@ -2,8 +2,8 @@ GPU resource metadata registry and typed resource wrappers
 =========================================================
 
 Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
-Status: Phase 3 complete after eighth-review corrections and focused validation. Phase 4 remains open.
-Metadata-mutation interception and persistent consumer integration remain unchecked.
+Status: Phases 1–4c complete. Joint binding/acquisition analysis and architectural discussion are next.
+Persistent consumer integration and integrated qualification remain unchecked.
 Phase 7 is a separately requested follow-on RHI design; it does not authorize runtime migration.
 
 Planning authority
@@ -40,10 +40,15 @@ Goal and governing contracts
   No GpuResourceLifetime, dedicated borrowed-resource registry, duplicate binding/validation cache,
   shared-context namespace generalization, or producer teardown hook duplicating GL notifications.
   Track resource metadata, not resource contents. Preserve existing content-readiness mechanisms.
-  APPLE and NV extension methods are explicitly outside this plan's supported API scope. Do not add
-  interception adapters or coverage requirements for those groups. Core equivalents remain required;
-  all other applicable extension groups retain their existing coverage obligations. Apply this exclusion
-  to every command-family, variant and overload requirement below and to the retained baseline inventory.
+  Interception supports only native owners GL/Core, Ext and Arb. All other auxiliary owners are excluded.
+  Apply this owner boundary to every command-family, variant and overload requirement below and to
+  active comparisons against the retained baseline inventory. Feature origins and command suffixes
+  do not exclude operations declared on allowed owners; direct VGE operations remain separately scoped.
+  Legacy pre-OpenGL 3.0 fixed-function/compatibility facilities are excluded, including matrix stacks,
+  display lists, server/client attribute stacks and legacy client-array state/default resets. Phase 4b
+  removes their existing support. Commands introduced before 3.0 that remain part of modern OpenGL
+  (for example texture/buffer operations and ordinary depth/blend state) remain supported; API age alone
+  is not the removal criterion. This exclusion does not narrow the separate GpuCommandList RHI design.
   Keep registry, common registration/dispatch, typed metadata definitions and native adapters in files
   with those respective responsibilities. Follow repository comment and region conventions.
   Use subagents for every build/test invocation. Keep source, unit, GPU integration, package and live
@@ -505,36 +510,47 @@ Phase 4: Implement metadata notifications and revision-aware validation
   Depends on Phase 3.
   Outcome: observed metadata changes are reflected in every associated wrapper before dependent use.
 
-  ☐ Connect every represented metadata mutation to manager-owned canonical updates and typed snapshot
+  Fresh baseline: Release/SPIR-V rebuild passed with 0 errors and 191 warnings; 423 focused
+  resource/shader/preparation cases passed without failures or skips. Receipts reside in
+  artifacts/gpu-resource-phase4/baseline-* (repository-relative). These qualify the pre-change
+  baseline only; implementation tasks remain unchecked until second review and independent audit.
+
+  ☑ Connect every represented metadata mutation to manager-owned canonical updates and typed snapshot
     publication through GpuResource<TMetadata>. Types without mutable metadata retain their documented
     disposition; no abstract per-wrapper metadata refresh handler is required.
-  ☐ Implement the Phase 1 command matrix through StateCache and existing native call adapters.
+  ☑ Implement the Phase 1 command matrix through StateCache and existing native call adapters.
     Reconcile VGE direct calls to use the same notification route; cover all bound-target and DSA
     variants, extension equivalents and all managed overloads, whether currently used or not. Resolve bound resources using existing unknown-state recovery.
-  ☐ Have StateCache forward observed mutations to the manager after native operations. Update the
+  ☑ Have StateCache forward observed mutations to the manager after native operations. Update the
     canonical struct with proven resulting metadata before publishing snapshots. Use command values
     where sufficient and targeted queries otherwise. Rejected commands must not publish invented state.
     Failed refresh marks affected metadata unavailable; dispatch must not leave other wrappers falsely
     current if one handler fails. Preserve existing error handling and context/thread contracts.
-  ☐ Advance the agreed metadata revision for surviving-object changes without replacing registration.
+  ☑ Advance the agreed metadata revision for surviving-object changes without replacing registration.
     Update existing shader/input validation history and dependent publication checks to revalidate
     changed metadata. Keep complete-input failure behavior and avoid a second validation cache.
+  ☑ Finish F1 multiview helper selection and replay against the API coverage document's native-query
+    ambiguity. Positive OVR view counts also describe ordinary selections on the tested driver; do not
+    infer attachment mode from that count alone. Preserve proven base/count and command semantics,
+    including one-view/full-array ambiguity, external acquisition and backing changes. Until supported,
+    detectable partial ranges must not be projected or reattached as whole arrays. Verify ordinary
+    layered attachments and actual bound/named OVR calls through the same manager publication route.
   Shader and program integration
-  ☐ Reconcile shader/program operations across GpuShaderModule, GpuProgramObject, GpuComputePipeline,
+  ☑ Reconcile shader/program operations across GpuShaderModule, GpuProgramObject, GpuComputePipeline,
     Shaders/GpuProgram, ShaderProgramLink, PendingShaderProgram, binary loading and GpuProgramLayout.
     Route represented native metadata effects through StateCache observation and manager publication,
     including relink, program-binary installation, interface block bindings and sampler/image unit
     assignments. Apply the complete P1 API-family coverage, not just currently observed call sites.
     Ordinary numeric uniform values and shader source/binary contents are not metadata. Link-input
     changes must not be published as changes to the current executable before linking actually occurs.
-  ☐ Make temporary compilation/link candidates and executable adoption explicit in the common resource
+  ☑ Make temporary compilation/link candidates and executable adoption explicit in the common resource
     lifecycle. Preserve one owner and originating-context cleanup across asynchronous preparation,
     rejection, cancellation, failure and transfer into installed graphics/compute wrappers. Reconcile
     raw candidate IDs with manager registration at the appropriate realization/adoption boundary;
     do not introduce a parallel shader registry or speculative entries for every untracked GL object.
     Publish actual metadata before dependent use, avoid duplicate registration/deletion/publication,
     and preserve the Phase 3 deferred-deletion acquisition and factory-cleanup corrections.
-  ☐ Audit shader/program operations with direct-object alternatives and use those paths where supported.
+  ☑ Audit shader/program operations with direct-object alternatives and use those paths where supported.
     In particular, replace ApplyUniformUnitContract's unconditional UseProgramScope + Uniform1 path
     with capability-selected ProgramUniform updates and a binding-preserving fallback. Cover applicable
     uniform scalar/vector/array/matrix forms and supported extension equivalents. Gate ProgramUniform
@@ -542,27 +558,469 @@ Phase 4: Implement metadata notifications and revision-aware validation
     Operations already taking explicit shader/program IDs (compile, link, attach and queries) need no
     artificial DSA branch. Keep path selection in the existing helpers and native execution/metadata
     observation in StateCache; preserve the active program and program-pipeline state.
-  ☐ Verify manager-published native program changes invalidate derived layouts/prepared submissions
+  ☑ Verify manager-published native program changes invalidate derived layouts/prepared submissions
     through the existing revision machinery for all aliases. Preserve authored binding contracts and
     distinguish owner replacement from same-program relink. Failed linking, rejected commands or
     unavailable reflection must not leave stale executable/interface facts usable as current.
-  ☐ Have subagents verify graphics and compute paths, synchronous/pending/binary preparation, candidate
+  ☑ Have subagents verify graphics and compute paths, synchronous/pending/binary preparation, candidate
     cleanup/adoption, relink and binding changes, and alias publication. Exercise ProgramUniform and
     bound fallback with sentinel program/pipeline state; verify equivalent values, no unnecessary program
     binds on the direct path, and exactly-once metadata publication only for represented effects.
     Retain evidence for ordinary numeric uniform updates causing no metadata refresh, actual redirected
     API coverage, and capability cases not executed on the available hardware.
 
-  ☐ Ensure metadata notifications do not change content readiness or frame qualification contracts.
-  ☐ Have subagents test alias refresh, dimensions/format/mips, buffer size and represented VAO state;
+  ☑ Ensure metadata notifications do not change content readiness or frame qualification contracts.
+  ☑ Have subagents test alias refresh, dimensions/format/mips, buffer size and represented VAO state;
     bound/DSA and unknown-state resolution; rejected operations and refresh failure; context isolation;
     previously validated inputs after incompatible changes; and stable-input binding suppression.
     Exercise required native commands through actual redirection and reconcile every API matrix row. Capability-limited hardware must not silently waive support.
-  ☐ Completion: all required metadata paths are covered and stale metadata cannot remain usable.
+  ☑ Completion: all required metadata paths are covered and stale metadata cannot remain usable.
     Registration continuity, validation revision changes and native binding knowledge remain distinct.
 
+  Qualification: second review and independent completion audit passed. Release/SPIR-V build
+  completed with 0 errors and 199 warnings. The matched runtime/test-copy SHA256 is
+  F742DFFCD326465EC395957649D40C48A74E2C76391A31975F0B5D3C013DDCBA.
+  Expanded regression tests passed 763/763 and focused shader tests passed 50/50, with no skips.
+  The expanded filter excludes only the independently reproduced unrelated liquid-options default
+  assertion; this is not a clean full-suite claim. Native hardware execution limits remain explicit
+  in the API inspection. No live appearance or performance qualification is claimed.
+  Receipts: [build](../artifacts/gpu-resource-phase4/program-desktop-ext-repair-build.log),
+  [expanded tests](../artifacts/gpu-resource-phase4/program-desktop-ext-repair-combined.trx),
+  [focused tests](../artifacts/gpu-resource-phase4/program-desktop-ext-repair-focused.trx),
+  [post-test identity](../artifacts/gpu-resource-phase4/program-desktop-ext-repair-posttest-identity.txt),
+  [API reconciliation](../artifacts/gpu-resource-phase4/api-signature-review.md).
+
+Phase 4a: Replace runtime-generated metadata adapters with compiler-checked C# adapters
+  Depends on Phase 4. Complete before persistent consumer integration and final qualification.
+  Outcome: metadata interception uses ordinary C# adapter bodies and exact signature mapping,
+  following the existing EngineStateCalls approach while retaining the verified native behavior.
+
+  Scope adjustment: stop spending implementation, review or dedicated validation effort on obsolete
+  fixed-function/compatibility methods assigned to Phase 4b. Existing converted legacy adapters may
+  remain temporarily until that removal; do not finish, extend or polish them for this phase.
+  Apply the updated legacy exclusion to coverage comparisons and audit requirements. Retained modern
+  functionality still requires complete overload coverage. Previously completed receipts remain evidence
+  for their recorded candidate; final packaged-candidate identity qualification is complete.
+
+  ☑ Reconcile every Engine*MetadataCalls family and EngineMetadataCallAdapters with
+    Rendering.GpuResourceHandles.ApiCoverage.md and Rendering.GpuResourceHandles.Inventory.md.
+    Preserve all supported commands, extension equivalents and managed overloads, including closed
+    generic upload calls. Retain the explicit APPLE/NV and legacy compatibility exclusions; current
+    engine callers must not narrow coverage. Use the Phase 4 receipts as the behavioral baseline.
+  ☑ Replace DynamicMethod/ILGenerator adapter construction with ordinary compiler-checked C# methods
+    organized by native command family. Each adapter must preserve the exact OpenTK signature,
+    forward its arguments unchanged, and invoke the existing StateCache observation lifecycle.
+    Preserve native-width IDs/ranges, signed/unsigned overloads, pointer/IntPtr/ref/out/array forms,
+    generic constraints and exception-safe completion. Keep metadata policy in its existing owners.
+  ☑ Replace broad StartsWith/Contains command-family classification and parameter-name-based argument
+    inference with explicit native-owner mappings and exact name/parameter/return-type matching,
+    following EngineStateCallMap's existing static adapter registration. Resolve closed generic
+    replacements from explicitly mapped generic adapter definitions without emitting method bodies
+    or maintaining a whitelist of currently observed payload types. Fail clearly on signature drift.
+  ☑ Retain EngineStateTargets' engine/built-in assembly discovery and EngineStateSwitchingHook's
+    small exact call-operand replacement transpiler. Preserve nested extension and MethodSpecification
+    discovery, evaluated operands, labels and exception blocks. Runtime IL inspection for discovery
+    remains appropriate; adapter bodies must be compiler-checked. Keep the existing interception
+    boundary and avoid duplicate interception of StateCache's own native calls.
+  ☑ Preserve begin/native-call/completion ordering, original exception propagation, rejected-command
+    behavior, context checks, exactly-once publication and metadata-unavailable failure handling.
+    Preserve bound/DSA/explicit-unit resolution, conditional metadata effects, buffer range and
+    framebuffer mode semantics, and program-selector knowledge independently of resource revisions.
+  ☑ Remove obsolete dynamic adapter factories, emission helpers and family-name inference after every
+    supported route has migrated. Prefer explicit C# adapters; if repetitive coverage warrants build-time
+    generation, keep command semantics explicitly declared and emit inspectable compiler-checked C#.
+    Do not introduce a general-purpose runtime rule engine or broaden the future RHI design scope.
+  ☑ Have subagents run the existing native interception and metadata regression tests against a matched
+    candidate, including generic payloads, extension aliases, failure paths and sentinel-state restoration.
+    Reconcile the full API matrix through one-off inspection; do not add permanent reflection/caller
+    inventory tests. Run canonical build/package verification and retain hardware execution limitations.
+    Update current architecture documentation to describe the implemented adapter boundary.
+  ☑ Perform a second review and independent completion audit against the API coverage and original
+    publication contracts. Completion: runtime-generated adapter bodies and heuristic semantic matching
+    are removed, exact C# adapters preserve supported coverage and behavior, and verification identifies
+    the same final candidate. Leave downstream phases unchecked.
+
+  Verification: second review and independent completion audit passed with no unresolved findings.
+  Canonical Release/SPIR-V build/package succeeded; the adapter build reported 0 errors and 629 warnings.
+  Packaged-candidate regression passed 763/763 with no skips, excluding only the previously reproduced
+  unrelated LiquidShaderProgramTests.WaterOptionsSelectPrecompiledFragmentsBeforePreparation assertion.
+  One-off comparison retained 1,902 exact mappings, checked 812 generic closures and 1,693 exact native
+  forwarding bodies, with no missing/added signatures and no APPLE/NV owners. Existing legacy mappings
+  remain temporary pending Phase 4b; no additional legacy implementation or qualification was performed.
+  Runtime, test-copy, publish and ZIP DLL SHA256:
+  2E5CE3184B139FD8E356CDDAF8E38CE15DA31768BC0CAB646C3D52ACAC9B3E2E.
+  All 762 generated shader files match both the package folder and ZIP. Hardware execution limitations
+  remain as documented in the API inspection; this is not a full-suite, live appearance or performance claim.
+  Receipts: [tests](../artifacts/gpu-resource-phase4a/package-expanded.trx),
+  [identity](../artifacts/gpu-resource-phase4a/final-identity.txt),
+  [signature comparison](../artifacts/gpu-resource-phase4a/package-signature-comparison.json),
+  [package](../artifacts/gpu-resource-phase4a/candidate-package.log),
+  [folder assets](../artifacts/gpu-resource-phase4a/package-assets.json),
+  [ZIP assets](../artifacts/gpu-resource-phase4a/package-zip-assets.json).
+
+Phase 4b: Remove legacy fixed-function and compatibility API support
+  Depends on Phase 4a. Complete before persistent consumer integration and final qualification.
+  Outcome: supported interception and metadata coverage exclude fixed-function facilities removed from modern core OpenGL,
+  while preserving modern resource operations and rendering state irrespective of introduction date.
+
+  ☑ Reconcile Rendering.GpuResourceHandles.ApiCoverage.md and Rendering.GpuResourceHandles.Inventory.md
+    against the modern OpenGL API boundary. Enumerate legacy-only commands and aliases to remove:
+    matrix stacks/fixed-function matrix state, display lists, PushAttrib/PopAttrib,
+    PushClientAttrib/PopClientAttrib, ClientAttribDefault/PushClientAttribDefault, legacy client-array
+    pointers/enables/selectors, alpha testing, point smoothing, separate polygon face modes, line/polygon stipple and other obsolete
+    fixed-function paths represented in the support list.
+    Classify by actual semantics and modern API retention, not method age or an extension namespace alone.
+    Preserve generic vertex attributes/VAOs, buffer and texture operations, and modern depth/blend state.
+  ☑ Remove legacy adapters, catalog registrations and discovery mappings, including client/server
+    attribute restoration and compatibility-only vertex-array adapters. Remove corresponding
+    StateCache observation tokens, stack bookkeeping, restoration publication and helpers used solely
+    by excluded commands. Keep shared modern binding, metadata and invalidation behavior intact.
+  ☑ Remove legacy automatic mip-generation support and its conditional content-upload observation
+    where present, including GENERATE_MIPMAP/SGIS-only metadata and queries. Preserve explicit
+    GenerateMipmap/GenerateTextureMipmap, ordinary image/storage definitions and required modern
+    upload behavior. Reconcile canonical fields/readers and capabilities when only legacy support
+    consumes them; do not remove capabilities shared with retained commands.
+  ☑ Reconcile engine discovery and VGE direct calls with the reduced boundary. Identify any actual
+    dependency on excluded operations and report it rather than silently replacing its semantics or
+    deleting engine behavior. Unmapped engine calls retain native execution; remove only our support
+    and associated assumptions. Preserve exclusions for APPLE/NV and the separate future RHI scope.
+  ☑ Remove tests and fixtures dedicated solely to excluded legacy behavior. Preserve shared modern
+    correctness assertions and replace legacy-dependent setup in retained tests where necessary.
+    Keep historical receipts as evidence for their original candidates; update active API inspection
+    inputs and semantic dispositions so deleted paths are no longer counted as required coverage.
+  ☑ Reconcile the proposal, inventory, API matrix and current architecture documentation with the
+    supported boundary. Remove obsolete active coverage claims and references to deleted mechanisms.
+    Verify all retained commands/overloads still route through compiler-checked adapters, and excluded
+    commands are absent from active mappings. Do not add permanent reflection/caller inventory tests.
+  ☑ Have subagents run affected modern native-interception/resource tests and canonical build/package
+    verification for a matched candidate. Check ordinary texture/buffer/VAO operations, explicit mip
+    generation, shader bindings, errors and sentinel-state restoration; no dedicated legacy execution
+    qualification is required. Retain hardware limits and independently review the final changes.
+  ☑ Completion: legacy-only support, associated implementation and dedicated tests are removed;
+    retained modern API coverage and metadata contracts pass validation; planning/current-state docs
+    agree with the resulting boundary. Leave later phases unchecked.
+
+  Verification: second review and independent completion audit passed with no unresolved findings.
+  Canonical Release/SPIR-V packaging succeeded. The final packaged candidate passed 804/804 selected
+  regressions with no skips, retaining only the existing unrelated WaterOptionsSelectPrecompiledFragmentsBeforePreparation
+  exclusion. This is not a full-suite or complete hardware qualification claim.
+  Scope-adjusted inspection resolved all 1,310 retained mappings, 408 generic closures and 1,105 exact
+  native forwarding bodies, with no missing/added signatures. Installed-engine inspection found no
+  excluded legacy dependencies; its wireframe operation uses FrontAndBack. Auxiliary-owner removal
+  remains Phase 4c; NV/APPLE remain excluded.
+  Native-binding tests now compare cached facts with observed native results after rejected commands,
+  preserving error and revision assertions. The water fixture initializes its intended blend equation
+  and write mask independently of earlier tests. Historical invalid-name assumptions reproduced against
+  the retained baseline; failed diagnostic runs are preserved and superseded by the final receipt.
+  Runtime, test-copy, publish and ZIP DLL SHA256:
+  F355BC5EDD04CD9D33C4E730FEE162B36581C993197614540AB2E91F7DB1A3E3.
+  All 762 generated shader files match package folder and ZIP. No live appearance or performance claim.
+  Receipts: [packaged tests](../artifacts/gpu-resource-phase4b/package-selected.trx),
+  [identity](../artifacts/gpu-resource-phase4b/package-identity.json),
+  [assets](../artifacts/gpu-resource-phase4b/package-assets.json),
+  [retained signatures](../artifacts/gpu-resource-phase4b/package-signature-comparison.json),
+  [canonical package](../artifacts/gpu-resource-phase4b/package-cached.log),
+  [engine operands](../artifacts/gpu-resource-phase4b/engine-operands.txt).
+
+Phase 4c: Restrict OpenTK interception to GL/Core, EXT and ARB owners
+  Depends on Phase 4b. Complete before persistent consumer integration and final qualification.
+  Outcome: native-call replacement supports only the default GL owner and Core, Ext and Arb owners.
+  This is a managed declaring-type boundary, not a filter on command suffixes or capability names.
+
+  ☑ Reconcile the proposal, API coverage matrix and inventory with the allowed native owners.
+    Confirm the pinned OpenTK representation of core methods: the default GL type and any actual
+    Core owner are allowed; adapter classes named Core are not additional native namespaces.
+    Exclude every other auxiliary owner, including Amd, Ati, Ibm, Intel, Mesa, Oes, Ovr, Sgis and Sun,
+    in addition to the existing Apple/NV exclusions. Retain every supported overload on allowed owners.
+  ☑ Remove excluded-owner adapter files and catalog registrations across metadata, binding, state
+    and deletion mappings. Ensure engine target discovery and replacement use the same reduced map.
+    Preserve exact compiler-checked signatures, generic closures and native argument forwarding.
+    Keep core/EXT/ARB equivalents even when their underlying feature has a vendor-specific origin.
+  ☑ Remove observation helpers, native delegates and bookkeeping used solely by excluded interception
+    routes. Retain helpers, capabilities and direct resource operations shared by allowed routes;
+    this task does not prohibit extension detection or remove unrelated direct VGE API usage.
+  ☑ Inspect actual engine and VGE dependencies on excluded routes. Report any resulting lifecycle or
+    metadata coverage gap before enabling persistent consumers; preserve native execution of unmapped
+    calls. Do not silently reroute extension calls to a different API or assume core methods call aliases.
+  ☑ Remove tests dedicated solely to excluded-owner interception and reconcile active inspection inputs.
+    Retain modern behavior assertions and all allowed-owner overload coverage, including generic payloads.
+    Preserve historical receipts; do not add permanent reflection or caller-inventory tests.
+  ☑ Update current architecture documentation to describe the resulting boundary. Have subagents run
+    affected interception/resource regression tests and canonical build/package checks against matching
+    candidate identities. Verify no excluded owners remain mapped and no allowed routes were lost.
+  ☑ Perform a second review and independent completion audit. Completion: supported mappings use only
+    GL/Core, Ext and Arb, dependencies have explicit dispositions, and retained coverage passes validation.
+    Leave downstream phases unchecked.
+
+  Verification: second review and independent completion audit passed. Removed 32 mappings in 11
+  adapter files and their catalog registrations; retained 1,278 exact GL/ARB/EXT mappings, 404 generic
+  closures and 1,073 exact native forwarding bodies. The pinned OpenTK has no nested GL.Core owner.
+  All 32 excluded calls retain their original native operand through the production transpiler.
+  Removed adapter-only multiview observation arguments/branches; direct VGE multiview operations,
+  publication and seven direct-operation test cases remain intact. Five OVR interception cases and
+  one AMD-only case were removed; EXT coverage-sample and modern framebuffer assertions remain.
+  Engine inspection covered 33,684 bodies across all four supported installed assemblies, including
+  constructors/static initializers, with zero load/read/resolution errors and no excluded-owner calls.
+  Direct VGE's two OVR calls publish explicitly. External excluded-owner mutations remain outside
+  continuing observation; persistent consumers still require their covered-command qualification.
+  Candidate and matching packaged-runtime selections passed 798/798, zero failed/skipped. The existing
+  unrelated WaterOptionsSelectPrecompiledFragmentsBeforePreparation exclusion remains; this is not
+  a full-suite or live-rendering/performance qualification. Canonical Release/SPIR-V packaging passed
+  in 1m34s; all 762 shader/manifest files match the folder and ZIP. Runtime/publish/test-copy/ZIP SHA256:
+  8DDAEDBA88D724FB50B48A64DAB27DA0D13363550D561CBE54D4A6D46C31DF95.
+  Receipts: [packaged regression](../artifacts/gpu-resource-phase4c/package-selected.trx),
+  [package identity](../artifacts/gpu-resource-phase4c/package-identity.json),
+  [shader identity](../artifacts/gpu-resource-phase4c/package-assets.json),
+  [retained mappings](../artifacts/gpu-resource-phase4c/package-signature-comparison.json),
+  [owner boundary](../artifacts/gpu-resource-phase4c/native-owner-boundary.json),
+  [dependency disposition](../artifacts/gpu-resource-phase4c/dependency-summary.json),
+  [engine scan health](../artifacts/gpu-resource-phase4c/engine-scan-health.json),
+  [canonical package](../artifacts/gpu-resource-phase4c/package.log).
+
+Phase 4d: Analyze binding-cache behavior and metadata acquisition queries
+  Depends on Phase 4c. Analysis only; do not change runtime behavior in this phase.
+  Sources: [proposal](Rendering.GpuResourceHandles.Proposal.md),
+  [inventory](Rendering.GpuResourceHandles.Inventory.md),
+  [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
+  Outcome: each binding and acquisition path has an evidence-backed disposition for VGE-controlled
+  resources. Analyze both responsibilities before deciding their shared architectural contracts.
+
+  For every method task below, trace all production callers and downstream readers. Distinguish
+  VGE-created/configured objects, external objects, raw-ID aliases of VGE objects, existing available
+  entries, unavailable entries and context-local operation without a registry. Record native queries,
+  their frequency/trigger, facts already supplied by VGE or available in canonical metadata, and the
+  reason each query remains necessary or is redundant. A method named Acquire does not necessarily
+  issue queries; report registry-only paths explicitly. Distinguish command inputs, established command
+  results and driver-derived facts without assuming either blanket readback or blanket query removal.
+
+  For each BeginNative/Complete pair, review the observation structure as well as its query policy.
+  Establish whether work is required before execution, after execution or both; justify the captured
+  token, original-entry identity and unavailable-state transition independently. Trace managed commands
+  and intercepted external calls separately. Review native rejection versus managed exceptions,
+  finally/completion behavior, secondary exception handling, context changes and interrupted updates.
+  Determine whether readback, binding invalidation and resource revision publication are each needed.
+  Treat this pattern as a review question, not a pre-established defect or a requirement to retain it.
+
+  ☐ Analyze StateCache.UseProgramBinding: direct cache updates versus current-program readback,
+    equal-binding suppression and the separate full-stage knowledge required by EXT selectors.
+  ☐ Analyze StateCache.BindVertexArray: post-bind readback, known versus unknown selection, rejected
+    selectors and the downstream effect on bound metadata commands.
+  ☐ Analyze StateCache.BindProgramPipeline: post-bind readback and equal-binding suppression.
+  ☐ Analyze StateCache.BindBuffer for ElementArrayBuffer: per-VAO cache invalidation, immediate
+    recovery queries and preservation of metadata notification independently of binding knowledge.
+  ☐ Analyze StateCache.VertexArrayElementBuffer: the removed NotifyVertexArrayElementBuffer cache
+    update, named-command semantics and subsequent EBO recovery queries.
+  ☐ Analyze StateCache.BeginNativeVertexMetadata and its NativeVertexMetadata.Complete path:
+    distinguish required helper revision publication from unnecessary binding-cache invalidation.
+  ☐ Analyze StateCache.BeginNativeBufferBinding and its NativeBufferBinding.Complete path:
+    compare external overload handling with managed binding-cache behavior.
+  ☐ Analyze StateCache.BeginNativeVertexSelection and its NativeVertexSelection.Complete path:
+    determine when selector invalidation and recovery are necessary.
+  ☐ Analyze StateCache.BeginNativeProgramSelection and its NativeProgramSelection.Complete path:
+    preserve program/pipeline selection semantics while identifying avoidable loss of known state.
+  ☐ Analyze StateCache.BeginNativeFramebufferRouting and its NativeFramebufferRouting.Complete path:
+    distinguish newly covered external mutations from regressions in existing draw-routing caching.
+  ☐ Analyze StateCache.BeginNativeBufferStorage and NativeBufferStorage.Complete: captured backing
+    identity, pre-command unavailability and allocation readback after return or exception.
+  ☐ Analyze StateCache.BeginNativeRenderbufferStorage and NativeRenderbufferStorage.Complete:
+    bound/named selection, availability transitions and actual versus already-established storage facts.
+  ☐ Analyze StateCache.BeginNativeTextureMetadata and NativeTextureMetadata.Complete: allocation,
+    parameter, mip-generation and renderbuffer-association policies, including shared observer state.
+  ☐ Analyze StateCache.BeginNativeBufferTexture and NativeBufferTexture.Complete: requested/previous
+    association capture, command-result certification and subsequent dependency publication.
+  ☐ Analyze StateCache.BeginNativeFramebufferMetadata and NativeFramebufferMetadata.Complete:
+    registration capture, availability, descriptor refresh and dependent notification on failure.
+  ☐ Analyze StateCache.BeginNativeFramebufferParameter: parameter filtering and whether represented
+    defaults require the shared framebuffer begin/complete behavior.
+  ☐ Analyze StateCache.BeginNativeFramebufferAttachment: command evidence capture and selection-mode
+    certification; assess its use of the shared framebuffer completion path.
+  ☐ Analyze StateCache.BeginNativeProgramMetadata and NativeProgramMetadata.Complete: executable
+    versus unit changes, affected-entry capture and publication timing relative to command completion.
+  ☐ Analyze GpuVertexAttribBinding constructors: forced DSA reads of buffer, offset, stride and divisor,
+    including construction of returned helpers after managed configuration.
+  ☐ Analyze GpuVertexAttribBinding.BindVertexBuffer: retention of supplied facts and subsequent queries.
+  ☐ Analyze GpuVertexAttribBinding.SetDivisor: retention of supplied facts and subsequent queries.
+  ☐ Analyze GpuVertexAttribBinding.RequireCurrentFacts: revision-triggered and context-local reads,
+    forced refreshes, stale helper copies and non-DSA behavior.
+  ☐ Trace binding scopes and boundary capture/restoration through these paths. Record native bind/query
+    counts for changed, unchanged and unknown state; identify acquisition reads that themselves cause
+    extra binding queries. Extend this list with separately named tasks for additional regressions.
+
+  ☐ Analyze GpuResourceManager.AcquireResource<TMetadata>: cache reuse, refreshExisting, missing entries,
+    unavailable metadata and reader invocation; identify when managed facts are needlessly reacquired.
+  ☐ Analyze GpuResourceManager.AcquireWrapperMetadata<T>: its default refreshExisting=true, explicit
+    overrides, managed versus adopted wrappers and registry-free fallback reads.
+  ☐ Analyze GpuResourceManager.AcquireBufferTextureBacking<TMetadata>: dependency admission/publication,
+    existing backing reuse and whether association readback upstream duplicates VGE-supplied facts.
+  ☐ Analyze GpuResourceManager.AcquireRenderbufferTextureBacking<TMetadata>: the same distinction for
+    renderbuffer-backed textures, including publication that already carries a known association.
+  ☐ Analyze GpuResourceManager.AcquireExternalImageTexture: forced refresh of tracked IDs and callers
+    that pass a VGE-owned texture through an external image API.
+  ☐ Analyze GpuResourceManager.AcquireImageMetadata: managed backing reuse, raw-ID images, replacement,
+    supplied acquiredTexture snapshots and context-local projection/readback.
+  ☐ Analyze GpuResourceManager.AcquireCreatedProgramMetadata: verify its query-free initial publication
+    and document which creation facts make that possible as a comparison for other resource kinds.
+  ☐ Analyze GpuResourceManager.AcquireProgramMetadata: preparation-time reuse, missing/unavailable
+    executable metadata and context-local queries; separate reflected interface facts from known inputs.
+  ☐ Analyze GpuResourceManager.RegisterBufferWrapper: native validity checks and initial acquisition
+    for VGE-created buffers, including generated names versus realized objects.
+  ☐ Analyze GpuResourceManager.RefreshMetadata<TMetadata>: native reader calls after managed commands,
+    refresh recovery and dependent publication; identify repeated reads of already-established facts.
+  ☐ Analyze GpuResourceManager.ObserveWrapperMetadata<T>: managed-command publication, grouping and
+    registry-free reads; distinguish necessary result discovery from redundant full refreshes.
+  ☐ Analyze GpuResourceManager.PublishMetadata<TMetadata>: identify indirect acquisition through
+    dependency helpers despite its query-free publication intent.
+  ☐ Analyze GpuResourceManager.PublishObservedMetadata<T>: trace registration and publication of
+    command-proven facts and any resulting indirect native reads.
+  ☐ Analyze GpuBufferMetadataReader.TryRead and its validity checks for VGE-created/allocated buffers.
+  ☐ Analyze GpuTextureMetadataReader.TryRead and its parameter/level readers for VGE-defined storage,
+    mip chains and views; identify which descriptors require native discovery.
+  ☐ Analyze GpuRenderbufferMetadataReader.TryRead for known allocation inputs versus actual sample facts.
+  ☐ Analyze GpuRenderbufferTextureMetadataReader.TryRead for known versus externally acquired associations.
+  ☐ Analyze GpuFramebufferMetadataReader.TryRead and attachment/default readers for managed attachment
+    configuration versus externally discovered configuration.
+  ☐ Analyze GpuShaderMetadataReader.TryRead for shaders created with a known stage by VGE.
+  ☐ Analyze GpuProgramMetadataReader.TryRead for known creation/link inputs versus reflected executable facts.
+  ☐ Analyze StateCache.ObserveBufferView: association/format queries after VGE supplies those arguments.
+  ☐ Analyze StateCache.TryObserveBufferAssociation: native association/range reads and backing acquisition,
+    preserving the distinction between external interception and managed creation callers.
+  ☐ Analyze StateCache.ConfigureTextureView: full metadata acquisition after VGE supplies view selection.
+  ☐ Reconcile the method list against source and add a separate explicitly named task for any additional
+    acquisition or begin/complete observation entry point found. Include indirect reads reached through
+    creation, publication and attachment reconstruction rather than restricting the audit to Acquire.
+    Compare individual observers with grouped MetadataUpdate behavior where their responsibilities overlap.
+  ☐ Have subagents run focused query-count probes where source tracing cannot establish repetition or
+    runtime conditions. Preserve reproducible evidence and distinguish native API calls from measured
+    GPU synchronization or frame-time costs; do not presume every query is a GPU round trip.
+  ☐ Present the complete per-method findings for architectural discussion, including query-free paths,
+    confirmed redundancies, required reads and unresolved questions. Completion requires coverage of
+    every named method and a second review of findings against the current implementation and contracts.
+
+Phase 4e: Discuss and agree binding-cache and metadata acquisition architecture
+  Depends on Phase 4d. Discuss the findings with the user before implementing an architectural change.
+  Sources: Phase 4d findings and its linked proposal, inventory and API coverage contracts.
+  Outcome: an explicitly approved architectural direction before building further consumer integration.
+
+  ☐ Discuss binding knowledge and resource metadata together while retaining their distinct ownership:
+    StateCache tracks selections and suppresses redundant commands; the manager owns resource facts
+    and typed publication. Agree when command-established facts can be retained, when external changes
+    invalidate them, and when queries are necessary. Notification alone must not imply invalidation.
+  ☐ Discuss how to distinguish VGE-established metadata, external acquisition, driver-derived facts
+    and recovery from unavailable state. Decide which layer owns each responsibility and whether
+    acquisition, registry lookup and command-result publication need separate APIs.
+  ☐ Decide whether each begin/complete observer needs its current structure, a simpler post-command
+    notification or another explicitly justified arrangement. Discuss token capture, availability
+    transitions, exception/rejection handling and grouped updates separately from readback policy.
+    Decide when managed commands and intercepted external calls can share behavior. Retaining a
+    notification mechanism does not require retaining its existing invalidation/query policy.
+  ☐ Review whether the begin/complete pattern is the best system-wide foundation, rather than merely
+    correcting individual observers. Compare concrete designs such as explicit begin/complete tokens,
+    scoped operation objects, centralized command execution with publication, and post-command
+    notifications. Use representative binding, allocation, association and program-link operations
+    to show each design's control flow, ownership, failure behavior and extension points.
+    Evaluate correctness, clarity, compiler-enforced usage, ease of testing, query/allocation overhead,
+    duplicated bookkeeping and the risk of missed or double completion/publication. Include grouped
+    operations, deferred completion and context/lifetime boundaries without assuming they all need
+    the same mechanism. Assess compatibility with the future GpuCommand/GpuCommandList RHI direction
+    in Phase 7 without implementing or prematurely committing that separate design.
+    Recommend the cleanest durable architecture from these tradeoffs, not preservation of the current
+    pattern merely because it exists or abstraction for its own sake. Discuss the recommendation with
+    the user and obtain approval before implementation; record rejected alternatives and reasons in
+    the planning decision. Expand 4f/4g as needed so approved foundational restructuring is completed
+    before further consumer integration, rather than deferred behind local fixes.
+  ☐ Compare concrete alternatives using the per-method findings, including targeted corrections versus
+    a broader refactor. Discuss query costs, complexity, correctness and migration impact without
+    preselecting a design or moving metadata authorship into resource wrappers by assumption.
+  ☐ Agree how commands establish successful results, how rejected commands preserve actual metadata,
+    and which facts still require native queries. Preserve manager-owned canonical state, typed
+    notifications, alias/dependency coherence, lifecycle identity, context and error-handling contracts.
+  ☐ Resolve how raw-ID aliases of VGE resources, externally mutable objects and context-local tools
+    select their acquisition/publication paths without introducing another authoritative registry.
+  ☐ Present a concrete recommendation and obtain the user's architectural approval. Record the decision
+    and reconcile the proposal, inventory and API matrix only with the approved changes.
+  ☐ Refine Phases 4f and 4g into method-specific implementation tasks from the approved decision.
+    Repair binding behavior first because acquisition uses binding scopes and cache recovery; then
+    repair acquisition against that corrected foundation. Neither implementation starts before this
+    shared architectural approval. Discussion approval does not establish implementation completion.
+    Assign approved selector/routing observer changes to 4f and resource metadata/storage observer
+    changes to 4g, with explicit dependencies for shared machinery so it is not redesigned twice.
+  ☐ Completion: the user has approved the architectural decision, unresolved foundation issues have
+    explicit implementation tasks and acceptance criteria, and Phase 5 is blocked until those tasks
+    are implemented and verified. Do not defer required foundation repairs to consumer integration.
+
+Phase 4f: Repair binding-cache behavior under the approved architecture
+  Depends on Phase 4e and explicit architectural approval. Scope is binding repairs, not acquisition
+  redesign; Phase 4e must refine these tasks before implementation.
+  Sources: Phase 4d findings, Phase 4e decision and their reconciled linked contracts.
+
+  ☐ Repair UseProgramBinding, BindVertexArray and BindProgramPipeline according to the agreed
+    command-result contract, preserving equal-binding suppression and required selector semantics.
+  ☐ Repair BindBuffer(ElementArrayBuffer) and VertexArrayElementBuffer cache maintenance while
+    preserving VAO metadata notifications, helper revisions and named-command selection behavior.
+  ☐ Repair GpuVertexAttribBinding construction, BindVertexBuffer, SetDivisor and RequireCurrentFacts
+    so established managed facts are retained under the approved contract; preserve stale-copy safety.
+  ☐ Reconcile external buffer/VAO/program selector and framebuffer-routing observation with the agreed
+    invalidation rules. Preserve exact native calls, errors and genuinely unknown-state recovery.
+  ☐ Have subagents verify changed/unchanged/unknown bindings, rejected commands, external mutations,
+    DSA/fallback paths, deletion/name reuse, helper revisions and boundary restoration. Compare native
+    bind/query counts against Phase 4d evidence and qualify the resulting acquisition binding scopes.
+  ☐ Reconcile current documentation, run affected regressions and canonical package checks through
+    subagents, then perform second review and independent completion audit before checking off work.
+  ☐ Completion: approved binding repairs are verified, required metadata notifications remain intact,
+    and the corrected binding/query baseline is available for acquisition changes. No performance
+    claim follows from call counts alone.
+
+Phase 4g: Repair metadata acquisition under the approved architecture
+  Depends on completed Phase 4f and the Phase 4e architectural decision. Phase 4e must refine these
+  tasks into method-specific migrations before implementation.
+  Sources: Phase 4d per-method findings, Phase 4e decision, Phase 4f evidence and reconciled contracts.
+
+  ☐ Implement the approved disposition for each acquisition/publication/reader method analyzed in 4d.
+    Separate established managed facts from external discovery and driver-derived facts as agreed;
+    remove confirmed redundant reads without introducing wrapper-authored or duplicate metadata.
+  ☐ Apply the agreed policy to raw-ID aliases, existing entries, backing dependencies, unavailable
+    metadata and context-local tools. Preserve recovery, alias publication and native lifetime safety.
+  ☐ Have subagents measure acquisition queries against the corrected Phase 4f baseline, separating
+    acquisition reads from binding recovery. Verify failed commands, external changes, dependency
+    propagation, available-entry reuse and correctness across supported DSA/fallback paths.
+  ☐ Reconcile current documentation, run affected regressions and canonical package checks through
+    subagents, then perform second review and independent completion audit before checking off work.
+  ☐ Completion: all approved acquisition repairs are implemented and verified, per-method query
+    dispositions match evidence, and no required foundation repair is deferred to consumer integration.
+
+Phase 4h: Make GpuPreparedBindings consume supplied metadata exclusively
+  Depends on Phase 4g so the preparation boundary uses the corrected acquisition contract.
+  Approved implementation direction: GpuPreparedBindings only validates and prepares bindings from
+  supplied metadata. This decision does not require another alternatives analysis or approval gate.
+  Sources: [proposal](Rendering.GpuResourceHandles.Proposal.md),
+  [inventory](Rendering.GpuResourceHandles.Inventory.md),
+  [shader binding architecture](Rendering.ShaderBindingState.md).
+
+  ☐ Require a non-nullable GpuProgramMetadata snapshot in the GpuPreparedBindings constructor.
+    Remove the optional metadata argument and every direct-GL reflection/query fallback from the
+    constructor and ReadBlocks. Remove the program ID parameter if no remaining responsibility needs it.
+  ☐ Keep metadata acquisition outside GpuPreparedBindings. Update GpuProgramInterface and every
+    other caller to supply the snapshot through the manager-owned acquisition/publication boundary;
+    do not replace the removed GL calls with hidden acquisition inside GpuPreparedBindings.
+  ☐ Preserve existing fixed-slot contract validation, resource activity, arrays, block sizes/stage
+    checks, atomic-counter bindings, diagnostic projections and prepared lookup tables. Reject
+    unavailable or incomplete metadata explicitly; never query native state to fill missing facts.
+  ☐ Update StandaloneNumericInputTests to supply metadata while preserving its original validation
+    assertion. Reconcile ReflectionQueries and its consumers with the class's query-free responsibility;
+    count native acquisition at its actual boundary where measurement remains required.
+  ☐ Have subagents run focused preparation/contract tests covering valid snapshots, unavailable or
+    incomplete facts and incompatible contracts. Verify preparation from an already supplied snapshot
+    requires no native queries, and exercise production preparation through GpuProgramInterface.
+  ☐ Update current shader-binding documentation and reconcile the proposal/inventory responsibility
+    statements. Have subagents run affected builds/tests and canonical package verification, then
+    perform a second review and independent completion audit before checking off this subphase.
+  ☐ Completion: GpuPreparedBindings derives its prepared tables solely from supplied metadata and
+    contracts, all callers provide the required snapshot, and no native acquisition fallback remains.
+
 Phase 5: Integrate persistent cloud and depth resources
-  Depends on Phases 3 and 4 and their verified native coverage.
+  Depends on Phases 3, 4, 4a–4h and their verified retained native coverage.
+  Gate: binding repairs in Phase 4f, acquisition repairs in Phase 4g and supplied-metadata preparation
+  in Phase 4h must be complete and verified before starting this phase.
   Outcome: cloud/depth consumers use the common resource mechanism without repeated stable acquisition.
 
   ☐ Update CloudNativeMapAdapter/CloudNativeRuntime and cloud consumers to retain common tracked
@@ -633,6 +1091,16 @@ Phase 7: Design the GpuCommand and GpuCommandList render hardware interface
     Specify typed resource references, descriptors, capabilities and unsupported-operation behavior.
     Keep wrapper allocation policy and higher-level rendering orchestration above backend execution;
     retain manager ownership of canonical metadata and typed snapshot publication.
+  ☐ Design backend-owned dispatch between DSA and non-DSA implementations. Callers express a typed
+    resource operation once, without capability branches, DSA flags, native entry-point selection or
+    manual fallback binding scopes. Select the supported implementation inside the OpenGL backend
+    using cached per-operation capabilities, including applicable core/ARB/EXT variants rather than
+    assuming one global DSA switch. Specify fallback binding, restoration and GpuStateCache updates
+    so both paths satisfy the same public operation contract and publish metadata exactly once.
+    Distinguish unsupported capability from command failure; do not retry a failed or partially
+    executed operation through another path as an implicit fallback. Demonstrate the abstraction for
+    buffers, textures, framebuffers and VAOs, and plan capability-enabled/disabled tests for equivalent
+    results, preserved surrounding state and absence of redundant binds or capability queries.
   ☐ Specify command-list recording, execution, submission, reset/reuse and completion semantics.
     Evaluate immediate and deferred execution, argument/data ownership, resource retention, cancellation,
     context/thread affinity and synchronization. Distinguish recording, native execution and GPU
@@ -655,7 +1123,8 @@ Phase 7: Design the GpuCommand and GpuCommandList render hardware interface
   ☐ Review the complete design against the implemented resource contracts and resolve conflicts.
     Present the standalone proposal for approval before deriving implementation phases or changing
     runtime code. Record unresolved design decisions explicitly.
-  ☐ Completion: the RHI boundary, command/list semantics, backend execution, GpuStateCache integration,
+  ☐ Completion: the RHI boundary, command/list semantics, backend-owned DSA/fallback dispatch,
+    backend execution, GpuStateCache integration,
     migration and validation strategy are concrete and internally consistent; design review is complete
     and the proposal is approved. Implementation and renaming remain separately authorized work.
 
@@ -709,7 +1178,13 @@ Proposal traceability
   Canonical structs, manager registry and context/retention: Phases 1–3 and 6.
   Ownership, disposal, detach, guards and scheduling: Phases 1 and 3.
   Generic wrapper snapshots, metadata publication, failures and revisions: Phases 1–4.
-  StateCache/native coverage and binding behavior: Phases 1, 3 and 4.
+  StateCache/native coverage and binding behavior: Phases 1, 3, 4 and 4a.
+  Compiler-checked native adapters and exact signature mapping: Phase 4a.
+  Legacy fixed-function/compatibility exclusions and implementation removal: Phase 4b.
+  GL/Core, EXT and ARB interception-owner restriction: Phase 4c.
+  Joint binding/acquisition analysis and architectural approval: Phases 4d and 4e.
+  Binding-cache repairs followed by metadata acquisition repairs: Phases 4f and 4g.
+  GpuPreparedBindings validation/preparation from supplied metadata exclusively: Phase 4h.
   Cloud/depth consumers and content contracts: Phase 5.
   Scope, source layout and documentation: governing contracts; Phases 2–6.
   Acceptance and measurements: baseline in Phase 1; focused verification in Phases 2–5; Phase 6.
@@ -727,6 +1202,10 @@ Final acceptance
     registry entries and stale wrappers or queued work never affect reused names.
   ☐ Metadata notifications and revision-aware validation cover the inventoried supported paths;
     native integration evidence uses actual redirection and unknown/error paths remain correct.
+  ☐ Metadata interception uses compiler-checked C# adapter bodies and explicit exact signature mapping;
+    runtime discovery and the call-replacement transpiler preserve the established engine boundary.
+  ☐ Legacy fixed-function/compatibility support and dedicated tests are removed, with modern retained
+    commands preserved and the active coverage matrix reconciled to the supported boundary.
   ☐ Common tracking supports the intended cloud/depth consumers without duplicated lifetime systems,
     while render/content behavior and existing state restoration remain correct.
   ☐ Required tests, package checks, cleanup, documentation and measured call/cost comparisons are

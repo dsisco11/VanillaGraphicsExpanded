@@ -76,7 +76,9 @@ internal sealed partial class GpuResourceManager
             throw new InvalidOperationException("The native resource was registered during metadata acquisition.");
         CompleteRegistryAdmission(entry);
         RequireLiveEntry(entry);
-        entry.Publish(candidate, GpuMetadataChange.None);
+        // Initial acquisition must establish the same backing dependencies as a later
+        // refresh before making the new canonical snapshot available to recipients.
+        PublishMetadata(entry, candidate, GpuMetadataChange.None);
         return entry;
     }
 

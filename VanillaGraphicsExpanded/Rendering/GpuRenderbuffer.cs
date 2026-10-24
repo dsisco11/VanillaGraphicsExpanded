@@ -88,10 +88,14 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
         int samples = 0,
         string? debugName = null)
     {
-        int id = GL.GenRenderbuffer();
+        // Named storage requires a realized object; generated names are realized by the
+        // fallback allocation's binding, while DSA creation initializes the object directly.
+        int id;
+        if (GpuSupport.Graphics.SupportsArbDirectStateAccess) GL.CreateRenderbuffers(1, out id);
+        else id = GL.GenRenderbuffer();
         if (id == 0)
         {
-            throw new InvalidOperationException("glGenRenderbuffers failed.");
+            throw new InvalidOperationException("Renderbuffer creation failed.");
         }
 
 #if DEBUG
@@ -228,7 +232,8 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
         }
 
         StateCache.Current.RenderbufferStorage(this, storage, width, height, samples);
-        GpuFramebufferAttachmentObservers.NotifyChanged(this);
+        if (ResourceManager?.GetResourceRegistration(this) is null)
+            GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
     /// <summary>

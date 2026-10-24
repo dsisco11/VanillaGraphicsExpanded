@@ -23,6 +23,16 @@ internal sealed partial class StateCache
     #endregion
 
     #region Native commands
+    /// <summary>Attaches a proven multiview range through a capability-selected named command or bound fallback.</summary>
+    internal void FramebufferTextureMultiview(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment image)
+    {
+        if (!GpuSupport.Graphics.SupportsOvrMultiview) throw new NotSupportedException("OVR multiview is unavailable.");
+        if (GpuSupport.Graphics.SupportsArbDirectStateAccess)
+            GL.Ovr.NamedFramebufferTextureMultiview(resource.FboId, slot, image.TextureId, image.MipLevel, image.BaseView, image.ViewCount);
+        else GL.Ovr.FramebufferTextureMultiview(FramebufferTarget.Framebuffer, slot, image.TextureId, image.MipLevel, image.BaseView, image.ViewCount);
+        ObserveFramebufferAttachment(resource, slot, image);
+    }
+
     /// <summary>Attaches a renderbuffer image to the bound framebuffer.</summary>
     internal void FramebufferRenderbuffer(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment image)
     {
@@ -58,6 +68,10 @@ internal sealed partial class StateCache
     private void ObserveFramebufferAttachment(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment? image)
     {
         RequireNativeAttachment(resource, slot, image);
+        if (image is { Kind: GpuResourceKind.Texture, ImageTarget: TextureTarget.Texture2DArray }
+            && resource.ResourceManager?.GetResourceRegistration(resource) is GpuResourceMetadataEntry<GpuFramebufferMetadata> entry)
+            entry.Manager.RecordFramebufferAttachmentCommand(entry, new(slot, image.TextureId, image.MipLevel,
+                image.Layer ?? -1, image.BaseView, image.ViewCount, image.AttachmentMode, true, false));
         ObserveMetadata(resource, GpuFramebufferMetadataReader.Instance, GpuMetadataChange.Metadata);
     }
 
@@ -84,7 +98,9 @@ internal sealed partial class StateCache
         if (matches && expected is { Kind: GpuResourceKind.Texture })
             matches = Read(FramebufferParameterName.FramebufferAttachmentTextureLevel) == expected.MipLevel
                 && Read(FramebufferParameterName.FramebufferAttachmentTextureCubeMapFace) == (int)(expected.CubeFace ?? 0)
-                && Read(FramebufferParameterName.FramebufferAttachmentLayered) == (expected.MetadataImageSelection.Layered ? 1 : 0)
+                && (expected.AttachmentMode == GpuFramebufferAttachmentMode.Multiview
+                    ? Read((FramebufferParameterName)All.FramebufferAttachmentTextureBaseViewIndexOvr) == expected.BaseView && Read((FramebufferParameterName)All.FramebufferAttachmentTextureNumViewsOvr) == expected.ViewCount
+                    : Read(FramebufferParameterName.FramebufferAttachmentLayered) == (expected.MetadataImageSelection.Layered ? 1 : 0))
                 && (!expected.Layer.HasValue || Read(FramebufferParameterName.FramebufferAttachmentTextureLayer) == expected.Layer.Value);
         if (matches) return;
         GpuResourceManager.InvalidateWrapperMetadata(resource);

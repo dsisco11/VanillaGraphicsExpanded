@@ -183,7 +183,7 @@ public static partial class GpuSupport
         isForwardCompatibleContext = (((ContextFlagMask)contextFlags) & ContextFlagMask.ContextFlagForwardCompatibleBit) != 0;
 
         // Some drivers report robust access via ARB enum; keep this best-effort.
-        isRobustAccessContext = (((ContextFlagMask)contextFlags) & (ContextFlagMask)0x00000004) != 0;
+        isRobustAccessContext = (((ContextFlagMask)contextFlags) & ContextFlagMask.ContextFlagRobustAccessBit) != 0;
 
         if (contextProfileMaskValue != 0)
         {

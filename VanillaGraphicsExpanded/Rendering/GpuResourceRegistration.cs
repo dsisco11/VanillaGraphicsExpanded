@@ -117,4 +117,4 @@ internal enum GpuResourceRegistrationState { Live, Retiring, Deleted, ContextRet
 
 /// <summary>Classifies a proven metadata effect without treating content writes as metadata changes.</summary>
 [Flags]
-internal enum GpuMetadataChange { None = 0, Metadata = 1, Storage = 2 }
+internal enum GpuMetadataChange { None = 0, Metadata = 1, Storage = 2, Executable = 4 }

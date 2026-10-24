@@ -14,14 +14,14 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
 {
     private int pipelineId;
 
+    #region Public API
+    #region Identity and creation
     /// <inheritdoc />
     public override nint ResourceId
     {
         get => pipelineId;
         protected set => pipelineId = (int)value;
     }
-
-    protected override GpuResourceKind ResourceKind => GpuResourceKind.ProgramPipeline;
 
     /// <summary>
     /// Gets the underlying OpenGL program pipeline id.
@@ -33,25 +33,25 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
     /// </summary>
     public new bool IsValid => base.IsValid;
 
-    private GpuProgramPipeline(int pipelineId)
-    {
-        this.pipelineId = pipelineId;
-        GpuResourceManager.RegisterEmptyMetadata(this);
-    }
-
     /// <summary>
     /// Creates a new program pipeline object.
     /// </summary>
     public static GpuProgramPipeline Create(string? debugName = null)
     {
-        int id = GL.GenProgramPipeline();
+        bool direct = GpuSupport.Graphics.SupportsArbDirectStateAccess;
+        int id;
+        if (direct) GL.CreateProgramPipelines(1, out id);
+        else id = GL.GenProgramPipeline();
         if (id == 0)
         {
-            throw new InvalidOperationException("glGenProgramPipelines failed.");
+            throw new InvalidOperationException("Program pipeline creation failed.");
         }
 
         return CompleteOwnedCreation(GpuResourceKind.ProgramPipeline, id, () =>
         {
+            // Realize fallback generated names before labels or publication. Named
+            // creation already establishes the object without touching selector state.
+            using var binding = direct ? (StateCache.ProgramPipelineScope?)null : StateCache.Current.BindProgramPipelineScope(id);
             var value = new GpuProgramPipeline(id);
             value.SetDebugName(debugName);
             return value;
@@ -70,6 +70,9 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
         }
 #endif
     }
+
+    #endregion
+    #region Binding
 
     /// <summary>
     /// Binds this pipeline via <c>glBindProgramPipeline</c>.
@@ -118,6 +121,9 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
         return new BindingScope(scope);
     }
 
+    #endregion
+    #region Configuration and validation
+
     /// <summary>
     /// Assigns separable program stages to this pipeline via <c>glUseProgramStages</c>.
     /// </summary>
@@ -131,7 +137,7 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
             return;
         }
 
-        using var _ = BindScope();
+        // This command names its target pipeline and does not use the selected pipeline.
         GL.UseProgramStages(pipelineId, stages, programId);
     }
 
@@ -145,7 +151,7 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
             return;
         }
 
-        using var _ = BindScope();
+        // Uniform-target selection is per pipeline; changing the bound pipeline is unnecessary.
         GL.ActiveShaderProgram(pipelineId, programId);
     }
 
@@ -191,6 +197,9 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
         }
     }
 
+    #endregion
+    #region Binding scope
+
     /// <summary>
     /// Scope that restores the previous program pipeline binding when disposed.
     /// </summary>
@@ -198,14 +207,34 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
     {
         private readonly StateCache.ProgramPipelineScope scope;
 
+        #region Public API
+        /// <summary>Retains the cache scope which owns restoration of the previous native selection.</summary>
         public BindingScope(StateCache.ProgramPipelineScope scope)
         {
             this.scope = scope;
         }
 
+        /// <summary>Restores the program pipeline selection captured on entry.</summary>
         public void Dispose()
         {
             scope.Dispose();
         }
+        #endregion
     }
+    #endregion
+    #endregion
+
+    #region Protected API
+    /// <inheritdoc />
+    protected override GpuResourceKind ResourceKind => GpuResourceKind.ProgramPipeline;
+    #endregion
+
+    #region Private
+    /// <summary>Registers one realized native pipeline without mirroring authored stage assignments.</summary>
+    private GpuProgramPipeline(int pipelineId)
+    {
+        this.pipelineId = pipelineId;
+        GpuResourceManager.RegisterEmptyMetadata(this);
+    }
+    #endregion
 }

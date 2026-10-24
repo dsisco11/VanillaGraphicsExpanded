@@ -18,7 +18,7 @@ internal sealed partial class GpuComputePipeline
     internal bool EnsureReady()
     {
         if (IsDisposed) return false;
-        if (IsValid) return true;
+        if (IsValid) return !NeedsNativePreparation;
         if (preparationFailed || prepare == null) return false;
         using var candidate = prepare();
         if (candidate == null)

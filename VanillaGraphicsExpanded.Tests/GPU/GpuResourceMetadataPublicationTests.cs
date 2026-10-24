@@ -221,7 +221,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         using var bufferView = GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
         Assert.Equal(buffer.BufferId, bufferView.BufferId);
         Assert.Equal(SizedInternalFormat.R32f, bufferView.Format);
-        GL.GetTextureLevelParameter(bufferView.TextureId, 0, (GetTextureParameter)0x8C2D, out int actualBuffer);
+        GL.GetTextureLevelParameter(bufferView.TextureId, 0, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, out int actualBuffer);
         Assert.Equal(actualBuffer, bufferView.BufferId);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -309,19 +309,19 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
             if (generatedName) Assert.True(cache.TextureBindCount > previousBindCount);
             else Assert.Equal(previousBindCount, cache.TextureBindCount);
             Assert.Equal((int)TextureUnit.Texture3, GL.GetInteger(GetPName.ActiveTexture));
-            Assert.Equal(sentinel.TextureId, GL.GetInteger((GetPName)0x8C2C));
+            Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingBuffer));
             GL.ActiveTexture(TextureUnit.Texture0);
-            Assert.Equal(sentinel.TextureId, GL.GetInteger((GetPName)0x8C2C));
+            Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingBuffer));
             GL.ActiveTexture(TextureUnit.Texture3);
-            GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)0x8C2D, out int actualBuffer);
+            GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, out int actualBuffer);
             GL.GetTextureLevelParameter(view.TextureId, 0, GetTextureParameter.TextureInternalFormat, out int actualFormat);
             Assert.Equal(actualBuffer, view.BufferId);
             Assert.Equal(buffer.BufferId, actualBuffer);
             Assert.Equal((SizedInternalFormat)actualFormat, view.Format);
             if (ranged)
             {
-                GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)0x919D, out int actualOffset);
-                GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)0x919E, out int actualSize);
+                GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)All.TextureBufferOffset, out int actualOffset);
+                GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)All.TextureBufferSize, out int actualSize);
                 Assert.Equal((nint)actualOffset, view.OffsetBytes);
                 Assert.Equal((nint)actualSize, view.SizeBytes);
                 Assert.Equal((nint)offset, view.OffsetBytes);

@@ -62,7 +62,7 @@ public abstract partial class GpuProgram : IDisposable, IGpuProgram
     /// <summary>
     /// Returns <c>true</c> when this program has a non-zero <see cref="ProgramId"/>.
     /// </summary>
-    public bool IsLinked => ProgramId != 0 && !lifetime.IsRetired;
+    public bool IsLinked => ProgramId != 0 && !lifetime.IsRetired && executable?.NeedsNativePreparation != true;
 
     /// <summary>
     /// Program identity used for GL debug labels and explicit catalog lookup by generic owners.

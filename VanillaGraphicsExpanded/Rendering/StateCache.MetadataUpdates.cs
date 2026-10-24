@@ -53,7 +53,7 @@ internal sealed partial class StateCache
             disposed = true;
             cache.metadataUpdates.Remove(resource);
             if (completed) GpuResourceManager.ObserveWrapperMetadata(resource, reader, change);
-            else GpuResourceManager.DiscardUntrackedMetadata(resource, change);
+            else GpuResourceManager.FailWrapperMetadataUpdate(resource, change);
         }
         #endregion
     }

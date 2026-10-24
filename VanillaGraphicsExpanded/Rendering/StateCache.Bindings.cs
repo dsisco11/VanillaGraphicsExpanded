@@ -7,6 +7,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     private int? currentProgram;
+    // CURRENT_PROGRAM identifies the uniform destination. Desktop EXT selectors
+    // can change that destination or individual stages without a full UseProgram.
+    private bool currentProgramStagesKnown;
     private int? currentVao;
     private int? currentProgramPipeline;
     private int? currentFramebuffer;
@@ -164,20 +167,24 @@ internal sealed partial class StateCache
     /// <summary>Binds through the single native cache without withdrawing an admitted owner.</summary>
     private void UseProgramBinding(int programId)
     {
-        if (currentProgram == programId) return;
+        if (currentProgramStagesKnown && currentProgram == programId) return;
+        currentProgram = null;
+        currentProgramStagesKnown = false;
         try
         {
             GL.UseProgram(programId);
-            currentProgram = programId;
+            currentProgramStagesKnown = GetCurrentProgram() == programId;
         }
         catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
         }
     }
 
+    /// <summary>Records a completed full-program installation, rather than a uniform-destination query.</summary>
     public void NotifyProgramBound(int programId)
     {
         currentProgram = programId;
+        currentProgramStagesKnown = true;
     }
 
     public void UnbindProgram()
@@ -206,10 +213,13 @@ internal sealed partial class StateCache
     public void BindVertexArray(int vaoId)
     {
         if (currentVao == vaoId) return;
+        currentVao = null;
         try
         {
             GL.BindVertexArray(vaoId);
-            currentVao = vaoId;
+            // Rejected selectors preserve the previous native VAO. Cache that result,
+            // not the requested name, before a bound metadata command selects its entry.
+            GetCurrentVao();
 
             // A borrowed VAO may already own an EBO. Leave unknown associations uncached
             // until queried or observed through BindBuffer rather than inventing a zero binding.
@@ -381,10 +391,12 @@ internal sealed partial class StateCache
 
     public void BindProgramPipeline(int pipelineId)
     {
+        if (currentProgramPipeline == pipelineId) return;
+        currentProgramPipeline = null;
         try
         {
             GL.BindProgramPipeline(pipelineId);
-            currentProgramPipeline = pipelineId;
+            GetCurrentProgramPipeline();
         }
         catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
@@ -417,18 +429,13 @@ internal sealed partial class StateCache
         }
     }
 
-    /// <summary>Resolves unknown renderbuffer state with a checked query and otherwise reuses cached knowledge.</summary>
+    /// <summary>Resolves unknown renderbuffer state without consuming the caller's native error queue.</summary>
     public int GetCurrentRenderbuffer()
     {
         if (currentRenderbuffer.HasValue) return currentRenderbuffer.Value;
-
-        using (var errors = new GlDebug.ErrorScope("Renderbuffer binding query"))
-        {
-            int value = GL.GetInteger(GetPName.RenderbufferBinding);
-            GlDebug.ThrowIfErrors("Renderbuffer binding query");
-            currentRenderbuffer = value;
-        }
-
+        // Metadata observation can recover bindings after a rejected native command.
+        // Boundary restoration owns any required diagnostics; this query preserves errors.
+        currentRenderbuffer = GL.GetInteger(GetPName.RenderbufferBinding);
         return currentRenderbuffer.Value;
     }
 
@@ -881,17 +888,23 @@ internal sealed partial class StateCache
         if (TryGetCachedBoundBuffer(target, out int cached) && cached == bufferId) return;
         if (target == BufferTarget.ElementArrayBuffer)
         {
+            var observation = BeginNativeVertexMetadata(0, named: false, elementBinding: true);
+            bool returned = false;
             try
             {
                 GL.BindBuffer(target, bufferId);
-
-                // ElementArrayBuffer is VAO state.
-                int vaoId = currentVao ?? GetCurrentVao();
-                elementArrayBufferByVao[vaoId] = bufferId;
+                returned = true;
             }
             catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
         {
             }
+            finally
+            {
+                // A rejected bind retains its old native value; recover it on demand.
+                observation.Complete(returned);
+            }
+            // Retain binding suppression using the actual result, including a rejected bind.
+            if (returned) GetBoundBuffer(target);
             return;
         }
 
@@ -1021,11 +1034,13 @@ internal sealed partial class StateCache
             TextureTarget.Texture2D => GetPName.TextureBinding2D,
             TextureTarget.Texture2DArray => GetPName.TextureBinding2DArray,
             TextureTarget.Texture3D => GetPName.TextureBinding3D,
-            TextureTarget.TextureBuffer => (GetPName)0x8C2C, // GL_TEXTURE_BINDING_BUFFER
+            TextureTarget.TextureBuffer => GetPName.TextureBindingBuffer, // GL_TEXTURE_BINDING_BUFFER
+            (TextureTarget)All.TextureRenderbufferNv => (GetPName)All.TextureBindingRenderbufferNv, // GL_TEXTURE_BINDING_RENDERBUFFER_NV
             TextureTarget.TextureRectangle => GetPName.TextureBindingRectangle,
             TextureTarget.TextureCubeMap => GetPName.TextureBindingCubeMap,
-            // Not present in some OpenTK builds; use raw GL enum value.
-            TextureTarget.TextureCubeMapArray => (GetPName)0x900A, // GL_TEXTURE_BINDING_CUBE_MAP_ARRAY
+            TextureTarget.TextureCubeMapArray => (GetPName)All.TextureBindingCubeMapArray, // GL_TEXTURE_BINDING_CUBE_MAP_ARRAY
+            TextureTarget.Texture2DMultisample => GetPName.TextureBinding2DMultisample,
+            TextureTarget.Texture2DMultisampleArray => GetPName.TextureBinding2DMultisampleArray,
             _ => default
         };
 
@@ -1037,16 +1052,16 @@ internal sealed partial class StateCache
         pname = target switch
         {
             BufferTarget.ArrayBuffer => GetPName.ArrayBufferBinding,
-            BufferTarget.CopyReadBuffer => (GetPName)0x8F36, // GL_COPY_READ_BUFFER_BINDING
-            BufferTarget.CopyWriteBuffer => (GetPName)0x8F37, // GL_COPY_WRITE_BUFFER_BINDING
+            BufferTarget.CopyReadBuffer => (GetPName)All.CopyReadBuffer, // GL_COPY_READ_BUFFER_BINDING
+            BufferTarget.CopyWriteBuffer => (GetPName)All.CopyWriteBuffer, // GL_COPY_WRITE_BUFFER_BINDING
             BufferTarget.DrawIndirectBuffer => GetPName.DrawIndirectBufferBinding,
             BufferTarget.DispatchIndirectBuffer => GetPName.DispatchIndirectBufferBinding,
             BufferTarget.PixelPackBuffer => GetPName.PixelPackBufferBinding,
             BufferTarget.PixelUnpackBuffer => GetPName.PixelUnpackBufferBinding,
             BufferTarget.UniformBuffer => GetPName.UniformBufferBinding,
             BufferTarget.ShaderStorageBuffer => GetPName.ShaderStorageBufferBinding,
-            BufferTarget.TextureBuffer => (GetPName)0x8C2A, // GL_TEXTURE_BUFFER_BINDING
-            BufferTarget.AtomicCounterBuffer => (GetPName)0x92C2, // GL_ATOMIC_COUNTER_BUFFER_BINDING
+            BufferTarget.TextureBuffer => GetPName.TextureBuffer, // GL_TEXTURE_BUFFER_BINDING
+            BufferTarget.AtomicCounterBuffer => (GetPName)All.AtomicCounterBufferStart, // GL_ATOMIC_COUNTER_BUFFER_BINDING
             BufferTarget.TransformFeedbackBuffer => GetPName.TransformFeedbackBufferBinding,
             _ => default
         };

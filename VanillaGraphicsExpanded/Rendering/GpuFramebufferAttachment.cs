@@ -17,11 +17,29 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     private readonly int externalId;
     private readonly bool renderbuffer;
     private readonly TextureTarget target;
+    private readonly GpuFramebufferAttachmentMode attachmentMode;
 
     private int retired;
 
     #region Public API
     #region Construction
+    /// <summary>Borrows a selected multiview range without creating a new texture object or taking storage ownership.</summary>
+    public static GpuFramebufferAttachment FromMultiviewTexture(GpuTexture texture, int baseView, int viewCount, int mipLevel = 0)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        if (!texture.IsValid || texture.TextureTarget != TextureTarget.Texture2DArray)
+            throw new ArgumentException("Multiview attachments require a live two-dimensional array texture.", nameof(texture));
+        return new(texture, false, mipLevel, null, null, baseView, viewCount, GpuFramebufferAttachmentMode.Multiview);
+    }
+
+    /// <summary>Borrows a multiview range relative to an existing two-dimensional array view.</summary>
+    public static GpuFramebufferAttachment FromMultiviewTexture(GpuTextureView texture, int baseView, int viewCount, int mipLevel = 0)
+    {
+        ArgumentNullException.ThrowIfNull(texture);
+        if (!texture.IsValid || texture.Target != TextureTarget.Texture2DArray)
+            throw new ArgumentException("Multiview attachments require a live two-dimensional array view.", nameof(texture));
+        return new(texture, false, mipLevel, null, null, baseView, viewCount, GpuFramebufferAttachmentMode.Multiview);
+    }
     /// <summary>Allocates and owns a resizable two-dimensional texture image.</summary>
     public GpuFramebufferAttachment(int width, int height, PixelInternalFormat format,
         TextureFilterMode filter = TextureFilterMode.Nearest, string? debugName = null)
@@ -101,6 +119,12 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     public int MipLevel { get; }
     /// <summary>Gets the selected layer, distinguishing layer zero from an entire layered level.</summary>
     public int? Layer { get; }
+    /// <summary>Gets the first selected view in an explicit multiview range.</summary>
+    public int BaseView { get; }
+    /// <summary>Gets the selected view count, or zero for an ordinary image selection.</summary>
+    public int ViewCount { get; }
+    /// <summary>Gets proven command semantics separately from native range queries.</summary>
+    internal GpuFramebufferAttachmentMode AttachmentMode => attachmentMode;
     /// <summary>Gets an individual cube face when one was selected.</summary>
     public TextureTarget? CubeFace => IsCubeFace(target) ? target : null;
     /// <summary>Gets the selected image width.</summary>
@@ -138,7 +162,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     public bool Resize(int width, int height)
     {
         if (!IsValid) return false;
-        if (MipLevel != 0 || Layer.HasValue) throw new InvalidOperationException("Selected subresources cannot be resized independently.");
+        if (MipLevel != 0 || Layer.HasValue || ViewCount > 0) throw new InvalidOperationException("Selected subresources cannot be resized independently.");
         bool changed = resource switch
         {
             DynamicTexture2D texture => texture.Resize(width, height),
@@ -151,24 +175,53 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     #endregion
 
     #region Internal API
+    /// <summary>Compares image selections without inferring multiview mode from an ordinary positive native count.</summary>
+    internal bool MatchesNativeSelection(GpuFramebufferImageMetadata data, bool retainAuthoredMode = false)
+    {
+        if (MipLevel != data.MipLevel || (CubeFace ?? 0) != data.CubeFace) return false;
+        if (target == TextureTarget.Texture2DArray)
+        {
+            // Context-local tools have no persistent observation subscription. Retain an
+            // authored image relationship when queried selection facts still match it;
+            // absence of a tracked mode must not discard managed storage ownership.
+            var mode = data.Mode == GpuFramebufferAttachmentMode.Unknown && retainAuthoredMode ? attachmentMode : data.Mode;
+            if (attachmentMode != mode) return false;
+            if (mode == GpuFramebufferAttachmentMode.Multiview
+                || mode == GpuFramebufferAttachmentMode.Unknown && data.Layered && data.ViewCount > 0)
+                return !Layer.HasValue && BaseView == data.BaseView && ViewCount == data.ViewCount;
+        }
+        return MetadataImageSelection.Layer == data.Layer && MetadataImageSelection.Layered == data.Layered;
+    }
+
     /// <summary>Gets this image's mip, layer or cube-face choice independently of generic resource metadata.</summary>
     internal GpuImageSelection MetadataImageSelection => new(MipLevel, Layer ?? 0, CubeFace ?? 0,
         !Layer.HasValue && target is TextureTarget.TextureCubeMap or TextureTarget.Texture1DArray or TextureTarget.Texture2DArray
-            or TextureTarget.Texture3D or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray);
+            or TextureTarget.Texture3D or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray,
+        BaseView, ViewCount);
 
     /// <summary>Publishes changes to remaining framebuffer references without retaining them strongly.</summary>
     internal void NotifyChanged()
     {
         try { GpuResourceManager.AcquireImageMetadata(this); }
-        finally
+        finally { NotifyDependents(); }
+    }
+
+    /// <summary>Invalidates every retained framebuffer after manager publication or failed image acquisition.</summary>
+    internal void NotifyDependents()
+    {
+        List<Exception>? failures = null;
+        // Snapshot callbacks may change subscriptions. One failed consumer must not prevent
+        // the remaining consumers from withdrawing their previous configuration.
+        foreach (var reference in framebuffers.ToArray())
         {
-            // A failed projection still invalidates every dependent framebuffer's prior configuration.
-            for (int i = framebuffers.Count - 1; i >= 0; i--)
+            if (reference.TryGetTarget(out var framebuffer))
             {
-                if (framebuffers[i].TryGetTarget(out var framebuffer)) framebuffer.OnAttachmentChanged(this);
-                else framebuffers.RemoveAt(i);
+                try { framebuffer.OnAttachmentChanged(this); }
+                catch (Exception error) { (failures ??= new()).Add(error); }
             }
+            else framebuffers.Remove(reference);
         }
+        if (failures is not null) throw new AggregateException("Framebuffer dependency notification failed.", failures);
     }
 
     /// <summary>Registers a weak observer so externally retained images cannot keep unused framebuffers alive.</summary>
@@ -184,8 +237,12 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     {
         ValidateSlot(slot);
         var cache = StateCache.Current;
+        if (target == TextureTarget.Texture2DArray && attachmentMode == GpuFramebufferAttachmentMode.Unknown
+            && GpuSupport.Graphics.SupportsOvrMultiview)
+            throw new NotSupportedException("Native attachment queries do not establish ordinary versus multiview replay semantics.");
         // Image selection belongs to the wrapper; each native operation remains a StateCache command.
-        if (Kind == GpuResourceKind.Renderbuffer) cache.FramebufferRenderbuffer(framebuffer, slot, this);
+        if (attachmentMode == GpuFramebufferAttachmentMode.Multiview) cache.FramebufferTextureMultiview(framebuffer, slot, this);
+        else if (Kind == GpuResourceKind.Renderbuffer) cache.FramebufferRenderbuffer(framebuffer, slot, this);
         else if (Layer.HasValue) cache.FramebufferTextureLayer(framebuffer, slot, this);
         else if (target is TextureTarget.Texture2D or TextureTarget.TextureRectangle || CubeFace.HasValue)
             cache.FramebufferTexture2D(framebuffer, slot, this);
@@ -221,8 +278,9 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
 
     /// <summary>Builds a borrowed image discovered from an external framebuffer without claiming storage ownership.</summary>
     internal static GpuFramebufferAttachment FromExternalImage(int id, bool renderbuffer, TextureTarget target,
-        int mipLevel, int? layer, GpuTextureMetadata? acquiredTexture = null)
-        => new(id, renderbuffer, target, mipLevel, layer, acquiredTexture);
+        int mipLevel, int? layer, GpuTextureMetadata? acquiredTexture = null, int baseView = 0, int viewCount = 0,
+        GpuFramebufferAttachmentMode mode = GpuFramebufferAttachmentMode.Ordinary)
+        => new(id, renderbuffer, target, mipLevel, layer, acquiredTexture, baseView, viewCount, mode);
     #endregion
 
     #region Protected API
@@ -264,13 +322,17 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     private bool HasStencil => TextureFormatHelper.IsStencilFormat(InternalFormat)
         || InternalFormat is PixelInternalFormat.Depth24Stencil8 or PixelInternalFormat.Depth32fStencil8;
     /// <summary>Captures one managed backing resource and its selected image without changing its lifecycle.</summary>
-    private GpuFramebufferAttachment(GpuResource resource, bool ownsStorage, int mipLevel, int? layer, TextureTarget? cubeFace = null)
+    private GpuFramebufferAttachment(GpuResource resource, bool ownsStorage, int mipLevel, int? layer, TextureTarget? cubeFace = null,
+        int baseView = 0, int viewCount = 0, GpuFramebufferAttachmentMode mode = GpuFramebufferAttachmentMode.Ordinary)
     {
         this.resource = resource;
         this.ownsStorage = ownsStorage;
         disposalQueue = GpuResourceManagerSystem.CaptureDisposalQueue();
         MipLevel = mipLevel;
         Layer = layer;
+        BaseView = baseView;
+        ViewCount = viewCount;
+        attachmentMode = mode;
         renderbuffer = resource is GpuRenderbuffer;
         target = cubeFace ?? (resource is GpuTexture texture ? texture.TextureTarget : resource is GpuTextureView view ? view.Target : 0);
         ValidateSelection();
@@ -280,13 +342,17 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     }
 
     /// <summary>Retains an imported image selection while the manager acquires its native snapshot.</summary>
-    private GpuFramebufferAttachment(int id, bool renderbuffer, TextureTarget target, int mipLevel, int? layer, GpuTextureMetadata? acquiredTexture = null)
+    private GpuFramebufferAttachment(int id, bool renderbuffer, TextureTarget target, int mipLevel, int? layer, GpuTextureMetadata? acquiredTexture = null,
+        int baseView = 0, int viewCount = 0, GpuFramebufferAttachmentMode mode = GpuFramebufferAttachmentMode.Ordinary)
     {
         externalId = id;
         this.renderbuffer = renderbuffer;
         this.target = target;
         MipLevel = mipLevel;
         Layer = layer;
+        BaseView = baseView;
+        ViewCount = viewCount;
+        attachmentMode = mode;
         disposalQueue = GpuResourceManagerSystem.CaptureDisposalQueue();
         ValidateSelection();
         GpuResourceManager.AcquireImageMetadata(this, acquiredTexture);
@@ -311,6 +377,12 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     private void ValidateSelection()
     {
         if ((uint)MipLevel > 30) throw new ArgumentOutOfRangeException(nameof(MipLevel));
+        if ((ViewCount != 0 || attachmentMode == GpuFramebufferAttachmentMode.Multiview)
+            && (target != TextureTarget.Texture2DArray || Layer.HasValue || BaseView < 0 || ViewCount < 1
+            || !GpuSupport.Graphics.SupportsOvrMultiview
+            || attachmentMode == GpuFramebufferAttachmentMode.Multiview && ViewCount > GpuSupport.Graphics.MaxMultiviewViews
+            || (long)BaseView + ViewCount > GpuSupport.Graphics.MaxArrayTextureLayers))
+            throw new ArgumentOutOfRangeException(nameof(ViewCount));
         if (Layer.HasValue && (Layer.Value < 0 || target is not (TextureTarget.Texture1DArray
             or TextureTarget.Texture2DArray or TextureTarget.Texture3D or TextureTarget.TextureCubeMapArray
             or TextureTarget.Texture2DMultisampleArray))) throw new ArgumentOutOfRangeException(nameof(Layer));

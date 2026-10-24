@@ -24,7 +24,7 @@ internal abstract partial class GpuComputeProgram : IGpuProgram
     /// <summary>Gets the installed binding layout.</summary>
     public GpuProgramLayout ProgramLayout => pipeline.ProgramLayout;
     /// <summary>Reports whether the owned executable remains available.</summary>
-    public bool IsValid => !lifetime.IsRetired && !reloadRequired && pipeline.IsValid;
+    public bool IsValid => !lifetime.IsRetired && !reloadRequired && pipeline.IsValid && !pipeline.NeedsNativePreparation;
     /// <summary>Reports the owned executable's last preparation failure.</summary>
     public string PreparationLog => reloadRequired ? reloadFailure ?? rebuildDiagnostic?.Invoke() ?? pipeline.PreparationLog : pipeline.PreparationLog;
     /// <summary>Prepares the executable without publishing inputs or executing work.</summary>
@@ -105,7 +105,7 @@ internal abstract partial class GpuComputeProgram : IGpuProgram
     /// <summary>Identifies the installed compute executable generation.</summary>
     ulong IGpuProgram.ExecutableRevision => executableRevision;
     /// <summary>Reports whether current compute assets require initial preparation or executable replacement.</summary>
-    bool IGpuProgram.RequiresPreparation => reloadRequired || !pipeline.IsValid;
+    bool IGpuProgram.RequiresPreparation => reloadRequired || !pipeline.IsValid || pipeline.NeedsNativePreparation;
     /// <summary>Identifies the compute executable's originating context.</summary>
     (nint Handle, long Generation) IGpuProgram.ExecutableContext => pipeline.ExecutableContext;
     /// <summary>Exposes stable lifecycle data solely to the common workflow.</summary>

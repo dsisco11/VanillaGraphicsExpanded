@@ -15,7 +15,7 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDispo
     private readonly (nint Handle, long Generation) context = Integration.RenderContextRegistry.Current();
     protected override (nint Handle, long Generation) NativeProgramContext => context;
     private string? debugName;
-    private GpuProgramLayout bindingCache = GpuProgramLayout.Empty;
+    private GpuProgramLayout bindingCache = new();
 
     /// <inheritdoc />
     public override nint ResourceId
@@ -37,6 +37,19 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDispo
     /// </summary>
     public GpuProgramLayout BindingCache => bindingCache;
 
+    /// <summary>Reports stale derived preparation independently of native allocation validity.</summary>
+    internal bool NeedsNativePreparation => bindingCache.NeedsNativePreparation;
+
+    /// <summary>Shares the owner's installed preparation without adding another metadata association.</summary>
+    internal void SetPreparedLayout(GpuProgramLayout layout) => bindingCache = layout;
+
+    /// <summary>Reconciles manager-published facts with this owner's existing derived layout.</summary>
+    internal void OnNativeProgramMetadataChanged(GpuMetadataChange change, bool available)
+    {
+        ulong revision = ResourceManager?.GetResourceRegistration(this)?.MetadataRevision ?? 0;
+        bindingCache.ObserveNativeMetadata(programId, metadata, revision, change, available);
+    }
+
     /// <summary>
     /// Gets the debug name used for KHR_debug labeling (debug builds only).
     /// </summary>
@@ -48,11 +61,12 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDispo
     public new bool IsValid => base.IsValid;
 
     /// <summary>Adopts native identity and acquires its canonical executable snapshot.</summary>
-    private GpuProgramObject(int programId, string? debugName)
+    private GpuProgramObject(int programId, string? debugName, bool newlyCreated = false)
     {
         this.programId = programId;
         this.debugName = debugName;
-        GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance);
+        if (newlyCreated) GpuResourceManager.AcquireCreatedProgramMetadata(this);
+        else GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance);
     }
 
     /// <summary>Takes deletion ownership of a program returned by an external linker.</summary>
@@ -77,7 +91,7 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDispo
         GlDebug.TryLabel(ObjectLabelIdentifier.Program, id, debugName);
 #endif
 
-        return CompleteOwnedCreation(GpuResourceKind.Program, id, () => new GpuProgramObject(id, debugName));
+        return CompleteOwnedCreation(GpuResourceKind.Program, id, () => new GpuProgramObject(id, debugName, newlyCreated: true));
     }
 
     /// <summary>
@@ -153,12 +167,12 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDispo
             GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int linkStatus);
             infoLog = GL.GetProgramInfoLog(programId) ?? string.Empty;
             bool ok = linkStatus != 0;
-            if (ok)
+            if (ok && !bindingCache.HasPreparedInterface)
             {
                 bindingCache = new GpuProgramLayout();
                 if (ResourceManager?.GetResourceRegistration(this) is { MetadataAvailable: true } entry)
                     bindingCache.UseNativeMetadata(programId, metadata, entry.MetadataRevision);
-                else bindingCache.RebuildCache(programId);
+                else bindingCache.UseNativeMetadata(programId, metadata, 0);
             }
             return ok;
         }

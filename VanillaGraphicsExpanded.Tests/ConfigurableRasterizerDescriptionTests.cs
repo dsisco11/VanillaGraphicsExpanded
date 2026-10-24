@@ -17,13 +17,7 @@ public sealed class ConfigurableRasterizerDescriptionTests
         Assert.Equal(ClipOrigin.LowerLeft, raster.ClipOrigin);
         Assert.Equal(ClipDepthMode.NegativeOneToOne, raster.ClipDepth);
         Assert.Equal(PointSpriteCoordOriginParameter.UpperLeft, raster.PointSpriteOrigin);
-        Assert.False(raster.AlphaTest || raster.PointSmooth || raster.LineSmooth || raster.PolygonSmooth || raster.LineStipple || raster.PolygonStipple);
-        Assert.Equal(AlphaFunction.Always, raster.AlphaComparison);
-        Assert.Equal(0, raster.AlphaReference);
-        Assert.Equal(1, raster.LineStippleFactor);
-        Assert.Equal(ushort.MaxValue, raster.LineStipplePattern);
-        Assert.Equal(128, raster.PolygonStipplePattern.Count);
-        Assert.All(raster.PolygonStipplePattern, value => Assert.Equal(byte.MaxValue, value));
+        Assert.False(raster.LineSmooth || raster.PolygonSmooth);
     }
 
     /// <summary>Each independent active setting contributes to pipeline identity.</summary>
@@ -33,39 +27,9 @@ public sealed class ConfigurableRasterizerDescriptionTests
         var baseline = Create(new());
         RasterizerDesc[] alternatives = [new() { ClipOrigin = ClipOrigin.UpperLeft },
             new() { ClipDepth = ClipDepthMode.ZeroToOne }, new() { PointSpriteOrigin = PointSpriteCoordOriginParameter.LowerLeft },
-            new() { AlphaTest = true }, new() { PointSmooth = true }, new() { LineSmooth = true },
-            new() { PolygonSmooth = true }, new() { LineStipple = true }, new() { PolygonStipple = true }];
+            new() { LineSmooth = true },
+            new() { PolygonSmooth = true }];
         foreach (var raster in alternatives) Assert.NotEqual(baseline, Create(raster));
-        var alpha = new RasterizerDesc { AlphaTest = true };
-        Assert.NotEqual(Create(alpha), Create(alpha with { AlphaComparison = AlphaFunction.Less }));
-        Assert.NotEqual(Create(alpha), Create(alpha with { AlphaReference = .5f }));
-        var line = new RasterizerDesc { LineStipple = true };
-        Assert.NotEqual(Create(line), Create(line with { LineStippleFactor = 256 }));
-        Assert.NotEqual(Create(line), Create(line with { LineStipplePattern = 0 }));
-        Assert.NotEqual(Create(new() { PolygonStipple = true }), Create(new() { PolygonStipple = true, PolygonStipplePattern = new(new byte[128]) }));
-    }
-
-    /// <summary>Patterns are copied and structurally compared with dormant authored parameters retained.</summary>
-    [Fact]
-    public void PatternOwnershipAndDormantAuthoredValuesAreStable()
-    {
-        byte[] bytes = Enumerable.Range(0, 128).Select(value => (byte)value).ToArray();
-        var authored = new RasterizerDesc { PolygonStipplePattern = new(bytes), AlphaComparison = AlphaFunction.Less,
-            AlphaReference = .5f, LineStippleFactor = 256, LineStipplePattern = 17 };
-        var dormant = Create(authored);
-        Assert.NotEqual(Create(new()), dormant);
-        Assert.Equal(authored, dormant.Rasterizer);
-        var enabled = Create(authored with { PolygonStipple = true, AlphaTest = true, LineStipple = true });
-        var copy = Create(authored with { PolygonStipple = true, AlphaTest = true, LineStipple = true, PolygonStipplePattern = new(bytes.ToArray()) });
-        Assert.Equal(enabled, copy);
-        Assert.Equal(enabled.GetHashCode(), copy.GetHashCode());
-        int hash = enabled.GetHashCode();
-        bytes[0] = 255;
-        Assert.Equal(0, dormant.Rasterizer.PolygonStipplePattern[0]);
-        Assert.Equal(0, enabled.Rasterizer.PolygonStipplePattern[0]);
-        Assert.Equal(hash, enabled.GetHashCode());
-        Assert.Equal(.5f, enabled.Rasterizer.AlphaReference);
-        Assert.Equal(256, enabled.Rasterizer.LineStippleFactor);
     }
 
     /// <summary>Malformed authored values reject even when the corresponding feature is disabled.</summary>
@@ -73,24 +37,16 @@ public sealed class ConfigurableRasterizerDescriptionTests
     public void InvalidInactiveParametersReject()
     {
         RasterizerDesc[] invalid = [new() { ClipOrigin = (ClipOrigin)(-1) }, new() { ClipDepth = (ClipDepthMode)(-1) },
-            new() { PointSpriteOrigin = (PointSpriteCoordOriginParameter)(-1) }, new() { AlphaComparison = (AlphaFunction)(-1) },
-            new() { AlphaReference = float.NaN }, new() { AlphaReference = float.PositiveInfinity },
-            new() { AlphaReference = -.1f }, new() { AlphaReference = 1.1f },
-            new() { LineStippleFactor = 0 }, new() { LineStippleFactor = 257 },
-            new() { PolygonStipplePattern = new(new byte[127]) }, new() { PolygonStipplePattern = new(new byte[129]) },
-            new() { PolygonStipplePattern = null! }];
+            new() { PointSpriteOrigin = (PointSpriteCoordOriginParameter)(-1) }];
         foreach (var raster in invalid) Assert.ThrowsAny<ArgumentException>(() => Create(raster));
     }
 
-    /// <summary>Core-safe behavior remains accepted while removed compatibility features reject.</summary>
+    /// <summary>Modern raster behavior remains accepted while unsupported clip control rejects.</summary>
     [Fact]
     public void ProfileAndClipCapabilitiesAreEnforced()
     {
         var core = Capabilities() with { CoreProfile = true };
         Create(new() { LineSmooth = true, PolygonSmooth = true, PointSpriteOrigin = PointSpriteCoordOriginParameter.LowerLeft }, core);
-        RasterizerDesc[] legacy = [new() { AlphaTest = true }, new() { PointSmooth = true },
-            new() { LineStipple = true }, new() { PolygonStipple = true }];
-        foreach (var raster in legacy) Assert.Throws<NotSupportedException>(() => Create(raster, core));
         var noControl = Capabilities() with { ClipControl = false };
         Create(new(), noControl);
         Assert.Throws<NotSupportedException>(() => Create(new() { ClipOrigin = ClipOrigin.UpperLeft }, noControl));

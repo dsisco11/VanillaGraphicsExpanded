@@ -127,7 +127,11 @@ internal sealed partial class StateCache
             rasterizer.PolygonModes = QueryBoundary(() =>
             {
                 int[] value = new int[2]; GL.GetInteger(GetPName.PolygonMode, value);
-                return ((PolygonMode)value[0], (PolygonMode)(support.CoreProfile ? value[0] : value[1]));
+                // A common-mode snapshot cannot restore distinct compatibility face modes.
+                // Refuse boundary admission before any managed draw changes them.
+                if (!support.CoreProfile && value[0] != value[1])
+                    throw new System.NotSupportedException("Separate polygon face modes are outside the supported rendering contract.");
+                return (PolygonMode)value[0];
             });
             rasterizerKnown |= RasterizerStateKnowledge.PolygonModes;
         }

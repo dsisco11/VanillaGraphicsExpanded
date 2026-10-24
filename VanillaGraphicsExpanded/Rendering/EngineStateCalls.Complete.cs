@@ -19,7 +19,7 @@ internal static partial class EngineStateCalls
     public static void Scissor(int x, int y, int width, int height) => CurrentCache.SetScissor(x, y, width, height);
     /// <summary>Publishes polygon depth-bias parameters.</summary>
     public static void PolygonOffset(float factor, float units) => CurrentCache.SetPolygonOffset(factor, units);
-    /// <summary>Publishes selected polygon faces while preserving the opposite face.</summary>
+    /// <summary>Publishes common polygon modes and forwards unsupported face selectors unchanged.</summary>
     public static void PolygonMode(MaterialFace face, PolygonMode mode) => CurrentCache.SetPolygonMode(face, mode);
     /// <summary>Adapts the triangle-face overload without changing its native face values.</summary>
     public static void PolygonMode(TriangleFace face, PolygonMode mode) => CurrentCache.SetPolygonMode((MaterialFace)face, mode);

@@ -4,12 +4,10 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
-
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
-
 
 namespace VanillaGraphicsExpanded.Rendering;
 
@@ -51,6 +49,16 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
     /// Populated on successful creation/link.
     /// </summary>
     public GpuProgramLayout ProgramLayout => programLayout;
+
+    /// <summary>Reports derived preparation invalidation without changing native ownership or identity.</summary>
+    internal bool NeedsNativePreparation => programLayout.NeedsNativePreparation;
+
+    /// <summary>Reconciles canonical program changes with retained compute preparation.</summary>
+    internal void OnNativeProgramMetadataChanged(GpuMetadataChange change, bool available)
+    {
+        ulong revision = ResourceManager?.GetResourceRegistration(this)?.MetadataRevision ?? 0;
+        programLayout.ObserveNativeMetadata(programId, metadata, revision, change, available);
+    }
 
     /// <summary>
     /// Returns <c>true</c> when the program has a non-zero id and has not been disposed.
@@ -118,17 +126,19 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
         }
 
         int programId = 0;
+        GpuProgramObject? candidate = null;
 #if DEBUG
         using var errors = new GlDebug.ErrorScope($"{debugName}: compute linking and bindings");
 #endif
         try
         {
-            programId = ShaderProgramLink.Submit([computeShader.ShaderId], retrievableBinary, out _);
+            candidate = ShaderProgramLink.Submit([computeShader.ShaderId], retrievableBinary, out _);
+            programId = candidate.ProgramId;
 #if DEBUG
             GlDebug.TryLabel(ObjectLabelIdentifier.Program, programId, debugName);
             GlDebug.ThrowIfErrors($"{debugName}: compute create/attach/link program={programId}");
 #endif
-            bool linked = ShaderProgramLink.Validate(programId, out infoLog);
+            bool linked = ShaderProgramLink.Validate(candidate, out infoLog);
             GL.DetachShader(programId, computeShader.ShaderId);
 
             if (disposeShaderAfterLink)
@@ -138,33 +148,22 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
 
             if (!linked)
             {
-                try { StateCache.Current.DeleteProgram(programId); } catch { }
                 return false;
             }
 
-            pipeline = PrepareLinkedPipeline(programId, computeShader.BindingContract, layout, warn, debugName);
+            pipeline = PrepareLinkedPipeline(candidate, computeShader.BindingContract, layout, warn, debugName);
             return true;
         }
         catch (Exception ex)
         {
             infoLog = (infoLog.Length > 0 ? infoLog + "\n" : string.Empty) + ex.Message;
 
-            try
-            {
-                if (programId != 0)
-                {
-                    StateCache.Current.DeleteProgram(programId);
-                }
-            }
-            catch
-            {
-            }
-
             pipeline = null;
             return false;
         }
         finally
         {
+            candidate?.Dispose();
             // Cover failures before detachment/link status as well as ordinary successful ownership transfer.
             if (disposeShaderAfterLink) computeShader.Dispose();
         }
@@ -172,9 +171,10 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
 
     #region Linked interface preparation
     /// <summary>Prepares bindings for both normal links and cached executables before ownership transfer.</summary>
-    private static GpuComputePipeline PrepareLinkedPipeline(int program, GpuBindingContract? contract,
+    private static GpuComputePipeline PrepareLinkedPipeline(GpuProgramObject candidate, GpuBindingContract? contract,
         GpuProgramLayout? layout, Action<string>? warn, string? debugName)
     {
+        int program = candidate.ProgramId;
         // Prepare a separate layout so failure cannot mutate the caller's installed interface.
         var prepared = layout?.CreateCandidate() ?? new GpuProgramLayout();
         if (contract != null) prepared.BinaryInterface = new Spirv.GpuProgramInterface(program, [contract]);
@@ -182,9 +182,15 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
 #if DEBUG
         prepared.ValidateContract(program, warn);
 #endif
-        var pipeline = new GpuComputePipeline(program, prepared, warn);
-        pipeline.SetDebugName(debugName);
-        return pipeline;
+        // Preparation can fail while the candidate still owns deletion. Transfer only
+        // at the final construction boundary, whose cleanup covers a failed wrapper.
+        candidate.Detach();
+        return CompleteOwnedCreation(GpuResourceKind.Program, program, () =>
+        {
+            var pipeline = new GpuComputePipeline(program, prepared, warn);
+            pipeline.SetDebugName(debugName);
+            return pipeline;
+        });
     }
     #endregion
 
@@ -237,13 +243,12 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
             var context = Integration.RenderContextRegistry.Current();
             var inputs = pending?.Inputs ?? DriverProgramCache.Prepare(plan, read, digestIndex);
             if (context != Integration.RenderContextRegistry.Current()) throw new InvalidOperationException("Compute preparation requires its originating context.");
-            int candidate = pending?.DetachProgram() ?? GL.CreateProgram();
+            GpuProgramObject? candidate = pending?.TakeProgram() ?? GpuProgramObject.Create();
             try
             {
-                if (pending != null || DriverProgramCache.TryLoad(candidate, inputs))
+                if (pending != null || DriverProgramCache.TryLoad(candidate.ProgramId, inputs))
                 {
                     pipeline = PrepareLinkedPipeline(candidate, plan.Stages[0].Stage.Bindings, layout, warn, debugName);
-                    candidate = 0;
                     if (pending != null)
                     {
                         if (!pending.Cached) DriverProgramCache.Save(pipeline.ProgramId, inputs);
@@ -252,10 +257,9 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
                 else
                 {
                     // Discard a rejected executable before returning to the established linking owner.
-                    StateCache.Current.DeleteProgram(candidate);
-                    candidate = 0;
-                    var loaded = Spirv.SpirvStageLoader.Load(plan.Stages[0], inputs.Read);
-                    using var module = new GpuShaderModule(loaded.Shader, ShaderType.ComputeShader) { BindingContract = loaded.Contract };
+                    candidate.Dispose();
+                    candidate = null;
+                    using var module = Spirv.SpirvStageLoader.Load(plan.Stages[0], inputs.Read);
                     if (!TryCreate(module, out pipeline, out infoLog, debugName, layout: layout, warn: warn,
                         retrievableBinary: inputs.Key != null)) return false;
                     DriverProgramCache.Save(pipeline!.ProgramId, inputs);
@@ -264,7 +268,7 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
                 Interlocked.Increment(ref spirvUsedCount);
                 return true;
             }
-            finally { if (candidate != 0) StateCache.Current.DeleteProgram(candidate); }
+            finally { candidate?.Dispose(); }
         }
         catch (Exception ex)
         {

@@ -27,7 +27,7 @@ internal static class TestShaderInterfaces
     /// <summary>Links binary fixtures and creates the same interface snapshot as production.</summary>
     public static void LinkProgram(int program)
     {
-        GL.LinkProgram(program);
+        StateCache.Current.LinkProgram(program);
         GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
         if (linked == 0) return;
         GL.GetProgram(program, GetProgramParameterName.AttachedShaders, out int count);
@@ -39,10 +39,10 @@ internal static class TestShaderInterfaces
     {
         Shaders.Remove(shader);
         if (shaderReleases?.Remove(shader, out var released) == true) released();
-        GL.DeleteShader(shader);
+        StateCache.Current.DeleteShader(shader);
     }
     /// <summary>Deletes a fixture program and forgets its metadata.</summary>
-    public static void DeleteProgram(int program) { ForgetProgram(program); GL.DeleteProgram(program); }
+    public static void DeleteProgram(int program) { ForgetProgram(program); StateCache.Current.DeleteProgram(program); }
     /// <summary>Forgets a production-owned fixture before its pipeline disposes.</summary>
     public static void ForgetProgram(int program)
     {

@@ -22,8 +22,8 @@ acquires initial metadata through that common registry without acquiring ownersh
 [StateCache](../VanillaGraphicsExpanded/Rendering/StateCache.ResourceDeletion.Publication.cs) observes
 supported native deletion commands and preserves their binding/restoration effects.
 [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) redirects exact
-supported GL signatures. Complete metadata-mutation interception and persistent consumer migration
-remain unchecked in the implementation checklist.
+supported GL signatures within the owner boundary below. Persistent consumer migration remains
+unchecked in the implementation checklist.
 
 ## Responsibilities
 
@@ -131,13 +131,25 @@ history. A valid registration does not imply that the native resource is bound.
 
 ## Command coverage and consumers
 
-APPLE and NV extension APIs are excluded from interception and metadata-tracking support. Core
-equivalents remain in scope; all other applicable extension groups retain their coverage obligations.
+Interception is restricted to the managed native owners GL, GL.Ext and GL.Arb.
+The pinned OpenTK binding exposes core methods directly on GL; adapter classes named Core
+refer to that owner. All other auxiliary owners are excluded, including Amd, Ati, Ibm, Intel,
+Mesa, Oes, Ovr, Sgis, Sun, Apple and NV. This is an owner boundary, not a filter on feature origins,
+command suffixes, extension capability checks or direct VGE resource operations.
+Unmapped calls execute unchanged and do not provide continuing metadata or lifecycle observation.
+
+All applicable overloads on the allowed owners remain in scope, including vendor-origin features.
+Legacy pre-OpenGL 3.0 fixed-function/compatibility facilities are also excluded: matrix stacks,
+display lists, server/client attribute stacks, client default resets and legacy client-array state.
+Alpha testing, point smoothing, separate polygon face modes, line/polygon stipple and automatic mip generation are excluded too.
+Earlier introduction alone does not exclude commands retained
+by modern OpenGL, including ordinary texture/buffer operations, generic vertex attributes and
+depth/blend state. These exclusions do not apply to the separate GpuCommandList RHI design.
 
 The [API matrix](Rendering.GpuResourceHandles.ApiCoverage.md) covers ALL OpenGL commands capable of changing
 represented metadata, independent of current callers: bound, DSA, multi-object, extension and managed
 overload variants. Bound commands use existing unknown-state reconciliation; explicit commands use their
-named objects/units. All deletion kinds and list paths must use the common notification route. Preserve
+named objects/units. All deletion kinds and multi-resource deletion lists use the common notification route. Preserve
 command ordering, actual binding effects and per-object failures. Missing binding APIs require explicit
 adapter dispositions. Capability-limited hardware does not waive implementation support.
 

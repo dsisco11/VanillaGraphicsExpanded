@@ -185,7 +185,7 @@ engine boundary. Dormant parameters retain their inherited native values and cac
 | Clipping | Lower-left origin, negative-one-to-one clip depth, depth range [0,1]; all supported user clip-distance enables off. Where clip-control exists, set/restore it; otherwise use the API fixed convention. Custom shader clip distances are unsupported; alternate origin/depth conventions remain authored settings. Current production shader scan found no gl_ClipDistance/gl_CullDistance outputs. |
 | Primitive assembly | Triangles, restart and fixed-index restart disabled, restart index 0; patch count 3 when tessellation used. Validate topology/stages/control-point count; explicit restart may be enabled for compatible indexed draws. Tessellation must supply control/evaluation stages; no ambient default tessellation levels. |
 | Lines and points | Width and fixed point size 1, static fields. Program point size off by default; explicit enable for shader-sized orb points. World-probe resolve shaders write size 1. Debug selected-orb size 12 uses a distinct static description; varying shader pointSize remains a shader input. No consumer requires dynamic fixed line/point size. |
-| Compatibility raster features | All smoothing/test/stipple enables default off; point sprite coordinate origin defaults upper-left. Line and polygon smoothing and point-coordinate origin are core state. Alpha test, point smoothing and line/polygon stipple require compatibility profiles. Alpha defaults Always/reference 0; line repeat/pattern default 1/0xffff; polygon pattern defaults to 128 all-ones bytes. Legacy point-sprite/fixed-function shading modes are excluded from programmable core draws, not accepted as arbitrary complete-pipeline settings. |
+| Modern raster features | Line and polygon smoothing default off; programmable point-coordinate origin defaults upper-left. Alpha testing, point smoothing, stipple and fixed-function shading are outside the supported pipeline model. |
 | Dynamics | Single viewport and scissor rectangle; scissor enable static. Require viewport every pass/draw and rectangle whenever scissor enabled. Stencil references and blend constant required when declared/used. No viewport arrays initially. Clear area is pass state independent of draw scissor/write masks. |
 
 Active transform feedback and conditional rendering are not permitted across the first-consumer
@@ -193,9 +193,7 @@ boundary. Entry must verify inactivity (query once if available and no reliable 
 otherwise skip/reject before mutation; binding tracking alone does not prove inactivity. GpuTransformFeedback.Begin/End/Pause/Resume are resource-helper operations outside complete submission and must not enclose these passes. Conditional
 rendering needs an explicit inactive engine boundary contract if native status cannot be queried.
 These are required checks/contracts, not claims that today's helper implements them. Legacy matrices
-and lighting are irrelevant to the linked programmable fullscreen shader. Unsupported exotic raster
-modes cannot be admitted merely by leaving them out of the key: disable/restore enumerated compatibility
-enables or reject entry if neutralization cannot be validated. Capability-absent state has a canonical
+and lighting are irrelevant to the linked programmable fullscreen shader. Excluded fixed-function state is outside the programmable rendering contract. Capability-absent state has a canonical
 unsupported value and must not generate invalid queries/calls.
 
 Direct lighting explicitly selects the defaults above, dynamic full-target viewport, triangles and
@@ -311,9 +309,8 @@ is complete.
 
 ## Configurable raster state contract
 
-All added settings are static pipeline inputs; no new dynamic declaration is needed. Authored inactive
-values are validated and retained, including disabled alpha parameters, line stipple factor/pattern
-and polygon stipple masks. Descriptions preserve that intent independently of feature enables.
+Raster settings are static pipeline inputs; no new dynamic declaration is needed. Authored inactive
+values are validated and retained. Descriptions preserve that intent independently of feature enables.
 Boundary snapshots preserve actual incoming parameters even while their enable is false, without
 canonicalizing engine state.
 
@@ -331,87 +328,22 @@ viewport Y mapping and the native front-facing area convention; screen-coordinat
 scissor placement, texture reconstruction and authored winding policy must match it. StateCache does
 not rewrite matrices, flip winding, or infer reversed-Z. Production conventions remain unchanged.
 
-Polygon stipple uses an immutable 128-byte value: 32 rows bottom-to-top, four bytes per row, most
-significant bit first within each byte. Native transfers explicitly use this layout and restore the
-borrowed pack/unpack layout, bit order and buffer binding even when an operation fails. This is the
-native polygon rasterization mask, not a texture or fragment-shader workaround.
-
 | Added state | Existing owner extended | Application, observation and restoration |
 | --- | --- | --- |
 | Clip enables and conventions | VGE graphics application fixes clip enables off; RasterizerDesc owns origin/depth conventions; shared GraphicsCapabilities/GpuSupport and RasterizerState/Knowledge retain native engine state | StateCache clip setters and per-distance knowledge; selective boundary queries and exact restore; engine Enable/Disable and ClipControl adapters. |
-| Alpha, smoothing, stipple, point origin | RasterizerDesc and categorized raster cache | StateCache setters and ApplyConfigurableRaster; profile-aware queries/restoration including disabled parameters; exact-signature engine adapters. |
-| Polygon mask transfer layout | StateCache pixel pack and buffer binding owners, corresponding unpack owner | Canonical upload/readback, exception cleanup, immutable snapshot sharing. Raw engine array uploads retain engine unpack semantics and invalidate only mask knowledge. |
-| Unknown native overloads/external mutations | Existing ExecuteExternal and EPipelineState invalidation | ConfigurableRaster invalidation withdraws only added raster knowledge; PixelPack/PixelUnpack and BufferBindings remain independent categories. Unmapped pointer/ref uploads and point-parameter overloads require an explicit external handoff. |
+| Line/polygon smoothing and programmable point origin | RasterizerDesc and categorized raster cache | StateCache setters and ApplyConfigurableRaster; profile-aware queries/restoration including disabled parameters; exact-signature engine adapters. |
+| Unknown native overloads/external mutations | Existing ExecuteExternal and EPipelineState invalidation | ConfigurableRaster invalidation withdraws only added raster knowledge; PixelPack/PixelUnpack and BufferBindings remain independent categories. Unmapped point-parameter overloads require an explicit external handoff. |
 
 ApplyConfigurableRaster applies only these added settings from a validated complete descriptor. General
 complete-pipeline application is now provided by ApplyGraphicsState; production consumer migration
 remains pending. The existing partial GlPipelineDesc is not a complete pipeline and cannot bypass
 shader activation ownership.
 
-Native feature classification follows [Khronos glEnable](https://raw.githubusercontent.com/KhronosGroup/OpenGL-Refpages/main/gl4/glEnable.xml).
-Original validation, before the compiler-derived output contract amendment below: delegated
-shader-enabled Debug and Release validation on 2026-10-06 passed 124/124 affected
-runtime tests in each configuration, with zero failures/skips. Separate generator suites passed
-177/177 each. Native fixtures used NVIDIA RTX 4090 / driver 591.86: OpenGL 4.3 core and OpenGL 4.6
-compatibility. Both expose clip control; capability-absent rejection is synthetic evidence only.
-
-ConfigurableRasterizerDescriptionTests cover explicit defaults, authored inactive-value retention,
-structural identity, copied pattern ownership/equality and enum/range/mask/profile rejection.
-ConfigurableRasterizerGpuTests cover
-native state agreement, individual clip bits, A-to-B-to-A transitions, redundant-call suppression,
-selective invalidation, hostile disabled parameters and boundary restoration on success/exceptions.
-Real 32-by-32 fixture draws verify clipping, alpha rejection, line/polygon stipple, upper-left Y
-orientation and projected depth matching the selected clip convention. Pack and unpack callbacks
-also fail after temporary transfer setup, proving native buffer/layout restoration on that path.
-Engine LSB-first bitmap upload and an actual DynamicTexture2D upload exercise cache coherence.
-Boundary/cache/description/texture regressions exercise the same shared state owners.
-
-Second source review corrected core polygon-smoothing availability, explicit neutral snapshots for
-unavailable fields, checked pixel-buffer binding failure, and pixel-store observation in existing
-texture/readback owners. No upload algorithm or resource ownership changed. Independent audit found
-no source gaps; linked-executable verification and general complete application retain their existing
-preparation/application prerequisites. No live-game appearance or performance result is claimed.
-
-Receipts: artifacts/configurable-raster-{debug,release}-tests.log and
-artifacts/configurable-raster-generator-release.log. Earlier compilation attempts exposed a missing
-OpenTK GetPName member (resolved using the named All enum) and two stale legacy-coverage assertions
-(now list the partial descriptor's actual fields). An initial Release shader-cache replacement access
-error cleared on retry. These earlier attempts are not substituted for the final passing receipts.
-
-Commands used NUGET_PACKAGES=C:/Users/Sisco/.nuget/packages with default shader compilation enabled:
-
-~~~text
-dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Debug --no-restore --filter '<selection>' -v quiet --logger 'console;verbosity=detailed'
-dotnet test VanillaGraphicsExpanded.Tests/VanillaGraphicsExpanded.Tests.csproj -c Release --no-restore --filter '<selection>' -v quiet --logger 'console;verbosity=detailed'
-selection: FullyQualifiedName~ConfigurableRasterizer|FullyQualifiedName~GraphicsPipelineDescriptionTests|FullyQualifiedName~ShaderPipelineIdentityTests|FullyQualifiedName~EngineBoundary|FullyQualifiedName~PipelineStateCoverageTests|FullyQualifiedName~CategorizedStateCacheTests|FullyQualifiedName~GlStateCacheInvalidationTests|FullyQualifiedName~EngineState|FullyQualifiedName~PixelPack|FullyQualifiedName~GpuTextureLifetimeTests|FullyQualifiedName~DynamicTextureReadPixelsTests|FullyQualifiedName~DepthStencilTextureTests
-dotnet test ShaderContractGenerator.Tests/ShaderContractGenerator.Tests.csproj --no-build --no-restore --verbosity minimal
-dotnet test ShaderContractGenerator.Tests/ShaderContractGenerator.Tests.csproj --configuration Release --no-restore --verbosity minimal
-~~~
-
-The generator Debug run reused its successful focused build. Final builds emitted existing
-compiler/analyzer warnings and NU1900 vulnerability-feed access warnings; exact warning totals were
-not collected. Both final runtime invocations rebuilt successfully before executing the tests.
-
-### Compiler-derived output contract amendment
-
-Historical correction (superseded by the custom-clipping removal above): removes authored clip-output metadata from shader attributes/contracts,
-generator emission and shader identity. Descriptor validation now checks only the native clip mask
-and implementation limit; it does not claim to verify executable compatibility. The corresponding
-unit test verifies that enabled and disabled masks share shader identity while retaining distinct
-pipeline identity. Native raster tests continue to use fixture shaders that actually write clip outputs.
-The obsolete generator declaration tests were removed.
-
-This metadata-removal correction did not itself implement compiled-output reflection or preparation
-tests; those are now covered by Prepared graphics realizations below. Pixel-transfer, texture upload,
-rasterizer transitions and engine-boundary restoration were unchanged by the correction.
-
-Fresh delegated validation after this correction passed 124/124 affected runtime tests and 173/173
-shader-generator tests in both Debug and Release, with zero failures/skips. Runtime commands used the
-same selection above, default shader compilation enabled, and --no-restore; generator commands used
--c Debug/Release --no-restore -v quiet. Logs: artifacts/configurable-raster-{debug,release}-tests.log
-(now the correction receipts) and artifacts/configurable-raster-generator-{debug,release}-tests.log.
-Builds reported zero compiler errors; existing compiler/analyzer and NU1900 feed-access warnings remain.
-Source review and git diff --check passed. No compiled-output verification or live-game result is claimed.
+Native feature classification follows the modern OpenGL raster state contract. Alpha testing, point
+smoothing and line/polygon stipple are outside the supported PSO and cache model. The raster tests
+exercise native modern state agreement, clip conventions, redundant-call suppression and boundary
+restoration on success and exceptions. Pixel pack/unpack ownership remains shared with texture
+transfers. No live-game appearance or performance result is claimed.
 
 ## Immutable graphics descriptions
 
@@ -466,7 +398,7 @@ Validation runs unconditionally before canonicalization, including invalid inact
 Enabled scissor/stencil/constant blending requires the corresponding declared dynamics; viewport is
 always explicit. Depth/stencil enables require matching aspects; integer blending, dual-source factors,
 unsupported topology/stage combinations, device-limit violations and unavailable optional features
-reject. Polygon mode applies equally to both faces. Clip and compatibility settings follow the
+reject. Polygon mode applies equally to both faces. Boundary admission rejects unequal incoming face modes; unsupported engine face selectors execute natively and withdraw common-mode knowledge. Clip and modern raster settings follow the
 configurable raster contract above; logic operations remain fixed neutral policy.
 
 Inactive culling, stencil, blending, bias, restart, patch size and sampling values retain authored
@@ -529,9 +461,9 @@ use these dependencies:
 
 | Native state | Application condition |
 |---|---|
-| Line width/smoothing and compatibility line stipple | Lines can be emitted, including polygons in Line mode. Stipple parameters additionally require stippling enabled. |
-| Fixed point size | Points can be emitted, including polygons in Point mode, and program point size is disabled. Point draws establish program-point-size enable and conservative sprite-origin/smoothing policy. |
-| Polygon controls | Polygon emission establishes polygon mode, cull enable and front-face orientation. Cull mode requires culling enabled; front face remains observable with culling disabled. Smoothing/stipple and offset enables follow the selected polygon mode; bias factor/units require its offset enabled. |
+| Line width/smoothing | Lines can be emitted, including polygons in Line mode. |
+| Fixed point size | Points can be emitted, including polygons in Point mode, and program point size is disabled. Point draws establish program-point-size enable and conservative sprite-origin policy. |
+| Polygon controls | Polygon emission establishes polygon mode, cull enable and front-face orientation. Cull mode requires culling enabled; front face remains observable with culling disabled. Smoothing and offset enables follow the selected polygon mode; bias factor/units require its offset enabled. |
 | Scissor rectangle | Scissoring is enabled. Raster draws still establish scissor enable, including disabling inherited clipping. |
 | Depth/stencil | A matching target aspect makes test enable relevant. Enabled tests establish their dependent comparison, write masks and stencil face tuples/references. Depth range and clipping remain conservative without attachments. |
 | Color masks and blending | Each routed output establishes its color mask. Blendable routed outputs establish blend enable; enabled blending establishes equations. Factor tuples require a factor-using channel. Integer targets bypass blending; holes and trailing slots remain untouched. |
@@ -1398,8 +1330,7 @@ component. Cleanup failure remains an unsafe handoff and propagates with the ori
 Pixel pack/unpack layouts validate their inputs before mutation and use optional transition diagnostics.
 Changed layouts and scope restoration do not poll errors by default; checked boundary restoration owns
 its checks. Pixel-transfer buffer changes remain checked safety operations before native code interprets
-a managed pointer using those bindings. Known-equal bindings/layouts do not poll. Polygon-stipple transfer reuses those checked owners and
-checks the transfer itself; restoration does not repeat checks already owned by a checked transfer.
+a managed pointer using those bindings. Known-equal bindings/layouts do not poll.
 Cold state reads retain native error checks so a failed query cannot publish a default as known state.
 Unavoidable safety checks and optional diagnostics are accounted separately from state-value reads
 and native mutations. Reduced call counts alone do not establish CPU or GPU timing improvements.
@@ -1414,7 +1345,7 @@ Traceability for this correction:
 | --- | --- |
 | Proposal / Native error-checking policy; plan / Correct native error polling and checked-operation ownership | GlDebug.CheckStateTransitions; RasterEnables/RasterParameters; StateTransitionDiagnosticsTests distinguishes normal calls, optional diagnostics and inherited errors. |
 | Proposal / Engine integration and cache authority; retained Boundary API, coverage and failures | BoundaryRestoration, BoundaryRasterizer and BoundaryBindings skip known-equal fields, independently check changed fields and preserve targeted invalidation; boundary restoration/entry suites retain failure and lifecycle cases. |
-| Proposal / Native error-checking policy; retained configurable raster transfer ownership | PixelPack/PixelUnpack no-op suppression; PixelTransferBindings and PolygonStipple retain checked safety setup/transfer/cleanup; pixel layout and configurable raster GPU suites verify native state and exception restoration. |
+| Proposal / Native error-checking policy; retained configurable raster transfer ownership | PixelPack/PixelUnpack no-op suppression; PixelTransferBindings retains checked safety setup/transfer/cleanup; pixel layout and configurable raster GPU suites verify native state and exception restoration. |
 | Proposal / Validation and acceptance | Delegated shader-enabled Debug/Release tests; operation counters distinguish native mutations, value reads and error polling. No live-game or timing acceptance is inferred. |
 
 Delegated shader-enabled verification passed on 2026-10-06: Debug 74/74 and Release 74/74,
@@ -1586,7 +1517,7 @@ Traceability and inventory dispositions:
 | Proposal / Native error-checking policy | Existing optional setter diagnostics and checked boundary/transfer owners retained | StateTransitionDiagnosticsTests and pixel layout/readback tests |
 | Graphics submission design contract / Supported state and defaults, Restoration decisions by boundary | CompleteApplication establishes the same authored values; GraphicsDynamicState and immutable descriptions are unchanged | Hostile-state, A-to-B-to-A, indexed alias and actual fixture-draw tests |
 | Plan inventory / remaining category consumers | Depth, Rasterizer, RasterEnables, RasterParameters, PipelineRasterizer, PrimitiveAssembly, Patches, Dynamic, Blending, ScissorScope, ClearOperations and Legacy retain existing per-field writes and do not overwrite the expanded structs | Source review and focused category/legacy regressions |
-| Plan inventory / remaining boundary and resource consumers | BoundaryValidation keeps complete-only authority; BoundaryRasterizer, BoundaryBindings, BoundaryActivity, EngineBoundaryScope, EngineBoundaryDeclaration/Execution and FullscreenBoundary/CompleteGraphicsBoundary require no ownership changes. PixelPack/Unpack, PixelTransferBindings, PolygonStipple and resource deletion remain with existing owners | Source review; boundary, transfer, retirement and diagnostic suites |
+| Plan inventory / remaining boundary and resource consumers | BoundaryValidation keeps complete-only authority; BoundaryRasterizer, BoundaryBindings, BoundaryActivity, EngineBoundaryScope, EngineBoundaryDeclaration/Execution and FullscreenBoundary/CompleteGraphicsBoundary require no ownership changes. PixelPack/Unpack, PixelTransferBindings and resource deletion remain with existing owners | Source review; boundary, transfer, retirement and diagnostic suites |
 | Plan inventory / authored interfaces and index | EngineStateCalls and EngineStateCallMap signatures remain intact; EPipelineState numbering and groups unchanged; project.todo already links the governing plan and requires no index edit | Exact-signature engine tests, coverage tests and source review |
 
 Historical receipts above retain their original scope and counts. Delegated shader-enabled verification
@@ -1631,7 +1562,7 @@ Exhaustive source inventory and dispositions:
 | --- | --- |
 | DepthState | TestEnabled and WriteEnabled share the existing byte DepthStateKnowledge bits. Comparison and DepthRange remain scalar/tuple values. |
 | BlendState | Enabled uses its existing byte BlendStateKnowledge bit. Nested GlColorMask already packs R/G/B/A into one byte; preserve it and its equality. Factors and equations are not booleans. |
-| RasterizerState | CullEnabled, ScissorEnabled, AlphaTest, PointSmooth, LineSmooth, PolygonSmooth, LineStipple, PolygonStipple, DepthClamp, RasterizerDiscard, PolygonOffsetFill/Line/Point and ProgramPointSize use their existing uint RasterizerStateKnowledge bits. ClipDistances is already a per-distance uint bitset. Preserve all other parameters and the immutable stipple-pattern reference. |
+| RasterizerState | CullEnabled, ScissorEnabled, LineSmooth, PolygonSmooth, DepthClamp, RasterizerDiscard, PolygonOffsetFill/Line/Point and ProgramPointSize use their existing uint RasterizerStateKnowledge bits. ClipDistances is already a per-distance uint bitset. Other native parameters retain their existing representation. |
 | PrimitiveAssemblyState | PrimitiveRestart and PrimitiveRestartFixedIndex use their existing byte knowledge-enum bits. PatchVertices and RestartIndex remain scalar. |
 | SamplingState | Multisample, SampleCoverageEnabled, SampleMask, SampleAlphaToCoverage, SampleAlphaToOne and SampleShading use the matching SamplingStateKnowledge bits. SampleCoverage.Invert stays in its value/invert tuple: the existing SampleCoverage knowledge bit describes a whole query group, not the invert value. Reusing it would conflate parameter validity with a component value. No new enum or fake knowledge bit is introduced for one unmatched boolean. |
 | StencilState | TestEnabled uses the existing StencilStateKnowledge bit. Front/back function/reference/read masks, write masks and operation tuples contain no boolean values. |
@@ -2699,7 +2630,7 @@ and the consolidated verification below.
 | Scope and exclusions | Engine-owned particle, G-buffer, terrain/tessellation and shared-shadow paths retain explicit partial adapters. Compute uses its existing pipeline and resource owners. One live rendering context is assumed; no context generations, render graph, alternate backend, interning or asynchronous preparation are introduced. Consumer and mutation coverage records unobserved external paths. |
 | Categorized cache storage | Pipeline/State category values and independent category knowledge masks are copied by PipelineStateSnapshot. StateBooleanValueTests, StateValueLayoutTests, CategorizedStateCacheTests, GlStateCacheInvalidationTests and PipelineStateCoverageTests cover packed-value independence, known false versus unknown, detached snapshots and selective/partial authority. Managed sizes are reported separately below. |
 | Complete descriptions and partial overrides | GraphicsPipelineDesc resolves defaults and validates in all configurations; GlPipelineDesc remains explicitly partial compatibility intent. PipelineCanonicalization normalizes equivalent representations while preserving authored identity; StateCache.ApplyGraphicsState establishes relevant native groups and preserves dormant values. GraphicsPipelineDescriptionTests, CompleteGraphicsStateTests and GraphicsCommandContextTests verify observable draw control and rejection of undeclared changes. |
-| Static and dynamic state coverage | Description category records, GraphicsDynamicState, StateCache category transitions and complete restoration own supported raster/depth/stencil/blend/sampling/output/assembly state. ConfigurableRasterizerDescriptionTests and ConfigurableRasterizerGpuTests cover the approved compatibility-state additions. Custom shader clipping is unsupported; user clip enables are explicitly disabled for VGE draws and restored for engine handoff. |
+| Static and dynamic state coverage | Description category records, GraphicsDynamicState, StateCache category transitions and complete restoration own supported raster/depth/stencil/blend/sampling/output/assembly state. ConfigurableRasterizerDescriptionTests and ConfigurableRasterizerGpuTests cover the retained modern raster settings. Custom shader clipping is unsupported; user clip enables are explicitly disabled for VGE draws and restored for engine handoff. |
 | Target signatures and render passes | RenderTargetSignature, RenderPassDesc, RenderPassTargets, RenderPassOperations and GpuFramebuffer attachment/surface publication retain exact formats, sparse/discard routes, typed clears, render areas and borrowed lifetime. RenderPassClearTests/RenderPassLifetimeTests, SurfaceRenderPassTests and native liquid-target tests cover incompatible targets, clear independence, retirement, replacement and resize. |
 | Prepared pipelines, identity, and lifetime | ShaderPipelineIdentity, GraphicsPipelineLifetime, GraphicsPipeline and GraphicsInterfaceValidation use immutable descriptions plus owner/executable revision. Existing prepared bindings and generated std140 inputs remain authoritative. GraphicsPipelineDescriptionTests, ShaderPipelineIdentityTests and PreparedGraphicsPipelineTests cover equality, mutation resistance, reload/disposal and validation without repeated reflection. |
 | Compiler packaging and numeric-input amendments within preparation | ShaderBuildTool/Spirv/ShaderInterfaceReflection and ShaderVariantBuild package immutable declarations with exact binary association; PreparedProgramBinary and GpuProgram.Spirv validate candidates before publication. PackagedInterfaceValidationTests, ShaderInterfaceCompatibilityTests and existing build/driver-cache receipts cover rejection and atomic generations. The Standalone numeric input migration inventory and ShaderAuthoring.md define the approved engine GLSL exceptions; no runtime instruction parser or release debug-name dependency remains. |

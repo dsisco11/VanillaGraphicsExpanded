@@ -88,6 +88,7 @@ internal static class ShaderPreparedSubmission
     {
         if (!binding.Active) return;
         Require(binding, texture?.IsValid == true);
+        if (texture?.IsValid == true) ShaderInputValidation.RequireMetadata(texture);
         if (texture?.IsValid == true && (GpuPreparedBindings.CompatibleTextureTarget(binding.Type) != (int)texture.TextureTarget ||
             !ShaderResourceFormatCompatibility.Matches(binding.Type, texture.InternalFormat)))
             throw new InvalidOperationException($"Incompatible texture target for {binding.Contract.Name}.");
@@ -108,6 +109,7 @@ internal static class ShaderPreparedSubmission
         if (!binding.Active) return;
         Require(binding, image.Texture?.IsValid == true);
         if (image.Texture?.IsValid != true) return;
+        ShaderInputValidation.RequireMetadata(image.Texture);
         int layers = image.Texture.TextureTarget == TextureTarget.Texture3D ? Math.Max(1, image.Texture.Depth >> Math.Max(0, image.Level)) : image.Texture.Depth;
         var viewTarget = !image.Layered && image.Texture.TextureTarget is TextureTarget.Texture3D or TextureTarget.Texture2DArray
             ? TextureTarget.Texture2D : image.Texture.TextureTarget;
@@ -121,7 +123,7 @@ internal static class ShaderPreparedSubmission
             throw new InvalidOperationException($"Invalid image view for {binding.Contract.Name}.");
     }
     /// <summary>Checks uniform storage without changing owner-controlled contents.</summary>
-    internal static void ValidateUniformBlock(GpuPreparedBindings.Entry binding, GpuUniformBuffer? buffer) => Require(binding, buffer?.IsValid == true);
+    internal static void ValidateUniformBlock(GpuPreparedBindings.Entry binding, GpuUniformBuffer? buffer) => ValidateBuffer(binding, buffer);
     /// <summary>Checks CPU storage and allocator availability without consuming dirty work.</summary>
     internal static void ValidateUniformBlock(GpuPreparedBindings.Entry binding, CpuUniformBuffer? buffer)
     {
@@ -132,18 +134,19 @@ internal static class ShaderPreparedSubmission
             throw new InvalidOperationException("An active CPU uniform block requires a uniform ring.");
     }
     /// <summary>Checks the current storage allocation.</summary>
-    internal static void ValidateStorageBlock(GpuPreparedBindings.Entry binding, GpuShaderStorageBuffer? buffer) => Require(binding, buffer?.IsValid == true);
+    internal static void ValidateStorageBlock(GpuPreparedBindings.Entry binding, GpuShaderStorageBuffer? buffer) => ValidateBuffer(binding, buffer);
     /// <summary>Checks initialized storage bounds before publication.</summary>
     internal static void ValidateStorageBlock(GpuPreparedBindings.Entry binding, GpuStorageBufferBinding range)
     {
         if (!binding.Active) return;
         Require(binding, range.Buffer?.IsValid == true);
+        if (range.Buffer?.IsValid == true) ShaderInputValidation.RequireMetadata(range.Buffer);
         if (range.Buffer?.IsValid == true && (range.OffsetBytes < 0 || range.SizeBytes <= 0 || range.OffsetBytes > range.Buffer.SizeBytes - range.SizeBytes ||
             range.OffsetBytes % StateCache.Current.StorageBufferOffsetAlignment != 0))
             throw new InvalidOperationException($"Invalid storage range for {binding.Contract.Name}.");
     }
     /// <summary>Checks counter storage using retained executable activity.</summary>
-    internal static void ValidateAtomicCounter(GpuPreparedBindings.Entry binding, GpuAtomicCounterBuffer? buffer) => Require(binding, buffer?.IsValid == true);
+    internal static void ValidateAtomicCounter(GpuPreparedBindings.Entry binding, GpuAtomicCounterBuffer? buffer) => ValidateBuffer(binding, buffer);
     #endregion
 
     #region Publication
@@ -229,6 +232,15 @@ internal static class ShaderPreparedSubmission
     #endregion
 
     #region Private
+    /// <summary>Checks the canonical allocation before publishing any active whole-buffer input.</summary>
+    private static void ValidateBuffer(GpuPreparedBindings.Entry binding, GpuBufferObject? buffer)
+    {
+        if (!binding.Active) return;
+        Require(binding, buffer?.IsValid == true);
+        if (buffer?.IsValid != true) return;
+        ShaderInputValidation.RequireMetadata(buffer);
+    }
+
     /// <summary>Selects the whole allocation for layered shader types when the property supplies no explicit view.</summary>
     private static GpuTextureBinding DefaultImageView(GpuPreparedBindings.Entry binding, GpuTexture? texture)
     {

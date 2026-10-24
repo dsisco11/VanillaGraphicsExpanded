@@ -1,6 +1,6 @@
 # Engine state switching through the cache
 
-The engine's supported native state calls are replaced at their managed call sites with adapters into `GlStateCache`. This is an integration change to the existing cache, independent of the approved authoritative-pipeline proposal.
+The engine's supported native state calls are replaced at their managed call sites with compiler-checked C# adapters into `StateCache`.
 
 ## Patch boundary
 
@@ -9,6 +9,16 @@ The engine's supported native state calls are replaced at their managed call sit
 [EngineStateTargets](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateTargets.cs) scans metadata and walks IL instruction boundaries before resolving candidate callers. This avoids loading unrelated optional dependencies or resolving unrelated method references during discovery. Built-in assemblies must already be loaded when the mod's startup patches run; late-loaded assemblies are not automatically patched. A generic caller containing a supported call is explicitly rejected rather than silently omitted.
 
 [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) resolves adapters by exact method name, parameter types, and return type. An adapter without a matching native signature fails map initialization. The transpiler replaces the call operand only, preserving evaluated arguments, instruction count, branch labels and exception blocks. Unsupported methods are left unchanged. Another transpiler's replacement is not forcibly overwritten.
+
+Metadata forwarding methods live under [NativeAdapters](../VanillaGraphicsExpanded/HarmonyPatches/NativeAdapters/),
+with a command's overloads grouped by resource family and native OpenTK owner. Each ordinary C# body
+begins the relevant StateCache observation, executes its explicit native call, and completes observation
+in a `finally` block. StateCache and GpuResourceManager retain metadata policy and publication ownership.
+[MetadataAdapterCatalog](../VanillaGraphicsExpanded/HarmonyPatches/NativeAdapters/MetadataAdapterCatalog.cs)
+declares the native-owner pairs. Exact signature validation includes generic parameter constraints;
+closed generic uploads resolve to the compiled adapter definition using the caller's own type arguments.
+There is no runtime adapter-body generation or command-name/parameter-name semantic inference.
+Existing fixed state/deletion mappings retain precedence when a signature also has a metadata adapter.
 
 ## Previously compiled render API callers
 
@@ -19,6 +29,17 @@ The menu can compile these callers before mod startup and retain inlined platfor
 Selection uses exact engine/API types, including internal types resolved by full name. Third-party implementations, abstract bodies, open generic bodies and static initializers are excluded. Higher callers outside these selected classes are not automatically rebuilt.
 
 ## Supported operations
+
+Only native methods declared on GL, GL.Ext and GL.Arb participate in replacement. Core adapters
+target GL in the pinned OpenTK binding. Every other auxiliary owner is outside interception;
+capability detection and direct VGE resource operations remain independent of this boundary.
+
+Matrix stacks, display lists, server/client attribute stacks, client defaults,
+fixed-function arrays, alpha testing, point smoothing, separate polygon face modes, stipple and automatic mip generation are outside
+the interception contract. Excluded native calls remain unchanged. Generic Enable/Disable forwards
+unsupported capability values without caching them. Ordinary texture content uploads require no
+metadata observation; image definitions and explicit mip generation retain their metadata routes.
+
 
 [EngineStateCalls](../VanillaGraphicsExpanded/Rendering/EngineStateCalls.cs) supplies signature-compatible adapters for:
 

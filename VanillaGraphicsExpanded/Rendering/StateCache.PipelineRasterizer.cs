@@ -7,13 +7,13 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     #region Public API
-    /// <summary>Disables custom clip distances and establishes origin/depth conventions and compatibility state.</summary>
+    /// <summary>Disables custom clip distances and establishes origin/depth conventions.</summary>
     internal void ApplyConfigurableRaster(GraphicsPipelineDesc pipeline)
     {
         ArgumentNullException.ThrowIfNull(pipeline);
         var value = pipeline.Rasterizer;
         var caps = GpuSupport.Graphics;
-        PipelineFixedFunctionValidation.ValidateCompatibilityRaster(value, caps);
+        PipelineFixedFunctionValidation.ValidateRaster(value, caps);
         ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.ConfigurableRaster);
         ApplyConfigurableRaster(value, RasterizerStateKnowledge.ConfigurableRaster);
     }
@@ -27,7 +27,7 @@ internal sealed partial class StateCache
         if (relevant.HasFlag(RasterizerStateKnowledge.CullEnabled)) SetCapability(EnableCap.CullFace, value.Cull);
         if (relevant.HasFlag(RasterizerStateKnowledge.CullMode)) SetCullMode(value.CullMode);
         if (relevant.HasFlag(RasterizerStateKnowledge.FrontFace)) SetFrontFace(value.FrontFace);
-        if (relevant.HasFlag(RasterizerStateKnowledge.PolygonModes)) SetPolygonModes(value.PolygonMode, value.PolygonMode);
+        if (relevant.HasFlag(RasterizerStateKnowledge.PolygonModes)) SetPolygonMode(value.PolygonMode);
         if (relevant.HasFlag(RasterizerStateKnowledge.PolygonOffset)) SetPolygonOffset(value.DepthBiasFactor, value.DepthBiasUnits);
         if (relevant.HasFlag(RasterizerStateKnowledge.PolygonOffsetFill)) SetPolygonOffsetFillEnabled(value.OffsetFill);
         if (relevant.HasFlag(RasterizerStateKnowledge.PolygonOffsetLine)) SetPolygonOffsetLineEnabled(value.OffsetLine);
@@ -53,16 +53,6 @@ internal sealed partial class StateCache
         if (relevant.HasFlag(RasterizerStateKnowledge.PointSpriteOrigin)) SetPointSpriteOrigin(value.PointSpriteOrigin);
         if (relevant.HasFlag(RasterizerStateKnowledge.LineSmooth)) SetLineSmooth(value.LineSmooth);
         if (relevant.HasFlag(RasterizerStateKnowledge.PolygonSmooth)) SetPolygonSmooth(value.PolygonSmooth);
-        if (!caps.CoreProfile)
-        {
-            if (relevant.HasFlag(RasterizerStateKnowledge.AlphaFunction)) SetAlphaFunction(value.AlphaComparison, value.AlphaReference);
-            if (relevant.HasFlag(RasterizerStateKnowledge.AlphaTest)) SetAlphaTest(value.AlphaTest);
-            if (relevant.HasFlag(RasterizerStateKnowledge.PointSmooth)) SetPointSmooth(value.PointSmooth);
-            if (relevant.HasFlag(RasterizerStateKnowledge.LineStippleParameters)) SetLineStipple(value.LineStippleFactor, value.LineStipplePattern);
-            if (relevant.HasFlag(RasterizerStateKnowledge.LineStipple)) SetLineStipple(value.LineStipple);
-            if (relevant.HasFlag(RasterizerStateKnowledge.PolygonStipplePattern)) SetPolygonStipplePattern(value.PolygonStipplePattern);
-            if (relevant.HasFlag(RasterizerStateKnowledge.PolygonStipple)) SetPolygonStipple(value.PolygonStipple);
-        }
     }
     #endregion
 }

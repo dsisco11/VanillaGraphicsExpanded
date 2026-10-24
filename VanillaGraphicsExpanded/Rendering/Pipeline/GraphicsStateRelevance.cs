@@ -147,31 +147,15 @@ internal sealed class GraphicsStateRelevance
                 || raster.PolygonMode == PolygonMode.Line && raster.OffsetLine
                 || raster.PolygonMode == PolygonMode.Point && raster.OffsetPoint)
                 groups |= RasterizerStateKnowledge.PolygonOffset;
-            if (!caps.CoreProfile && raster.PolygonMode == PolygonMode.Fill)
-            {
-                groups |= RasterizerStateKnowledge.PolygonStipple;
-                if (raster.PolygonStipple) groups |= RasterizerStateKnowledge.PolygonStipplePattern;
-            }
         }
         if (lines)
         {
             groups |= RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.LineSmooth;
-            if (!caps.CoreProfile)
-            {
-                groups |= RasterizerStateKnowledge.LineStipple;
-                if (raster.LineStipple) groups |= RasterizerStateKnowledge.LineStippleParameters;
-            }
         }
         if (points)
         {
             groups |= RasterizerStateKnowledge.ProgramPointSize | RasterizerStateKnowledge.PointSpriteOrigin;
             if (!raster.ProgramPointSize) groups |= RasterizerStateKnowledge.PointSize;
-            if (!caps.CoreProfile) groups |= RasterizerStateKnowledge.PointSmooth;
-        }
-        if (!caps.CoreProfile)
-        {
-            groups |= RasterizerStateKnowledge.AlphaTest;
-            if (raster.AlphaTest) groups |= RasterizerStateKnowledge.AlphaFunction;
         }
         return groups;
     }

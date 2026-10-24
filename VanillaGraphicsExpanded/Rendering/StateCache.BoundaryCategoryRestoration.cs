@@ -43,7 +43,7 @@ internal sealed partial class StateCache
             && (!rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonModes) || rasterizer.PolygonModes != saved.Rasterizer.PolygonModes))
         {
             var polygonModes = saved.Rasterizer.PolygonModes;
-            RestoreBoundaryField(() => SetPolygonModes(polygonModes.Front, polygonModes.Back),
+            RestoreBoundaryField(() => SetPolygonMode(polygonModes),
                 () => rasterizerKnown &= ~RasterizerStateKnowledge.PolygonModes, failures);
         }
         if (saved.RasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonOffset)

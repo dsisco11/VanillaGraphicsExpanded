@@ -11,4 +11,8 @@ public readonly record struct GpuFramebufferMetadata(
 /// <summary>Identifies the native image selected by an attachment; image facts resolve through its registration.</summary>
 public readonly record struct GpuFramebufferImageMetadata(
     GpuResourceKind Kind, nint Id, int MipLevel, int Layer, TextureTarget CubeFace,
-    bool Layered, int BaseView = 0, int ViewCount = 0);
+    bool Layered, int BaseView = 0, int ViewCount = 0,
+    GpuFramebufferAttachmentMode Mode = GpuFramebufferAttachmentMode.Unknown);
+
+/// <summary>Distinguishes proven attachment command semantics from ambiguous native selection queries.</summary>
+public enum GpuFramebufferAttachmentMode { Unknown, Ordinary, Multiview }

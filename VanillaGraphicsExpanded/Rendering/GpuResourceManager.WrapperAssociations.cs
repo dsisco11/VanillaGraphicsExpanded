@@ -43,7 +43,8 @@ internal sealed partial class GpuResourceManager
     internal bool IsResourceMetadataAvailable(GpuResource resource)
     {
         return !resource.IsDisposed && GetResourceRegistration(resource) is { } entry
-            && IsRegistered(entry) && entry.IsUsable && entry.HasSnapshot(resource);
+            && IsRegistered(entry) && entry.IsUsable && entry.HasSnapshot(resource)
+            && IsBufferTextureBackingAvailable(entry) && IsRenderbufferTextureBackingAvailable(entry);
     }
 
     /// <summary>Reports retirement of a wrapper's original native registration without consulting a reused ID.</summary>

@@ -42,7 +42,11 @@ internal sealed partial class StateCache
         if (states.HasFlag(EPipelineState.ProvokingVertex)) rasterizerKnown &= ~RasterizerStateKnowledge.ProvokingVertex;
         if (states.HasFlag(EPipelineState.Viewport)) dynamicKnown &= ~DynamicDrawStateKnowledge.Viewport;
         if (states.HasFlag(EPipelineState.ClearColor)) clearColorKnown = false;
-        if (states.HasFlag(EPipelineState.Program)) currentProgram = null;
+        if (states.HasFlag(EPipelineState.Program))
+        {
+            currentProgram = null;
+            currentProgramStagesKnown = false;
+        }
         if (states.HasFlag(EPipelineState.ProgramPipeline)) currentProgramPipeline = null;
         if (states.HasFlag(EPipelineState.VertexArray))
         {

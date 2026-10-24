@@ -45,15 +45,15 @@ public sealed class SpirvInventoryTests : IDisposable
         fixture.EnsureContextValid();
         var assets = new VanillaGraphicsExpanded.Tests.Helpers.SlicedShaderAssets(path => File.ReadAllBytes(Path.Combine(Root, path)));
         var selected = new ShaderLoadPlan(new ShaderSettings(Registry.FindProgram("tests/GpuProgramLayoutBindingTests_1"))).Stages.Single();
-        int shader = 0, program = 0;
+        GpuShaderModule? shader = null; int program = 0;
         try {
-            shader = SpirvStageLoader.Load(selected, assets.Read).Shader;
-            program = GL.CreateProgram(); GL.AttachShader(program, shader); GL.LinkProgram(program);
+            shader = SpirvStageLoader.Load(selected, assets.Read);
+            program = GL.CreateProgram(); GL.AttachShader(program, shader.ShaderId); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { if (program != 0) GL.DeleteProgram(program); if (shader != 0) GL.DeleteShader(shader); assets.AssertUnchanged(); }
+        finally { if (program != 0) GL.DeleteProgram(program); shader?.Dispose(); assets.AssertUnchanged(); }
     }
 
     /// <summary>Enumerates explicit compute program assignments for ownership regression.</summary>
@@ -77,8 +77,7 @@ public sealed class SpirvInventoryTests : IDisposable
         GpuComputePipeline? previous = null;
         try {
             for (int generation = 0; generation < 3; generation++) {
-                var loaded = SpirvStageLoader.Load(selected, Read);
-                using var module = new GpuShaderModule(loaded.Shader, ShaderType.ComputeShader) { BindingContract = loaded.Contract };
+                using var module = SpirvStageLoader.Load(selected, Read);
                 var layout = new GpuProgramLayout(); layout.RegisterContract(selected.Stage.Bindings);
                 Assert.True(GpuComputePipeline.TryCreate(module, out var current, out string log, layout: layout), log);
                 using (current) {
@@ -104,9 +103,8 @@ public sealed class SpirvInventoryTests : IDisposable
     {
         fixture.EnsureContextValid();
         var selected = Assert.Single(Registry.Binaries, b => b.Stage.Identity == identity && b.Key == key);
-        int shader = SpirvStageLoader.Load(selected, Read).Shader;
-        try { Assert.True(GL.IsShader(shader)); output.WriteLine("Selected stage: " + SpirvStageLoader.LastTiming); }
-        finally { GL.DeleteShader(shader); }
+        using var shader = SpirvStageLoader.Load(selected, Read);
+        Assert.True(GL.IsShader(shader.ShaderId)); output.WriteLine("Selected stage: " + SpirvStageLoader.LastTiming);
     }
 
     /// <summary>Links every explicit graphics pairing from one coherent settings snapshot.</summary>
@@ -115,16 +113,16 @@ public sealed class SpirvInventoryTests : IDisposable
     public void DeclaredGraphicsCombinationLinks(string identity, string key)
     {
         fixture.EnsureContextValid();
-        var handles = new List<int>(); int program = 0;
+        var handles = new List<GpuShaderModule>(); int program = 0;
         try {
-            foreach (var stage in new ShaderLoadPlan(Settings(identity, key)).Stages) handles.Add(SpirvStageLoader.Load(stage, Read).Shader);
-            program = GL.CreateProgram(); foreach (int shader in handles) GL.AttachShader(program, shader);
+            foreach (var stage in new ShaderLoadPlan(Settings(identity, key)).Stages) handles.Add(SpirvStageLoader.Load(stage, Read));
+            program = GL.CreateProgram(); foreach (var shader in handles) GL.AttachShader(program, shader.ShaderId);
             long started = Stopwatch.GetTimestamp(); GL.LinkProgram(program);
             output.WriteLine($"Link only: {Stopwatch.GetElapsedTime(started).TotalMilliseconds:F3} ms");
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             Assert.True(linked != 0, identity + " [" + key + "]: " + GL.GetProgramInfoLog(program));
         }
-        finally { if (program != 0) GL.DeleteProgram(program); foreach (int shader in handles) GL.DeleteShader(shader); }
+        finally { if (program != 0) GL.DeleteProgram(program); foreach (var shader in handles) shader.Dispose(); }
     }
 
     /// <summary>Restores a complete canonical test assignment through the production settings validator.</summary>

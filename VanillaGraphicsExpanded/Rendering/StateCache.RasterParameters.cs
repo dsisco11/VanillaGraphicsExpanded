@@ -1,7 +1,7 @@
 using System;
 using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
-/// <summary>Owns cached transitions for configurable clipping and compatibility raster state.</summary>
+/// <summary>Owns cached transitions for configurable clipping and raster state.</summary>
 internal sealed partial class StateCache
 {
     #region Public API
@@ -34,35 +34,6 @@ internal sealed partial class StateCache
         GL.PointParameter(PointParameterName.PointSpriteCoordOrigin, (int)value); FixedFunctionCalls++;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
         rasterizer.PointSpriteOrigin = value; rasterizerKnown |= RasterizerStateKnowledge.PointSpriteOrigin;
-    }
-    /// <summary>Sets a comparison and native-clamped reference, including parameters while the alpha test is disabled.</summary>
-    internal void SetAlphaFunction(AlphaFunction comparison, float reference)
-    {
-        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.AlphaFunction);
-        if (!Enum.IsDefined(comparison) || !float.IsFinite(reference)) throw new ArgumentOutOfRangeException(nameof(comparison));
-        if (GpuSupport.Graphics.CoreProfile) throw new NotSupportedException("Alpha function requires compatibility profile.");
-        reference = Math.Clamp(reference, 0, 1);
-        if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.AlphaFunction) && rasterizer.AlphaComparison == comparison && rasterizer.AlphaReference == reference) return;
-        rasterizerKnown &= ~RasterizerStateKnowledge.AlphaFunction;
-        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        GL.AlphaFunc(comparison, reference); FixedFunctionCalls++;
-        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        rasterizer.AlphaComparison = comparison; rasterizer.AlphaReference = reference;
-        rasterizerKnown |= RasterizerStateKnowledge.AlphaFunction;
-    }
-    /// <summary>Sets the native-clamped repeat and complete unsigned 16-bit line pattern.</summary>
-    internal void SetLineStipple(int factor, ushort pattern)
-    {
-        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.LineStippleParameters);
-        if (GpuSupport.Graphics.CoreProfile) throw new NotSupportedException("Line stipple requires compatibility profile.");
-        factor = Math.Clamp(factor, 1, 256);
-        if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.LineStippleParameters) && rasterizer.LineStippleFactor == factor && rasterizer.LineStipplePattern == pattern) return;
-        rasterizerKnown &= ~RasterizerStateKnowledge.LineStippleParameters;
-        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        GL.LineStipple(factor, pattern); FixedFunctionCalls++;
-        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        rasterizer.LineStippleFactor = factor; rasterizer.LineStipplePattern = pattern;
-        rasterizerKnown |= RasterizerStateKnowledge.LineStippleParameters;
     }
     /// <summary>Changes one clip enable without reading or overwriting any other distance.</summary>
     internal void SetClipDistance(int index, bool enabled)

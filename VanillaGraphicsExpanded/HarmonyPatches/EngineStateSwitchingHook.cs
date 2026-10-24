@@ -27,16 +27,12 @@ internal static class EngineStateSwitchingHook
         {
             // Identical signatures require no argument replay, stack shuffling or extra GL operations.
             var rewritten = new CodeInstruction(instruction);
-            if (IsSupportedCall(instruction))
-                rewritten.operand = EngineStateCallMap.Replacements[(MethodInfo)instruction.operand];
+            if (instruction.opcode == OpCodes.Call && instruction.operand is MethodInfo native
+                && EngineStateCallMap.TryGetReplacement(native, out var replacement))
+                rewritten.operand = replacement;
             yield return rewritten;
         }
     }
     #endregion
 
-    #region Private
-    /// <summary>Leaves unsupported operations and non-call metadata operands untouched.</summary>
-    private static bool IsSupportedCall(CodeInstruction instruction) => instruction.opcode == OpCodes.Call
-        && instruction.operand is MethodInfo method && EngineStateCallMap.Replacements.ContainsKey(method);
-    #endregion
 }

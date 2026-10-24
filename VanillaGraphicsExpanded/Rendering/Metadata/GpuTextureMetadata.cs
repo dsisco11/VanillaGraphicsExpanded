@@ -11,7 +11,6 @@ public readonly record struct GpuTextureMetadata(
     int ImmutableLevels,
     int BaseLevel,
     int MaxLevel,
-    bool AutomaticMipmaps,
     GpuTextureBufferMetadata? Buffer = null,
     GpuTextureViewMetadata? View = null,
     nint Renderbuffer = 0);

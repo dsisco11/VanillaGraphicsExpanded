@@ -55,6 +55,7 @@ public static partial class GpuSupport
             Tessellation = tessellation,
             TransformFeedbackActivityQueries = IsAtLeast(capabilities.ApiVersion, 4, 0) || GlExtensions.Supports("GL_ARB_transform_feedback2"),
             MaxDrawBuffers = IsAtLeast(capabilities.ApiVersion, 2, 0) ? SafeGetInt(GetPName.MaxDrawBuffers) : 0,
+            MaxMultiviewViews = capabilities.SupportsOvrMultiview ? SafeGetInt((GetPName)All.MaxViewsOvr) : 0,
             MaxSamples = IsAtLeast(capabilities.ApiVersion, 3, 0) ? SafeGetInt(GetPName.MaxSamples) : 0,
             MaxVertexAttributes = maxVertexAttributes,
             MaxPatchVertices = tessellation ? SafeGetInt(GetPName.MaxPatchVertices) : 0,

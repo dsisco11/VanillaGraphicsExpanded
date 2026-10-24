@@ -11,6 +11,7 @@ namespace VanillaGraphicsExpanded.Rendering.Spirv;
 internal sealed class GpuProgramInterface
 {
     private readonly Resources resources;
+    private readonly GpuBindingContract[] contracts;
     private readonly IReadOnlyDictionary<ShaderBindingKind, IReadOnlyDictionary<string, int>> activeBindings;
     private readonly Dictionary<(ProgramInterface Kind, int Index), string> resourceNames = new();
     private readonly Dictionary<int, string> uniformNames = new();
@@ -23,11 +24,14 @@ internal sealed class GpuProgramInterface
 
     #region Registration
     /// <summary>Matches active locations and initial block bindings without querying any SPIR-V debug name.</summary>
-    public GpuProgramInterface(int program, IEnumerable<GpuBindingContract> contracts, GraphicsExecutableInterface? graphics = null)
+    public GpuProgramInterface(int program, IEnumerable<GpuBindingContract> contracts, GraphicsExecutableInterface? graphics = null,
+        GpuProgramMetadata? metadata = null)
     {
         Graphics = graphics;
+        metadata ??= GpuResourceManager.AcquireProgramMetadata(program);
         var array = contracts.ToArray();
-        PreparedBindings = new GpuPreparedBindings(program, GpuBindingContract.Merge(array));
+        this.contracts = array;
+        PreparedBindings = new GpuPreparedBindings(program, GpuBindingContract.Merge(array), metadata);
         var arraySizes = new Dictionary<int, int>();
         var uniforms = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var pair in array.SelectMany(v => v.UniformLocations))
@@ -58,6 +62,10 @@ internal sealed class GpuProgramInterface
         foreach (var block in resources.Storage)
             if (block.Value >= 0) resourceNames.TryAdd((ProgramInterface.ShaderStorageBlock, block.Value), block.Key);
     }
+
+    /// <summary>Revalidates resource assignments from a new canonical snapshot while retaining authored contracts.</summary>
+    internal GpuProgramInterface RefreshResources(int program, GpuProgramMetadata metadata) =>
+        new(program, contracts, Graphics, metadata);
 
     /// <summary>Matches compiled binding slots to active resource indices for diagnostics.</summary>
     private Dictionary<string, int> Blocks(ShaderBindingKind kind, IEnumerable<KeyValuePair<string, GpuBindingContract.Binding>> metadata)

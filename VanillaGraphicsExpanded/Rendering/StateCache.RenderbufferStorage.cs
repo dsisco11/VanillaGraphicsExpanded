@@ -10,9 +10,17 @@ internal sealed partial class StateCache
     internal void RenderbufferStorage(GpuRenderbuffer resource, RenderbufferStorage storage, int width, int height, int samples)
     {
         using var errors = new GlDebug.ErrorScope("Renderbuffer storage allocation");
-        using var binding = BindRenderbufferScope(resource.RenderbufferId);
-        if (samples > 0) GL.RenderbufferStorageMultisample(RenderbufferTarget.Renderbuffer, samples, storage, width, height);
-        else GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, storage, width, height);
+        if (GpuSupport.Graphics.SupportsArbDirectStateAccess)
+        {
+            if (samples > 0) GL.NamedRenderbufferStorageMultisample(resource.RenderbufferId, samples, storage, width, height);
+            else GL.NamedRenderbufferStorage(resource.RenderbufferId, storage, width, height);
+        }
+        else
+        {
+            using var binding = BindRenderbufferScope(resource.RenderbufferId);
+            if (samples > 0) GL.RenderbufferStorageMultisample(RenderbufferTarget.Renderbuffer, samples, storage, width, height);
+            else GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, storage, width, height);
+        }
         GlDebug.ThrowIfErrors("Renderbuffer storage allocation");
         GpuResourceManager.ObserveWrapperMetadata(resource, GpuRenderbufferMetadataReader.Instance, GpuMetadataChange.Storage);
     }

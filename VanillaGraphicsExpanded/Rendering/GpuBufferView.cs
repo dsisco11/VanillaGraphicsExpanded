@@ -57,9 +57,10 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
     public nint SizeBytes => sizeBytes;
 
     /// <summary>
-    /// Returns <c>true</c> when the view has a non-zero id and has not been disposed.
+    /// Reports a live texture association whose tracked backing metadata remains available.
     /// </summary>
-    public new bool IsValid => base.IsValid;
+    public new bool IsValid => base.IsValid && metadata.Buffer is { BufferId: not 0 }
+        && (ResourceManager?.GetResourceRegistration(this) is null || ResourceManager.IsResourceMetadataAvailable(this));
 
     /// <summary>Configures a view using its known creation path, then receives the accepted native metadata.</summary>
     /// <param name="textureId">Texture name owned by the view.</param>
@@ -90,7 +91,7 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
             cache.TexBuffer(this, bufferId, format);
         }
         else
-            cache.TexBufferRange(this, bufferId, format, offsetBytes, checked((int)sizeBytes));
+            cache.TexBufferRange(this, bufferId, format, offsetBytes, sizeBytes);
     }
 
     /// <summary>

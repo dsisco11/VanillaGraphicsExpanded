@@ -17,29 +17,26 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>Wireframe, offsets and compatibility stipple become active only for their primitive kind.</summary>
+    /// <summary>Wireframe and offsets become active only for their primitive kind.</summary>
     [Fact]
-    public void PolygonModesActivateOffsetAndCompatibilityLinePayloads()
+    public void PolygonModesActivateOffsetAndLinePayloads()
     {
         using var context = new WideLineContext(fixture);
         var cache = StateCache.Current; cache.UseProgram(0);
-        var fill = Description(raster: new() { LineWidth = 2, LineStippleFactor = 3, LineStipplePattern = 0xaaaa,
+        var fill = Description(raster: new() { LineWidth = 2,
             OffsetLine = true, DepthBiasFactor = 2, DepthBiasUnits = 3 });
-        var wire = Description(raster: fill.Rasterizer with { PolygonMode = PolygonMode.Line, LineStipple = true });
+        var wire = Description(raster: fill.Rasterizer with { PolygonMode = PolygonMode.Line });
         var point = Description(raster: new() { PolygonMode = PolygonMode.Point, PointSize = 3,
             OffsetPoint = true, DepthBiasFactor = 4, DepthBiasUnits = 5 });
-        GL.LineWidth(4); GL.LineStipple(7, 0x35aa); GL.Disable(EnableCap.LineStipple);
+        GL.LineWidth(4);
         GL.PolygonOffset(6, 7); GL.Disable(EnableCap.PolygonOffsetLine); GL.Disable(EnableCap.PolygonOffsetPoint);
         GL.PointSize(5); cache.InvalidateAll();
         Assert.True(CompleteGraphicsBoundary.TryRun("PrimitiveMatrix", [fill, wire, point], [], true, _ =>
         {
             cache.ApplyGraphicsState(fill, Dynamics());
-            Assert.Equal(4, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(7, GL.GetInteger(GetPName.LineStippleRepeat));
-            Assert.Equal(6, GL.GetFloat(GetPName.PolygonOffsetFactor)); Assert.Equal(7, GL.GetFloat(GetPName.PolygonOffsetUnits));
+            Assert.Equal(4, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(6, GL.GetFloat(GetPName.PolygonOffsetFactor)); Assert.Equal(7, GL.GetFloat(GetPName.PolygonOffsetUnits));
             cache.ApplyGraphicsState(wire, Dynamics());
-            Assert.True(GL.IsEnabled(EnableCap.PolygonOffsetLine)); Assert.True(GL.IsEnabled(EnableCap.LineStipple));
-            Assert.Equal(2, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(3, GL.GetInteger(GetPName.LineStippleRepeat));
-            Assert.Equal(0xaaaa, GL.GetInteger(GetPName.LineStipplePattern)); Assert.Equal(2, GL.GetFloat(GetPName.PolygonOffsetFactor));
+            Assert.True(GL.IsEnabled(EnableCap.PolygonOffsetLine)); Assert.Equal(2, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(2, GL.GetFloat(GetPName.PolygonOffsetFactor));
             Assert.Equal(3, GL.GetFloat(GetPName.PolygonOffsetUnits));
             cache.ApplyGraphicsState(point, Dynamics()); Assert.Equal(3, GL.GetFloat(GetPName.PointSize));
             Assert.True(GL.IsEnabled(EnableCap.PolygonOffsetPoint)); Assert.Equal(4, GL.GetFloat(GetPName.PolygonOffsetFactor));
@@ -48,8 +45,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
             Assert.Equal(4, GL.GetFloat(GetPName.PolygonOffsetFactor)); Assert.Equal(5, GL.GetFloat(GetPName.PolygonOffsetUnits));
         }));
         Assert.Equal(4, GL.GetFloat(GetPName.LineWidth)); Assert.Equal(5, GL.GetFloat(GetPName.PointSize));
-        Assert.Equal(7, GL.GetInteger(GetPName.LineStippleRepeat)); Assert.Equal(0x35aa, GL.GetInteger(GetPName.LineStipplePattern));
-        Assert.False(GL.IsEnabled(EnableCap.LineStipple)); Assert.False(GL.IsEnabled(EnableCap.PolygonOffsetLine));
+        Assert.False(GL.IsEnabled(EnableCap.PolygonOffsetLine));
         Assert.False(GL.IsEnabled(EnableCap.PolygonOffsetPoint)); Assert.Equal(6, GL.GetFloat(GetPName.PolygonOffsetFactor));
         Assert.Equal(7, GL.GetFloat(GetPName.PolygonOffsetUnits)); Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

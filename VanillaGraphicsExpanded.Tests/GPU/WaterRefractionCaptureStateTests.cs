@@ -79,6 +79,9 @@ public sealed class WaterRefractionCaptureStateTests(HeadlessGLFixture fixture) 
             VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionEnabled = true;
             // Persisted quality increases from half (1) to full (2); the owner uses a size divisor.
             VanillaGraphicsExpanded.ModSystems.ConfigModSystem.Config.WaterRefractionBackgroundScale = 3 - backgroundScale;
+            // Establish every blend operand used by the marker independently of prior tests.
+            GL.BlendEquation(BlendEquationMode.FuncAdd);
+            GL.ColorMask(true, true, true, true);
             // Negative control: the legacy scope broadcasts output-zero blending to metadata.
             GL.Enable(EnableCap.Blend);
             GL.Disable(IndexedEnableCap.Blend, 4);

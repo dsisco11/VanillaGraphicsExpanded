@@ -4,6 +4,10 @@ Planning companion to [the approved proposal](Rendering.GpuResourceHandles.Propo
 [implementation checklist](Rendering.GpuResourceHandles.todo). This records the source inventory and
 chosen implementation mechanics. The implementation checklist distinguishes verified registry and
 wrapper/lifecycle integration from the remaining command and consumer integration.
+Legacy fixed-function/compatibility facilities are excluded from API coverage, including matrix stacks,
+display lists, server/client attribute stacks, client default resets, legacy client arrays, alpha testing,
+point smoothing, separate polygon face modes, line/polygon stipple and automatic mip generation. Modern retained operations remain required regardless of introduction date. The separate
+GpuCommandList RHI design is unaffected.
 
 ## Wrapper and ownership inventory
 
@@ -62,9 +66,15 @@ context-free declaration path and existing shutdown exception policy.
 
 ## Metadata command matrix
 
-APPLE and NV extension methods are excluded from implementation and verification requirements.
-The retained baseline API inventory includes those groups as raw inspection data; apply this exclusion
-when deriving supported coverage. Core equivalents and all other applicable extension groups remain in scope.
+Interception is restricted to the managed native owners GL, GL.Ext and GL.Arb.
+The pinned OpenTK binding exposes core methods directly on GL; adapter classes named Core
+refer to that owner. All other auxiliary owners are excluded, including Amd, Ati, Ibm, Intel,
+Mesa, Oes, Ovr, Sgis, Sun, Apple and NV. This is an owner boundary, not a filter on feature origins,
+command suffixes, extension capability checks or direct VGE resource operations.
+Unmapped calls execute unchanged and do not provide continuing metadata or lifecycle observation.
+
+The retained baseline API inventory includes excluded owners as raw inspection data; filter by
+managed declaring type when deriving active coverage. Retain every applicable allowed-owner overload.
 
 The controlling coverage matrix is [Rendering.GpuResourceHandles.ApiCoverage.md](Rendering.GpuResourceHandles.ApiCoverage.md). It derives all applicable command families and variants from the OpenGL API, independently of existing callers. The wrapper inventory above maps represented fields to those families. Current call-site receipts below are integration examples only and cannot justify omitting an API operation.
 
@@ -92,12 +102,12 @@ native-width representation; narrower existing accessors must reject values they
 
 | Kind / canonical struct | Native fields and wrapper migration | Local or derived state | API families |
 | --- | --- | --- | --- |
-| Texture / `GpuTextureMetadata` | Target; per-level/per-face dimensions, format, samples and allocated state; immutable storage/level count; base/max levels and legacy automatic-mipmap state needed to interpret effects. Optional buffer association (ID/format/offset/range/whole-buffer mode), texture-view range (base/count levels/layers) and renderbuffer association. `GpuTexture` and all subclasses, `GpuBufferView`/`GpuBufferTexture` and `GpuTextureView` use this struct; their native descriptor fields become accessors. | FilterMode, labels, streaming and uploads remain local. The managed view source/reference/ID certificate and captured source storage revision remain dependency state: arbitrary external views do not expose a queryable source name. `StorageGeneration` reads the manager-owned storage revision; source validation asks the manager to check its original source registration dependency. | T1–T5, I1, L1, C1 |
+| Texture / `GpuTextureMetadata` | Target; per-level/per-face dimensions, format, samples and allocated state; immutable storage/level count; base/max levels. Optional buffer association (ID/format/offset/range/whole-buffer mode), texture-view range (base/count levels/layers) and renderbuffer association. `GpuTexture` and all subclasses, `GpuBufferView`/`GpuBufferTexture` and `GpuTextureView` use this struct; their native descriptor fields become accessors. | FilterMode, labels, streaming and uploads remain local. The managed view source/reference/ID certificate and captured source storage revision remain dependency state: arbitrary external views do not expose a queryable source name. `StorageGeneration` reads the manager-owned storage revision; source validation asks the manager to check its original source registration dependency. | T1–T4, I1, L1 |
 | Buffer / `GpuBufferMetadata` | Actual byte capacity and usage; `sizeBytes/usage` become accessors in `GpuBufferObject`, inherited by VBO/EBO/UBO/SSBO/atomic/indirect/pixel pack/unpack wrappers. | Intended target, requested allocation usage, EBO index type/count, queued uploads, mapping scopes, growth policy and labels remain local. No content or mapping-ownership mirror. | B1, I1, L1 |
 | Renderbuffer / `GpuRenderbufferMetadata` | Width/height/format and actual samples; `storage/width/height/samples` become accessors. | Ownership and labels remain local. | R1, L1 |
-| Framebuffer / `GpuFramebufferMetadata` | Immutable attachment descriptors keyed by slot: kind/ID, mip, layer/face, layered state and represented multiview selection; attachmentless default dimensions/layers/samples where applicable. Image facts resolve through backing entries. | Retained image wrappers/ownership, frozen locks, dirty/publication state, viewport fallback extent and surface metadata stay local. The wrapper dictionary reconciles from descriptors rather than independently defining native facts. Pass extent/format are derived; routing stays in existing StateCache routing cache. | F1, backing T/R changes, L1, C1 |
-| VertexArray / `GpuVertexArrayMetadata` | Empty struct: `GpuVao` has no retained native layout fields. Entry revision invalidates represented helper assumptions; no full attribute mirror. | `GpuVertexAttribBinding` is an authored value helper, not a resource. Capture owning-wrapper identity and manager-owned revision for its facts; after mutation, resolve the selected current buffer/offset/stride/divisor before fallback reuse or reject unavailable facts. Vertex contents stay external. | V1, L1, C1 |
-| Program / `GpuProgramMetadata` | Native executable/interface availability and immutable native interface facts used by existing preparation, including queried resource names/properties and sampler/image unit assignments. `GpuProgramObject` and `GpuComputePipeline` share this type. Reflected facts no longer have independent authoritative mutable copies in `bindingCache/programLayout`. | Existing `GpuProgramLayout` remains a derived prepared interface combining native facts with authored contract/policy, stamped with entry revision. Authored names are separate from native names. Settings, callbacks and context stay local. Owner installation revision remains local across replacement objects; native relink revision is entry-owned. | P1, L1 |
+| Framebuffer / `GpuFramebufferMetadata` | Immutable attachment descriptors keyed by slot: kind/ID, mip, layer/face, layered state, multiview base/count and proven ordinary/multiview mode (unknown when native queries cannot establish it); attachmentless default dimensions/layers/samples where applicable. Image facts resolve through backing entries. | Retained image wrappers/ownership, frozen locks, dirty/publication state, viewport fallback extent and surface metadata stay local. The wrapper dictionary reconciles from descriptors rather than independently defining native facts. Selected range/replay policy remains on the image relationship. Pass extent/format are derived; routing stays in existing StateCache routing cache. | F1, backing T/R changes, L1 |
+| VertexArray / `GpuVertexArrayMetadata` | Empty struct: `GpuVao` has no retained native layout fields. Entry revision invalidates represented helper assumptions; no full attribute mirror. | `GpuVertexAttribBinding` is an authored value helper, not a resource. Capture owning-wrapper identity and manager-owned revision for its facts; after mutation, resolve the selected current buffer/offset/stride/divisor before fallback reuse or reject unavailable facts. Vertex contents stay external. | V1, L1 |
+| Program / `GpuProgramMetadata` | Native executable/interface availability and immutable native interface facts used by existing preparation, including queried resource names/properties, block stage flags, atomic-counter buffer descriptors and sampler/image unit assignments. `GpuProgramObject` and `GpuComputePipeline` share this type. Reflected facts no longer have independent authoritative mutable copies in `bindingCache/programLayout`. | Existing `GpuProgramLayout` remains a derived prepared interface combining native facts with authored contract/policy, stamped with entry revision. Authored names are separate from native names. Settings, callbacks and context stay local. Owner installation revision remains local across replacement objects; native relink revision is entry-owned. | P1, L1 |
 | Shader / `GpuShaderMetadata` | Fixed shader type; `shaderType` becomes an accessor. | Authored BindingContract and compilation inputs stay local; no mutable storage descriptor. | acquisition, L1 |
 | Query / `GpuQueryMetadata` | Empty struct. | Results queried on demand. | L1 |
 | Sync / `GpuSyncMetadata` | Empty struct; pointer ID is registration state. | Signal/wait results queried on demand. | L1 |
@@ -271,10 +281,60 @@ object's metadata; registration never adds native ownership.
 ## Native coverage and consumer gates
 
 `EngineStateTargets` scans only VintagestoryLib, VSEssentials, VSSurvivalMod and VSCreativeMod. Its IL
-discovery matches exact GL member references from `EngineStateCallMap`; generic methods are rejected.
-Current adapters cover single texture/buffer/sampler/framebuffer/renderbuffer/VAO/program deletion and
-`DeleteBuffers(int, ref int)`. They do not currently cover storage mutation or all deletion overloads.
-Third-party mods, dynamically emitted calls and nested EXT calls are not automatically intercepted.
+discovery recognizes supported GL member references and closed generic MethodSpecification tokens.
+Generic containing engine methods remain rejected. `EngineStateCallMap` retains exact static state/
+deletion mappings, with those mappings taking precedence over metadata adapters. Ordinary C# adapters
+under `HarmonyPatches/NativeAdapters` explicitly forward every supported metadata signature, including
+generic upload definitions. `MetadataAdapterCatalog` declares each OpenTK owner/adapter type pair;
+registration validates exact names, managed types and generic constraints. `EngineMetadataCallAdapters`
+closes compiled definitions over arbitrary legal caller types without emitting IL or interpreting
+command/parameter names. Payload forwarding neither boxes nor copies upload arguments; core, ARB and
+EXT overloads share StateCache's captured-entry observation.
+Renderbuffer storage uses the same exact-signature dispatch, including EXT coverage-sample storage.
+Texture image definitions and mip generation resolve bound targets, explicit names and EXT texture
+units through StateCache. Cube faces resolve their cube object; proxy targets never select an object.
+Texture-view creation observes the destination's registered identity and reads its native level/layer
+selection; it does not publish a storage mutation to the source texture's registration.
+Image acquisition limits view-relative mip queries to that exposed level count, independently of the
+source allocation's immutable level count.
+Texture parameter overloads refresh represented base/max levels. Subimage, copy-subimage and
+compressed-subimage writes change contents only and have no metadata adapters. Explicit mip
+generation remains observed.
+Mip generation on immutable storage is content-only. Mutable generation compares native image
+descriptors and advances storage revisions for changed allocation. Image dependents are notified for
+that change or recovery from unavailable metadata; regenerating existing levels preserves storage certificates.
+Untracked commands execute without creating registry entries. Native results refresh existing aliases
+once, including after rejected allocations, while preserving native errors and binding effects.
+Manager publication invalidates associated framebuffer-image dependents after snapshot assignment or
+refresh failure. Local image tools and native-name replacement retain their wrapper observer route.
+Buffer texture availability includes its tracked backing buffer's metadata availability. Successful
+backing storage publication advances associated texture storage revisions while retaining their
+whole-buffer convention or explicit range. A texture withdrawn for another reason is not recovered
+by a backing resize; deletion continues to withdraw its association before native-name reuse.
+Publishing a buffer texture acquires its concrete backing dependency in the same registry, including
+when the caller supplied a raw buffer ID. This adds neither a buffer wrapper nor native ownership;
+an existing usable backing entry requires no further native acquisition.
+Buffer-texture association adapters preserve bound, named and explicit-unit selection across core,
+ARB and EXT calls. Native backing/format queries and range admission facts certify the result;
+rejected commands preserve the previous certified descriptor. Whole-buffer mode comes from the
+accepted command, not equality with an explicit full-range attachment. Range arguments retain
+pointer width in both native adapters and the owning wrapper's bound fallback.
+Framebuffer attachment/default adapters capture the selected existing registration and refresh
+canonical descriptors after exact native dispatch. Readers use named attachment queries with DSA,
+preserve split read/draw bindings on fallback, and gate attachmentless/multiview queries by capability.
+Native configuration notifications invalidate retained helper/completeness state; managed helper
+updates notify aliases while preserving the initiating helper's image ownership and completion event.
+Named and pointer routing adapters withdraw the existing draw-route cache without changing bindings
+or assuming success. Subsequent capture reads actual routing without consuming native errors. Read
+routing has no cached mirror and remains a native selector, not framebuffer resource metadata.
+OVR selected-image helpers preserve proven attachment mode and range on replay; ambiguous external
+acquisition retains an unknown mode and rejects replay that cannot preserve its semantics. The API
+matrix records supported families and native execution limits independently of installed engine callers.
+Third-party mods and dynamically emitted callers are outside the assembly interception boundary.
+External calls through excluded auxiliary owners likewise have no continuing observation.
+Direct VGE multiview commands remain explicit StateCache operations with publication; their shared
+metadata, capabilities and replay helpers are retained independently of engine interception.
+Persistent consumers must establish that subsequent mutations/deletions stay inside covered routes.
 
 Installed engine IL already confirms `ClientPlatformWindows.CreateFramebuffer` and
 `SetupDefaultFrameBuffers` use the pointer `TexImage2D` signature and `FramebufferTexture2D`;
@@ -284,15 +344,11 @@ uses the latter. `SystemRenderOITLayers.BeforeOIT.rebuild` uses pointer `TexImag
 `FramebufferTexture2D`/`FramebufferTextureLayer`; `freeResources` uses single texture deletion.
 Reconcile all of these, including liquid-depth rebuild, before persistent depth acquisition.
 
-Closed generic upload overloads need explicit exact map entries: the current `GL.GetMethod` lookup
-cannot resolve a generic definition merely from `float[]` argument types. Installed calls include
-`TexImage2D<float>` and `TexImage2D<int>`. Extend map construction to pair every applicable closed generic
-MethodInfo with a stack-compatible concrete adapter. Extend `EngineStateTargets` token discovery to
-resolve the corresponding MethodSpecification tokens as well as MemberReferences; merely adding an
-adapter would not discover a method that only calls that closed generic operation. This is distinct
-from the existing rejection of generic containing engine methods. Do not generalize to arbitrary
-generic engine callers. Nested extension deletion likewise covers every applicable declaring
-type/signatures, not a broadened scan of unrelated assemblies.
+Closed generic upload overloads resolve through their exact constructed MethodInfo, preserving their
+native marshalling and constraints. This supplies the common discovery mechanism for installed calls
+such as `TexImage2D<float>` and `TexImage2D<int>`.
+Buffer and texture commands use that mechanism, including callers containing only generic native calls.
+Nested extension deletion uses exact declaring types/signatures within the same assembly boundary.
 
 Cloud `CloudNativeMapAdapter` validates native map storage at allocation and keeps publication/world/
 upload/generation certificates. `CloudStoredVolumeConsumer` currently constructs map, material, primary
@@ -311,10 +367,12 @@ signatures are preserved in [resource-command-inventory.txt](../artifacts/gpu-re
 (broader engine callers plus built-in assembly references). `target=True` means the containing method
 is discovered for some supported call; it does not mean its unadapted mutations are intercepted.
 
-`CloudRendererMap.makeTexture` uses pointer `TexImage2D` (adapter false, target true);
+The retained baseline inventory records `CloudRendererMap.makeTexture` using pointer `TexImage2D`
+(adapter false, target true at that baseline);
 `FreeGlResources` has four single `DeleteTexture(int)` calls and one `DeleteFramebuffer(int)`
-(adapter and target true). Its framebuffer attachment call is currently unadapted. This is a covered
-deletion path with required mutation adapter additions, not a need for another producer teardown hook.
+(adapter and target true). Texture allocation and framebuffer attachment now have family adapters;
+consumer integration still requires their current native-path verification. These use the common
+deletion path and do not require another producer teardown hook.
 The VGE IL confirms `NamedBufferData(int,int,IntPtr,BufferUsageHint)`, both buffer-texture range
 signatures in the matrix, and `BufferStorage(BufferTarget,int,IntPtr,BufferStorageFlags)`.
 

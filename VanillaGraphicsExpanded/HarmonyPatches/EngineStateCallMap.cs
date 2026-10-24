@@ -15,6 +15,13 @@ internal static class EngineStateCallMap
     #region Public API
     /// <summary>Exposes the audited native-to-cache mapping for discovery and coverage verification.</summary>
     internal static IReadOnlyDictionary<MethodInfo, MethodInfo> Replacements => replacements;
+
+    /// <summary>Resolves fixed adapters and exact closed metadata overloads through the same call-site boundary.</summary>
+    internal static bool TryGetReplacement(MethodInfo native, out MethodInfo replacement) =>
+        replacements.TryGetValue(native, out replacement!) || EngineMetadataCallAdapters.TryGet(native, out replacement);
+
+    /// <summary>Recognizes generic definitions for discovery without inventing a fixed set of upload element types.</summary>
+    internal static bool Supports(MethodInfo native) => replacements.ContainsKey(native) || EngineMetadataCallAdapters.Supports(native);
     #endregion
 
     #region Private

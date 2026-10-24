@@ -474,19 +474,19 @@ public sealed partial class GBufferManager : IDisposable
         using var _ = gl.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
 
         // Reuse the engine SSAO position target, or occupy its vacant slot when SSAO is disabled.
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment3,
+        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment3,
             TextureTarget.Texture2D, PositionTextureId, 0);
 
         // Attach normal texture as ColorAttachment4 (matches layout(location = 4))
-        GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment4, surfaceTex!.TextureId, 0, GBufferTextures.NormalLayer);
+        gl.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment4, surfaceTex!.TextureId, 0, GBufferTextures.NormalLayer);
 
         // Attach material texture as ColorAttachment5 (matches layout(location = 5))
-        GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment5, surfaceTex!.TextureId, 0, GBufferTextures.MaterialLayer);
+        gl.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment5, surfaceTex!.TextureId, 0, GBufferTextures.MaterialLayer);
 
-        GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment7, surfaceTex!.TextureId, 0, GBufferTextures.EnvironmentLayer);
+        gl.FramebufferTextureLayer(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment7, surfaceTex!.TextureId, 0, GBufferTextures.EnvironmentLayer);
 
         // Attach patch id texture as ColorAttachment6 (matches layout(location = 6))
-        GL.FramebufferTexture2D(
+        gl.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
             FramebufferAttachment.ColorAttachment6,
             TextureTarget.Texture2D,
@@ -517,28 +517,28 @@ public sealed partial class GBufferManager : IDisposable
         gl.BindFramebuffer(FramebufferTarget.Framebuffer, fboId);
 
         // Detach our color textures (ColorAttachment4-7)
-        GL.FramebufferTexture2D(
+        gl.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
             FramebufferAttachment.ColorAttachment4,
             TextureTarget.Texture2D,
             0,
             0);
 
-        GL.FramebufferTexture2D(
+        gl.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
             FramebufferAttachment.ColorAttachment5,
             TextureTarget.Texture2D,
             0,
             0);
 
-        GL.FramebufferTexture2D(
+        gl.FramebufferTexture2D(
             FramebufferTarget.Framebuffer,
             FramebufferAttachment.ColorAttachment6,
             TextureTarget.Texture2D,
             0,
             0);
 
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment7,
+        gl.FramebufferTexture2D(FramebufferTarget.Framebuffer, FramebufferAttachment.ColorAttachment7,
             TextureTarget.Texture2D, 0, 0);
 
         // Reset draw buffers to VS defaults (0-3)

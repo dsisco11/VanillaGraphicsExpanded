@@ -17,9 +17,34 @@ public partial class GpuProgramLayout
     /// <summary>Rebuilds derived tables from a manager-published snapshot without independently requerying native facts.</summary>
     internal void UseNativeMetadata(int program, GpuProgramMetadata data, ulong revision)
     {
+        if (nativeExecutableInvalidated)
+            throw new InvalidOperationException("Native executable changes require a new prepared interface.");
+        // Withdraw old prepared entries before validating replacements; failure cannot
+        // leave fixed-slot resource submission using the previous executable's table.
+        nativePreparationUnavailable = true;
+        var prepared = binaryInterface?.RefreshResources(program, data);
         nativeMetadata = data;
         NativeMetadataRevision = revision;
+        binaryInterface = prepared;
+        nativePreparationUnavailable = false;
         RebuildCache(program);
+    }
+
+    /// <summary>Reconciles mutable resource assignments, or requests full preparation after executable replacement.</summary>
+    internal void ObserveNativeMetadata(int program, GpuProgramMetadata data, ulong revision,
+        GpuMetadataChange change, bool available)
+    {
+        if (binaryInterface is not null && (change & GpuMetadataChange.Executable) != 0)
+            nativeExecutableInvalidated = true;
+        if (!available || !data.ExecutableAvailable || nativeExecutableInvalidated)
+        {
+            // A changed executable also owns graphics stage/interface declarations. The
+            // existing owner preparation path validates those together with resource slots.
+            nativePreparationUnavailable = true;
+            SetActiveSnapshot(null, null, null, null);
+            return;
+        }
+        UseNativeMetadata(program, data, revision);
     }
     #endregion
 

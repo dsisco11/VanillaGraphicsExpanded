@@ -4,9 +4,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     #region Public API
-    /// <summary>Observes a direct-state-access element-buffer assignment without changing VAO selection.</summary>
-    internal void NotifyVertexArrayElementBuffer(int vao, int buffer) => elementArrayBufferByVao[vao] = buffer;
-
     /// <summary>Withdraws the ordinary upload's array/VAO knowledge while preserving unrelated resource slots.</summary>
     internal void ForgetEngineMeshUpload(int? vao)
     {

@@ -51,12 +51,14 @@ internal sealed partial class StateCache
         if (!framebufferDrawRouting.TryGetValue(framebuffer, out var route))
         {
             route = new DrawBuffersEnum[GpuSupport.Graphics.MaxDrawBuffers];
-            using (var errors = new GlDebug.ErrorScope("Framebuffer routing capture"))
-                for (int i = 0; i < route.Length; i++)
-                {
-                    route[i] = (DrawBuffersEnum)GL.GetInteger(GetPName.DrawBuffer0 + i);
-                    FramebufferRoutingQueries++;
-                }
+            for (int i = 0; i < route.Length; i++)
+            {
+                int value = -1;
+                GL.GetInteger(GetPName.DrawBuffer0 + i, out value);
+                FramebufferRoutingQueries++;
+                if (value < 0) throw new InvalidOperationException("Framebuffer routing is unavailable.");
+                route[i] = (DrawBuffersEnum)value;
+            }
             framebufferDrawRouting.Add(framebuffer, route);
         }
         return (DrawBuffersEnum[])route.Clone();

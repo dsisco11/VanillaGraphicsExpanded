@@ -6,6 +6,11 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Immutable graphics features and limits owned by GpuSupport and consumed by validation.</summary>
 public sealed record GraphicsCapabilities
 {
+    /// <summary>Whether core 4.1 or ARB_separate_shader_objects supports explicit-program uniform updates.</summary>
+    public bool SupportsArbSeparateShaderObjects { get; init; }
+    /// <summary>Whether renderbuffer texture objects can be observed through EXT direct-state-access aliases.</summary>
+    public bool SupportsRenderbufferTextures { get; init; }
+
     #region Graphics features and limits
     /// <summary>Maximum individually enabled shader clip distances, queried from GL_MAX_CLIP_DISTANCES.</summary>
     public int MaxClipDistances { get; init; }
@@ -156,6 +161,12 @@ public sealed record GraphicsCapabilities
     public bool SupportsKhrDebug { get; init; }
     /// <summary>Whether direct state access is available through GL_ARB_direct_state_access or OpenGL 4.5.</summary>
     public bool SupportsArbDirectStateAccess { get; init; }
+    /// <summary>Whether framebuffer default dimensions and samples are supported without attachments.</summary>
+    public bool SupportsFramebufferNoAttachments { get; init; }
+    /// <summary>Whether framebuffer attachments can select an OVR multiview range.</summary>
+    public bool SupportsOvrMultiview { get; init; }
+    /// <summary>Maximum simultaneous views accepted by OVR multiview attachment commands.</summary>
+    public int MaxMultiviewViews { get; init; }
     /// <summary>Whether multiple resources can be bound in one call through GL_ARB_multi_bind or OpenGL 4.4.</summary>
     public bool SupportsArbMultiBind { get; init; }
     /// <summary>Whether GL_ARB_bindless_texture is advertised for texture and image handles.</summary>

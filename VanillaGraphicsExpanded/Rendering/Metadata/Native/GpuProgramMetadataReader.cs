@@ -17,11 +17,15 @@ internal sealed class GpuProgramMetadataReader : IGpuResourceMetadataReader<GpuP
     public bool TryRead(nint id, out GpuProgramMetadata metadata)
     {
         metadata = default;
-        if (!IsResource(id)) return false;
+        if (id == 0 || id < int.MinValue || id > uint.MaxValue) return false;
         int program = unchecked((int)id);
-        GL.GetProgram(program, GetProgramParameterName.DeleteStatus, out int deleting);
+        // Descriptor queries establish availability directly; tracked refresh needs no
+        // separate glIsProgram query and leaves the caller's pending errors untouched.
+        int deleting = -1, linked = -1;
+        GL.GetProgram(program, GetProgramParameterName.DeleteStatus, out deleting);
         if (deleting != 0) return false;
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
+        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out linked);
+        if (linked < 0) return false;
         if (linked == 0)
         {
             metadata = new(false, ImmutableArray<GpuProgramResourceMetadata>.Empty, ImmutableArray<GpuProgramTextureUnitMetadata>.Empty);
@@ -29,20 +33,31 @@ internal sealed class GpuProgramMetadataReader : IGpuResourceMetadataReader<GpuP
         }
         var resources = ImmutableArray.CreateBuilder<GpuProgramResourceMetadata>();
         var units = ImmutableArray.CreateBuilder<GpuProgramTextureUnitMetadata>();
-        foreach (var kind in new[] { ProgramInterface.Uniform, ProgramInterface.UniformBlock, ProgramInterface.ShaderStorageBlock })
+        foreach (var kind in new[] { ProgramInterface.Uniform, ProgramInterface.UniformBlock,
+            ProgramInterface.ShaderStorageBlock, ProgramInterface.AtomicCounterBuffer })
         {
-            GL.GetProgramInterface(program, kind, ProgramInterfaceParameter.ActiveResources, out int count);
-            GL.GetProgramInterface(program, kind, ProgramInterfaceParameter.MaxNameLength, out int capacity);
+            int count = -1, capacity = -1;
+            GL.GetProgramInterface(program, kind, ProgramInterfaceParameter.ActiveResources, out count);
+            if (kind == ProgramInterface.AtomicCounterBuffer) capacity = 0;
+            else GL.GetProgramInterface(program, kind, ProgramInterfaceParameter.MaxNameLength, out capacity);
             if (count < 0 || capacity < 0) return false;
             var properties = kind == ProgramInterface.Uniform
                 ? new[] { ProgramProperty.Type, ProgramProperty.Location, ProgramProperty.BlockIndex, ProgramProperty.ArraySize }
-                : new[] { ProgramProperty.BufferBinding, ProgramProperty.BufferDataSize };
+                : kind == ProgramInterface.AtomicCounterBuffer
+                    ? new[] { ProgramProperty.BufferBinding, ProgramProperty.BufferDataSize }
+                    : new[] { ProgramProperty.BufferBinding, ProgramProperty.BufferDataSize,
+                        ProgramProperty.ReferencedByVertexShader, ProgramProperty.ReferencedByTessControlShader,
+                        ProgramProperty.ReferencedByTessEvaluationShader, ProgramProperty.ReferencedByGeometryShader,
+                        ProgramProperty.ReferencedByFragmentShader, (ProgramProperty)All.ReferencedByComputeShader };
             for (int index = 0; index < count; index++)
             {
                 var values = new int[properties.Length];
                 GL.GetProgramResource(program, kind, index, properties.Length, properties, values.Length, out int written, values);
                 if (written != values.Length) return false;
-                GL.GetProgramResourceName(program, kind, index, Math.Max(1, capacity), out _, out string name);
+                string name = string.Empty;
+                // Atomic-counter buffers are indexed resources without queryable names.
+                if (kind != ProgramInterface.AtomicCounterBuffer)
+                    GL.GetProgramResourceName(program, kind, index, Math.Max(1, capacity), out _, out name);
                 var facts = ImmutableDictionary.CreateBuilder<ProgramProperty, ImmutableArray<int>>();
                 for (int property = 0; property < properties.Length; property++) facts.Add(properties[property], ImmutableArray.Create(values[property]));
                 resources.Add(new(kind, index, name, facts.ToImmutable()));

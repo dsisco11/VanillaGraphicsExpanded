@@ -162,7 +162,8 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (!IsValid) throw new InvalidOperationException("Cannot reallocate retired texture storage.");
         Validate2DAllocation(textureTarget, width, height, mipLevels);
         Allocate2DStorage(textureTarget, internalFormat, width, height, mipLevels);
-        GpuFramebufferAttachmentObservers.NotifyChanged(this);
+        if (ResourceManager?.GetResourceRegistration(this) is null)
+            GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
     /// <summary>Replaces layered storage while retaining requested dimensions only as command arguments.</summary>

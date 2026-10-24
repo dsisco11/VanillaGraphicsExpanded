@@ -14,6 +14,8 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
     #region Recipient initialization
     internal TMetadata Metadata { get; private set; }
     internal IGpuResourceMetadataReader<TMetadata>? Reader { get; set; }
+    /// <summary>Retains unfinished effects so recovery cannot misclassify an interrupted executable change.</summary>
+    internal GpuMetadataChange PendingChange => pendingChange;
     internal override int AssociationCount => recipients.Count;
 
     /// <summary>Creates an initially unavailable entry for a realized or reserved native name.</summary>
@@ -64,6 +66,15 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
     #endregion
 
     #region Snapshot publication
+    /// <summary>Invalidates retained framebuffer helper state after external native configuration observation.</summary>
+    internal void NotifyFramebufferDependents(GpuResource? origin = null)
+    {
+        foreach (var recipient in recipients.ToArray())
+            if (TryGetRecipient(recipient.Key, out var resource) && !ReferenceEquals(resource, origin)
+                && resource is GpuFramebuffer framebuffer)
+                framebuffer.OnNativeConfigurationChanged();
+    }
+
     /// <summary>Marks canonical metadata unavailable before reading a replacement candidate.</summary>
     internal void BeginRefresh(GpuMetadataChange change)
     {
@@ -73,7 +84,7 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
     }
 
     /// <summary>Assigns recipient snapshots before publishing canonical availability and revisions.</summary>
-    internal void Publish(TMetadata candidate, GpuMetadataChange change)
+    internal GpuMetadataChange Publish(TMetadata candidate, GpuMetadataChange change)
     {
         change |= pendingChange;
         MetadataAvailable = false;
@@ -94,6 +105,41 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
         MetadataAvailable = true;
         // Entry lifecycle gates availability even if retirement overlaps these assignments.
         if (failures is not null) throw new AggregateException("GPU metadata publication failed.", failures);
+        return change;
+    }
+
+    /// <summary>Refreshes every program recipient's derived preparation after canonical snapshot delivery.</summary>
+    internal void NotifyProgramDependents(GpuMetadataChange change, bool available)
+    {
+        if (Kind != GpuResourceKind.Program) return;
+        List<Exception>? failures = null;
+        foreach (var recipient in recipients.ToArray())
+        {
+            if (!TryGetRecipient(recipient.Key, out var resource)) continue;
+            try
+            {
+                if (resource is GpuProgramObject program) program.OnNativeProgramMetadataChanged(change, available);
+                else if (resource is GpuComputePipeline compute) compute.OnNativeProgramMetadataChanged(change, available);
+            }
+            catch (Exception error) { (failures ??= new()).Add(error); }
+        }
+        if (available && failures is not null)
+            throw new AggregateException("GPU program preparation notification failed.", failures);
+    }
+
+    /// <summary>Invalidates existing image consumers after all snapshots have been assigned or withdrawn.</summary>
+    internal void NotifyImageDependents(bool suppressErrors)
+    {
+        List<Exception>? failures = null;
+        foreach (var recipient in recipients.ToArray())
+        {
+            if (!TryGetRecipient(recipient.Key, out var resource) || resource is not GpuFramebufferAttachment image) continue;
+            try { image.NotifyDependents(); }
+            catch (Exception error) { (failures ??= new()).Add(error); }
+        }
+        // A reader/publication exception remains the primary failure. All callbacks still run.
+        if (!suppressErrors && failures is not null)
+            throw new AggregateException("GPU image dependency notification failed.", failures);
     }
     #endregion
 

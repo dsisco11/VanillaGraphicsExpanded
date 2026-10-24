@@ -2,7 +2,6 @@ using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.ShaderCompilation;
 using VanillaGraphicsExpanded.Rendering;
-
 namespace VanillaGraphicsExpanded.PBR.Tessellation;
 
 /// <summary>Links optional engine-owned GLSL tessellation without modifying the ordinary executable on failure.</summary>
@@ -16,7 +15,7 @@ internal static class TerrainTessellationLinker
         program = 0;
         error = "";
         GpuShaderModule? control = null, evaluation = null;
-        int candidate = 0;
+        GpuProgramObject? candidate = null;
         try
         {
             // These tessellation stages use no SSBOs, even when the engine vertex stage does.
@@ -33,15 +32,15 @@ internal static class TerrainTessellationLinker
             candidate = ShaderProgramLink.Submit([vertex, control!.ShaderId, evaluation!.ShaderId, fragment], false, out _);
             if (!ShaderProgramLink.Validate(candidate, out error)) return false;
             // The linked executable retains the stages; the engine continues owning vertex/fragment.
-            GL.DetachShader(candidate, control.ShaderId);
-            GL.DetachShader(candidate, evaluation.ShaderId);
-            program = candidate; candidate = 0;
+            candidate.DetachShader(control.ShaderId);
+            candidate.DetachShader(evaluation.ShaderId);
+            program = (int)candidate.Detach();
             return true;
         }
         catch (Exception ex) { error = ex.Message; return false; }
         finally
         {
-            if (candidate != 0) StateCache.Current.DeleteProgram(candidate);
+            candidate?.Dispose();
             control?.Dispose();
             evaluation?.Dispose();
         }

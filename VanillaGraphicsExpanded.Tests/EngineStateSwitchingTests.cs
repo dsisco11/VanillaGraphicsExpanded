@@ -61,10 +61,10 @@ public sealed class EngineStateSwitchingTests
             foreach (var target in targets)
             {
                 var original = PatchProcessor.GetOriginalInstructions(target);
-                int calls = original.Count(instruction => instruction.opcode == OpCodes.Call && instruction.operand is MethodInfo native && EngineStateCallMap.Replacements.ContainsKey(native));
+                int calls = original.Count(instruction => instruction.opcode == OpCodes.Call && instruction.operand is MethodInfo native && EngineStateCallMap.Supports(native));
                 Assert.True(calls > 0, target.ToString());
                 var rewritten = EngineStateSwitchingHook.Transpiler(original).ToArray();
-                Assert.DoesNotContain(rewritten, instruction => instruction.opcode == OpCodes.Call && instruction.operand is MethodInfo native && EngineStateCallMap.Replacements.ContainsKey(native));
+                Assert.DoesNotContain(rewritten, instruction => instruction.opcode == OpCodes.Call && instruction.operand is MethodInfo native && EngineStateCallMap.Supports(native));
                 harmony.Patch(target, transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
                 Assert.Contains(PatchProcessor.GetPatchInfo(target).Transpilers, patch => patch.owner == harmony.Id);
                 coverage.Add($"{target.DeclaringType!.Assembly.GetName().Name}: {target.DeclaringType.FullName}.{target.Name} | {calls}");

@@ -14,7 +14,21 @@ public partial class GpuProgramLayout
     #region Compiled contract ownership
     private bool compiledContract;
     /// <summary>Numeric reflection belongs to this layout and is replaced with each successful link.</summary>
-    internal Spirv.GpuProgramInterface? BinaryInterface { get; set; }
+    private Spirv.GpuProgramInterface? binaryInterface;
+    private bool nativePreparationUnavailable;
+    private bool nativeExecutableInvalidated;
+    /// <summary>Rejects stale prepared tables until a coherent replacement is installed.</summary>
+    internal Spirv.GpuProgramInterface? BinaryInterface
+    {
+        get => nativePreparationUnavailable
+            ? throw new InvalidOperationException("The native program changed; its prepared interface is unavailable.") : binaryInterface;
+        set { binaryInterface = value; nativePreparationUnavailable = false; nativeExecutableInvalidated = false; }
+    }
+
+    /// <summary>Requests the owner's existing preparation workflow after native executable or contract invalidation.</summary>
+    internal bool NeedsNativePreparation => nativePreparationUnavailable;
+    /// <summary>Identifies authored fixed-slot preparation even while its current table is withdrawn.</summary>
+    internal bool HasPreparedInterface => binaryInterface is not null;
 
     /// <summary>Uses the same declarations that assign resource slots during offline compilation.</summary>
     internal void RegisterContract(Contracts.GpuBindingContract contract)
@@ -610,7 +624,7 @@ public partial class GpuProgramLayout
 
             try
             {
-                GL.UniformBlockBinding(programId, blockIndex, spec.BindingOrUnit);
+                StateCache.Current.UniformBlockBinding(programId, blockIndex, spec.BindingOrUnit);
             }
             catch (Exception ex)
             {
@@ -644,7 +658,7 @@ public partial class GpuProgramLayout
 
             try
             {
-                GL.ShaderStorageBlockBinding(programId, blockIndex, spec.BindingOrUnit);
+                StateCache.Current.ShaderStorageBlockBinding(programId, blockIndex, spec.BindingOrUnit);
             }
             catch (Exception ex)
             {
@@ -653,6 +667,7 @@ public partial class GpuProgramLayout
         }
     }
 
+    /// <summary>Applies authored texture units with explicit-program updates or a binding-preserving fallback.</summary>
     private void ApplyUniformUnitContract(int programId, Dictionary<string, BindingSpec> contract, Action<string>? warn)
     {
         if (contract.Count == 0)
@@ -660,9 +675,7 @@ public partial class GpuProgramLayout
             return;
         }
 
-        // Contract application is correctness-critical and should be PSO-owned.
-        // Bind the program temporarily and assign the contract via Uniform1.
-        using var _ = StateCache.Current.UseProgramScope(programId);
+        bool direct = GpuSupport.Graphics.SupportsArbSeparateShaderObjects;
 
         foreach (var (uniformName, spec) in contract)
         {
@@ -693,14 +706,9 @@ public partial class GpuProgramLayout
                 // Best-effort only.
             }
 
-            try
-            {
-                GL.Uniform1(loc, spec.BindingOrUnit);
-            }
-            catch (Exception ex)
-            {
-                Debug.WriteLine($"[GpuProgramLayout] Failed to set uniform '{uniformName}' to {spec.BindingOrUnit}: {ex.Message}");
-            }
+            // Publication failure must reach preparation; stale native unit facts cannot
+            // be treated as a successfully applied authored contract.
+            StateCache.Current.SetProgramUniformUnit(programId, loc, spec.BindingOrUnit, direct);
         }
     }
 

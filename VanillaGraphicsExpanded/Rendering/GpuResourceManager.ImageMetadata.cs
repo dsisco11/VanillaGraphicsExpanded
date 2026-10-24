@@ -53,6 +53,12 @@ internal sealed partial class GpuResourceManager
                 or TextureTarget.Texture2DArray or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray;
             int layers = oneDimensionalArray ? level.Height : level.Depth;
             if (hasLayers ? selection.Layer >= layers : selection.Layer != 0 || selection.Layered) return null;
+            if (selection.ViewCount != 0)
+            {
+                if (data.Target != TextureTarget.Texture2DArray || !selection.Layered || selection.BaseView < 0
+                    || selection.ViewCount < 1 || (long)selection.BaseView + selection.ViewCount > layers) return null;
+                return new(level.Width, level.Height, selection.ViewCount, level.Format, level.Samples);
+            }
             return new(level.Width, oneDimensionalArray ? 1 : level.Height,
                 hasLayers && selection.Layered ? layers : 1, level.Format, level.Samples);
         }

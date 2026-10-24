@@ -179,8 +179,8 @@ internal sealed partial class StateCache
         {
             (GetPName Name, int Start, int Size) names = target switch
             {
-                BufferRangeTarget.UniformBuffer => (GetPName.UniformBufferBinding, 0x8A29, 0x8A2A),
-                BufferRangeTarget.ShaderStorageBuffer => (GetPName.ShaderStorageBufferBinding, 0x90D4, 0x90D5),
+                BufferRangeTarget.UniformBuffer => (GetPName.UniformBufferBinding, (int)All.UniformBufferStart, (int)All.UniformBufferSize),
+                BufferRangeTarget.ShaderStorageBuffer => (GetPName.ShaderStorageBufferBinding, (int)All.ShaderStorageBufferStart, (int)All.ShaderStorageBufferSize),
                 BufferRangeTarget.AtomicCounterBuffer => ((GetPName)All.AtomicCounterBufferBinding, (int)All.AtomicCounterBufferStart, (int)All.AtomicCounterBufferSize),
                 _ => throw new InvalidOperationException("Unsupported indexed footprint.")
             };

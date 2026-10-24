@@ -7,18 +7,17 @@ using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 using VanillaGraphicsExpanded.Rendering.ProgramBinaries;
 using VanillaGraphicsExpanded.Rendering.Spirv;
-
 namespace VanillaGraphicsExpanded.Rendering.ShaderCompilation;
-
 /// <summary>Owns an unpublished program and its stages between driver submission and completed consumption.</summary>
 internal sealed class PendingShaderProgram : IDisposable
 {
-    internal int Program { get; private set; }
+    private GpuProgramObject? program;
+    internal int Program => program?.ProgramId ?? 0;
     internal PreparedProgramBinary Inputs { get; }
     internal bool Cached { get; }
     internal double LinkSubmissionMilliseconds { get; }
     internal bool Validated => completed;
-    internal List<(ShaderStageKind Kind, int Shader, GpuBindingContract Contract)> Stages { get; } = new();
+    internal List<(ShaderStageKind Kind, int Shader, GpuBindingContract Contract, GpuShaderModule Owner)> Stages { get; } = new();
     private readonly GetProgramParameterName completionQuery;
     private readonly ShaderLoadPlan plan;
     private bool completed;
@@ -37,18 +36,17 @@ internal sealed class PendingShaderProgram : IDisposable
         {
             // External asset reads may invalidate the context; reject before allocating native names.
             RequireOriginatingContext();
-            Program = GL.CreateProgram();
-            if (Program == 0) throw new InvalidOperationException("glCreateProgram returned 0.");
+            program = GpuProgramObject.Create();
             Cached = DriverProgramCache.TryLoad(Program, Inputs);
             if (Cached) { completed = true; return; }
-            StateCache.Current.DeleteProgram(Program);
-            Program = 0;
+            program.Dispose();
+            program = null;
             foreach (var selection in plan.Stages)
             {
                 var stage = SpirvStageLoader.Load(selection, read: Inputs.Read, deferCompletion: true);
-                Stages.Add((selection.Stage.Kind, stage.Shader, stage.Contract));
+                Stages.Add((selection.Stage.Kind, stage.ShaderId, selection.Stage.Bindings, stage));
             }
-            Program = ShaderProgramLink.Submit(Stages.Select(stage => stage.Shader).ToArray(), Inputs.Key != null, out double elapsed);
+            program = ShaderProgramLink.Submit(Stages.Select(stage => stage.Shader).ToArray(), Inputs.Key != null, out double elapsed);
             LinkSubmissionMilliseconds = elapsed;
         }
         catch { Dispose(); throw; }
@@ -83,15 +81,23 @@ internal sealed class PendingShaderProgram : IDisposable
         // Status and diagnostic queries are safe only after linking has completed.
         foreach (var stage in Stages)
         {
+            ObjectDisposedException.ThrowIf(!stage.Owner.IsValid, stage.Owner);
             GL.GetShader(stage.Shader, ShaderParameter.CompileStatus, out int status);
             if (status == 0) throw new InvalidOperationException($"SPIR-V specialization failed for {plan.Settings.Contract.Identity} ({stage.Kind}): " + GL.GetShaderInfoLog(stage.Shader));
         }
-        if (!ShaderProgramLink.Validate(Program, out string log)) throw new InvalidOperationException($"SPIR-V link failed for {plan.Settings.Contract.Identity}: " + log);
+        if (!ShaderProgramLink.Validate(program!, out string log)) throw new InvalidOperationException($"SPIR-V link failed for {plan.Settings.Contract.Identity}: " + log);
         completed = true;
     }
 
     /// <summary>Transfers a completed executable after releasing every temporary attached stage.</summary>
     internal int DetachProgram()
+    {
+        using var owned = TakeProgram();
+        return (int)owned.Detach();
+    }
+
+    /// <summary>Transfers the existing common owner after completion without creating a second native owner.</summary>
+    internal GpuProgramObject TakeProgram()
     {
         if (!completed) throw new InvalidOperationException("Cannot publish an unfinished shader program.");
         if (Program != 0) RequireOriginatingContext();
@@ -99,11 +105,11 @@ internal sealed class PendingShaderProgram : IDisposable
         foreach (var stage in Stages)
         {
             GL.DetachShader(Program, stage.Shader);
-            StateCache.Current.DeleteShader(stage.Shader);
+            stage.Owner.Dispose();
         }
         Stages.Clear();
-        int result = Program;
-        Program = 0;
+        var result = program ?? throw new InvalidOperationException("The candidate program was already transferred.");
+        program = null;
         return result;
     }
     #endregion
@@ -114,15 +120,15 @@ internal sealed class PendingShaderProgram : IDisposable
     {
         if (Environment.CurrentManagedThreadId != thread || context != Integration.RenderContextRegistry.Current())
             throw new InvalidOperationException("Shader candidate belongs to its originating native context generation and thread.");
+        ObjectDisposedException.ThrowIf(program is not null && !program.IsValid, this);
     }
 
     /// <summary>Deletes unpublished executables and all remaining temporary stages exactly once.</summary>
     public void Dispose()
     {
-        if (Program == 0 && Stages.Count == 0) return;
-        RequireOriginatingContext();
-        if (Program != 0) { StateCache.Current.DeleteProgram(Program); Program = 0; }
-        foreach (var stage in Stages) StateCache.Current.DeleteShader(stage.Shader);
+        program?.Dispose();
+        program = null;
+        foreach (var stage in Stages) stage.Owner.Dispose();
         Stages.Clear();
     }
     #endregion

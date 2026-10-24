@@ -33,19 +33,29 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         this.debugName = debugName;
     }
 
+    /// <summary>Creates a realized vertex array suitable for bound and direct configuration.</summary>
     public static GpuVao Create(string? debugName = null)
     {
-        int id = GL.GenVertexArray();
+        int id;
+        if (GpuSupport.Graphics.SupportsArbDirectStateAccess) GL.CreateVertexArrays(1, out id);
+        else id = GL.GenVertexArray();
         if (id == 0)
         {
             throw new InvalidOperationException("glGenVertexArrays failed.");
         }
 
+        return CompleteOwnedCreation(GpuResourceKind.VertexArray, id, () =>
+        {
+            // Generated names become objects on first binding. Restore the caller's VAO.
+            if (!GpuSupport.Graphics.SupportsArbDirectStateAccess)
+            {
+                using var scope = StateCache.Current.BindVertexArrayScope(id);
+            }
 #if DEBUG
-        GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, id, debugName);
+            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, id, debugName);
 #endif
-
-        return CompleteOwnedCreation(GpuResourceKind.VertexArray, id, () => new GpuVao(id, debugName));
+            return new GpuVao(id, debugName);
+        });
     }
 
     public override void SetDebugName(string? debugName)
@@ -95,7 +105,7 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        return new GpuVertexAttribBinding(vertexArrayId, bindingIndex);
+        return new GpuVertexAttribBinding(this, bindingIndex);
     }
 
     public bool TryBind()
@@ -127,7 +137,6 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
             Bind();
             StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
         }
-        else StateCache.Current.NotifyVertexArrayElementBuffer(vertexArrayId, bufferId);
     }
 
     public void BindElementBuffer(GpuEbo ebo)
@@ -152,7 +161,7 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         if (!VaoDsa.TryEnableVertexArrayAttrib(vertexArrayId, index))
         {
             Bind();
-            GL.EnableVertexAttribArray(index);
+            StateCache.Current.EnableVertexAttribArray(index);
         }
     }
 
@@ -167,7 +176,7 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         if (!VaoDsa.TryDisableVertexArrayAttrib(vertexArrayId, index))
         {
             Bind();
-            GL.DisableVertexAttribArray(index);
+            StateCache.Current.DisableVertexAttribArray(index);
         }
     }
 
@@ -204,8 +213,8 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         }
 
         Bind();
-        GL.EnableVertexAttribArray(index);
-        GL.VertexAttribPointer(index, size, type, normalized, strideBytes, offsetBytes);
+        StateCache.Current.EnableVertexAttribArray(index);
+        StateCache.Current.VertexAttribPointer(index, size, type, normalized, strideBytes, offsetBytes);
     }
 
     public void AttribIPointer(
@@ -240,8 +249,8 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         }
 
         Bind();
-        GL.EnableVertexAttribArray(index);
-        GL.VertexAttribIPointer(index, size, type, strideBytes, (IntPtr)offsetBytes);
+        StateCache.Current.EnableVertexAttribArray(index);
+        StateCache.Current.VertexAttribIPointer(index, size, type, strideBytes, (IntPtr)offsetBytes);
     }
 
     public void AttribDivisor(int index, int divisor)
@@ -255,7 +264,7 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         if (!VaoDsa.TryAttribDivisor(vertexArrayId, index, divisor))
         {
             Bind();
-            GL.VertexAttribDivisor(index, divisor);
+            StateCache.Current.VertexAttribDivisor(index, divisor);
         }
     }
 
@@ -370,70 +379,47 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         return $"{GetType().Name}(id={vertexArrayId}, name={debugName}, disposed={IsDisposed})";
     }
 
+    /// <summary>Selects named VAO commands using the current context's shared capabilities.</summary>
     private static class VaoDsa
     {
-        private static int enabledState;
 
+        /// <summary>Uses the named vertex API when supported; native and publication failures propagate.</summary>
         public static bool TryVertexArrayElementBuffer(int vaoId, int bufferId)
         {
-            if (enabledState == -1)
+            if (!GpuSupport.Graphics.SupportsArbDirectStateAccess)
             {
                 return false;
             }
 
-            try
-            {
-                GL.VertexArrayElementBuffer(vaoId, bufferId);
-                enabledState = 1;
-                return true;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
+            StateCache.Current.VertexArrayElementBuffer(vaoId, bufferId);
+            return true;
         }
 
+        /// <summary>Uses the named vertex API when supported; native and publication failures propagate.</summary>
         public static bool TryEnableVertexArrayAttrib(int vaoId, int index)
         {
-            if (enabledState == -1)
+            if (!GpuSupport.Graphics.SupportsArbDirectStateAccess)
             {
                 return false;
             }
 
-            try
-            {
-                GL.EnableVertexArrayAttrib(vaoId, index);
-                enabledState = 1;
-                return true;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
+            StateCache.Current.EnableVertexArrayAttrib(vaoId, index);
+            return true;
         }
 
+        /// <summary>Uses the named vertex API when supported; native and publication failures propagate.</summary>
         public static bool TryDisableVertexArrayAttrib(int vaoId, int index)
         {
-            if (enabledState == -1)
+            if (!GpuSupport.Graphics.SupportsArbDirectStateAccess)
             {
                 return false;
             }
 
-            try
-            {
-                GL.DisableVertexArrayAttrib(vaoId, index);
-                enabledState = 1;
-                return true;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
+            StateCache.Current.DisableVertexArrayAttrib(vaoId, index);
+            return true;
         }
 
+        /// <summary>Uses the named vertex API when supported; native and publication failures propagate.</summary>
         public static bool TryAttribPointer(
             int vaoId,
             int vboId,
@@ -444,29 +430,20 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
             int strideBytes,
             int offsetBytes)
         {
-            if (enabledState == -1)
+            if (!GpuSupport.Graphics.SupportsArbDirectStateAccess)
             {
                 return false;
             }
 
-            try
-            {
-                GL.VertexArrayVertexBuffer(vaoId, attribIndex, vboId, (IntPtr)offsetBytes, strideBytes);
-                VertexAttribType attribType = (VertexAttribType)(int)type;
-                GL.VertexArrayAttribFormat(vaoId, attribIndex, size, attribType, normalized, 0);
-                GL.VertexArrayAttribBinding(vaoId, attribIndex, attribIndex);
-                GL.EnableVertexArrayAttrib(vaoId, attribIndex);
-
-                enabledState = 1;
-                return true;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
+            StateCache.Current.VertexArrayVertexBuffer(vaoId, attribIndex, vboId, (IntPtr)offsetBytes, strideBytes);
+            VertexAttribType attribType = (VertexAttribType)(int)type;
+            StateCache.Current.VertexArrayAttribFormat(vaoId, attribIndex, size, attribType, normalized, 0);
+            StateCache.Current.VertexArrayAttribBinding(vaoId, attribIndex, attribIndex);
+            StateCache.Current.EnableVertexArrayAttrib(vaoId, attribIndex);
+            return true;
         }
 
+        /// <summary>Uses the named vertex API when supported; native and publication failures propagate.</summary>
         public static bool TryAttribIPointer(
             int vaoId,
             int vboId,
@@ -476,48 +453,29 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
             int strideBytes,
             int offsetBytes)
         {
-            if (enabledState == -1)
+            if (!GpuSupport.Graphics.SupportsArbDirectStateAccess)
             {
                 return false;
             }
 
-            try
-            {
-                GL.VertexArrayVertexBuffer(vaoId, attribIndex, vboId, (IntPtr)offsetBytes, strideBytes);
-                VertexAttribIType attribType = (VertexAttribIType)(int)type;
-                GL.VertexArrayAttribIFormat(vaoId, attribIndex, size, attribType, 0);
-                GL.VertexArrayAttribBinding(vaoId, attribIndex, attribIndex);
-                GL.EnableVertexArrayAttrib(vaoId, attribIndex);
-
-                enabledState = 1;
-                return true;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
+            StateCache.Current.VertexArrayVertexBuffer(vaoId, attribIndex, vboId, (IntPtr)offsetBytes, strideBytes);
+            VertexAttribIType attribType = (VertexAttribIType)(int)type;
+            StateCache.Current.VertexArrayAttribIFormat(vaoId, attribIndex, size, attribType, 0);
+            StateCache.Current.VertexArrayAttribBinding(vaoId, attribIndex, attribIndex);
+            StateCache.Current.EnableVertexArrayAttrib(vaoId, attribIndex);
+            return true;
         }
 
+        /// <summary>Uses the named vertex API when supported; native and publication failures propagate.</summary>
         public static bool TryAttribDivisor(int vaoId, int index, int divisor)
         {
-            if (enabledState == -1)
+            if (!GpuSupport.Graphics.SupportsArbDirectStateAccess)
             {
                 return false;
             }
 
-            try
-            {
-                GL.VertexArrayBindingDivisor(vaoId, index, divisor);
-
-                enabledState = 1;
-                return true;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
+            StateCache.Current.VertexArrayBindingDivisor(vaoId, index, divisor);
+            return true;
         }
 
     }

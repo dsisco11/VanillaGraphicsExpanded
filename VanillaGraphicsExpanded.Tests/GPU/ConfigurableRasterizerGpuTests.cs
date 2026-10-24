@@ -54,8 +54,6 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
             cache.SetDepthFunc(DepthFunction.Less);
             Assert.Equal(calls, cache.FixedFunctionCalls);
             Assert.True(cache.TryBeginEngineBoundary(Declaration(), out var scope));
-            Assert.Equal(AlphaFunction.Always, scope!.Snapshot.Rasterizer.AlphaComparison);
-            Assert.Equal(RasterizerDesc.FullPolygonStipple, scope.Snapshot.Rasterizer.PolygonStipplePattern);
             var failure = new InvalidOperationException("fixture");
             Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => scope!.Run(() => {
                 cache.ApplyConfigurableRaster(second); cache.SetClipDistance(1, true); throw failure;
@@ -79,59 +77,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         finally { GlDebug.CheckStateTransitions = false; cache.ApplyConfigurableRaster(second); }
     }
 
-    /// <summary>Compatibility snapshots preserve disabled parameters and canonical masks across hostile pixel layouts.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CompatibilityBoundaryPreservesPatternsAndTransferOwners(bool fail)
-    {
-        using var context = new CompatibilityContext(fixture, output);
-        var cache = StateCache.Current;
-        cache.InvalidateAll();
-        int pack = GL.GenBuffer(), unpack = GL.GenBuffer();
-        var packLayout = new StateCache.PixelPackState(8, 64, 2, 3, true, true);
-        var unpackLayout = new StateCache.PixelUnpackState(8, 64, 2, 3, true, true);
-        var pattern = new PipelineValues<byte>(Enumerable.Range(0, 128).Select(i => (byte)i));
-        try
-        {
-            cache.BindBuffer(BufferTarget.PixelPackBuffer, pack);
-            cache.BindBuffer(BufferTarget.PixelUnpackBuffer, unpack);
-            cache.SetPixelPackState(packLayout); cache.SetPixelUnpackState(unpackLayout);
-            cache.SetPolygonStipplePattern(pattern);
-            cache.SetAlphaFunction(AlphaFunction.Greater, .375f);
-            cache.SetLineStipple(7, 0x35aa);
-            cache.SetCapability(EnableCap.AlphaTest, false); cache.SetPointSmooth(false);
-            cache.SetCapability(EnableCap.LineStipple, false);
-            cache.SetCapability(EnableCap.PolygonStipple, false);
-            // Cold entry must read dependent parameters even though their enables are disabled.
-            cache.Invalidate(EPipelineState.ConfigurableRaster);
-            Assert.True(cache.TryBeginEngineBoundary(Declaration(), out var scope));
-
-            var failure = new InvalidOperationException("fixture");
-            Action operation = () => { cache.ApplyConfigurableRaster(Pipeline(new() { AlphaTest = true, PointSmooth = true, LineStipple = true, PolygonStipple = true }));
-                Assert.True(GL.IsEnabled(EnableCap.AlphaTest)); Assert.True(GL.IsEnabled(EnableCap.PointSmooth));
-                Assert.True(GL.IsEnabled(EnableCap.LineStipple)); Assert.True(GL.IsEnabled(EnableCap.PolygonStipple));
-                if (fail) throw failure; };
-            if (fail) Assert.Same(failure, Assert.Throws<InvalidOperationException>(() => scope!.Run(operation)));
-            else scope!.Run(operation);
-            Assert.False(GL.IsEnabled(EnableCap.AlphaTest)); Assert.False(GL.IsEnabled(EnableCap.PointSmooth));
-            Assert.Equal((int)AlphaFunction.Greater, GL.GetInteger(GetPName.AlphaTestFunc));
-            Assert.Equal(.375f, GL.GetFloat(GetPName.AlphaTestRef));
-            Assert.Equal(7, GL.GetInteger(GetPName.LineStippleRepeat));
-            Assert.Equal(0x35aa, GL.GetInteger(GetPName.LineStipplePattern));
-            Assert.Equal(pack, GL.GetInteger(GetPName.PixelPackBufferBinding));
-            Assert.Equal(unpack, GL.GetInteger(GetPName.PixelUnpackBufferBinding));
-            Assert.Equal(packLayout, cache.GetPixelPackState()); Assert.Equal(unpackLayout, cache.GetPixelUnpackState());
-            Assert.Equal(1, GL.GetInteger(GetPName.PackLsbFirst)); Assert.Equal(1, GL.GetInteger(GetPName.UnpackLsbFirst));
-            cache.BindBuffer(BufferTarget.PixelPackBuffer, 0); cache.SetPixelPackState(new(1));
-            byte[] read = new byte[128]; GL.GetPolygonStipple(read);
-            Assert.Equal(pattern.ToArray(), read);
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
-        }
-        finally { cache.BindBuffer(BufferTarget.PixelPackBuffer, 0); cache.BindBuffer(BufferTarget.PixelUnpackBuffer, 0); GL.DeleteBuffer(pack); GL.DeleteBuffer(unpack); }
-    }
-
-    /// <summary>Real texture uploads invalidate cached pixel layout before a later bitmap transfer borrows it.</summary>
+    /// <summary>Real texture uploads refresh cached unpack layout.</summary>
     [Fact]
     public void TextureUploadRefreshesUnpackKnowledge()
     {
@@ -142,81 +88,18 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         texture.UploadDataImmediate(new ushort[] { 17 });
         Assert.Equal(1, GL.GetInteger(GetPName.UnpackAlignment));
         Assert.Equal(1, cache.GetPixelUnpackState().Alignment);
-        cache.SetPolygonStipplePattern(new(new byte[128]));
-        Assert.Equal(1, GL.GetInteger(GetPName.UnpackAlignment));
-        Assert.Equal(1, cache.GetPixelUnpackState().Alignment);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
-    /// <summary>Transfer callbacks that fail after temporary setup restore native pixel layout and PBO ownership.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void TransferFailureRestoresTemporaryOwners(bool pack)
-    {
-        using var context = new CompatibilityContext(fixture, output);
-        var cache = StateCache.Current; cache.InvalidateAll();
-        int buffer = GL.GenBuffer();
-        var target = pack ? BufferTarget.PixelPackBuffer : BufferTarget.PixelUnpackBuffer;
-        var packLayout = new StateCache.PixelPackState(8, 64, 2, 3, true, true);
-        var unpackLayout = new StateCache.PixelUnpackState(8, 64, 2, 3, true, true);
-        try
-        {
-            cache.BindBuffer(target, buffer);
-            cache.SetPixelPackState(packLayout); cache.SetPixelUnpackState(unpackLayout);
-            var method = typeof(StateCache).GetMethod("TransferPolygonStipple", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
-            var failure = new InvalidOperationException("transfer fixture");
-            Action operation = () => {
-                Assert.Equal(0, GL.GetInteger(pack ? GetPName.PixelPackBufferBinding : GetPName.PixelUnpackBufferBinding));
-                Assert.Equal(1, GL.GetInteger(pack ? GetPName.PackAlignment : GetPName.UnpackAlignment));
-                throw failure;
-            };
-            var reflectionError = Assert.Throws<System.Reflection.TargetInvocationException>(() => method.Invoke(cache, [pack, operation]));
-            var transferError = Assert.IsType<AggregateException>(reflectionError.InnerException);
-            Assert.Contains(failure, transferError.InnerExceptions);
-            Assert.Equal(buffer, GL.GetInteger(pack ? GetPName.PixelPackBufferBinding : GetPName.PixelUnpackBufferBinding));
-            Assert.Equal(8, GL.GetInteger(pack ? GetPName.PackAlignment : GetPName.UnpackAlignment));
-            Assert.Equal(64, GL.GetInteger(pack ? GetPName.PackRowLength : GetPName.UnpackRowLength));
-            Assert.Equal(1, GL.GetInteger(pack ? GetPName.PackLsbFirst : GetPName.UnpackLsbFirst));
-            Assert.Equal(packLayout, cache.GetPixelPackState()); Assert.Equal(unpackLayout, cache.GetPixelUnpackState());
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
-        }
-        finally { cache.BindBuffer(target, 0); GL.DeleteBuffer(buffer); }
-    }
-    /// <summary>Observed engine bitmap uploads honor their unpack order and withdraw the previous cached payload.</summary>
+    /// <summary>Real fragments exercise matching clip-depth conventions.</summary>
     [Fact]
-    public void EngineBitmapUploadUsesEngineLayout()
-    {
-        using var context = new CompatibilityContext(fixture, output);
-        var cache = StateCache.Current; cache.InvalidateAll();
-        var original = new PipelineValues<byte>(Enumerable.Repeat((byte)0xaa, 128));
-        cache.SetPolygonStipplePattern(original);
-        cache.SetPixelUnpackState(new(1, LsbFirst: true));
-        EngineStateCalls.PolygonStipple(Enumerable.Repeat((byte)1, 128).ToArray());
-        cache.SetPixelPackState(new(1));
-        byte[] actual = new byte[128]; GL.GetPolygonStipple(actual);
-        Assert.All(actual, value => Assert.Equal(128, value));
-        long calls = cache.FixedFunctionCalls;
-        cache.SetPolygonStipplePattern(original);
-        Assert.Equal(calls + 1, cache.FixedFunctionCalls);
-        GL.GetPolygonStipple(actual); Assert.Equal(original.ToArray(), actual);
-        Assert.True(cache.GetPixelUnpackState().LsbFirst);
-        Assert.Equal(ErrorCode.NoError, GL.GetError());
-    }
-    /// <summary>Real fragments exercise alpha tests, line/polygon stipple and matching clip-depth conventions.</summary>
-    [Fact]
-    public void CompatibilityRasterPoliciesChangePixels()
+    public void ClipDepthPoliciesChangePixels()
     {
         using var context = new CompatibilityContext(fixture, output);
         using var draw = new RasterDraw();
         var cache = StateCache.Current;
         cache.InvalidateAll();
         Assert.Equal(1024, draw.Count(Pipeline(new())));
-        Assert.Equal(0, draw.Count(Pipeline(new() { AlphaTest = true, AlphaComparison = AlphaFunction.Greater, AlphaReference = .75f })));
-        Assert.Equal(1024, draw.Count(Pipeline(new() { AlphaTest = true, AlphaComparison = AlphaFunction.Less, AlphaReference = .75f })));
-        Assert.Equal(0, draw.Count(Pipeline(new() { PolygonStipple = true, PolygonStipplePattern = new(new byte[128]) })));
-        Assert.Equal(512, draw.Count(Pipeline(new() { PolygonStipple = true, PolygonStipplePattern = new(Enumerable.Repeat((byte)0xaa, 128)) })));
         Assert.True(draw.Count(Pipeline(new()), lines: true) > 0);
-        Assert.Equal(0, draw.Count(Pipeline(new() { LineStipple = true, LineStipplePattern = 0 }), lines: true));
         if (GpuSupport.Graphics.ClipControl)
         {
             Assert.Equal(0, draw.Count(Pipeline(new() { ClipOrigin = ClipOrigin.UpperLeft, ClipDepth = ClipDepthMode.ZeroToOne }), zeroToOne: false));

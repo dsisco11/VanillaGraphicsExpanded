@@ -171,9 +171,9 @@ public sealed class ShaderTestHelper : IDisposable
             if (SpirvStageLoader.ToShaderType(stage.Kind) != type) throw new ArgumentException("Stage kind mismatch: " + identity);
             var owner = GpuShaderContracts.Registry.Programs.Values.OrderBy(p => p.Identity, StringComparer.Ordinal).First(p => p.Stages.Any(s => s.Identity == identity));
             var selected = new ShaderLoadPlan(new ShaderSettings(owner, defines)).Stages.Single(s => s.Stage.Identity == identity);
-            var loaded = SpirvStageLoader.Load(selected, path => File.ReadAllBytes(Path.Combine(binaryRoot, path)));
-            TestShaderInterfaces.TrackShader(loaded.Shader, loaded.Contract);
-            int shaderId = loaded.Shader;
+            using var loaded = SpirvStageLoader.Load(selected, path => File.ReadAllBytes(Path.Combine(binaryRoot, path)));
+            TestShaderInterfaces.TrackShader(loaded.ShaderId, loaded.BindingContract!);
+            int shaderId = (int)loaded.Detach();
             _allocatedShaders.Add(shaderId);
             TestShaderInterfaces.OnShaderRelease(shaderId, () => _allocatedShaders.Remove(shaderId));
             return ShaderCompileResult.Success(shaderId);
@@ -194,12 +194,12 @@ public sealed class ShaderTestHelper : IDisposable
             var handles = new Dictionary<ShaderStageKind, int>();
             foreach (var selected in plan.Stages)
             {
-                var loaded = SpirvStageLoader.Load(selected, path => File.ReadAllBytes(Path.Combine(root, path)));
-                _allocatedShaders.Add(loaded.Shader);
-                int ownedShader = loaded.Shader;
+                using var loaded = SpirvStageLoader.Load(selected, path => File.ReadAllBytes(Path.Combine(root, path)));
+                _allocatedShaders.Add(loaded.ShaderId);
+                int ownedShader = loaded.ShaderId;
                 TestShaderInterfaces.OnShaderRelease(ownedShader, () => _allocatedShaders.Remove(ownedShader));
-                TestShaderInterfaces.TrackShader(loaded.Shader, loaded.Contract);
-                handles.Add(selected.Stage.Kind, loaded.Shader);
+                TestShaderInterfaces.TrackShader(loaded.ShaderId, loaded.BindingContract!);
+                handles.Add(selected.Stage.Kind, (int)loaded.Detach());
             }
             return LinkProgram(handles[ShaderStageKind.Vertex], handles[ShaderStageKind.Fragment]);
         }

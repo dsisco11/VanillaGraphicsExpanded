@@ -59,7 +59,7 @@ internal static class DriverProgramCache
             if (formats.IndexOf(format) < 0) { inputs.Store.Remove(inputs.Key); return false; }
             unsafe
             {
-                fixed (byte* pointer = bytes) GL.ProgramBinary(program, (BinaryFormat)format, (IntPtr)pointer, bytes.Length);
+                fixed (byte* pointer = bytes) StateCache.Current.ProgramBinary(program, (BinaryFormat)format, (IntPtr)pointer, bytes.Length);
             }
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
             if (GlDebug.GetErrors().Length != 0 || linked == 0) { inputs.Store.Remove(inputs.Key); return false; }

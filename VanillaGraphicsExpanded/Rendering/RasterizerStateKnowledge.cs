@@ -24,26 +24,12 @@ internal enum RasterizerStateKnowledge : uint
     ClipControl = 1u << 6,
     /// <summary>The cached PointSpriteOrigin state is known.</summary>
     PointSpriteOrigin = 1u << 7,
-    /// <summary>The cached AlphaTest state is known.</summary>
-    AlphaTest = 1u << 8,
-    /// <summary>The cached PointSmooth state is known.</summary>
-    PointSmooth = 1u << 9,
     /// <summary>The cached LineSmooth state is known.</summary>
     LineSmooth = 1u << 10,
     /// <summary>The cached PolygonSmooth state is known.</summary>
     PolygonSmooth = 1u << 11,
-    /// <summary>The cached LineStipple state is known.</summary>
-    LineStipple = 1u << 12,
-    /// <summary>The cached PolygonStipple state is known.</summary>
-    PolygonStipple = 1u << 13,
-    /// <summary>The cached AlphaFunction state is known.</summary>
-    AlphaFunction = 1u << 14,
-    /// <summary>The cached LineStippleParameters state is known.</summary>
-    LineStippleParameters = 1u << 15,
-    /// <summary>The cached PolygonStipplePattern state is known.</summary>
-    PolygonStipplePattern = 1u << 16,
-    /// <summary>All configurable clipping and compatibility fields.</summary>
-    ConfigurableRaster = ClipDistances | ClipControl | PointSpriteOrigin | AlphaTest | PointSmooth | LineSmooth | PolygonSmooth | LineStipple | PolygonStipple | AlphaFunction | LineStippleParameters | PolygonStipplePattern,
+    /// <summary>All configurable clipping and raster fields.</summary>
+    ConfigurableRaster = ClipDistances | ClipControl | PointSpriteOrigin | LineSmooth | PolygonSmooth,
     /// <summary>The cached CullMode value is known.</summary>
     CullMode = 1u << 17,
     /// <summary>The cached FrontFace value is known.</summary>

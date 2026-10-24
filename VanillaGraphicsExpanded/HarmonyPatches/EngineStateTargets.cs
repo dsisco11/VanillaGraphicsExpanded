@@ -57,8 +57,19 @@ internal static class EngineStateTargets
             if (member.Parent.Kind != HandleKind.TypeReference || member.GetKind() != MemberReferenceKind.Method) continue;
             if (!IsGlTypeReference(metadata, (TypeReferenceHandle)member.Parent)) continue;
             int token = MetadataTokens.GetToken(handle);
-            if (module.ResolveMethod(token) is MethodInfo native && EngineStateCallMap.Replacements.ContainsKey(native))
+            if (module.ResolveMethod(token) is MethodInfo native && EngineStateCallMap.Supports(native))
                 result.Add(token);
+        }
+        // Closed generic calls use MethodSpecification tokens, not their MemberReference
+        // definitions. Resolve only specifications rooted in an already supported GL member.
+        for (int row = 1; row <= metadata.GetTableRowCount(TableIndex.MethodSpec); row++)
+        {
+            var handle = MetadataTokens.MethodSpecificationHandle(row);
+            var specification = metadata.GetMethodSpecification(handle);
+            if (!result.Contains(MetadataTokens.GetToken(specification.Method))) continue;
+            int token = MetadataTokens.GetToken(handle);
+            if (module.ResolveMethod(token) is MethodInfo native && !native.ContainsGenericParameters
+                && EngineStateCallMap.Supports(native)) result.Add(token);
         }
         return result;
     }

@@ -37,12 +37,8 @@ internal sealed partial class StateCache
             case EnableCap.PrimitiveRestart:
             case EnableCap.PrimitiveRestartFixedIndex:
                 SetGraphicsEnable(capability, enabled); break;
-            case EnableCap.AlphaTest: SetAlphaTest(enabled); break;
-            case EnableCap.PointSmooth: SetPointSmooth(enabled); break;
             case EnableCap.LineSmooth: SetLineSmooth(enabled); break;
             case EnableCap.PolygonSmooth: SetPolygonSmooth(enabled); break;
-            case EnableCap.LineStipple: SetLineStipple(enabled); break;
-            case EnableCap.PolygonStipple: SetPolygonStipple(enabled); break;
             case EnableCap.DepthTest:
                 ValidateBoundaryMutation(depth: DepthStateKnowledge.TestEnabled);
                 if (depthKnown.HasFlag(DepthStateKnowledge.TestEnabled) && depth.TestEnabled == enabled) return;

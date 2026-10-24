@@ -52,42 +52,30 @@ internal sealed partial class StateCache
         rasterizerKnown |= RasterizerStateKnowledge.PolygonOffset;
     }
 
-    /// <summary>Sets both polygon faces without inheriting an undeclared native face mode.</summary>
-    internal void SetPolygonModes(PolygonMode front, PolygonMode back)
+    /// <summary>Establishes the common polygon mode used by modern rendering.</summary>
+    internal void SetPolygonMode(PolygonMode mode)
     {
-        if (!Enum.IsDefined(front) || !Enum.IsDefined(back)) throw new ArgumentOutOfRangeException(nameof(front));
-        if (GpuSupport.Graphics.CoreProfile && front != back) throw new NotSupportedException("Core polygon modes must match.");
+        if (!Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(mode));
         ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PolygonModes, completeGraphics: true);
-        if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonModes) && rasterizer.PolygonModes == (front, back)) return;
+        if (rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonModes) && rasterizer.PolygonModes == mode) return;
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonModes;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        if (front == back) { GL.PolygonMode(MaterialFace.FrontAndBack, front); FixedFunctionCalls++; }
-        else { GL.PolygonMode(MaterialFace.Front, front); GL.PolygonMode(MaterialFace.Back, back); FixedFunctionCalls += 2; }
+        GL.PolygonMode(MaterialFace.FrontAndBack, mode);
+        FixedFunctionCalls++;
         if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        rasterizer.PolygonModes = (front, back);
+        rasterizer.PolygonModes = mode;
         rasterizerKnown |= RasterizerStateKnowledge.PolygonModes;
     }
 
-    /// <summary>Changes a selected compatibility polygon face without guessing the other face's value.</summary>
+    /// <summary>Tracks common modes and forwards unsupported face selectors without caching their state.</summary>
     internal void SetPolygonMode(MaterialFace face, PolygonMode mode)
     {
-        if (face is not (MaterialFace.Front or MaterialFace.Back or MaterialFace.FrontAndBack) || !Enum.IsDefined(mode)) throw new ArgumentOutOfRangeException(nameof(face));
-        if (face == MaterialFace.FrontAndBack) { SetPolygonModes(mode, mode); return; }
-        if (GpuSupport.Graphics.CoreProfile) throw new NotSupportedException("Single-face polygon modes require compatibility profile.");
-        ValidateBoundaryMutation(rasterizer: RasterizerStateKnowledge.PolygonModes, completeGraphics: true);
-        bool known = rasterizerKnown.HasFlag(RasterizerStateKnowledge.PolygonModes);
-        var previous = rasterizer.PolygonModes;
-        if (known && (face == MaterialFace.Front ? previous.Front : previous.Back) == mode) return;
+        if (face == MaterialFace.FrontAndBack) { SetPolygonMode(mode); return; }
+        RejectUnsupportedBoundaryMutation();
+        // Preserve the native command and error behavior while withdrawing the common-mode fact.
         rasterizerKnown &= ~RasterizerStateKnowledge.PolygonModes;
-        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        GL.PolygonMode(face, mode); FixedFunctionCalls++;
-        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        // A single-face command cannot establish knowledge for an unobserved opposite face.
-        if (known)
-        {
-            rasterizer.PolygonModes = face == MaterialFace.Front ? (mode, previous.Back) : (previous.Front, mode);
-            rasterizerKnown |= RasterizerStateKnowledge.PolygonModes;
-        }
+        GL.PolygonMode(face, mode);
+        FixedFunctionCalls++;
     }
     #endregion
 }

@@ -20,22 +20,12 @@ internal struct RasterizerState
     public ClipDepthMode ClipDepth;
     /// <summary>Cached native PointSpriteOrigin value, meaningful only when its knowledge flag is set.</summary>
     public PointSpriteCoordOriginParameter PointSpriteOrigin;
-    /// <summary>Cached native AlphaComparison value, meaningful only when its knowledge flag is set.</summary>
-    public AlphaFunction AlphaComparison;
-    /// <summary>Cached native AlphaReference value, meaningful only when its knowledge flag is set.</summary>
-    public float AlphaReference;
-    /// <summary>Cached native LineStippleFactor value, meaningful only when its knowledge flag is set.</summary>
-    public int LineStippleFactor;
-    /// <summary>Cached native LineStipplePattern value, meaningful only when its knowledge flag is set.</summary>
-    public ushort LineStipplePattern;
-    /// <summary>Cached native PolygonStipplePattern value, meaningful only when its knowledge flag is set.</summary>
-    public Pipeline.Descriptions.PipelineValues<byte>? PolygonStipplePattern;
     /// <summary>Declared or observed CullFaceMode CullMode value.</summary>
     public CullFaceMode CullMode;
     /// <summary>Declared or observed FrontFaceDirection FrontFace value.</summary>
     public FrontFaceDirection FrontFace;
     /// <summary>Observed PolygonModes value, valid only when corresponding knowledge is established.</summary>
-    public (PolygonMode Front, PolygonMode Back) PolygonModes;
+    public PolygonMode PolygonModes;
     /// <summary>Observed PolygonOffset value, valid only when corresponding knowledge is established.</summary>
     public (float Factor, float Units) PolygonOffset;
     #region Public API
@@ -62,27 +52,7 @@ internal struct RasterizerState
         }
     }
 
-    /// <summary>Cached native AlphaTest value, meaningful only when its knowledge flag is set.</summary>
-    public bool AlphaTest
-    {
-        readonly get => booleanValues.HasFlag(RasterizerStateKnowledge.AlphaTest);
-        set
-        {
-            if (value) booleanValues |= RasterizerStateKnowledge.AlphaTest;
-            else booleanValues &= ~RasterizerStateKnowledge.AlphaTest;
-        }
-    }
 
-    /// <summary>Cached native PointSmooth value, meaningful only when its knowledge flag is set.</summary>
-    public bool PointSmooth
-    {
-        readonly get => booleanValues.HasFlag(RasterizerStateKnowledge.PointSmooth);
-        set
-        {
-            if (value) booleanValues |= RasterizerStateKnowledge.PointSmooth;
-            else booleanValues &= ~RasterizerStateKnowledge.PointSmooth;
-        }
-    }
 
     /// <summary>Cached native LineSmooth value, meaningful only when its knowledge flag is set.</summary>
     public bool LineSmooth
@@ -106,27 +76,7 @@ internal struct RasterizerState
         }
     }
 
-    /// <summary>Cached native LineStipple value, meaningful only when its knowledge flag is set.</summary>
-    public bool LineStipple
-    {
-        readonly get => booleanValues.HasFlag(RasterizerStateKnowledge.LineStipple);
-        set
-        {
-            if (value) booleanValues |= RasterizerStateKnowledge.LineStipple;
-            else booleanValues &= ~RasterizerStateKnowledge.LineStipple;
-        }
-    }
 
-    /// <summary>Cached native PolygonStipple value, meaningful only when its knowledge flag is set.</summary>
-    public bool PolygonStipple
-    {
-        readonly get => booleanValues.HasFlag(RasterizerStateKnowledge.PolygonStipple);
-        set
-        {
-            if (value) booleanValues |= RasterizerStateKnowledge.PolygonStipple;
-            else booleanValues &= ~RasterizerStateKnowledge.PolygonStipple;
-        }
-    }
 
     /// <summary>Cached native DepthClamp enable value.</summary>
     public bool DepthClamp

@@ -74,8 +74,6 @@ public sealed class GraphicsPipelineDescriptionTests
             Create(depth: new() { Back = new() { WriteMask = 15 } }),
             Create(rasterizer: new() { CullMode = CullFaceMode.Front }),
             Create(rasterizer: new() { DepthBiasFactor = 3 }),
-            Create(rasterizer: new() { LineStippleFactor = 2 }),
-            Create(rasterizer: new() { AlphaReference = .3f }),
             Create(blending: [new() { SourceRgb = BlendingFactorSrc.SrcAlpha }]),
             Create(blending: [new() { RgbEquation = BlendEquationMode.Min }]),
             Create(sampling: new() { Coverage = .3f }),
@@ -245,8 +243,6 @@ public sealed class GraphicsPipelineDescriptionTests
         Assert.ThrowsAny<ArgumentException>(() => Create(depth: new() { Front = new() { Pass = (StencilOp)(-1) } }));
         Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { CullMode = (CullFaceMode)(-1) }));
         Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { DepthBiasFactor = float.NaN }));
-        Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { AlphaReference = float.PositiveInfinity }));
-        Assert.ThrowsAny<ArgumentException>(() => Create(rasterizer: new() { LineStippleFactor = 0 }));
         Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { SourceRgb = (BlendingFactorSrc)(-1) }]));
         Assert.ThrowsAny<ArgumentException>(() => Create(blending: [new() { RgbEquation = (BlendEquationMode)(-1) }]));
         Assert.ThrowsAny<ArgumentException>(() => Create(sampling: new() { Coverage = 2 }));

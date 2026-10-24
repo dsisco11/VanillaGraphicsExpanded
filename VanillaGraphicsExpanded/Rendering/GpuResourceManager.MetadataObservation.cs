@@ -30,7 +30,23 @@ internal sealed partial class GpuResourceManager
         GpuMetadataChange change = GpuMetadataChange.Metadata) where T : struct
     {
         if (resource.ResourceManager?.GetResourceRegistration(resource) is GpuResourceMetadataEntry<T> entry)
+        {
             entry.BeginRefresh(change);
+            entry.NotifyProgramDependents(change, available: false);
+        }
+    }
+
+    /// <summary>Withdraws an unfinished command group without reading or publishing its partial native state.</summary>
+    internal static void FailWrapperMetadataUpdate<T>(GpuResource<T> resource, GpuMetadataChange change) where T : struct
+    {
+        if (resource.ResourceManager?.GetResourceRegistration(resource) is GpuResourceMetadataEntry<T> entry)
+        {
+            // Group admission already withdrew availability. Notify every image consumer now,
+            // preserving any exception that caused the caller to abandon the command group.
+            entry.NotifyImageDependents(suppressErrors: true);
+            entry.NotifyFramebufferDependents(resource);
+        }
+        else DiscardUntrackedMetadata(resource, change);
     }
 
     /// <summary>Refreshes aliases after StateCache executes a native command, including rejected operations.</summary>
@@ -41,8 +57,17 @@ internal sealed partial class GpuResourceManager
         {
             var entry = manager.RegisterCreatedResource(resource.Kind, resource.ResourceId, reader);
             if (!ReferenceEquals(manager.GetResourceRegistration(resource), entry)) manager.AssociateResource(entry, resource);
-            if (!manager.RefreshMetadata(entry, change))
-                throw new InvalidOperationException("Native resource metadata is unavailable after the command.");
+            try
+            {
+                if (!manager.RefreshMetadata(entry, change))
+                    throw new InvalidOperationException("Native resource metadata is unavailable after the command.");
+            }
+            finally
+            {
+                // The initiating framebuffer helper owns its pending image references and
+                // completion event. Other wrappers must discard their previous configuration.
+                entry.NotifyFramebufferDependents(resource);
+            }
             return;
         }
         T data;

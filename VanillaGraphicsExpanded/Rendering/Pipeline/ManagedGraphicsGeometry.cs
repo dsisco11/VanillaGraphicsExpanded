@@ -112,27 +112,20 @@ internal sealed class ManagedGraphicsGeometry : GraphicsGeometry
                 var attributes = layout.Attributes.Where(a => a.Binding == stream.Binding).ToArray();
                 var binding = vao.GetBinding(stream.Binding).BindVertexBuffer(buffer.BufferId, 0, attributes[0].Stride)
                     .SetDivisor(attributes[0].Divisor);
-                foreach (var attribute in attributes) Configure(binding, attribute);
+                foreach (var attribute in attributes) Configure(ref binding, attribute);
             }
         }
         catch { Dispose(); throw; }
     }
 
     /// <summary>Maps authored interpretation to the existing floating/integer helper and explicit double path.</summary>
-    private static void Configure(GpuVertexAttribBinding binding, VertexAttributeDesc attribute)
+    private static void Configure(ref GpuVertexAttribBinding binding, VertexAttributeDesc attribute)
     {
         if (attribute.Interpretation == VertexInterpretation.Integer)
             binding.SetIntAttrib(attribute.Location, attribute.Components,
                 (VertexAttribIntegerType)attribute.Storage, attribute.Offset);
         else if (attribute.Interpretation == VertexInterpretation.Double)
-        {
-            StateCache.Current.BindVertexArray(binding.VaoId);
-            StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, binding.BufferId);
-            GL.EnableVertexAttribArray(attribute.Location);
-            GL.VertexAttribLPointer(attribute.Location, attribute.Components, VertexAttribDoubleType.Double,
-                binding.StrideBytes, (IntPtr)attribute.Offset);
-            GL.VertexAttribDivisor(attribute.Location, binding.Divisor);
-        }
+            binding.SetDoubleAttrib(attribute.Location, attribute.Components, attribute.Offset);
         else binding.SetFloatAttrib(attribute.Location, attribute.Components, attribute.Storage,
             attribute.Interpretation == VertexInterpretation.Normalized, attribute.Offset);
     }

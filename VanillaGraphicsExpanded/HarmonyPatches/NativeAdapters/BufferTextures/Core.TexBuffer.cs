@@ -1,0 +1,46 @@
+using System;
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+
+namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.BufferTextures;
+
+/// <summary>Forwards GL.TexBuffer overloads through their existing StateCache observation contract.</summary>
+internal static unsafe partial class Core
+{
+    #region Internal API
+    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    internal static void TexBuffer(TextureBufferTarget @target, SizedInternalFormat @internalformat, int @buffer)
+    {
+        var observation = StateCache.BeginNativeBufferTexture(0, unchecked((int)@target), 0, false, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
+        bool returned = false;
+        try
+        {
+            GL.TexBuffer(@target, @internalformat, @buffer);
+            returned = true;
+        }
+        finally
+        {
+            // A throwing native call keeps affected metadata unavailable.
+            observation.Complete(returned);
+        }
+    }
+
+    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    internal static void TexBuffer(TextureBufferTarget @target, SizedInternalFormat @internalformat, uint @buffer)
+    {
+        var observation = StateCache.BeginNativeBufferTexture(0, unchecked((int)@target), 0, false, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
+        bool returned = false;
+        try
+        {
+            GL.TexBuffer(@target, @internalformat, @buffer);
+            returned = true;
+        }
+        finally
+        {
+            // A throwing native call keeps affected metadata unavailable.
+            observation.Complete(returned);
+        }
+    }
+
+    #endregion
+}

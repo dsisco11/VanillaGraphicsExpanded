@@ -57,6 +57,8 @@ public static partial class GpuSupport
 
         return capabilities with
         {
+            SupportsArbSeparateShaderObjects = IsAtLeast(capabilities.ApiVersion, 4, 1) || GlExtensions.Supports("GL_ARB_separate_shader_objects"),
+            SupportsRenderbufferTextures = GlExtensions.Supports("GL_NV_explicit_multisample"),
             SupportsTextureStorage = IsAtLeast(capabilities.ApiVersion, 4, 2) || GlExtensions.Supports("GL_ARB_texture_storage") || GlExtensions.Supports("GL_EXT_texture_storage"),
             SupportsTextureView = IsAtLeast(capabilities.ApiVersion, 4, 3) || GlExtensions.Supports("GL_ARB_texture_view"),
             SupportsTextureBufferRange = IsAtLeast(capabilities.ApiVersion, 4, 3) || GlExtensions.Supports("GL_ARB_texture_buffer_range"),
@@ -68,6 +70,8 @@ public static partial class GpuSupport
             SupportsInternalFormatQuery2 = IsAtLeast(capabilities.ApiVersion, 4, 3) || GlExtensions.Supports("GL_ARB_internalformat_query2"),
             SupportsKhrDebug = supportsKhrDebug,
             SupportsArbDirectStateAccess = supportsArbDirectStateAccess,
+            SupportsFramebufferNoAttachments = IsAtLeast(capabilities.ApiVersion, 4, 3) || GlExtensions.Supports("GL_ARB_framebuffer_no_attachments"),
+            SupportsOvrMultiview = GlExtensions.Supports("GL_OVR_multiview"),
             SupportsArbMultiBind = supportsArbMultiBind,
             SupportsArbBindlessTexture = supportsArbBindlessTexture,
             SupportsArbComputeShader = supportsArbComputeShader,

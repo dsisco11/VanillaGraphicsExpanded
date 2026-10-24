@@ -63,7 +63,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             Assert.Null(manager.FindResource(GpuResourceKind.Buffer, buffer));
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(buffer, view.BufferId);
-            GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)0x8C2D, out int actualBuffer);
+            GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, out int actualBuffer);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally

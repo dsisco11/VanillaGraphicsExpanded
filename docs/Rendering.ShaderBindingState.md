@@ -45,12 +45,18 @@ submission rather than invented shader-type constraints.
 resource namespace. Resource entries receive deterministic indices ordered by kind and name;
 these indices are independent of GPU binding numbers.
 
-[GpuPreparedBindings](../VanillaGraphicsExpanded/Rendering/Spirv/GpuPreparedBindings.cs) inspects
-each candidate's linked interface once, reads the initial sampler/image unit assignments, validates
+[GpuResourceManager](../VanillaGraphicsExpanded/Rendering/GpuResourceManager.Registry.cs) owns canonical
+native program metadata and publishes snapshots after observed executable or interface changes.
+[GpuPreparedBindings](../VanillaGraphicsExpanded/Rendering/Spirv/GpuPreparedBindings.cs) consumes
+that snapshot, including sampler/image unit assignments, validates
 contiguous array assignments and compatible types/targets, and records immutable element activity.
 It also records UBO, storage-block and atomic-counter activity by binding. Sampler and image units
 use separate namespaces. Uncontracted active slots and ambiguous mappings reject preparation;
 inactive required entries remain legal. No sampler/image uniform writes repair a fixed assignment.
+Unit/block changes revalidate prepared resource tables through the existing revision machinery;
+relinking or binary installation withdraws executable preparation until the owner validates its replacement.
+Ordinary numeric uniform writes do not refresh resource metadata. ProgramUniform updates use the
+separate-shader-object capability, with a binding-preserving fallback when unavailable.
 
 [GpuProgramInterface](../VanillaGraphicsExpanded/Rendering/Spirv/GpuProgramInterface.cs) owns this
 table and retains the existing ordinary-uniform and diagnostic adapters. Graphics and compute
@@ -116,9 +122,11 @@ not reflect the executable or perform name/location lookup. Array publication re
 
 Generated inputs retain a shader-local `ShaderInputValidation` value. Prepared-entry resolution runs
 only when the installed table changes. Successful texture/image/range compatibility checks are reused
-while the resource reference, allocation metadata and desired view/range remain equal. Owner metadata
-is sampled without driver queries; current lifetime is still checked before publication. Resize,
-capacity changes and executable replacement invalidate the applicable result. Failed checks never
+while the resource reference, allocation metadata, manager-owned metadata/storage revisions and desired
+view/range remain equal. Snapshot availability is checked before reusing compatibility history;
+uncached inputs and arrays also reject unavailable metadata. Explicit storage ranges remain bounded by
+the current allocation. Owner metadata is sampled without driver queries; current lifetime
+is still checked before publication. Resize, capacity changes and executable replacement invalidate the applicable result. Failed checks never
 replace a successful result. Context-wide binding comparisons and UBO content uploads remain independent
 of this compatibility history.
 Validation reuse passed the production/offline build, 163 generator tests and 120 focused tests.

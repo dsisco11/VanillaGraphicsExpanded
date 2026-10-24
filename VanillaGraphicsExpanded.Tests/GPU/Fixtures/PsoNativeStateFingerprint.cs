@@ -26,14 +26,6 @@ internal static class PsoNativeStateFingerprint
         values["DepthRange"] = string.Join(",", depthRange.Select(v => v.ToString("R", System.Globalization.CultureInfo.InvariantCulture)));
         values["DepthClearValue"] = GL.GetDouble(GetPName.DepthClearValue).ToString("R", System.Globalization.CultureInfo.InvariantCulture);
         if (GpuSupport.Graphics.SampleShading) ReadFloat(values, "MinSampleShadingValue");
-        if (!GpuSupport.Graphics.CoreProfile)
-        {
-            foreach (string name in new[] { "AlphaTestFunc", "LineStippleRepeat", "LineStipplePattern" }) ReadInteger(values, name);
-            ReadFloat(values, "AlphaTestRef");
-            foreach (var cap in new[] { EnableCap.AlphaTest, EnableCap.PointSmooth, EnableCap.LineStipple, EnableCap.PolygonStipple })
-                values["enabled:" + cap] = GL.IsEnabled(cap).ToString();
-            byte[] pattern = new byte[128]; GL.GetPolygonStipple(pattern); values["polygonStipplePattern"] = Convert.ToHexString(pattern);
-        }
         EnableCap[] caps = [EnableCap.DepthTest, EnableCap.StencilTest, EnableCap.CullFace, EnableCap.ScissorTest,
             EnableCap.LineSmooth, EnableCap.PolygonSmooth, EnableCap.PolygonOffsetFill, EnableCap.PolygonOffsetLine,
             EnableCap.PolygonOffsetPoint, EnableCap.RasterizerDiscard, EnableCap.ProgramPointSize, EnableCap.PrimitiveRestart,

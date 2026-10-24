@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 public static class TextureFormatHelper
 {
     /// <summary>OpenGL's sized stencil-only texture format, absent from this OpenTK enum.</summary>
-    public const PixelInternalFormat StencilIndex8 = (PixelInternalFormat)0x8D48;
+    public const PixelInternalFormat StencilIndex8 = (PixelInternalFormat)All.StencilIndex8;
 
     /// <summary>
     /// Gets the appropriate PixelFormat for a given internal format.

@@ -24,6 +24,10 @@ internal sealed partial class GpuResourceManager
             else if (kind == GpuResourceKind.Buffer && pair.Value is GpuResourceMetadataEntry<GpuTextureMetadata> texture
                 && texture.Metadata.Buffer is { } buffer && buffer.BufferId == id)
                 texture.BeginRefresh(GpuMetadataChange.Metadata);
+            else if (kind == GpuResourceKind.Renderbuffer
+                && pair.Value is GpuResourceMetadataEntry<GpuTextureMetadata> renderbufferTexture
+                && renderbufferTexture.Metadata.Renderbuffer == id)
+                renderbufferTexture.BeginRefresh(GpuMetadataChange.Metadata);
         }
     }
     #endregion

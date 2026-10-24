@@ -259,7 +259,7 @@ public sealed class GpuResourceMetadataRegistryTests
         manager.AssociateImageResource(entry, missing);
         manager.AssociateImageResource(entry, image);
         var levels = ImmutableArray.Create(new GpuTextureLevelMetadata(1, 0, 8, 4, 3, PixelInternalFormat.Rgba16f, 0, true));
-        var data = new GpuTextureMetadata(TextureTarget.Texture2DArray, levels, true, 2, 0, 1, false);
+        var data = new GpuTextureMetadata(TextureTarget.Texture2DArray, levels, true, 2, 0, 1);
         manager.PublishMetadata(entry, data, GpuMetadataChange.Storage);
         Assert.Equal(new GpuImageMetadata(8, 4, 1, PixelInternalFormat.Rgba16f, 0), new GpuImageMetadata(image.Width, image.Height, image.ImageDepth, image.InternalFormat, image.Samples));
         Assert.True(manager.IsResourceMetadataAvailable(image));
@@ -277,7 +277,7 @@ public sealed class GpuResourceMetadataRegistryTests
         using var image = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.Texture1DArray, 0, null);
         manager.AssociateImageResource(entry, image);
         var levels = ImmutableArray.Create(new GpuTextureLevelMetadata(0, 0, 8, 3, 1, PixelInternalFormat.Rgba8, 0, true));
-        manager.PublishMetadata(entry, new(TextureTarget.Texture1DArray, levels, true, 1, 0, 0, false), GpuMetadataChange.Storage);
+        manager.PublishMetadata(entry, new(TextureTarget.Texture1DArray, levels, true, 1, 0, 0), GpuMetadataChange.Storage);
         Assert.True(manager.IsResourceMetadataAvailable(image));
         Assert.Equal(new GpuImageMetadata(8, 1, 3, PixelInternalFormat.Rgba8, 0), new GpuImageMetadata(image.Width, image.Height, image.ImageDepth, image.InternalFormat, image.Samples));
     }
@@ -292,7 +292,7 @@ public sealed class GpuResourceMetadataRegistryTests
         manager.AssociateImageResource(entry, image);
         var faces = Enumerable.Range(0, 6).Select(face => new GpuTextureLevelMetadata(0,
             TextureTarget.TextureCubeMapPositiveX + face, 8, 8, 1, PixelInternalFormat.Rgba8, 0, true)).ToImmutableArray();
-        var complete = new GpuTextureMetadata(TextureTarget.TextureCubeMap, faces, false, 0, 0, 0, false);
+        var complete = new GpuTextureMetadata(TextureTarget.TextureCubeMap, faces, false, 0, 0, 0);
         manager.PublishMetadata(entry, complete, GpuMetadataChange.Storage);
         Assert.True(manager.IsResourceMetadataAvailable(image));
         Assert.Equal(6, image.ImageDepth);

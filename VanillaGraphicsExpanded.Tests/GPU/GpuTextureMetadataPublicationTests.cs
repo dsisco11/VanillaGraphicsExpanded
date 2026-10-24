@@ -139,8 +139,8 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
             Assert.Equal(4, data.Levels[0].Width);
             Assert.Equal(storage, data.ImmutableStorage);
             Assert.Equal(storage ? 1 : 0, data.ImmutableLevels);
-            Assert.Equal(storage ? 1 : 0, observer.ParameterCalls((GetTextureParameter)0x912F));
-            Assert.Equal(view ? 1 : 0, observer.ParameterCalls((GetTextureParameter)0x82DF));
+            Assert.Equal(storage ? 1 : 0, observer.ParameterCalls(GetTextureParameter.TextureImmutableFormat));
+            Assert.Equal(view ? 1 : 0, observer.ParameterCalls(GetTextureParameter.TextureImmutableLevels));
             foreach (var parameter in new[] { GetTextureParameter.TextureViewMinLevel, GetTextureParameter.TextureViewNumLevels,
                          GetTextureParameter.TextureViewMinLayer, GetTextureParameter.TextureViewNumLayers })
                 Assert.Equal(view && storage ? 1 : 0, observer.ParameterCalls(parameter));

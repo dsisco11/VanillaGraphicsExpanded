@@ -10,8 +10,8 @@ namespace VanillaGraphicsExpanded.Rendering.Spirv;
 internal static class SpirvStageLoader
 {
     #region Loading
-    /// <summary>Uploads borrowed binary data with exact specialization bits; deferred callers own completion validation.</summary>
-    public static (int Shader, GpuBindingContract Contract) Load(ShaderStageSelection selection, ShaderAssetReader read, bool deferCompletion = false)
+    /// <summary>Keeps the common shader owner available to deferred candidate cleanup and transfer.</summary>
+    public static GpuShaderModule Load(ShaderStageSelection selection, ShaderAssetReader read, bool deferCompletion = false)
     {
         long started = Stopwatch.GetTimestamp();
         var stage = selection.Stage;
@@ -22,11 +22,9 @@ internal static class SpirvStageLoader
         if (!GpuShaderModule.TryLoadSpirv(ToShaderType(stage.Kind), binary, stage.EntryPoint, constants,
             out var module, out string error, stage.Identity, deferCompletion) || module == null)
             throw new InvalidOperationException($"SPIR-V load/specialization failed for stage '{stage.Identity}', binary '{selection.BinaryPath}': {error}");
-        using (module)
-        {
-            LastTiming = new(stage.Identity, readMilliseconds, GpuShaderModule.LastBinaryLoadMilliseconds, GpuShaderModule.LastSpecializeMilliseconds);
-            return ((int)module.Detach(), stage.Bindings);
-        }
+        module.BindingContract = stage.Bindings;
+        LastTiming = new(stage.Identity, readMilliseconds, GpuShaderModule.LastBinaryLoadMilliseconds, GpuShaderModule.LastSpecializeMilliseconds);
+        return module;
     }
 
     /// <summary>Maps explicit contract kinds to their graphics API representation without filename inference.</summary>

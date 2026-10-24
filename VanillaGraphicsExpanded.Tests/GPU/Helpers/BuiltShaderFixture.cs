@@ -17,10 +17,10 @@ internal static class BuiltShaderFixture
         if (SpirvStageLoader.ToShaderType(stage.Kind) != type) throw new ArgumentException("Stage kind mismatch: " + identity);
         var owner = GpuShaderContracts.Registry.Programs.Values.OrderBy(p => p.Identity, StringComparer.Ordinal).First(p => p.Stages.Any(s => s.Identity == identity));
         var selected = new ShaderLoadPlan(new ShaderSettings(owner, defines)).Stages.Single(s => s.Stage.Identity == identity);
-        var loaded = SpirvStageLoader.Load(selected,
+        using var loaded = SpirvStageLoader.Load(selected,
             path => File.ReadAllBytes(Path.Combine(AppContext.BaseDirectory, "assets", "shaders", path)));
-        TestShaderInterfaces.TrackShader(loaded.Shader, loaded.Contract);
-        return loaded.Shader;
+        TestShaderInterfaces.TrackShader(loaded.ShaderId, loaded.BindingContract!);
+        return (int)loaded.Detach();
     }
     /// <summary>Loads a fixed test stage with source-authored numeric locations and transfers its native ownership.</summary>
     public static int LoadFixture(string path, ShaderType type)

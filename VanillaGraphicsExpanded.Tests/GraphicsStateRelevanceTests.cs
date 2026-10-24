@@ -20,7 +20,7 @@ public sealed class GraphicsStateRelevanceTests
             | RasterizerStateKnowledge.PolygonModes | RasterizerStateKnowledge.PolygonSmooth));
         Assert.False(value.Rasterizer.HasFlag(RasterizerStateKnowledge.CullMode));
         Assert.Equal(RasterizerStateKnowledge.None, value.Rasterizer & (RasterizerStateKnowledge.LineWidth
-            | RasterizerStateKnowledge.LineSmooth | RasterizerStateKnowledge.LineStipple | RasterizerStateKnowledge.PointSize
+            | RasterizerStateKnowledge.LineSmooth | RasterizerStateKnowledge.PointSize
             | RasterizerStateKnowledge.ProgramPointSize | RasterizerStateKnowledge.PointSpriteOrigin));
         Assert.True(value.Rasterizer.HasFlag(RasterizerStateKnowledge.ScissorEnabled));
         Assert.False(value.Dynamic.HasFlag(DynamicDrawStateKnowledge.Scissor));
@@ -39,13 +39,10 @@ public sealed class GraphicsStateRelevanceTests
     public void LinePrimitivesUseLineGroupsWithoutPolygonFacing(PrimitiveType topology)
     {
         var value = Derive(assembly: new() { Topology = topology });
-        Assert.True(value.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.LineSmooth
-            | RasterizerStateKnowledge.LineStipple));
+        Assert.True(value.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.LineSmooth));
         Assert.False(value.Rasterizer.HasFlag(RasterizerStateKnowledge.FrontFace));
-        Assert.False(value.Rasterizer.HasFlag(RasterizerStateKnowledge.LineStippleParameters));
-        var wireframe = Derive(raster: new() { PolygonMode = PolygonMode.Line, LineStipple = true });
+        var wireframe = Derive(raster: new() { PolygonMode = PolygonMode.Line });
         Assert.True(wireframe.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth | RasterizerStateKnowledge.LineSmooth
-            | RasterizerStateKnowledge.LineStipple | RasterizerStateKnowledge.LineStippleParameters
             | RasterizerStateKnowledge.FrontFace | RasterizerStateKnowledge.PolygonModes));
     }
 
@@ -58,7 +55,7 @@ public sealed class GraphicsStateRelevanceTests
         var value = Derive(assembly: new() { Topology = PrimitiveType.Points }, raster: new() { ProgramPointSize = programmable });
         Assert.Equal(!programmable, value.Rasterizer.HasFlag(RasterizerStateKnowledge.PointSize));
         Assert.True(value.Rasterizer.HasFlag(RasterizerStateKnowledge.ProgramPointSize
-            | RasterizerStateKnowledge.PointSpriteOrigin | RasterizerStateKnowledge.PointSmooth));
+            | RasterizerStateKnowledge.PointSpriteOrigin));
         Assert.False(value.Rasterizer.HasFlag(RasterizerStateKnowledge.PolygonModes));
         Assert.False(value.Rasterizer.HasFlag(RasterizerStateKnowledge.LineWidth));
         Assert.True(Derive(raster: new() { PolygonMode = PolygonMode.Point }).Rasterizer.HasFlag(RasterizerStateKnowledge.PointSize));
@@ -74,13 +71,10 @@ public sealed class GraphicsStateRelevanceTests
         var all = Derive(raster: new() { PolygonMode = mode, OffsetFill = true, OffsetLine = true, OffsetPoint = true });
         Assert.True(all.Rasterizer.HasFlag(RasterizerStateKnowledge.PolygonOffset));
         if (mode != PolygonMode.Fill)
-            Assert.Equal(RasterizerStateKnowledge.None, all.Rasterizer & (RasterizerStateKnowledge.PolygonSmooth
-                | RasterizerStateKnowledge.PolygonStipple | RasterizerStateKnowledge.PolygonStipplePattern));
+            Assert.Equal(RasterizerStateKnowledge.None, all.Rasterizer & (RasterizerStateKnowledge.PolygonSmooth));
         var inactive = Derive(raster: new() { PolygonMode = mode, OffsetFill = mode != PolygonMode.Fill,
             OffsetLine = mode != PolygonMode.Line, OffsetPoint = mode != PolygonMode.Point });
         Assert.False(inactive.Rasterizer.HasFlag(RasterizerStateKnowledge.PolygonOffset));
-        Assert.True(Derive(raster: new() { PolygonStipple = true }).Rasterizer.HasFlag(RasterizerStateKnowledge.PolygonStipplePattern));
-        Assert.False(Derive().Rasterizer.HasFlag(RasterizerStateKnowledge.PolygonStipplePattern));
     }
 
     /// <summary>Geometry and unprepared tessellation cannot infer emitted raster primitives from input assembly.</summary>

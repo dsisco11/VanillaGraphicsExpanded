@@ -109,7 +109,7 @@ public sealed class NormalDepthAtlasPlumbingTests
         SetPrivateInstanceField(tex, "textureId", textureId);
         tex.HandleMetadataChanged(new GpuTextureMetadata(TextureTarget.Texture2D,
             ImmutableArray.Create(new GpuTextureLevelMetadata(0, 0, 1, 1, 1, internalFormat, 0, true)),
-            false, 0, 0, 0, false));
+            false, 0, 0, 0));
         SetPrivateInstanceField(tex, "filterMode", TextureFilterMode.Nearest);
         // GpuResource uses an int disposal sentinel.
         SetPrivateInstanceField(tex, "disposed", 0);

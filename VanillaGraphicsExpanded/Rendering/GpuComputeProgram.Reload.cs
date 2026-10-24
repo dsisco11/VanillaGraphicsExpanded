@@ -23,6 +23,11 @@ internal abstract partial class GpuComputeProgram
     bool IGpuProgram.PrepareExecutable()
     {
         if (renderingLifetime is { IsClosed: true } or { Reloading: true }) return false;
+        if (pipeline.NeedsNativePreparation && !reloadRequired)
+        {
+            reloadRequired = true;
+            reloadFailed = false;
+        }
         if (!reloadRequired)
         {
             ulong preparingAssets = assetGeneration;

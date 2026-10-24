@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Contracts;
 
@@ -25,20 +26,32 @@ internal sealed class GpuPreparedBindings
 
     #region Public API
     /// <summary>Validates fixed resource assignments once before the candidate executable is published.</summary>
-    internal GpuPreparedBindings(int program, GpuBindingContract contract)
+    internal GpuPreparedBindings(int program, GpuBindingContract contract, GpuProgramMetadata? metadata = null)
     {
+        if (metadata is { ExecutableAvailable: false })
+            throw new InvalidOperationException("Program executable metadata is unavailable.");
         int textureUnits = GpuSupport.Graphics.MaxCombinedTextureImageUnits;
         int imageUnits = GpuSupport.Graphics.MaxImageUnits;
         var linked = new Dictionary<(ShaderBindingKind Kind, int Slot), (ActiveUniformType Type, int Extent, int BaseSlot)>();
-        GL.GetProgramInterface(program, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out int count);
-        ReflectionQueries++;
+        var uniforms = metadata?.Resources.Where(resource => resource.Interface == ProgramInterface.Uniform).ToArray();
+        int count;
+        if (uniforms is not null) count = uniforms.Length;
+        else
+        {
+            GL.GetProgramInterface(program, ProgramInterface.Uniform, ProgramInterfaceParameter.ActiveResources, out count);
+            ReflectionQueries++;
+        }
         ProgramProperty[] uniformProperties = [ProgramProperty.Location, ProgramProperty.Type, ProgramProperty.ArraySize];
         int[] values = new int[uniformProperties.Length];
         for (int resource = 0; resource < count; resource++)
         {
-            GL.GetProgramResource(program, ProgramInterface.Uniform, resource, uniformProperties.Length,
-                uniformProperties, values.Length, out _, values);
-            ReflectionQueries++;
+            if (uniforms is not null) ReadProperties(uniforms[resource], uniformProperties, values);
+            else
+            {
+                GL.GetProgramResource(program, ProgramInterface.Uniform, resource, uniformProperties.Length,
+                    uniformProperties, values.Length, out _, values);
+                ReflectionQueries++;
+            }
             uniformResourceLocations.Add(resource, values[0]);
             var type = (ActiveUniformType)values[1];
             if (values[0] >= 0)
@@ -61,22 +74,46 @@ internal sealed class GpuPreparedBindings
             int baseSlot = -1;
             for (int element = 0; element < values[2]; element++)
             {
-                GL.GetUniform(program, values[0] + element, out int slot);
-                ReflectionQueries++;
+                int slot;
+                if (metadata is { } snapshot)
+                {
+                    GpuProgramTextureUnitMetadata? assignment = snapshot.TextureUnits
+                        .Where(unit => unit.Location == values[0] + element)
+                        .Select(unit => (GpuProgramTextureUnitMetadata?)unit).FirstOrDefault();
+                    if (assignment is null)
+                        throw new InvalidOperationException("Program unit metadata is incomplete.");
+                    slot = assignment.Value.Unit;
+                }
+                else
+                {
+                    GL.GetUniform(program, values[0] + element, out slot);
+                    ReflectionQueries++;
+                }
                 if (element == 0) baseSlot = slot;
                 if (slot < 0 || slot != baseSlot + element || !linked.TryAdd((kind, slot), (type, values[2], baseSlot)))
                     throw new InvalidOperationException($"Ambiguous or invalid linked {kind} unit {slot}.");
                 textureLocations.Add((kind, slot), values[0] + element);
             }
         }
-        ReadBlocks(program, ProgramInterface.UniformBlock, ShaderBindingKind.UniformBlock, linked);
-        ReadBlocks(program, ProgramInterface.ShaderStorageBlock, ShaderBindingKind.StorageBlock, linked);
-        GL.GetProgram(program, GetProgramParameterName.ActiveAtomicCounterBuffers, out int counters);
-        ReflectionQueries++;
+        ReadBlocks(program, ProgramInterface.UniformBlock, ShaderBindingKind.UniformBlock, linked, metadata);
+        ReadBlocks(program, ProgramInterface.ShaderStorageBlock, ShaderBindingKind.StorageBlock, linked, metadata);
+        var atomic = metadata?.Resources.Where(resource => resource.Interface == ProgramInterface.AtomicCounterBuffer).ToArray();
+        int counters;
+        if (atomic is not null) counters = atomic.Length;
+        else
+        {
+            GL.GetProgram(program, GetProgramParameterName.ActiveAtomicCounterBuffers, out counters);
+            ReflectionQueries++;
+        }
         for (int counter = 0; counter < counters; counter++)
         {
-            GL.GetActiveAtomicCounterBuffer(program, counter, AtomicCounterBufferParameter.AtomicCounterBufferBinding, out int slot);
-            ReflectionQueries++;
+            int slot;
+            if (atomic is not null) slot = Property(atomic[counter], ProgramProperty.BufferBinding);
+            else
+            {
+                GL.GetActiveAtomicCounterBuffer(program, counter, AtomicCounterBufferParameter.AtomicCounterBufferBinding, out slot);
+                ReflectionQueries++;
+            }
             if (!linked.TryAdd((ShaderBindingKind.AtomicCounter, slot), (default, 1, slot)))
                 throw new InvalidOperationException($"Ambiguous linked atomic counter binding {slot}.");
         }
@@ -193,10 +230,17 @@ internal sealed class GpuPreparedBindings
     #region Private
     /// <summary>Matches fixed block slots, including separate stage entries emitted for optimized SPIR-V.</summary>
     private void ReadBlocks(int program, ProgramInterface resourceInterface, ShaderBindingKind kind,
-        Dictionary<(ShaderBindingKind Kind, int Slot), (ActiveUniformType Type, int Extent, int BaseSlot)> linked)
+        Dictionary<(ShaderBindingKind Kind, int Slot), (ActiveUniformType Type, int Extent, int BaseSlot)> linked,
+        GpuProgramMetadata? metadata)
     {
-        GL.GetProgramInterface(program, resourceInterface, ProgramInterfaceParameter.ActiveResources, out int count);
-        ReflectionQueries++;
+        var resources = metadata?.Resources.Where(resource => resource.Interface == resourceInterface).ToArray();
+        int count;
+        if (resources is not null) count = resources.Length;
+        else
+        {
+            GL.GetProgramInterface(program, resourceInterface, ProgramInterfaceParameter.ActiveResources, out count);
+            ReflectionQueries++;
+        }
         ProgramProperty[] properties = [ProgramProperty.BufferBinding, ProgramProperty.BufferDataSize,
             ProgramProperty.ReferencedByVertexShader, ProgramProperty.ReferencedByTessControlShader,
             ProgramProperty.ReferencedByTessEvaluationShader, ProgramProperty.ReferencedByGeometryShader,
@@ -205,8 +249,12 @@ internal sealed class GpuPreparedBindings
         var blocks = new Dictionary<int, (int Size, int Stages)>();
         for (int resource = 0; resource < count; resource++)
         {
-            GL.GetProgramResource(program, resourceInterface, resource, properties.Length, properties, values.Length, out _, values);
-            ReflectionQueries++;
+            if (resources is not null) ReadProperties(resources[resource], properties, values);
+            else
+            {
+                GL.GetProgramResource(program, resourceInterface, resource, properties.Length, properties, values.Length, out _, values);
+                ReflectionQueries++;
+            }
             int slot = values[0];
             int stages = 0;
             for (int stage = 2; stage < values.Length; stage++)
@@ -229,6 +277,20 @@ internal sealed class GpuPreparedBindings
             blockIndices.Add((kind, slot), resource);
             blockSizes.Add((kind, slot), values[1]);
         }
+    }
+
+    /// <summary>Requires a complete canonical scalar fact rather than inventing a missing native property.</summary>
+    private static int Property(GpuProgramResourceMetadata resource, ProgramProperty property)
+    {
+        if (!resource.Properties.TryGetValue(property, out var values) || values.Length != 1)
+            throw new InvalidOperationException($"Program metadata omits {property}.");
+        return values[0];
+    }
+
+    /// <summary>Projects a canonical resource into the existing fixed-slot validation algorithm.</summary>
+    private static void ReadProperties(GpuProgramResourceMetadata resource, ProgramProperty[] properties, int[] values)
+    {
+        for (int index = 0; index < properties.Length; index++) values[index] = Property(resource, properties[index]);
     }
 
     /// <summary>Compares standardized numeric type identifiers independently of enum spelling.</summary>

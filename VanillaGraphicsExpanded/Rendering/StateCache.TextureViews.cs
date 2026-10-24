@@ -34,7 +34,7 @@ internal sealed partial class StateCache
     }
 
     /// <summary>Associates a range through the bound entry point, preserving its native integer size contract.</summary>
-    internal void TexBufferRange(GpuBufferView view, int buffer, SizedInternalFormat format, nint offset, int size)
+    internal void TexBufferRange(GpuBufferView view, int buffer, SizedInternalFormat format, nint offset, nint size)
     {
         GL.TexBufferRange(TextureBufferTarget.TextureBuffer, format, buffer, offset, size);
         ObserveBufferView(view, buffer, format, offset, size);
@@ -65,18 +65,18 @@ internal sealed partial class StateCache
         int actualFormat;
         if (GpuSupport.Graphics.SupportsArbDirectStateAccess)
         {
-            GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)0x8C2D, out actualBuffer);
+            GL.GetTextureLevelParameter(view.TextureId, 0, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, out actualBuffer);
             GL.GetTextureLevelParameter(view.TextureId, 0, GetTextureParameter.TextureInternalFormat, out actualFormat);
         }
         else
         {
-            GL.GetTexLevelParameter(TextureTarget.TextureBuffer, 0, (GetTextureParameter)0x8C2D, out actualBuffer);
+            GL.GetTexLevelParameter(TextureTarget.TextureBuffer, 0, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, out actualBuffer);
             GL.GetTexLevelParameter(TextureTarget.TextureBuffer, 0, GetTextureParameter.TextureInternalFormat, out actualFormat);
         }
         if (actualBuffer != buffer || actualFormat != (int)format)
             throw new InvalidOperationException("The native buffer texture association was rejected.");
         var data = new GpuTextureMetadata(TextureTarget.TextureBuffer, ImmutableArray<GpuTextureLevelMetadata>.Empty,
-            false, 0, 0, 0, false, new(actualBuffer, (SizedInternalFormat)actualFormat, offset, size, size == 0));
+            false, 0, 0, 0, new(actualBuffer, (SizedInternalFormat)actualFormat, offset, size, size == 0));
         GpuResourceManager.PublishObservedMetadata(view, data, GpuMetadataChange.Storage);
     }
 

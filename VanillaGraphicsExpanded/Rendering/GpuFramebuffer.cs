@@ -33,9 +33,9 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     /// <summary>Gets the diagnostic name.</summary>
     public string? DebugName => debugName;
     /// <summary>Gets the first configured image width or external viewport width.</summary>
-    public int Width => FirstAttachment?.Width ?? wrappedWidth;
+    public int Width => FirstAttachment?.Width ?? (metadata.DefaultWidth > 0 ? metadata.DefaultWidth : wrappedWidth);
     /// <summary>Gets the first configured image height or external viewport height.</summary>
-    public int Height => FirstAttachment?.Height ?? wrappedHeight;
+    public int Height => FirstAttachment?.Height ?? (metadata.DefaultHeight > 0 ? metadata.DefaultHeight : wrappedHeight);
     /// <summary>Gets an existing dynamic texture at the specified color slot for compatibility.</summary>
     public DynamicTexture2D this[int index] => GetAttachment(ColorSlot(index))?.Resource as DynamicTexture2D
         ?? throw new InvalidOperationException("The color slot does not contain a dynamic 2D texture.");
@@ -245,6 +245,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     {
         get
         {
+            ReconcileAttachmentMetadata();
             int firstSlot = int.MaxValue;
             GpuFramebufferAttachment? first = null;
             foreach (var pair in attachments)

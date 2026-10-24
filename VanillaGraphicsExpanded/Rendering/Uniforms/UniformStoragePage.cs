@@ -34,7 +34,7 @@ internal sealed class UniformStoragePage : IDisposable
                 var access = MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapPersistentBit;
                 if (coherent) { storage |= BufferStorageFlags.MapCoherentBit; access |= MapBufferAccessMask.MapCoherentBit; }
                 else access |= MapBufferAccessMask.MapFlushExplicitBit;
-                GL.BufferStorage(BufferTarget.UniformBuffer, capacity, IntPtr.Zero, storage);
+                StateCache.Current.BufferStorage(Buffer, capacity, IntPtr.Zero, storage);
                 mapped = GL.MapBufferRange(BufferTarget.UniformBuffer, IntPtr.Zero, capacity, access);
                 if (mapped == IntPtr.Zero) throw new InvalidOperationException("Persistent uniform mapping failed.");
             }
