@@ -8,9 +8,9 @@ internal static class GpuFramebufferAttachmentDiscovery
 {
     #region Public API
     /// <summary>Borrows a current attachment, preserving exact cube-face and individual-layer selection.</summary>
-    public static GpuFramebufferAttachment Read(GpuFramebuffer framebuffer, FramebufferAttachment slot)
+    public static GpuFramebufferAttachment Read(GpuFramebuffer framebuffer, FramebufferAttachment slot, bool forceNative = false)
     {
-        var known = framebuffer.GetAttachment(slot);
+        var known = forceNative ? null : framebuffer.GetAttachment(slot);
         if (known is not null)
         {
             known.ValidateSlot(slot);
@@ -26,12 +26,7 @@ internal static class GpuFramebufferAttachmentDiscovery
         if (name == 0) throw new InvalidOperationException("The requested attachment is absent.");
         if (type == (int)All.Renderbuffer)
         {
-            using var renderbuffer = StateCache.Current.BindRenderbufferScope(name);
-            GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferWidth, out int width);
-            GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferHeight, out int height);
-            GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out int samples);
-            GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferInternalFormat, out int format);
-            return GpuFramebufferAttachment.FromExternalImage(name, true, 0, (PixelInternalFormat)format, width, height, samples, 0, null);
+            return GpuFramebufferAttachment.FromExternalImage(name, true, 0, 0, null);
         }
         if (type != (int)All.Texture) throw new InvalidOperationException("Unsupported framebuffer image type.");
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
@@ -42,14 +37,14 @@ internal static class GpuFramebufferAttachmentDiscovery
             FramebufferParameterName.FramebufferAttachmentTextureLayer, out int layer);
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
             FramebufferParameterName.FramebufferAttachmentLayered, out int layered);
-        GL.GetTextureParameter(name, GetTextureParameter.TextureTarget, out int target);
+        var texture = GpuResourceManager.AcquireExternalImageTexture(name);
+        var target = texture.Target;
         // Layer zero is still a selected layer; querying the texture target distinguishes
         // it from an ordinary 2D image without probing invalid binding targets.
-        bool hasLayers = (TextureTarget)target is TextureTarget.Texture3D or TextureTarget.Texture2DArray
+        bool hasLayers = target is TextureTarget.Texture1DArray or TextureTarget.Texture3D or TextureTarget.Texture2DArray
             or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray;
-        return GpuFramebufferAttachment.FromTextureId(name, level,
-            layer: layered == 0 && hasLayers ? layer : null,
-            cubeFace: face == 0 ? null : (TextureTarget)face);
+        return GpuFramebufferAttachment.FromExternalImage(name, false, face == 0 ? target : (TextureTarget)face, level,
+            layer: layered == 0 && hasLayers ? layer : null, acquiredTexture: texture);
     }
     #endregion
 }

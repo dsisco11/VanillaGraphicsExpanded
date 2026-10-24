@@ -88,16 +88,10 @@ public sealed class DynamicTexture3D : GpuTexture
 
         var texture = new DynamicTexture3D
         {
-            width = width,
-            height = height,
-            depth = depth,
-            internalFormat = format,
             filterMode = filter,
-            textureTarget = textureTarget,
-            ImmutableLayeredStorage = immutableStorage
         };
 
-        texture.AllocateOrReallocate3DTexture();
+        texture.AllocateOrReallocate3DTexture(width, height, depth, format, textureTarget, immutableStorage);
 
         var typeStr = textureTarget == TextureTarget.Texture2DArray ? "2D array" : "3D";
         Debug.WriteLine($"[DynamicTexture3D] Allocated {width}x{height}x{depth} {typeStr} {format}");
@@ -157,11 +151,8 @@ public sealed class DynamicTexture3D : GpuTexture
         if (newWidth == width && newHeight == height && newDepth == depth)
             return false;
 
-        width = Math.Max(1, newWidth);
-        height = Math.Max(1, newHeight);
-        depth = Math.Max(1, newDepth);
-
-        AllocateOrReallocate3DTexture();
+        AllocateOrReallocate3DTexture(Math.Max(1, newWidth), Math.Max(1, newHeight), Math.Max(1, newDepth),
+            internalFormat, textureTarget, ImmutableLayeredStorage);
 
         var typeStr = textureTarget == TextureTarget.Texture2DArray ? "2D array" : "3D";
         Debug.WriteLine($"[DynamicTexture3D] Allocated {width}x{height}x{depth} {typeStr} {internalFormat}");

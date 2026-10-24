@@ -190,6 +190,7 @@ public sealed class SceneColorParticleTests(HeadlessGLFixture fixture) : LumOnSh
     public void CapturePreservesCallerFramebufferAndIndexedState()
     {
         EnsureShaderTestAvailable();
+        fixture.InitializeResourceDisposal();
         EstablishScissor(false);
         using var material = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba16f);
         using var glow = new GpuFramebufferAttachment(2, 2, PixelInternalFormat.Rgba8);

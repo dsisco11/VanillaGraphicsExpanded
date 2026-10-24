@@ -34,16 +34,11 @@ public sealed class Texture2D : GpuTexture
 
         var texture = new Texture2D
         {
-            width = width,
-            height = height,
-            depth = 1,
-            internalFormat = format,
-            textureTarget = TextureTarget.Texture2D,
             filterMode = filter,
             debugName = debugName
         };
 
-        texture.AllocateOrReallocate2DTexture(mipLevels: 1);
+        texture.AllocateOrReallocate2DTexture(width, height, format, mipLevels: 1);
         return texture;
     }
 

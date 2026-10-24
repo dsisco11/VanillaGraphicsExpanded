@@ -18,17 +18,26 @@ public abstract partial class GpuFramebuffer
     /// <remarks>Clears cached attachment references and always notifies subscribers, including for equal-size rebuilds.</remarks>
     public void RefreshWrappedFramebuffer(int existingFboId, int width, int height, bool publishPassMetadata)
     {
-        RequireMutableStorage();
+        // Explicit owner publication can replace a retired allocation; shared usage guards still apply.
+        RequireMutableStorage(allowRetired: true);
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (ownsFramebuffer) throw new InvalidOperationException("Only borrowed framebuffers can be refreshed.");
         if (existingFboId <= 0 || width <= 0 || height <= 0) throw new ArgumentOutOfRangeException(nameof(existingFboId));
+        bool replacesIdentity = fboId != existingFboId || ResourceManager?.IsResourceLive(this) == false;
+        // A retained wrapper must keep the original association until its borrow releases.
+        // Refreshing facts for the same live identity does not transfer that borrow.
+        if (replacesIdentity) RequireRetirement();
         StateCache.Current.InvalidateFramebufferDrawRouting(fboId);
         StateCache.Current.InvalidateFramebufferDrawRouting(existingFboId);
         Surface = null;
         attachments.Clear();
         attachmentsDirty = false;
         passMetadataPublished = false;
+        if (replacesIdentity)
+            ResourceManager?.ReplaceWrapperResource(this);
         fboId = existingFboId;
+        ResourceManager?.RegisterWrapperDeclaration(this);
+        GpuResourceManager.InvalidateWrapperMetadata(this);
         wrappedWidth = width;
         wrappedHeight = height;
         if (!publishPassMetadata) PublishAttachmentsChanged();

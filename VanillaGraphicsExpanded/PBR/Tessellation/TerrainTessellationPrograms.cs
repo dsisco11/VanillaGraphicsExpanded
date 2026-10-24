@@ -70,7 +70,7 @@ internal static class TerrainTessellationPrograms
             program.ProgramId = candidate;
             ShaderCapabilities.Publish(program, ShaderCapability.TerrainDisplacement);
             if (Requested) family[program.PassName switch { "chunkopaque" => 0, "chunktopsoil" => 1, _ => 2 }].SetTarget(program);
-            GL.DeleteProgram(ordinary);
+            StateCache.Current.DeleteProgram(ordinary);
         }
         catch (Exception ex)
         {

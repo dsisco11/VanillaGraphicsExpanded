@@ -81,10 +81,16 @@ public sealed class EngineStateSwitchingTests
     public void AdaptersPreserveNativeSignatures()
     {
         Assert.NotEmpty(EngineStateCallMap.Replacements);
+        var supportedOwners = new[]
+        {
+            (typeof(GL), typeof(EngineStateCalls)),
+            (typeof(GL), typeof(EngineStateDeletionCalls.Core)),
+            (typeof(GL.Arb), typeof(EngineStateDeletionCalls.Arb)),
+            (typeof(GL.Ext), typeof(EngineStateDeletionCalls.Ext))
+        };
         foreach (var (native, replacement) in EngineStateCallMap.Replacements)
         {
-            Assert.Equal(typeof(GL), native.DeclaringType);
-            Assert.Equal(typeof(EngineStateCalls), replacement.DeclaringType);
+            Assert.Contains((native.DeclaringType!, replacement.DeclaringType!), supportedOwners);
             Assert.Equal(native.ReturnType, replacement.ReturnType);
             Assert.Equal(native.GetParameters().Select(p => p.ParameterType), replacement.GetParameters().Select(p => p.ParameterType));
         }

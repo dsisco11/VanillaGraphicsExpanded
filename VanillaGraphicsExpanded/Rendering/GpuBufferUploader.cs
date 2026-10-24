@@ -4,14 +4,18 @@ using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
+/// <summary>Selects bound or DSA upload paths while StateCache executes native commands and publishes storage metadata.</summary>
 internal static class GpuBufferUploader
 {
     // 0 = unknown, 1 = enabled, -1 = disabled.
     private static int dsaEnabledState;
+    private static GraphicsCapabilities? dsaCapabilities;
 
-    public static bool BufferData(GpuBufferObject buffer, int byteCount, IntPtr data)
+    #region Public API
+    /// <summary>Allocates storage using explicit allocation policy and preserves the existing DSA fallback.</summary>
+    public static bool BufferData(GpuBufferObject buffer, int byteCount, IntPtr data, BufferUsageHint usage)
     {
-        if (TryNamedBufferData(buffer.BufferId, byteCount, data, buffer.Usage))
+        if (TryNamedBufferData(buffer, byteCount, data, usage))
         {
             return true;
         }
@@ -20,14 +24,24 @@ internal static class GpuBufferUploader
 
         if (byteCount == 0)
         {
-            GL.BufferData(buffer.Target, IntPtr.Zero, IntPtr.Zero, buffer.Usage);
+            StateCache.Current.BufferData(buffer, 0, IntPtr.Zero, usage);
             return false;
         }
 
-        GL.BufferData(buffer.Target, (IntPtr)byteCount, data, buffer.Usage);
+        StateCache.Current.BufferData(buffer, byteCount, data, usage);
         return false;
     }
 
+    /// <summary>Prefers named managed-array allocation and retains the bound marshaling fallback.</summary>
+    public static void BufferData<T>(GpuBufferObject buffer, int byteCount, T[] data, BufferUsageHint usage) where T : struct
+    {
+        if (TryNamedBufferData(buffer, byteCount, data, usage)) return;
+        buffer.Bind();
+        try { StateCache.Current.BufferData(buffer, byteCount, data, usage); }
+        finally { buffer.Unbind(); }
+    }
+
+    /// <summary>Uploads contents using the existing DSA fallback without publishing storage metadata.</summary>
     public static bool BufferSubData(GpuBufferObject buffer, int dstOffsetBytes, int byteCount, IntPtr data)
     {
         if (TryNamedBufferSubData(buffer.BufferId, dstOffsetBytes, byteCount, data))
@@ -36,60 +50,41 @@ internal static class GpuBufferUploader
         }
 
         using var scope = buffer.BindScope();
-        GL.BufferSubData(buffer.Target, (IntPtr)dstOffsetBytes, (IntPtr)byteCount, data);
+        StateCache.Current.BufferSubData(buffer, dstOffsetBytes, byteCount, data);
         return false;
     }
 
-    private static bool TryNamedBufferData(int bufferId, int byteCount, IntPtr data, BufferUsageHint usage)
+    #endregion
+
+    #region Private
+    /// <summary>Attempts named allocation when supported, without treating publication failure as a DSA failure.</summary>
+    private static bool TryNamedBufferData(GpuBufferObject buffer, int byteCount, IntPtr data, BufferUsageHint usage)
     {
-        if (bufferId == 0)
-        {
-            return false;
-        }
+        if (!CanUseDsa(buffer.BufferId)) return false;
 
-        if (dsaEnabledState == 0)
-        {
-            dsaEnabledState = GpuSupport.Graphics.SupportsArbDirectStateAccess ? 1 : -1;
-        }
-
-        if (dsaEnabledState == -1)
-        {
-            return false;
-        }
-
-        try
-        {
-            GL.NamedBufferData(bufferId, byteCount, data, usage);
-            dsaEnabledState = 1;
-            return true;
-        }
-        catch
-        {
-            dsaEnabledState = -1;
-            return false;
-        }
+        // StateCache catches only native dispatch failures; metadata publication errors propagate.
+        bool executed = StateCache.Current.TryNamedBufferData(buffer, byteCount, data, usage);
+        dsaEnabledState = executed ? 1 : -1;
+        return executed;
     }
 
+    /// <summary>Attempts named array allocation without retrying storage after a metadata publication failure.</summary>
+    private static bool TryNamedBufferData<T>(GpuBufferObject buffer, int byteCount, T[] data, BufferUsageHint usage) where T : struct
+    {
+        if (!CanUseDsa(buffer.BufferId)) return false;
+        bool executed = StateCache.Current.TryNamedBufferData(buffer, byteCount, data, usage);
+        dsaEnabledState = executed ? 1 : -1;
+        return executed;
+    }
+
+    /// <summary>Attempts the named content upload and retains the legacy native dispatch fallback.</summary>
     private static bool TryNamedBufferSubData(int bufferId, int dstOffsetBytes, int byteCount, IntPtr data)
     {
-        if (bufferId == 0)
-        {
-            return false;
-        }
-
-        if (dsaEnabledState == 0)
-        {
-            dsaEnabledState = GpuSupport.Graphics.SupportsArbDirectStateAccess ? 1 : -1;
-        }
-
-        if (dsaEnabledState == -1)
-        {
-            return false;
-        }
+        if (!CanUseDsa(bufferId)) return false;
 
         try
         {
-            GL.NamedBufferSubData(bufferId, (IntPtr)dstOffsetBytes, byteCount, data);
+            StateCache.Current.NamedBufferSubData(bufferId, dstOffsetBytes, byteCount, data);
             dsaEnabledState = 1;
             return true;
         }
@@ -99,4 +94,20 @@ internal static class GpuBufferUploader
             return false;
         }
     }
+
+    /// <summary>Shares the cached capability and native-dispatch fallback decision across upload overloads.</summary>
+    private static bool CanUseDsa(int bufferId)
+    {
+        if (bufferId == 0) return false;
+        var capabilities = GpuSupport.Graphics;
+        // Native dispatch fallback belongs to the capability snapshot that supplied the
+        // creation path; another context must not inherit a prior context's DSA decision.
+        if (!ReferenceEquals(dsaCapabilities, capabilities))
+        {
+            dsaCapabilities = capabilities;
+            dsaEnabledState = capabilities.SupportsArbDirectStateAccess ? 1 : -1;
+        }
+        return dsaEnabledState != -1;
+    }
+    #endregion
 }

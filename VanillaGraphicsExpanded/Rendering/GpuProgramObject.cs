@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// RAII wrapper around an OpenGL program object created by <c>glCreateProgram</c>.
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// </summary>
-internal sealed class GpuProgramObject : GpuResource, IDisposable
+internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDisposable
 {
     private int programId;
     private readonly (nint Handle, long Generation) context = Integration.RenderContextRegistry.Current();
@@ -45,12 +45,14 @@ internal sealed class GpuProgramObject : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the program has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => programId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
+    /// <summary>Adopts native identity and acquires its canonical executable snapshot.</summary>
     private GpuProgramObject(int programId, string? debugName)
     {
         this.programId = programId;
         this.debugName = debugName;
+        GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance);
     }
 
     /// <summary>Takes deletion ownership of a program returned by an external linker.</summary>
@@ -75,7 +77,7 @@ internal sealed class GpuProgramObject : GpuResource, IDisposable
         GlDebug.TryLabel(ObjectLabelIdentifier.Program, id, debugName);
 #endif
 
-        return new GpuProgramObject(id, debugName);
+        return CompleteOwnedCreation(GpuResourceKind.Program, id, () => new GpuProgramObject(id, debugName));
     }
 
     /// <summary>
@@ -147,13 +149,16 @@ internal sealed class GpuProgramObject : GpuResource, IDisposable
 
         try
         {
-            GL.LinkProgram(programId);
+            StateCache.Current.LinkProgram(this);
             GL.GetProgram(programId, GetProgramParameterName.LinkStatus, out int linkStatus);
             infoLog = GL.GetProgramInfoLog(programId) ?? string.Empty;
             bool ok = linkStatus != 0;
             if (ok)
             {
-                bindingCache = GpuProgramLayout.TryBuild(programId);
+                bindingCache = new GpuProgramLayout();
+                if (ResourceManager?.GetResourceRegistration(this) is { MetadataAvailable: true } entry)
+                    bindingCache.UseNativeMetadata(programId, metadata, entry.MetadataRevision);
+                else bindingCache.RebuildCache(programId);
             }
             return ok;
         }

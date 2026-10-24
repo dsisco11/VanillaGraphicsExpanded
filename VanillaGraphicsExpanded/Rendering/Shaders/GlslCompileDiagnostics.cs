@@ -96,9 +96,9 @@ internal static class GlslCompileDiagnostics
                     if (gsh != 0) program?.DetachShader(gsh);
                 }
 
-                if (vsh != 0) GL.DeleteShader(vsh);
-                if (fsh != 0) GL.DeleteShader(fsh);
-                if (gsh != 0) GL.DeleteShader(gsh);
+                if (vsh != 0) StateCache.Current.DeleteShader(vsh);
+                if (fsh != 0) StateCache.Current.DeleteShader(fsh);
+                if (gsh != 0) StateCache.Current.DeleteShader(gsh);
             }
             catch
             {
@@ -128,7 +128,7 @@ internal static class GlslCompileDiagnostics
         {
             if (shader != 0)
             {
-                try { GL.DeleteShader(shader); } catch { /* ignore */ }
+                try { StateCache.Current.DeleteShader(shader); } catch { /* ignore */ }
             }
         }
     }
@@ -154,7 +154,7 @@ internal static class GlslCompileDiagnostics
             success = false;
             if (shader != 0)
             {
-                try { GL.DeleteShader(shader); } catch { /* ignore */ }
+                try { StateCache.Current.DeleteShader(shader); } catch { /* ignore */ }
             }
             return 0;
         }

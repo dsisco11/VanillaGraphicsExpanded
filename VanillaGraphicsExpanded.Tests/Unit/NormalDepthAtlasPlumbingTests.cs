@@ -1,4 +1,5 @@
 using System.Collections;
+using System.Collections.Immutable;
 using System.Reflection;
 using System.Runtime.Serialization;
 
@@ -106,9 +107,9 @@ public sealed class NormalDepthAtlasPlumbingTests
 #pragma warning restore SYSLIB0050
 
         SetPrivateInstanceField(tex, "textureId", textureId);
-        SetPrivateInstanceField(tex, "width", 1);
-        SetPrivateInstanceField(tex, "height", 1);
-        SetPrivateInstanceField(tex, "internalFormat", internalFormat);
+        tex.HandleMetadataChanged(new GpuTextureMetadata(TextureTarget.Texture2D,
+            ImmutableArray.Create(new GpuTextureLevelMetadata(0, 0, 1, 1, 1, internalFormat, 0, true)),
+            false, 0, 0, 0, false));
         SetPrivateInstanceField(tex, "filterMode", TextureFilterMode.Nearest);
         // GpuResource uses an int disposal sentinel.
         SetPrivateInstanceField(tex, "disposed", 0);

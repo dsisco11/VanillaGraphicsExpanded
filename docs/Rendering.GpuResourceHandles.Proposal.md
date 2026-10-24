@@ -13,16 +13,17 @@ Borrowed resources participate in this same mechanism, preserving normal binding
 
 ## Current behavior
 
-[GpuResource](../VanillaGraphicsExpanded/Rendering/GpuResource.cs) currently combines identity, disposal,
-ownership, usage guards, context capture and deletion scheduling. [BorrowedTexture](../VanillaGraphicsExpanded/Rendering/BorrowedTexture.cs)
-queries metadata at construction and relies on callers to retire stale data. [GpuResourceManager](../VanillaGraphicsExpanded/Rendering/GpuResourceManager.cs)
-now also provides canonical metadata registration/publication primitives and the generic snapshot base.
-Existing wrappers and consumers still use their original paths; lifecycle and command integration remain
-unchecked in the implementation checklist.
-[StateCache.TextureLifetime](../VanillaGraphicsExpanded/Rendering/StateCache.TextureLifetime.cs) handles
-texture deletion's binding/restoration effects. [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs)
-redirects specific GL signatures, not every operation. Mutation and deletion coverage requires expansion,
-including kinds currently deleted directly through GL.
+[GpuResource](../VanillaGraphicsExpanded/Rendering/GpuResource.cs) defines native identity, disposal,
+ownership, usage guards, context capture and deletion scheduling. Resource wrappers derive from
+`GpuResource<TMetadata>` and expose native facts through synchronized snapshots.
+[GpuResourceManager](../VanillaGraphicsExpanded/Rendering/GpuResourceManager.cs) owns canonical entries,
+weak wrapper associations, shared guards and queued retirement. [BorrowedTexture](../VanillaGraphicsExpanded/Rendering/BorrowedTexture.cs)
+acquires initial metadata through that common registry without acquiring ownership.
+[StateCache](../VanillaGraphicsExpanded/Rendering/StateCache.ResourceDeletion.Publication.cs) observes
+supported native deletion commands and preserves their binding/restoration effects.
+[EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) redirects exact
+supported GL signatures. Complete metadata-mutation interception and persistent consumer migration
+remain unchecked in the implementation checklist.
 
 ## Responsibilities
 
@@ -30,7 +31,7 @@ including kinds currently deleted directly through GL.
 | --- | --- |
 | GpuResourceManager | Context-scoped registry, canonical metadata, registration validity, shared existing guard state, snapshot publication and deferred deletion. |
 | GpuResource | Native identity, wrapper-local ownership/disposal and existing deletion scheduling contract. No metadata members or notification contract. |
-| GpuResource<TMetadata> | Protected metadata struct and public HandleMetadataChanged(TMetadata data) that assigns the snapshot. No registration, availability, revision or subscription state. |
+| GpuResource<TMetadata> | Private snapshot, protected read-only access and public HandleMetadataChanged(TMetadata data) that assigns the snapshot. No registration, availability, revision or subscription state. |
 | Typed resource wrappers | Resource-specific operations and metadata accessors; authored policy remains local. |
 | StateCache | Executes/observes native operations and forwards changes to the manager; retains binding/restoration knowledge. |
 | Rendering integrations | Resource selection, producer content readiness and frame qualification. |
@@ -52,14 +53,23 @@ receives a fresh entry. Old wrappers never regain validity. Pending work retains
 association and never reacquires by numeric ID at drain time. Context retirement discards the registry.
 Registration neither grants native ownership nor deletes storage when a reference is released.
 
-`GpuResource<TMetadata> : GpuResource where TMetadata : struct` declares `protected TMetadata metadata;`
-and public non-virtual `void HandleMetadataChanged(TMetadata data)` whose body assigns `metadata = data`.
+`GpuResource<TMetadata> : GpuResource where TMetadata : struct` owns a private snapshot and exposes it
+to derived wrappers as `protected ref readonly TMetadata metadata`. Its public non-virtual
+`HandleMetadataChanged(TMetadata data)` method assigns the complete private snapshot.
 Existing resource abstractions inherit this base directly or through their existing typed superclass.
-Native metadata properties become accessors over this field. The generic base handles snapshot assignment;
+Native metadata properties are getter-only accessors. Derived wrappers cannot edit the snapshot.
+Requested dimensions, formats and allocation hints remain command arguments or separate declaration policy.
+StateCache executes metadata-changing commands and forwards their native results to the manager; wrappers
+do not capture, construct or publish replacement metadata. Initial acquisition is manager-owned, including
+context-local tools without an installed registry. The generic base handles snapshot assignment;
 the non-generic base has no metadata responsibilities. The manager owns registration validity,
 availability, revisions and subscription membership. Metadata-dependent validation asks the manager
 about the wrapper's original association; neither base stores that association or runs a tracking state machine.
 Ownership, disposal, authored policy and selected subresources remain local.
+Allocation loops, sampling policy, attachment-command selection and DSA fallback stay in their existing
+resource wrappers or upload helpers. Those helpers issue individual native commands through StateCache.
+StateCache can defer publication across a complete command group; an interrupted group leaves metadata
+unavailable rather than publishing an intermediate configuration.
 
 The [inventory](Rendering.GpuResourceHandles.Inventory.md#canonical-metadata-schemas-and-field-migration)
 specifies structs, field migration and the image projection for attachments that can reference textures
@@ -120,6 +130,9 @@ revisions. Keep complete-input validation before resource publication and reuse 
 history. A valid registration does not imply that the native resource is bound.
 
 ## Command coverage and consumers
+
+APPLE and NV extension APIs are excluded from interception and metadata-tracking support. Core
+equivalents remain in scope; all other applicable extension groups retain their coverage obligations.
 
 The [API matrix](Rendering.GpuResourceHandles.ApiCoverage.md) covers ALL OpenGL commands capable of changing
 represented metadata, independent of current callers: bound, DSA, multi-object, extension and managed

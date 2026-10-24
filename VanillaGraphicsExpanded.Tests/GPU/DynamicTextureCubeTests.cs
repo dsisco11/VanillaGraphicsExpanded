@@ -114,16 +114,14 @@ public sealed class DynamicTextureCubeTests(HeadlessGLFixture fixture) : RenderT
         /// <summary>Allocates a small two-level cube through the common storage lifecycle.</summary>
         internal ReallocatableCube(int size)
         {
-            width = height = size; depth = 6; textureTarget = TextureTarget.TextureCubeMap;
-            internalFormat = PixelInternalFormat.Rgba16f; filterMode = TextureFilterMode.Linear;
-            AllocateOrReallocate2DTexture(2);
+            filterMode = TextureFilterMode.Linear;
+            AllocateOrReallocate2DTexture(size, size, PixelInternalFormat.Rgba16f, 2, TextureTarget.TextureCubeMap);
         }
-        /// <summary>Changes dimensions before requesting in-place or replacement storage and observer publication.</summary>
+        /// <summary>Requests in-place or replacement storage and lets native publication deliver the new dimensions.</summary>
         internal void Replace(int size, bool inPlace)
         {
-            width = height = size;
-            if (inPlace) Reallocate2DStorageInPlace(2);
-            else AllocateOrReallocate2DTexture(2);
+            if (inPlace) Reallocate2DStorageInPlace(size, size, 2);
+            else AllocateOrReallocate2DTexture(size, size, PixelInternalFormat.Rgba16f, 2, TextureTarget.TextureCubeMap);
         }
         #endregion
     }

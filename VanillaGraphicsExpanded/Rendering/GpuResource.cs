@@ -6,7 +6,7 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Defines native resource identity and the shared disposal and handle-transfer lifecycle.</summary>
-public abstract class GpuResource : IDisposable
+public abstract partial class GpuResource : IDisposable
 {
     private int disposed;
     private int activePassReferences;
@@ -18,12 +18,18 @@ public abstract class GpuResource : IDisposable
     /// <summary>Exposes the wrapper's native resource kind.</summary>
     internal GpuResourceKind Kind => ResourceKind;
 
+    /// <summary>Gets the originating lifecycle service without storing any registry entry in the wrapper.</summary>
+    internal GpuResourceManager? ResourceManager => deletionManager ?? GpuResourceManagerSystem.CurrentManager;
+
+    /// <summary>Captures declaration-local guard counts when native association first becomes available.</summary>
+    internal (int Pass, int Lifetime) UsageReferences => (Volatile.Read(ref activePassReferences), Volatile.Read(ref lifetimeReferences));
+
     #region Public API
     /// <summary>Reports whether this wrapper has been disposed.</summary>
     public bool IsDisposed => Volatile.Read(ref disposed) != 0;
 
     /// <summary>Reports whether this wrapper retains a nonzero native identity and has not been disposed.</summary>
-    public bool IsValid => ResourceId != 0 && !IsDisposed;
+    public bool IsValid => ResourceId != 0 && !IsDisposed && (ResourceManager?.IsResourceLive(this) ?? true);
 
     /// <summary>
     /// Sets a debug label for this resource (best-effort; typically only active in debug builds).
@@ -41,15 +47,21 @@ public abstract class GpuResource : IDisposable
     /// <summary>Transfers the native handle only after active pass and deferred restoration borrowers release it.</summary>
     public virtual nint Detach()
     {
-        RequireRetirement();
+        if (!OwnsResource) throw new NotSupportedException("Borrowed resources cannot transfer ownership.");
         if (IsDisposed)
         {
             return 0;
         }
+        RequireRetirement();
+        if (ResourceId != 0 && !IsValid) throw new InvalidOperationException("The original resource allocation has retired.");
+        var origin = NativeProgramContext != default ? NativeProgramContext : nativeContext;
+        if (ResourceId != 0 && origin != default && !Integration.RenderContextRegistry.IsAlive(origin))
+            throw new InvalidOperationException("The original resource context has retired.");
 
         nint id = ResourceId;
         ResourceId = 0;
         Interlocked.Exchange(ref disposed, 1);
+        ResourceManager?.UnregisterWrapper(this);
         OnDetached(id);
         return id;
     }
@@ -62,6 +74,9 @@ public abstract class GpuResource : IDisposable
     /// <summary>Retires storage exactly once after active pass and deferred restoration borrows have ended.</summary>
     public void Dispose()
     {
+        // Detached or disposed wrappers no longer mutate the shared allocation. Other aliases
+        // may subsequently borrow it, but those guards cannot make local cleanup non-idempotent.
+        if (IsDisposed) return;
         RequireRetirement();
         if (Interlocked.Exchange(ref disposed, 1) != 0)
         {
@@ -76,9 +91,10 @@ public abstract class GpuResource : IDisposable
         if (id != 0 && OwnsResource)
         {
             var origin = NativeProgramContext != default ? NativeProgramContext : nativeContext;
-            RetireResource(ResourceKind, id, origin, deletionManager);
+            if (ResourceManager is not { } manager || !manager.TryScheduleResourceRetirement(this, id, origin)) RetireResource(ResourceKind, id, origin, deletionManager);
         }
 
+        ResourceManager?.UnregisterWrapper(this);
         OnAfterDelete();
     }
 
@@ -86,8 +102,9 @@ public abstract class GpuResource : IDisposable
 
     #region Internal API
     /// <summary>Rejects storage mutation or retirement while a pass or immutable framebuffer borrows its configuration.</summary>
-    internal void RequireMutableStorage()
+    internal void RequireMutableStorage(bool allowRetired = false)
     {
+        ResourceManager?.RequireResourceMutable(this, allowRetired);
         if (Volatile.Read(ref activePassReferences) != 0)
             throw new InvalidOperationException("End the render pass before changing or retiring its target storage.");
     }
@@ -96,28 +113,40 @@ public abstract class GpuResource : IDisposable
     internal void RetainPassReference()
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
+        ResourceManager?.RetainResource(this, true);
         Interlocked.Increment(ref activePassReferences);
     }
 
     /// <summary>Releases a matching immediate pass reference without retiring the resource.</summary>
-    internal void ReleasePassReference() => Interlocked.Decrement(ref activePassReferences);
+    internal void ReleasePassReference()
+    {
+        ResourceManager?.ReleaseResource(this, true);
+        Interlocked.Decrement(ref activePassReferences);
+    }
 
     /// <summary>Prevents handle retirement while allowing storage or attachment mutation outside an active pass.</summary>
     internal void RetainLifetimeReference()
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
+        ResourceManager?.RetainResource(this, false);
         Interlocked.Increment(ref lifetimeReferences);
     }
 
     /// <summary>Ends a native-handle borrow without disposing or mutating the resource.</summary>
-    internal void ReleaseLifetimeReference() => Interlocked.Decrement(ref lifetimeReferences);
+    internal void ReleaseLifetimeReference()
+    {
+        ResourceManager?.ReleaseResource(this, false);
+        Interlocked.Decrement(ref lifetimeReferences);
+    }
     #endregion
 
-    #region Private
+    #region Protected API
     /// <summary>Preserves native names needed by deferred restoration independently of active image mutation guards.</summary>
-    private void RequireRetirement()
+    protected void RequireRetirement()
     {
-        RequireMutableStorage();
+        if (OwnsResource) ResourceManager?.RequireResourceRetirement(this);
+        if (Volatile.Read(ref activePassReferences) != 0)
+            throw new InvalidOperationException("End the render pass before retiring its target storage.");
         if (Volatile.Read(ref lifetimeReferences) != 0)
             throw new InvalidOperationException("End the graphics boundary before retiring its borrowed resource.");
     }
@@ -227,31 +256,31 @@ public abstract class GpuResource : IDisposable
                     StateCache.Current.DeleteRenderbuffer((int)id);
                     break;
                 case GpuResourceKind.Query:
-                    GL.DeleteQuery((int)id);
+                    StateCache.Current.DeleteQuery((int)id);
                     break;
                 case GpuResourceKind.Program:
                     StateCache.Current.DeleteProgram((int)id);
                     break;
                 case GpuResourceKind.TransformFeedback:
-                    GL.DeleteTransformFeedback((int)id);
+                    StateCache.Current.DeleteTransformFeedback((int)id);
                     break;
                 case GpuResourceKind.Sampler:
                     StateCache.Current.DeleteSampler((int)id);
                     break;
                 case GpuResourceKind.ProgramPipeline:
-                    GL.DeleteProgramPipeline((int)id);
+                    StateCache.Current.DeleteProgramPipeline((int)id);
                     break;
                 case GpuResourceKind.Shader:
-                    GL.DeleteShader((int)id);
+                    StateCache.Current.DeleteShader((int)id);
                     break;
                 case GpuResourceKind.Sync:
-                    GL.DeleteSync((IntPtr)id);
+                    StateCache.Current.DeleteSync((IntPtr)id);
                     break;
                 case GpuResourceKind.Semaphore:
-                    GL.Ext.DeleteSemaphore((int)id);
+                    StateCache.Current.DeleteSemaphore((int)id);
                     break;
                 case GpuResourceKind.MemoryObject:
-                    GL.Ext.DeleteMemoryObject((int)id);
+                    StateCache.Current.DeleteMemoryObject((int)id);
                     break;
             }
         }

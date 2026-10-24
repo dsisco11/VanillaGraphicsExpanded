@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// RAII wrapper around an EXT semaphore object (GL_EXT_semaphore).
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// </summary>
-internal sealed class GpuSemaphore : GpuResource, IDisposable
+internal sealed class GpuSemaphore : GpuResource<GpuSemaphoreMetadata>, IDisposable
 {
     private int semaphoreId;
 
@@ -34,11 +34,12 @@ internal sealed class GpuSemaphore : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the semaphore has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => semaphoreId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
     private GpuSemaphore(int semaphoreId)
     {
         this.semaphoreId = semaphoreId;
+        GpuResourceManager.RegisterEmptyMetadata(this);
     }
 
     /// <summary>
@@ -57,7 +58,7 @@ internal sealed class GpuSemaphore : GpuResource, IDisposable
             throw new InvalidOperationException("glGenSemaphoresEXT returned 0.");
         }
 
-        return new GpuSemaphore(id);
+        return CompleteOwnedCreation(GpuResourceKind.Semaphore, id, () => new GpuSemaphore(id));
     }
 
     /// <summary>

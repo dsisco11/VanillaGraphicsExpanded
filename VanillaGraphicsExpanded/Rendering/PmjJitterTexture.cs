@@ -36,15 +36,10 @@ public sealed class PmjJitterTexture : GpuTexture
         }
 
         // RG16_UNorm 1xN "1D" texture stored as 2D.
-        width = CycleLength;
-        height = 1;
-        depth = 1;
-        internalFormat = PixelInternalFormat.Rg16;
-        textureTarget = TextureTarget.Texture2D;
         filterMode = TextureFilterMode.Nearest;
         debugName = "Sampling.PMJ.Jitter";
 
-        AllocateOrReallocate2DTexture(mipLevels: 1);
+        AllocateOrReallocate2DTexture(CycleLength, 1, PixelInternalFormat.Rg16, mipLevels: 1);
 
         PmjSequence seq = cache.GetOrCreateSequence(config);
         ushort[] rg = PmjConversions.ToRg16UNormInterleaved(seq);

@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>
 /// Captures a snapshot of binding-related program resources after link (UBO/SSBO bindings, sampler/image units).
 /// </summary>
-public class GpuProgramLayout
+public partial class GpuProgramLayout
 {
     #region Compiled contract ownership
     private bool compiledContract;
@@ -40,6 +40,8 @@ public class GpuProgramLayout
     internal void InstallCandidate(GpuProgramLayout candidate)
     {
         BinaryInterface = candidate.BinaryInterface;
+        nativeMetadata = candidate.nativeMetadata;
+        NativeMetadataRevision = candidate.NativeMetadataRevision;
         SetActiveSnapshot(candidate.uniformBlockBindings, candidate.shaderStorageBlockBindings,
             candidate.samplerBindings, candidate.imageBindings);
         // Lazy lookup caches must never carry locations or block indices from the retired generation.
@@ -833,6 +835,7 @@ public class GpuProgramLayout
 
     private IReadOnlyDictionary<string, int> TryBuildBufferBindingByName(int programId, ProgramInterface programInterface)
     {
+        if (nativeMetadata.HasValue) return ProjectBufferBindings(programInterface);
         if (BinaryInterface is { } prepared)
             return prepared.ActiveBindings(programInterface == ProgramInterface.UniformBlock
                 ? Contracts.ShaderBindingKind.UniformBlock : Contracts.ShaderBindingKind.StorageBlock);
@@ -876,6 +879,7 @@ public class GpuProgramLayout
 
     private (IReadOnlyDictionary<string, int> Samplers, IReadOnlyDictionary<string, int> Images) TryBuildTextureUnitBindings(int programId)
     {
+        if (nativeMetadata.HasValue && BinaryInterface is null) return ProjectTextureUnits();
         if (BinaryInterface is { } prepared)
             return (prepared.ActiveBindings(Contracts.ShaderBindingKind.Sampler), prepared.ActiveBindings(Contracts.ShaderBindingKind.Image));
         try

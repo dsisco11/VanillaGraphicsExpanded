@@ -44,7 +44,7 @@ public abstract partial class GpuProgram
             if (!cached && pending == null)
             {
                 // A rejected binary candidate is never reused for normal linking.
-                GL.DeleteProgram(program);
+                StateCache.Current.DeleteProgram(program);
                 program = 0;
                 foreach (var selection in plan.Stages)
                 {
@@ -74,7 +74,7 @@ public abstract partial class GpuProgram
             foreach (var stage in stages)
             {
                 GL.DetachShader(program, stage.Shader);
-                GL.DeleteShader(stage.Shader);
+                StateCache.Current.DeleteShader(stage.Shader);
             }
             stages.Clear();
             // A configuration edit can arrive while the driver works. Never publish superseded inputs.
@@ -87,6 +87,9 @@ public abstract partial class GpuProgram
                     return false;
                 }
                 var candidate = GpuProgramObject.Adopt(program);
+                if (candidate.ResourceManager?.GetResourceRegistration(candidate)
+                    is GpuResourceMetadataEntry<GpuProgramMetadata> { MetadataAvailable: true } entry)
+                    layout.UseNativeMetadata(program, entry.Metadata, entry.MetadataRevision);
                 program = 0;
                 var previous = executable;
                 executable = candidate;
@@ -104,8 +107,8 @@ public abstract partial class GpuProgram
         }
         finally
         {
-            if (program != 0) GL.DeleteProgram(program);
-            foreach (var stage in stages) GL.DeleteShader(stage.Shader);
+            if (program != 0) StateCache.Current.DeleteProgram(program);
+            foreach (var stage in stages) StateCache.Current.DeleteShader(stage.Shader);
         }
     }
 
@@ -131,7 +134,7 @@ public abstract partial class GpuProgram
             infoLog = (infoLog.Length == 0 ? string.Empty : infoLog + "\n") + ex.Message;
             return false;
         }
-        finally { if (candidate != 0) GL.DeleteProgram(candidate); }
+        finally { if (candidate != 0) StateCache.Current.DeleteProgram(candidate); }
     }
 
     /// <summary>Last driver linking duration, excluding binary loading, specialization and draws; zero for executable cache hits.</summary>

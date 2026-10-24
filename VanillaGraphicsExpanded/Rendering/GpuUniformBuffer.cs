@@ -12,11 +12,13 @@ namespace VanillaGraphicsExpanded.Rendering;
 public sealed class GpuUniformBuffer : GpuBufferObject
 {
     /// <summary>Wraps a newly allocated uniform-buffer object with its usage and debug identity.</summary>
+    /// <summary>Retains allocation policy separately and acquires any realized native buffer facts.</summary>
     private GpuUniformBuffer(int bufferId, BufferUsageHint usage, string? debugName)
     {
         this.bufferId = bufferId;
         target = BufferTarget.UniformBuffer;
-        this.usage = usage;
+        allocationUsage = usage;
+        GpuResourceManager.RegisterBufferWrapper(this);
         this.debugName = debugName;
     }
 
@@ -28,7 +30,7 @@ public sealed class GpuUniformBuffer : GpuBufferObject
         string? debugName = null)
     {
         int id = CreateBufferId(debugName);
-        return new GpuUniformBuffer(id, usage, debugName);
+        return CompleteOwnedCreation(GpuResourceKind.Buffer, id, () => new GpuUniformBuffer(id, usage, debugName));
     }
 
     /// <summary>

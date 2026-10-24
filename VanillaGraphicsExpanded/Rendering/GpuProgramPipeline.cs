@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed class GpuProgramPipeline : GpuResource, IDisposable
+internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadata>, IDisposable
 {
     private int pipelineId;
 
@@ -31,11 +31,12 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the pipeline has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => pipelineId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
     private GpuProgramPipeline(int pipelineId)
     {
         this.pipelineId = pipelineId;
+        GpuResourceManager.RegisterEmptyMetadata(this);
     }
 
     /// <summary>
@@ -49,9 +50,12 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
             throw new InvalidOperationException("glGenProgramPipelines failed.");
         }
 
-        var pipeline = new GpuProgramPipeline(id);
-        pipeline.SetDebugName(debugName);
-        return pipeline;
+        return CompleteOwnedCreation(GpuResourceKind.ProgramPipeline, id, () =>
+        {
+            var value = new GpuProgramPipeline(id);
+            value.SetDebugName(debugName);
+            return value;
+        });
     }
 
     /// <summary>
@@ -108,6 +112,7 @@ internal sealed class GpuProgramPipeline : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope()
     {
+        ObjectDisposedException.ThrowIf(!IsValid, this);
         var gl = StateCache.Current;
         var scope = gl.BindProgramPipelineScope(pipelineId);
         return new BindingScope(scope);

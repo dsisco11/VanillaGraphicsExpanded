@@ -27,10 +27,14 @@ internal sealed class GpuResourceDisposalQueue
         }
     }
 
-    /// <summary>Disposes pending resources on the caller's current render context.</summary>
+    /// <summary>Attempts one admission batch, retaining guard-blocked resources for a later drain.</summary>
     public void DrainPending()
     {
-        while (true)
+        int attempts;
+        lock (gate) attempts = pending.Count;
+        // Requeued borrows and new admissions wait until the next drain, so blocked cleanup
+        // cannot spin or prevent unrelated resources in this batch from retiring.
+        for (int index = 0; index < attempts; index++)
         {
             GpuResource resource;
             lock (gate)
@@ -38,7 +42,14 @@ internal sealed class GpuResourceDisposalQueue
                 if (closed || !pending.TryDequeue(out resource!)) return;
             }
             try { resource.Dispose(); }
-            catch (Exception error) { Debug.WriteLine($"[GpuResourceDisposalQueue] {error}"); }
+            catch (Exception error)
+            {
+                // Dispose checks usage guards before committing local retirement. Preserve
+                // ownership only when that transition has not occurred; cleanup-hook failures
+                // after retirement are not retryable disposal requests.
+                if (!resource.IsDisposed) Enqueue(resource);
+                Debug.WriteLine($"[GpuResourceDisposalQueue] {error}");
+            }
         }
     }
 

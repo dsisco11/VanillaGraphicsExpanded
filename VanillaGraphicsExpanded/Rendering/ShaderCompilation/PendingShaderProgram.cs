@@ -41,7 +41,7 @@ internal sealed class PendingShaderProgram : IDisposable
             if (Program == 0) throw new InvalidOperationException("glCreateProgram returned 0.");
             Cached = DriverProgramCache.TryLoad(Program, Inputs);
             if (Cached) { completed = true; return; }
-            GL.DeleteProgram(Program);
+            StateCache.Current.DeleteProgram(Program);
             Program = 0;
             foreach (var selection in plan.Stages)
             {
@@ -99,7 +99,7 @@ internal sealed class PendingShaderProgram : IDisposable
         foreach (var stage in Stages)
         {
             GL.DetachShader(Program, stage.Shader);
-            GL.DeleteShader(stage.Shader);
+            StateCache.Current.DeleteShader(stage.Shader);
         }
         Stages.Clear();
         int result = Program;
@@ -121,8 +121,8 @@ internal sealed class PendingShaderProgram : IDisposable
     {
         if (Program == 0 && Stages.Count == 0) return;
         RequireOriginatingContext();
-        if (Program != 0) { GL.DeleteProgram(Program); Program = 0; }
-        foreach (var stage in Stages) GL.DeleteShader(stage.Shader);
+        if (Program != 0) { StateCache.Current.DeleteProgram(Program); Program = 0; }
+        foreach (var stage in Stages) StateCache.Current.DeleteShader(stage.Shader);
         Stages.Clear();
     }
     #endregion

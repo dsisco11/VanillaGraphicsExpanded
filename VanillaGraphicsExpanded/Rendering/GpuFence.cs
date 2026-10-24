@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Small wrapper around an OpenGL sync object created by <c>glFenceSync</c>.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed class GpuFence : GpuResource, IDisposable
+internal sealed class GpuFence : GpuResource<GpuSyncMetadata>, IDisposable
 {
     private nint handle;
     private string? debugName;
@@ -22,7 +22,7 @@ internal sealed class GpuFence : GpuResource, IDisposable
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Sync;
 
-    public new bool IsValid => handle != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
     public override void SetDebugName(string? debugName)
     {
@@ -34,6 +34,7 @@ internal sealed class GpuFence : GpuResource, IDisposable
     private GpuFence(nint handle)
     {
         this.handle = handle;
+        GpuResourceManager.RegisterEmptyMetadata(this);
     }
 
     public static GpuFence Insert()
@@ -44,7 +45,7 @@ internal sealed class GpuFence : GpuResource, IDisposable
             throw new InvalidOperationException("glFenceSync failed.");
         }
 
-        return new GpuFence((nint)sync);
+        return CompleteOwnedCreation(GpuResourceKind.Sync, (nint)sync, () => new GpuFence((nint)sync));
     }
 
     public WaitSyncStatus Poll()

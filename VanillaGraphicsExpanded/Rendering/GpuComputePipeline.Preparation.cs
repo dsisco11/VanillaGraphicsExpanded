@@ -31,7 +31,11 @@ internal sealed partial class GpuComputePipeline
         InstalledSettings = candidate.InstalledSettings;
         ExecutableContext = candidate.ExecutableContext;
         ExecutableRevision++;
+        ResourceManager?.ReplaceWrapperResource(this);
         programId = (int)candidate.Detach();
+        if (programId != 0) GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance, refreshExisting: false);
+        if (ResourceManager?.GetResourceRegistration(this) is { MetadataAvailable: true } entry)
+            programLayout.UseNativeMetadata(programId, metadata, entry.MetadataRevision);
         prepare = null;
         return true;
     }

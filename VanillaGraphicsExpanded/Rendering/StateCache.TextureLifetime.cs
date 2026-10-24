@@ -10,18 +10,7 @@ internal sealed partial class StateCache
     public void DeleteTexture(int textureId)
     {
         GL.DeleteTexture(textureId);
-        RecordBoundaryRetirement(EPipelineState.TextureBindings, textureId);
-        InvalidateImageTexture(textureId);
-        if (textureId == 0 || textureBindingsByUnit == null) return;
-
-        // Upload scopes restore cached bindings. A deleted name must become zero before
-        // a later scope captures it, while bindings of surviving textures remain intact.
-        foreach (var bindings in textureBindingsByUnit)
-        {
-            if (bindings == null) continue;
-            foreach (var binding in bindings)
-                if (binding.Value == textureId) bindings[binding.Key] = 0;
-        }
+        CompleteResourceDeletion(GpuResourceKind.Texture, textureId);
     }
     #endregion
 }

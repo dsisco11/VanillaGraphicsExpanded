@@ -16,18 +16,20 @@ internal sealed class GpuEbo : GpuBufferObject
     public int IndexCount => indexCount;
     public DrawElementsType IndexType => indexType;
 
+    /// <summary>Retains allocation policy separately and acquires any realized native buffer facts.</summary>
     private GpuEbo(int bufferId, BufferUsageHint usage, string? debugName)
     {
         this.bufferId = bufferId;
         target = BufferTarget.ElementArrayBuffer;
-        this.usage = usage;
+        allocationUsage = usage;
+        GpuResourceManager.RegisterBufferWrapper(this);
         this.debugName = debugName;
     }
 
     public static GpuEbo Create(BufferUsageHint usage = BufferUsageHint.StaticDraw, string? debugName = null)
     {
         int id = CreateBufferId(debugName);
-        return new GpuEbo(id, usage, debugName);
+        return CompleteOwnedCreation(GpuResourceKind.Buffer, id, () => new GpuEbo(id, usage, debugName));
     }
 
     public void UploadIndices(uint[] indices)

@@ -10,18 +10,26 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Texture views are separate texture objects that share immutable storage with a source texture.
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// </summary>
-public sealed class GpuTextureView : GpuResource, IDisposable
+public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposable
 {
     private int textureId;
     private readonly int sourceTextureId;
     private GpuTexture? source;
     private ulong sourceGeneration;
-    private readonly TextureTarget target;
-    private readonly PixelInternalFormat internalFormat;
-    private readonly int baseLevel;
-    private readonly int levelCount;
-    private readonly int baseLayer;
-    private readonly int layerCount;
+    // This is a dependency certificate, not a second authoritative descriptor or a lifetime tracker.
+    private object? sourceStorageIdentity;
+    /// <summary>Gets the native view target from the canonical texture snapshot.</summary>
+    private TextureTarget target => metadata.Target;
+    /// <summary>Gets the native view internalFormat from the canonical texture snapshot.</summary>
+    private PixelInternalFormat internalFormat => metadata.Levels.IsDefaultOrEmpty ? 0 : metadata.Levels[0].Format;
+    /// <summary>Gets the native view baseLevel from the canonical texture snapshot.</summary>
+    private int baseLevel => metadata.View?.BaseLevel ?? 0;
+    /// <summary>Gets the native view levelCount from the canonical texture snapshot.</summary>
+    private int levelCount => metadata.View?.LevelCount ?? 0;
+    /// <summary>Gets the native view baseLayer from the canonical texture snapshot.</summary>
+    private int baseLayer => metadata.View?.BaseLayer ?? 0;
+    /// <summary>Gets the native view layerCount from the canonical texture snapshot.</summary>
+    private int layerCount => metadata.View?.LayerCount ?? 0;
 
     #region Public API
     /// <inheritdoc />
@@ -75,10 +83,14 @@ public sealed class GpuTextureView : GpuResource, IDisposable
     public int LayerCount => layerCount;
 
     /// <summary>
-    /// Returns <c>true</c> while the view and its original managed source allocation remain live.
+    /// Returns <c>true</c> while the view and its original managed source allocation remain live with available metadata.
     /// </summary>
-    public new bool IsValid => textureId != 0 && !IsDisposed &&
-        (source is null || source.IsValid && source.TextureId == sourceTextureId && source.StorageGeneration == sourceGeneration);
+    public new bool IsValid => base.IsValid && !metadata.Levels.IsDefaultOrEmpty &&
+        (ResourceManager?.GetResourceRegistration(this) is null || ResourceManager.IsResourceMetadataAvailable(this)) &&
+        (source is null || source.IsValid && source.TextureId == sourceTextureId && source.StorageGeneration == sourceGeneration
+            && !source.StorageImages.IsDefaultOrEmpty
+            && (ResourceManager?.IsTextureViewSourceCurrent(this, source)
+                ?? ReferenceEquals(source.UntrackedStorageIdentity, sourceStorageIdentity)));
 
     /// <summary>
     /// Sets the debug label for this texture view (debug builds only).
@@ -105,6 +117,8 @@ public sealed class GpuTextureView : GpuResource, IDisposable
         var result = Create(source.TextureId, viewTarget, viewInternalFormat, baseLevel, levelCount, baseLayer, layerCount, debugName);
         result.source = source;
         result.sourceGeneration = source.StorageGeneration;
+        result.sourceStorageIdentity = source.UntrackedStorageIdentity;
+        result.ResourceManager?.RecordTextureViewSource(result, source);
         return result;
     }
 
@@ -158,28 +172,6 @@ public sealed class GpuTextureView : GpuResource, IDisposable
 
         try
         {
-            GL.TextureView(
-                id,
-                viewTarget,
-                sourceTextureId,
-                viewInternalFormat,
-                baseLevel,
-                levelCount,
-                baseLayer,
-                layerCount);
-
-            // A failed texture-view operation leaves the newly generated name uninitialized.
-            // Reject native validation failures before publishing a seemingly valid wrapper.
-            if (!GL.IsTexture(id)) throw new InvalidOperationException("glTextureView failed to create a texture object.");
-            // OpenGL can clamp requested ranges to available storage. Never retain a wider
-            // authored range than the object actually exposes, which would weaken alias checks.
-            GL.GetTextureParameter(id, GetTextureParameter.TextureViewMinLevel, out int actualBaseLevel);
-            GL.GetTextureParameter(id, GetTextureParameter.TextureViewNumLevels, out int actualLevelCount);
-            GL.GetTextureParameter(id, GetTextureParameter.TextureViewMinLayer, out int actualBaseLayer);
-            GL.GetTextureParameter(id, GetTextureParameter.TextureViewNumLayers, out int actualLayerCount);
-            if (actualBaseLevel != baseLevel || actualLevelCount != levelCount ||
-                actualBaseLayer != baseLayer || actualLayerCount != layerCount)
-                throw new InvalidOperationException("Texture view range differs from the requested immutable storage range.");
             var view = new GpuTextureView(id, sourceTextureId, viewTarget, viewInternalFormat, baseLevel, levelCount, baseLayer, layerCount);
             view.SetDebugName(debugName);
             return view;
@@ -264,12 +256,7 @@ public sealed class GpuTextureView : GpuResource, IDisposable
     {
         this.textureId = textureId;
         this.sourceTextureId = sourceTextureId;
-        this.target = target;
-        this.internalFormat = internalFormat;
-        this.baseLevel = baseLevel;
-        this.levelCount = levelCount;
-        this.baseLayer = baseLayer;
-        this.layerCount = layerCount;
+        StateCache.Current.ConfigureTextureView(this, sourceTextureId, target, internalFormat, baseLevel, levelCount, baseLayer, layerCount);
     }
 
     #endregion

@@ -30,6 +30,22 @@ internal static class EngineStateCallMap
                 throw new InvalidOperationException($"Unsupported engine state adapter signature: {adapter}.");
             result.Add(native, adapter);
         }
+        foreach (var pair in new (Type Native, Type Adapter)[]
+        {
+            (typeof(GL), typeof(EngineStateDeletionCalls.Core)),
+            (typeof(GL.Arb), typeof(EngineStateDeletionCalls.Arb)),
+            (typeof(GL.Ext), typeof(EngineStateDeletionCalls.Ext)),
+        })
+        {
+            foreach (var adapter in pair.Adapter.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))
+            {
+                var parameters = adapter.GetParameters().Select(parameter => parameter.ParameterType).ToArray();
+                var native = pair.Native.GetMethod(adapter.Name, BindingFlags.Public | BindingFlags.Static, null, parameters, null);
+                if (native is null || native.ReturnType != adapter.ReturnType)
+                    throw new InvalidOperationException($"Unsupported native deletion adapter signature: {adapter}.");
+                result.TryAdd(native, adapter);
+            }
+        }
         return new System.Collections.ObjectModel.ReadOnlyDictionary<MethodInfo, MethodInfo>(result);
     }
     #endregion

@@ -57,6 +57,8 @@ public static partial class GpuSupport
 
         return capabilities with
         {
+            SupportsTextureStorage = IsAtLeast(capabilities.ApiVersion, 4, 2) || GlExtensions.Supports("GL_ARB_texture_storage") || GlExtensions.Supports("GL_EXT_texture_storage"),
+            SupportsTextureView = IsAtLeast(capabilities.ApiVersion, 4, 3) || GlExtensions.Supports("GL_ARB_texture_view"),
             SupportsTextureBufferRange = IsAtLeast(capabilities.ApiVersion, 4, 3) || GlExtensions.Supports("GL_ARB_texture_buffer_range"),
             SupportsClearTexture = IsAtLeast(capabilities.ApiVersion, 4, 4) || GlExtensions.Supports("GL_ARB_clear_texture"),
             SupportsSparseTexture = GlExtensions.Supports("GL_ARB_sparse_texture"),

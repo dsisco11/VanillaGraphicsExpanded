@@ -55,13 +55,24 @@ internal static class EngineStateTargets
         {
             var member = metadata.GetMemberReference(handle);
             if (member.Parent.Kind != HandleKind.TypeReference || member.GetKind() != MemberReferenceKind.Method) continue;
-            var type = metadata.GetTypeReference((TypeReferenceHandle)member.Parent);
-            if (metadata.GetString(type.Namespace) != "OpenTK.Graphics.OpenGL" || metadata.GetString(type.Name) != "GL") continue;
+            if (!IsGlTypeReference(metadata, (TypeReferenceHandle)member.Parent)) continue;
             int token = MetadataTokens.GetToken(handle);
             if (module.ResolveMethod(token) is MethodInfo native && EngineStateCallMap.Replacements.ContainsKey(native))
                 result.Add(token);
         }
         return result;
+    }
+
+    /// <summary>Recognizes core GL and nested extension references without loading unrelated native APIs.</summary>
+    private static bool IsGlTypeReference(MetadataReader metadata, TypeReferenceHandle handle)
+    {
+        // Nested extension classes have an empty namespace and a TypeReference scope pointing
+        // to GL. Follow that ownership chain before applying the existing namespace boundary.
+        var type = metadata.GetTypeReference(handle);
+        while (type.ResolutionScope.Kind == HandleKind.TypeReference)
+            type = metadata.GetTypeReference((TypeReferenceHandle)type.ResolutionScope);
+        return metadata.GetString(type.Namespace) == "OpenTK.Graphics.OpenGL"
+            && metadata.GetString(type.Name) == "GL";
     }
 
     /// <summary>Walks instruction boundaries so bytes inside operands cannot be mistaken for call opcodes.</summary>

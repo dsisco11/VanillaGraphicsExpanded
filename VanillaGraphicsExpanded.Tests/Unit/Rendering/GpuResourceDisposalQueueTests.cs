@@ -6,7 +6,7 @@ namespace VanillaGraphicsExpanded.Tests.Unit.Rendering;
 public sealed class GpuResourceDisposalQueueTests
 {
     #region Public API
-    /// <summary>The common resource identifier contract exposes live storage and clears it on either retirement path.</summary>
+    /// <summary>A borrowed resource retains its identifier after rejected transfer and clears it on local disposal.</summary>
     [Theory]
     [InlineData(true)]
     [InlineData(false)]
@@ -16,12 +16,30 @@ public sealed class GpuResourceDisposalQueueTests
         Assert.Equal((nint)1, resource.ResourceId);
         Assert.True(resource.IsValid);
 
-        if (detach) Assert.Equal((nint)1, resource.Detach());
-        else resource.Dispose();
+        if (detach)
+        {
+            Assert.Throws<NotSupportedException>(() => resource.Detach());
+            Assert.Equal((nint)1, resource.ResourceId);
+            Assert.True(resource.IsValid);
+        }
+        resource.Dispose();
 
         Assert.Equal((nint)0, resource.ResourceId);
         Assert.False(resource.IsValid);
         Assert.True(resource.IsDisposed);
+        Assert.Throws<NotSupportedException>(() => resource.Detach());
+    }
+
+    /// <summary>An owning CPU declaration without a native allocation can complete either transfer API with an empty handle.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void EmptyOwningDeclarationTransfersEmptyHandle(bool releaseHandle)
+    {
+        using var resource = new EmptyOwningDeclaration();
+        Assert.Equal((nint)0, releaseHandle ? resource.ReleaseHandle() : resource.Detach());
+        Assert.True(resource.IsDisposed);
+        Assert.False(resource.IsValid);
         Assert.Equal((nint)0, resource.Detach());
     }
 
@@ -69,9 +87,64 @@ public sealed class GpuResourceDisposalQueueTests
         Assert.Equal(canDispose ? 1 : 0, pending.Disposals);
         Assert.Equal(0, late.Disposals);
     }
+    /// <summary>Local guards retain queued resources without blocking later work or duplicating disposal.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void GuardedResourceRetriesOnLaterDrain(bool pass)
+    {
+        var queue = new GpuResourceDisposalQueue();
+        using var guarded = new ObservedResource();
+        using var later = new ObservedResource();
+        if (pass) guarded.RetainPassReference(); else guarded.RetainLifetimeReference();
+        queue.Enqueue(guarded);
+        queue.Enqueue(guarded);
+        queue.Enqueue(later);
+        try
+        {
+            queue.DrainPending();
+            Assert.False(guarded.IsDisposed);
+            Assert.Equal(1, later.Disposals);
+        }
+        finally { if (pass) guarded.ReleasePassReference(); else guarded.ReleaseLifetimeReference(); }
+        queue.DrainPending();
+        Assert.Equal(1, guarded.Disposals);
+        queue.DrainPending();
+        Assert.Equal(1, guarded.Disposals);
+    }
+
+    /// <summary>Closing a queue abandons blocked names rather than sending them into another context.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void ClosingQueueDoesNotCarryGuardedRetryIntoNewQueue(bool canDispose)
+    {
+        var oldQueue = new GpuResourceDisposalQueue();
+        var newQueue = new GpuResourceDisposalQueue();
+        using var guarded = new ObservedResource();
+        guarded.RetainLifetimeReference();
+        oldQueue.Enqueue(guarded);
+        oldQueue.DrainPending();
+        oldQueue.Close(canDispose);
+        guarded.ReleaseLifetimeReference();
+        oldQueue.DrainPending();
+        newQueue.DrainPending();
+        Assert.True(oldQueue.IsClosed);
+        Assert.False(guarded.IsDisposed);
+    }
     #endregion
 
     #region Private
+    /// <summary>Represents an owning declaration that has not realized a native allocation.</summary>
+    private sealed class EmptyOwningDeclaration : GpuResource
+    {
+        /// <inheritdoc />
+        public override nint ResourceId { get; protected set; }
+        /// <inheritdoc />
+        protected override GpuResourceKind ResourceKind => GpuResourceKind.Buffer;
+        /// <inheritdoc />
+        public override void SetDebugName(string? debugName) { }
+    }
     /// <summary>Models a resource whose managed cleanup reports failure before normal release.</summary>
     private sealed class ThrowingResource : GpuResource
     {

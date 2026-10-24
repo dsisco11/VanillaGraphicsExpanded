@@ -18,17 +18,12 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </remarks>
 public class DynamicTexture2D : GpuTexture
 {
-    #region Fields
-    private int mipLevels = 1;
-
-    #endregion
-
     #region Properties
 
     /// <summary>
     /// Number of mip levels allocated for this texture (>= 1).
     /// </summary>
-    public int MipLevels => mipLevels;
+    public int MipLevels => StorageMipLevels;
 
     #endregion
 
@@ -42,14 +37,9 @@ public class DynamicTexture2D : GpuTexture
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
 
-        this.width = width;
-        this.height = height;
-        depth = 1;
-        internalFormat = format;
-        textureTarget = TextureTarget.Texture2D;
         filterMode = filter;
         this.debugName = debugName;
-        AllocateTexture();
+        AllocateOrReallocate2DTexture(width, height, format, mipLevels: 1);
     }
 
     #endregion
@@ -87,17 +77,11 @@ public class DynamicTexture2D : GpuTexture
 
         var texture = new DynamicTexture2D
         {
-            width = width,
-            height = height,
-            depth = 1,
-            mipLevels = 1,
-            internalFormat = format,
-            textureTarget = TextureTarget.Texture2D,
             filterMode = filter,
             debugName = debugName
         };
 
-        texture.AllocateTexture();
+        texture.AllocateOrReallocate2DTexture(width, height, format, mipLevels: 1);
         return texture;
     }
 
@@ -131,17 +115,11 @@ public class DynamicTexture2D : GpuTexture
 
         var texture = new DynamicTexture2D
         {
-            width = width,
-            height = height,
-            depth = 1,
-            mipLevels = mipLevels,
-            internalFormat = format,
-            textureTarget = TextureTarget.Texture2D,
             filterMode = TextureFilterMode.Nearest,
             debugName = debugName
         };
 
-        texture.AllocateTexture();
+        texture.AllocateOrReallocate2DTexture(width, height, format, mipLevels);
         return texture;
     }
 
@@ -220,11 +198,8 @@ public class DynamicTexture2D : GpuTexture
         if (newWidth == width && newHeight == height)
             return false;
 
-        width = newWidth;
-        height = newHeight;
-
         // Reallocate storage while preserving the existing texture id.
-        Reallocate2DStorageInPlace(mipLevels);
+        Reallocate2DStorageInPlace(newWidth, newHeight, StorageMipLevels);
 
         return true;
     }
@@ -586,7 +561,7 @@ public class DynamicTexture2D : GpuTexture
             return [];
         }
 
-        mipLevel = Math.Clamp(mipLevel, 0, Math.Max(0, mipLevels - 1));
+        mipLevel = Math.Clamp(mipLevel, 0, Math.Max(0, StorageMipLevels - 1));
 
         int mipWidth = Math.Max(1, width >> mipLevel);
         int mipHeight = Math.Max(1, height >> mipLevel);
@@ -629,10 +604,6 @@ public class DynamicTexture2D : GpuTexture
 
     #region Private Methods
 
-    private void AllocateTexture()
-    {
-        AllocateOrReallocate2DTexture(mipLevels);
-    }
 
     #endregion
 

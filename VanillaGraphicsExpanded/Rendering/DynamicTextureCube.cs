@@ -31,26 +31,26 @@ public sealed class DynamicTextureCube : GpuTexture
         bool integer = pixels is PixelFormat.RedInteger or PixelFormat.RgInteger or PixelFormat.RgbInteger or PixelFormat.RgbaInteger;
         if (integer && filter != TextureFilterMode.Nearest)
             throw new ArgumentException("Integer textures require nearest filtering.", nameof(filter));
-        GL.GetInteger(GetPName.MaxCubeMapTextureSize, out int limit);
+        int limit = GpuSupport.MaxCubeMapTextureSize;
         if (size > limit) throw new ArgumentOutOfRangeException(nameof(size), "Face size exceeds the current context's cube limit.");
-        var texture = new DynamicTextureCube(size, format, mipLevels, filter, debugName);
-        try
-        {
-            texture.AllocateOrReallocate2DTexture(mipLevels);
-            if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Cube texture allocation failed.");
-            return texture;
-        }
-        catch { texture.Dispose(); throw; }
+        return new DynamicTextureCube(size, format, mipLevels, filter, debugName);
     }
     #endregion
 
     #region Private
-    /// <summary>Records admitted dimensions and sampling policy before taking ownership of any native storage.</summary>
-    private DynamicTextureCube(int size, PixelInternalFormat format, int mipLevels, TextureFilterMode filter, string? debugName)
+    /// <summary>Allocates cube storage from validated requests and receives its metadata through manager publication.</summary>
+    private DynamicTextureCube(int size, PixelInternalFormat format, int mipLevels,
+        TextureFilterMode filter, string? debugName)
     {
-        width = height = size; depth = 6; textureTarget = TextureTarget.TextureCubeMap;
-        internalFormat = format; filterMode = filter; StorageMipLevels = mipLevels;
+        filterMode = filter;
         this.debugName = debugName;
+        // Allocation publishes observed metadata; constructor arguments remain command inputs.
+        try
+        {
+            AllocateOrReallocate2DTexture(size, size, format, mipLevels, TextureTarget.TextureCubeMap);
+            if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Cube texture allocation failed.");
+        }
+        catch { Dispose(); throw; }
     }
     #endregion
 }

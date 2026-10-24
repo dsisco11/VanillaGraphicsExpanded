@@ -1,3 +1,5 @@
+using System.Collections.Immutable;
+using System.Linq;
 using System;
 using System.Diagnostics;
 
@@ -10,14 +12,19 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// By default, upload APIs use streamed <c>StageCopy</c> (deep-copy immediately, GPU upload deferred).
 /// "Dynamic" textures can override upload methods to default to immediate GL uploads.
 /// </summary>
-public abstract class GpuTexture : GpuResource, IDisposable
+public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDisposable
 {
     protected int textureId;
-    protected int width;
-    protected int height;
-    protected int depth = 1;
-    protected PixelInternalFormat internalFormat;
-    protected TextureTarget textureTarget;
+    /// <summary>Accesses the base image width through the typed metadata snapshot.</summary>
+    protected int width => BaseImage.Width;
+    /// <summary>Accesses the base image height through the typed metadata snapshot.</summary>
+    protected int height => BaseImage.Height;
+    /// <summary>Accesses the base image depth through the typed metadata snapshot.</summary>
+    protected int depth => textureTarget == TextureTarget.TextureCubeMap ? 6 : BaseImage.Depth;
+    /// <summary>Accesses the base image internalFormat through the typed metadata snapshot.</summary>
+    protected PixelInternalFormat internalFormat => BaseImage.Format;
+    /// <summary>Accesses the canonical native target independently of sampler policy.</summary>
+    protected TextureTarget textureTarget => metadata.Target;
     protected TextureFilterMode filterMode;
     protected string? debugName;
 
@@ -28,11 +35,20 @@ public abstract class GpuTexture : GpuResource, IDisposable
     public PixelInternalFormat InternalFormat => internalFormat;
     public TextureTarget TextureTarget => textureTarget;
     /// <summary>Reports the mip levels allocated by this texture owner without querying driver storage.</summary>
-    internal int StorageMipLevels { get; private protected set; } = 1;
-    /// <summary>Identifies owner-side storage replacement independently of native handle reuse.</summary>
-    internal ulong StorageGeneration { get; private set; }
+    internal int StorageMipLevels
+    {
+        get => metadata.Levels.IsDefaultOrEmpty ? 0 : metadata.Levels.Max(image => image.Level) + 1;
+    }
+    /// <summary>Exposes the published image facts for source availability checks.</summary>
+    internal ImmutableArray<GpuTextureLevelMetadata> StorageImages => metadata.Levels;
+
+    /// <summary>Retains the manager-published local storage certificate independently of unavailable image facts.</summary>
+    internal object UntrackedStorageIdentity { get; set; } = new();
+
+    /// <summary>Gets the canonical storage revision independently of native handle reuse.</summary>
+    internal ulong StorageGeneration => ResourceManager?.GetResourceRegistration(this)?.StorageRevision ?? 0;
     /// <summary>Selects immutable layered allocation so separate texture objects can share its storage.</summary>
-    internal bool ImmutableLayeredStorage { get; private protected set; }
+    internal bool ImmutableLayeredStorage => metadata.ImmutableStorage;
     public TextureFilterMode FilterMode => filterMode;
     public string? DebugName => debugName;
 
@@ -72,7 +88,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
         int layer = 0,
         SizedInternalFormat? format = null)
     {
-        if (!IsValid)
+        if (!IsValid || metadata.Levels.IsDefaultOrEmpty)
         {
             Debug.WriteLine("[GpuTexture] Attempted to bind disposed or invalid texture as image");
             return;
@@ -97,8 +113,12 @@ public abstract class GpuTexture : GpuResource, IDisposable
         StateCache.Current.BindImageTexture(unit, textureId, level, layered, layer, access, sizedFormat);
     }
 
+    /// <summary>Binds this live allocation and restores the previous binding when the scope ends.</summary>
     public BindingScope BindScope(int unit)
     {
+        ObjectDisposedException.ThrowIf(!IsValid, this);
+        if (metadata.Levels.IsDefaultOrEmpty)
+            throw new InvalidOperationException("Texture image metadata is unavailable; refresh before binding.");
         var gl = StateCache.Current;
 
         // Ensure sampler-object state doesn't override texture-object parameters.
@@ -110,215 +130,87 @@ public abstract class GpuTexture : GpuResource, IDisposable
     }
 
     #region Allocation Helpers
-
-    /// <summary>Replaces two-dimensional image or cube-face storage outside active passes and notifies borrowed image owners.</summary>
-    protected void AllocateOrReallocate2DTexture(int mipLevels)
+    /// <summary>Replaces owned two-dimensional storage using creation arguments rather than editing a snapshot.</summary>
+    protected void AllocateOrReallocate2DTexture(int width, int height, PixelInternalFormat format, int mipLevels,
+        TextureTarget target = TextureTarget.Texture2D)
     {
         RequireMutableStorage();
-        if (textureTarget is not (TextureTarget.Texture2D or TextureTarget.TextureRectangle or TextureTarget.TextureCubeMap))
-        {
-            throw new InvalidOperationException($"2D allocation is not supported for target {textureTarget}.");
-        }
-
-        if (mipLevels < 1)
-        {
-            mipLevels = 1;
-        }
-
-        if (textureTarget == TextureTarget.TextureRectangle && mipLevels != 1)
-        {
-            throw new InvalidOperationException("TextureRectangle does not support mipmaps.");
-        }
-
-        if (textureTarget == TextureTarget.TextureCubeMap && width != height)
-            throw new InvalidOperationException("Cube texture faces must be square.");
-
-        StorageGeneration++;
+        Validate2DAllocation(target, width, height, mipLevels);
         DeleteTextureIfAllocated();
-
         textureId = GL.GenTexture();
-        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
-
-        Allocate2DStorageBound(mipLevels);
-        StorageMipLevels = mipLevels;
-
-    #if DEBUG
-        // Label only after storage exists; some drivers reject labeling of "generated" names.
-        GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
-    #endif
-        Apply2DTextureObjectParamsBound(mipLevels);
+        try
+        {
+            CompleteOwnedCreation(GpuResourceKind.Texture, textureId, () =>
+            {
+                Allocate2DStorage(target, format, width, height, mipLevels);
+                return this;
+            });
+        }
+        catch
+        {
+            // Cleanup retired the new name; this wrapper may already belong to a caller.
+            textureId = 0;
+            throw;
+        }
         GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
-    /// <summary>Reallocates an existing image name and publishes changed storage to dependent framebuffers.</summary>
-    protected void Reallocate2DStorageInPlace(int mipLevels)
+    /// <summary>Changes existing storage and receives its resulting snapshot through StateCache publication.</summary>
+    protected void Reallocate2DStorageInPlace(int width, int height, int mipLevels)
     {
         RequireMutableStorage();
-        if (!IsValid)
-        {
-            throw new InvalidOperationException("Cannot reallocate texture storage: texture is not valid.");
-        }
-
-        if (textureTarget is not (TextureTarget.Texture2D or TextureTarget.TextureRectangle or TextureTarget.TextureCubeMap))
-        {
-            throw new InvalidOperationException($"2D allocation is not supported for target {textureTarget}.");
-        }
-
-        if (mipLevels < 1)
-        {
-            mipLevels = 1;
-        }
-
-        if (textureTarget == TextureTarget.TextureRectangle && mipLevels != 1)
-        {
-            throw new InvalidOperationException("TextureRectangle does not support mipmaps.");
-        }
-
-        if (textureTarget == TextureTarget.TextureCubeMap && width != height)
-            throw new InvalidOperationException("Cube texture faces must be square.");
-
-        StorageGeneration++;
-        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
-        Allocate2DStorageBound(mipLevels);
-        StorageMipLevels = mipLevels;
-        Apply2DTextureObjectParamsBound(mipLevels);
+        if (!IsValid) throw new InvalidOperationException("Cannot reallocate retired texture storage.");
+        Validate2DAllocation(textureTarget, width, height, mipLevels);
+        Allocate2DStorage(textureTarget, internalFormat, width, height, mipLevels);
         GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
-    /// <summary>Replaces layered storage outside active passes and refreshes dependent framebuffer metadata.</summary>
-    protected void AllocateOrReallocate3DTexture()
+    /// <summary>Replaces layered storage while retaining requested dimensions only as command arguments.</summary>
+    protected void AllocateOrReallocate3DTexture(int width, int height, int depth, PixelInternalFormat format,
+        TextureTarget target, bool immutableStorage = false)
     {
         RequireMutableStorage();
-        Ensure3DLike();
-
-        StorageGeneration++;
+        if (target is not (TextureTarget.Texture3D or TextureTarget.Texture2DArray))
+            throw new InvalidOperationException($"Layered allocation is not supported for {target}.");
         DeleteTextureIfAllocated();
-
         textureId = GL.GenTexture();
-        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
-
-        Allocate3DStorageBound();
-
-    #if DEBUG
-        // Label only after storage exists; some drivers reject labeling of "generated" names.
-        GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
-    #endif
-        Apply3DTextureObjectParamsBound();
+        try
+        {
+            CompleteOwnedCreation(GpuResourceKind.Texture, textureId, () =>
+            {
+                using (StateCache.Current.BindTextureScope(target, 0, textureId))
+                using (var update = StateCache.Current.BeginTextureStorageUpdate(this, target))
+                {
+                    Allocate3DStorageBound(target, format, width, height, depth, immutableStorage);
+                    Apply3DTextureObjectParamsBound(target, filterMode);
+                    update.Complete();
+                }
+                return this;
+            });
+        }
+        catch
+        {
+            // Never leave a surviving resize caller owning a name deleted by creation cleanup.
+            textureId = 0;
+            throw;
+        }
         GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 
+    /// <summary>Withdraws the previous owning association before deleting its native name.</summary>
     private void DeleteTextureIfAllocated()
     {
-        if (textureId != 0)
-        {
-            StateCache.Current.DeleteTexture(textureId);
-            textureId = 0;
-        }
+        if (textureId == 0) return;
+        RequireRetirement();
+        ResourceManager?.ReplaceWrapperResource(this);
+        StateCache.Current.DeleteTexture(textureId);
+        textureId = 0;
     }
-
-    /// <summary>Allocates every two-dimensional image at each mip; cube targets select six individual face images.</summary>
-    private void Allocate2DStorageBound(int mipLevels)
-    {
-        int faces = textureTarget == TextureTarget.TextureCubeMap ? 6 : 1;
-        PixelFormat pixels = TextureFormatHelper.GetPixelFormat(internalFormat);
-        PixelType type = TextureFormatHelper.GetPixelType(internalFormat);
-        for (int level = 0; level < mipLevels; level++)
-        {
-            int lw = Math.Max(1, width >> level);
-            int lh = Math.Max(1, height >> level);
-            for (int face = 0; face < faces; face++)
-                GL.TexImage2D(
-                    textureTarget == TextureTarget.TextureCubeMap ? TextureTarget.TextureCubeMapPositiveX + face : textureTarget,
-                    level, internalFormat, lw, lh, 0, pixels, type, IntPtr.Zero);
-        }
-    }
-
-    private void Allocate3DStorageBound()
-    {
-        if (ImmutableLayeredStorage)
-        {
-            // Reallocation already replaces the object name, so immutable allocation
-            // supports the same resize lifecycle without mutating shared old storage.
-            GL.TexStorage3D((TextureTarget3d)textureTarget, 1, (SizedInternalFormat)internalFormat, width, height, depth);
-            return;
-        }
-        GL.TexImage3D(
-            textureTarget,
-            level: 0,
-            internalformat: internalFormat,
-            width: width,
-            height: height,
-            depth: depth,
-            border: 0,
-            format: TextureFormatHelper.GetPixelFormat(internalFormat),
-            type: TextureFormatHelper.GetPixelType(internalFormat),
-            pixels: IntPtr.Zero);
-    }
-
-    /// <summary>Applies shared image sampling defaults while retaining legacy 2D mip policy and configurable cube filtering.</summary>
-    private void Apply2DTextureObjectParamsBound(int mipLevels)
-    {
-        // When a sampler object is bound to the unit, it overrides these parameters.
-        // GpuTexture.Bind/TryBind explicitly unbinds the sampler to ensure these apply.
-
-        TextureMinFilter min;
-        TextureMagFilter mag;
-        if (mipLevels <= 1)
-        {
-            min = filterMode == TextureFilterMode.Linear ? TextureMinFilter.Linear : TextureMinFilter.Nearest;
-            mag = filterMode == TextureFilterMode.Linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
-        }
-        else if (textureTarget == TextureTarget.TextureCubeMap)
-        {
-            // Cube resources retain the requested interpolation across their populated mip chain.
-            min = filterMode == TextureFilterMode.Linear ? TextureMinFilter.LinearMipmapLinear : TextureMinFilter.NearestMipmapNearest;
-            mag = filterMode == TextureFilterMode.Linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
-        }
-        else
-        {
-            // Keep parity with the legacy sampler-object path.
-            min = TextureMinFilter.NearestMipmapNearest;
-            mag = TextureMagFilter.Nearest;
-        }
-
-        GL.TexParameter(textureTarget, TextureParameterName.TextureMinFilter, (int)min);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureMagFilter, (int)mag);
-
-        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-        if (textureTarget == TextureTarget.TextureCubeMap)
-            GL.TexParameter(textureTarget, TextureParameterName.TextureWrapR, (int)TextureWrapMode.ClampToEdge);
-
-        int maxLevel = Math.Max(0, mipLevels - 1);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureBaseLevel, 0);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureMaxLevel, maxLevel);
-    }
-
-    private void Apply3DTextureObjectParamsBound()
-    {
-        TextureMinFilter min = filterMode == TextureFilterMode.Linear ? TextureMinFilter.Linear : TextureMinFilter.Nearest;
-        TextureMagFilter mag = filterMode == TextureFilterMode.Linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
-
-        GL.TexParameter(textureTarget, TextureParameterName.TextureMinFilter, (int)min);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureMagFilter, (int)mag);
-
-        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapS, (int)TextureWrapMode.ClampToEdge);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureWrapT, (int)TextureWrapMode.ClampToEdge);
-
-        if (textureTarget == TextureTarget.Texture3D)
-        {
-            GL.TexParameter(textureTarget, TextureParameterName.TextureWrapR, (int)TextureWrapMode.ClampToEdge);
-        }
-
-        GL.TexParameter(textureTarget, TextureParameterName.TextureBaseLevel, 0);
-        GL.TexParameter(textureTarget, TextureParameterName.TextureMaxLevel, 0);
-    }
-
     #endregion
 
     public virtual void Bind(int unit)
     {
-        if (!IsValid)
+        if (!IsValid || metadata.Levels.IsDefaultOrEmpty)
         {
             Debug.WriteLine("[GpuTexture] Attempted to bind disposed or invalid texture");
             return;
@@ -331,7 +223,7 @@ public abstract class GpuTexture : GpuResource, IDisposable
 
     public bool TryBind(int unit)
     {
-        if (!IsValid)
+        if (!IsValid || metadata.Levels.IsDefaultOrEmpty)
         {
             return false;
         }
@@ -361,15 +253,21 @@ public abstract class GpuTexture : GpuResource, IDisposable
             return;
         }
 
+        var cache = StateCache.Current;
+        using var binding = cache.BindTextureScope(textureTarget, 0, textureId);
+        using var update = cache.BeginTextureMetadataUpdate(this);
         try
         {
-            using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
-            GL.TexParameter(textureTarget, TextureParameterName.TextureBaseLevel, baseLevel);
-            GL.TexParameter(textureTarget, TextureParameterName.TextureMaxLevel, maxLevel);
+            cache.TextureParameter(this, textureTarget, TextureParameterName.TextureBaseLevel, baseLevel);
+            cache.TextureParameter(this, textureTarget, TextureParameterName.TextureMaxLevel, maxLevel);
         }
         catch
         {
+            // Preserve best-effort native dispatch handling; an interrupted group stays unavailable.
+            return;
         }
+        // Publication runs outside the native catch so authoritative refresh failure reaches callers.
+        update.Complete();
     }
 
     /// <summary>

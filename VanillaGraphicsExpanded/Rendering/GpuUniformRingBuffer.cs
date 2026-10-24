@@ -352,7 +352,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
                 mapFlags |= MapBufferAccessMask.MapFlushExplicitBit;
             }
 
-            GL.BufferStorage(BufferTarget.UniformBuffer, pageSizeBytes, IntPtr.Zero, storageFlags);
+            StateCache.Current.BufferStorage(page, pageSizeBytes, IntPtr.Zero, storageFlags);
 
             IntPtr ptr = GL.MapBufferRange(BufferTarget.UniformBuffer, IntPtr.Zero, pageSizeBytes, mapFlags);
             if (ptr == IntPtr.Zero)

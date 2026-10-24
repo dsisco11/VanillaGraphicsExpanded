@@ -151,7 +151,7 @@ internal static partial class EngineStateCalls
     #endregion
     #region Private
     /// <summary>Establishes engine context authority before hooks installed during early startup use the cache.</summary>
-    private static StateCache CurrentCache
+    internal static StateCache CurrentCache
     {
         get
         {

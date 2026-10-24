@@ -1,20 +1,28 @@
 # OpenGL resource metadata API coverage
 
 This is the API-derived planning matrix for [the proposal](Rendering.GpuResourceHandles.Proposal.md).
-Current callers do not define or limit coverage. Every command in a family, every desktop extension
+Current callers do not define or limit coverage within the supported API scope. Every command in a family, every supported desktop extension
 variant and every managed overload has the implementation and verification obligation specified below.
+
+## Explicit API exclusions
+
+APPLE and NV extension APIs are outside the supported interception and metadata-tracking scope.
+Do not add adapters, discovery mappings or verification obligations for those extension groups.
+Core operations remain required even when similar functionality also exists in an excluded extension.
+All other applicable extension groups retain their existing coverage obligations.
 
 ## Authority and expansion rules
 
 Use the [Khronos OpenGL registry](https://registry.khronos.org/OpenGL/) and
 [gl.xml](https://github.com/KhronosGroup/OpenGL-Registry/blob/main/xml/gl.xml), including desktop GL
 core/compatibility features and extensions whose supported API includes `gl` or `glcore`. ES-only APIs
-are a separate API; a desktop extension is included even if its name has an OES suffix. The retained
+are a separate API; a desktop extension is included even if its name has an OES suffix, subject to the explicit APPLE/NV exclusions above. The retained
 registry snapshot has SHA256 `B9CA2CFA5C676E901C20D34AF3407F1687CDE0F1336A5FF7A8974D04C7494AD3`.
 The [expanded matrix](../artifacts/gpu-resource-handles-baseline/api-command-matrix.csv) preserves native
 signatures from the retained baseline expansion; [the expansion script](../artifacts/gpu-resource-handles-baseline/classify-api.ps1) and
 [registry snapshot](../artifacts/gpu-resource-handles-baseline/gl.xml) make that enumeration reproducible.
-These are API inspection artifacts, not reflection tests or a whitelist of callers. The expanded names
+These are API inspection artifacts, not reflection tests or a whitelist of callers. The retained baseline
+artifacts enumerate a broader API set; apply the explicit exclusions before interpreting support obligations. The expanded names
 below also include subsequent field-to-command reconciliation; retain the baseline artifacts unchanged.
 
 The family rules are authoritative over the helper's name matching. Review semantics for aliases and
@@ -112,7 +120,7 @@ Individual extension definitions in the registry control capability/ABI/behavior
 
 ### C1 indirect compatibility mutation
 
-`glCallCommandListNV`, `glCallList`, `glCallLists`, `glClientAttribDefaultEXT`, `glCompileCommandListNV`, `glDrawCommandsAddressNV`, `glDrawCommandsNV`, `glDrawCommandsStatesAddressNV`, `glDrawCommandsStatesNV`, `glListDrawCommandsStatesClientNV`, `glPopAttrib`, `glPopClientAttrib`, `glPushClientAttribDefaultEXT`, `glStateCaptureNV`.
+`glCallList`, `glCallLists`, `glClientAttribDefaultEXT`, `glPopAttrib`, `glPopClientAttrib`, `glPushClientAttribDefaultEXT`.
 
 ### F1 framebuffer attachments
 
@@ -120,31 +128,31 @@ Individual extension definitions in the registry control capability/ABI/behavior
 
 ### I1 external storage and residency
 
-`glBufferAddressRangeNV`, `glBufferAttachMemoryNV`, `glBufferPageCommitmentARB`, `glBufferPageCommitmentMemNV`, `glNamedBufferAttachMemoryNV`, `glNamedBufferPageCommitmentARB`, `glNamedBufferPageCommitmentEXT`, `glNamedBufferPageCommitmentMemNV`, `glResetMemoryObjectParameterNV`, `glTexAttachMemoryNV`, `glTexPageCommitmentARB`, `glTexPageCommitmentMemNV`, `glTextureAttachMemoryNV`, `glTexturePageCommitmentEXT`, `glTexturePageCommitmentMemNV`, `glTextureRangeAPPLE`, `glVDPAUFiniNV`, `glVDPAUGetSurfaceivNV`, `glVDPAUInitNV`, `glVDPAUIsSurfaceNV`, `glVDPAUMapSurfacesNV`, `glVDPAURegisterOutputSurfaceNV`, `glVDPAURegisterVideoSurfaceNV`, `glVDPAURegisterVideoSurfaceWithPictureStructureNV`, `glVDPAUSurfaceAccessNV`, `glVDPAUUnmapSurfacesNV`, `glVDPAUUnregisterSurfaceNV`.
+`glBufferPageCommitmentARB`, `glNamedBufferPageCommitmentARB`, `glNamedBufferPageCommitmentEXT`, `glTexPageCommitmentARB`, `glTexturePageCommitmentEXT`.
 
 ### L1 resource lifetime
 
-`glDeleteBuffers`, `glDeleteBuffersARB`, `glDeleteFramebuffers`, `glDeleteFramebuffersEXT`, `glDeleteMemoryObjectsEXT`, `glDeleteObjectARB`, `glDeleteProgram`, `glDeleteProgramPipelines`, `glDeleteProgramPipelinesEXT`, `glDeleteQueries`, `glDeleteQueriesARB`, `glDeleteRenderbuffers`, `glDeleteRenderbuffersEXT`, `glDeleteSamplers`, `glDeleteSemaphoresEXT`, `glDeleteShader`, `glDeleteSync`, `glDeleteTextures`, `glDeleteTexturesEXT`, `glDeleteTransformFeedbacks`, `glDeleteTransformFeedbacksNV`, `glDeleteVertexArrays`, `glDeleteVertexArraysAPPLE`.
+`glDeleteBuffers`, `glDeleteBuffersARB`, `glDeleteFramebuffers`, `glDeleteFramebuffersEXT`, `glDeleteMemoryObjectsEXT`, `glDeleteObjectARB`, `glDeleteProgram`, `glDeleteProgramPipelines`, `glDeleteProgramPipelinesEXT`, `glDeleteQueries`, `glDeleteQueriesARB`, `glDeleteRenderbuffers`, `glDeleteRenderbuffersEXT`, `glDeleteSamplers`, `glDeleteSemaphoresEXT`, `glDeleteShader`, `glDeleteSync`, `glDeleteTextures`, `glDeleteTexturesEXT`, `glDeleteTransformFeedbacks`, `glDeleteVertexArrays`.
 
 ### P1 executable interface
 
-`glAttachObjectARB`, `glAttachShader`, `glBindAttribLocation`, `glBindAttribLocationARB`, `glBindFragDataLocation`, `glBindFragDataLocationEXT`, `glBindFragDataLocationIndexed`, `glCreateShaderProgramEXT`, `glCreateShaderProgramv`, `glCreateShaderProgramvEXT`, `glDetachObjectARB`, `glDetachShader`, `glLinkProgram`, `glLinkProgramARB`, `glProgramBinary`, `glProgramParameteri`, `glProgramParameteriARB`, `glProgramParameteriEXT`, `glShaderStorageBlockBinding`, `glTransformFeedbackVaryings`, `glTransformFeedbackVaryingsEXT`, `glTransformFeedbackVaryingsNV`, `glUniformBlockBinding`.
+`glAttachObjectARB`, `glAttachShader`, `glBindAttribLocation`, `glBindAttribLocationARB`, `glBindFragDataLocation`, `glBindFragDataLocationEXT`, `glBindFragDataLocationIndexed`, `glCreateShaderProgramEXT`, `glCreateShaderProgramv`, `glCreateShaderProgramvEXT`, `glDetachObjectARB`, `glDetachShader`, `glLinkProgram`, `glLinkProgramARB`, `glProgramBinary`, `glProgramParameteri`, `glProgramParameteriARB`, `glProgramParameteriEXT`, `glShaderStorageBlockBinding`, `glTransformFeedbackVaryings`, `glTransformFeedbackVaryingsEXT`, `glUniformBlockBinding`.
 
 Retained sampler/image unit facts also require `glUniform1i`, `glUniform1iARB`, `glUniform1iv`,
 `glUniform1ivARB`, `glProgramUniform1i`, `glProgramUniform1iEXT`, `glProgramUniform1iv`,
 `glProgramUniform1ivEXT`. Classify their destination location; numeric uniform writes add no metadata work.
 The unsupported bindless equivalent must make unit facts unavailable: `glUniformHandleui64ARB`,
 `glUniformHandleui64vARB`, `glProgramUniformHandleui64ARB`, `glProgramUniformHandleui64vARB`,
-`glUniformHandleui64NV`, `glUniformHandleui64vNV`, `glProgramUniformHandleui64NV`,
-`glProgramUniformHandleui64vNV`. All spellings are present in the retained registry snapshot.
+,
+. All spellings are present in the retained registry snapshot.
 
 ### R1 renderbuffer storage
 
-`glNamedRenderbufferStorage`, `glNamedRenderbufferStorageEXT`, `glNamedRenderbufferStorageMultisample`, `glNamedRenderbufferStorageMultisampleAdvancedAMD`, `glNamedRenderbufferStorageMultisampleCoverageEXT`, `glNamedRenderbufferStorageMultisampleEXT`, `glRenderbufferStorage`, `glRenderbufferStorageEXT`, `glRenderbufferStorageMultisample`, `glRenderbufferStorageMultisampleAdvancedAMD`, `glRenderbufferStorageMultisampleCoverageNV`, `glRenderbufferStorageMultisampleEXT`.
+`glNamedRenderbufferStorage`, `glNamedRenderbufferStorageEXT`, `glNamedRenderbufferStorageMultisample`, `glNamedRenderbufferStorageMultisampleAdvancedAMD`, `glNamedRenderbufferStorageMultisampleCoverageEXT`, `glNamedRenderbufferStorageMultisampleEXT`, `glRenderbufferStorage`, `glRenderbufferStorageEXT`, `glRenderbufferStorageMultisample`, `glRenderbufferStorageMultisampleAdvancedAMD`, `glRenderbufferStorageMultisampleEXT`.
 
 ### T1 image definitions
 
-`glCompressedMultiTexImage1DEXT`, `glCompressedMultiTexImage2DEXT`, `glCompressedMultiTexImage3DEXT`, `glCompressedTexImage1D`, `glCompressedTexImage1DARB`, `glCompressedTexImage2D`, `glCompressedTexImage2DARB`, `glCompressedTexImage3D`, `glCompressedTexImage3DARB`, `glCompressedTextureImage1DEXT`, `glCompressedTextureImage2DEXT`, `glCompressedTextureImage3DEXT`, `glCopyMultiTexImage1DEXT`, `glCopyMultiTexImage2DEXT`, `glCopyTexImage1D`, `glCopyTexImage1DEXT`, `glCopyTexImage2D`, `glCopyTexImage2DEXT`, `glCopyTextureImage1DEXT`, `glCopyTextureImage2DEXT`, `glEGLImageTargetTexStorageEXT`, `glEGLImageTargetTextureStorageEXT`, `glMultiTexImage1DEXT`, `glMultiTexImage2DEXT`, `glMultiTexImage3DEXT`, `glTexImage1D`, `glTexImage2D`, `glTexImage2DMultisample`, `glTexImage2DMultisampleCoverageNV`, `glTexImage3D`, `glTexImage3DEXT`, `glTexImage3DMultisample`, `glTexImage3DMultisampleCoverageNV`, `glTexImage4DSGIS`, `glTexStorage1D`, `glTexStorage1DEXT`, `glTexStorage2D`, `glTexStorage2DEXT`, `glTexStorage2DMultisample`, `glTexStorage3D`, `glTexStorage3DEXT`, `glTexStorage3DMultisample`, `glTexStorageMem1DEXT`, `glTexStorageMem2DEXT`, `glTexStorageMem2DMultisampleEXT`, `glTexStorageMem3DEXT`, `glTexStorageMem3DMultisampleEXT`, `glTexStorageSparseAMD`, `glTextureImage1DEXT`, `glTextureImage2DEXT`, `glTextureImage2DMultisampleCoverageNV`, `glTextureImage2DMultisampleNV`, `glTextureImage3DEXT`, `glTextureImage3DMultisampleCoverageNV`, `glTextureImage3DMultisampleNV`, `glTextureStorage1D`, `glTextureStorage1DEXT`, `glTextureStorage2D`, `glTextureStorage2DEXT`, `glTextureStorage2DMultisample`, `glTextureStorage2DMultisampleEXT`, `glTextureStorage3D`, `glTextureStorage3DEXT`, `glTextureStorage3DMultisample`, `glTextureStorage3DMultisampleEXT`, `glTextureStorageMem1DEXT`, `glTextureStorageMem2DEXT`, `glTextureStorageMem2DMultisampleEXT`, `glTextureStorageMem3DEXT`, `glTextureStorageMem3DMultisampleEXT`, `glTextureStorageSparseAMD`.
+`glCompressedMultiTexImage1DEXT`, `glCompressedMultiTexImage2DEXT`, `glCompressedMultiTexImage3DEXT`, `glCompressedTexImage1D`, `glCompressedTexImage1DARB`, `glCompressedTexImage2D`, `glCompressedTexImage2DARB`, `glCompressedTexImage3D`, `glCompressedTexImage3DARB`, `glCompressedTextureImage1DEXT`, `glCompressedTextureImage2DEXT`, `glCompressedTextureImage3DEXT`, `glCopyMultiTexImage1DEXT`, `glCopyMultiTexImage2DEXT`, `glCopyTexImage1D`, `glCopyTexImage1DEXT`, `glCopyTexImage2D`, `glCopyTexImage2DEXT`, `glCopyTextureImage1DEXT`, `glCopyTextureImage2DEXT`, `glEGLImageTargetTexStorageEXT`, `glEGLImageTargetTextureStorageEXT`, `glMultiTexImage1DEXT`, `glMultiTexImage2DEXT`, `glMultiTexImage3DEXT`, `glTexImage1D`, `glTexImage2D`, `glTexImage2DMultisample`, `glTexImage3D`, `glTexImage3DEXT`, `glTexImage3DMultisample`, `glTexImage4DSGIS`, `glTexStorage1D`, `glTexStorage1DEXT`, `glTexStorage2D`, `glTexStorage2DEXT`, `glTexStorage2DMultisample`, `glTexStorage3D`, `glTexStorage3DEXT`, `glTexStorage3DMultisample`, `glTexStorageMem1DEXT`, `glTexStorageMem2DEXT`, `glTexStorageMem2DMultisampleEXT`, `glTexStorageMem3DEXT`, `glTexStorageMem3DMultisampleEXT`, `glTexStorageSparseAMD`, `glTextureImage1DEXT`, `glTextureImage2DEXT`, `glTextureImage3DEXT`, `glTextureStorage1D`, `glTextureStorage1DEXT`, `glTextureStorage2D`, `glTextureStorage2DEXT`, `glTextureStorage2DMultisample`, `glTextureStorage2DMultisampleEXT`, `glTextureStorage3D`, `glTextureStorage3DEXT`, `glTextureStorage3DMultisample`, `glTextureStorage3DMultisampleEXT`, `glTextureStorageMem1DEXT`, `glTextureStorageMem2DEXT`, `glTextureStorageMem2DMultisampleEXT`, `glTextureStorageMem3DEXT`, `glTextureStorageMem3DMultisampleEXT`, `glTextureStorageSparseAMD`.
 
 ### T2 mip generation
 
@@ -152,7 +160,7 @@ The unsupported bindless equivalent must make unit facts unavailable: `glUniform
 
 ### T3 texture associations
 
-`glMultiTexBufferEXT`, `glMultiTexRenderbufferEXT`, `glTexBuffer`, `glTexBufferARB`, `glTexBufferEXT`, `glTexBufferRange`, `glTexRenderbufferNV`, `glTextureBuffer`, `glTextureBufferEXT`, `glTextureBufferRange`, `glTextureBufferRangeEXT`, `glTextureRenderbufferEXT`, `glTextureView`.
+`glMultiTexBufferEXT`, `glMultiTexRenderbufferEXT`, `glTexBuffer`, `glTexBufferARB`, `glTexBufferEXT`, `glTexBufferRange`, `glTextureBuffer`, `glTextureBufferEXT`, `glTextureBufferRange`, `glTextureBufferRangeEXT`, `glTextureRenderbufferEXT`, `glTextureView`.
 
 ### T4 texture parameters
 
@@ -164,4 +172,4 @@ The unsupported bindless equivalent must make unit facts unavailable: `glUniform
 
 ### V1 vertex configuration
 
-`glArrayObjectATI`, `glBindBuffer`, `glBindBufferARB`, `glBindVertexBuffer`, `glBindVertexBuffers`, `glBinormalPointerEXT`, `glClientActiveTexture`, `glClientActiveTextureARB`, `glColorPointer`, `glColorPointerEXT`, `glColorPointerListIBM`, `glColorPointervINTEL`, `glDisableClientState`, `glDisableClientStateiEXT`, `glDisableClientStateIndexedEXT`, `glDisableVertexArrayAttrib`, `glDisableVertexArrayAttribEXT`, `glDisableVertexArrayEXT`, `glDisableVertexAttribAPPLE`, `glDisableVertexAttribArray`, `glDisableVertexAttribArrayARB`, `glEdgeFlagPointer`, `glEdgeFlagPointerEXT`, `glEdgeFlagPointerListIBM`, `glElementPointerAPPLE`, `glElementPointerATI`, `glEnableClientState`, `glEnableClientStateiEXT`, `glEnableClientStateIndexedEXT`, `glEnableVertexArrayAttrib`, `glEnableVertexArrayAttribEXT`, `glEnableVertexArrayEXT`, `glEnableVertexAttribAPPLE`, `glEnableVertexAttribArray`, `glEnableVertexAttribArrayARB`, `glFogCoordPointer`, `glFogCoordPointerEXT`, `glFogCoordPointerListIBM`, `glIndexPointer`, `glIndexPointerEXT`, `glIndexPointerListIBM`, `glInterleavedArrays`, `glMatrixIndexPointerARB`, `glMultiTexCoordPointerEXT`, `glNormalPointer`, `glNormalPointerEXT`, `glNormalPointerListIBM`, `glNormalPointervINTEL`, `glReplacementCodePointerSUN`, `glSecondaryColorPointer`, `glSecondaryColorPointerEXT`, `glSecondaryColorPointerListIBM`, `glTangentPointerEXT`, `glTexCoordPointer`, `glTexCoordPointerEXT`, `glTexCoordPointerListIBM`, `glTexCoordPointervINTEL`, `glVariantArrayObjectATI`, `glVariantPointerEXT`, `glVertexArrayAttribBinding`, `glVertexArrayAttribFormat`, `glVertexArrayAttribIFormat`, `glVertexArrayAttribLFormat`, `glVertexArrayBindingDivisor`, `glVertexArrayBindVertexBufferEXT`, `glVertexArrayColorOffsetEXT`, `glVertexArrayEdgeFlagOffsetEXT`, `glVertexArrayElementBuffer`, `glVertexArrayFogCoordOffsetEXT`, `glVertexArrayIndexOffsetEXT`, `glVertexArrayMultiTexCoordOffsetEXT`, `glVertexArrayNormalOffsetEXT`, `glVertexArraySecondaryColorOffsetEXT`, `glVertexArrayTexCoordOffsetEXT`, `glVertexArrayVertexAttribBindingEXT`, `glVertexArrayVertexAttribDivisorEXT`, `glVertexArrayVertexAttribFormatEXT`, `glVertexArrayVertexAttribIFormatEXT`, `glVertexArrayVertexAttribIOffsetEXT`, `glVertexArrayVertexAttribLFormatEXT`, `glVertexArrayVertexAttribLOffsetEXT`, `glVertexArrayVertexAttribOffsetEXT`, `glVertexArrayVertexBindingDivisorEXT`, `glVertexArrayVertexBuffer`, `glVertexArrayVertexBuffers`, `glVertexArrayVertexOffsetEXT`, `glVertexAttribArrayObjectATI`, `glVertexAttribBinding`, `glVertexAttribDivisor`, `glVertexAttribDivisorARB`, `glVertexAttribFormat`, `glVertexAttribFormatNV`, `glVertexAttribIFormat`, `glVertexAttribIFormatNV`, `glVertexAttribIPointer`, `glVertexAttribIPointerEXT`, `glVertexAttribLFormat`, `glVertexAttribLFormatNV`, `glVertexAttribLPointer`, `glVertexAttribLPointerEXT`, `glVertexAttribPointer`, `glVertexAttribPointerARB`, `glVertexAttribPointerNV`, `glVertexBindingDivisor`, `glVertexPointer`, `glVertexPointerEXT`, `glVertexPointerListIBM`, `glVertexPointervINTEL`, `glVertexWeightPointerEXT`, `glWeightPointerARB`.
+`glArrayObjectATI`, `glBindBuffer`, `glBindBufferARB`, `glBindVertexBuffer`, `glBindVertexBuffers`, `glBinormalPointerEXT`, `glClientActiveTexture`, `glClientActiveTextureARB`, `glColorPointer`, `glColorPointerEXT`, `glColorPointerListIBM`, `glColorPointervINTEL`, `glDisableClientState`, `glDisableClientStateiEXT`, `glDisableClientStateIndexedEXT`, `glDisableVertexArrayAttrib`, `glDisableVertexArrayAttribEXT`, `glDisableVertexArrayEXT`, `glDisableVertexAttribArray`, `glDisableVertexAttribArrayARB`, `glEdgeFlagPointer`, `glEdgeFlagPointerEXT`, `glEdgeFlagPointerListIBM`, `glElementPointerATI`, `glEnableClientState`, `glEnableClientStateiEXT`, `glEnableClientStateIndexedEXT`, `glEnableVertexArrayAttrib`, `glEnableVertexArrayAttribEXT`, `glEnableVertexArrayEXT`, `glEnableVertexAttribArray`, `glEnableVertexAttribArrayARB`, `glFogCoordPointer`, `glFogCoordPointerEXT`, `glFogCoordPointerListIBM`, `glIndexPointer`, `glIndexPointerEXT`, `glIndexPointerListIBM`, `glInterleavedArrays`, `glMatrixIndexPointerARB`, `glMultiTexCoordPointerEXT`, `glNormalPointer`, `glNormalPointerEXT`, `glNormalPointerListIBM`, `glNormalPointervINTEL`, `glReplacementCodePointerSUN`, `glSecondaryColorPointer`, `glSecondaryColorPointerEXT`, `glSecondaryColorPointerListIBM`, `glTangentPointerEXT`, `glTexCoordPointer`, `glTexCoordPointerEXT`, `glTexCoordPointerListIBM`, `glTexCoordPointervINTEL`, `glVariantArrayObjectATI`, `glVariantPointerEXT`, `glVertexArrayAttribBinding`, `glVertexArrayAttribFormat`, `glVertexArrayAttribIFormat`, `glVertexArrayAttribLFormat`, `glVertexArrayBindingDivisor`, `glVertexArrayBindVertexBufferEXT`, `glVertexArrayColorOffsetEXT`, `glVertexArrayEdgeFlagOffsetEXT`, `glVertexArrayElementBuffer`, `glVertexArrayFogCoordOffsetEXT`, `glVertexArrayIndexOffsetEXT`, `glVertexArrayMultiTexCoordOffsetEXT`, `glVertexArrayNormalOffsetEXT`, `glVertexArraySecondaryColorOffsetEXT`, `glVertexArrayTexCoordOffsetEXT`, `glVertexArrayVertexAttribBindingEXT`, `glVertexArrayVertexAttribDivisorEXT`, `glVertexArrayVertexAttribFormatEXT`, `glVertexArrayVertexAttribIFormatEXT`, `glVertexArrayVertexAttribIOffsetEXT`, `glVertexArrayVertexAttribLFormatEXT`, `glVertexArrayVertexAttribLOffsetEXT`, `glVertexArrayVertexAttribOffsetEXT`, `glVertexArrayVertexBindingDivisorEXT`, `glVertexArrayVertexBuffer`, `glVertexArrayVertexBuffers`, `glVertexArrayVertexOffsetEXT`, `glVertexAttribArrayObjectATI`, `glVertexAttribBinding`, `glVertexAttribDivisor`, `glVertexAttribDivisorARB`, `glVertexAttribFormat`, `glVertexAttribIFormat`, `glVertexAttribIPointer`, `glVertexAttribIPointerEXT`, `glVertexAttribLFormat`, `glVertexAttribLPointer`, `glVertexAttribLPointerEXT`, `glVertexAttribPointer`, `glVertexAttribPointerARB`, `glVertexBindingDivisor`, `glVertexPointer`, `glVertexPointerEXT`, `glVertexPointerListIBM`, `glVertexPointervINTEL`, `glVertexWeightPointerEXT`, `glWeightPointerARB`.

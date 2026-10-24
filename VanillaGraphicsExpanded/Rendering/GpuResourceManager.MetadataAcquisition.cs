@@ -1,0 +1,79 @@
+using System;
+
+namespace VanillaGraphicsExpanded.Rendering;
+
+/// <summary>Acquires native facts and assigns snapshots without allowing wrappers to author metadata.</summary>
+internal sealed partial class GpuResourceManager
+{
+    #region Internal API
+    /// <summary>Registers a buffer declaration and captures native default storage only when its name is realized.</summary>
+    internal static void RegisterBufferWrapper(GpuBufferObject resource)
+    {
+        resource.ResourceManager?.RegisterWrapperDeclaration(resource);
+        var reader = new GpuBufferMetadataReader();
+        if (reader.IsResource(resource.ResourceId)) AcquireWrapperMetadata(resource, reader);
+    }
+
+    /// <summary>Initializes an existing allocation through its canonical entry or a context-local native read.</summary>
+    internal static void AcquireWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader,
+        bool refreshExisting = true) where T : struct
+    {
+        if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
+        {
+            // A generic image wrapper cannot represent a buffer texture. Reject before replacing
+            // the shared target-specific reader or withdrawing a valid buffer-view snapshot.
+            if (resource is GpuTexture && manager.FindResource(resource.Kind, resource.ResourceId)
+                is GpuResourceMetadataEntry<GpuTextureMetadata> texture)
+            {
+                if (texture.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.TextureBuffer)
+                    throw new NotSupportedException("Use GpuBufferView for buffer textures.");
+                // The canonical entry already knows the immutable object target. Preserve that
+                // fact when an external borrower conservatively refreshes through an older API.
+                if (reader is GpuTextureMetadataReader && texture.Metadata.Target != 0)
+                    reader = (IGpuResourceMetadataReader<T>)(object)new GpuTextureMetadataReader(texture.Metadata.Target);
+            }
+            var entry = manager.AcquireResource(resource.Kind, resource.ResourceId, reader, refreshExisting)
+                ?? throw new InvalidOperationException("Native resource metadata is unavailable.");
+            if (!entry.ContainsRecipient(resource)) manager.AssociateResource(entry, resource);
+            return;
+        }
+        // Tools without an installed render service still receive facts from the same reader;
+        // this creates no parallel registry or persistent tracking claim.
+        T data;
+        try
+        {
+            if (!reader.TryRead(resource.ResourceId, out data))
+                throw new InvalidOperationException("Native resource metadata is unavailable.");
+        }
+        catch
+        {
+            DiscardUntrackedMetadata(resource);
+            throw;
+        }
+        resource.HandleMetadataChanged(data);
+    }
+
+    /// <summary>Registers a resource kind whose metadata schema is empty without reading contents or mutable state.</summary>
+    internal static void RegisterEmptyMetadata<T>(GpuResource<T> resource) where T : struct
+    {
+        if (resource.Kind is GpuResourceKind.Texture or GpuResourceKind.Buffer or GpuResourceKind.Framebuffer
+            or GpuResourceKind.Renderbuffer or GpuResourceKind.Program or GpuResourceKind.Shader)
+            throw new InvalidOperationException("This resource kind requires native metadata acquisition.");
+        PublishObservedMetadata(resource, default(T), GpuMetadataChange.None);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Allows new context-local objects after service retirement without reviving old associations.</summary>
+    private bool CanAcquireWrapperMetadata(GpuResource resource)
+    {
+        if (Integration.RenderContextRegistry.Current() == default) return false;
+        if (!IsMetadataRegistryRetired) return true;
+        // A retired service may still be installed while a replacement context creates objects.
+        // Such new objects use native reads, but existing recipients retain their terminal identity.
+        if (GetResourceRegistration(resource) is not null)
+            throw new ObjectDisposedException(nameof(GpuResourceManager));
+        return false;
+    }
+    #endregion
+}

@@ -23,8 +23,14 @@ internal static class GpuFramebufferAttachmentObservers
     {
         if (!observers.TryGetValue(resource, out var list)) return;
         // Snapshot allows callbacks to create or replace image wrappers safely.
+        List<Exception>? failures = null;
         foreach (var reference in list.ToArray())
-            if (reference.TryGetTarget(out var attachment)) attachment.NotifyChanged();
+            if (reference.TryGetTarget(out var attachment))
+            {
+                try { attachment.NotifyChanged(); }
+                catch (Exception error) { (failures ??= new()).Add(error); }
+            }
+        if (failures is not null) throw new AggregateException("Framebuffer image notification failed.", failures);
     }
     #endregion
 }

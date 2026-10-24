@@ -12,7 +12,7 @@ internal sealed partial class GpuResourceManager
         RequireLiveEntry(entry);
         entry.BeginRefresh(change);
         var reader = entry.Reader;
-        if (reader is null || !reader.IsResource(entry.Id) || !reader.TryRead(entry.Id, out var candidate)) return false;
+        if (reader is null || !reader.TryRead(entry.Id, out var candidate)) return false;
         // Retirement can run while the native read is in progress. Never publish the captured
         // facts into an entry removed by that retirement or replaced under the same numeric ID.
         RequireMetadataContext();

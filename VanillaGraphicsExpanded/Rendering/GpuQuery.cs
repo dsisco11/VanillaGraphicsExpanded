@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// RAII wrapper around an OpenGL query object created by <c>glGenQueries</c>.
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// </summary>
-internal sealed class GpuQuery : GpuResource, IDisposable
+internal sealed class GpuQuery : GpuResource<GpuQueryMetadata>, IDisposable
 {
     private int queryId;
 
@@ -29,7 +29,7 @@ internal sealed class GpuQuery : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the query has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => queryId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
     public override void SetDebugName(string? debugName)
     {
@@ -44,6 +44,7 @@ internal sealed class GpuQuery : GpuResource, IDisposable
     private GpuQuery(int queryId)
     {
         this.queryId = queryId;
+        GpuResourceManager.RegisterEmptyMetadata(this);
     }
 
     /// <summary>
@@ -57,8 +58,11 @@ internal sealed class GpuQuery : GpuResource, IDisposable
             throw new InvalidOperationException("glGenQuery returned 0.");
         }
 
-        var query = new GpuQuery(id);
-        query.SetDebugName(debugName);
-        return query;
+        return CompleteOwnedCreation(GpuResourceKind.Query, id, () =>
+        {
+            var value = new GpuQuery(id);
+            value.SetDebugName(debugName);
+            return value;
+        });
     }
 }

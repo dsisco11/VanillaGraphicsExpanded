@@ -2,8 +2,9 @@ GPU resource metadata registry and typed resource wrappers
 =========================================================
 
 Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
-Status: Phase 2 foundations implemented and verified. Wrapper migration has not started.
-Canonical metadata and manager registry primitives are implemented and verified; later integration remains unchecked.
+Status: Phase 3 complete after eighth-review corrections and focused validation. Phase 4 remains open.
+Metadata-mutation interception and persistent consumer integration remain unchecked.
+Phase 7 is a separately requested follow-on RHI design; it does not authorize runtime migration.
 
 Planning authority
   The governing contracts record the agreed manager-owned metadata direction. The linked proposal,
@@ -18,10 +19,13 @@ Goal and governing contracts
   Context destruction retires the manager's registry and associations together.
   StateCache forwards observed metadata-altering commands to GpuResourceManager, which updates the
   canonical metadata and publishes the resulting typed snapshot to every associated resource wrapper.
-  Introduce GpuResource<TMetadata> : GpuResource with protected TMetadata metadata and a public
-  HandleMetadataChanged(TMetadata data) implementation that assigns the stored struct. Existing
-  resource abstractions derive from this base and expose native metadata through inherited-field
-  accessors. The manager owns canonical state; wrapper structs are synchronized snapshots.
+  GpuResource<TMetadata> : GpuResource owns a private snapshot with protected ref readonly metadata
+  access. Its public HandleMetadataChanged(TMetadata data) implementation assigns the complete snapshot.
+  Resource abstractions expose native metadata through getter-only accessors; only manager publication
+  calls the notification handler. StateCache executes metadata-changing commands and forwards their
+  actual results. Wrappers never edit snapshots, construct candidates or initiate mutation publication.
+  Creation requests and allocation policy remain separate from native facts; initial acquisition and
+  image projection are manager-owned, including context-local tools without a registry. The manager owns canonical state; wrapper structs are synchronized snapshots.
   The manager owns metadata availability, revisions, subscription membership and retirement state.
   GpuResource<TMetadata> only stores and assigns typed metadata snapshots; it has no tracking state
   machine or lifecycle notification handlers. Non-generic GpuResource retains native identity,
@@ -36,6 +40,10 @@ Goal and governing contracts
   No GpuResourceLifetime, dedicated borrowed-resource registry, duplicate binding/validation cache,
   shared-context namespace generalization, or producer teardown hook duplicating GL notifications.
   Track resource metadata, not resource contents. Preserve existing content-readiness mechanisms.
+  APPLE and NV extension methods are explicitly outside this plan's supported API scope. Do not add
+  interception adapters or coverage requirements for those groups. Core equivalents remain required;
+  all other applicable extension groups retain their existing coverage obligations. Apply this exclusion
+  to every command-family, variant and overload requirement below and to the retained baseline inventory.
   Keep registry, common registration/dispatch, typed metadata definitions and native adapters in files
   with those respective responsibilities. Follow repository comment and region conventions.
   Use subagents for every build/test invocation. Keep source, unit, GPU integration, package and live
@@ -125,7 +133,7 @@ Phase 2: Establish canonical metadata and the manager registry
   ☑ Implement manager-owned typed metadata updates and snapshot publication, including initial
     registration and the agreed unavailable-metadata behavior. Refresh canonical data once per change
     and distribute it; wrappers must not independently query GL to refresh their snapshots.
-  ☑ Introduce GpuResource<TMetadata> with the protected metadata field and public
+  ☑ Introduce GpuResource<TMetadata> with a private snapshot, protected read-only access and public
     HandleMetadataChanged(TMetadata data) assignment implementation.
   ☑ Implement entry-owned metadata/storage revisions and existing alias-wide usage-guard state.
     Keep registration internal to the manager; GpuResourceHandle carries only the concurrent map key.
@@ -187,14 +195,17 @@ Phase 3: Integrate wrapper ownership and native retirement
   Depends on Phase 2.
   Outcome: existing resource implementations use typed metadata snapshots with correct ownership and deletion.
 
-  ☐ Migrate every existing resource abstraction to GpuResource<TMetadata> using its canonical struct.
+  ☑ Migrate every existing resource abstraction to GpuResource<TMetadata> using its canonical struct.
     Replace duplicated native metadata fields with accessors over the inherited metadata snapshot.
     Retain wrapper-local disposal, ownership, subresource selection and authored policy. Initialize
     snapshots from manager publication; validate availability, revisions and retirement through manager
     APIs. Resolve shared guards and membership through manager APIs without storing
     registration or weak recipient-slot references in wrappers.
     Preserve initialization of CPU declarations and existing originating-context restrictions.
-  ☐ Move MetadataImageSelection out of GpuResource<TMetadata> into the image-specific wrapper
+    Enforce read-only derived snapshot access. Remove metadata setters and wrapper-authored capture/
+    publication paths; execute wrapper mutations through StateCache and publish actual results through
+    the manager. Keep allocation requests separate and verify managed and context-local acquisition.
+  ☑ Move MetadataImageSelection out of GpuResource<TMetadata> into the image-specific wrapper
     (GpuFramebufferAttachment) during wrapper migration. Its current placement is temporary foundation
     scaffolding, not the intended generic-base contract. Neither GpuResource nor GpuResource<TMetadata>
     should retain image-specific selection fields or dependencies after this migration.
@@ -202,26 +213,293 @@ Phase 3: Integrate wrapper ownership and native retirement
     image-specific wrapper, and adapt the image projection fixtures to that wrapper boundary.
     Verify canonical backing metadata still produces the correct selected-image snapshot and that
     unsupported selections remain unavailable without affecting other aliases.
-  ☐ Integrate alias-wide pass/lifetime guard state at the location agreed in Phase 1; reuse current checks and
+  ☑ Integrate alias-wide pass/lifetime guard state at the location agreed in Phase 1; reuse current checks and
     release paths. Verify references cannot bypass existing guard rules by using another wrapper.
-  ☐ Integrate GpuResourceManager scheduling: mark retiring allocations unavailable to managed use,
+  ☑ Integrate GpuResourceManager scheduling: mark retiring allocations unavailable to managed use,
     associate queued work with its original registration and reject stale deletion of replacement objects.
     Preserve eventual native deletion and its binding effects in the originating context.
-  ☐ Route every in-scope resource kind's deletion through StateCache into manager retirement, including
+  ☑ Route every in-scope resource kind's deletion through StateCache into manager retirement, including
     current direct-GL deletion branches. Extend exact native adapters and ALL applicable overload/list/extension paths.
     Preserve existing error handling and command ordering; do not assume whole-list rollback.
-  ☐ Preserve borrowed disposal as association/local-state retirement only. Preserve Detach as ownership
+  ☑ Preserve borrowed disposal as association/local-state retirement only. Preserve Detach as ownership
     transfer with surviving registration; borrowed transfer remains rejected. Observed external
     deletion must prevent later owning-wrapper disposal from deleting a reused name.
-  ☐ Retain resource-specific texture/image/boundary retirement and actual implicit-unbinding behavior.
+  ☑ Retain resource-specific texture/image/boundary retirement and actual implicit-unbinding behavior.
     Remove canonical entries and invalidate associated wrappers on deletion. Context retirement must
     retire its registry and must not issue deletion or restore names into another context.
-  ☐ Have subagents test owning/borrowed aliases, repeated disposal, external deletion, same-name reuse,
+  ☑ Have subagents test owning/borrowed aliases, repeated disposal, external deletion, same-name reuse,
     queued deletion, detach, guards, context retirement and unaffected bindings/restoration.
     Exercise native deletion through actual EngineStateCallMap redirection, not only direct fixtures.
-  ☐ Completion: all inventoried lifecycle paths pass; no parallel borrowed lifetime mechanism exists.
+  ☑ Completion: all inventoried lifecycle paths pass; no parallel borrowed lifetime mechanism exists.
     Image selection belongs to the image-specific wrapper; both resource bases are image-independent.
     Persistent consumer metadata remains gated on the next phase's complete mutation coverage.
+
+  Architectural review corrections (required before Phase 3 completion)
+  ☑ Reject Detach/ReleaseHandle when the original manager association has retired, including external
+    deletion, pending retirement, context retirement and same-name reuse. Preserve successful live
+    ownership transfer and borrowed-transfer rejection. Verify no stale nonzero handle escapes.
+    Preserve empty CPU-declaration transfer and repeated local disposal/transfer after ownership has
+    already transferred, even when another alias subsequently retains pass or lifetime guards.
+  ☑ Propagate failed canonical refresh from ObserveWrapperMetadata instead of returning successful
+    wrapper mutation with an unavailable old snapshot. Preserve unavailable state and native errors;
+    never retry native allocation because publication failed. Verify native capacity changes while
+    an injected reader failure leaves old data unavailable and produces an explicit failure outcome.
+  ☑ Make buffer, texture, framebuffer and view metadata acquisition capability-aware end to end.
+    Bound allocation fallbacks must not require DSA-only queries. Use existing binding scopes and
+    cached capabilities; verify restored state and metadata on supported DSA and bound paths, and
+    distinguish forced-path tests on DSA hardware from actual hardware without DSA.
+  ☑ Preserve pending Storage effects when a grouped update is interrupted. Carry the group's change
+    classification into manager invalidation so recovery advances StorageRevision as well as metadata
+    revision. Verify an accepted partial image replacement followed by abandonment and recovery.
+  ☑ Reconcile GpuBufferTexture factories with GpuBufferView initialization: issue the association once
+    through the common native command route, preserve DSA/bound selection and native-width ranges,
+    and avoid unconditional int narrowing after successful DSA setup. Cover both public factory types.
+  ☑ Remove independent metadata acquisition from GpuFramebufferAttachment factories and their managed
+    view path. Have manager acquisition/projection provide facts for image-selection validation;
+    reuse managed canonical entries and preserve conservative external refresh until Phase 4 coverage.
+  ☑ Replace native limit queries in metadata readers with the existing GpuSupport/GpuLimits cached
+    limits, including texture dimensions and maximum framebuffer attachments.
+  Second architectural review corrections
+  ☑ Enforce existing retirement guards before native-name replacement, including lifetime references
+    held by another alias. GpuTexture replacement must not drop its original association and delete
+    the object after checking only storage mutability. Preserve allowed same-object storage updates;
+    verify owner/alias lifetime borrows reject replacement before any deletion or association change.
+  ☑ Make canonical texture acquisition handle buffer-texture metadata consistently with GpuBufferView.
+    An incompatible generic wrapper acquisition must not substitute an incomplete reader or damage
+    an existing buffer-view entry. Reject unsupported wrapper targets before shared refresh, or acquire
+    the complete canonical target-specific facts. Verify whole/range descriptors, alias availability,
+    and native error state after failed and supported acquisitions; do not invent missing fields.
+  ☑ Make owning factories exception-safe across newly added registration/acquisition steps. Audit
+    buffer factories (including GpuVbo and GpuUniformBuffer) and the other migrated owning factories:
+    if construction fails after native creation, retire the captured allocation through StateCache
+    in its originating context, remove associated registry state, and preserve the original exception.
+    Test acquisition/registration failure cleanup without deleting borrowed or replacement resources.
+
+  Third architectural review corrections
+  ☑ Reject acquisition of shaders and programs already marked for deferred native deletion; native
+    existence alone must not admit a fresh live registration for a retired object. Preserve deferred
+    destruction and fresh registration of genuinely reused names without adding generation keys.
+    Verify attached shaders and current programs through deletion request, attempted reacquisition,
+    physical destruction and subsequent name reuse. The retained shader probe does not qualify programs.
+  ☑ Invalidate tracked dependencies after observed backing-object deletion even when that backing
+    object has no registry entry to remove. Move dependency reconciliation outside successful entry
+    removal while preserving per-object deletion outcomes and native retained-storage semantics.
+    Verify raw/unregistered and registered buffer backing for texture views, plus texture/renderbuffer
+    backing for framebuffer descriptors; do not equate name retirement with immediate storage loss.
+  ☑ Reconcile borrowed Detach/ReleaseHandle semantics across the proposal, checklist and inventory,
+    explicitly resolving the renderbuffer inventory's preserve-current-transfer wording against the
+    borrowed-transfer rejection contract before changing runtime behavior. Apply the resolved contract
+    consistently to borrowed framebuffer/renderbuffer wrappers and existing texture/image borrowers.
+    Verify both transfer APIs, live owning transfer, and that borrowed disposal or rejected transfer
+    cannot delete the external owner's resource. Do not label preserved legacy behavior a new regression.
+
+  ☑ Have subagents convert the retained defect probes into correctness regressions, run affected
+    lifecycle/publication/fallback checks, and recheck these fixes against the proposal and downstream
+    obligations before restoring completion. Existing passing receipts do not close these findings.
+  Fourth architectural review corrections
+  ☑ Reject borrowed framebuffer identity replacement while that wrapper retains lifetime references,
+    before changing routing, attachment state or its manager association. Preserve same-identity
+    metadata refresh and allow replacement after release; verify old/new entry guard accounting.
+  ☑ Retain deferred disposal requests rejected before retirement by local or alias-wide usage guards.
+    Bound each drain to its initial admissions so blocked resources cannot spin or starve later work.
+    Verify deletion after release, duplicate admission, failure isolation and terminal queue closure.
+  ☑ Give complete metadata readers responsibility for native validity validation and remove redundant
+    manager-side prechecks on acquisition/refresh. Preserve reserved-name buffer initialization and
+    invalid/deletion-pending rejection; verify validation counts and unavailable metadata behavior.
+  ☑ Convert both retained review probes to correctness regressions and run focused lifecycle,
+    registry and metadata acquisition/publication tests before closing these corrections.
+
+  Fifth architectural review corrections (required before restoring Phase 3 completion)
+  ☑ Make texture metadata parameter queries capability-aware independently of DSA availability.
+    Gate immutable-storage and texture-view parameters on their actual core/extension support;
+    TEXTURE_IMMUTABLE_LEVELS requires texture-view support, not just OpenGL 4.2 texture storage.
+    Preserve valid ordinary texture acquisition on older supported contexts using cached capabilities
+    and supported native facts, without speculative queries or invented metadata. Verify supported
+    bound/DSA paths, error-queue preservation and binding restoration; distinguish forced capability
+    tests on newer hardware from execution on genuinely older contexts.
+  ☑ Correct context-local GpuTextureView source validation so metadata-only snapshot replacement does
+    not imply storage replacement. Preserve view validity after an unchanged SetMipRange call without
+    an installed manager, while still rejecting actual source retirement or allocation replacement.
+    Keep dependency state image-specific and manager-owned when tracking is available; do not add
+    tracking state to either generic resource base or introduce a parallel lifetime registry.
+  ☑ Propagate authoritative metadata-publication failures from GpuTexture.SetMipRange rather than
+    swallowing them in its catch-all handler. Preserve unavailable canonical state and existing native
+    error handling, without retrying the native command because publication failed. Verify successful
+    publication, injected reader failure and a recoverable subsequent refresh through the public API.
+  ☑ Remove duplicate validity and view-range queries from ConfigureTextureView. Acquire one complete
+    validated texture snapshot and compare its view fields against the requested range before
+    publication. Preserve failed-creation cleanup and rejection of unacceptable native ranges;
+    verify a single validity check and one read of each view parameter on bound and named paths.
+  ☑ Have subagents convert the two retained defect probes into correctness regressions, run affected
+    texture/view, acquisition, publication-failure and lifecycle tests, and run the canonical build.
+    Reconcile the fixes with the proposal, inventory and downstream phases; complete source review
+    and independent audit before restoring completion. Prior passing receipts do not close these tasks.
+
+  Eighth architectural review corrections
+  ☑ Allow mutable framebuffer configuration repair without validating invalid outgoing images.
+    Preserve guards, native-result publication and pending reattachment of other dirty slots;
+    reject invalid images when rendering, while allowing incremental removal or replacement.
+  ☑ Gate managed texture-view use on manager-owned availability of both the view and its original
+    source dependency. Preserve metadata-only recovery and storage-change invalidation; add no
+    metadata tracking to either resource base or parallel registry.
+  ☑ Add regression coverage for removal/replacement, other pending attachments, guards and binding
+    restoration, unavailable view/source metadata and recovery. Run focused tests and a forced
+    Release/SPIR-V build through a subagent; reconcile documentation and review before closure.
+
+  Eighth-review correction verification: implementation and validation-subagent source reviews found
+  no further blocker in the corrections. Forced Release/SPIR-V rebuild passed with 0 errors and
+  191 warnings; 308/308 focused cases passed with no failures/skips, including seven new regressions.
+  Coverage includes managed/local incremental repair, pending valid-image reattachment, split binding
+  restoration, unavailable view/source rejection and metadata/storage recovery. Existing frozen-target
+  tests cover Set/Remove guards. Runtime and test-copy binary identities match.
+  Receipts: [build](../artifacts/review-current-architecture/eighth-fix-rebuild.log),
+  [tests](../artifacts/review-current-architecture/eighth-fix-focused.trx),
+  [commands](../artifacts/review-current-architecture/eighth-fix-commands.txt),
+  [identity](../artifacts/review-current-architecture/eighth-fix-binary-identity.txt).
+  Full API coverage, package qualification, live appearance and performance remain downstream work.
+
+  Seventh architectural review corrections
+  ☑ Isolate selected-image refresh failures: invalidate every affected framebuffer and continue
+    notifying other images after committed storage changes, reporting failures after dispatch.
+  ☑ Separate context-local view dependency identity from disposable metadata snapshots. Metadata-only
+    failure/recovery must preserve the unchanged allocation certificate; storage changes must invalidate
+    it. Keep manager-controlled publication, generic bases free of tracking, and no parallel registry.
+  ☑ Convert both review probes into correctness regressions; cover interrupted storage and metadata
+    updates, native reattachment and failed-dependent rejection. Run focused tests and forced Release
+    SPIR-V build through a subagent; reconcile documentation and review before closure.
+
+  Seventh-review correction verification: source review and validation-subagent review found no
+  additional blocker in the corrections. Forced Release/SPIR-V rebuild passed with 0 errors and
+  191 warnings; 301/301 focused cases passed, with no failures or skips (290 prior plus 11 regressions).
+  Coverage includes absent/retired managers, notification failure isolation, native reattachment,
+  rejected invalid images, metadata-only recovery and interrupted/equal-sized storage invalidation.
+  Receipts: [build](../artifacts/review-current-architecture/seventh-fix-rebuild.log),
+  [tests](../artifacts/review-current-architecture/seventh-fix-focused.trx).
+  Full API coverage, package qualification, live appearance and performance remain downstream work.
+
+  Sixth architectural review corrections
+  ☑ Clear native identity on existing texture wrappers when failed replacement cleanup deletes the
+    new name. Preserve originating-context deletion, avoid double deletion after numeric name reuse,
+    and verify both two-dimensional and layered replacement with and without a live registry.
+  ☑ Make context-local metadata failure discard stale snapshots through manager-owned publication.
+    Failed or interrupted refresh and failed image projection must not leave previous descriptors
+    usable. Retain only the established texture target needed for explicit recovery; keep availability
+    tracking out of both resource bases and introduce no parallel resource/lifetime registry.
+    Validate context-local image selections before dependent use and verify recovery by native refresh.
+  ☑ Have subagents add focused failure/recovery regressions and run affected tests and a forced
+    Release/SPIR-V build. Reconcile documentation and review the final correction before closure.
+
+  Sixth-review correction verification: source review and the validation subagent's source/test review
+  found no additional blocker. Forced Release/SPIR-V rebuild passed with 0 errors and 191 warnings;
+  290/290 focused cases passed with no failures/skips, including 10 new failure/recovery regressions.
+  Cases cover 2D/layered replacement with/without a manager, exactly-once deletion and cleared owner
+  identity, false/throwing local reads, interrupted groups, rejected local image projection and public
+  refresh/configuration recovery. Native metadata tracking remains outside both resource bases.
+  Receipts: [build](../artifacts/review-current-architecture/sixth-final-rebuild.log),
+  [tests](../artifacts/review-current-architecture/sixth-final-focused.trx),
+  [commands](../artifacts/review-current-architecture/sixth-commands.txt),
+  [binary identity](../artifacts/review-current-architecture/sixth-final-binary-identity.txt).
+  No full-suite, package, live appearance or performance qualification is claimed by these corrections;
+  downstream implementation and qualification tasks remain open.
+
+  Fifth-review correction verification (predates the sixth-review corrections): affected source review and independent source/test audit passed.
+  Forced Release SPIR-V rebuild passed with 0 errors and 191 warnings; 280 focused tests passed with
+  no failures or skips (263 prior cases, 12 new corrections and five array-view regressions). Tests cover
+  capability-gated parameter counts, single view acquisition, binding/error preservation, local source
+  dependencies with absent or retired installed managers, and publication failure/recovery.
+  An intermediate run used a stale runtime DLL after an edit overlapped compilation. Forced rebuild
+  resolved that validation mismatch; final binary identity verifies the nullable dependency-query method
+  and matching runtime/test-copy hashes. Earlier failed receipts do not describe the final candidate.
+  Receipts: [build](../artifacts/review-current-architecture/fifth-rebuild.log),
+  [tests](../artifacts/review-current-architecture/fifth-rebuilt-focused.trx),
+  [binary identity](../artifacts/review-current-architecture/fifth-final-binary-identity.txt),
+  [commands](../artifacts/review-current-architecture/fifth-commands.txt).
+  Capability selection was forced on modern hardware; older-driver execution and performance remain
+  unqualified. The existing ResourceCallObserver supplies temporary query counts and remains subject
+  to Phase 6 removal. Package, full API interception and live acceptance remain downstream obligations.
+
+  Fifth-review reproduction evidence: two probes passed by asserting the defects, not correct behavior.
+  Context-local SetMipRange preserved source image descriptors by value but invalidated the view;
+  managed SetMipRange returned normally after an injected reader failure withdrew metadata availability.
+  Receipts: [probes](../artifacts/review-current-architecture/view-identity-probes.trx),
+  [source](../artifacts/review-current-architecture/CurrentViewIdentityReviewProbe.cs),
+  [build](../artifacts/review-current-architecture/view-identity-final-build.log).
+  Capability and duplicate-query findings were established by source/specification review; older-context
+  execution and query-cost measurements were not performed. Parameter authority:
+  [ARB_texture_view, New Tokens](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_texture_view.txt).
+
+  Fourth-review correction verification (predates the open fifth-review tasks): affected source review passed. Release SPIR-V build passed with 0 errors;
+  all 263 focused tests passed with no failures or skips, including eight new correction regressions.
+  The registry test reader now validates existence inside TryRead, matching the native reader contract;
+  its invalid-object test still verifies rejection and now expects that single reader invocation.
+  Initial full compilation reported 194 warnings; the final rebuild reported 174 warnings.
+  Receipts: [build](../artifacts/review-current-architecture/fixes-final-build.log),
+  [tests](../artifacts/review-current-architecture/fixes-final-focused.trx),
+  [commands](../artifacts/review-current-architecture/fixes-commands.txt).
+  These checks qualify the corrections and affected regression suite; the earlier independent audit
+  remains evidence for its earlier candidate, not a new independent audit of these corrections.
+  Later API coverage, package, hardware and live/performance qualification remain unchecked.
+
+  Previous candidate verification (superseded by the reopened corrections): all earlier correction tasks passed the implementation's second source review and an
+  independent audit against the proposal, inventory and applicable API/ownership contracts. The audit
+  checked the final 1,113-path source manifest and three binary hashes without mismatches; the runtime
+  DLL matches the test output copy. Release SPIR-V build passed with 0 errors and 194 warnings.
+  The focused suite passed 255/255 with no skips, including 44 new GPU correctness cases, two empty
+  owning-declaration transfer cases, native deletion adapters, alias guards, queued/context retirement,
+  refresh/acquisition failures, raw image projection and both buffer-texture factory APIs.
+  Borrowed transfer rejection is reconciled across proposal, inventory and tests. Repeated cleanup
+  after ownership transfer remains idempotent while surviving aliases retain pass/lifetime guards.
+  Traceability: wrapper/metadata work -> proposal Responsibilities/Canonical metadata/Publication and
+  inventory schemas/Manager API; ownership/deletion/guards -> proposal Ownership retirement and guards,
+  inventory Retirement ownership and retention, and API matrix L1/creation dispositions. These map to
+  the final lifecycle, recovery, projection, fallback and adapter tests; full mutation/revision and
+  persistent consumer obligations remain in Phases 4 and 5.
+  Forced bound paths ran on DSA-capable hardware. Actual hardware without DSA, unknown-target raw
+  external acquisition on that API boundary, imported semaphore payload lifecycle, live appearance
+  and performance are not qualified. Full API mutation coverage and package/measurement qualification
+  remain later work; no full-suite or game acceptance claim is made.
+  Receipts: [build](../artifacts/gpu-resource-metadata-publication/phase3-final-candidate-build.log),
+  [tests](../artifacts/gpu-resource-metadata-publication/phase3-final-candidate-affected.trx),
+  [commands and limits](../artifacts/gpu-resource-metadata-publication/phase3-final-candidate-commands.txt),
+  [source identity](../artifacts/gpu-resource-metadata-publication/phase3-final-candidate-source.sha256),
+  [binary identity](../artifacts/gpu-resource-metadata-publication/phase3-final-candidate-binaries.sha256).
+  Historical defect reproduction evidence (resolved by the corrections above): [defect probes](../artifacts/gpu-resource-metadata-publication/architectural-review-probes.cs)
+  and [results](../artifacts/gpu-resource-metadata-publication/architectural-review-probes.trx).
+  The four probes assert defective outcomes; their passing result demonstrates reproduction, not correctness.
+  Second review evidence: [final probes](../artifacts/gpu-resource-metadata-publication/architectural-second-review-final-probes.cs)
+  and [results](../artifacts/gpu-resource-metadata-publication/architectural-second-review-final.trx).
+  Four further probes reproduce whole/range buffer-view acquisition withdrawing availability and owner/
+  alias lifetime references failing to block replacement. Buffer descriptors were not erased; the failed
+  acquisition replaced the reader and made the existing entry unavailable, with a native error.
+  Factory failure cleanup was source-confirmed here; the final correctness suite now covers injected acquisition failure.
+  Third review evidence: [probes](../artifacts/gpu-resource-metadata-publication/architectural-third-review-probes.cs)
+  and [results](../artifacts/gpu-resource-metadata-publication/architectural-third-review.trx).
+  Seven probes reproduce deferred-deleted shader reacquisition, missing dependency invalidation for
+  unregistered backing, and borrowed framebuffer/renderbuffer transfer behavior. These assertions
+  describe observed defects/contract discrepancies, not correctness; native retained storage survived
+  backing-name deletion. The final correctness suite also covers programs and the additional backing kinds.
+
+  Earlier verification (superseded by the final correction receipts above): the snapshot correction
+  passed source review and subagent validation. Derived wrappers
+  have compiler-enforced read-only snapshot access; only HandleMetadataChanged assigns the stored
+  snapshot. StateCache executes wrapper metadata mutations; manager readers/projections initialize
+  and publish actual facts, including context-local acquisition. Allocation requests remain policy.
+  Release SPIR-V build passed with 0 errors and 194 warnings. The affected focused group passed
+  315/315; the service-lifetime-sensitive SceneColorParticle class passed 12/12 in a separate cold
+  process (327 distinct cases total, no skips). The grouped run had six SceneColorParticle failures
+  from disposal-service lifetime contamination; it is not claimed as a single-process clean run.
+  The 11 new publication tests and seven deletion-queue tests also passed separately (18/18),
+  including native rejection, content-only uploads, alias propagation and context replacement.
+  Earlier lifecycle qualification and matched HEAD evidence remain linked below; no full-suite pass
+  is claimed. Imported semaphore payload lifecycle, live appearance and performance remain unqualified.
+  Metadata mutation coverage and persistent consumers remain later work.
+  Receipts: [correction build](../artifacts/gpu-resource-metadata-publication/build-context-fix.log),
+  [focused tests](../artifacts/gpu-resource-metadata-publication/focused-final.trx),
+  [cold particle tests](../artifacts/gpu-resource-metadata-publication/scene-cold-final.trx),
+  [publication and context tests](../artifacts/gpu-resource-metadata-publication/publication-context-final.trx),
+  [earlier lifecycle tests](../artifacts/gpu-resource-phase3/focused-final/focused-final.trx),
+  [matched baseline](../artifacts/gpu-resource-phase3/baseline-comparison/matched-78/matched-78.trx),
+  [case comparison](../artifacts/gpu-resource-phase3/baseline-comparison/matched-78-outcomes.csv).
 
 Phase 4: Implement metadata notifications and revision-aware validation
   Depends on Phase 3.
@@ -241,6 +519,40 @@ Phase 4: Implement metadata notifications and revision-aware validation
   ☐ Advance the agreed metadata revision for surviving-object changes without replacing registration.
     Update existing shader/input validation history and dependent publication checks to revalidate
     changed metadata. Keep complete-input failure behavior and avoid a second validation cache.
+  Shader and program integration
+  ☐ Reconcile shader/program operations across GpuShaderModule, GpuProgramObject, GpuComputePipeline,
+    Shaders/GpuProgram, ShaderProgramLink, PendingShaderProgram, binary loading and GpuProgramLayout.
+    Route represented native metadata effects through StateCache observation and manager publication,
+    including relink, program-binary installation, interface block bindings and sampler/image unit
+    assignments. Apply the complete P1 API-family coverage, not just currently observed call sites.
+    Ordinary numeric uniform values and shader source/binary contents are not metadata. Link-input
+    changes must not be published as changes to the current executable before linking actually occurs.
+  ☐ Make temporary compilation/link candidates and executable adoption explicit in the common resource
+    lifecycle. Preserve one owner and originating-context cleanup across asynchronous preparation,
+    rejection, cancellation, failure and transfer into installed graphics/compute wrappers. Reconcile
+    raw candidate IDs with manager registration at the appropriate realization/adoption boundary;
+    do not introduce a parallel shader registry or speculative entries for every untracked GL object.
+    Publish actual metadata before dependent use, avoid duplicate registration/deletion/publication,
+    and preserve the Phase 3 deferred-deletion acquisition and factory-cleanup corrections.
+  ☐ Audit shader/program operations with direct-object alternatives and use those paths where supported.
+    In particular, replace ApplyUniformUnitContract's unconditional UseProgramScope + Uniform1 path
+    with capability-selected ProgramUniform updates and a binding-preserving fallback. Cover applicable
+    uniform scalar/vector/array/matrix forms and supported extension equivalents. Gate ProgramUniform
+    on its own core/ARB_separate_shader_objects capability, not solely ARB_direct_state_access.
+    Operations already taking explicit shader/program IDs (compile, link, attach and queries) need no
+    artificial DSA branch. Keep path selection in the existing helpers and native execution/metadata
+    observation in StateCache; preserve the active program and program-pipeline state.
+  ☐ Verify manager-published native program changes invalidate derived layouts/prepared submissions
+    through the existing revision machinery for all aliases. Preserve authored binding contracts and
+    distinguish owner replacement from same-program relink. Failed linking, rejected commands or
+    unavailable reflection must not leave stale executable/interface facts usable as current.
+  ☐ Have subagents verify graphics and compute paths, synchronous/pending/binary preparation, candidate
+    cleanup/adoption, relink and binding changes, and alias publication. Exercise ProgramUniform and
+    bound fallback with sentinel program/pipeline state; verify equivalent values, no unnecessary program
+    binds on the direct path, and exactly-once metadata publication only for represented effects.
+    Retain evidence for ordinary numeric uniform updates causing no metadata refresh, actual redirected
+    API coverage, and capability cases not executed on the available hardware.
+
   ☐ Ensure metadata notifications do not change content readiness or frame qualification contracts.
   ☐ Have subagents test alias refresh, dimensions/format/mips, buffer size and represented VAO state;
     bound/DSA and unknown-state resolution; rejected operations and refresh failure; context isolation;
@@ -254,7 +566,8 @@ Phase 5: Integrate persistent cloud and depth resources
   Outcome: cloud/depth consumers use the common resource mechanism without repeated stable acquisition.
 
   ☐ Update CloudNativeMapAdapter/CloudNativeRuntime and cloud consumers to retain common tracked
-    native map wrappers across stable object lifetimes; reacquire after deletion, refresh after metadata
+    native map wrappers across stable object lifetimes. Remove conservative refresh-on-acquisition only
+    after their full mutation coverage is verified; reacquire after deletion, refresh after metadata
     changes and reject invalid resources before dependent use.
   ☐ Integrate native primary/visibility and liquid depth acquisition with ScreenResourceManager and
     DepthHierarchyRenderer as applicable. Verify native rebuild/replacement paths use covered commands.
@@ -301,6 +614,96 @@ Phase 6: Qualify the integrated design and reconcile documentation
   ☐ Completion: proposal coverage, regression/package receipts, measurements, cleanup and current-state
     documentation agree for the same candidate; unresolved required work is explicitly left open.
 
+Phase 7: Design the GpuCommand and GpuCommandList render hardware interface
+  Depends on Phase 6 and its reconciled resource, command and metadata contracts.
+  Outcome: a standalone, reviewable design for an RHI-style command system, with the OpenGL backend
+  encapsulating native execution and subsequent GpuStateCache updates. This phase produces a proposal,
+  not the command implementation or the StateCache rename.
+
+  ☐ Create Rendering.GpuCommands.Proposal.md. Use Unreal Engine 5's RHI as an architectural reference,
+    consulting its official documentation/source during design. Define this project's required boundary
+    rather than copying engine-specific infrastructure or merely wrapping individual GL calls.
+  ☐ Define the responsibilities and APIs of GpuCommand, GpuCommandList, backend execution and
+    GpuStateCache (the planned name for StateCache). Keep the public command model independent of
+    OpenGL entry points, binding targets and overload conventions; translate backend-neutral operations
+    into native commands inside the OpenGL backend. Establish extension points for other backends
+    without requiring another backend implementation as part of this design.
+  ☐ Define coverage for resource creation/destruction, storage changes, uploads/copies/readback,
+    pipeline and resource binding, render passes, draw/dispatch, synchronization and queries.
+    Specify typed resource references, descriptors, capabilities and unsupported-operation behavior.
+    Keep wrapper allocation policy and higher-level rendering orchestration above backend execution;
+    retain manager ownership of canonical metadata and typed snapshot publication.
+  ☐ Specify command-list recording, execution, submission, reset/reuse and completion semantics.
+    Evaluate immediate and deferred execution, argument/data ownership, resource retention, cancellation,
+    context/thread affinity and synchronization. Distinguish recording, native execution and GPU
+    completion; do not assume multithreaded OpenGL execution or asynchronous submission is required.
+  ☐ Specify the execution sequence: commands encapsulate native OpenGL calls, then invoke
+    GpuStateCache to reconcile their actual state, metadata and deletion effects. Preserve binding
+    suppression decisions before execution, rejected-command behavior, unknown-state recovery,
+    grouped publication and exactly-once manager notifications. Recording alone must not change
+    executed state or publish resource metadata; content updates remain distinct from metadata changes.
+  ☐ Design integration with existing wrappers/upload helpers, render submission, pass scopes,
+    deletion queues and EngineStateCallMap redirection. Route intercepted external GL operations into
+    the same execution/observation contract without recursion, duplicate execution or duplicate
+    notifications. Plan the StateCache-to-GpuStateCache rename and migration boundaries, preserving
+    existing resource ownership, render ordering, context retirement and external-state restoration.
+  ☐ Walk representative existing paths through the proposed API: cube/mip allocation, buffer
+    DSA/bound fallback, framebuffer reattachment failure, draw/dispatch, external deletion and queued
+    resource retirement. Document error propagation and resource/argument lifetime through execution
+    and GPU completion. Define focused correctness tests and measurement criteria for recording,
+    allocation, dispatch and cache costs; make no unmeasured performance claims.
+  ☐ Review the complete design against the implemented resource contracts and resolve conflicts.
+    Present the standalone proposal for approval before deriving implementation phases or changing
+    runtime code. Record unresolved design decisions explicitly.
+  ☐ Completion: the RHI boundary, command/list semantics, backend execution, GpuStateCache integration,
+    migration and validation strategy are concrete and internally consistent; design review is complete
+    and the proposal is approved. Implementation and renaming remain separately authorized work.
+
+Phase 8: Upgrade PSO resource binding to capability-selected multi-bind
+  Depends on Phase 6's qualified resource/cache integration; reconcile with the Phase 7 RHI design.
+  Outcome: PSO graphics/compute submission batches eligible resource bindings when multi-bind is
+  available, while preserving equivalent behavior through the existing individual-call fallback.
+  This work does not require implementing the proposed RHI or renaming StateCache.
+
+  ☐ Map PSO application, ShaderPreparedSubmission, prepared bindings and geometry binding to the
+    applicable multi-bind families. Consult the Khronos GL_ARB_multi_bind/core specification and
+    installed OpenTK signatures for BindTextures, BindSamplers, BindImageTextures, BindBuffersBase,
+    BindBuffersRange and BindVertexBuffers. Record eligibility and semantic differences for each
+    family; do not assume every individual binding can be replaced by its plural equivalent.
+  ☐ Use the existing cached GpuSupport.Graphics.SupportsArbMultiBind capability (extension or core
+    OpenGL 4.4). Keep capability selection independent of DSA support and preserve the current
+    individual-call path when unavailable or when a binding cannot be represented equivalently.
+  ☐ Form binding batches within existing submission/prepared-binding ownership. Validate complete
+    inputs before execution, preserve resource lifetime and metadata checks, and retain draw/dispatch
+    ordering. Group eligible slot ranges without changing untouched slots or introducing another
+    binding cache. Compare changed-run batching with wider ranges using measurements; avoid recurring
+    allocation where existing reusable storage can serve submission safely.
+  ☐ Implement native batch execution and cache reconciliation in StateCache's owning binding modules.
+    Preserve stable-binding suppression, unknown-state recovery, zero/unbind semantics, texture target
+    knowledge, indexed buffer ranges, VAO-specific vertex state and boundary restoration. Account for
+    per-entry native rejection rather than treating a batch as atomic or marking all requested state
+    known after a nonthrowing call. Publish only represented resource metadata effects through the
+    existing manager route; ordinary binding changes must not trigger unrelated metadata refreshes.
+  ☐ Preserve explicit image level/layer/access/format selections and other single-call semantics that
+    a batch API cannot express. Preserve fallback-visible generic buffer binding, active texture and
+    VAO state wherever existing contracts require it. Reconcile existing external-call redirection
+    and invalidation so batch execution cannot bypass the authoritative cache or notify twice.
+  ☐ Have subagents exercise capability enabled/disabled and DSA-independent paths for graphics and
+    compute submission, dense/sparse/unchanged slots, zero bindings, mixed texture targets, image
+    selections, buffer ranges and vertex bindings. Verify equivalent outputs and sentinel-state
+    restoration, unknown-state recovery, rejected entries, resource deletion/reuse and unavailable
+    metadata. Record hardware/API cases that could not be executed.
+  ☐ Have subagents measure matched individual-call and batch paths: native call counts, CPU submission
+    cost, allocations and representative changed/unchanged binding patterns. Retain reproducible
+    receipts and choose batching policy from the results; do not infer frame-time gains from call
+    counts. Keep any measurement instrumentation temporary and remove it after qualification.
+  ☐ Reconcile current PSO/cache documentation and Phase 7 design integration, run affected regression
+    tests and canonical build/package verification through subagents, and independently review the
+    final candidate. Preserve the existing public resource APIs and rendering behavior.
+  ☐ Completion: eligible PSO bindings use multi-bind on supported contexts, fallback behavior is
+    equivalent, cache/restoration and metadata contracts hold, and correctness/performance evidence
+    identifies the qualified candidate and any remaining limitations.
+
 Proposal traceability
   Intent/responsibilities: governing contracts; Phases 2–5.
   Canonical structs, manager registry and context/retention: Phases 1–3 and 6.
@@ -310,6 +713,8 @@ Proposal traceability
   Cloud/depth consumers and content contracts: Phase 5.
   Scope, source layout and documentation: governing contracts; Phases 2–6.
   Acceptance and measurements: baseline in Phase 1; focused verification in Phases 2–5; Phase 6.
+  Separately requested RHI command-system design and GpuStateCache rename planning: Phase 7.
+  Separately requested capability-selected PSO multi-bind upgrade: Phase 8.
 
 Final acceptance
   ☐ Every proposal requirement is implemented and verified, or an explicit deferral is approved with
@@ -326,3 +731,7 @@ Final acceptance
     while render/content behavior and existing state restoration remain correct.
   ☐ Required tests, package checks, cleanup, documentation and measured call/cost comparisons are
     complete for the qualified candidate. Live appearance and frame-time claims match actual evidence.
+  ☐ The separately requested Phase 7 command-system design is reviewed and approved; its completion
+    does not claim that GpuCommand, GpuCommandList or the GpuStateCache rename are implemented.
+  ☐ Phase 8 PSO multi-bind integration preserves individual-call fallback semantics and authoritative
+    cache behavior, with regression, package and matched measurement evidence for the final candidate.

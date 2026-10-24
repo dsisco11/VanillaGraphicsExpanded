@@ -41,7 +41,7 @@ internal static class TerrainTessellationLinker
         catch (Exception ex) { error = ex.Message; return false; }
         finally
         {
-            if (candidate != 0) GL.DeleteProgram(candidate);
+            if (candidate != 0) StateCache.Current.DeleteProgram(candidate);
             control?.Dispose();
             evaluation?.Dispose();
         }

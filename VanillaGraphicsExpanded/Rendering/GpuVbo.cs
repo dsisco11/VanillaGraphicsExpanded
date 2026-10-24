@@ -9,11 +9,13 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 internal sealed class GpuVbo : GpuBufferObject
 {
+    /// <summary>Retains allocation policy separately and acquires any realized native buffer facts.</summary>
     private GpuVbo(int bufferId, BufferTarget target, BufferUsageHint usage, string? debugName)
     {
         this.bufferId = bufferId;
         this.target = target;
-        this.usage = usage;
+        allocationUsage = usage;
+        GpuResourceManager.RegisterBufferWrapper(this);
         this.debugName = debugName;
     }
 
@@ -23,6 +25,6 @@ internal sealed class GpuVbo : GpuBufferObject
         string? debugName = null)
     {
         int id = CreateBufferId(debugName);
-        return new GpuVbo(id, target, usage, debugName);
+        return CompleteOwnedCreation(GpuResourceKind.Buffer, id, () => new GpuVbo(id, target, usage, debugName));
     }
 }

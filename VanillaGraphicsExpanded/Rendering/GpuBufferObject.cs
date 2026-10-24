@@ -14,12 +14,16 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Base class for OpenGL buffer object wrappers.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-public abstract class GpuBufferObject : GpuResource, IDisposable
+public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposable
 {
     protected int bufferId;
-    protected int sizeBytes;
+    /// <summary>Reads the canonical native capacity through the typed snapshot.</summary>
+    protected int sizeBytes => checked((int)metadata.Capacity);
     protected BufferTarget target;
-    protected BufferUsageHint usage;
+    /// <summary>Reads the canonical storage usage through the typed snapshot.</summary>
+    protected BufferUsageHint usage => metadata.Usage;
+    /// <summary>Contains the requested hint for the next allocation, independently of observed storage.</summary>
+    protected BufferUsageHint allocationUsage;
     protected string? debugName;
 
     private readonly ConcurrentQueue<PendingUpload> pendingUploads = new();
@@ -86,8 +90,10 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
 #endif
     }
 
+    /// <summary>Binds this live allocation and restores the previous binding when the scope ends.</summary>
     public BindingScope BindScope()
     {
+        ObjectDisposedException.ThrowIf(!IsValid, this);
         var gl = StateCache.Current;
         int previousVao = 0;
 
@@ -151,9 +157,8 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
             throw new ArgumentOutOfRangeException(nameof(sizeBytes), sizeBytes, "Size must be >= 0.");
         }
 
-        _ = GpuBufferUploader.BufferData(this, sizeBytes, IntPtr.Zero);
+        _ = GpuBufferUploader.BufferData(this, sizeBytes, IntPtr.Zero, allocationUsage);
 
-        this.sizeBytes = sizeBytes;
     }
 
     public bool TryAllocate(int sizeBytes)
@@ -198,9 +203,8 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
             newCapacity = Math.Max(newCapacity, checked(sizeBytes * 2));
         }
 
-        _ = GpuBufferUploader.BufferData(this, newCapacity, IntPtr.Zero);
+        _ = GpuBufferUploader.BufferData(this, newCapacity, IntPtr.Zero, allocationUsage);
 
-        sizeBytes = newCapacity;
     }
 
     public bool TryEnsureCapacity(int minSizeBytes, bool growExponentially = true)
@@ -297,7 +301,6 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
             && !GpuResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForBufferData(CopyToPooledBytes(data, byteCount), byteCount));
-            sizeBytes = byteCount;
             return;
         }
 
@@ -305,8 +308,8 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
         {
             try
             {
-                _ = GpuBufferUploader.BufferData(this, byteCount, ptr);
-                sizeBytes = byteCount;
+                _ = GpuBufferUploader.BufferData(this, byteCount, ptr, allocationUsage);
+
                 return;
             }
             finally
@@ -318,11 +321,8 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
             }
         }
 
-        Bind();
-        GL.BufferData(target, byteCount, data, usage);
-        Unbind();
+        GpuBufferUploader.BufferData(this, byteCount, data, allocationUsage);
 
-        sizeBytes = byteCount;
     }
 
     public bool TryUploadData<T>(T[] data, int byteCount) where T : struct
@@ -370,24 +370,21 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
             && !GpuResourceManagerSystem.IsRenderThread)
         {
             EnqueueUpload(PendingUpload.ForBufferData(CopyToPooledBytes(data, byteCount), byteCount));
-            sizeBytes = byteCount;
             return;
         }
 
         if (byteCount == 0)
         {
-            _ = GpuBufferUploader.BufferData(this, 0, IntPtr.Zero);
+            _ = GpuBufferUploader.BufferData(this, 0, IntPtr.Zero, allocationUsage);
 
-            sizeBytes = 0;
             return;
         }
 
         fixed (T* ptr = data)
         {
-            _ = GpuBufferUploader.BufferData(this, byteCount, (IntPtr)ptr);
+            _ = GpuBufferUploader.BufferData(this, byteCount, (IntPtr)ptr, allocationUsage);
         }
 
-        sizeBytes = byteCount;
     }
 
     public unsafe bool TryUploadData<T>(ReadOnlySpan<T> data, int byteCount) where T : unmanaged
@@ -901,14 +898,14 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
     {
         DropPendingUploads();
         Volatile.Write(ref uploadsQueued, 0);
-        sizeBytes = 0;
+
     }
 
     protected override void OnAfterDelete()
     {
         DropPendingUploads();
         Volatile.Write(ref uploadsQueued, 0);
-        sizeBytes = 0;
+
     }
 
     public override string ToString()
@@ -989,7 +986,7 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
 
     internal void DrainPendingUploadsOnRenderThread()
     {
-        if (IsDisposed || bufferId == 0)
+        if (!IsValid)
         {
             DropPendingUploads();
             Volatile.Write(ref uploadsQueued, 0);
@@ -1045,8 +1042,8 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
         {
             if (upload.ByteCount == 0)
             {
-                _ = GpuBufferUploader.BufferData(this, 0, IntPtr.Zero);
-                sizeBytes = 0;
+                _ = GpuBufferUploader.BufferData(this, 0, IntPtr.Zero, allocationUsage);
+
                 return;
             }
 
@@ -1059,11 +1056,10 @@ public abstract class GpuBufferObject : GpuResource, IDisposable
             {
                 fixed (byte* ptr = upload.Buffer)
                 {
-                    _ = GpuBufferUploader.BufferData(this, upload.ByteCount, (IntPtr)ptr);
+                    _ = GpuBufferUploader.BufferData(this, upload.ByteCount, (IntPtr)ptr, allocationUsage);
                 }
             }
 
-            sizeBytes = upload.ByteCount;
             return;
         }
 

@@ -9,8 +9,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 public sealed class GpuBufferTexture : GpuBufferView
 {
-    private GpuBufferTexture(int textureId, int bufferId, SizedInternalFormat format, nint offsetBytes, nint sizeBytes)
-        : base(textureId, bufferId, format, offsetBytes, sizeBytes)
+    /// <summary>Initializes one association through the common view constructor using the known creation path.</summary>
+    private GpuBufferTexture(int textureId, int bufferId, SizedInternalFormat format, nint offsetBytes, nint sizeBytes, bool createdWithDsa)
+        : base(textureId, bufferId, format, offsetBytes, sizeBytes, createdWithDsa)
     {
     }
 
@@ -27,27 +28,11 @@ public sealed class GpuBufferTexture : GpuBufferView
             throw new ArgumentException("Buffer id must be non-zero.", nameof(bufferId));
         }
 
-        int id = GL.GenTexture();
-        if (id == 0)
-        {
-            throw new InvalidOperationException("glGenTextures failed.");
-        }
+        int id = CreateTextureId(out bool createdWithDsa);
 
         try
         {
-            using var _ = StateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
-
-            // Prefer DSA when available, otherwise fall back to bind-to-edit.
-            try
-            {
-                GL.TextureBuffer(id, format, bufferId);
-            }
-            catch
-            {
-                GL.TexBuffer(TextureBufferTarget.TextureBuffer, format, bufferId);
-            }
-
-            var view = new GpuBufferTexture(id, bufferId, format, offsetBytes: 0, sizeBytes: 0);
+            var view = new GpuBufferTexture(id, bufferId, format, offsetBytes: 0, sizeBytes: 0, createdWithDsa: createdWithDsa);
             view.SetDebugName(debugName);
             return view;
         }
@@ -86,28 +71,11 @@ public sealed class GpuBufferTexture : GpuBufferView
             throw new NotSupportedException("Texture buffer ranges require GL_ARB_texture_buffer_range.");
         }
 
-        int id = GL.GenTexture();
-        if (id == 0)
-        {
-            throw new InvalidOperationException("glGenTextures failed.");
-        }
+        int id = CreateTextureId(out bool createdWithDsa);
 
         try
         {
-            using var _ = StateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
-
-            // Prefer DSA when available, otherwise fall back to bind-to-edit.
-            try
-            {
-                GL.TextureBufferRange(id, format, bufferId, (IntPtr)offsetBytes, (IntPtr)sizeBytes);
-            }
-            catch
-            {
-                int size = checked((int)sizeBytes);
-                GL.TexBufferRange(TextureBufferTarget.TextureBuffer, format, bufferId, (IntPtr)offsetBytes, size);
-            }
-
-            var view = new GpuBufferTexture(id, bufferId, format, offsetBytes, sizeBytes);
+            var view = new GpuBufferTexture(id, bufferId, format, offsetBytes, sizeBytes, createdWithDsa);
             view.SetDebugName(debugName);
             return view;
         }

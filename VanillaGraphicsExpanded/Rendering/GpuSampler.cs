@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-public sealed class GpuSampler : GpuResource, IDisposable
+public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
 {
     private int samplerId;
 
@@ -31,11 +31,12 @@ public sealed class GpuSampler : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the sampler has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => samplerId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
     private GpuSampler(int samplerId)
     {
         this.samplerId = samplerId;
+        GpuResourceManager.RegisterEmptyMetadata(this);
     }
 
     /// <summary>
@@ -55,9 +56,12 @@ public sealed class GpuSampler : GpuResource, IDisposable
         {
         }
 
-        var sampler = new GpuSampler(id);
-        sampler.SetDebugName(debugName);
-        return sampler;
+        return CompleteOwnedCreation(GpuResourceKind.Sampler, id, () =>
+        {
+            var value = new GpuSampler(id);
+            value.SetDebugName(debugName);
+            return value;
+        });
     }
 
     /// <summary>
@@ -114,6 +118,7 @@ public sealed class GpuSampler : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope(int unit)
     {
+        ObjectDisposedException.ThrowIf(!IsValid, this);
         var scope = StateCache.Current.BindSamplerScope(unit, samplerId);
         return new BindingScope(scope);
     }

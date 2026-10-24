@@ -8,19 +8,16 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Describes one attachable image and optionally owns the resource allocated for it.</summary>
 /// <remarks>Framebuffers borrow this object. Existing-resource factories never transfer ownership.
 /// Dispose retires all uses of this image; owned storage is disposed later on the render thread.</remarks>
-public sealed class GpuFramebufferAttachment : GpuResource
+public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
 {
     private GpuResource? resource;
     private readonly bool ownsStorage;
     private readonly GpuResourceDisposalQueue disposalQueue;
     private readonly List<WeakReference<GpuFramebuffer>> framebuffers = new();
     private readonly int externalId;
-    private readonly int externalWidth;
-    private readonly int externalHeight;
-    private readonly int externalSamples;
     private readonly bool renderbuffer;
     private readonly TextureTarget target;
-    private readonly PixelInternalFormat format;
+
     private int retired;
 
     #region Public API
@@ -57,10 +54,9 @@ public sealed class GpuFramebufferAttachment : GpuResource
     {
         ArgumentNullException.ThrowIfNull(view);
         if (!view.IsValid) throw new ArgumentException("Texture view must be live.", nameof(view));
-        var image = FromTextureId(view.TextureId, mipLevel, layer, cubeFace);
-        image.resource = view;
-        GpuFramebufferAttachmentObservers.Register(view, image);
-        return image;
+        if (cubeFace.HasValue && (view.Target != TextureTarget.TextureCubeMap || !IsCubeFace(cubeFace.Value) || layer.HasValue))
+            throw new ArgumentOutOfRangeException(nameof(cubeFace));
+        return new(view, false, mipLevel, layer, cubeFace);
     }
 
     /// <summary>Borrows an external texture image, capturing validated metadata without creating a texture view.</summary>
@@ -68,26 +64,15 @@ public sealed class GpuFramebufferAttachment : GpuResource
     public static GpuFramebufferAttachment FromTextureId(int textureId, int mipLevel = 0, int? layer = null,
         TextureTarget? cubeFace = null)
     {
-        if (textureId <= 0 || !GL.IsTexture(textureId)) throw new ArgumentOutOfRangeException(nameof(textureId));
         if ((uint)mipLevel > 30) throw new ArgumentOutOfRangeException(nameof(mipLevel));
-        // Query the original object's target and selected image directly, avoiding
-        // speculative binds and leaving texture/sampler bindings unchanged.
-        GL.GetTextureParameter(textureId, GetTextureParameter.TextureTarget, out int targetValue);
-        var textureTarget = (TextureTarget)targetValue;
-        if (cubeFace.HasValue && (textureTarget != TextureTarget.TextureCubeMap || !IsCubeFace(cubeFace.Value) || layer.HasValue))
+        var data = GpuResourceManager.AcquireExternalImageTexture(textureId);
+        if (cubeFace.HasValue && (data.Target != TextureTarget.TextureCubeMap || !IsCubeFace(cubeFace.Value) || layer.HasValue))
             throw new ArgumentOutOfRangeException(nameof(cubeFace));
-        GL.GetTextureLevelParameter(textureId, mipLevel, GetTextureParameter.TextureWidth, out int width);
-        GL.GetTextureLevelParameter(textureId, mipLevel, GetTextureParameter.TextureHeight, out int height);
-        GL.GetTextureLevelParameter(textureId, mipLevel, GetTextureParameter.TextureDepth, out int depth);
-        GL.GetTextureLevelParameter(textureId, mipLevel, GetTextureParameter.TextureInternalFormat, out int format);
-        if (width <= 0 || height <= 0) throw new ArgumentException("Texture image has no storage.", nameof(textureId));
-        bool layered = textureTarget is TextureTarget.Texture3D or TextureTarget.Texture2DArray
-            or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray;
-        if (layer.HasValue && (!layered || (uint)layer.Value >= (uint)depth)) throw new ArgumentOutOfRangeException(nameof(layer));
-        int samples = 0;
-        if (textureTarget is TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray)
-            GL.GetTextureLevelParameter(textureId, mipLevel, GetTextureParameter.TextureSamples, out samples);
-        return new(textureId, false, cubeFace ?? textureTarget, (PixelInternalFormat)format, width, height, samples, mipLevel, layer);
+        var image = new GpuFramebufferAttachment(textureId, false, cubeFace ?? data.Target, mipLevel, layer, data);
+        if (image.Width <= 0 || image.Height <= 0 || (image.ResourceManager is { } manager
+            && manager.GetResourceRegistration(image) is not null && !manager.IsResourceMetadataAvailable(image)))
+            throw new ArgumentException("The selected image has no compatible allocated storage.");
+        return image;
     }
 
     /// <summary>Borrows an existing renderbuffer without assuming responsibility for disposal.</summary>
@@ -119,21 +104,17 @@ public sealed class GpuFramebufferAttachment : GpuResource
     /// <summary>Gets an individual cube face when one was selected.</summary>
     public TextureTarget? CubeFace => IsCubeFace(target) ? target : null;
     /// <summary>Gets the selected image width.</summary>
-    public int Width => resource is GpuTexture texture ? Math.Max(1, texture.Width >> MipLevel)
-        : resource is GpuRenderbuffer buffer ? buffer.Width : externalWidth;
+    public int Width => metadata.Width;
+    /// <summary>Gets the selected layered image extent without copying a native storage descriptor.</summary>
+    internal int ImageDepth => metadata.Depth;
+    /// <summary>Gets the attachment target chosen for this image relationship.</summary>
+    internal TextureTarget ImageTarget => target;
     /// <summary>Gets the selected image height.</summary>
-    public int Height => resource is GpuTexture texture ? Math.Max(1, texture.Height >> MipLevel)
-        : resource is GpuRenderbuffer buffer ? buffer.Height : externalHeight;
+    public int Height => metadata.Height;
     /// <summary>Gets the sample count, with zero representing ordinary single-sample storage.</summary>
-    public int Samples => resource is GpuRenderbuffer buffer ? buffer.Samples : externalSamples;
+    public int Samples => metadata.Samples;
     /// <summary>Gets the image format used to validate attachment aspects.</summary>
-    public PixelInternalFormat InternalFormat => resource switch
-    {
-        GpuTexture texture => texture.InternalFormat,
-        GpuRenderbuffer buffer => (PixelInternalFormat)buffer.Storage,
-        GpuTextureView view => view.InternalFormat,
-        _ => format
-    };
+    public PixelInternalFormat InternalFormat => metadata.Format;
     /// <summary>Gets the live texture name, or zero for renderbuffer images and retired attachments.</summary>
     public int TextureId => renderbuffer ? 0 : (int)ResourceId;
     /// <summary>Gets the live renderbuffer name, or zero for texture images and retired attachments.</summary>
@@ -170,13 +151,23 @@ public sealed class GpuFramebufferAttachment : GpuResource
     #endregion
 
     #region Internal API
+    /// <summary>Gets this image's mip, layer or cube-face choice independently of generic resource metadata.</summary>
+    internal GpuImageSelection MetadataImageSelection => new(MipLevel, Layer ?? 0, CubeFace ?? 0,
+        !Layer.HasValue && target is TextureTarget.TextureCubeMap or TextureTarget.Texture1DArray or TextureTarget.Texture2DArray
+            or TextureTarget.Texture3D or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray);
+
     /// <summary>Publishes changes to remaining framebuffer references without retaining them strongly.</summary>
     internal void NotifyChanged()
     {
-        for (int i = framebuffers.Count - 1; i >= 0; i--)
+        try { GpuResourceManager.AcquireImageMetadata(this); }
+        finally
         {
-            if (framebuffers[i].TryGetTarget(out var framebuffer)) framebuffer.OnAttachmentChanged(this);
-            else framebuffers.RemoveAt(i);
+            // A failed projection still invalidates every dependent framebuffer's prior configuration.
+            for (int i = framebuffers.Count - 1; i >= 0; i--)
+            {
+                if (framebuffers[i].TryGetTarget(out var framebuffer)) framebuffer.OnAttachmentChanged(this);
+                else framebuffers.RemoveAt(i);
+            }
         }
     }
 
@@ -188,24 +179,32 @@ public sealed class GpuFramebufferAttachment : GpuResource
         framebuffers.Add(new(framebuffer));
     }
 
-    /// <summary>Validates the aspect and attaches this selected image to the currently bound framebuffer.</summary>
-    internal void AttachTo(FramebufferAttachment slot)
+    /// <summary>Selects the native attachment command for this image while StateCache validates and publishes its result.</summary>
+    internal void AttachTo(GpuFramebuffer framebuffer, FramebufferAttachment slot)
     {
         ValidateSlot(slot);
-        if (renderbuffer)
-            GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, slot, RenderbufferTarget.Renderbuffer, RenderbufferId);
-        else if (Layer.HasValue)
-            GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, slot, TextureId, MipLevel, Layer.Value);
-        else if (target == TextureTarget.Texture2D || target == TextureTarget.TextureRectangle || IsCubeFace(target))
-            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, slot, target, TextureId, MipLevel);
-        else
-            GL.FramebufferTexture(FramebufferTarget.Framebuffer, slot, TextureId, MipLevel);
+        var cache = StateCache.Current;
+        // Image selection belongs to the wrapper; each native operation remains a StateCache command.
+        if (Kind == GpuResourceKind.Renderbuffer) cache.FramebufferRenderbuffer(framebuffer, slot, this);
+        else if (Layer.HasValue) cache.FramebufferTextureLayer(framebuffer, slot, this);
+        else if (target is TextureTarget.Texture2D or TextureTarget.TextureRectangle || CubeFace.HasValue)
+            cache.FramebufferTexture2D(framebuffer, slot, this);
+        else cache.FramebufferTexture(framebuffer, slot, this);
     }
 
     /// <summary>Rejects retired storage and incompatible color, depth, or stencil attachment points.</summary>
     internal void ValidateSlot(FramebufferAttachment slot)
     {
         if (!IsValid) throw new InvalidOperationException("Framebuffer attachment storage has retired.");
+        // Without a registration, selected image facts have no persistent availability guarantee.
+        // Refresh through the manager before using them, including after an earlier failed resize.
+        if (ResourceManager?.GetResourceRegistration(this) is null)
+            GpuResourceManager.AcquireImageMetadata(this);
+        if (Width <= 0 || Height <= 0)
+            throw new InvalidOperationException("The selected framebuffer image metadata is unavailable.");
+        if (ResourceManager is { } manager && manager.GetResourceRegistration(this) is not null
+            && !manager.IsResourceMetadataAvailable(this))
+            throw new InvalidOperationException("The selected framebuffer image metadata is unavailable.");
         bool depth = TextureFormatHelper.IsDepthFormat(InternalFormat);
         bool stencil = HasStencil;
         bool compatible = slot switch
@@ -222,8 +221,8 @@ public sealed class GpuFramebufferAttachment : GpuResource
 
     /// <summary>Builds a borrowed image discovered from an external framebuffer without claiming storage ownership.</summary>
     internal static GpuFramebufferAttachment FromExternalImage(int id, bool renderbuffer, TextureTarget target,
-        PixelInternalFormat format, int width, int height, int samples, int mipLevel, int? layer)
-        => new(id, renderbuffer, target, format, width, height, samples, mipLevel, layer);
+        int mipLevel, int? layer, GpuTextureMetadata? acquiredTexture = null)
+        => new(id, renderbuffer, target, mipLevel, layer, acquiredTexture);
     #endregion
 
     #region Protected API
@@ -273,26 +272,24 @@ public sealed class GpuFramebufferAttachment : GpuResource
         MipLevel = mipLevel;
         Layer = layer;
         renderbuffer = resource is GpuRenderbuffer;
-        target = cubeFace ?? (resource is GpuTexture texture ? texture.TextureTarget : 0);
-        format = resource is GpuTexture image ? image.InternalFormat : (PixelInternalFormat)((GpuRenderbuffer)resource).Storage;
+        target = cubeFace ?? (resource is GpuTexture texture ? texture.TextureTarget : resource is GpuTextureView view ? view.Target : 0);
+        ValidateSelection();
+        GpuResourceManager.AcquireImageMetadata(this);
         GpuFramebufferAttachmentObservers.Register(resource, this);
         if (!ownsStorage) GC.SuppressFinalize(this);
     }
 
-    /// <summary>Retains imported image metadata without creating another GL object.</summary>
-    private GpuFramebufferAttachment(int id, bool renderbuffer, TextureTarget target, PixelInternalFormat format,
-        int width, int height, int samples, int mipLevel, int? layer)
+    /// <summary>Retains an imported image selection while the manager acquires its native snapshot.</summary>
+    private GpuFramebufferAttachment(int id, bool renderbuffer, TextureTarget target, int mipLevel, int? layer, GpuTextureMetadata? acquiredTexture = null)
     {
         externalId = id;
         this.renderbuffer = renderbuffer;
         this.target = target;
-        this.format = format;
-        externalWidth = width;
-        externalHeight = height;
-        externalSamples = samples;
         MipLevel = mipLevel;
         Layer = layer;
         disposalQueue = GpuResourceManagerSystem.CaptureDisposalQueue();
+        ValidateSelection();
+        GpuResourceManager.AcquireImageMetadata(this, acquiredTexture);
         GC.SuppressFinalize(this);
     }
 
@@ -309,5 +306,14 @@ public sealed class GpuFramebufferAttachment : GpuResource
     /// <summary>Identifies individual cube faces accepted by the two-dimensional attachment entry point.</summary>
     private static bool IsCubeFace(TextureTarget value) => value >= TextureTarget.TextureCubeMapPositiveX
         && value <= TextureTarget.TextureCubeMapNegativeZ;
+
+    /// <summary>Rejects selections the chosen image target cannot express before acquiring a projection.</summary>
+    private void ValidateSelection()
+    {
+        if ((uint)MipLevel > 30) throw new ArgumentOutOfRangeException(nameof(MipLevel));
+        if (Layer.HasValue && (Layer.Value < 0 || target is not (TextureTarget.Texture1DArray
+            or TextureTarget.Texture2DArray or TextureTarget.Texture3D or TextureTarget.TextureCubeMapArray
+            or TextureTarget.Texture2DMultisampleArray))) throw new ArgumentOutOfRangeException(nameof(Layer));
+    }
     #endregion
 }

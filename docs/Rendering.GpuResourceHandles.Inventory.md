@@ -2,8 +2,8 @@
 
 Planning companion to [the approved proposal](Rendering.GpuResourceHandles.Proposal.md) and
 [implementation checklist](Rendering.GpuResourceHandles.todo). This records the source inventory and
-chosen implementation mechanics. The implementation checklist distinguishes completed primitives from
-the remaining wrapper, lifecycle, command and consumer integration.
+chosen implementation mechanics. The implementation checklist distinguishes verified registry and
+wrapper/lifecycle integration from the remaining command and consumer integration.
 
 ## Wrapper and ownership inventory
 
@@ -11,6 +11,9 @@ Paths below are relative to `VanillaGraphicsExpanded/Rendering` unless stated ot
 inherit `GpuResource`'s local disposal, `Detach`/`ReleaseHandle`, captured manager/context and default
 ownership unless a row says otherwise. All native IDs are integers except `GpuFence`'s pointer-sized
 sync. Registration must occur when a native object exists, not merely when a CPU declaration is created.
+Resource wrappers retain allocation and sampling policy, attachment selection and upload fallback strategy.
+StateCache executes their native commands and owns metadata publication, including deferred publication
+for complete texture allocation and framebuffer reattachment groups.
 
 | Kind | Existing wrappers / acquisition | Metadata and disposition |
 | --- | --- | --- |
@@ -21,7 +24,7 @@ sync. Registration must occur when a native object exists, not merely when a CPU
 | Buffer | `GpuBufferObject`: `GpuVbo`, `GpuEbo`, `GpuUniformBuffer`, `GpuShaderStorageBuffer`, `GpuAtomicCounterBuffer`, `GpuIndirectBuffer`, `GpuPixelPackBuffer`, `GpuPixelUnpackBuffer` | CreateBuffers with GenBuffer fallback; size/usage are storage metadata. Target is the wrapper's intended binding role. EBO index type/count are authored interpretation/content extent, not discoverable from GL bytes. Pack/unpack methods return mapping pointers to their callers; they do not retain a mapping snapshot for notification to refresh. |
 | Framebuffer | `GpuFramebuffer`: `DynamicGpuFramebuffer`, `StaticGpuFramebuffer` | Generated owners and external non-owning wraps. Attachment dictionary, wrapped extent, surface/pass metadata and dirty publication. External attachment changes refresh actual attachment descriptions, preserving ownership of existing image wrappers. Window-surface format/samples remain on the explicit surface publication path; default framebuffer zero is not a native object handle. Static attachment locks stay in force. |
 | Texture / Renderbuffer | `GpuFramebufferAttachment` | Constructors immediately allocate owned backing storage, or factories retain a typed/raw external image; base `OwnsResource=false`, but owned backing storage is released through its existing disposal queue/finalizer mechanism. Associate with the backing entry and receive an image metadata projection. Selected mip/layer/cube face remain local view choices. External dimensions/format/samples must refresh. `Detach` rejected. |
-| Renderbuffer | `GpuRenderbuffer.Create` / `Wrap` | Create owns; Wrap borrows. Storage format, width, height and actual sample count refresh from native storage. Preserve current transfer semantics rather than treating every wrapper as an owner. |
+| Renderbuffer | `GpuRenderbuffer.Create` / `Wrap` | Create owns; Wrap borrows. Storage format, width, height and actual sample count refresh from native storage. Only owning wrappers may transfer their handle; Wrap borrowers reject Detach and ReleaseHandle without affecting the external owner. |
 | VertexArray | `GpuVao.Create` | Wrapper retains ID/debug name, not a complete attribute mirror. `GpuVertexAttribBinding` is a value configuration helper holding VAO/index/buffer/offset/stride/divisor. Preserve authored geometry descriptions; make stale helper reuse detectable by owning-wrapper identity and manager-owned revision, or resolve current facts before fallback use. No invented global VAO layout cache. |
 | Program | `GpuProgramObject.Create` / `Adopt`, `GpuComputePipeline` | Binding cache/layout and executable revision/context. Compute declarations can begin without an executable and later install one; acquire on installation in its actual context. Relink/binary replacement invalidates prepared executable metadata; existing owner preparation must establish a usable layout again. `Shaders/GpuProgram` and `GpuComputeProgram` are composition owners, not additional GpuResource subclasses. |
 | Shader | `GpuShaderModule` | Adopt/compile/load shader, fixed shader type and authored binding contract. Shader compilation data is not a mutable storage descriptor; program link preparation remains responsible for reflected interfaces. Fixed shader type becomes canonical metadata; no mutable storage refresh. |
@@ -59,6 +62,10 @@ context-free declaration path and existing shutdown exception policy.
 
 ## Metadata command matrix
 
+APPLE and NV extension methods are excluded from implementation and verification requirements.
+The retained baseline API inventory includes those groups as raw inspection data; apply this exclusion
+when deriving supported coverage. Core equivalents and all other applicable extension groups remain in scope.
+
 The controlling coverage matrix is [Rendering.GpuResourceHandles.ApiCoverage.md](Rendering.GpuResourceHandles.ApiCoverage.md). It derives all applicable command families and variants from the OpenGL API, independently of existing callers. The wrapper inventory above maps represented fields to those families. Current call-site receipts below are integration examples only and cannot justify omitting an API operation.
 
 ## Concrete implementation decisions
@@ -86,7 +93,7 @@ native-width representation; narrower existing accessors must reject values they
 | Kind / canonical struct | Native fields and wrapper migration | Local or derived state | API families |
 | --- | --- | --- | --- |
 | Texture / `GpuTextureMetadata` | Target; per-level/per-face dimensions, format, samples and allocated state; immutable storage/level count; base/max levels and legacy automatic-mipmap state needed to interpret effects. Optional buffer association (ID/format/offset/range/whole-buffer mode), texture-view range (base/count levels/layers) and renderbuffer association. `GpuTexture` and all subclasses, `GpuBufferView`/`GpuBufferTexture` and `GpuTextureView` use this struct; their native descriptor fields become accessors. | FilterMode, labels, streaming and uploads remain local. The managed view source/reference/ID certificate and captured source storage revision remain dependency state: arbitrary external views do not expose a queryable source name. `StorageGeneration` reads the manager-owned storage revision; source validation asks the manager to check its original source registration dependency. | T1–T5, I1, L1, C1 |
-| Buffer / `GpuBufferMetadata` | Actual byte capacity and usage; `sizeBytes/usage` become accessors in `GpuBufferObject`, inherited by VBO/EBO/UBO/SSBO/atomic/indirect/pixel pack/unpack wrappers. | Intended target, EBO index type/count, queued uploads, mapping scopes, growth policy and labels remain local. No content or mapping-ownership mirror. | B1, I1, L1 |
+| Buffer / `GpuBufferMetadata` | Actual byte capacity and usage; `sizeBytes/usage` become accessors in `GpuBufferObject`, inherited by VBO/EBO/UBO/SSBO/atomic/indirect/pixel pack/unpack wrappers. | Intended target, requested allocation usage, EBO index type/count, queued uploads, mapping scopes, growth policy and labels remain local. No content or mapping-ownership mirror. | B1, I1, L1 |
 | Renderbuffer / `GpuRenderbufferMetadata` | Width/height/format and actual samples; `storage/width/height/samples` become accessors. | Ownership and labels remain local. | R1, L1 |
 | Framebuffer / `GpuFramebufferMetadata` | Immutable attachment descriptors keyed by slot: kind/ID, mip, layer/face, layered state and represented multiview selection; attachmentless default dimensions/layers/samples where applicable. Image facts resolve through backing entries. | Retained image wrappers/ownership, frozen locks, dirty/publication state, viewport fallback extent and surface metadata stay local. The wrapper dictionary reconciles from descriptors rather than independently defining native facts. Pass extent/format are derived; routing stays in existing StateCache routing cache. | F1, backing T/R changes, L1, C1 |
 | VertexArray / `GpuVertexArrayMetadata` | Empty struct: `GpuVao` has no retained native layout fields. Entry revision invalidates represented helper assumptions; no full attribute mirror. | `GpuVertexAttribBinding` is an authored value helper, not a resource. Capture owning-wrapper identity and manager-owned revision for its facts; after mutation, resolve the selected current buffer/offset/stride/divisor before fallback reuse or reject unavailable facts. Vertex contents stay external. | V1, L1, C1 |
@@ -127,7 +134,9 @@ Planned internal operation contracts:
 
 - `RegisterCreatedResource(kind, id)` registers a created/reserved name without inventing storage.
 - `AcquireResource(kind, id)` reuses existing canonical metadata or validates/captures an external object.
-  A generated but unrealized external name is insufficient.
+  A generated but unrealized external name is insufficient. External texture/renderbuffer wrapper
+  construction explicitly refreshes an existing entry until its complete mutation observation is
+  qualified; retaining a registry entry alone does not qualify persistent consumer metadata.
 - `AssociateResource(entry, wrapper)` / `UnregisterResource(entry, wrapper)` initialize typed snapshots,
   maintain weak associations and prune expired references. Image associations include local selection.
 - `RefreshMetadata(entry, change)` establishes a complete canonical candidate once, updates the entry,
@@ -136,14 +145,20 @@ Planned internal operation contracts:
 - `RetireResource(entry)` / `ObserveDeletion(kind, id)` integrate scheduled owner retirement and observed
   native deletion, invalidate associations and cancel obsolete queued work.
 
-`GpuResource<TMetadata> : GpuResource where TMetadata : struct` declares `protected TMetadata metadata;`
-and public non-virtual `void HandleMetadataChanged(TMetadata data) { metadata = data; }`. Native metadata
-accessors read this field. The non-generic base retains native identity, disposal and ownership with no
+`GpuResource<TMetadata> : GpuResource where TMetadata : struct` retains a private snapshot with
+`protected ref readonly TMetadata metadata` access for derived wrappers. Public non-virtual
+`HandleMetadataChanged(TMetadata data)` assigns that complete private snapshot. Native metadata
+accessors are getter-only; the compiler rejects derived snapshot writes. The non-generic base retains native identity, disposal and ownership with no
 metadata members or notification contract. The generic base owns no tracking state, availability flags,
 revision copies or lifecycle notification handlers. `GpuResourceManager.WrapperAssociations.cs` owns
 association identity and exposes manager-side tracking, availability and retirement checks.
 Revisions stay on canonical entries. Metadata-dependent consumers validate through the manager;
 no registration or recipient back-reference is stored in a wrapper.
+StateCache owns native mutation execution and sends observed results to manager publication. Wrappers
+never construct metadata candidates or call mutation refresh/publication themselves. Initial native
+acquisition and selected-image projection also belong to the manager, including tools without a registry.
+Requested buffer usage is separate allocation policy; requested texture dimensions/format/mips are
+command arguments, never temporarily installed in a native snapshot.
 Manager publication coordinates dependent observers outside the generic assignment.
 No abstract per-wrapper metadata-query handler remains.
 
@@ -160,7 +175,40 @@ and late admission reconcile through atomic map operations and registration stat
 marks the original entry atomically unavailable before queuing native work. Manager-side association
 checks observe retirement without wrapper notification handlers or GL calls. Existing exception policy remains.
 
+Metadata readers select named queries only when the cached DSA capability permits them; otherwise
+known targets use existing binding scopes. Immutable-storage/view parameter queries use their own
+cached capabilities. Before texture-view
+queries are supported, immutable level counts come from the queried allocated image chain. View
+creation validates its requested range against the complete reader snapshot without repeating native
+validity or range queries. Context-local views retain an opaque storage certificate published by the
+manager on the texture owner. Metadata-only failure and recovery preserve this certificate independently
+of snapshot availability; completed or interrupted storage updates replace it even when dimensions match.
+Views reject unavailable source image facts until refresh succeeds. No additional registry or generic-base
+tracking is used. SetMipRange preserves best-effort native
+dispatch handling but propagates authoritative publication failures and leaves metadata unavailable.
+Texture command paths retain their established target,
+and managed aliases reuse the canonical target. An arbitrary unregistered external texture whose
+target is unknown remains unavailable without named target discovery; do not probe targets with
+invalid binds or claim that forced bound-path tests qualify that external boundary. Selected image
+factories use manager acquisition/projection, and managed texture views reuse their backing entry.
+A generic BorrowedTexture cannot represent texture-buffer storage; reject that acquisition before
+changing the existing buffer-view reader, snapshot or availability. GpuBufferView remains its typed API.
+Owning construction cleans up newly allocated names through StateCache if initialization or metadata
+acquisition fails, preserving the original error and originating context. Borrowed acquisitions retain
+external deletion authority and never use owning construction cleanup.
 ### Publication, failure and validation
+
+Context-local tools without a registration discard uncertified snapshots after a failed read or an
+interrupted command group. Empty descriptors represent unavailable facts, not native zero-sized storage.
+The manager retains only the established texture target for explicit native refresh (for example,
+SetMipRange); image binding rejects an empty image snapshot. Local framebuffer image validation refreshes
+its selected native image before dependent use and throws on failed reads or absent selections rather
+than retaining a previous projection. Registered resources retain canonical availability and recovery.
+Managed texture views require available manager snapshots for both their own registration and their
+original source dependency before use. Metadata-only recovery restores usability; storage revision
+changes continue to reject views certified against the previous allocation.
+Failed replacement cleanup also clears the surviving texture wrapper's native ID after retiring the new
+name, so later disposal cannot delete a reused name.
 
 Mark affected metadata unavailable before refresh. Read represented fields into one complete candidate;
 do not drain GetError or assume a nonthrowing native call succeeded. Initialize outputs to invalid
@@ -171,8 +219,13 @@ result. Unqueryable facts stay unavailable; do not invent storage.
 Commit canonical metadata, assign all typed snapshots, then expose the revision as available and notify
 existing dependents. Do not invoke arbitrary dependent observers between assignments. Failed refresh
 keeps all affected aliases unavailable. If a projection or dependent notification fails, continue other
-notifications and keep affected dependent use unavailable under existing error policy. Successful later
-refresh may recover metadata, never a deleted registration. New associations receive a current snapshot
+notifications and keep affected dependent use unavailable under existing error policy. Selected-image
+refresh always invalidates its framebuffer dependents, including when projection fails. Storage observer
+dispatch reports aggregated failures only after processing every image. Successful later
+refresh may recover metadata, never a deleted registration. Mutable framebuffer configuration can remove
+or replace invalid outgoing images without rendering validation of the old configuration. Other dirty
+attachments retain their pending reattachment until rendering use, which still validates every image.
+New associations receive a current snapshot
 before becoming usable. Collections shared through struct copies must be immutable.
 
 Entry MetadataRevision advances for changed facts or executable/configuration invalidation. StorageRevision
@@ -201,6 +254,15 @@ association and acquires the new object. Alias-wide guard counters live in the e
 checks/releases; declaration-only state remains local until realization. Do not duplicate mutation
 guards at adapters. Context retirement clears the registry, invalidates aliases and discards pending
 native work without issuing GL into another context.
+
+Borrowed framebuffer identity replacement rejects outstanding local lifetime borrows before changing
+the association; refreshing the same live identity remains permitted outside active passes. Deferred
+managed disposal retains resources rejected before local retirement and retries them on a later drain.
+Each drain processes at most its initial queue count, allowing unrelated cleanup to proceed without
+spinning on retained resources. Terminal closure still abandons blocked context-owned allocations.
+Complete native metadata reads validate identity themselves; canonical acquisition and refresh do not
+repeat that validation before invoking the reader. Reserved buffer-name admission remains distinct
+from complete acquisition so uninitialized generated names can wait for their first binding/storage.
 
 Strong entry retention is bounded by live registered native objects. Weak associations are pruned on
 acquisition, publication, unregister and teardown. Wrapper collection cannot erase a live tracked

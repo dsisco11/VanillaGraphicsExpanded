@@ -10,13 +10,15 @@ internal sealed class ResourceCallObserver : IDisposable
     private readonly Harmony harmony = new("Tests.ResourceCallObserver." + Guid.NewGuid());
     private static ResourceCallObserver? active;
     private readonly Dictionary<string, int> calls = new();
-    private readonly bool enabled = Environment.GetEnvironmentVariable("VGE_RESOURCE_BASELINE") == "1";
+    private readonly bool enabled;
+    private readonly Dictionary<GetTextureParameter, int> parameters = new();
 
     #region Public API
     #region Acquisition
     /// <summary>Installs counters for the concrete integer overloads used by the measured resource paths.</summary>
-    internal ResourceCallObserver()
+    internal ResourceCallObserver(bool forceEnabled = false)
     {
+        enabled = forceEnabled || Environment.GetEnvironmentVariable("VGE_RESOURCE_BASELINE") == "1";
         if (!enabled) return;
         Assert.Null(active);
         active = this;
@@ -24,17 +26,24 @@ internal sealed class ResourceCallObserver : IDisposable
         {
             var parameters = method.GetParameters();
             bool bind = method.Name == "BindTexture" && parameters.Length == 2 && parameters[1].ParameterType == typeof(int);
-            bool query = method.Name is "GetTextureParameter" or "GetTextureLevelParameter" or "GetTexLevelParameter"
+            bool query = method.Name is "GetTextureParameter" or "GetTexParameter" or "GetTextureLevelParameter" or "GetTexLevelParameter"
                 && parameters[^1].ParameterType == typeof(int).MakeByRefType()
                 && parameters[0].ParameterType != typeof(uint);
-            if (bind || query) harmony.Patch(method, prefix: new HarmonyMethod(typeof(ResourceCallObserver), nameof(Count)));
+            bool validity = method.Name == "IsTexture" && parameters.Length == 1 && parameters[0].ParameterType == typeof(int);
+            if (bind || query || validity) harmony.Patch(method, prefix: new HarmonyMethod(typeof(ResourceCallObserver), nameof(Count)));
         }
     }
 
     #endregion
     #region Measurements
     /// <summary>Starts an isolated interval after setup or readback.</summary>
-    internal void Reset() => calls.Clear();
+    internal void Reset() { calls.Clear(); parameters.Clear(); }
+
+    /// <summary>Returns intercepted calls for one concrete native entry point.</summary>
+    internal int Calls(string name) => calls.GetValueOrDefault(name);
+
+    /// <summary>Returns the number of native queries for one object parameter.</summary>
+    internal int ParameterCalls(GetTextureParameter parameter) => parameters.GetValueOrDefault(parameter);
 
     /// <summary>Checks observer interception with one known bind and query before accepting measurements.</summary>
     internal void Calibrate(int texture)
@@ -96,10 +105,14 @@ internal sealed class ResourceCallObserver : IDisposable
 
     #region Private
     /// <summary>Counts the actual intercepted OpenTK entry point before its native call.</summary>
-    private static void Count(MethodBase __originalMethod)
+    private static void Count(MethodBase __originalMethod, object[] __args)
     {
         if (active is { } observer)
+        {
             observer.calls[__originalMethod.Name] = observer.calls.GetValueOrDefault(__originalMethod.Name) + 1;
+            if (__originalMethod.Name is "GetTextureParameter" or "GetTexParameter" && __args[1] is GetTextureParameter parameter)
+                observer.parameters[parameter] = observer.parameters.GetValueOrDefault(parameter) + 1;
+        }
     }
     #endregion
 }

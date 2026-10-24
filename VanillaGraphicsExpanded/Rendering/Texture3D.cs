@@ -49,16 +49,11 @@ public sealed class Texture3D : GpuTexture
 
         var texture = new Texture3D
         {
-            width = width,
-            height = height,
-            depth = depth,
-            internalFormat = format,
             filterMode = filter,
-            textureTarget = textureTarget,
             debugName = debugName
         };
 
-        texture.AllocateOrReallocate3DTexture();
+        texture.AllocateOrReallocate3DTexture(width, height, depth, format, textureTarget);
         return texture;
     }
 

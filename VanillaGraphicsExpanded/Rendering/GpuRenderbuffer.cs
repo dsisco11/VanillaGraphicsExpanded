@@ -10,16 +10,20 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-public sealed class GpuRenderbuffer : GpuResource, IDisposable
+public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDisposable
 {
     private int renderbufferId;
     private readonly bool ownsRenderbuffer;
     private string? debugName;
 
-    private RenderbufferStorage storage;
-    private int width;
-    private int height;
-    private int samples;
+    /// <summary>Accesses the canonical renderbuffer storage snapshot.</summary>
+    private RenderbufferStorage storage => (RenderbufferStorage)metadata.Format;
+    /// <summary>Accesses the canonical renderbuffer width snapshot.</summary>
+    private int width => metadata.Width;
+    /// <summary>Accesses the canonical renderbuffer height snapshot.</summary>
+    private int height => metadata.Height;
+    /// <summary>Accesses the canonical renderbuffer samples snapshot.</summary>
+    private int samples => metadata.Samples;
 
     /// <summary>
     /// Gets the underlying OpenGL renderbuffer id.
@@ -65,7 +69,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the renderbuffer has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => renderbufferId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
     private GpuRenderbuffer(int renderbufferId, bool ownsRenderbuffer, string? debugName)
     {
@@ -94,9 +98,12 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
         GlDebug.TryLabel(ObjectLabelIdentifier.Renderbuffer, id, debugName);
 #endif
 
-        var rbo = new GpuRenderbuffer(id, ownsRenderbuffer: true, debugName);
-        rbo.AllocateStorage(storage, width, height, samples);
-        return rbo;
+        return CompleteOwnedCreation(GpuResourceKind.Renderbuffer, id, () =>
+        {
+            var rbo = new GpuRenderbuffer(id, ownsRenderbuffer: true, debugName);
+            rbo.AllocateStorage(storage, width, height, samples);
+            return rbo;
+        });
     }
 
     /// <summary>
@@ -127,7 +134,9 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
         GlDebug.TryLabel(ObjectLabelIdentifier.Renderbuffer, existingRenderbufferId, debugName);
 #endif
 
-        return new GpuRenderbuffer(existingRenderbufferId, ownsRenderbuffer: false, debugName);
+        var wrapper = new GpuRenderbuffer(existingRenderbufferId, ownsRenderbuffer: false, debugName);
+        GpuResourceManager.AcquireWrapperMetadata(wrapper, GpuRenderbufferMetadataReader.Instance);
+        return wrapper;
     }
 
     /// <summary>
@@ -186,6 +195,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope()
     {
+        ObjectDisposedException.ThrowIf(!IsValid, this);
         var scope = StateCache.Current.BindRenderbufferScope(renderbufferId);
         return new BindingScope(scope);
     }
@@ -217,26 +227,7 @@ public sealed class GpuRenderbuffer : GpuResource, IDisposable
             throw new ArgumentOutOfRangeException(nameof(samples), samples, "Samples must be >= 0.");
         }
 
-        using var errors = new GlDebug.ErrorScope("Renderbuffer storage allocation");
-        using var _ = BindScope();
-
-        if (samples > 0)
-        {
-            GL.RenderbufferStorageMultisample(RenderbufferTarget.Renderbuffer, samples, storage, width, height);
-        }
-        else
-        {
-            GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, storage, width, height);
-        }
-
-        // Drivers may round a requested multisample count upward. Publish actual storage
-        // metadata, so target compatibility never mistakes a request for the allocation.
-        GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out int actualSamples);
-        GlDebug.ThrowIfErrors("Renderbuffer storage metadata");
-        this.storage = storage;
-        this.width = width;
-        this.height = height;
-        this.samples = actualSamples;
+        StateCache.Current.RenderbufferStorage(this, storage, width, height, samples);
         GpuFramebufferAttachmentObservers.NotifyChanged(this);
     }
 

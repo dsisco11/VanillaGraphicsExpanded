@@ -4,7 +4,7 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Exposes an externally owned texture through the typed texture contract without acquiring its storage.</summary>
-/// <remarks>The borrowing owner must retire this metadata snapshot whenever external storage is replaced or reallocated.</remarks>
+/// <remarks>Unobserved external storage mutations require explicit refresh; deletion observed by StateCache retires the common registration.</remarks>
 internal sealed class BorrowedTexture : GpuTexture
 {
     #region Public API
@@ -14,36 +14,11 @@ internal sealed class BorrowedTexture : GpuTexture
         if (externalTexture <= 0 || !GL.IsTexture(externalTexture))
             throw new ArgumentOutOfRangeException(nameof(externalTexture));
 
-        // Query the object directly: borrowing does not impose a sampler target or bind the image.
-        GL.GetTextureParameter(externalTexture, GetTextureParameter.TextureTarget, out int target);
-        textureTarget = (TextureTarget)target;
-        GL.GetTextureLevelParameter(externalTexture, 0, GetTextureParameter.TextureWidth, out width);
-        GL.GetTextureLevelParameter(externalTexture, 0, GetTextureParameter.TextureHeight, out height);
-        GL.GetTextureLevelParameter(externalTexture, 0, GetTextureParameter.TextureDepth, out depth);
-        GL.GetTextureLevelParameter(externalTexture, 0, GetTextureParameter.TextureInternalFormat, out int format);
-        if (width <= 0) throw new ArgumentException("Texture has no base-level storage.", nameof(externalTexture));
-        height = Math.Max(1, height);
-        depth = Math.Max(1, depth);
-        internalFormat = (PixelInternalFormat)format;
-
-        // Array layers do not shrink along a mip chain; only spatial dimensions bound its length.
-        int extent = textureTarget switch
-        {
-            TextureTarget.Texture1D or TextureTarget.Texture1DArray => width,
-            TextureTarget.Texture3D => Math.Max(width, Math.Max(height, depth)),
-            _ => Math.Max(width, height)
-        };
-        if (textureTarget is not (TextureTarget.TextureRectangle or TextureTarget.TextureBuffer
-            or TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray))
-        {
-            for (int level = 1; (extent >>= 1) > 0; level++)
-            {
-                GL.GetTextureLevelParameter(externalTexture, level, GetTextureParameter.TextureWidth, out int mipWidth);
-                if (mipWidth <= 0) break;
-                StorageMipLevels = level + 1;
-            }
-        }
         textureId = externalTexture;
+        GpuResourceManager.AcquireWrapperMetadata(this, GpuTextureMetadataReader.Instance);
+
+        if (width <= 0 || height <= 0)
+            throw new ArgumentException("Texture has no allocated base-level image.", nameof(externalTexture));
     }
 
     /// <summary>Labels the managed borrower without modifying the external object.</summary>

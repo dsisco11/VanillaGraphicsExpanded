@@ -8,7 +8,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// RAII wrapper around an EXT memory object (GL_EXT_memory_object).
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// </summary>
-internal sealed class GpuMemoryObject : GpuResource, IDisposable
+internal sealed class GpuMemoryObject : GpuResource<GpuMemoryObjectMetadata>, IDisposable
 {
     private int memoryObjectId;
 
@@ -34,11 +34,12 @@ internal sealed class GpuMemoryObject : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the memory object has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => memoryObjectId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
     private GpuMemoryObject(int memoryObjectId)
     {
         this.memoryObjectId = memoryObjectId;
+        GpuResourceManager.RegisterEmptyMetadata(this);
     }
 
     /// <summary>
@@ -58,7 +59,7 @@ internal sealed class GpuMemoryObject : GpuResource, IDisposable
             throw new InvalidOperationException("glCreateMemoryObjectsEXT returned 0.");
         }
 
-        return new GpuMemoryObject(id);
+        return CompleteOwnedCreation(GpuResourceKind.MemoryObject, id, () => new GpuMemoryObject(id));
     }
 
     /// <summary>

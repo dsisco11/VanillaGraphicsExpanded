@@ -7,7 +7,7 @@ using OpenTK.Graphics.OpenGL;
 namespace VanillaGraphicsExpanded.Rendering;
 
 /// <summary>Owns a framebuffer handle and borrows independently managed attachment images.</summary>
-public abstract partial class GpuFramebuffer : GpuResource
+public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadata>
 {
     private int fboId;
     private int wrappedWidth;
@@ -27,9 +27,9 @@ public abstract partial class GpuFramebuffer : GpuResource
     /// <summary>Gets the framebuffer name, or zero after retirement.</summary>
     public int FboId => fboId;
     /// <summary>Gets the number of occupied color slots, excluding sparse holes.</summary>
-    public int ColorAttachmentCount => attachments.Keys.Count(IsColorSlot);
+    public int ColorAttachmentCount => metadata.Attachments?.Keys.Count(IsColorSlot) ?? attachments.Keys.Count(IsColorSlot);
     /// <summary>Reports whether a depth image is configured.</summary>
-    public bool HasDepthAttachment => attachments.ContainsKey(FramebufferAttachment.DepthAttachment);
+    public bool HasDepthAttachment => metadata.Attachments?.ContainsKey(FramebufferAttachment.DepthAttachment) ?? attachments.ContainsKey(FramebufferAttachment.DepthAttachment);
     /// <summary>Gets the diagnostic name.</summary>
     public string? DebugName => debugName;
     /// <summary>Gets the first configured image width or external viewport width.</summary>
@@ -49,6 +49,7 @@ public abstract partial class GpuFramebuffer : GpuResource
     /// <summary>Gets an exact slot; packed depth/stencil requires both aspects to share the same image.</summary>
     public GpuFramebufferAttachment? GetAttachment(FramebufferAttachment slot)
     {
+        ReconcileAttachmentMetadata();
         if (slot == FramebufferAttachment.DepthStencilAttachment)
         {
             var depth = GetAttachment(FramebufferAttachment.DepthAttachment);
@@ -85,13 +86,17 @@ public abstract partial class GpuFramebuffer : GpuResource
         if (bindingTarget is not (FramebufferTarget.Framebuffer or FramebufferTarget.DrawFramebuffer))
             throw new ArgumentOutOfRangeException(nameof(bindingTarget));
         ValidateAttachments();
-        StateCache.Current.BindFramebuffer(bindingTarget, fboId);
+        StateCache.Current.BindFramebufferResource(this, bindingTarget);
         if (attachmentsDirty)
         {
             StateCache.Current.RequireMutableFramebufferConfiguration(fboId);
             // Shared image changes can affect several FBOs; refresh each FBO lazily
             // at its next use while preserving its independently configured routing.
-            foreach (var pair in attachments) pair.Value.AttachTo(pair.Key);
+            using (var update = StateCache.Current.BeginFramebufferAttachmentUpdate(this))
+            {
+                foreach (var pair in attachments) pair.Value.AttachTo(this, pair.Key);
+                update.Complete();
+            }
             attachmentsDirty = false;
         }
     }
@@ -151,9 +156,17 @@ public abstract partial class GpuFramebuffer : GpuResource
     #endregion
 
     #region Internal API
-    /// <summary>Rejects retired managed images without querying driver metadata or changing bindings.</summary>
+    /// <summary>Reports whether the manager has assigned a native framebuffer snapshot.</summary>
+    internal bool HasNativeMetadata => metadata.Attachments is not null;
+
+    /// <summary>Validates registered image snapshots and refreshes context-local selections with binding-preserving native reads.</summary>
     internal void ValidateAttachments()
     {
+        ObjectDisposedException.ThrowIf(IsDisposed || fboId != 0 && !IsValid, this);
+        if ((ownsFramebuffer || passMetadataPublished) && !attachmentsDirty
+            && ResourceManager?.GetResourceRegistration(this) is { MetadataRevision: > 0, MetadataAvailable: false })
+            throw new InvalidOperationException("Framebuffer metadata must be republished after backing resource retirement.");
+        ReconcileAttachmentMetadata();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         foreach (var pair in attachments) pair.Value.ValidateSlot(pair.Key);
     }
@@ -219,6 +232,13 @@ public abstract partial class GpuFramebuffer : GpuResource
         if (ownsFramebuffer) StateCache.Current.InvalidateFramebufferDrawRouting(fboId);
         wrappedWidth = width; wrappedHeight = height;
         SetDebugName(name);
+        if (ownsFramebuffer)
+            CompleteOwnedCreation(GpuResourceKind.Framebuffer, fboId, () =>
+            {
+                ResourceManager?.RegisterWrapperDeclaration(this);
+                return this;
+            });
+        else ResourceManager?.RegisterWrapperDeclaration(this);
     }
     /// <summary>Finds the lowest color slot, then depth or stencil, for viewport compatibility.</summary>
     private GpuFramebufferAttachment? FirstAttachment

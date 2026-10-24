@@ -43,6 +43,7 @@ public abstract partial class GpuFramebuffer
             attachments.Add(pair.Key, pair.Value);
             pair.Value.Observe(this);
         }
+        GpuResourceManager.AcquireWrapperMetadata(this, GpuFramebufferMetadataReader.Instance);
         passMetadataPublished = true;
         PublishAttachmentsChanged();
 
@@ -74,7 +75,7 @@ public abstract partial class GpuFramebuffer
     {
         GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
             FramebufferParameterName.FramebufferAttachmentObjectType, out int type);
-        if (type != (int)All.None) candidate.Add(slot, GpuFramebufferAttachmentDiscovery.Read(source, slot));
+        if (type != (int)All.None) candidate.Add(slot, GpuFramebufferAttachmentDiscovery.Read(source, slot, forceNative: true));
     }
     #endregion
 }

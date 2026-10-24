@@ -3,17 +3,18 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Stores the synchronized native metadata snapshot of a resource wrapper.</summary>
 public abstract class GpuResource<TMetadata> : GpuResource where TMetadata : struct
 {
-    /// <summary>Contains the last complete snapshot assigned by the resource manager.</summary>
-    protected TMetadata metadata;
-
-    /// <summary>Stores the image selection used to project canonical backing metadata.</summary>
-    internal GpuImageSelection? MetadataImageSelection;
+    private TMetadata metadataSnapshot;
 
     #region Public API
     /// <summary>Replaces this wrapper's snapshot without querying native state or altering ownership.</summary>
     public void HandleMetadataChanged(TMetadata data)
     {
-        metadata = data;
+        metadataSnapshot = data;
     }
+    #endregion
+
+    #region Protected API
+    /// <summary>Exposes the manager-published snapshot without allowing derived wrappers to edit it.</summary>
+    protected ref readonly TMetadata metadata => ref metadataSnapshot;
     #endregion
 }

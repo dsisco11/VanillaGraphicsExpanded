@@ -10,11 +10,13 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 internal sealed class GpuPixelPackBuffer : GpuBufferObject
 {
+    /// <summary>Retains allocation policy separately and acquires any realized native buffer facts.</summary>
     private GpuPixelPackBuffer(int bufferId, BufferUsageHint usage, string? debugName)
     {
         this.bufferId = bufferId;
         target = BufferTarget.PixelPackBuffer;
-        this.usage = usage;
+        allocationUsage = usage;
+        GpuResourceManager.RegisterBufferWrapper(this);
         this.debugName = debugName;
     }
 
@@ -30,7 +32,7 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
         string? debugName = null)
     {
         int id = CreateBufferId(debugName);
-        return new GpuPixelPackBuffer(id, usage, debugName);
+        return CompleteOwnedCreation(GpuResourceKind.Buffer, id, () => new GpuPixelPackBuffer(id, usage, debugName));
     }
 
     /// <summary>
@@ -53,9 +55,8 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(byteCount), byteCount, "Byte count must be >= 0.");
         }
 
-        using var scope = BindScope();
-        GL.BufferData(BufferTarget.PixelPackBuffer, (IntPtr)byteCount, IntPtr.Zero, usage);
-        sizeBytes = byteCount;
+        _ = GpuBufferUploader.BufferData(this, byteCount, IntPtr.Zero, allocationUsage);
+
     }
 
     /// <summary>
@@ -212,8 +213,8 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
             mapFlags |= MapBufferAccessMask.MapFlushExplicitBit;
         }
 
-        GL.BufferStorage(BufferTarget.PixelPackBuffer, byteCount, IntPtr.Zero, storageFlags);
-        sizeBytes = byteCount;
+        StateCache.Current.BufferStorage(this, byteCount, IntPtr.Zero, storageFlags);
+
 
         return GL.MapBufferRange(BufferTarget.PixelPackBuffer, IntPtr.Zero, byteCount, mapFlags);
     }

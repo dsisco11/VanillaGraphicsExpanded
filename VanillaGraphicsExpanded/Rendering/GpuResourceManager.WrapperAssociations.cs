@@ -14,7 +14,14 @@ internal sealed partial class GpuResourceManager
     /// <summary>Records the original registration without storing state or a back-reference in the wrapper.</summary>
     internal void RecordResourceAssociation(GpuResourceRegistration entry, GpuResource resource)
     {
-        var original = resourceAssociations.GetValue(resource, _ => entry);
+        bool admitted = false;
+        var original = resourceAssociations.GetValue(resource, _ => { admitted = true; return entry; });
+        if (admitted)
+        {
+            var references = resource.UsageReferences;
+            for (int index = 0; index < references.Pass; index++) entry.Retain(true);
+            for (int index = 0; index < references.Lifetime; index++) entry.Retain(false);
+        }
         if (!ReferenceEquals(original, entry))
             throw new InvalidOperationException("The wrapper belongs to a different original registration.");
     }

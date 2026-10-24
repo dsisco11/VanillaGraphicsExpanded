@@ -23,7 +23,7 @@ internal static class ShaderProgramLink
             linkMilliseconds = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
             return program;
         }
-        catch { GL.DeleteProgram(program); throw; }
+        catch { StateCache.Current.DeleteProgram(program); throw; }
     }
 
     /// <summary>Checks final status; deferred callers must first establish extension completion.</summary>

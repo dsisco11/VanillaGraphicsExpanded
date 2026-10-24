@@ -49,9 +49,9 @@ internal sealed partial class GpuResourceManager
         return entry;
     }
 
-    /// <summary>Reuses tracked facts or validates and reads a realized external object once.</summary>
+    /// <summary>Reuses tracked facts or reads an external object, optionally refreshing an existing registration.</summary>
     internal GpuResourceMetadataEntry<TMetadata>? AcquireResource<TMetadata>(GpuResourceKind kind, nint id,
-        IGpuResourceMetadataReader<TMetadata> reader) where TMetadata : struct
+        IGpuResourceMetadataReader<TMetadata> reader, bool refreshExisting = false) where TMetadata : struct
     {
         ArgumentNullException.ThrowIfNull(reader);
         RequireMetadataContext();
@@ -63,11 +63,11 @@ internal sealed partial class GpuResourceManager
             var tracked = (GpuResourceMetadataEntry<TMetadata>)existing;
             if (tracked.State != GpuResourceRegistrationState.Live) return null;
             tracked.Reader ??= reader;
-            if (tracked.MetadataAvailable) return tracked;
+            if (tracked.MetadataAvailable && !refreshExisting) return tracked;
             tracked.Reader = reader;
             return RefreshMetadata(tracked, tracked.MetadataRevision == 0 ? GpuMetadataChange.None : GpuMetadataChange.Metadata) ? tracked : null;
         }
-        if (!reader.IsResource(id) || !reader.TryRead(id, out var candidate)) return null;
+        if (!reader.TryRead(id, out var candidate)) return null;
         RequireMetadataContext();
         var entry = new GpuResourceMetadataEntry<TMetadata>(this, kind, id, reader);
         // Native acquisition is context-thread confined. Keep the map operation atomic and
@@ -123,9 +123,13 @@ internal sealed partial class GpuResourceManager
     /// <summary>Removes a deleted name and invalidates its aliases before that name can be registered again.</summary>
     internal void ObserveDeletion(GpuResourceKind kind, nint id)
     {
-        RequireMetadataContext();
+        if (id == 0 || context != currentMetadataContext()) return;
         if (metadataRegistry.TryRemove(new(kind, id), out var entry))
+        {
             entry.Invalidate(GpuResourceRegistrationState.Deleted);
+        }
+        // A tracked dependent can refer to an externally owned, unregistered backing name.
+        InvalidateDeletionDependencies(kind, id);
     }
 
     /// <summary>Checks captured registration identity for deferred work without reacquiring a reused numeric name.</summary>

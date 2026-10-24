@@ -9,7 +9,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// RAII wrapper around an OpenGL vertex array object (VAO).
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed class GpuVao : GpuResource, IDisposable
+internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
 {
     private int vertexArrayId;
     private string? debugName;
@@ -29,6 +29,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
     private GpuVao(int vertexArrayId, string? debugName)
     {
         this.vertexArrayId = vertexArrayId;
+        GpuResourceManager.RegisterEmptyMetadata(this);
         this.debugName = debugName;
     }
 
@@ -44,7 +45,7 @@ internal sealed class GpuVao : GpuResource, IDisposable
         GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, id, debugName);
 #endif
 
-        return new GpuVao(id, debugName);
+        return CompleteOwnedCreation(GpuResourceKind.VertexArray, id, () => new GpuVao(id, debugName));
     }
 
     public override void SetDebugName(string? debugName)
@@ -59,8 +60,10 @@ internal sealed class GpuVao : GpuResource, IDisposable
 #endif
     }
 
+    /// <summary>Binds this live allocation and restores the previous binding when the scope ends.</summary>
     public BindingScope BindScope()
     {
+        ObjectDisposedException.ThrowIf(!IsValid, this);
         var scope = StateCache.Current.BindVertexArrayScope(vertexArrayId);
         return new BindingScope(scope);
     }

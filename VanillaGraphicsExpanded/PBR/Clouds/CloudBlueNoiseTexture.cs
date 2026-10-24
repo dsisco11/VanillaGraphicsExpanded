@@ -26,12 +26,9 @@ internal sealed class CloudBlueNoiseTexture : GpuTexture
     {
         ObjectDisposedException.ThrowIf(IsDisposed, this);
         if (IsValid) return;
-        width = Side; height = Side * Frames; depth = 1;
-        internalFormat = PixelInternalFormat.R32f;
-        textureTarget = TextureTarget.Texture2D;
         filterMode = TextureFilterMode.Nearest;
         debugName = "Cloud.Primary.BlueNoise";
-        AllocateOrReallocate2DTexture(mipLevels: 1);
+        AllocateOrReallocate2DTexture(Side, Side * Frames, PixelInternalFormat.R32f, mipLevels: 1);
         UploadDataImmediate(Masks.Value);
     }
     #endregion

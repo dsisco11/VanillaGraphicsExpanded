@@ -10,7 +10,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed class GpuTransformFeedback : GpuResource, IDisposable
+internal sealed class GpuTransformFeedback : GpuResource<GpuTransformFeedbackMetadata>, IDisposable
 {
     private int transformFeedbackId;
 
@@ -31,11 +31,12 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the transform feedback has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => transformFeedbackId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
     private GpuTransformFeedback(int transformFeedbackId)
     {
         this.transformFeedbackId = transformFeedbackId;
+        GpuResourceManager.RegisterEmptyMetadata(this);
     }
 
     /// <summary>
@@ -49,9 +50,12 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
             throw new InvalidOperationException("glGenTransformFeedbacks failed.");
         }
 
-        var tf = new GpuTransformFeedback(id);
-        tf.SetDebugName(debugName);
-        return tf;
+        return CompleteOwnedCreation(GpuResourceKind.TransformFeedback, id, () =>
+        {
+            var value = new GpuTransformFeedback(id);
+            value.SetDebugName(debugName);
+            return value;
+        });
     }
 
     /// <summary>
@@ -108,6 +112,7 @@ internal sealed class GpuTransformFeedback : GpuResource, IDisposable
     /// </summary>
     public BindingScope BindScope()
     {
+        ObjectDisposedException.ThrowIf(!IsValid, this);
         var gl = StateCache.Current;
         var scope = gl.BindTransformFeedbackScope(transformFeedbackId);
         return new BindingScope(scope);

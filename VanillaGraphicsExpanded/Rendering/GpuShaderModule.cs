@@ -14,10 +14,11 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed class GpuShaderModule : GpuResource, IDisposable
+internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>, IDisposable
 {
     private int shaderId;
-    private readonly ShaderType shaderType;
+    /// <summary>Gets the fixed native shader type from the canonical snapshot.</summary>
+    private ShaderType shaderType => metadata.Type;
 
     /// <inheritdoc />
     public override nint ResourceId
@@ -44,13 +45,14 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the shader has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => shaderId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
     /// <summary>Adopts an owned shader handle loaded by the binary asset loader.</summary>
     internal GpuShaderModule(int shaderId, ShaderType shaderType)
     {
         this.shaderId = shaderId;
-        this.shaderType = shaderType;
+        GpuResourceManager.AcquireWrapperMetadata(this, GpuShaderMetadataReader.Instance);
+        if (metadata.Type != shaderType) throw new ArgumentException("Native shader stage differs from the adopted stage.", nameof(shaderType));
     }
 
     /// <summary>
@@ -116,7 +118,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
 
             if (status == 0)
             {
-                try { GL.DeleteShader(id); } catch { }
+                try { StateCache.Current.DeleteShader(id); } catch { }
                 return false;
             }
 
@@ -131,7 +133,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
             {
                 if (id != 0)
                 {
-                    GL.DeleteShader(id);
+                    StateCache.Current.DeleteShader(id);
                 }
             }
             catch
@@ -329,7 +331,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
                 infoLog = GL.GetShaderInfoLog(id) ?? string.Empty;
                 if (status == 0)
                 {
-                    try { GL.DeleteShader(id); } catch { }
+                    try { StateCache.Current.DeleteShader(id); } catch { }
                     infoLog = WithPendingShaderErrors(infoLog);
                     return false;
                 }
@@ -346,7 +348,7 @@ internal sealed class GpuShaderModule : GpuResource, IDisposable
             {
                 if (id != 0)
                 {
-                    GL.DeleteShader(id);
+                    StateCache.Current.DeleteShader(id);
                 }
             }
             catch

@@ -10,6 +10,27 @@ public sealed class GpuResourceMetadataRegistryTests
 {
     #region Public API
     #region Acquisition and refresh
+    /// <summary>Each actual snapshot acquisition validates identity exactly once inside its reader.</summary>
+    [Fact]
+    public void AcquisitionAndRefreshValidateIdentityOncePerSnapshot()
+    {
+        using var manager = CreateManager();
+        var reader = new BufferReader();
+        var entry = manager.AcquireResource(GpuResourceKind.Buffer, 7, reader)!;
+        Assert.Equal(1, reader.ValidityChecks);
+        Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Buffer, 7, reader));
+        Assert.Equal(1, reader.ValidityChecks);
+        Assert.True(manager.RefreshMetadata(entry, GpuMetadataChange.Metadata));
+        Assert.Equal(2, reader.ValidityChecks);
+        reader.Exists = false;
+        Assert.False(manager.RefreshMetadata(entry, GpuMetadataChange.Metadata));
+        Assert.Equal(3, reader.ValidityChecks);
+        Assert.False(entry.MetadataAvailable);
+        Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, 8, reader));
+        Assert.Equal(4, reader.ValidityChecks);
+        Assert.Null(manager.FindResource(GpuResourceKind.Buffer, 8));
+    }
+
     /// <summary>External acquisition captures once and each live alias receives the same canonical facts.</summary>
     [Fact]
     public void AcquisitionSharesEntryAndRefreshesAllAliasesOnce()
@@ -50,7 +71,8 @@ public sealed class GpuResourceMetadataRegistryTests
         Assert.False(manager.IsResourceMetadataAvailable(resource));
         var reader = new BufferReader { Exists = false };
         Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, 7, reader));
-        Assert.Equal(0, reader.Reads);
+        Assert.Equal(1, reader.Reads);
+        Assert.Equal(1, reader.ValidityChecks);
         reader.Exists = true;
         Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Buffer, 7, reader));
         Assert.True(manager.IsResourceMetadataAvailable(resource));
@@ -232,14 +254,14 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var entry = manager.RegisterCreatedResource<GpuTextureMetadata>(GpuResourceKind.Texture, 7);
-        using var image = new Resource<GpuImageMetadata>(GpuResourceKind.Texture, 7);
-        using var missing = new Resource<GpuImageMetadata>(GpuResourceKind.Texture, 7);
-        manager.AssociateImageResource(entry, missing, new(Level: 1, Layer: 9));
-        manager.AssociateImageResource(entry, image, new(Level: 1, Layer: 2));
+        using var image = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.Texture2DArray, 1, 2);
+        using var missing = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.Texture2DArray, 1, 9);
+        manager.AssociateImageResource(entry, missing);
+        manager.AssociateImageResource(entry, image);
         var levels = ImmutableArray.Create(new GpuTextureLevelMetadata(1, 0, 8, 4, 3, PixelInternalFormat.Rgba16f, 0, true));
         var data = new GpuTextureMetadata(TextureTarget.Texture2DArray, levels, true, 2, 0, 1, false);
         manager.PublishMetadata(entry, data, GpuMetadataChange.Storage);
-        Assert.Equal(new GpuImageMetadata(8, 4, 1, PixelInternalFormat.Rgba16f, 0), image.Snapshot);
+        Assert.Equal(new GpuImageMetadata(8, 4, 1, PixelInternalFormat.Rgba16f, 0), new GpuImageMetadata(image.Width, image.Height, image.ImageDepth, image.InternalFormat, image.Samples));
         Assert.True(manager.IsResourceMetadataAvailable(image));
         Assert.False(manager.IsResourceMetadataAvailable(missing));
         Assert.Equal(2, entry.AssociationCount);
@@ -252,12 +274,42 @@ public sealed class GpuResourceMetadataRegistryTests
     {
         using var manager = CreateManager();
         var entry = manager.RegisterCreatedResource<GpuTextureMetadata>(GpuResourceKind.Texture, 7);
-        using var image = new Resource<GpuImageMetadata>(GpuResourceKind.Texture, 7);
-        manager.AssociateImageResource(entry, image, new(Layered: true));
+        using var image = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.Texture1DArray, 0, null);
+        manager.AssociateImageResource(entry, image);
         var levels = ImmutableArray.Create(new GpuTextureLevelMetadata(0, 0, 8, 3, 1, PixelInternalFormat.Rgba8, 0, true));
         manager.PublishMetadata(entry, new(TextureTarget.Texture1DArray, levels, true, 1, 0, 0, false), GpuMetadataChange.Storage);
         Assert.True(manager.IsResourceMetadataAvailable(image));
-        Assert.Equal(new GpuImageMetadata(8, 1, 3, PixelInternalFormat.Rgba8, 0), image.Snapshot);
+        Assert.Equal(new GpuImageMetadata(8, 1, 3, PixelInternalFormat.Rgba8, 0), new GpuImageMetadata(image.Width, image.Height, image.ImageDepth, image.InternalFormat, image.Samples));
+    }
+
+    /// <summary>A whole cube image requires all six faces with matching dimensions, format and sample count.</summary>
+    [Fact]
+    public void WholeCubeProjectionRejectsMissingOrIncompatibleFaces()
+    {
+        using var manager = CreateManager();
+        var entry = manager.RegisterCreatedResource<GpuTextureMetadata>(GpuResourceKind.Texture, 7);
+        using var image = GpuFramebufferAttachment.FromExternalImage(7, false, TextureTarget.TextureCubeMap, 0, null);
+        manager.AssociateImageResource(entry, image);
+        var faces = Enumerable.Range(0, 6).Select(face => new GpuTextureLevelMetadata(0,
+            TextureTarget.TextureCubeMapPositiveX + face, 8, 8, 1, PixelInternalFormat.Rgba8, 0, true)).ToImmutableArray();
+        var complete = new GpuTextureMetadata(TextureTarget.TextureCubeMap, faces, false, 0, 0, 0, false);
+        manager.PublishMetadata(entry, complete, GpuMetadataChange.Storage);
+        Assert.True(manager.IsResourceMetadataAvailable(image));
+        Assert.Equal(6, image.ImageDepth);
+
+        // Each rejected publication retains canonical facts without exposing a usable whole-cube alias.
+        manager.PublishMetadata(entry, complete with { Levels = faces.RemoveAt(5) }, GpuMetadataChange.Storage);
+        Assert.False(manager.IsResourceMetadataAvailable(image));
+        manager.PublishMetadata(entry, complete with { Levels = faces.SetItem(5, faces[5] with { Width = 4 }) }, GpuMetadataChange.Storage);
+        Assert.False(manager.IsResourceMetadataAvailable(image));
+        manager.PublishMetadata(entry, complete with { Levels = faces.SetItem(5, faces[5] with { Format = PixelInternalFormat.Rgba16f }) }, GpuMetadataChange.Storage);
+        Assert.False(manager.IsResourceMetadataAvailable(image));
+        manager.PublishMetadata(entry, complete with { Levels = faces.SetItem(5, faces[5] with { Samples = 4 }) }, GpuMetadataChange.Storage);
+        Assert.False(manager.IsResourceMetadataAvailable(image));
+        manager.PublishMetadata(entry, complete, GpuMetadataChange.Storage);
+        Assert.True(manager.IsResourceMetadataAvailable(image));
+        Assert.Equal(new GpuImageMetadata(8, 8, 6, PixelInternalFormat.Rgba8, 0),
+            new GpuImageMetadata(image.Width, image.Height, image.ImageDepth, image.InternalFormat, image.Samples));
     }
 
     /// <summary>The public generic notification assigns only local snapshot data without changing canonical authority.</summary>
@@ -464,12 +516,12 @@ public sealed class GpuResourceMetadataRegistryTests
     private sealed class BufferReader : IGpuResourceMetadataReader<GpuBufferMetadata>
     {
         internal bool Exists = true, Readable = true, Throws;
-        internal int Reads;
+        internal int Reads, ValidityChecks;
         internal Action? OnRead;
         internal GpuBufferMetadata Candidate = new(16, BufferUsageHint.StaticDraw);
 
         /// <inheritdoc />
-        public bool IsResource(nint id) => Exists;
+        public bool IsResource(nint id) { ValidityChecks++; return Exists; }
 
         /// <inheritdoc />
         public bool TryRead(nint id, out GpuBufferMetadata data)
@@ -478,7 +530,7 @@ public sealed class GpuResourceMetadataRegistryTests
             OnRead?.Invoke();
             if (Throws) throw new InvalidOperationException("Injected metadata read failure.");
             data = Candidate;
-            return Readable;
+            return IsResource(id) && Readable;
         }
     }
 

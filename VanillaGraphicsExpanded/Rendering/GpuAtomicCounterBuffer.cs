@@ -11,11 +11,13 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 internal sealed class GpuAtomicCounterBuffer : GpuBufferObject
 {
+    /// <summary>Retains allocation policy separately and acquires any realized native buffer facts.</summary>
     private GpuAtomicCounterBuffer(int bufferId, BufferUsageHint usage, string? debugName)
     {
         this.bufferId = bufferId;
         target = BufferTarget.AtomicCounterBuffer;
-        this.usage = usage;
+        allocationUsage = usage;
+        GpuResourceManager.RegisterBufferWrapper(this);
         this.debugName = debugName;
     }
 
@@ -27,7 +29,7 @@ internal sealed class GpuAtomicCounterBuffer : GpuBufferObject
         string? debugName = null)
     {
         int id = CreateBufferId(debugName);
-        return new GpuAtomicCounterBuffer(id, usage, debugName);
+        return CompleteOwnedCreation(GpuResourceKind.Buffer, id, () => new GpuAtomicCounterBuffer(id, usage, debugName));
     }
 
     /// <summary>

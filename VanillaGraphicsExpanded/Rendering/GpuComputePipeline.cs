@@ -18,7 +18,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// All methods require a current GL context on the calling thread.
 /// </summary>
-internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
+internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadata>, IDisposable
 {
     private int programId;
     protected override (nint Handle, long Generation) NativeProgramContext => ExecutableContext;
@@ -55,8 +55,9 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the program has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => programId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
+    /// <summary>Retains preparation policy and acquires metadata for a realized executable.</summary>
     private GpuComputePipeline(int programId, GpuProgramLayout programLayout, Action<string>? warn)
     {
         this.programId = programId;
@@ -67,6 +68,9 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
         }
         this.programLayout = programLayout;
         this.warn = warn;
+        if (programId != 0) GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance, refreshExisting: false);
+        if (ResourceManager?.GetResourceRegistration(this) is { MetadataAvailable: true } entry)
+            programLayout.UseNativeMetadata(programId, metadata, entry.MetadataRevision);
     }
 
     /// <summary>
@@ -134,7 +138,7 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
 
             if (!linked)
             {
-                try { GL.DeleteProgram(programId); } catch { }
+                try { StateCache.Current.DeleteProgram(programId); } catch { }
                 return false;
             }
 
@@ -149,7 +153,7 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
             {
                 if (programId != 0)
                 {
-                    GL.DeleteProgram(programId);
+                    StateCache.Current.DeleteProgram(programId);
                 }
             }
             catch
@@ -248,7 +252,7 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
                 else
                 {
                     // Discard a rejected executable before returning to the established linking owner.
-                    GL.DeleteProgram(candidate);
+                    StateCache.Current.DeleteProgram(candidate);
                     candidate = 0;
                     var loaded = Spirv.SpirvStageLoader.Load(plan.Stages[0], inputs.Read);
                     using var module = new GpuShaderModule(loaded.Shader, ShaderType.ComputeShader) { BindingContract = loaded.Contract };
@@ -260,7 +264,7 @@ internal sealed partial class GpuComputePipeline : GpuResource, IDisposable
                 Interlocked.Increment(ref spirvUsedCount);
                 return true;
             }
-            finally { if (candidate != 0) GL.DeleteProgram(candidate); }
+            finally { if (candidate != 0) StateCache.Current.DeleteProgram(candidate); }
         }
         catch (Exception ex)
         {

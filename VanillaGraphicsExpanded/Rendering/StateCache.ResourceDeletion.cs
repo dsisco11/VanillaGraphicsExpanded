@@ -13,7 +13,7 @@ internal sealed partial class StateCache
     internal void DeleteBuffer(int buffer)
     {
         GL.DeleteBuffer(buffer);
-        ForgetDeletedBuffer(buffer);
+        CompleteResourceDeletion(GpuResourceKind.Buffer, buffer);
     }
 
 
@@ -22,9 +22,8 @@ internal sealed partial class StateCache
     {
         GL.DeleteBuffers(count, ref buffers);
         if (count <= 0) return;
-        // The native ref overload already requires count contiguous names from the caller.
         foreach (int buffer in MemoryMarshal.CreateReadOnlySpan(ref buffers, count))
-            ForgetDeletedBuffer(buffer);
+            CompleteResourceDeletion(GpuResourceKind.Buffer, buffer);
     }
 
     #endregion
@@ -34,51 +33,36 @@ internal sealed partial class StateCache
     internal void DeleteRenderbuffer(int renderbuffer)
     {
         GL.DeleteRenderbuffer(renderbuffer);
-        RecordBoundaryRetirement(EPipelineState.RenderbufferBinding, renderbuffer);
-        if (renderbuffer != 0 && currentRenderbuffer == renderbuffer) currentRenderbuffer = 0;
+        CompleteResourceDeletion(GpuResourceKind.Renderbuffer, renderbuffer);
     }
 
     /// <summary>Records implicit sampler unbinding only on slots referencing the deleted name.</summary>
     internal void DeleteSampler(int sampler)
     {
         GL.DeleteSampler(sampler);
-        RecordBoundaryRetirement(EPipelineState.SamplerBindings, sampler);
-        if (sampler == 0 || samplerBindingByUnit is null) return;
-        for (int unit = 0; unit < samplerBindingByUnit.Length; unit++)
-            if (samplerBindingByUnit[unit] == sampler) samplerBindingByUnit[unit] = 0;
+        CompleteResourceDeletion(GpuResourceKind.Sampler, sampler);
     }
 
     /// <summary>Records implicit read/draw unbinding without losing the surviving direction.</summary>
     internal void DeleteFramebuffer(int framebuffer)
     {
         RequireMutableFramebufferConfiguration(framebuffer);
-        if (framebuffer != 0) InvalidateFramebufferDrawRouting(framebuffer);
         GL.DeleteFramebuffer(framebuffer);
-        RecordBoundaryRetirement(EPipelineState.FramebufferBindings, framebuffer);
-        if (framebuffer == 0) return;
-        if (currentReadFramebuffer == framebuffer) currentReadFramebuffer = 0;
-        if (currentDrawFramebuffer == framebuffer) currentDrawFramebuffer = 0;
-        if (currentFramebuffer == framebuffer) currentFramebuffer = 0;
+        CompleteResourceDeletion(GpuResourceKind.Framebuffer, framebuffer);
     }
 
     /// <summary>Removes only the deleted VAO's element association and resets selection when bound.</summary>
     internal void DeleteVertexArray(int array)
     {
         GL.DeleteVertexArray(array);
-        RecordBoundaryRetirement(EPipelineState.VertexArray, array);
-        if (array == 0) return;
-        elementArrayBufferByVao.Remove(array);
-        if (currentVao == array) currentVao = 0;
+        CompleteResourceDeletion(GpuResourceKind.VertexArray, array);
     }
 
     /// <summary>Marks a program for deletion without changing its current binding snapshot.</summary>
     internal void DeleteProgram(int program)
     {
-        // A current program remains bound until a later UseProgram; deletion alone changes
-        // neither the current executable nor the selected program-pipeline object.
         GL.DeleteProgram(program);
-        RecordBoundaryRetirement(EPipelineState.Program, program);
-        ProgramScopeTracker.MarkDeleted(program);
+        CompleteResourceDeletion(GpuResourceKind.Program, program);
     }
     #endregion
     #endregion

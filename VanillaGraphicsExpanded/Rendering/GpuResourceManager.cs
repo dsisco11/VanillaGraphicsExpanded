@@ -162,6 +162,12 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
             return;
         }
 
+        if (command.Cleanup is null && command.Registration is null
+            && metadataRegistry.TryGetValue(new(command.Kind, command.Id), out var original))
+        {
+            if (original.State == GpuResourceRegistrationState.Live) RetireResource(original);
+            command = command with { Registration = original };
+        }
         deletionQueue.Enqueue(command.Context == default ? command with { Context = context } : command);
     }
 
@@ -177,6 +183,8 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
             }
             try
             {
+                if (command.Registration is { } original &&
+                    (!metadataRegistry.TryGetValue(original.Handle, out var current) || !ReferenceEquals(current, original))) continue;
                 if (command.Cleanup is { } cleanup) { cleanup(); continue; }
                 switch (command.Kind)
                 {
@@ -196,31 +204,31 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
                         StateCache.Current.DeleteRenderbuffer((int)command.Id);
                         break;
                     case GpuResourceKind.Query:
-                        GL.DeleteQuery((int)command.Id);
+                        StateCache.Current.DeleteQuery((int)command.Id);
                         break;
                     case GpuResourceKind.Program:
                         StateCache.Current.DeleteProgram((int)command.Id);
                         break;
                     case GpuResourceKind.TransformFeedback:
-                        GL.DeleteTransformFeedback((int)command.Id);
+                        StateCache.Current.DeleteTransformFeedback((int)command.Id);
                         break;
                     case GpuResourceKind.Sampler:
                         StateCache.Current.DeleteSampler((int)command.Id);
                         break;
                     case GpuResourceKind.ProgramPipeline:
-                        GL.DeleteProgramPipeline((int)command.Id);
+                        StateCache.Current.DeleteProgramPipeline((int)command.Id);
                         break;
                     case GpuResourceKind.Shader:
-                        GL.DeleteShader((int)command.Id);
+                        StateCache.Current.DeleteShader((int)command.Id);
                         break;
                     case GpuResourceKind.Sync:
-                        GL.DeleteSync((IntPtr)command.Id);
+                        StateCache.Current.DeleteSync((IntPtr)command.Id);
                         break;
                     case GpuResourceKind.Semaphore:
-                        GL.Ext.DeleteSemaphore((int)command.Id);
+                        StateCache.Current.DeleteSemaphore((int)command.Id);
                         break;
                     case GpuResourceKind.MemoryObject:
-                        GL.Ext.DeleteMemoryObject((int)command.Id);
+                        StateCache.Current.DeleteMemoryObject((int)command.Id);
                         break;
                 }
             }
@@ -252,6 +260,6 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
         }
     }
 
-    private readonly record struct GpuDeletionCommand(GpuResourceKind Kind, nint Id, (nint Handle, long Generation) Context = default, Action? Cleanup = null);
+    private readonly record struct GpuDeletionCommand(GpuResourceKind Kind, nint Id, (nint Handle, long Generation) Context = default, Action? Cleanup = null, GpuResourceRegistration? Registration = null);
 
 }

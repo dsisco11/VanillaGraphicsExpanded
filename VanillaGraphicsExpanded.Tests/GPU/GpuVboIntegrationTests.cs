@@ -67,6 +67,8 @@ public class GpuVboIntegrationTests
         // Assert
         Assert.True(vbo.IsValid);
         Assert.Equal(BufferTarget.ArrayBuffer, vbo.Target);
+        AssertNativeUsage(vbo);
+        vbo.Allocate(0);
         Assert.Equal(BufferUsageHint.DynamicDraw, vbo.Usage);
     }
 
@@ -100,6 +102,8 @@ public class GpuVboIntegrationTests
         // Assert
         Assert.True(vbo.IsValid);
         Assert.Equal(target, vbo.Target);
+        AssertNativeUsage(vbo);
+        vbo.Allocate(0);
         Assert.Equal(usage, vbo.Usage);
         Assert.Equal(debugName, vbo.DebugName);
         Assert.True(vbo.BufferId > 0);
@@ -331,6 +335,8 @@ public class GpuVboIntegrationTests
 
         // Assert
         Assert.True(vbo.IsValid);
+        AssertNativeUsage(vbo);
+        vbo.Allocate(0);
         Assert.Equal(usage, vbo.Usage);
         Assert.True(vbo.BufferId > 0);
     }
@@ -468,4 +474,14 @@ public class GpuVboIntegrationTests
         Assert.Equal(longName, vbo.DebugName);
         Assert.True(vbo.IsValid);
     }
+    #region Private
+    /// <summary>Checks realized native storage before requested allocation policy has been applied.</summary>
+    private static void AssertNativeUsage(GpuBufferObject buffer)
+    {
+        // Array-buffer binding can query any buffer without altering a VAO's element binding.
+        using var binding = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer.BufferId);
+        GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferUsage, out int actualUsage);
+        Assert.Equal((BufferUsageHint)actualUsage, buffer.Usage);
+    }
+    #endregion
 }

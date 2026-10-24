@@ -47,7 +47,9 @@ public abstract partial class GpuFramebuffer
         if (fboId == 0) throw new InvalidOperationException("The default framebuffer cannot accept attachments.");
         attachment.ValidateSlot(slot);
         using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
-        attachment.AttachTo(slot);
+        // Repair only the requested slot. Rendering validation would reject an invalid outgoing
+        // image before it can be replaced. Other pending replacements remain dirty until Bind.
+        attachment.AttachTo(this, slot);
         // Packed attachment calls update two independent GL aspect slots. Keep both
         // references so replacing depth later does not lose the remaining stencil image.
         if (slot == FramebufferAttachment.DepthStencilAttachment)
@@ -66,12 +68,20 @@ public abstract partial class GpuFramebuffer
         StateCache.Current.RequireMutableFramebufferConfiguration(fboId);
         RequireMutableStorage();
         ObjectDisposedException.ThrowIf(IsDisposed, this);
-        bool removed = slot == FramebufferAttachment.DepthStencilAttachment
-            ? attachments.Remove(FramebufferAttachment.DepthAttachment) | attachments.Remove(FramebufferAttachment.StencilAttachment)
-            : attachments.Remove(slot);
-        if (!removed) return false;
+        bool present = slot == FramebufferAttachment.DepthStencilAttachment
+            ? attachments.ContainsKey(FramebufferAttachment.DepthAttachment) || attachments.ContainsKey(FramebufferAttachment.StencilAttachment)
+            : attachments.ContainsKey(slot);
+        if (!present) return false;
         using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.Framebuffer, fboId);
-        GL.FramebufferTexture(FramebufferTarget.Framebuffer, slot, 0, 0);
+        // Detachment must remain possible when the outgoing image is unavailable. Keep any
+        // other pending replacements dirty so their native attachments refresh at rendering use.
+        StateCache.Current.FramebufferTexture(this, slot, null);
+        if (slot == FramebufferAttachment.DepthStencilAttachment)
+        {
+            attachments.Remove(FramebufferAttachment.DepthAttachment);
+            attachments.Remove(FramebufferAttachment.StencilAttachment);
+        }
+        else attachments.Remove(slot);
         PublishAttachmentsChanged();
         return true;
     }

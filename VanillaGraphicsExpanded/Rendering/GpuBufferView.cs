@@ -10,13 +10,17 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// A buffer view is a texture object that exposes a buffer object's data as texels for sampling in shaders.
 /// Deletion is deferred to <see cref="GpuResourceManager"/> when available.
 /// </summary>
-public class GpuBufferView : GpuResource, IDisposable
+public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
 {
     private int textureId;
-    private int bufferId;
-    private readonly SizedInternalFormat format;
-    private readonly nint offsetBytes;
-    private readonly nint sizeBytes;
+    /// <summary>Gets the native buffer-view bufferId from the canonical texture snapshot.</summary>
+    private int bufferId => checked((int)(metadata.Buffer?.BufferId ?? 0));
+    /// <summary>Gets the native buffer-view format from the canonical texture snapshot.</summary>
+    private SizedInternalFormat format => metadata.Buffer?.Format ?? 0;
+    /// <summary>Gets the native buffer-view offsetBytes from the canonical texture snapshot.</summary>
+    private nint offsetBytes => metadata.Buffer?.Offset ?? 0;
+    /// <summary>Gets the native buffer-view sizeBytes from the canonical texture snapshot.</summary>
+    private nint sizeBytes => metadata.Buffer is { WholeBuffer: false } data ? data.Size : 0;
 
     /// <inheritdoc />
     public override nint ResourceId
@@ -55,15 +59,38 @@ public class GpuBufferView : GpuResource, IDisposable
     /// <summary>
     /// Returns <c>true</c> when the view has a non-zero id and has not been disposed.
     /// </summary>
-    public new bool IsValid => textureId != 0 && !IsDisposed;
+    public new bool IsValid => base.IsValid;
 
-    protected GpuBufferView(int textureId, int bufferId, SizedInternalFormat format, nint offsetBytes, nint sizeBytes)
+    /// <summary>Configures a view using its known creation path, then receives the accepted native metadata.</summary>
+    /// <param name="textureId">Texture name owned by the view.</param>
+    /// <param name="bufferId">Backing buffer owned by the caller.</param>
+    /// <param name="format">Sized format used to interpret buffer texels.</param>
+    /// <param name="offsetBytes">First byte of a ranged view.</param>
+    /// <param name="sizeBytes">Range size, or zero for a whole-buffer view.</param>
+    /// <param name="createdWithDsa">Whether typed DSA creation already initialized this texture; generated names use bound initialization.</param>
+    protected GpuBufferView(int textureId, int bufferId, SizedInternalFormat format, nint offsetBytes, nint sizeBytes,
+        bool createdWithDsa = false)
     {
         this.textureId = textureId;
-        this.bufferId = bufferId;
-        this.format = format;
-        this.offsetBytes = offsetBytes;
-        this.sizeBytes = sizeBytes;
+        // The view retains its DSA/bound fallback strategy; StateCache owns command execution and publication.
+        var cache = StateCache.Current;
+        // Creation already tells us whether named commands can initialize the association.
+        // Generated names supplied by derived wrappers use the bound path without querying GL.
+        if (createdWithDsa)
+        {
+            bool configured = sizeBytes == 0
+                ? cache.TryTextureBuffer(this, bufferId, format)
+                : cache.TryTextureBufferRange(this, bufferId, format, offsetBytes, sizeBytes);
+            if (configured) return;
+        }
+
+        using var binding = cache.BindTextureScope(TextureTarget.TextureBuffer, 0, textureId);
+        if (sizeBytes == 0)
+        {
+            cache.TexBuffer(this, bufferId, format);
+        }
+        else
+            cache.TexBufferRange(this, bufferId, format, offsetBytes, checked((int)sizeBytes));
     }
 
     /// <summary>
@@ -92,27 +119,11 @@ public class GpuBufferView : GpuResource, IDisposable
             throw new ArgumentException("Buffer id must be non-zero.", nameof(bufferId));
         }
 
-        int id = GL.GenTexture();
-        if (id == 0)
-        {
-            throw new InvalidOperationException("glGenTextures failed.");
-        }
+        int id = CreateTextureId(out bool createdWithDsa);
 
         try
         {
-            using var _ = StateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
-
-            // Prefer DSA when available, otherwise fall back to bind-to-edit.
-            try
-            {
-                GL.TextureBuffer(id, format, bufferId);
-            }
-            catch
-            {
-                GL.TexBuffer(TextureBufferTarget.TextureBuffer, format, bufferId);
-            }
-
-            var view = new GpuBufferView(id, bufferId, format, offsetBytes: 0, sizeBytes: 0);
+            var view = new GpuBufferView(id, bufferId, format, offsetBytes: 0, sizeBytes: 0, createdWithDsa: createdWithDsa);
             view.SetDebugName(debugName);
             return view;
         }
@@ -152,28 +163,11 @@ public class GpuBufferView : GpuResource, IDisposable
             throw new NotSupportedException("Texture buffer ranges require GL_ARB_texture_buffer_range.");
         }
 
-        int id = GL.GenTexture();
-        if (id == 0)
-        {
-            throw new InvalidOperationException("glGenTextures failed.");
-        }
+        int id = CreateTextureId(out bool createdWithDsa);
 
         try
         {
-            using var _ = StateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, unit: 0, id);
-
-            // Prefer DSA when available, otherwise fall back to bind-to-edit.
-            try
-            {
-                GL.TextureBufferRange(id, format, bufferId, (IntPtr)offsetBytes, (IntPtr)sizeBytes);
-            }
-            catch
-            {
-                int size = checked((int)sizeBytes);
-                GL.TexBufferRange(TextureBufferTarget.TextureBuffer, format, bufferId, (IntPtr)offsetBytes, size);
-            }
-
-            var view = new GpuBufferView(id, bufferId, format, offsetBytes, sizeBytes);
+            var view = new GpuBufferView(id, bufferId, format, offsetBytes, sizeBytes, createdWithDsa);
             view.SetDebugName(debugName);
             return view;
         }
@@ -219,4 +213,22 @@ public class GpuBufferView : GpuResource, IDisposable
 
         StateCache.Current.BindImageTexture(unit, textureId, level: 0, layered: false, layer: 0, access: access, format: format);
     }
+
+    #region Protected API
+    /// <summary>Creates a texture and reports whether typed DSA creation initialized it, without querying the resulting object.</summary>
+    protected static int CreateTextureId(out bool createdWithDsa)
+    {
+        var cache = StateCache.Current;
+        if (GpuSupport.Graphics.SupportsArbDirectStateAccess
+            && cache.TryCreateTexture(TextureTarget.TextureBuffer, out int texture))
+        {
+            createdWithDsa = true;
+            return texture;
+        }
+        createdWithDsa = false;
+        int generated = cache.GenTexture();
+        if (generated == 0) throw new InvalidOperationException("Texture object creation failed.");
+        return generated;
+    }
+    #endregion
 }
