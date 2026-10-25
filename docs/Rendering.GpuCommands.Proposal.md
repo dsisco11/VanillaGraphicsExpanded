@@ -68,11 +68,13 @@ Commands pass the reference opaquely; the backend/manager resolves it. This perm
 implementation later without claiming the existing native wrappers already support one.
 
 Introduce analogous consumer-only values as needed: `GpuBufferRef`, `GpuSamplerRef`,
-`GpuRenderbufferRef`, `GpuFramebufferRef`, `GpuVertexArrayRef`, `GpuProgramRef`, `GpuShaderRef`,
-`GpuProgramPipelineRef`, `GpuQueryRef`, `GpuSyncRef`, `GpuTransformFeedbackRef`,
+`GpuRenderbufferRef`, `GpuFramebufferRef`, `GpuVertexArrayRef`,
+`GpuQueryRef`, `GpuSyncRef`, `GpuTransformFeedbackRef`,
 `GpuSemaphoreRef` and `GpuMemoryObjectRef`. Each retains its existing typed resource base, exposes
 no ownership API and uses manager validation; none captures another lifetime token or metadata copy.
 Pipeline bindings use the immutable RHI pipeline realizations and executable generations defined below.
+Public shader inputs use `RHIShaderRef`; native shader, program and program-pipeline references, if
+needed, remain private to OpenGL realization/integration and are not public command inputs.
 Framebuffer references remain useful for the OpenGL integration; portable passes describe attachments,
 not read/draw framebuffer binding targets. The default surface is an explicit surface input, not ID zero.
 
@@ -469,6 +471,20 @@ unified context with their existing responsibilities. Reuse them rather than dup
 inside the context. Immediate calls and recorded execution use the same execution machinery; recording
 itself still acquires no pass guards and changes no executed state.
 
+Before executing work inside an engine boundary, admit its complete permitted pipeline set and state
+footprint. Immediate callers declare those pipelines and the state categories required by their other
+operations before entering the boundary. The context validates the declaration and captures only the
+required surrounding state before the first mutation. An undeclared pipeline or operation outside the
+admitted footprint is rejected before execution; it cannot expand restoration coverage after mutation.
+
+A closed command list supplies its pipeline set and required state footprint from retained immutable
+pipeline descriptions and recorded operation kinds. Building that declaration reads no mutable resource
+metadata or executed state. Submission validates it before native work and uses the same boundary
+admission machinery as immediate execution. When submitting within an existing boundary, the list must
+fit its already admitted declaration; submission neither widens that boundary nor implicitly opens an
+isolating scope. Keep explicit boundary scopes and selective restoration, without blanket state capture
+or a second restoration cache.
+
 Render pass scopes retain clear/load/store behavior, feedback guards and boundary restoration. Draw and
 dispatch enter the same backend; no direct native draw escape remains in migrated consumers. Retirement
 queues retain original entries/context and run backend deletion only after their existing admission.
@@ -505,6 +521,11 @@ core DSA for buffers, images, framebuffers and VAOs. Test binding preservation f
 require bound semantics. Test optional features enabled/disabled separately, retaining unexecuted native
 cases as explicit gaps. External exact-forwarding tests must count one native execution and one
 publication, preserve errors and prove no recursion. Keep hardware coverage gaps explicit.
+
+Verify boundary admission for immediate declarations and closed-list footprints: required state is
+captured before mutation, undeclared pipelines/operations are rejected before dispatch, and submission
+within an existing boundary cannot widen its declaration. Verify selective restoration on success and
+failure without blanket capture or recording-time resource inspection.
 
 For shader/PSO replacement, verify synchronous and pending creation, compile/link/interface failure,
 candidate cleanup, context retirement, exact shader-generation identity, graphics target compatibility,
