@@ -2,7 +2,8 @@ GPU resource metadata registry and typed resource wrappers
 =========================================================
 
 Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
-Status: Phases 1–4e complete. Phase 4f delegates implementation to Rendering.CommandPublication.todo.
+Status: Phases 1–4f complete after delegated implementation, qualification and independent audit.
+Phases 5–8 remain open. CommandPublication Phase 9 records evidence and integration limits.
 Persistent consumer integration and integrated qualification remain unchecked.
 Phase 7 is a separately requested follow-on RHI design; it does not authorize runtime migration.
 
@@ -967,12 +968,12 @@ Phase 4f: Implement and verify command publication
   Outcome: repaired bindings, manager-owned creation/publication, targeted acquisition and preparation
   from supplied metadata provide the verified foundation for consumer integration.
 
-  ☐ Complete the CommandPublication checklist, including its decision gate, ordered implementation,
+  ☑ Complete the CommandPublication checklist, including its decision gate, ordered implementation,
     documentation reconciliation, delegated builds/tests/package checks and independent completion audit.
     That checklist owns all detailed tasks and evidence; do not maintain a duplicate implementation here.
-  ☐ Verify its completion against the approved proposal and retained resource ownership, lifecycle,
+  ☑ Verify its completion against the approved proposal and retained resource ownership, lifecycle,
     context, interception and error-handling contracts before marking this parent phase complete.
-  ☐ Completion: the entire delegated checklist is implemented and verified. Proposal approval or a
+  ☑ Completion: the entire delegated checklist is implemented and verified. Proposal approval or a
     partially completed child checklist does not release Phase 5's gate.
 
 Phase 5: Integrate persistent cloud and depth resources
@@ -1003,6 +1004,21 @@ Phase 6: Qualify the integrated design and reconcile documentation
   Depends on Phase 5.
   Outcome: a reproducible candidate satisfies the proposal with measured costs and explicit evidence limits.
 
+  ☑ Resolve the installed-engine generic UBO.Update<T> discovery rejection before claiming integrated
+    engine startup qualification. Approved direction: discover and patch concrete value-type method
+    instantiations from built-in assembly references, never the open generic definition. Include generic
+    virtual base calls, both Update overloads and multiple struct types; verify native data, binding and
+    metadata publication plus full installed discovery/patch installation. Preserve explicit failure for
+    unresolved/shared generic cases and the exclusion of arbitrary mods/dynamic callers.
+    Qualification also distinguishes the installed UBO payload-pointer behavior from interception:
+    GCHandleProvider.Pointer uses GCHandle.ToIntPtr, not AddrOfPinnedObject. Validate exact forwarding
+    against the unpatched baseline; resolving that engine payload issue is separate from generic patching.
+    Verified after source/test review: Debug observer 27/27, exact canonical ordinary Release 28/28,
+    observer Release 27/27, no failures/skips. Installed inventory and patch-all checks now pass.
+    Package/published/test runtime hashes and all 761 shaders match; frozen source and dependencies
+    are unchanged. Receipts: artifacts/generic-ubo-probe/README.md and canonical-package-identity.json.
+    Installed built-in assemblies have no current Update<T> specifications; tests supply concrete
+    int/struct references through both base and concrete declarations. No game startup/visual claim.
   ☐ Freeze candidate source/binary identity and repeat matched baseline fixtures through subagents.
     Measure actual metadata queries and native binds, separately accounting for registration, dispatch
     and retirement costs. Compare outputs and restored state; disclose regressions and limitations.

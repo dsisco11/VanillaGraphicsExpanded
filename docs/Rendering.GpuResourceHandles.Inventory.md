@@ -2,8 +2,8 @@
 
 Planning companion to [the approved proposal](Rendering.GpuResourceHandles.Proposal.md) and
 [implementation checklist](Rendering.GpuResourceHandles.todo). This records the source inventory and
-chosen implementation mechanics. The implementation checklist distinguishes verified registry and
-wrapper/lifecycle integration from the remaining command and consumer integration.
+chosen implementation mechanics. The implementation checklist distinguishes the implemented resource
+and command foundation from remaining persistent-consumer integration and integrated qualification.
 Legacy fixed-function/compatibility facilities are excluded from API coverage, including matrix stacks,
 display lists, server/client attribute stacks, client default resets, legacy client arrays, alpha testing,
 point smoothing, separate polygon face modes, line/polygon stipple and automatic mip generation. Modern retained operations remain required regardless of introduction date. The separate
@@ -12,11 +12,10 @@ GpuCommandList RHI design is unaffected.
 ## Publication mechanics authority
 
 The approved [command-publication contracts](Rendering.CommandPublication.Proposal.md) govern the
-planned migration. Controlled initialization/mutations use inputs, defaults and derived values, not
+implementation. Controlled initialization/mutations use inputs, defaults and derived values, not
 full reader refresh. Native readers remain for external acquisition/recovery and listed output
-exceptions. The source inventories below describe existing paths to migrate; references to reader
-refresh, post-command verification and wrapper-owned allocation loops are not requirements to retain
-those mechanics. Ownership, original associations, context safety, dependency semantics and notification
+exceptions. The source inventories below describe current responsibility boundaries. Ownership,
+original associations, context safety, dependency semantics and notification
 ordering remain required. No universal command-success detector or parallel requested/actual cache is added.
 
 ## Wrapper and ownership inventory
@@ -76,18 +75,17 @@ base property would leave bypasses. Debug labels and authored policies remain wr
 
 `GpuResource.Dispose` checks retirement, clears the local ID, invokes hooks and schedules owned deletion.
 `Detach` performs the same existing guard check, clears local state and transfers the ID without deletion.
-`GpuResourceManager` queues kind/ID/context today; its drain has no incarnation token. Both immediate
-and queued switches use StateCache for Buffer, VertexArray, Texture, Framebuffer, Renderbuffer, Program,
-Sampler, and direct GL for Query, Sync, TransformFeedback, ProgramPipeline, Shader, Semaphore, MemoryObject.
-All fourteen kinds need a common deletion notification route. EXT operations need explicit adapters;
-`EngineStateCallMap` currently matches methods on `GL`, not nested `GL.Ext`.
+`GpuResourceManager` queues kind/ID/context and retains the original registration when present. Both
+immediate and queued deletion use StateCache for all fourteen resource kinds. Drain rejects a registration
+replaced under the same numeric ID. Exact GL/Core, EXT and ARB deletion adapters preserve native signatures
+and per-object outcomes through the same notification route.
 
 Existing enforcement sites: `GpuResource.RequireMutableStorage`/retirement; texture allocation and
 dynamic resize; renderbuffer allocation; framebuffer Configuration/PassMetadata/SurfaceMetadata/
 Publication; `StaticGpuFramebuffer` frozen attachment references; `RenderPassTargets` pass references;
-`RenderPassSequence` lifetime references; `GpuProgramLifetime` and compute scopes. Move their alias-wide
-counters to the manager entry, retaining the same checks and releases. Declaration-only state remains local
-until realization. Do not introduce a second mutation guard at the adapter boundary.
+`RenderPassSequence` lifetime references; `GpuProgramLifetime` and compute scopes. Alias-wide counters
+reside in the manager entry with the existing checks and releases. Declaration-only state remains local
+until realization. Adapters do not duplicate those mutation guards.
 
 `GpuResourceManager` drains managed cleanup before native deletion, defers live foreign contexts and
 abandons dead contexts. `RenderContextRegistry` identifies handle plus registration generation and emits
@@ -117,9 +115,10 @@ The registry primitives live in `GpuResourceManager.Registry.cs`, typed publicat
 `GpuResourceRegistration` owns identity/revisions/guards; `GpuResourceMetadataEntry<TMetadata>` owns
 canonical typed storage and weak recipients. `GpuResource<TMetadata>` supplies the assignment-only
 notification. Schemas and the native-reader boundary live under `Rendering/Metadata/`.
-Acquisition accepts a manager-executed typed reader that validates native kind and complete facts;
-the buffer reader provides native acquisition coverage for this foundation. Other per-kind native
-readers accompany their wrapper/command integration. No existing consumer opts into tracking yet.
+Acquisition accepts a manager-executed typed reader that validates native kind and complete facts.
+Per-kind readers acquire unknown external descriptors and justified outputs; controlled creation and
+updates publish established facts. Common wrappers use the registry; persistent cloud/depth consumer
+retention remains separate integration work.
 Failed refresh preserves pending storage effects until recovery, so recovery also advances the storage
 revision required by existing source-storage dependencies. This is an implementation detail of the
 documented unavailable-metadata and revision contracts, not another identity mechanism.
@@ -232,7 +231,10 @@ Known unit/block changes preserve unrelated interface facts: managed assignments
 while exact external commands read only affected values. Unsupported bindless assignments remain withdrawn.
 
 Program installation transfers the candidate association and executable snapshot without repeating interface
-reflection. Context-local legacy authored assignments recover only their affected mutable fields before
+reflection. Driver-binary cache loading retains the candidate wrapper through managed StateCache execution,
+so both registered and context-local candidates receive the linked snapshot before preparation or transfer.
+Binary installation acquires the executable result once; cache acceptance reuses its link outcome.
+Context-local legacy authored assignments recover only their affected mutable fields before
 transfer; compiled preparation consumes the supplied snapshot directly. Unregistered
 or offline paths remain conservative until a live manager exists; a thread-local StateCache does not
 confer persistent tracking. A fresh registered context lifetime requires a fresh manager/registry;
@@ -342,8 +344,15 @@ object's metadata; registration never adds native ownership.
 ## Native coverage and consumer gates
 
 `EngineStateTargets` scans only VintagestoryLib, VSEssentials, VSSurvivalMod and VSCreativeMod. Its IL
-discovery recognizes supported GL member references and closed generic MethodSpecification tokens.
-Generic containing engine methods remain rejected. `EngineStateCallMap` retains exact static state/
+discovery recognizes supported GL member references and generic MethodSpecification tokens.
+`EngineGenericStateTargets` resolves concrete value-type instantiations referenced by those assemblies,
+including calls through a generic virtual base declaration such as `UBORef.Update<T>`. Each concrete
+implementation receives the same exact native-call replacements; open definitions are never patched.
+Unreferenced generic templates produce no targets. Unresolved generic forwarding, generic declaring
+types and shared reference-type instantiations reject discovery rather than claiming unsafe coverage.
+Reflection-created instantiations and calls introduced outside the built-in assembly boundary are not
+discovered. This is static call coverage, not an installed-game startup or visual acceptance claim.
+`EngineStateCallMap` retains exact static state/
 deletion mappings, with those mappings taking precedence over metadata adapters. Ordinary C# adapters
 under `HarmonyPatches/NativeAdapters` explicitly forward every supported metadata signature, including
 generic upload definitions. `MetadataAdapterCatalog` declares each OpenTK owner/adapter type pair;
@@ -456,14 +465,18 @@ Selector and routing execution resides in `Rendering/Commands`, behind compiler-
 Framebuffer scopes capture only their affected read/draw directions through cached getters. Element-buffer
 scopes retain the original VAO association when another VAO becomes selected before restoration.
 Per-VAO element-buffer knowledge is independent of canonical VAO configuration revisions.
+Buffer-wrapper scopes use the same unknown-state recovery and original-VAO restoration. Fallback
+element-buffer mapping, flushing and unmapping use the neutral copy-write selector, preserving both
+that selector and every VAO element association. Other mapped targets and managed-array upload fallback
+also use restoring StateCache scopes, including exceptional exits.
 Vertex-binding helper values retain established fields and acquire only requested unknown fields after
 an observed revision change. Context-local helpers use one conservative cache epoch instead of a second
 registry; observed vertex changes or buffer/VAO deletion expire those local facts. Non-DSA authored
 descriptions reject stale reuse. The resource wrappers and canonical empty VAO schema remain unchanged.
 
-`ShaderPreparedSubmission` checks lifetime each use; `ShaderInputValidation` keys already contain wrapper,
-numeric ID, target/format/dimensions/mips or view/range/capacity. They lack registration revision and assume
-wrapper fields are current. Raw sampler submission checks `IsTexture` and invalidates its unit before
+`ShaderPreparedSubmission` checks lifetime each use; `ShaderInputValidation` keys contain wrapper,
+numeric ID, target/format/dimensions/mips or view/range/capacity and manager-owned metadata/storage
+revisions. Availability is checked before validation reuse. Raw sampler submission checks `IsTexture` and invalidates its unit before
 binding. Typed publication can suppress known-equal binds. Preserve both paths until coverage permits migration.
 
 `StateCache.TextureLifetime` records boundary retirement, invalidates image slots and resets matching

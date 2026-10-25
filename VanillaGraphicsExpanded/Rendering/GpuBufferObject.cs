@@ -68,27 +68,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     public BindingScope BindScope()
     {
         ObjectDisposedException.ThrowIf(!IsValid, this);
-        var gl = StateCache.Current;
-        int previousVao = 0;
-
-        // ElementArrayBuffer is VAO state. Preserve the VAO binding so restore happens on the same VAO.
-        if (target == BufferTarget.ElementArrayBuffer)
-        {
-            _ = gl.TryGetCachedCurrentVao(out previousVao);
-        }
-
-        // For non-EBO bindings, keep it PSO-owned and cache-consistent.
-        if (target != BufferTarget.ElementArrayBuffer)
-        {
-            var scope = gl.BindBufferScope(target, bufferId);
-            return new BindingScope(scope);
-        }
-
-        int previousEbo0 = 0;
-        _ = gl.TryGetCachedBoundBuffer(BufferTarget.ElementArrayBuffer, out previousEbo0);
-
-        Bind();
-        return new BindingScope(gl, target, previousEbo0, previousVao);
+        return new BindingScope(StateCache.Current.BindBufferScope(target, bufferId));
     }
 
     public void Bind()
@@ -887,42 +867,12 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         return $"{GetType().Name}(id={bufferId}, target={target}, sizeBytes={sizeBytes}, usage={usage}, name={debugName}, disposed={IsDisposed})";
     }
 
+    /// <summary>Maps element storage through a neutral selector without changing any VAO association.</summary>
     private static IntPtr MapElementArrayBufferRange(int bufferId, int offsetBytes, int byteCount, MapBufferAccessMask access)
     {
-        _ = StateCache.Current.TryGetCachedCurrentVao(out int previousVao);
-
-        StateCache.Current.BindVertexArray(0);
-
-        int previousEbo0 = 0;
-        _ = StateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ElementArrayBuffer, out previousEbo0);
-
-        StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
-
-        IntPtr ptr = GL.MapBufferRange(BufferTarget.ElementArrayBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount, access);
-
-        StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
-        StateCache.Current.BindVertexArray(previousVao);
-
-        return ptr;
-    }
-
-    private static bool TryGetBindingQuery(BufferTarget target, out GetPName pname)
-    {
-        pname = target switch
-        {
-            BufferTarget.ArrayBuffer => GetPName.ArrayBufferBinding,
-            BufferTarget.ElementArrayBuffer => GetPName.ElementArrayBufferBinding,
-            BufferTarget.PixelPackBuffer => GetPName.PixelPackBufferBinding,
-            BufferTarget.PixelUnpackBuffer => GetPName.PixelUnpackBufferBinding,
-            BufferTarget.UniformBuffer => GetPName.UniformBufferBinding,
-            BufferTarget.ShaderStorageBuffer => GetPName.ShaderStorageBufferBinding,
-            BufferTarget.TransformFeedbackBuffer => GetPName.TransformFeedbackBufferBinding,
-            BufferTarget.DrawIndirectBuffer => GetPName.DrawIndirectBufferBinding,
-            BufferTarget.DispatchIndirectBuffer => GetPName.DispatchIndirectBufferBinding,
-            _ => default
-        };
-
-        return pname != default;
+        // Mapping addresses buffer storage, so a copy binding avoids the VAO-owned element selector.
+        using var binding = StateCache.Current.BindBufferScope(BufferTarget.CopyWriteBuffer, bufferId);
+        return GL.MapBufferRange(BufferTarget.CopyWriteBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount, access);
     }
 
     private static bool TryGetBlittableArrayPointer<T>(T[] data, out GCHandle handle, out IntPtr ptr) where T : struct
@@ -1303,126 +1253,48 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
             UnmapBound(bufferId, target);
         }
 
+        /// <summary>Flushes a mapped range while restoring known or recovered buffer selection on every exit.</summary>
         private static void FlushBoundRange(int bufferId, BufferTarget target, int offsetBytes, int byteCount)
         {
-            int previous = 0;
-            try
-            {
-                if (TryGetBindingQuery(target, out GetPName pname))
-                {
-                    GL.GetInteger(pname, out previous);
-                }
-            }
-            catch
-            {
-                previous = 0;
-            }
-
-            StateCache.Current.BindBuffer(target, bufferId);
+            using var binding = StateCache.Current.BindBufferScope(target, bufferId);
             GL.FlushMappedBufferRange(target, (IntPtr)offsetBytes, (IntPtr)byteCount);
-            StateCache.Current.BindBuffer(target, previous);
         }
 
+        /// <summary>Flushes element storage without changing the current VAO or its element association.</summary>
         private static void FlushElementArrayBufferRange(int bufferId, int offsetBytes, int byteCount)
         {
-            _ = StateCache.Current.TryGetCachedCurrentVao(out int previousVao);
-
-            StateCache.Current.BindVertexArray(0);
-
-            int previousEbo0 = 0;
-            _ = StateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ElementArrayBuffer, out previousEbo0);
-
-            StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
-            GL.FlushMappedBufferRange(BufferTarget.ElementArrayBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount);
-            StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
-            StateCache.Current.BindVertexArray(previousVao);
+            // Use the same neutral selector as fallback mapping; the buffer owns the mapped range.
+            using var binding = StateCache.Current.BindBufferScope(BufferTarget.CopyWriteBuffer, bufferId);
+            GL.FlushMappedBufferRange(BufferTarget.CopyWriteBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount);
         }
 
+        /// <summary>Unmaps storage while restoring the selected target even when native dispatch throws.</summary>
         private static void UnmapBound(int bufferId, BufferTarget target)
         {
-            int previous = 0;
-            try
-            {
-                if (TryGetBindingQuery(target, out GetPName pname))
-                {
-                    GL.GetInteger(pname, out previous);
-                }
-            }
-            catch
-            {
-                previous = 0;
-            }
-
-            StateCache.Current.BindBuffer(target, bufferId);
+            using var binding = StateCache.Current.BindBufferScope(target, bufferId);
             _ = GL.UnmapBuffer(target);
-            StateCache.Current.BindBuffer(target, previous);
         }
 
+        /// <summary>Unmaps element storage through the neutral selector without touching VAO state.</summary>
         private static void UnmapElementArrayBuffer(int bufferId)
         {
-            _ = StateCache.Current.TryGetCachedCurrentVao(out int previousVao);
-
-            StateCache.Current.BindVertexArray(0);
-
-            int previousEbo0 = 0;
-            _ = StateCache.Current.TryGetCachedBoundBuffer(BufferTarget.ElementArrayBuffer, out previousEbo0);
-
-            StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
-            _ = GL.UnmapBuffer(BufferTarget.ElementArrayBuffer);
-            StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, previousEbo0);
-            StateCache.Current.BindVertexArray(previousVao);
+            using var binding = StateCache.Current.BindBufferScope(BufferTarget.CopyWriteBuffer, bufferId);
+            _ = GL.UnmapBuffer(BufferTarget.CopyWriteBuffer);
         }
     }
 
+    /// <summary>Preserves the public buffer scope API while delegating restoration to the state cache.</summary>
     public readonly struct BindingScope : IDisposable
     {
         private readonly StateCache.BufferScope scope;
-        private readonly bool useCacheScope;
 
-        private readonly StateCache gl;
-        private readonly BufferTarget target;
-        private readonly int previous;
-        private readonly int previousVao;
-
+        /// <summary>Retains the state cache's original selector and VAO association.</summary>
         internal BindingScope(StateCache.BufferScope scope)
         {
             this.scope = scope;
-            useCacheScope = true;
-
-            gl = StateCache.Current;
-            target = default;
-            previous = 0;
-            previousVao = 0;
         }
 
-        /// <summary>Restores an existing internal GL cache binding when the scope ends.</summary>
-        internal BindingScope(StateCache gl, BufferTarget target, int previous, int previousVao)
-        {
-            scope = default;
-            useCacheScope = false;
-            this.gl = gl;
-            this.target = target;
-            this.previous = previous;
-            this.previousVao = previousVao;
-        }
-
-        public void Dispose()
-        {
-            if (useCacheScope)
-            {
-                scope.Dispose();
-                return;
-            }
-
-            if (target == BufferTarget.ElementArrayBuffer)
-            {
-                gl.BindVertexArray(previousVao);
-                // EBO binding is VAO state; GlStateCache doesn't track it yet.
-                StateCache.Current.BindBuffer(target, previous);
-                return;
-            }
-
-            gl.BindBuffer(target, previous);
-        }
+        /// <summary>Restores the captured buffer association through the shared cache contract.</summary>
+        public void Dispose() => scope.Dispose();
     }
 }

@@ -22,8 +22,28 @@ internal static class EngineStateTargets
     internal static IEnumerable<Assembly> Assemblies() => AppDomain.CurrentDomain.GetAssemblies()
         .Where(assembly => assembly.GetName().Name is "VintagestoryLib" or "VSEssentials" or "VSSurvivalMod" or "VSCreativeMod");
 
-    /// <summary>Resolves only concrete methods whose bytecode calls an exact mapped native operation.</summary>
-    internal static IEnumerable<MethodBase> Discover(Assembly assembly)
+    /// <summary>Discovers concrete native callers and generic instantiations referenced within one assembly.</summary>
+    internal static IEnumerable<MethodBase> Discover(Assembly assembly) => Discover([assembly]);
+
+    /// <summary>Closes generic native callers over the concrete types referenced by the permitted assemblies.</summary>
+    internal static IEnumerable<MethodBase> Discover(IReadOnlyCollection<Assembly> assemblies)
+    {
+        var generic = new List<MethodInfo>();
+        foreach (var assembly in assemblies)
+        foreach (var method in DiscoverDefinitions(assembly))
+        {
+            if (!method.ContainsGenericParameters) yield return method;
+            else if (method is MethodInfo { IsGenericMethodDefinition: true } definition
+                && !definition.DeclaringType!.ContainsGenericParameters) generic.Add(definition);
+            else throw new NotSupportedException($"Cannot resolve open declaring type for engine state caller: {method}.");
+        }
+        foreach (var method in EngineGenericStateTargets.Discover(assemblies, generic)) yield return method;
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Finds native-calling definitions without asking Harmony to compile an open generic body.</summary>
+    private static IEnumerable<MethodBase> DiscoverDefinitions(Assembly assembly)
     {
         using var stream = File.OpenRead(assembly.Location);
         using var image = new PEReader(stream);
@@ -38,15 +58,9 @@ internal static class EngineStateTargets
             var body = image.GetMethodBody(definition.RelativeVirtualAddress);
             if (!CallsSupportedOperation(body.GetILReader(), tokens)) continue;
 
-            var method = assembly.ManifestModule.ResolveMethod(MetadataTokens.GetToken(handle))!;
-            if (method.ContainsGenericParameters)
-                throw new NotSupportedException($"Cannot safely patch generic engine state caller: {method}.");
-            yield return method;
+            yield return assembly.ManifestModule.ResolveMethod(MetadataTokens.GetToken(handle))!;
         }
     }
-    #endregion
-
-    #region Private
     /// <summary>Resolves GL member references only, leaving unrelated optional engine dependencies unloaded.</summary>
     private static HashSet<int> SupportedTokens(Module module, MetadataReader metadata)
     {
@@ -60,16 +74,14 @@ internal static class EngineStateTargets
             if (module.ResolveMethod(token) is MethodInfo native && EngineStateCallMap.Supports(native))
                 result.Add(token);
         }
-        // Closed generic calls use MethodSpecification tokens, not their MemberReference
-        // definitions. Resolve only specifications rooted in an already supported GL member.
+        // A MethodSpecification retains its definition's supported signature even when its
+        // type argument belongs to an open caller. Resolve that caller only after closure.
         for (int row = 1; row <= metadata.GetTableRowCount(TableIndex.MethodSpec); row++)
         {
             var handle = MetadataTokens.MethodSpecificationHandle(row);
             var specification = metadata.GetMethodSpecification(handle);
             if (!result.Contains(MetadataTokens.GetToken(specification.Method))) continue;
-            int token = MetadataTokens.GetToken(handle);
-            if (module.ResolveMethod(token) is MethodInfo native && !native.ContainsGenericParameters
-                && EngineStateCallMap.Supports(native)) result.Add(token);
+            result.Add(MetadataTokens.GetToken(handle));
         }
         return result;
     }

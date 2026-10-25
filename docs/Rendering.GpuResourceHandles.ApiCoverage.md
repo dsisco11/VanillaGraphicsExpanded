@@ -232,6 +232,9 @@ preparation workflow validates a replacement; later unit/block updates cannot re
 Temporary programs and shader stages retain their common resource owners through deferred completion,
 rejection and transfer. Initial program registration uses the guaranteed empty executable of a fresh
 native object; completion inspection stays at the existing dependency boundary.
+Managed driver-binary loading retains its GpuProgramObject owner through execution and publishes the
+driver-produced executable snapshot before reporting a cache hit, including context-local candidates.
+Raw-ID external binary commands retain their exact dispatch and registered-alias observation route.
 
 Observed bindless assignments at represented locations withdraw unit metadata for the original
 registration. Ordinary readback cannot establish whether a value represents a unit or an opaque handle:

@@ -36,9 +36,8 @@ internal static class GpuBufferUploader
     public static void BufferData<T>(GpuBufferObject buffer, int byteCount, T[] data, BufferUsageHint usage) where T : struct
     {
         if (TryNamedBufferData(buffer, byteCount, data, usage)) return;
-        buffer.Bind();
-        try { StateCache.Current.BufferData(buffer, byteCount, data, usage); }
-        finally { buffer.Unbind(); }
+        using var binding = buffer.BindScope();
+        StateCache.Current.BufferData(buffer, byteCount, data, usage);
     }
 
     /// <summary>Uploads contents using the existing DSA fallback without publishing storage metadata.</summary>

@@ -257,7 +257,7 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
             GpuProgramObject? candidate = pending?.TakeProgram() ?? GpuProgramObject.Create();
             try
             {
-                if (pending != null || DriverProgramCache.TryLoad(candidate.ProgramId, inputs))
+                if (pending != null || DriverProgramCache.TryLoad(candidate, inputs))
                 {
                     pipeline = PrepareLinkedPipeline(candidate, plan.Stages[0].Stage.Bindings, layout, warn, debugName);
                     if (pending != null)

@@ -37,7 +37,7 @@ internal sealed partial class GpuResourceManager
         else DiscardUntrackedMetadata(resource, change);
     }
 
-    /// <summary>Explicitly recovers complete native facts after existing commands; established-result publication uses PublishObservedMetadata.</summary>
+    /// <summary>Explicitly recovers complete native facts after existing commands; established results use operation-owned publication.</summary>
     internal static void ObserveWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader,
         GpuMetadataChange change) where T : struct
     {
@@ -76,25 +76,6 @@ internal sealed partial class GpuResourceManager
         if ((change & GpuMetadataChange.Storage) != 0 && resource is GpuTexture texture)
             texture.UntrackedStorageIdentity = new();
         resource.HandleMetadataChanged(data);
-    }
-
-    /// <summary>Publishes command-proven facts supplied by StateCache, preserving native-width parameters.</summary>
-    internal static void PublishObservedMetadata<T>(GpuResource<T> resource, T data, GpuMetadataChange change) where T : struct
-    {
-        if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
-        {
-            manager.RequireOriginalWrapper(resource);
-            var entry = manager.RegisterCreatedResource<T>(resource.Kind, resource.ResourceId);
-            if (!ReferenceEquals(manager.GetResourceRegistration(resource), entry)) manager.AssociateResource(entry, resource);
-            manager.PublishMetadata(entry, data, change);
-        }
-        else
-        {
-            StateCache.Current.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
-            if ((change & GpuMetadataChange.Storage) != 0 && resource is GpuTexture texture)
-                texture.UntrackedStorageIdentity = new();
-            resource.HandleMetadataChanged(data);
-        }
     }
 
     #endregion

@@ -39,7 +39,7 @@ public abstract partial class GpuProgram
                 throw new InvalidOperationException("Preparation requires its originating native context generation.");
             candidate = pending?.TakeProgram() ?? GpuProgramObject.Create();
             program = candidate.ProgramId;
-            bool cached = pending?.Cached ?? DriverProgramCache.TryLoad(program, inputs);
+            bool cached = pending?.Cached ?? DriverProgramCache.TryLoad(candidate, inputs);
 #if DEBUG
             LastSpirvLinkMilliseconds = pending?.LinkSubmissionMilliseconds ?? 0;
 #endif

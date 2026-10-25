@@ -39,7 +39,7 @@ internal sealed class PendingShaderProgram : IDisposable
             // External asset reads may invalidate the context; reject before allocating native names.
             RequireOriginatingContext();
             program = GpuProgramObject.Create();
-            Cached = DriverProgramCache.TryLoad(Program, Inputs);
+            Cached = DriverProgramCache.TryLoad(program, Inputs);
             if (Cached) { completed = true; return; }
             program.Dispose();
             program = null;

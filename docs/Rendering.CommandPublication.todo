@@ -1,8 +1,8 @@
 Command execution and metadata publication
 
-Status: Phases 1, 2, 2a, 3, 3a, 4, 5, 6, 7 and 8 complete after second review and independent completion audit.
+Status: Phases 1, 2, 2a, 3, 3a, 4, 5, 6, 7, 8 and 9 complete after second review and independent completion audit.
 The narrower command-result policy is approved. Binding repairs, DEBUG-only diagnostics and the shared
-creation/publication boundary, explicit operation ownership and buffer/image/framebuffer/executable migration are implemented; Phase 9 remains open.
+creation/publication boundary, explicit operation ownership and buffer/image/framebuffer/executable migration are implemented and qualified within the documented headless scope.
 Source: [approved proposal](Rendering.CommandPublication.Proposal.md).
 Inherited contracts: [resource design](Rendering.GpuResourceHandles.Proposal.md),
 [inventory](Rendering.GpuResourceHandles.Inventory.md), [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
@@ -463,7 +463,7 @@ Phase 7: Finish external acquisition, recovery and adapter migration
   canonical-release-observed}.trx, canonical-package-identity.json and commands-and-limits.txt.
   Headless qualification uses one RTX 4090 with forced fallback; imported external payload operations,
   unsupported capabilities and independent concurrent native contexts remain unqualified. No live
-  appearance or frame-time claim. Phases 8–9 and parent Phase 4f remain open.
+  appearance or frame-time claim. Subsequent qualification is recorded below.
 
 Phase 8: Require supplied metadata for binding preparation
   Depends on Phase 7. Sources: proposal Decisions and acceptance; Rendering.ShaderBindingState.md,
@@ -494,24 +494,63 @@ Phase 8: Require supplied metadata for binding preparation
   2,821 frozen source/project files have no drift. Receipts: artifacts/command-publication-phase8/
   {debug-final,canonical-release-normal,canonical-release-observed}.trx, canonical-package-identity.json
   and commands-and-limits.txt. Headless evidence on one RTX 4090 does not establish older-hardware,
-  live appearance or frame-time qualification. Phase 9 and parent Phase 4f remain open.
+  live appearance or frame-time qualification. Final foundation qualification is recorded below.
 
 Phase 9: Qualify and reconcile the complete foundation
   Depends on Phase 8. Sources: proposal Decisions and acceptance; parent validation and downstream gates.
 
-  ☐ Freeze candidate source/binary identity. Have subagents run matched native query/bind probes against
+  ☑ Resolve the completion audit's remaining buffer-helper restoration gaps: route GpuBufferObject.BindScope
+    through StateCache for unknown VAO/EBO state, use restoring scopes for fallback map/flush/unmap,
+    and preserve prior selection in GpuBufferUploader.BufferData<T>'s bound fallback. Remove duplicated
+    selector queries and zero-on-cache-miss restoration. Verify data, unknown bindings and exceptional unwind.
+  ☑ Preserve the owning GpuProgramObject through DriverProgramCache.TryLoad and managed ProgramBinary
+    execution. Publish the linked executable snapshot for registered and context-local cache-hit candidates
+    before preparation/transfer; retain raw-ID external dispatch and avoid duplicate link-status reads.
+    Verify synchronous/deferred graphics and compute cache hits and rejected binary cleanup.
+  ☑ Freeze candidate source/binary identity. Have subagents run matched native query/bind probes against
     analysis receipts, separating binding recovery, verification, driver discovery, creation and publication.
     Measure allocation/dispatch overhead and check outputs/restored state, not merely reduced query counts.
-  ☐ Have subagents run affected suites and canonical build/package verification. Cover failures, interrupted
+  ☑ Have subagents run affected suites and canonical build/package verification. Cover failures, interrupted
     groups, aliases, dependencies, deferred work, ownership/disposal/detach, contexts and DSA/fallback paths.
     Report capability gaps explicitly; headless receipts do not establish live appearance or frame time.
-  ☐ Remove temporary migration compatibility paths and newly introduced probe scaffolding; retain receipts.
+  ☑ Remove temporary migration compatibility paths and newly introduced probe scaffolding; retain receipts.
     Coordinate existing ResourceCallObserver removal with parent Phase 6 so its later measurements remain
     possible. No automatic game launch; visual acceptance stays user-run.
-  ☐ Reconcile proposal/inventory/API contracts and current architecture documentation with implemented
+  ☑ Reconcile proposal/inventory/API contracts and current architecture documentation with implemented
     behavior. Supply completion evidence for the delegating parent phase; leave consumer, RHI and
     multi-bind work open. Do not mark the parent plan complete on this checklist's completion.
-  ☐ Perform a second review and independent completion audit against every proposal requirement, resource
+  ☑ Perform a second review and independent completion audit against every proposal requirement, resource
     family and analysis disposition. Resolve required findings before checking completion items.
-  ☐ Completion: all approved creation/publication/binding/preparation changes are implemented and verified,
+  ☑ Completion: all approved creation/publication/binding/preparation changes are implemented and verified,
     unresolved evidence limits are explicit and parent consumer work can proceed on the repaired foundation.
+  Verification and traceability: proposal Decisions/acceptance, inherited resource lifecycle/ownership,
+  Inventory and API families, Analysis dispositions and ShaderBindingState supplied-facts preparation
+  map to the complete creation/publication boundary and retained per-family regression suites. Audit
+  corrections restore unknown buffer selections and exceptional unwind through shared scopes, retain
+  the cached executable's owner for local/registered snapshot publication, and remove the unused
+  PublishObservedMetadata facade. Recovery fixtures now explicitly recover externally changed facts;
+  the EBO forwarding fixture captures an explicit count without issuing an invalid pipeline draw.
+  Native probes against the historical analysis sequence distinguish selector recovery, verification,
+  discovery, creation, retirement and publication. Changed program/VAO/pipeline selectors issue no
+  post-bind queries; unknown VAO scope recovery uses one getter (historically three), named EBO updates
+  and controlled buffer storage avoid descriptor rereads. Outputs and restored selections are checked.
+  Current-only cost probes report zero allocations for selectors/available lookup, 144 bytes per existing
+  publication and 520 bytes per buffer storage/publication operation; creation/registry allocation and
+  elapsed CPU costs are retained separately. No historical timing/allocation baseline or speedup claim.
+  Temporary probe sources are archived only in artifacts/command-publication-phase9; ResourceCallObserver
+  remains for parent Phase 6. Original generic-owner discovery failure receipts are retained; the
+  subsequently approved concrete-instantiation support and its verification are recorded under parent
+  Phase 6. These headless receipts do not qualify installed-engine startup.
+  Headless evidence covers one RTX 4090 and forced fallback. Unsupported external payload imports,
+  independent concurrent native contexts, older hardware, live appearance and frame time remain unqualified.
+  Final validation: Debug 961/961, exact canonical Release 219/219 ordinary and 961/961 observer,
+  zero failures/skips in supported-path filters. The original two installed-engine generic-owner
+  discovery failures have separate receipts; the JIT-sensitive cull test passes ordinary
+  Release. Observer settings are process-only; no instrumented Release build. Native count probe and
+  three ordinary cost-probe processes pass against the same canonical runtime. Canonical Release/SPIR-V
+  build/package passed: tested/published/ZIP DLL hashes match, all 761 shaders match, dependencies are
+  unchanged and 2,823 frozen source/project files have no drift. Receipts:
+  artifacts/command-publication-phase9/{debug-supported-final,canonical-release-normal,
+  canonical-release-observed}.trx, canonical-package-identity.json, probe-final.trx, costs-final-*.json
+  and README.md. Parent consumer/integrated qualification, RHI and multi-bind work remains open.
+  Second review and independent completion audit passed; the delegating parent Phase 4f is complete.

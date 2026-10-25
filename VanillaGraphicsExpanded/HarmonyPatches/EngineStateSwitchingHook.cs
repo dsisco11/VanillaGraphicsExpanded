@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using System.Reflection;
 using System.Reflection.Emit;
 using HarmonyLib;
@@ -14,8 +15,7 @@ internal static class EngineStateSwitchingHook
     internal static IEnumerable<MethodBase> TargetMethods()
     {
         // Original assembly metadata makes selection independent of other installed transpilers.
-        foreach (var assembly in EngineStateTargets.Assemblies())
-        foreach (var method in EngineStateTargets.Discover(assembly))
+        foreach (var method in EngineStateTargets.Discover(EngineStateTargets.Assemblies().ToArray()))
             yield return method;
     }
 

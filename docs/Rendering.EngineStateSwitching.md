@@ -6,14 +6,16 @@ The engine's supported native state calls are replaced at their managed call sit
 
 [EngineStateSwitchingHook](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateSwitchingHook.cs) participates in the existing client mod's `Harmony.PatchAll()` startup. It discovers concrete methods and constructors in the loaded `VintagestoryLib`, `VSEssentials`, `VSSurvivalMod`, and `VSCreativeMod` assemblies whose original IL contains a mapped static OpenGL call. OpenTK itself, VGE, and third-party mods are not patched. Cache operations therefore still reach the original native functions without recursion.
 
-[EngineStateTargets](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateTargets.cs) scans metadata and walks IL instruction boundaries before resolving candidate callers. This avoids loading unrelated optional dependencies or resolving unrelated method references during discovery. Built-in assemblies must already be loaded when the mod's startup patches run; late-loaded assemblies are not automatically patched. A generic caller containing a supported call is explicitly rejected rather than silently omitted.
+[EngineStateTargets](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateTargets.cs) scans metadata and walks IL instruction boundaries before resolving candidate callers. This avoids loading unrelated optional dependencies or resolving unrelated method references during discovery. Built-in assemblies must already be loaded when the mod's startup patches run; late-loaded assemblies are not automatically patched.
+
+[EngineGenericStateTargets](../VanillaGraphicsExpanded/HarmonyPatches/EngineGenericStateTargets.cs) collects concrete value-type instantiations from those assemblies' method specifications. References through virtual base declarations resolve to the native-calling implementation, including `UBORef.Update<T>` calls implemented by `UBO`. Each concrete method receives the ordinary transpiler; Harmony never receives an open definition. Unreferenced templates have no concrete targets. Unresolved generic forwarding, open declaring types and shared reference-type instantiations are rejected explicitly. Reflection-created instances and arbitrary-mod callers are outside this static discovery boundary. Content-only methods remain unpatched when they contain no mapped operation; their independently intercepted binding helpers still maintain cache coherence.
 
 [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) resolves adapters by exact method name, parameter types, and return type. An adapter without a matching native signature fails map initialization. The transpiler replaces the call operand only, preserving evaluated arguments, instruction count, branch labels and exception blocks. Unsupported methods are left unchanged. Another transpiler's replacement is not forcibly overwritten.
 
 Metadata forwarding methods live under [NativeAdapters](../VanillaGraphicsExpanded/HarmonyPatches/NativeAdapters/),
-with a command's overloads grouped by resource family and native OpenTK owner. Each ordinary C# body
-begins the relevant StateCache observation, executes its explicit native call, and completes observation
-in a `finally` block. StateCache and GpuResourceManager retain metadata policy and publication ownership.
+with a command's overloads grouped by resource family and native OpenTK owner. Each ordinary C# adapter
+forwards to a StateCache operation that owns native execution and completion.
+StateCache and GpuResourceManager retain metadata policy and publication ownership.
 [MetadataAdapterCatalog](../VanillaGraphicsExpanded/HarmonyPatches/NativeAdapters/MetadataAdapterCatalog.cs)
 declares the native-owner pairs. Exact signature validation includes generic parameter constraints;
 closed generic uploads resolve to the compiled adapter definition using the caller's own type arguments.

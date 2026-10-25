@@ -90,10 +90,12 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         using var image = GpuFramebufferAttachment.FromTexture(texture);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
         using var faults = new NativeReadFailure { Enabled = true, Throw = throws };
+        Assert.Throws<InvalidOperationException>(() => GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance));
         Assert.Throws<InvalidOperationException>(() => framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, image));
         Assert.Equal(0, image.Width);
         Assert.Equal(0, image.Height);
         faults.Enabled = false;
+        GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);
         framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
         Assert.Equal(4, image.Width);
         Assert.True(framebuffer.CheckStatus(out _));
@@ -112,9 +114,11 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         using var binding = texture.BindScope(0);
         // Simulate an external owner withdrawing and later restoring the selected image.
         GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 0, 0, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+        GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);
         Assert.Throws<InvalidOperationException>(() => framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, image));
         Assert.Equal(0, image.Width);
         GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 2, 2, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+        GpuResourceManager.RecoverWrapperMetadata(texture, GpuTextureMetadataReader.Instance);
         framebuffer.SetAttachment(FramebufferAttachment.ColorAttachment0, image);
         Assert.Equal(2, image.Width);
         Assert.True(framebuffer.CheckStatus(out _));

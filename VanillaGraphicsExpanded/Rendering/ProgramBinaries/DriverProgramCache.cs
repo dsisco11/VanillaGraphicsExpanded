@@ -48,7 +48,7 @@ internal static class DriverProgramCache
     }
 
     /// <summary>Loads a validated binary into a candidate; the caller owns and discards a rejected candidate.</summary>
-    internal static bool TryLoad(int program, PreparedProgramBinary inputs)
+    internal static bool TryLoad(GpuProgramObject program, PreparedProgramBinary inputs)
     {
         if (inputs.Key == null || inputs.Store == null || !inputs.Store.TryRead(inputs.Key, out int format, out byte[] bytes)) return false;
         GlDebug.ThrowIfErrors("Before cached program load");
@@ -57,12 +57,12 @@ internal static class DriverProgramCache
             // Reject unavailable formats before calling the driver, avoiding GL_INVALID_ENUM on stale metadata.
             var formats = GpuSupport.Graphics.ProgramBinaryFormats;
             if (formats.IndexOf(format) < 0) { inputs.Store.Remove(inputs.Key); return false; }
+            bool linked;
             unsafe
             {
-                fixed (byte* pointer = bytes) StateCache.Current.ProgramBinary(program, (BinaryFormat)format, (IntPtr)pointer, bytes.Length);
+                fixed (byte* pointer = bytes) linked = StateCache.Current.ProgramBinary(program, (BinaryFormat)format, (IntPtr)pointer, bytes.Length);
             }
-            GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-            if (GlDebug.GetErrors().Length != 0 || linked == 0) { inputs.Store.Remove(inputs.Key); return false; }
+            if (GlDebug.GetErrors().Length != 0 || !linked) { inputs.Store.Remove(inputs.Key); return false; }
             LastLoadWasHit = true;
             return true;
         }

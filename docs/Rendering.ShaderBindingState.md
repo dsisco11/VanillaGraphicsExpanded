@@ -59,6 +59,8 @@ reject preparation. `GpuProgramInterface` acquires canonical facts through the m
 has no snapshot; graphics and compute candidates supply their existing owner snapshots directly.
 Unit/block changes revalidate prepared resource tables through the existing revision machinery;
 relinking or binary installation withdraws executable preparation until the owner validates its replacement.
+Cached driver executables retain their candidate owner during installation; the manager delivers the
+linked snapshot before graphics/compute preparation, including tools without an installed registry.
 Ordinary numeric uniform writes do not refresh resource metadata. ProgramUniform updates use the
 separate-shader-object capability, with a binding-preserving fallback when unavailable.
 

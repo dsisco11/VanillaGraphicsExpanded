@@ -1,4 +1,5 @@
 using System;
+using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -12,7 +13,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 /// </summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
-public class GpuEboIntegrationTests
+public class GpuEboIntegrationTests : IDisposable
 {
     private readonly HeadlessGLFixture _fixture;
 
@@ -20,6 +21,9 @@ public class GpuEboIntegrationTests
     {
         _fixture = fixture;
     }
+
+    /// <summary>Checks that each EBO test leaves the native error state clean.</summary>
+    public void Dispose() => Assert.Equal(ErrorCode.NoError, GL.GetError());
 
     #region Creation Tests
 
@@ -481,25 +485,26 @@ public class GpuEboIntegrationTests
         Assert.True(ebo.IsValid);
     }
 
+    /// <summary>Forwards an explicit nonzero draw count without requiring an unrelated rendering pipeline.</summary>
     [Fact]
     public void DrawElements_WithCustomIndexCount_UsesSpecifiedCount()
     {
-        // Arrange
         _fixture.EnsureContextValid();
         using var ebo = GpuEbo.Create();
-        uint[] indices = { 0, 1, 2, 3, 4, 5 };
-        ebo.UploadIndices(indices);
-
-        const PrimitiveType primitiveType = PrimitiveType.Triangles;
-        const int customCount = 0; // Use 0 to trigger early return
-
-        // Act - Should return early due to zero count
-        ebo.DrawElements(primitiveType, customCount);
-
-        // Assert
-        Assert.True(ebo.IsValid);
+        ebo.UploadIndices(new uint[] { 0, 1, 2, 3, 4, 5 });
+        var harmony = new Harmony("Tests.EboCustomDrawCount");
+        try
+        {
+            observedDrawCount = -1;
+            harmony.Patch(((Action<PrimitiveType, int, DrawElementsType, IntPtr>)GL.DrawElements).Method,
+                prefix: new HarmonyMethod(typeof(GpuEboIntegrationTests), nameof(CaptureDrawCount)));
+            // Zero selects the wrapper's default count. A positive value tests explicit forwarding.
+            ebo.DrawElements(PrimitiveType.Triangles, 3);
+            Assert.Equal(3, observedDrawCount);
+            Assert.True(ebo.IsValid);
+        }
+        finally { harmony.UnpatchAll(harmony.Id); }
     }
-
     [Fact]
     public void DrawElements_NegativeOffset_ThrowsArgumentOutOfRangeException()
     {
@@ -856,6 +861,15 @@ public class GpuEboIntegrationTests
 
     #endregion
     #region Private
+    private static int observedDrawCount;
+
+    /// <summary>Captures the submitted count while avoiding a draw without a complete test pipeline.</summary>
+    private static bool CaptureDrawCount(int count)
+    {
+        observedDrawCount = count;
+        return false;
+    }
+
     /// <summary>Checks realized native storage before requested allocation policy has been applied.</summary>
     private static void AssertNativeUsage(GpuBufferObject buffer)
     {

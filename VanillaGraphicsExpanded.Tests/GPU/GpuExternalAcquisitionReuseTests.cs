@@ -65,7 +65,9 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             using var capability = new DirectStateAccessCapabilityScope(dsa);
             using var calibration = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
             using var texture = DynamicTexture3D.Create(8, 4, 6, PixelInternalFormat.Rgba8, immutableStorage: true);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
             using var view = GpuTextureView.CreateFromTexture(texture, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba8, 0, 1, 2, 3);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
             using var renderbuffer = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 8, 4);
             foreach (var method in typeof(GL).GetMethods().Where(method => method.Name is "IsRenderbuffer" or "GetNamedRenderbufferParameter" or "GetRenderbufferParameter"))
                 harmony.Patch(method, prefix: new HarmonyMethod(typeof(GpuExternalAcquisitionReuseTests), nameof(CountRenderbufferQuery)));

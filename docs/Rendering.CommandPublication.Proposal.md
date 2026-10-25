@@ -15,7 +15,7 @@ separate from canonical resource metadata.
 
 ## Responsibilities
 
-| Component | Proposed responsibility |
+| Component | Responsibility |
 | --- | --- |
 | Resource wrappers and helpers | Supply initialization records and retain higher-level policy and selected subresources. Do not construct canonical metadata. |
 | StateCache | Provide explicit command methods that own native execution, binding suppression/restoration and reporting established command results. |
@@ -60,7 +60,7 @@ Creation proceeds as follows:
    `HandleMetadataChanged`. Return nullable metadata: a value means successful initialization; `null`
    means initialization failed and no usable result was published.
 
-The proposed signature shape is `GpuTextureMetadata? CreateTexture(GpuTextureInitialization initialization,
+The signature shape is `GpuTextureMetadata? CreateTexture(GpuTextureInitialization initialization,
 out GpuResourceHandle handle)`. Other resource kinds return their corresponding nullable metadata struct.
 The handle is valid only on success and is cleared on failure. Wrapper association/publication remains
 manager-owned; returning metadata does not authorize wrappers to bypass notification. Wrapper creation
@@ -205,8 +205,8 @@ they are neither native-success flags nor persistent metadata-availability track
 
 ### Resource and metadata coverage
 
-The initialization record names below are proposed new types. Existing wrappers share records by native
-operation rather than receiving a separate record for every subclass.
+The initialization record types below are shared by wrappers according to native
+operation rather than providing a separate record for every subclass.
 
 | Native resource / operation | Wrappers involved | Initialization record | Canonical output struct |
 | --- | --- | --- | --- |
@@ -272,7 +272,7 @@ no new command-object class or generic dispatch framework.
 Each method owns dispatch and completion together. Callers do not manually pair public begin/end
 calls. Original identity capture and failure cleanup remain internal where needed.
 
-| Operation | Proposed flow |
+| Operation | Flow |
 | --- | --- |
 | Bind a VAO | Skip a known-equal managed selection; otherwise dispatch and establish the selected object. Retain established selection without a metadata-driven invalidation. Unknown or uncertain results use selector recovery. |
 | Allocate buffer storage | Capture the original entry, dispatch allocation, establish actual capacity/usage, then publish those fields. A reported allocation failure must not publish the requested capacity. |
@@ -347,8 +347,8 @@ arguments. Existing original-entry/context, dependency and retirement rules appl
 
 ### Acquisition and helper dispositions
 
-The analysis's named entry points are assigned as follows; these are implementation contracts, not
-claims that migration has occurred.
+The analysis's named entry points are assigned as follows. Superseded names identify the original
+reviewed paths; current implementation dispositions and evidence are recorded in the analysis and checklist.
 
 | Entry points | Required disposition |
 | --- | --- |
