@@ -24,8 +24,12 @@ public sealed class StandaloneNumericInputTests(HeadlessGLFixture fixture) : Ren
         int fragment = shaders.Compile(ShaderType.FragmentShader,
             "#version 430 core\nlayout(location=0) uniform float value;out vec4 color;void main(){color=vec4(value);}");
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
+        Assert.True(GpuProgramMetadataReader.Instance.TryRead(program.ProgramId, out var metadata));
+        using var acquisition = new ProgramAcquisitionCapture();
+        acquisition.Calibrate(program.ProgramId);
         var failure = Assert.Throws<InvalidOperationException>(() =>
-            new GpuPreparedBindings(program.ProgramId, new GpuBindingContract()));
+            new GpuPreparedBindings(new GpuBindingContract(), metadata));
+        Assert.Equal(0, acquisition.Reads);
         Assert.Contains("must use a uniform block", failure.Message);
     }
     #endregion

@@ -161,7 +161,8 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
         var cache = StateCache.Current;
 #if DEBUG
         int graphicsQueries = shader.GraphicsInterface!.ReflectionQueries;
-        int resourceQueries = pipeline.Bindings.ReflectionQueries;
+        using var acquisition = new ProgramAcquisitionCapture();
+        int resourceQueries = acquisition.Reads;
 #endif
         shader.HzbDepth = first; shader.SrcMip = 0;
         Assert.True(GraphicsCommandContext.TryRun("SubmissionInputs", [pipeline], true, commands =>
@@ -184,7 +185,7 @@ public sealed class GraphicsCommandContextTests(HeadlessGLFixture fixture) : Ren
         Assert.InRange(target[0].ReadPixels()[0], .6999f, .7001f);
 #if DEBUG
         Assert.Equal(graphicsQueries, shader.GraphicsInterface.ReflectionQueries);
-        Assert.Equal(resourceQueries, pipeline.Bindings.ReflectionQueries);
+        Assert.Equal(resourceQueries, acquisition.Reads);
 #endif
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }

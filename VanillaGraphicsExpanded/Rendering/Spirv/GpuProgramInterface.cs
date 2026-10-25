@@ -23,15 +23,17 @@ internal sealed class GpuProgramInterface
     private sealed record Resources(Dictionary<string, int> Uniforms, Dictionary<string, int> Blocks, Dictionary<string, int> Storage, Dictionary<int, int> ArraySizes);
 
     #region Registration
-    /// <summary>Matches active locations and initial block bindings without querying any SPIR-V debug name.</summary>
+    /// <summary>Supplies canonical facts to binding preparation, acquiring them only when the caller has no snapshot.</summary>
     public GpuProgramInterface(int program, IEnumerable<GpuBindingContract> contracts, GraphicsExecutableInterface? graphics = null,
         GpuProgramMetadata? metadata = null)
     {
         Graphics = graphics;
-        metadata ??= GpuResourceManager.AcquireProgramMetadata(program);
+        // Acquisition belongs to the interface owner. Binding preparation itself accepts
+        // only a complete snapshot and cannot fall back to native inspection.
+        var snapshot = metadata ?? GpuResourceManager.AcquireProgramMetadata(program);
         var array = contracts.ToArray();
         this.contracts = array;
-        PreparedBindings = new GpuPreparedBindings(program, GpuBindingContract.Merge(array), metadata);
+        PreparedBindings = new GpuPreparedBindings(GpuBindingContract.Merge(array), snapshot);
         var arraySizes = new Dictionary<int, int>();
         var uniforms = new Dictionary<string, int>(StringComparer.Ordinal);
         foreach (var pair in array.SelectMany(v => v.UniformLocations))

@@ -72,7 +72,7 @@ public abstract partial class GpuProgram
             var graphicsInterface = new GraphicsExecutableInterface(program, plan, inputs.Interface);
             GraphicsInterfaceValidation.ValidateDeclarations(graphicsInterface);
             layout.BinaryInterface = new GpuProgramInterface(program, plan.Stages.Select(stage => stage.Stage.Bindings),
-                graphicsInterface);
+                graphicsInterface, GpuResourceManager.RequireProgramSnapshot(candidate));
             layout.ApplyContract(program, LayoutWarn);
 #if DEBUG
             layout.ValidateContract(program, LayoutWarn);

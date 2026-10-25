@@ -32,7 +32,8 @@ public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture, ITe
         double preparation = System.Diagnostics.Stopwatch.GetElapsedTime(start).TotalMilliseconds;
         var metadata = shader.GraphicsInterface!;
 #if DEBUG
-        int queries = metadata.ReflectionQueries, resourceQueries = pipeline.Bindings.ReflectionQueries;
+        using var acquisition = new ProgramAcquisitionCapture();
+        int queries = metadata.ReflectionQueries, resourceQueries = acquisition.Reads;
 #endif
         start = System.Diagnostics.Stopwatch.GetTimestamp();
         for (int i = 0; i < 100; i++) pipeline.ValidateTargets(description.Targets);
@@ -41,7 +42,7 @@ public sealed class PreparedGraphicsPipelineTests(HeadlessGLFixture fixture, ITe
         Assert.Same(metadata, shader.GraphicsInterface);
 #if DEBUG
         Assert.Equal(queries, metadata.ReflectionQueries);
-        Assert.Equal(resourceQueries, pipeline.Bindings.ReflectionQueries);
+        Assert.Equal(resourceQueries, acquisition.Reads);
         output.WriteLine($"Preparation: {preparation:F3} ms; graphics queries={queries}; resource queries={resourceQueries}; " +
             $"100 retained validations: {validation:F3} ms; additional reflection queries=0.");
 #endif

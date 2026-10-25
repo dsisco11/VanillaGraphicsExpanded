@@ -48,11 +48,15 @@ these indices are independent of GPU binding numbers.
 [GpuResourceManager](../VanillaGraphicsExpanded/Rendering/GpuResourceManager.Registry.cs) owns canonical
 native program metadata and publishes snapshots after observed executable or interface changes.
 [GpuPreparedBindings](../VanillaGraphicsExpanded/Rendering/Spirv/GpuPreparedBindings.cs) consumes
-that snapshot, including sampler/image unit assignments, validates
+only a supplied complete snapshot, including sampler/image unit assignments, validates
 contiguous array assignments and compatible types/targets, and records immutable element activity.
 It also records UBO, storage-block and atomic-counter activity by binding. Sampler and image units
 use separate namespaces. Uncontracted active slots and ambiguous mappings reject preparation;
 inactive required entries remain legal. No sampler/image uniform writes repair a fixed assignment.
+Preparation has no native program-ID parameter, native query path or manager acquisition fallback.
+Unavailable snapshots, uninitialized collections and missing required properties or unit assignments
+reject preparation. `GpuProgramInterface` acquires canonical facts through the manager when its caller
+has no snapshot; graphics and compute candidates supply their existing owner snapshots directly.
 Unit/block changes revalidate prepared resource tables through the existing revision machinery;
 relinking or binary installation withdraws executable preparation until the owner validates its replacement.
 Ordinary numeric uniform writes do not refresh resource metadata. ProgramUniform updates use the
@@ -67,8 +71,9 @@ binding contract. GLSL parsing remains solely in the existing layout-injection o
 
 Layout cache rebuilding and binding validation reuse immutable active-binding maps derived from
 the prepared table. Diagnostic resource-name adapters reuse recorded locations and indices.
-Neither path repeats linked-interface enumeration. Initial inspection reuses query buffers within
-each resource family; UBO and storage-block interfaces still require separate inspections.
+Neither path repeats linked-interface enumeration. Native executable discovery belongs to the manager's
+reader boundary; preparation projects block sizes, stage ownership and native diagnostic indices from
+the supplied collections.
 
 Three fullscreen vertex declarations formerly imported unrelated fragment resource contracts.
 Display resolve, PIS mask and the trace-anchor fixture now have distinct vertex layout identities.
@@ -304,10 +309,10 @@ sampler and image calls; an isolated indexed-buffer interval measures unchanged 
 The raw-ID interval deliberately validates and rebinds each borrowed handle, then rejects the same
 retained integer after retirement. An equal raw engine ID does not establish allocation identity.
 
-Rendering diagnostic counters exist only in DEBUG builds. `GpuPreparedBindings.ReflectionQueries`
-counts its linked-interface inspection calls, excluding
-context-limit queries. Stable preparation counters and the layout/interface named-resolution
-counters supplement source review: generated submission resolves numeric identities through
+Rendering diagnostic counters exist only in DEBUG builds. Native program-acquisition observations
+belong to test fixtures at the manager/reader boundary; the query-free binding preparer has no reflection
+counter. Graphics-interface and layout/interface named-resolution counters supplement source review:
+generated submission resolves numeric identities through
 retained `ShaderInputValidation`, and `ShaderPreparedSubmission` performs no executable reflection
 or uniform-name/location lookup. This is not instrumentation of every GL query in the process.
 Lifetime checks, compatibility reuse, exact array comparisons, validation and context-cache

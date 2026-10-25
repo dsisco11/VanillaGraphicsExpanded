@@ -42,7 +42,7 @@ public sealed class GpuProgramCandidateMetadataTests(HeadlessGLFixture fixture)
             statusQueries=validityQueries=interfaceQueries=0;
             var prepared=new GpuProgramInterface(candidate.ProgramId,new[]{new GpuBindingContract()});
 #if DEBUG
-            Assert.Equal(0,prepared.PreparedBindings.ReflectionQueries);
+            Assert.Empty(prepared.PreparedBindings.Entries);
 #endif
             Assert.Equal(0,statusQueries);
             Assert.Equal(0,validityQueries);

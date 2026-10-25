@@ -29,7 +29,8 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         var cache = StateCache.Current;
         var prepared = pipeline.ProgramLayout.BinaryInterface!.PreparedBindings;
 #if DEBUG
-        int reflection = prepared.ReflectionQueries;
+        using var acquisition = new ProgramAcquisitionCapture();
+        int reflection = acquisition.Reads;
         long names = pipeline.ProgramLayout.UniformNameResolutions;
         long interfaceNames = pipeline.ProgramLayout.BinaryInterface.UniformNameResolutions;
 #endif
@@ -56,7 +57,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(bytes, ring.BytesWritten);
         Assert.Equal(imageChecks + repeats, cache.ImageCacheChecks);
         Assert.Equal(imageBinds, cache.ResourceSlotBindCount);
-        Assert.Equal(reflection, prepared.ReflectionQueries);
+        Assert.Equal(reflection, acquisition.Reads);
         Assert.Equal(names, pipeline.ProgramLayout.UniformNameResolutions);
         Assert.Equal(interfaceNames, pipeline.ProgramLayout.BinaryInterface.UniformNameResolutions);
 #endif
@@ -86,7 +87,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         long textureChecks = cache.TextureCacheChecks, samplerChecks = cache.SamplerCacheChecks;
         imageChecks = cache.ImageCacheChecks;
         imageBinds = cache.ResourceSlotBindCount;
-        reflection = table.ReflectionQueries;
+        reflection = acquisition.Reads;
         names = arrays.ProgramLayout.UniformNameResolutions;
         interfaceNames = arrays.ProgramLayout.BinaryInterface.UniformNameResolutions;
 #endif
@@ -104,7 +105,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         Assert.Equal(textureChecks + repeats * 2, cache.TextureCacheChecks);
         Assert.Equal(samplerChecks + repeats * 2, cache.SamplerCacheChecks);
         Assert.Equal(imageChecks + repeats, cache.ImageCacheChecks);
-        Assert.Equal(reflection, table.ReflectionQueries);
+        Assert.Equal(reflection, acquisition.Reads);
         Assert.Equal(names, arrays.ProgramLayout.UniformNameResolutions);
         Assert.Equal(interfaceNames, arrays.ProgramLayout.BinaryInterface.UniformNameResolutions);
 #endif

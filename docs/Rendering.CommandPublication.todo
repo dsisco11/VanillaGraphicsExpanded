@@ -1,8 +1,8 @@
 Command execution and metadata publication
 
-Status: Phases 1, 2, 2a, 3, 3a, 4, 5, 6 and 7 complete after second review and independent completion audit.
+Status: Phases 1, 2, 2a, 3, 3a, 4, 5, 6, 7 and 8 complete after second review and independent completion audit.
 The narrower command-result policy is approved. Binding repairs, DEBUG-only diagnostics and the shared
-creation/publication boundary, explicit operation ownership and buffer/image/framebuffer/executable migration are implemented; Phases 8–9 remain open.
+creation/publication boundary, explicit operation ownership and buffer/image/framebuffer/executable migration are implemented; Phase 9 remains open.
 Source: [approved proposal](Rendering.CommandPublication.Proposal.md).
 Inherited contracts: [resource design](Rendering.GpuResourceHandles.Proposal.md),
 [inventory](Rendering.GpuResourceHandles.Inventory.md), [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
@@ -469,16 +469,32 @@ Phase 8: Require supplied metadata for binding preparation
   Depends on Phase 7. Sources: proposal Decisions and acceptance; Rendering.ShaderBindingState.md,
   Prepared resource submission. Supplied-metadata-only preparation is already approved; no new design gate.
 
-  ☐ Make GpuPreparedBindings constructor require GpuProgramMetadata; remove optional/native query paths
+  ☑ Make GpuPreparedBindings constructor require GpuProgramMetadata; remove optional/native query paths
     and ReadBlocks reflection, and remove its program-ID parameter if unused. No hidden manager acquisition.
-  ☐ Update GpuProgramInterface and all callers to supply available complete metadata. Preserve fixed-slot,
+  ☑ Update GpuProgramInterface and all callers to supply available complete metadata. Preserve fixed-slot,
     activity, array, block-size/stage, atomic-counter and authored-contract validation and prepared tables.
-  ☐ Update StandaloneNumericInputTests and ReflectionQueries consumers to measure acquisition at its actual
+  ☑ Update StandaloneNumericInputTests and ReflectionQueries consumers to measure acquisition at its actual
     boundary. Reject unavailable/incomplete facts rather than querying to fill gaps.
-  ☐ Have subagents verify valid/incomplete/incompatible snapshots and production preparation with zero
+  ☑ Have subagents verify valid/incomplete/incompatible snapshots and production preparation with zero
     native acquisition from supplied snapshots. Reconcile current shader-binding docs, run affected
     regressions/package checks, second-review and independently audit preparation.
-  ☐ Completion: preparation only validates and prepares supplied facts; no native acquisition fallback remains.
+  ☑ Completion: preparation only validates and prepares supplied facts; no native acquisition fallback remains.
+
+  Verification and traceability: proposal supplied-facts preparation, inherited canonical program/P1
+  contracts and ShaderBindingState prepared executable/submission sections map to the required snapshot
+  constructor, snapshot-only block projection, interface-owned acquisition and graphics/compute candidate
+  handoff. Missing facts reject preparation; fixed-slot/activity/array/block-stage/size/atomic validation
+  and original diagnostic resource indices are retained. Native observation replaces the preparer's
+  obsolete counter, with full acquisition distinguished from legitimate narrow external result reads.
+  Second review and independent completion audit passed with no unresolved findings.
+  Debug: 119/119 with observer process settings; exact canonical Release: 55/55 ordinary and 119/119
+  observer, zero failures/skips. Observer processes use COMPlus_JitNoInline=1 and
+  COMPlus_TieredCompilation=0; no instrumented Release build. Canonical Release/SPIR-V package passed;
+  tested/published/ZIP runtime hashes and all 761 shaders match, dependencies are unchanged and
+  2,821 frozen source/project files have no drift. Receipts: artifacts/command-publication-phase8/
+  {debug-final,canonical-release-normal,canonical-release-observed}.trx, canonical-package-identity.json
+  and commands-and-limits.txt. Headless evidence on one RTX 4090 does not establish older-hardware,
+  live appearance or frame-time qualification. Phase 9 and parent Phase 4f remain open.
 
 Phase 9: Qualify and reconcile the complete foundation
   Depends on Phase 8. Sources: proposal Decisions and acceptance; parent validation and downstream gates.
