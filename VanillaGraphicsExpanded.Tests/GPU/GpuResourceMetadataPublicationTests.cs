@@ -52,7 +52,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>A driver-rejected storage size cannot replace the last measured capacity with the requested size.</summary>
+    /// <summary>An invalid controlled storage request is rejected before dispatch and preserves the published capacity.</summary>
     [Fact]
     public void RejectedBufferAllocationPreservesMeasuredCapacity()
     {
@@ -65,13 +65,13 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         manager.AssociateResource(entry, alias);
         try
         {
-            // Bypass the owning API's argument guard to exercise a command rejected by OpenGL itself.
+            // Bypass the owning API to verify the StateCache command boundary also validates storage inputs.
             using var binding = owner.BindScope();
-            StateCache.Current.BufferData(owner, -1, IntPtr.Zero, BufferUsageHint.StaticDraw);
+            Assert.Throws<ArgumentOutOfRangeException>(() => StateCache.Current.BufferData(owner, -1, IntPtr.Zero, BufferUsageHint.StaticDraw));
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal((nint)64, alias.Capacity);
             Assert.Equal((nint)64, entry.Metadata.Capacity);
-            Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { while (GL.GetError() != ErrorCode.NoError) { } }
     }
@@ -127,12 +127,12 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         using var sentinelBinding = sentinel.BindScope();
         try
         {
-            GpuBufferUploader.BufferData(owner, -1, new byte[4], BufferUsageHint.StreamDraw);
+            Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.BufferData(owner, -1, new byte[4], BufferUsageHint.StreamDraw));
             Assert.Equal(sentinel.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal((nint)64, alias.Capacity);
             Assert.Equal((nint)64, entry.Metadata.Capacity);
-            Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { while (GL.GetError() != ErrorCode.NoError) { } }
     }
@@ -236,7 +236,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(cube));
         Assert.True(entry.MetadataAvailable);
         Assert.Equal((ulong)1, entry.MetadataRevision);
-        Assert.Equal((ulong)1, entry.StorageRevision);
+        Assert.Equal((ulong)0, entry.StorageRevision);
         Assert.Equal(18, entry.Metadata.Levels.Length);
         Assert.All(entry.Metadata.Levels, image => Assert.True(image.Allocated));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -303,6 +303,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
 #endif
         try
         {
+            using var capabilities = new DirectStateAccessCapabilityScope(!generatedName);
             using var view = generatedName
                 ? new GeneratedBufferView(buffer.BufferId, ranged ? offset : 0, ranged ? size : 0)
                 : ranged
@@ -372,12 +373,12 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         public override void SetDebugName(string? debugName) { }
     }
 
-    /// <summary>Exercises the protected legacy construction boundary with an unrealized generated name.</summary>
+    /// <summary>Exercises manager-owned construction through the generated-name fallback.</summary>
     private sealed class GeneratedBufferView : GpuBufferView
     {
         /// <summary>Initializes a generated name through the production bound fallback.</summary>
         internal GeneratedBufferView(int buffer, nint offset, nint size)
-            : base(GL.GenTexture(), buffer, SizedInternalFormat.R32f, offset, size) { }
+            : base() { InitializeBufferView(buffer, SizedInternalFormat.R32f, offset, size, null); }
     }
 
     /// <summary>Receives texture metadata through the manager without acquiring native ownership.</summary>

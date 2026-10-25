@@ -8,6 +8,23 @@ internal sealed class GpuRenderbufferMetadataReader : IGpuResourceMetadataReader
 {
     internal static readonly GpuRenderbufferMetadataReader Instance = new();
 
+    #region Internal API
+    /// <summary>Reads only the allocation result that cannot be resolved without sample capabilities.</summary>
+    internal static int ReadSamples(int id)
+    {
+        int samples;
+        if (GpuSupport.Graphics.SupportsArbDirectStateAccess)
+            GL.GetNamedRenderbufferParameter(id, RenderbufferParameterName.RenderbufferSamples, out samples);
+        else
+        {
+            using var binding = StateCache.Current.BindRenderbufferScope(id);
+            GL.GetRenderbufferParameter(RenderbufferTarget.Renderbuffer, RenderbufferParameterName.RenderbufferSamples, out samples);
+        }
+        if (samples < 0) throw new InvalidOperationException("Renderbuffer sample output is unavailable.");
+        return samples;
+    }
+    #endregion
+
     #region Public API
     /// <inheritdoc />
     public bool IsResource(nint id) => id != 0 && id >= int.MinValue && id <= uint.MaxValue && GL.IsRenderbuffer(unchecked((int)id));

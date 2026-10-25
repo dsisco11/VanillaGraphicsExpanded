@@ -74,7 +74,7 @@ internal sealed class GpuTextureMetadataReader : IGpuResourceMetadataReader<GpuT
         if (levelLimit > 1)
         {
             int limit = target == TextureTarget.Texture3D ? GpuSupport.Graphics.Max3DTextureSize
-                : target == TextureTarget.TextureCubeMap ? GpuSupport.Graphics.MaxCubeMapTextureSize : GpuSupport.Graphics.MaxTextureSize;
+                : target is TextureTarget.TextureCubeMap or TextureTarget.TextureCubeMapArray ? GpuSupport.Graphics.MaxCubeMapTextureSize : GpuSupport.Graphics.MaxTextureSize;
             levelLimit = 1;
             while ((limit >>= 1) > 0) levelLimit++;
         }

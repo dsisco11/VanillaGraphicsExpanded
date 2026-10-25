@@ -8,22 +8,9 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexImage2DMultisample(TextureTargetMultisample @target, int @samples, PixelInternalFormat @internalformat, int @width, int @height, bool @fixedsamplelocations)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.TexImage2DMultisample(@target, @samples, @internalformat, @width, @height, @fixedsamplelocations);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTexImage2DMultisample(@target, @samples, @internalformat, @width, @height, @fixedsamplelocations);
 
     #endregion
 }

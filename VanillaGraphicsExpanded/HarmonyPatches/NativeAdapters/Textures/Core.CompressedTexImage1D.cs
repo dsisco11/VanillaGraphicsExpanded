@@ -8,94 +8,29 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void CompressedTexImage1D(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, IntPtr @data)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.CompressedTexImage1D(@target, @level, @internalformat, @width, @border, @imageSize, @data);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreCompressedTexImage1D(@target, @level, @internalformat, @width, @border, @imageSize, @data);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void CompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, ref T6 @data)
         where T6 : struct
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.CompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, ref @data);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, ref @data);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void CompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, T6[,,] @data)
         where T6 : struct
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.CompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void CompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, T6[,] @data)
         where T6 : struct
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.CompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void CompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, T6[] @data)
         where T6 : struct
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.CompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
 
     #endregion
 }

@@ -137,9 +137,12 @@ public static partial class GpuSupport
             UniformBufferOffsetAlignment = IsAtLeast(capabilities.ApiVersion, 3, 1) ? SafeGetInt(GetPName.UniformBufferOffsetAlignment) : 0,
             TextureBufferOffsetAlignment = capabilities.SupportsTextureBufferRange ? SafeGetInt((GetPName)All.TextureBufferOffsetAlignment) : 0,
             MaxTextureBufferSize = IsAtLeast(capabilities.ApiVersion, 3, 1) ? SafeGetInt(GetPName.MaxTextureBufferSize) : 0,
+            MaxRectangleTextureSize = IsAtLeast(capabilities.ApiVersion, 3, 1) || GlExtensions.Supports("GL_ARB_texture_rectangle")
+                ? SafeGetInt(GetPName.MaxRectangleTextureSize) : 0,
             MaxLabelLength = capabilities.SupportsKhrDebug ? SafeGetInt(GetPName.MaxLabelLength) : 0,
             ProgramBinaryFormats = [.. binaryFormats],
             MaxTextureSize = maxTextureSize,
+            MaxRenderbufferSize = SafeGetInt(GetPName.MaxRenderbufferSize),
             Max3DTextureSize = max3DTextureSize,
             MaxCubeMapTextureSize = maxCubeMapTextureSize,
             MaxArrayTextureLayers = maxArrayTextureLayers,

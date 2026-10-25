@@ -8,39 +8,13 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void GenerateTextureMipmap(int @texture)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.MipGeneration, 0);
-        bool returned = false;
-        try
-        {
-            GL.GenerateTextureMipmap(@texture);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreGenerateTextureMipmap(@texture);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void GenerateTextureMipmap(uint @texture)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.MipGeneration, 0);
-        bool returned = false;
-        try
-        {
-            GL.GenerateTextureMipmap(@texture);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreGenerateTextureMipmap(@texture);
 
     #endregion
 }

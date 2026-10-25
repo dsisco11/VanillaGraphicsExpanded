@@ -62,38 +62,21 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
     public new bool IsValid => base.IsValid && metadata.Buffer is { BufferId: not 0 }
         && (ResourceManager?.GetResourceRegistration(this) is null || ResourceManager.IsResourceMetadataAvailable(this));
 
-    /// <summary>Configures a view using its known creation path, then receives the accepted native metadata.</summary>
-    /// <param name="textureId">Texture name owned by the view.</param>
-    /// <param name="bufferId">Backing buffer owned by the caller.</param>
-    /// <param name="format">Sized format used to interpret buffer texels.</param>
-    /// <param name="offsetBytes">First byte of a ranged view.</param>
-    /// <param name="sizeBytes">Range size, or zero for a whole-buffer view.</param>
-    /// <param name="createdWithDsa">Whether typed DSA creation already initialized this texture; generated names use bound initialization.</param>
-    protected GpuBufferView(int textureId, int bufferId, SizedInternalFormat format, nint offsetBytes, nint sizeBytes,
-        bool createdWithDsa = false)
+    /// <summary>Declares an unpublished view before manager-owned creation.</summary>
+    protected GpuBufferView() { }
+
+    /// <summary>Requests a validated association while retaining whole-store versus range intent.</summary>
+    protected void InitializeBufferView(int buffer, SizedInternalFormat format, nint offset, nint size, string? debugName)
     {
-        this.textureId = textureId;
-        // The view retains its DSA/bound fallback strategy; StateCache owns command execution and publication.
-        var cache = StateCache.Current;
-        // Creation already tells us whether named commands can initialize the association.
-        // Generated names supplied by derived wrappers use the bound path without querying GL.
-        if (createdWithDsa)
+        var request = new GpuBufferTextureInitialization
         {
-            bool configured = sizeBytes == 0
-                ? cache.TryTextureBuffer(this, bufferId, format)
-                : cache.TryTextureBufferRange(this, bufferId, format, offsetBytes, sizeBytes);
-            if (configured) return;
-        }
-
-        using var binding = cache.BindTextureScope(TextureTarget.TextureBuffer, 0, textureId);
-        if (sizeBytes == 0)
-        {
-            cache.TexBuffer(this, bufferId, format);
-        }
-        else
-            cache.TexBufferRange(this, bufferId, format, offsetBytes, sizeBytes);
+            Buffer = buffer, Format = format, Mode = size == 0 ? GpuBufferTextureMode.Whole : GpuBufferTextureMode.Range
+        };
+        if (size != 0) { request.Offset = offset; request.Size = size; }
+        if (!GpuResourceManager.CreateBufferTexture(request, this, out _).HasValue)
+            throw new InvalidOperationException("Buffer texture creation failed.");
+        SetDebugName(debugName);
     }
-
     /// <summary>
     /// Sets the debug label for this buffer view (debug builds only).
     /// </summary>
@@ -120,19 +103,9 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
             throw new ArgumentException("Buffer id must be non-zero.", nameof(bufferId));
         }
 
-        int id = CreateTextureId(out bool createdWithDsa);
-
-        try
-        {
-            var view = new GpuBufferView(id, bufferId, format, offsetBytes: 0, sizeBytes: 0, createdWithDsa: createdWithDsa);
-            view.SetDebugName(debugName);
-            return view;
-        }
-        catch
-        {
-            try { StateCache.Current.DeleteTexture(id); } catch { }
-            throw;
-        }
+        var view = new GpuBufferView();
+        view.InitializeBufferView(bufferId, format, 0, 0, debugName);
+        return view;
     }
 
     /// <summary>
@@ -164,19 +137,9 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
             throw new NotSupportedException("Texture buffer ranges require GL_ARB_texture_buffer_range.");
         }
 
-        int id = CreateTextureId(out bool createdWithDsa);
-
-        try
-        {
-            var view = new GpuBufferView(id, bufferId, format, offsetBytes, sizeBytes, createdWithDsa);
-            view.SetDebugName(debugName);
-            return view;
-        }
-        catch
-        {
-            try { StateCache.Current.DeleteTexture(id); } catch { }
-            throw;
-        }
+        var view = new GpuBufferView();
+        view.InitializeBufferView(bufferId, format, offsetBytes, sizeBytes, debugName);
+        return view;
     }
 
     /// <summary>
@@ -215,21 +178,4 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
         StateCache.Current.BindImageTexture(unit, textureId, level: 0, layered: false, layer: 0, access: access, format: format);
     }
 
-    #region Protected API
-    /// <summary>Creates a texture and reports whether typed DSA creation initialized it, without querying the resulting object.</summary>
-    protected static int CreateTextureId(out bool createdWithDsa)
-    {
-        var cache = StateCache.Current;
-        if (GpuSupport.Graphics.SupportsArbDirectStateAccess
-            && cache.TryCreateTexture(TextureTarget.TextureBuffer, out int texture))
-        {
-            createdWithDsa = true;
-            return texture;
-        }
-        createdWithDsa = false;
-        int generated = cache.GenTexture();
-        if (generated == 0) throw new InvalidOperationException("Texture object creation failed.");
-        return generated;
-    }
-    #endregion
 }

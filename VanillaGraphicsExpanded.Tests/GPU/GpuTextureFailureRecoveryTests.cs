@@ -11,13 +11,13 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>A failed replacement retires the new name exactly once and leaves no owning identity behind.</summary>
+    /// <summary>Controlled replacement succeeds without descriptor recovery even when the native reader is unavailable.</summary>
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void ReplacementFailureClearsOwningIdentity(bool managed, bool layered)
+    public void ReplacementPublishesWithoutNativeReader(bool managed, bool layered)
     {
         fixture.EnsureContextValid();
         if (managed) fixture.InitializeResourceDisposal();
@@ -28,39 +28,33 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
                 : new ReplacementTexture();
             using var faults = new NativeReadFailure();
             faults.Enabled = true;
-            Assert.Throws<InvalidOperationException>(() =>
-            {
-                if (texture is DynamicTexture3D array) array.Resize(8, 4, 2);
-                else ((ReplacementTexture)texture).Replace();
-            });
-            Assert.NotEqual(0, faults.LastReadId);
-            Assert.False(GL.IsTexture((int)faults.LastReadId));
-            Assert.Equal(0, texture.TextureId);
-            Assert.False(texture.IsValid);
-            int deletes = faults.Deletes;
-            Assert.Equal(2, deletes);
-            texture.Dispose();
-            Assert.Equal(deletes, faults.Deletes);
+            if (texture is DynamicTexture3D array) array.Resize(8, 4, 2);
+            else ((ReplacementTexture)texture).Replace();
+            Assert.Equal((nint)0, faults.LastReadId);
+            Assert.NotEqual(0, texture.TextureId);
+            Assert.True(texture.IsValid);
+            Assert.Equal(8, texture.Width);
+            Assert.True(GL.IsTexture(texture.TextureId));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Failed reads clear local dimensions and prevent sampling until a public refresh succeeds.</summary>
+    /// <summary>Controlled local mip selection keeps dimensions and availability without reading the descriptor.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ContextLocalReadFailureWithdrawsSnapshotAndRecovers(bool throws)
+    public void ContextLocalMipRangeBypassesFailedReader(bool throws)
     {
         fixture.EnsureContextValid();
         Assert.Null(GpuResourceManagerSystem.CurrentManager);
         using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
         using var faults = new NativeReadFailure { Enabled = true, Throw = throws };
-        Assert.Throws<InvalidOperationException>(() => texture.SetMipRange(0, 0));
-        Assert.Equal(0, texture.Width);
-        Assert.Equal(0, texture.Height);
-        Assert.False(texture.TryBind(0));
-        Assert.Throws<InvalidOperationException>(() => texture.BindScope(0));
+        texture.SetMipRange(0, 0);
+        Assert.Equal((nint)0, faults.LastReadId);
+        Assert.Equal(4, texture.Width);
+        Assert.Equal(4, texture.Height);
+        Assert.True(texture.TryBind(0));
         faults.Enabled = false;
         texture.SetMipRange(0, 0);
         Assert.Equal(4, texture.Width);

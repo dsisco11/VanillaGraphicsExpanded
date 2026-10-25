@@ -7,51 +7,56 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     #region Internal API
-    /// <summary>Executes allocation on the currently bound buffer and publishes its actual capacity and usage.</summary>
+    /// <summary>Executes allocation on the currently bound buffer and publishes its supplied capacity and usage.</summary>
     internal void BufferData(GpuBufferObject buffer, int byteCount, IntPtr data, BufferUsageHint usage)
     {
-        RequireResourceOperationAvailable(buffer.Kind, buffer.ResourceId);
+        ArgumentOutOfRangeException.ThrowIfNegative(byteCount);
+        using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage);
         GL.BufferData(buffer.Target, (IntPtr)byteCount, data, usage);
-        GpuResourceManager.ObserveWrapperMetadata(buffer, new GpuBufferMetadataReader(), GpuMetadataChange.Storage);
+        operation.Commit(new GpuBufferMetadata(byteCount, usage));
     }
 
     /// <summary>Attempts native named allocation and publishes only after dispatch; publication failures propagate.</summary>
     internal bool TryNamedBufferData(GpuBufferObject buffer, int byteCount, IntPtr data, BufferUsageHint usage)
     {
-        RequireResourceOperationAvailable(buffer.Kind, buffer.ResourceId);
+        ArgumentOutOfRangeException.ThrowIfNegative(byteCount);
+        using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage);
         // Only a native dispatch exception permits the uploader to retry through its bound path.
         // A publication failure must not trigger a second storage mutation.
         try { GL.NamedBufferData(buffer.BufferId, byteCount, data, usage); }
         catch { return false; }
-        GpuResourceManager.ObserveWrapperMetadata(buffer, new GpuBufferMetadataReader(), GpuMetadataChange.Storage);
+        operation.Commit(new GpuBufferMetadata(byteCount, usage));
         return true;
     }
 
     /// <summary>Attempts named array allocation; only native dispatch failure permits the uploader's bound fallback.</summary>
     internal bool TryNamedBufferData<T>(GpuBufferObject buffer, int byteCount, T[] data, BufferUsageHint usage) where T : struct
     {
-        RequireResourceOperationAvailable(buffer.Kind, buffer.ResourceId);
+        ArgumentOutOfRangeException.ThrowIfNegative(byteCount);
+        using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage);
         // Keep metadata publication outside the native exception handler to avoid a second allocation on publication failure.
         try { GL.NamedBufferData(buffer.BufferId, byteCount, data, usage); }
         catch { return false; }
-        GpuResourceManager.ObserveWrapperMetadata(buffer, new GpuBufferMetadataReader(), GpuMetadataChange.Storage);
+        operation.Commit(new GpuBufferMetadata(byteCount, usage));
         return true;
     }
 
-    /// <summary>Preserves the managed-array native marshaling path and publishes measured buffer storage.</summary>
+    /// <summary>Preserves the managed-array native marshaling path and publishes command-derived buffer storage.</summary>
     internal void BufferData<T>(GpuBufferObject buffer, int byteCount, T[] data, BufferUsageHint usage) where T : struct
     {
-        RequireResourceOperationAvailable(buffer.Kind, buffer.ResourceId);
+        ArgumentOutOfRangeException.ThrowIfNegative(byteCount);
+        using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage);
         GL.BufferData(buffer.Target, byteCount, data, usage);
-        GpuResourceManager.ObserveWrapperMetadata(buffer, new GpuBufferMetadataReader(), GpuMetadataChange.Storage);
+        operation.Commit(new GpuBufferMetadata(byteCount, usage));
     }
 
-    /// <summary>Allocates immutable buffer storage and publishes its actual capacity and native usage.</summary>
+    /// <summary>Allocates immutable buffer storage and publishes its supplied capacity and guaranteed usage.</summary>
     internal void BufferStorage(GpuBufferObject buffer, int byteCount, IntPtr data, BufferStorageFlags flags)
     {
-        RequireResourceOperationAvailable(buffer.Kind, buffer.ResourceId);
+        ArgumentOutOfRangeException.ThrowIfNegative(byteCount);
+        using var operation = new GpuResourceManager.MetadataOperation<GpuBufferMetadata>(buffer, GpuMetadataChange.Storage);
         GL.BufferStorage(buffer.Target, byteCount, data, flags);
-        GpuResourceManager.ObserveWrapperMetadata(buffer, new GpuBufferMetadataReader(), GpuMetadataChange.Storage);
+        operation.Commit(new GpuBufferMetadata(byteCount, BufferUsageHint.DynamicDraw));
     }
     #endregion
 }

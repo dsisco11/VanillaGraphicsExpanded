@@ -1,8 +1,8 @@
 Command execution and metadata publication
 
-Status: Phases 1, 2, 2a, 3 and 3a complete after second review and independent completion audit.
+Status: Phases 1, 2, 2a, 3, 3a and 4 complete after second review and independent completion audit.
 The narrower command-result policy is approved. Binding repairs, DEBUG-only diagnostics and the shared
-creation/publication boundary and explicit operation ownership are implemented; Phases 4–9 remain open.
+creation/publication boundary, explicit operation ownership and buffer/image migration are implemented; Phases 5–9 remain open.
 Source: [approved proposal](Rendering.CommandPublication.Proposal.md).
 Inherited contracts: [resource design](Rendering.GpuResourceHandles.Proposal.md),
 [inventory](Rendering.GpuResourceHandles.Inventory.md), [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
@@ -306,34 +306,45 @@ Phase 4: Migrate buffer and image creation and mutations
   Depends on Phase 3a. Sources: proposal Resource coverage; analysis readers/observers; API B1, T1–T4, R1, I1.
   Each task includes input/default definition, accepted-result publication, failure cleanup and call-site migration.
 
-  ☐ Implement GpuBufferInitialization -> GpuBufferMetadata for GpuBufferObject, GpuVbo, GpuEbo,
+  ☑ Implement GpuBufferInitialization -> GpuBufferMetadata for GpuBufferObject, GpuVbo, GpuEbo,
     GpuUniformBuffer, GpuShaderStorageBuffer, GpuAtomicCounterBuffer, GpuIndirectBuffer,
     GpuPixelPackBuffer and GpuPixelUnpackBuffer. Keep GpuBufferUploader's role and DSA/fallback dispatch;
     remove RegisterBufferWrapper's duplicate validity reads without treating reserved names as realized.
-  ☐ Implement GpuTextureInitialization -> GpuTextureMetadata for GpuTexture, Texture2D, Texture3D,
+  ☑ Implement GpuTextureInitialization -> GpuTextureMetadata for GpuTexture, Texture2D, Texture3D,
     DynamicTexture2D, DynamicTexture3D, DynamicTextureCube, DepthTexture, StencilTexture,
     DepthStencilTexture, PmjJitterTexture and CloudBlueNoiseTexture. Preserve constructor inputs,
     allocation choices and GpuLimits use. Derive established mip/face facts as GpuTextureLevelMetadata.
-  ☐ Implement GpuRenderbufferInitialization -> GpuRenderbufferMetadata for GpuRenderbuffer.
+      Use the approved one-time sample-count-only fallback for multisample texture creation when
+      cached target/format sample counts are unavailable; retain input-derived dimensions and format.
+  ☑ Implement GpuRenderbufferInitialization -> GpuRenderbufferMetadata for GpuRenderbuffer.
     Normalize supported sample requests through cached capabilities; use only the proposal's justified
     fallback sample read. Preserve capability-specific storage semantics and avoid repeat allocation.
-  ☐ Implement GpuBufferTextureInitialization -> GpuTextureMetadata for GpuBufferView/GpuBufferTexture,
+  ☑ Implement GpuBufferTextureInitialization -> GpuTextureMetadata for GpuBufferView/GpuBufferTexture,
     constructing GpuTextureBufferMetadata centrally. Preserve whole-buffer versus explicit-range semantics,
     native-width ranges, alignment, backing identity and dependency propagation.
-  ☐ Implement GpuTextureViewInitialization -> GpuTextureMetadata for GpuTextureView, constructing
+  ☑ Implement GpuTextureViewInitialization -> GpuTextureMetadata for GpuTextureView, constructing
     GpuTextureViewMetadata centrally. Preserve source identity/storage revision and view-relative levels.
     Keep renderbuffer-backed texture associations on GpuTextureMetadata/GpuRenderbufferMetadata.
-  ☐ Migrate buffer/renderbuffer/texture storage, parameter, mip-generation and association command observers
+  ☑ Migrate buffer/renderbuffer/texture storage, parameter, mip-generation and association command observers
     to shared execution/publication. Update only affected fields; preserve native acceptance, interruption
     and imported-storage semantics. Base/max changes must not scan unrelated storage; immutable content-only
     mip generation must not invent storage changes. Review ObserveBufferView, TryObserveBufferAssociation,
     ConfigureTextureView and RefreshGeneratedTextureMetadata against this rule.
-  ☐ Have subagents verify every migrated family's creation, replacement, failed allocation, defaults,
+  ☑ Have subagents verify every migrated family's creation, replacement, failed allocation, defaults,
     output metadata, dependencies and DSA/fallback paths. Compare native queries to the binding-corrected
     baseline; distinguish explicit output exceptions from eliminated descriptor rediscovery.
-  ☐ Completion: all listed wrappers use manager creation, no wrapper authors canonical snapshots,
+  ☑ Completion: all listed wrappers use manager creation, no wrapper authors canonical snapshots,
     and narrow image/buffer mutations no longer cause unrelated full reads.
 
+  Verification: second review and independent completion audit passed. Proposal initialization/publication
+  rules and inherited Inventory/API B1, T1–T4, R1 and I1 map to the manager factories, command owners,
+  narrow recovery and creation/publication/dependency/failure tests. Debug: 671/671; exact packaged Release:
+  59/59 ordinary-process and 671/671 with process-only observer JIT controls; zero skips.
+  Canonical Release/SPIR-V package verified: runtime hashes and all 761 shaders match, source drift zero.
+  Receipts: artifacts/command-publication-phase4/{final-debug-affected.trx,canonical-release-normal.trx,
+  canonical-release-observed.trx,canonical-package-identity.json,commands-and-limits.txt}.
+  Forced fallback coverage ran on one RTX 4090; external-memory imports and coverage-sample allocation
+  variants were not runtime-qualified. No live appearance or performance claim. Parent Phase 4f stays open.
 Phase 5: Migrate framebuffer and executable resource creation and publication
   Depends on Phase 4. Sources: proposal coverage/command examples; API F1/P1; analysis corresponding findings.
 

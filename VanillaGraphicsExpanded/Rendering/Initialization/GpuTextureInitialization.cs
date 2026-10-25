@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal enum GpuTextureAllocationMode { Mutable, Immutable }
 
 /// <summary>Records legal texture allocation inputs, distinguishing omitted properties from explicit values.</summary>
-internal struct GpuTextureInitialization
+internal partial struct GpuTextureInitialization
 {
     private Inputs assigned;
     private TextureTarget target;

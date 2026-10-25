@@ -8,22 +8,9 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void CopyTexImage1D(TextureTarget @target, int @level, InternalFormat @internalformat, int @x, int @y, int @width, int @border)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.Ext.CopyTexImage1D(@target, @level, @internalformat, @x, @y, @width, @border);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtCopyTexImage1D(@target, @level, @internalformat, @x, @y, @width, @border);
 
     #endregion
 }

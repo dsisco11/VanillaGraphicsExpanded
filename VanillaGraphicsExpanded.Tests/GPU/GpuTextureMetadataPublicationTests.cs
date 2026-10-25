@@ -38,11 +38,11 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>View creation reads one complete snapshot through either native query path.</summary>
+    /// <summary>View creation derives its complete snapshot from known storage without native queries.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ViewCreationQueriesEachParameterOnce(bool dsa)
+    public void ViewCreationDerivesParametersWithoutQueries(bool dsa)
     {
         fixture.EnsureContextValid();
         using var source = DynamicTexture3D.Create(4, 4, 4, PixelInternalFormat.Rgba32f, immutableStorage: true);
@@ -55,11 +55,11 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         observer.Reset();
         using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba32f, 0, 1, 1, 2);
         Assert.True(view.IsValid);
-        Assert.Equal(1, observer.Calls("IsTexture"));
+        Assert.Equal(0, observer.Calls("IsTexture"));
         foreach (var parameter in new[] { GetTextureParameter.TextureViewMinLevel, GetTextureParameter.TextureViewNumLevels,
                      GetTextureParameter.TextureViewMinLayer, GetTextureParameter.TextureViewNumLayers })
-            Assert.Equal(1, observer.ParameterCalls(parameter));
-        Assert.Equal(dsa ? 0 : 8, observer.Calls("GetTexParameter"));
+            Assert.Equal(0, observer.ParameterCalls(parameter));
+        Assert.Equal(0, observer.Calls("GetTexParameter"));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -83,9 +83,9 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>A failed authoritative refresh escapes the public API and a later successful refresh recovers availability.</summary>
+    /// <summary>Controlled mip selection publishes supplied values without consulting an installed failed reader.</summary>
     [Fact]
-    public void MipRangePublicationFailureCanRecover()
+    public void MipRangePublicationBypassesFailedReader()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -98,9 +98,11 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
             try
             {
                 entry.Reader = failure;
-                Assert.Throws<InvalidOperationException>(() => source.SetMipRange(0, 0));
-                Assert.Equal(1, failure.Reads);
-                Assert.False(entry.MetadataAvailable);
+                source.SetMipRange(0, 0);
+                Assert.Equal(0, failure.Reads);
+                Assert.True(entry.MetadataAvailable);
+                Assert.Equal(0, entry.Metadata.BaseLevel);
+                Assert.Equal(0, entry.Metadata.MaxLevel);
             }
             finally { entry.Reader = original; }
             source.SetMipRange(0, 0);

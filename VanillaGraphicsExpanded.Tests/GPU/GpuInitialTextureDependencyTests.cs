@@ -26,7 +26,11 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
             Assert.True(entry.IsUsable); Assert.True(manager.FindResource(GpuResourceKind.Buffer,buffer)!.IsUsable);
             using var alias=new Alias(texture); GpuResourceManager.AcquireWrapperMetadata(alias,reader); Assert.True(manager.IsResourceMetadataAvailable(alias));
             ulong revision=entry.StorageRevision;
-            var token=StateCache.BeginNativeBufferStorage(buffer,true); GL.NamedBufferData(buffer,128,IntPtr.Zero,BufferUsageHint.DynamicDraw); token.Complete(true);
+            var operation=StateCache.InvalidateNativeBufferStorage(buffer,true);
+            try { GL.NamedBufferData(buffer,128,IntPtr.Zero,BufferUsageHint.DynamicDraw); }
+            finally { operation.Complete(); }
+            Assert.False(manager.IsResourceMetadataAvailable(alias));
+            Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer,buffer,new GpuBufferMetadataReader()));
             Assert.True(entry.StorageRevision>revision); Assert.True(manager.IsResourceMetadataAvailable(alias)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { StateCache.Current.DeleteTexture(texture); StateCache.Current.DeleteBuffer(buffer); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }

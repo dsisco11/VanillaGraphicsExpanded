@@ -12,13 +12,11 @@ namespace VanillaGraphicsExpanded.Rendering;
 public sealed class GpuShaderStorageBuffer : GpuBufferObject
 {
     /// <summary>Wraps a newly allocated storage-buffer object with its usage and debug identity.</summary>
-    /// <summary>Retains allocation policy separately and acquires any realized native buffer facts.</summary>
-    private GpuShaderStorageBuffer(int bufferId, BufferUsageHint usage, string? debugName)
+    /// <summary>Declares buffer policy before manager-owned native creation.</summary>
+    private GpuShaderStorageBuffer(BufferUsageHint usage, string? debugName)
     {
-        this.bufferId = bufferId;
         target = BufferTarget.ShaderStorageBuffer;
         allocationUsage = usage;
-        GpuResourceManager.RegisterBufferWrapper(this);
         this.debugName = debugName;
     }
 
@@ -29,8 +27,9 @@ public sealed class GpuShaderStorageBuffer : GpuBufferObject
         BufferUsageHint usage = BufferUsageHint.DynamicDraw,
         string? debugName = null)
     {
-        int id = CreateBufferId(debugName);
-        return CompleteOwnedCreation(GpuResourceKind.Buffer, id, () => new GpuShaderStorageBuffer(id, usage, debugName));
+        var buffer = new GpuShaderStorageBuffer(usage, debugName);
+        buffer.InitializeNativeBuffer();
+        return buffer;
     }
 
     /// <summary>

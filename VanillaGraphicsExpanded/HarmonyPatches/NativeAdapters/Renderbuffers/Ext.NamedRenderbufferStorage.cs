@@ -8,107 +8,29 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Renderbuffers;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedRenderbufferStorage(int @renderbuffer, ExtDirectStateAccess @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedRenderbufferStorage(int @renderbuffer, PixelInternalFormat @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedRenderbufferStorage(int @renderbuffer, RenderbufferStorage @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedRenderbufferStorage(uint @renderbuffer, ExtDirectStateAccess @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedRenderbufferStorage(uint @renderbuffer, PixelInternalFormat @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedRenderbufferStorage(uint @renderbuffer, RenderbufferStorage @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedRenderbufferStorage(@renderbuffer, @internalformat, @width, @height);
 
     #endregion
 }

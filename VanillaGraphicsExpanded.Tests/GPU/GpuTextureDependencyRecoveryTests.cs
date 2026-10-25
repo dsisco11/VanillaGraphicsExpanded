@@ -47,13 +47,13 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Metadata unavailability temporarily rejects a view without retiring its unchanged native allocation.</summary>
+    /// <summary>Controlled mip selection preserves an existing view without requiring descriptor acquisition.</summary>
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void MetadataRecoveryRestoresExistingView(bool retiredManager, bool throws)
+    public void ControlledMipRangePreservesViewWithoutRecovery(bool retiredManager, bool throws)
     {
         PrepareContext(retiredManager);
         try
@@ -62,8 +62,11 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
             using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba8, 0, 1, 0, 1);
             int viewId = view.TextureId;
             using (var fault = new NativeReadFailure(throws))
-                Assert.Throws<InvalidOperationException>(() => source.SetMipRange(0, 0));
-            Assert.False(view.IsValid);
+            {
+                source.SetMipRange(0, 0);
+                Assert.Equal(0, fault.Reads);
+            }
+            Assert.True(view.IsValid);
             source.SetMipRange(0, 0);
             Assert.Equal(4, source.Width);
             Assert.True(view.IsValid);
@@ -133,12 +136,15 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
     {
         private readonly Harmony harmony = new("VGE.Tests.TextureDependencyRecovery");
         private static bool throwOnRead;
+        private static int reads;
+        internal int Reads => reads;
 
         #region Public API
         /// <summary>Installs the collection-serialized acquisition fault.</summary>
         public NativeReadFailure(bool throws)
         {
             throwOnRead = throws;
+            reads = 0;
             harmony.Patch(AccessTools.Method(typeof(GpuTextureMetadataReader), nameof(GpuTextureMetadataReader.TryRead)),
                 prefix: new HarmonyMethod(AccessTools.Method(typeof(NativeReadFailure), nameof(Read))));
         }
@@ -151,6 +157,7 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
         /// <summary>Declines acquisition or throws while preserving all native resource state.</summary>
         private static bool Read(ref GpuTextureMetadata metadata, ref bool __result)
         {
+            reads++;
             if (throwOnRead) throw new InvalidOperationException("Injected metadata read failure.");
             metadata = default;
             __result = false;

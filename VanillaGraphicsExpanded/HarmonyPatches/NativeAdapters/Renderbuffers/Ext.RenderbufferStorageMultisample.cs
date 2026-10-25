@@ -8,39 +8,13 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Renderbuffers;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void RenderbufferStorageMultisample(ExtFramebufferMultisample @target, int @samples, ExtFramebufferMultisample @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.RenderbufferStorageMultisample(@target, @samples, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtRenderbufferStorageMultisample(@target, @samples, @internalformat, @width, @height);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void RenderbufferStorageMultisample(RenderbufferTarget @target, int @samples, RenderbufferStorage @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.RenderbufferStorageMultisample(@target, @samples, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtRenderbufferStorageMultisample(@target, @samples, @internalformat, @width, @height);
 
     #endregion
 }

@@ -44,40 +44,14 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Buffer;
 
-    protected static int CreateBufferId(string? debugName)
+    /// <summary>Hands a complete declaration to the manager for native realization and snapshot delivery.</summary>
+    protected void InitializeNativeBuffer()
     {
-        int id = 0;
-        bool supportsDsa = GpuSupport.Graphics.SupportsArbDirectStateAccess;
-
-        if (supportsDsa)
-        {
-            try
-            {
-                GL.CreateBuffers(1, out id);
-            }
-            catch
-            {
-                id = 0;
-            }
-        }
-
-        if (id == 0)
-        {
-            id = GL.GenBuffer();
-        }
-
-        if (id == 0)
-        {
-            throw new InvalidOperationException("glGenBuffers failed.");
-        }
-
-#if DEBUG
-        GlDebug.TryLabel(ObjectLabelIdentifier.Buffer, id, debugName);
-#endif
-
-        return id;
+        var initialization = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Realization };
+        if (!GpuResourceManager.CreateBuffer(initialization, this, out _).HasValue)
+            throw new InvalidOperationException("Buffer creation failed.");
+        SetDebugName(debugName);
     }
-
     public override void SetDebugName(string? debugName)
     {
         this.debugName = debugName;

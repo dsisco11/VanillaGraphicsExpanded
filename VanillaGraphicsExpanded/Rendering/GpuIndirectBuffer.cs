@@ -12,13 +12,11 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 internal sealed class GpuIndirectBuffer : GpuBufferObject
 {
-    /// <summary>Retains allocation policy separately and acquires any realized native buffer facts.</summary>
-    private GpuIndirectBuffer(int bufferId, BufferUsageHint usage, string? debugName)
+    /// <summary>Declares buffer policy before manager-owned native creation.</summary>
+    private GpuIndirectBuffer(BufferUsageHint usage, string? debugName)
     {
-        this.bufferId = bufferId;
         target = BufferTarget.DrawIndirectBuffer;
         allocationUsage = usage;
-        GpuResourceManager.RegisterBufferWrapper(this);
         this.debugName = debugName;
     }
 
@@ -29,8 +27,9 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
         BufferUsageHint usage = BufferUsageHint.DynamicDraw,
         string? debugName = null)
     {
-        int id = CreateBufferId(debugName);
-        return CompleteOwnedCreation(GpuResourceKind.Buffer, id, () => new GpuIndirectBuffer(id, usage, debugName));
+        var buffer = new GpuIndirectBuffer(usage, debugName);
+        buffer.InitializeNativeBuffer();
+        return buffer;
     }
 
     /// <summary>

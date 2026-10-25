@@ -8,73 +8,21 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexStorageMem3DMultisample(TextureTarget @target, int @samples, ExtMemoryObject @internalFormat, int @width, int @height, int @depth, bool @fixedSampleLocations, int @memory, long @offset)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TexStorageMem3DMultisample(@target, @samples, @internalFormat, @width, @height, @depth, @fixedSampleLocations, @memory, @offset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTexStorageMem3DMultisample(@target, @samples, @internalFormat, @width, @height, @depth, @fixedSampleLocations, @memory, @offset);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexStorageMem3DMultisample(TextureTarget @target, int @samples, ExtMemoryObject @internalFormat, int @width, int @height, int @depth, bool @fixedSampleLocations, uint @memory, ulong @offset)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TexStorageMem3DMultisample(@target, @samples, @internalFormat, @width, @height, @depth, @fixedSampleLocations, @memory, @offset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTexStorageMem3DMultisample(@target, @samples, @internalFormat, @width, @height, @depth, @fixedSampleLocations, @memory, @offset);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexStorageMem3DMultisample(TextureTarget @target, int @samples, SizedInternalFormat @internalFormat, int @width, int @height, int @depth, bool @fixedSampleLocations, int @memory, long @offset)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TexStorageMem3DMultisample(@target, @samples, @internalFormat, @width, @height, @depth, @fixedSampleLocations, @memory, @offset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTexStorageMem3DMultisample(@target, @samples, @internalFormat, @width, @height, @depth, @fixedSampleLocations, @memory, @offset);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexStorageMem3DMultisample(TextureTarget @target, int @samples, SizedInternalFormat @internalFormat, int @width, int @height, int @depth, bool @fixedSampleLocations, uint @memory, ulong @offset)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TexStorageMem3DMultisample(@target, @samples, @internalFormat, @width, @height, @depth, @fixedSampleLocations, @memory, @offset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTexStorageMem3DMultisample(@target, @samples, @internalFormat, @width, @height, @depth, @fixedSampleLocations, @memory, @offset);
 
     #endregion
 }

@@ -11,9 +11,9 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>A failed authoritative refresh reports failure after native allocation and keeps old metadata unavailable.</summary>
+    /// <summary>Controlled allocation publishes its supplied capacity without consulting an installed failed reader.</summary>
     [Fact]
-    public void FailedRefreshReportsUnavailableMetadataAfterNativeCapacityChanges()
+    public void ControlledAllocationBypassesUnavailableReader()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -26,14 +26,16 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             var originalReader = entry.Reader;
             try
             {
-                entry.Reader = new UnreadableBuffer();
-                Assert.Throws<InvalidOperationException>(() => buffer.Allocate(128));
+                var reader = new UnreadableBuffer();
+                entry.Reader = reader;
+                buffer.Allocate(128);
+                Assert.Equal(0, reader.Reads);
                 using var binding = buffer.BindScope();
                 GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int actualCapacity);
                 Assert.Equal(128, actualCapacity);
-                Assert.Equal(64, buffer.SizeBytes);
-                Assert.Equal((nint)64, entry.Metadata.Capacity);
-                Assert.False(entry.MetadataAvailable);
+                Assert.Equal(128, buffer.SizeBytes);
+                Assert.Equal((nint)128, entry.Metadata.Capacity);
+                Assert.True(entry.MetadataAvailable);
                 Assert.True(buffer.IsValid);
                 Assert.Equal(ErrorCode.NoError, GL.GetError());
             }
@@ -222,10 +224,11 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
     /// <summary>Models a registered allocation whose authoritative native metadata query fails.</summary>
     private sealed class UnreadableBuffer : IGpuResourceMetadataReader<GpuBufferMetadata>
     {
+        internal int Reads;
         /// <inheritdoc />
         public bool IsResource(nint id) => true;
         /// <inheritdoc />
-        public bool TryRead(nint id, out GpuBufferMetadata metadata) { metadata = default; return false; }
+        public bool TryRead(nint id, out GpuBufferMetadata metadata) { Reads++; metadata = default; return false; }
     }
     #endregion
 }

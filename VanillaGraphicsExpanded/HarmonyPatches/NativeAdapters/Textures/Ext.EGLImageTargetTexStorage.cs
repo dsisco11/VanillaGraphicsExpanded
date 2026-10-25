@@ -8,56 +8,17 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void EGLImageTargetTexStorage(ExtEglImageStorage @target, IntPtr @image, ref int @attrib_list)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.Ext.EGLImageTargetTexStorage(@target, @image, ref @attrib_list);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtEGLImageTargetTexStorage(@target, @image, ref @attrib_list);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void EGLImageTargetTexStorage(ExtEglImageStorage @target, IntPtr @image, int[] @attrib_list)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.Ext.EGLImageTargetTexStorage(@target, @image, @attrib_list);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtEGLImageTargetTexStorage(@target, @image, @attrib_list);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void EGLImageTargetTexStorage(ExtEglImageStorage @target, IntPtr @image, int* @attrib_list)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(0, unchecked((int)@target), -1, false, false, StateCache.TextureMetadataEffect.Storage, 0);
-        bool returned = false;
-        try
-        {
-            GL.Ext.EGLImageTargetTexStorage(@target, @image, @attrib_list);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtEGLImageTargetTexStorage(@target, @image, @attrib_list);
 
     #endregion
 }

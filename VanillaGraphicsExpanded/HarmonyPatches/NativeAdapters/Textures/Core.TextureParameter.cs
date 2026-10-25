@@ -8,209 +8,53 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(int @texture, TextureParameterName @pname, int @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(int @texture, TextureParameterName @pname, int[] @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(int @texture, TextureParameterName @pname, int* @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(int @texture, TextureParameterName @pname, float @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(int @texture, TextureParameterName @pname, float[] @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(int @texture, TextureParameterName @pname, float* @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(uint @texture, TextureParameterName @pname, int @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(uint @texture, TextureParameterName @pname, int[] @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(uint @texture, TextureParameterName @pname, int* @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(uint @texture, TextureParameterName @pname, float @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(uint @texture, TextureParameterName @pname, float[] @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureParameter(uint @texture, TextureParameterName @pname, float* @param)
-    {
-        var observation = StateCache.BeginNativeTextureMetadata(unchecked((int)@texture), 0, -1, true, false, StateCache.TextureMetadataEffect.Parameter, unchecked((int)@pname));
-        bool returned = false;
-        try
-        {
-            GL.TextureParameter(@texture, @pname, @param);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTextureParameter(@texture, @pname, @param);
 
     #endregion
 }

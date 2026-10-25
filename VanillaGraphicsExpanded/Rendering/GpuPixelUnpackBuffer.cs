@@ -10,13 +10,11 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
 {
-    /// <summary>Retains allocation policy separately and acquires any realized native buffer facts.</summary>
-    private GpuPixelUnpackBuffer(int bufferId, BufferUsageHint usage, string? debugName)
+    /// <summary>Declares buffer policy before manager-owned native creation.</summary>
+    private GpuPixelUnpackBuffer(BufferUsageHint usage, string? debugName)
     {
-        this.bufferId = bufferId;
         target = BufferTarget.PixelUnpackBuffer;
         allocationUsage = usage;
-        GpuResourceManager.RegisterBufferWrapper(this);
         this.debugName = debugName;
     }
 
@@ -31,8 +29,9 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
         BufferUsageHint usage = BufferUsageHint.StreamDraw,
         string? debugName = null)
     {
-        int id = CreateBufferId(debugName);
-        return CompleteOwnedCreation(GpuResourceKind.Buffer, id, () => new GpuPixelUnpackBuffer(id, usage, debugName));
+        var buffer = new GpuPixelUnpackBuffer(usage, debugName);
+        buffer.InitializeNativeBuffer();
+        return buffer;
     }
 
     /// <summary>

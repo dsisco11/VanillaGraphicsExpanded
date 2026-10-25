@@ -96,6 +96,10 @@ public sealed record GraphicsCapabilities
     #region Resource limits
     /// <summary>Maximum width or height of a two-dimensional texture, in texels.</summary>
     public int MaxTextureSize { get; init; }
+    /// <summary>Maximum width or height of rectangle textures, independent of ordinary 2D limits.</summary>
+    public int MaxRectangleTextureSize { get; init; }
+    /// <summary>Maximum width or height of renderbuffer storage.</summary>
+    public int MaxRenderbufferSize { get; init; }
     /// <summary>Maximum size of each dimension of a three-dimensional texture, in texels.</summary>
     public int Max3DTextureSize { get; init; }
     /// <summary>Maximum width or height of a cube-map face, in texels.</summary>
@@ -211,6 +215,10 @@ public sealed record GraphicsCapabilities
     public ImmutableArray<int> ProgramBinaryFormats { get; init; } = ImmutableArray<int>.Empty;
     /// <summary>Whether immutable texture storage and its format query are available.</summary>
     public bool SupportsTextureStorage { get; init; }
+    /// <summary>Whether multisample image definitions are available.</summary>
+    public bool SupportsTextureMultisample { get; init; }
+    /// <summary>Whether immutable multisample storage is available.</summary>
+    public bool SupportsTextureStorageMultisample { get; init; }
     /// <summary>Whether texture views and immutable-level/view-range queries are available.</summary>
     public bool SupportsTextureView { get; init; }
     /// <summary>Whether texture buffer range is available.</summary>

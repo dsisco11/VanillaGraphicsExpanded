@@ -141,7 +141,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         {
             using var texture = DynamicTexture2D.Create(8, 8, PixelInternalFormat.Rgba8);
             using var binding = texture.BindScope(0);
-            GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            StateCache.Current.ExecuteCoreTexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             texture.SetMipRange(1, 3);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;

@@ -114,7 +114,7 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
         if (!source.IsValid) throw new ArgumentException("Source texture must be live.", nameof(source));
         if (baseLevel < 0 || levelCount <= 0 || baseLevel > source.StorageMipLevels - levelCount)
             throw new ArgumentOutOfRangeException(nameof(levelCount));
-        var result = Create(source.TextureId, viewTarget, viewInternalFormat, baseLevel, levelCount, baseLayer, layerCount, debugName);
+        var result = CreateView(source.TextureId, viewTarget, viewInternalFormat, baseLevel, levelCount, baseLayer, layerCount, debugName, source);
         result.source = source;
         result.sourceGeneration = source.StorageGeneration;
         result.sourceStorageIdentity = source.UntrackedStorageIdentity;
@@ -164,23 +164,7 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
             throw new ArgumentOutOfRangeException(nameof(layerCount), "LayerCount must be > 0.");
         }
 
-        int id = GL.GenTexture();
-        if (id == 0)
-        {
-            throw new InvalidOperationException("glGenTextures failed.");
-        }
-
-        try
-        {
-            var view = new GpuTextureView(id, sourceTextureId, viewTarget, viewInternalFormat, baseLevel, levelCount, baseLayer, layerCount);
-            view.SetDebugName(debugName);
-            return view;
-        }
-        catch
-        {
-            try { StateCache.Current.DeleteTexture(id); } catch { }
-            throw;
-        }
+        return CreateView(sourceTextureId, viewTarget, viewInternalFormat, baseLevel, levelCount, baseLayer, layerCount, debugName);
     }
 
     /// <summary>
@@ -243,21 +227,23 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
     #endregion
 
     #region Private
-    /// <summary>Retains validated immutable view metadata for submission and attachment alias checks.</summary>
-    private GpuTextureView(
-        int textureId,
-        int sourceTextureId,
-        TextureTarget target,
-        PixelInternalFormat internalFormat,
-        int baseLevel,
-        int levelCount,
-        int baseLayer,
-        int layerCount)
-    {
-        this.textureId = textureId;
-        this.sourceTextureId = sourceTextureId;
-        StateCache.Current.ConfigureTextureView(this, sourceTextureId, target, internalFormat, baseLevel, levelCount, baseLayer, layerCount);
-    }
+    /// <summary>Retains source identity before manager-owned creation installs the separate native view.</summary>
+    private GpuTextureView(int sourceTextureId) => this.sourceTextureId = sourceTextureId;
 
+    /// <summary>Supplies explicit source selection to the manager without authoring a canonical snapshot.</summary>
+    private static GpuTextureView CreateView(int sourceId, TextureTarget target, PixelInternalFormat format,
+        int baseLevel, int levelCount, int baseLayer, int layerCount, string? debugName, GpuTexture? source = null)
+    {
+        var request = new GpuTextureViewInitialization
+        {
+            Source = sourceId, Target = target, Format = format, BaseLevel = baseLevel,
+            LevelCount = levelCount, BaseLayer = baseLayer, LayerCount = layerCount
+        };
+        var view = new GpuTextureView(sourceId);
+        if (!GpuResourceManager.CreateTextureView(request, view, out _, source).HasValue)
+            throw new InvalidOperationException("Texture view creation failed.");
+        view.SetDebugName(debugName);
+        return view;
+    }
     #endregion
 }

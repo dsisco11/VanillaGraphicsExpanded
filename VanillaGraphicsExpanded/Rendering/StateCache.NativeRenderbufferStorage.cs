@@ -36,15 +36,11 @@ internal sealed partial class StateCache
         internal void Complete(bool nativeReturned)
         {
             if (entry is null || !entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
-            try
-            {
-                if (!entry.Manager.RefreshMetadata(entry, GpuMetadataChange.Storage))
-                    throw new InvalidOperationException("Native renderbuffer metadata is unavailable after storage mutation.");
-            }
-            catch when (!nativeReturned)
-            {
-                // Preserve the original dispatch exception; refresh withdrew stale availability.
-            }
+            if (!nativeReturned) { entry.NotifyImageDependents(suppressErrors: true); return; }
+            // External calls retain their original request, including invalid or coverage
+            // variants. All represented storage fields may change and require acquisition.
+            if (!entry.Manager.RefreshMetadata(entry, GpuMetadataChange.Storage))
+                throw new InvalidOperationException("Native renderbuffer metadata is unavailable after storage mutation.");
         }
         #endregion
     }

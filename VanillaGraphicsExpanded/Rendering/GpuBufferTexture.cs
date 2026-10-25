@@ -9,11 +9,8 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 public sealed class GpuBufferTexture : GpuBufferView
 {
-    /// <summary>Initializes one association through the common view constructor using the known creation path.</summary>
-    private GpuBufferTexture(int textureId, int bufferId, SizedInternalFormat format, nint offsetBytes, nint sizeBytes, bool createdWithDsa)
-        : base(textureId, bufferId, format, offsetBytes, sizeBytes, createdWithDsa)
-    {
-    }
+    /// <summary>Declares an unpublished buffer texture for manager initialization.</summary>
+    private GpuBufferTexture() { }
 
     /// <summary>
     /// Creates a new buffer texture that exposes the entire buffer as a <c>GL_TEXTURE_BUFFER</c>.
@@ -28,19 +25,9 @@ public sealed class GpuBufferTexture : GpuBufferView
             throw new ArgumentException("Buffer id must be non-zero.", nameof(bufferId));
         }
 
-        int id = CreateTextureId(out bool createdWithDsa);
-
-        try
-        {
-            var view = new GpuBufferTexture(id, bufferId, format, offsetBytes: 0, sizeBytes: 0, createdWithDsa: createdWithDsa);
-            view.SetDebugName(debugName);
-            return view;
-        }
-        catch
-        {
-            try { StateCache.Current.DeleteTexture(id); } catch { }
-            throw;
-        }
+        var view = new GpuBufferTexture();
+        view.InitializeBufferView(bufferId, format, 0, 0, debugName);
+        return view;
     }
 
     /// <summary>
@@ -71,18 +58,8 @@ public sealed class GpuBufferTexture : GpuBufferView
             throw new NotSupportedException("Texture buffer ranges require GL_ARB_texture_buffer_range.");
         }
 
-        int id = CreateTextureId(out bool createdWithDsa);
-
-        try
-        {
-            var view = new GpuBufferTexture(id, bufferId, format, offsetBytes, sizeBytes, createdWithDsa);
-            view.SetDebugName(debugName);
-            return view;
-        }
-        catch
-        {
-            try { StateCache.Current.DeleteTexture(id); } catch { }
-            throw;
-        }
+        var view = new GpuBufferTexture();
+        view.InitializeBufferView(bufferId, format, offsetBytes, sizeBytes, debugName);
+        return view;
     }
 }

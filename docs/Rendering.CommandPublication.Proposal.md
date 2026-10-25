@@ -306,7 +306,7 @@ The read exceptions are deliberately limited:
 
 - Link/compile status and executable reflection are outputs, not creation descriptors. Keep their
   existing completion checks; do not reflect again for a known unit/block assignment.
-- Use cached target/format sample capabilities before managed allocation. For a renderbuffer path
+- Use cached target/format sample capabilities before managed allocation. For renderbuffer and multisample-texture paths
   where supported counts cannot be obtained, read only the sample count once at allocation because
   RenderPassTargets compares attachment sample counts. Do not reread dimensions/format or compare
   that resolved sample value against a raw request to decide whether to allocate again. Existing

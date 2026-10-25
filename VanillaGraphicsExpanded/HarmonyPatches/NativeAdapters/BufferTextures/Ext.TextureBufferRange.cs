@@ -8,209 +8,53 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.BufferTextures;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(int @texture, TextureTarget @target, ExtDirectStateAccess @internalformat, int @buffer, IntPtr @offset, int @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(int @texture, TextureTarget @target, ExtDirectStateAccess @internalformat, int @buffer, IntPtr @offset, IntPtr @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(int @texture, TextureTarget @target, InternalFormat @internalformat, int @buffer, IntPtr @offset, int @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(int @texture, TextureTarget @target, InternalFormat @internalformat, int @buffer, IntPtr @offset, IntPtr @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(int @texture, TextureTarget @target, SizedInternalFormat @internalformat, int @buffer, IntPtr @offset, int @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(int @texture, TextureTarget @target, SizedInternalFormat @internalformat, int @buffer, IntPtr @offset, IntPtr @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(uint @texture, TextureTarget @target, ExtDirectStateAccess @internalformat, uint @buffer, IntPtr @offset, int @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(uint @texture, TextureTarget @target, ExtDirectStateAccess @internalformat, uint @buffer, IntPtr @offset, IntPtr @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(uint @texture, TextureTarget @target, InternalFormat @internalformat, uint @buffer, IntPtr @offset, int @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(uint @texture, TextureTarget @target, InternalFormat @internalformat, uint @buffer, IntPtr @offset, IntPtr @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(uint @texture, TextureTarget @target, SizedInternalFormat @internalformat, uint @buffer, IntPtr @offset, int @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TextureBufferRange(uint @texture, TextureTarget @target, SizedInternalFormat @internalformat, uint @buffer, IntPtr @offset, IntPtr @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(unchecked((int)@texture), unchecked((int)@target), 0, true, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.TextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtTextureBufferRange(@texture, @target, @internalformat, @buffer, @offset, @size);
 
     #endregion
 }

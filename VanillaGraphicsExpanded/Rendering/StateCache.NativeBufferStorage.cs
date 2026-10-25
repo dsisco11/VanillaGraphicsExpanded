@@ -1,53 +1,55 @@
-using System;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Observes external buffer allocation commands without retaining upload data or introducing ownership.</summary>
+/// <summary>Withdraws uncertain external buffer storage until a consumer explicitly acquires its descriptor.</summary>
 internal sealed partial class StateCache
 {
     #region Internal API
-    /// <summary>Captures the original tracked object before an exact native storage call executes.</summary>
-    internal static NativeBufferStorage BeginNativeBufferStorage(int selector, bool named)
+    /// <summary>Invalidates only the selected original allocation before exact external storage dispatch.</summary>
+    internal static NativeBufferStorage InvalidateNativeBufferStorage(int selector, bool named)
     {
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null) return default;
-        var cache = Current;
-        int id = named ? selector : cache.GetBoundBuffer((BufferTarget)selector);
+        int id = named ? selector : Current.GetBoundBuffer((BufferTarget)selector);
         Current.RequireResourceOperationAvailable(GpuResourceKind.Buffer, id);
         if (manager?.CanObserveNativeMetadata != true) return default;
-        var entry = manager.FindObservedResource(GpuResourceKind.Buffer, id)
-            as GpuResourceMetadataEntry<GpuBufferMetadata>;
-        // No registration is created for untracked engine objects. Existing aliases share
-        // one readback, and an interrupted native dispatch cannot leave their old facts usable.
-        if (entry is not null)
+        var entry = manager.FindObservedResource(GpuResourceKind.Buffer, id) as GpuResourceMetadataEntry<GpuBufferMetadata>;
+        if (entry is null) return default;
+        if (entry.CompletionInProgress)
         {
-            // Generated buffer names can be registered before their first binding realizes
-            // the object. The first observed allocation must also establish their reader.
-            entry.Reader ??= new GpuBufferMetadataReader();
-            entry.BeginRefresh(GpuMetadataChange.Storage);
+            entry.CompletionInterrupted = true;
+            throw new System.InvalidOperationException("Buffer metadata completion is in progress.");
         }
-        return new(entry);
+        // Neither a returned native call nor equal descriptor values prove accepted storage
+        // replacement. Keep the storage effect pending for explicit acquisition, including
+        // interruption; no completion read or eager registration is needed here.
+        entry.Reader ??= new GpuBufferMetadataReader();
+        var guard = Current.EnterResourceOperation(entry.Handle);
+        entry.OperationInProgress = true;
+        entry.BeginRefresh(GpuMetadataChange.Storage);
+        return new(Current, entry, guard);
     }
     #endregion
 
-    /// <summary>Retains the original entry across native execution without capturing caller buffers.</summary>
-    internal readonly struct NativeBufferStorage(GpuResourceMetadataEntry<GpuBufferMetadata>? entry)
+    /// <summary>Guards the original unavailable entry until exact dispatch finishes, without acquiring a result.</summary>
+    internal readonly struct NativeBufferStorage(StateCache cache, GpuResourceMetadataEntry<GpuBufferMetadata> entry,
+        ResourceOperationGuard guard)
     {
         #region Internal API
-        /// <summary>Reads actual allocation facts while preserving an original native dispatch exception.</summary>
-        internal void Complete(bool nativeReturned)
+        /// <summary>Releases only execution bookkeeping and retains pending storage recovery on success or interruption.</summary>
+        internal void Complete()
         {
-            if (entry is null || !entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
+            if (entry is null) return;
             try
             {
-                if (!entry.Manager.RefreshMetadata(entry, GpuMetadataChange.Storage))
-                    throw new InvalidOperationException("Native buffer metadata is unavailable after storage mutation.");
+                if (entry.Manager.IsRegistered(entry) && entry.State == GpuResourceRegistrationState.Live)
+                    entry.BeginRefresh(GpuMetadataChange.Storage);
             }
-            catch when (!nativeReturned)
+            finally
             {
-                // Refresh already withdrew availability. Preserve the original exception
-                // rather than replacing it with a secondary metadata acquisition failure.
+                entry.OperationInProgress = false;
+                cache.ExitResourceOperation(guard);
             }
         }
         #endregion

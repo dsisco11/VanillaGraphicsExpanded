@@ -8,22 +8,9 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Renderbuffers;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void RenderbufferStorageMultisample(RenderbufferTarget @target, int @samples, RenderbufferStorage @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.RenderbufferStorageMultisample(@target, @samples, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreRenderbufferStorageMultisample(@target, @samples, @internalformat, @width, @height);
 
     #endregion
 }

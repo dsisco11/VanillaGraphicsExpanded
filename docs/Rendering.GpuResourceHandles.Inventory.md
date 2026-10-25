@@ -30,6 +30,16 @@ Manager creation orchestrates allocation from initialization records.
 StateCache executes their native commands and owns metadata publication, including deferred publication
 for complete texture allocation and framebuffer reattachment operations.
 
+Buffer, image-texture, renderbuffer, buffer-texture and texture-view wrappers use the manager's
+`CreateBuffer`, `CreateTexture`, `CreateRenderbuffer`, `CreateBufferTexture` and `CreateTextureView`
+entry points. Their initialization records distinguish omitted inputs from explicit zero/false.
+Private allocation returns a complete snapshot before identity/recipient handoff. Controlled changes
+publish arguments, native defaults and derived image geometry; wrappers retain upload and sampling policy.
+Unsized formats acquire only the resolved format. Sample requests use cached target/format capabilities;
+renderbuffer and multisample-texture allocation without those capabilities reads only its resulting sample count.
+Known source metadata supplies view geometry and backing ranges without object rediscovery. Buffer
+realization binds generated names before publication when direct creation is unavailable.
+
 | Kind | Existing wrappers / acquisition | Metadata and disposition |
 | --- | --- | --- |
 | Texture | `GpuTexture`: `Texture2D`, `Texture3D`, `DynamicTexture2D` (including `DepthTexture`, `StencilTexture`, `DepthStencilTexture`), `DynamicTexture3D`, `DynamicTextureCube`, `PmjJitterTexture`, `PBR/Clouds/CloudBlueNoiseTexture` | Allocation helpers generate/bind/allocate. Target, dimensions, internal format, allocated mips, immutable-layered flag and storage generation participate in validation/dependencies. Replacement registers the new object; in-place mutation updates canonical metadata and entry revision. Filter mode is an owner policy, not a complete snapshot of arbitrary GL sampler parameters. |
@@ -323,18 +333,25 @@ EXT overloads share StateCache's captured-entry observation.
 Renderbuffer storage uses the same exact-signature dispatch, including EXT coverage-sample storage.
 Texture image definitions and mip generation resolve bound targets, explicit names and EXT texture
 units through StateCache. Cube faces resolve their cube object; proxy targets never select an object.
-Texture-view creation observes the destination's registered identity and reads its native level/layer
+External texture-view creation observes the destination's registered identity and reads its native level/layer
 selection; it does not publish a storage mutation to the source texture's registration.
 Image acquisition limits view-relative mip queries to that exposed level count, independently of the
 source allocation's immutable level count.
-Texture parameter overloads refresh represented base/max levels. Subimage, copy-subimage and
+Exact buffer/image adapters forward to StateCache command methods under `Rendering/Commands`.
+Texture parameter overloads acquire only the changed represented base/max field when the remaining
+snapshot is known. Single-image definitions acquire only the selected level/face; complete storage
+definitions and unknown external objects retain descriptor acquisition. Subimage, copy-subimage and
 compressed-subimage writes change contents only and have no metadata adapters. Explicit mip
 generation remains observed.
-Mip generation on immutable storage is content-only. Mutable generation compares native image
-descriptors and advances storage revisions for changed allocation. Image dependents are notified for
+Mip generation on immutable storage is content-only. Mutable generation compares only potentially
+generated descendant images when the original snapshot is available, retaining other images and
+parameters, and advances storage revisions for changed allocation. Image dependents are notified for
 that change or recovery from unavailable metadata; regenerating existing levels preserves storage certificates.
-Untracked commands execute without creating registry entries. Native results refresh existing aliases
-once, including after rejected allocations, while preserving native errors and binding effects.
+Untracked commands execute without creating registry entries. External buffer storage withdraws
+existing facts through `InvalidateNativeBufferStorage`; explicit acquisition on demand recovers
+capacity/usage and commits the pending storage effect. A captured execution guard prevents reentrant
+acquisition during native dispatch; completion retains withdrawal without querying. Other image results recover affected facts,
+including rejected allocations, while preserving native errors and binding effects.
 Manager publication invalidates associated framebuffer-image dependents after snapshot assignment or
 refresh failure. Local image tools and native-name replacement retain their wrapper observer route.
 Buffer texture availability includes its tracked backing buffer's metadata availability. Successful

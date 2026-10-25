@@ -1,0 +1,27 @@
+using System;
+using OpenTK.Graphics.OpenGL;
+
+namespace VanillaGraphicsExpanded.Rendering;
+
+/// <summary>Resolves only unsized image formats when typed consumers need the driver's chosen representation.</summary>
+internal static class GpuTextureFormatReader
+{
+    #region Internal API
+    /// <summary>Distinguishes explicit storage formats from requests whose representation is driver-selected.</summary>
+    internal static bool IsExplicitFormat(PixelInternalFormat supplied)
+        => supplied is not ((PixelInternalFormat)All.Red or (PixelInternalFormat)All.Rg or PixelInternalFormat.Rgb
+            or PixelInternalFormat.Rgba or PixelInternalFormat.DepthComponent or PixelInternalFormat.DepthStencil
+            or PixelInternalFormat.CompressedRed or PixelInternalFormat.CompressedRg
+            or PixelInternalFormat.CompressedRgb or PixelInternalFormat.CompressedRgba
+            or PixelInternalFormat.CompressedSrgb or PixelInternalFormat.CompressedSrgbAlpha);
+
+    /// <summary>Retains explicit formats; reads only the format output of an unsized bound image definition.</summary>
+    internal static PixelInternalFormat ResolveBoundFormat(TextureTarget target, int level, PixelInternalFormat supplied)
+    {
+        if (IsExplicitFormat(supplied)) return supplied;
+        GL.GetTexLevelParameter(target, level, GetTextureParameter.TextureInternalFormat, out int resolved);
+        if (resolved <= 0) throw new InvalidOperationException("Unsized texture format resolution failed.");
+        return (PixelInternalFormat)resolved;
+    }
+    #endregion
+}

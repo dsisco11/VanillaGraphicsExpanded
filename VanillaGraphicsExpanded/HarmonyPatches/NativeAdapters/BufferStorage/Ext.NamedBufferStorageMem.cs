@@ -8,73 +8,21 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.BufferStorage;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedBufferStorageMem(int @buffer, int @size, int @memory, long @offset)
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@buffer), true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedBufferStorageMem(@buffer, @size, @memory, @offset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedBufferStorageMem(@buffer, @size, @memory, @offset);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedBufferStorageMem(int @buffer, IntPtr @size, int @memory, long @offset)
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@buffer), true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedBufferStorageMem(@buffer, @size, @memory, @offset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedBufferStorageMem(@buffer, @size, @memory, @offset);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedBufferStorageMem(uint @buffer, int @size, uint @memory, ulong @offset)
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@buffer), true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedBufferStorageMem(@buffer, @size, @memory, @offset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedBufferStorageMem(@buffer, @size, @memory, @offset);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedBufferStorageMem(uint @buffer, IntPtr @size, uint @memory, ulong @offset)
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@buffer), true);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedBufferStorageMem(@buffer, @size, @memory, @offset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedBufferStorageMem(@buffer, @size, @memory, @offset);
 
     #endregion
 }

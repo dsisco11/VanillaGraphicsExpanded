@@ -12,6 +12,21 @@ internal sealed partial class GpuResourceManager
         RequireMetadataContext();
         RequireLiveEntry(entry);
         if (entry.OperationInProgress) throw new System.InvalidOperationException("An operation owns this resource result.");
+        if (wasAvailable)
+        {
+            // Generation changes only descendants of the selected base image. Parameters,
+            // the base image, and levels beyond the generated range remain established.
+            int extent = 0;
+            foreach (var image in entry.Metadata.Levels)
+                if (image.Level == entry.Metadata.BaseLevel && image.Allocated)
+                    extent = System.Math.Max(extent, System.Math.Max(image.Width,
+                        entry.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.Texture1DArray ? 1 :
+                        entry.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.Texture3D ? System.Math.Max(image.Height, image.Depth) : image.Height));
+            int last = entry.Metadata.BaseLevel;
+            while ((extent >>= 1) > 0) last++;
+            last = System.Math.Min(last, entry.Metadata.MaxLevel);
+            return RefreshTextureImages(entry, entry.Metadata.BaseLevel + 1, last, 0, true, true);
+        }
         BeginMetadataCompletion(entry, GpuMetadataChange.None);
         entry.BeginRefresh(GpuMetadataChange.None);
         bool finished = false;

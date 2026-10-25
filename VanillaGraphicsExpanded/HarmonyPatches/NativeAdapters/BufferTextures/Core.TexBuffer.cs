@@ -8,39 +8,13 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.BufferTextures;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexBuffer(TextureBufferTarget @target, SizedInternalFormat @internalformat, int @buffer)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(0, unchecked((int)@target), 0, false, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
-        bool returned = false;
-        try
-        {
-            GL.TexBuffer(@target, @internalformat, @buffer);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTexBuffer(@target, @internalformat, @buffer);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexBuffer(TextureBufferTarget @target, SizedInternalFormat @internalformat, uint @buffer)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(0, unchecked((int)@target), 0, false, false, unchecked((int)@buffer), unchecked((int)@internalformat), 0, 0, true);
-        bool returned = false;
-        try
-        {
-            GL.TexBuffer(@target, @internalformat, @buffer);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTexBuffer(@target, @internalformat, @buffer);
 
     #endregion
 }

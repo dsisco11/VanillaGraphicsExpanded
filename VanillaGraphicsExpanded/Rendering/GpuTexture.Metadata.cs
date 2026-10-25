@@ -3,6 +3,11 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// <summary>Exposes the base image of the manager-published texture snapshot.</summary>
 public abstract partial class GpuTexture
 {
+    #region Internal API
+    /// <summary>Exposes the received snapshot for manager-owned command input validation and composition.</summary>
+    internal GpuTextureMetadata MetadataSnapshot => metadata;
+    #endregion
+
     #region Private
     /// <summary>Gets a declaration-safe base image before native allocation or after snapshot publication.</summary>
     private GpuTextureLevelMetadata BaseImage

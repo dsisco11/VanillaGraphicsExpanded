@@ -8,73 +8,21 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.BufferTextures;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexBufferRange(TextureBufferTarget @target, SizedInternalFormat @internalformat, int @buffer, IntPtr @offset, int @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(0, unchecked((int)@target), 0, false, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.TexBufferRange(@target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTexBufferRange(@target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexBufferRange(TextureBufferTarget @target, SizedInternalFormat @internalformat, int @buffer, IntPtr @offset, IntPtr @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(0, unchecked((int)@target), 0, false, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.TexBufferRange(@target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTexBufferRange(@target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexBufferRange(TextureBufferTarget @target, SizedInternalFormat @internalformat, uint @buffer, IntPtr @offset, int @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(0, unchecked((int)@target), 0, false, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.TexBufferRange(@target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTexBufferRange(@target, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void TexBufferRange(TextureBufferTarget @target, SizedInternalFormat @internalformat, uint @buffer, IntPtr @offset, IntPtr @size)
-    {
-        var observation = StateCache.BeginNativeBufferTexture(0, unchecked((int)@target), 0, false, false, unchecked((int)@buffer), unchecked((int)@internalformat), unchecked((nint)@offset), unchecked((nint)@size), false);
-        bool returned = false;
-        try
-        {
-            GL.TexBufferRange(@target, @internalformat, @buffer, @offset, @size);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreTexBufferRange(@target, @internalformat, @buffer, @offset, @size);
 
     #endregion
 }

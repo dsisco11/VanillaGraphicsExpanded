@@ -6,14 +6,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class GpuResourceManager
 {
     #region Internal API
-    /// <summary>Registers a buffer declaration and captures native default storage only when its name is realized.</summary>
-    internal static void RegisterBufferWrapper(GpuBufferObject resource)
-    {
-        resource.ResourceManager?.RegisterWrapperDeclaration(resource);
-        var reader = new GpuBufferMetadataReader();
-        if (reader.IsResource(resource.ResourceId)) AcquireWrapperMetadata(resource, reader);
-    }
-
     /// <summary>Initializes an existing allocation through its canonical entry or a context-local native read.</summary>
     internal static void AcquireWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader) where T : struct
     {

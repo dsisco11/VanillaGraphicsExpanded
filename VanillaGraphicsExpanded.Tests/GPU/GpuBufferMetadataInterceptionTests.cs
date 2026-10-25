@@ -31,6 +31,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             Assert.Null(entry.Reader);
             StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, owner.BufferId);
             Allocate(48);
+            AcquireAfterExternal(owner);
             Assert.Equal(48, owner.SizeBytes);
             Assert.NotNull(entry.Reader);
             Assert.True(manager.IsResourceMetadataAvailable(owner));
@@ -63,11 +64,13 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             using var owner = GpuVbo.Create();
             StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, owner.BufferId);
             AllocateStorage(named, owner.BufferId);
+            AcquireAfterExternal(owner);
             Assert.Equal(96, owner.SizeBytes);
             Assert.True(GpuResourceManagerSystem.CurrentManager!.IsResourceMetadataAvailable(owner));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
             // Immutable storage cannot be replaced; a rejected command must preserve its measured facts and error.
             AllocateStorage(named, owner.BufferId);
+            AcquireAfterExternal(owner);
             Assert.Equal(96, owner.SizeBytes);
             Assert.True(GpuResourceManagerSystem.CurrentManager.IsResourceMetadataAvailable(owner));
             Assert.Equal(ErrorCode.InvalidOperation, GL.GetError());
@@ -105,6 +108,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             StateCache.Current.InvalidateAll();
             ulong revision = entry.MetadataRevision, storage = entry.StorageRevision;
             Upload(variant, owner.BufferId);
+            AcquireAfterExternal(owner);
             Assert.Equal(16, owner.SizeBytes);
             Assert.Equal((nint)16, alias.Capacity);
             Assert.Equal(revision + 1, entry.MetadataRevision);
@@ -132,6 +136,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             owner.Allocate(64);
             StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, owner.BufferId);
             Allocate(-1);
+            AcquireAfterExternal(owner);
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
             raw = GL.GenBuffer();
@@ -153,6 +158,14 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
     #endregion
 
     #region Private
+    /// <summary>Models a consumer explicitly acquiring the allocation withdrawn by an external command.</summary>
+    private static void AcquireAfterExternal(GpuBufferObject owner)
+    {
+        var manager = GpuResourceManagerSystem.CurrentManager!;
+        Assert.False(manager.IsResourceMetadataAvailable(owner));
+        Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, owner.BufferId, new GpuBufferMetadataReader()));
+    }
+
     /// <summary>Isolates a generic native member reference for discovery through its MethodSpecification token.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]
     private static void GenericUpload(Payload[] values) => GL.BufferData(BufferTarget.ArrayBuffer, 16, values, BufferUsageHint.StaticDraw);

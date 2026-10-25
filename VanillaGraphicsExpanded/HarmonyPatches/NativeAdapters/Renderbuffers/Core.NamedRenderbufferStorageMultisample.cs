@@ -8,39 +8,13 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Renderbuffers;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedRenderbufferStorageMultisample(int @renderbuffer, int @samples, RenderbufferStorage @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
-        bool returned = false;
-        try
-        {
-            GL.NamedRenderbufferStorageMultisample(@renderbuffer, @samples, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreNamedRenderbufferStorageMultisample(@renderbuffer, @samples, @internalformat, @width, @height);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedRenderbufferStorageMultisample(uint @renderbuffer, int @samples, RenderbufferStorage @internalformat, int @width, int @height)
-    {
-        var observation = StateCache.BeginNativeRenderbufferStorage(unchecked((int)@renderbuffer), true);
-        bool returned = false;
-        try
-        {
-            GL.NamedRenderbufferStorageMultisample(@renderbuffer, @samples, @internalformat, @width, @height);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreNamedRenderbufferStorageMultisample(@renderbuffer, @samples, @internalformat, @width, @height);
 
     #endregion
 }

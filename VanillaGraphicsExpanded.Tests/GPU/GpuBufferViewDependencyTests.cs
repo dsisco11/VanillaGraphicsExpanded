@@ -73,7 +73,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             sentinelBuffer.Allocate(64);
             using var sentinel = CreateView(sentinelBuffer, false);
             sentinel.BindImageUnit(0);
-            var original = entry.Reader;
+            var original = entry.Reader ?? new GpuBufferMetadataReader();
             entry.Reader = new UnavailableReader();
             Assert.Throws<InvalidOperationException>(() => Resize(buffer, 128, true));
             Assert.False(manager.IsResourceMetadataAvailable(view));
@@ -154,6 +154,8 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             Assert.Throws<InvalidOperationException>(() => manager.PublishMetadata(textureEntry, textureEntry.Metadata, GpuMetadataChange.None));
             Assert.False(manager.IsResourceMetadataAvailable(view));
             Assert.False(view.IsValid);
+            // Retire the synthetic registry-only replacement before the driver may reuse this native name.
+            manager.ObserveDeletion(GpuResourceKind.Buffer, oldId);
             using var newBuffer = GpuShaderStorageBuffer.Create();
             newBuffer.Allocate(128);
             var reassociation = StateCache.BeginNativeBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer,
@@ -192,6 +194,9 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             view.BindImageUnit(0);
             Assert.Equal(0, reader.Reads);
             AllocateNative(buffer, 128);
+            Assert.Equal(0, reader.Reads);
+            Assert.False(view.IsValid);
+            Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, buffer, reader));
             Assert.Equal(1, reader.Reads);
             Assert.True(viewEntry.StorageRevision > revision);
             Assert.True(view.IsValid);
@@ -214,7 +219,15 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
     /// <summary>Selects the owning allocation API or the production-transpiled native allocation boundary.</summary>
     private static void Resize(GpuShaderStorageBuffer buffer, int bytes, bool native)
     {
-        if (native) AllocateNative(buffer.BufferId, bytes);
+        if (native)
+        {
+            AllocateNative(buffer.BufferId, bytes);
+            var manager = GpuResourceManagerSystem.CurrentManager!;
+            Assert.False(manager.IsResourceMetadataAvailable(buffer));
+            var entry = (GpuResourceMetadataEntry<GpuBufferMetadata>)manager.GetResourceRegistration(buffer)!;
+            if (manager.AcquireResource(GpuResourceKind.Buffer, buffer.BufferId, entry.Reader ?? new GpuBufferMetadataReader()) is null)
+                throw new InvalidOperationException("Explicit backing acquisition failed.");
+        }
         else buffer.Allocate(bytes);
     }
 
@@ -265,9 +278,3 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
     }
     #endregion
 }
-
-
-
-
-
-

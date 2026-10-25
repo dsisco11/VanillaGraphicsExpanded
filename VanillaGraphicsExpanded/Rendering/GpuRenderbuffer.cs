@@ -88,26 +88,12 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
         int samples = 0,
         string? debugName = null)
     {
-        // Named storage requires a realized object; generated names are realized by the
-        // fallback allocation's binding, while DSA creation initializes the object directly.
-        int id;
-        if (GpuSupport.Graphics.SupportsArbDirectStateAccess) GL.CreateRenderbuffers(1, out id);
-        else id = GL.GenRenderbuffer();
-        if (id == 0)
-        {
+        var request = new GpuRenderbufferInitialization { Format = storage, Width = width, Height = height, Samples = samples };
+        var resource = new GpuRenderbuffer(0, ownsRenderbuffer: true, debugName);
+        if (!GpuResourceManager.CreateRenderbuffer(request, resource, out _).HasValue)
             throw new InvalidOperationException("Renderbuffer creation failed.");
-        }
-
-#if DEBUG
-        GlDebug.TryLabel(ObjectLabelIdentifier.Renderbuffer, id, debugName);
-#endif
-
-        return CompleteOwnedCreation(GpuResourceKind.Renderbuffer, id, () =>
-        {
-            var rbo = new GpuRenderbuffer(id, ownsRenderbuffer: true, debugName);
-            rbo.AllocateStorage(storage, width, height, samples);
-            return rbo;
-        });
+        resource.SetDebugName(debugName);
+        return resource;
     }
 
     /// <summary>

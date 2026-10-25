@@ -137,19 +137,10 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         RequireMutableStorage();
         Validate2DAllocation(target, width, height, mipLevels);
         DeleteTextureIfAllocated();
-        textureId = GL.GenTexture();
-        try
-        {
-            CompleteOwnedCreation(GpuResourceKind.Texture, textureId, () =>
-            {
-                Allocate2DStorage(target, format, width, height, mipLevels);
-                return this;
-            });
-        }
+        try { Allocate2DStorage(target, format, width, height, mipLevels); }
         catch
         {
-            // Cleanup retired the new name; this wrapper may already belong to a caller.
-            textureId = 0;
+            try { DeleteTextureIfAllocated(); } catch { }
             throw;
         }
         GpuFramebufferAttachmentObservers.NotifyChanged(this);
@@ -174,22 +165,22 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         if (target is not (TextureTarget.Texture3D or TextureTarget.Texture2DArray))
             throw new InvalidOperationException($"Layered allocation is not supported for {target}.");
         DeleteTextureIfAllocated();
-        textureId = GL.GenTexture();
+        var request = new GpuTextureInitialization
+        {
+            Target = target, AllocationMode = immutableStorage ? GpuTextureAllocationMode.Immutable : GpuTextureAllocationMode.Mutable,
+            InternalFormat = format, Width = width, Height = height, Depth = depth, Levels = 1, BaseLevel = 0, MaxLevel = 0
+        };
         try
         {
-            CompleteOwnedCreation(GpuResourceKind.Texture, textureId, () =>
-            {
-                var min = filterMode == TextureFilterMode.Linear ? TextureMinFilter.Linear : TextureMinFilter.Nearest;
-                var mag = filterMode == TextureFilterMode.Linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
-                StateCache.Current.AllocateTexture3D(this, target, format, width, height, depth, immutableStorage, min, mag,
-                    TextureWrapMode.ClampToEdge, 0, 0);
-                return this;
-            });
+            if (!GpuResourceManager.CreateTexture(request, this, out _).HasValue)
+                throw new InvalidOperationException("Texture creation failed.");
+            var min = filterMode == TextureFilterMode.Linear ? TextureMinFilter.Linear : TextureMinFilter.Nearest;
+            var mag = filterMode == TextureFilterMode.Linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
+            StateCache.Current.ConfigureTextureSampling(this, target, min, mag, TextureWrapMode.ClampToEdge);
         }
         catch
         {
-            // Never leave a surviving resize caller owning a name deleted by creation cleanup.
-            textureId = 0;
+            try { DeleteTextureIfAllocated(); } catch { }
             throw;
         }
         GpuFramebufferAttachmentObservers.NotifyChanged(this);

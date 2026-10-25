@@ -210,7 +210,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             using var owner = GpuVbo.Create(); owner.Allocate(16);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
-            var original = entry.Reader!;
+            var original = new GpuBufferMetadataReader();
             ulong revision = entry.MetadataRevision;
             var reader = new ReentrantReader(original, () =>
             {
@@ -316,7 +316,7 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             using var owner = GpuVbo.Create(); owner.Allocate(16);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
-            var native = entry.Reader!;
+            var native = new GpuBufferMetadataReader();
             ulong storage = entry.StorageRevision;
             entry.Reader = new ReentrantReader(native,
                 () => manager.PublishMetadata(entry, new GpuBufferMetadata(64, BufferUsageHint.StaticDraw), GpuMetadataChange.Storage), true);

@@ -1,0 +1,51 @@
+using System;
+
+namespace VanillaGraphicsExpanded.Rendering;
+
+/// <summary>Acquires backing facts once and owns buffer-texture initialization.</summary>
+internal sealed partial class GpuResourceManager
+{
+    #region Internal API
+    /// <summary>Validates backing range and commits the new texture without transferring backing ownership.</summary>
+    internal static GpuTextureMetadata? CreateBufferTexture(in GpuBufferTextureInitialization initialization,
+        GpuResource<GpuTextureMetadata> recipient, out GpuResourceHandle handle)
+        => CreateResource<GpuBufferTextureInitialization, GpuTextureMetadata, BufferTextureCreation>(initialization, recipient, out handle);
+
+    /// <summary>Reuses canonical backing capacity, reading only previously unknown external buffers.</summary>
+    internal static GpuBufferMetadata AcquireBufferTextureInput(int buffer)
+    {
+        StateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Buffer, buffer);
+        if (GpuResourceManagerSystem.CurrentManager is { } manager && manager.CanObserveNativeMetadata)
+            return manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader())?.Metadata
+                ?? throw new InvalidOperationException("Buffer texture backing is unavailable.");
+        if (!new GpuBufferMetadataReader().TryRead(buffer, out var metadata))
+            throw new InvalidOperationException("Buffer texture backing is unavailable.");
+        return metadata;
+    }
+    #endregion
+
+    /// <summary>Supplies family validation and execution to the common manager handoff.</summary>
+    private readonly struct BufferTextureCreation : IGpuResourceCreation<GpuBufferTextureInitialization, GpuTextureMetadata>
+    {
+        #region Public API
+        /// <inheritdoc />
+        public GpuResourceKind Kind => GpuResourceKind.Texture;
+        /// <inheritdoc />
+        public void Validate(in GpuBufferTextureInitialization initialization) => initialization.Validate();
+        /// <inheritdoc />
+        public GpuTextureMetadata? Initialize(StateCache cache, in GpuBufferTextureInitialization initialization, out nint id)
+        {
+            id = 0;
+            var backing = AcquireBufferTextureInput(initialization.Buffer);
+            if (initialization.Mode == GpuBufferTextureMode.Range)
+            {
+                int alignment = GpuSupport.Graphics.TextureBufferOffsetAlignment;
+                if (initialization.Offset > backing.Capacity || initialization.Size > backing.Capacity - initialization.Offset
+                    || alignment <= 0 || initialization.Offset % alignment != 0)
+                    throw new ArgumentException("Buffer texture range exceeds backing capacity or violates alignment.");
+            }
+            return cache.CreateBufferTexture(initialization, out id);
+        }
+        #endregion
+    }
+}

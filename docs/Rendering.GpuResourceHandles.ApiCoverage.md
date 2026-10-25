@@ -159,6 +159,13 @@ Individual extension definitions in the registry control capability/ABI/behavior
 
 ### B1 buffer storage
 
+Controlled storage publishes capacity/usage directly. Exact external storage commands withdraw the
+selected existing snapshot before dispatch and retain a pending storage effect. They perform no
+completion read; explicit manager acquisition at use recovers capacity/usage and propagates dependent
+texture revisions, including equal-sized replacement. The original entry remains guarded through
+native dispatch and is withdrawn at completion; reentrant acquisition cannot publish an intermediate
+descriptor. Interrupted calls remain unavailable.
+
 `glBufferData`, `glBufferDataARB`, `glBufferStorage`, `glBufferStorageExternalEXT`, `glBufferStorageMemEXT`, `glNamedBufferData`, `glNamedBufferDataEXT`, `glNamedBufferStorage`, `glNamedBufferStorageEXT`, `glNamedBufferStorageExternalEXT`, `glNamedBufferStorageMemEXT`.
 
 Storage semantics are controlled by [ARB_buffer_storage](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_buffer_storage.txt),
@@ -272,9 +279,20 @@ count or the narrowly justified fallback result. No unconditional descriptor rea
 
 ### T1 image definitions
 
+Controlled allocation derives complete images from validated initialization inputs.
+Multisample allocation uses cached target/format counts or the approved one-time sample-count-only
+fallback when those capabilities are unavailable. Other dimensions and format remain input-derived.
+Exact external overloads execute in StateCache; a known single-image definition recovers only its affected level/face.
+Whole-storage/import commands and unavailable original descriptors retain external acquisition.
+Interrupted native calls leave snapshots unavailable without performing completion queries.
+
 `glCompressedMultiTexImage1DEXT`, `glCompressedMultiTexImage2DEXT`, `glCompressedMultiTexImage3DEXT`, `glCompressedTexImage1D`, `glCompressedTexImage1DARB`, `glCompressedTexImage2D`, `glCompressedTexImage2DARB`, `glCompressedTexImage3D`, `glCompressedTexImage3DARB`, `glCompressedTextureImage1DEXT`, `glCompressedTextureImage2DEXT`, `glCompressedTextureImage3DEXT`, `glCopyMultiTexImage1DEXT`, `glCopyMultiTexImage2DEXT`, `glCopyTexImage1D`, `glCopyTexImage1DEXT`, `glCopyTexImage2D`, `glCopyTexImage2DEXT`, `glCopyTextureImage1DEXT`, `glCopyTextureImage2DEXT`, `glEGLImageTargetTexStorageEXT`, `glEGLImageTargetTextureStorageEXT`, `glMultiTexImage1DEXT`, `glMultiTexImage2DEXT`, `glMultiTexImage3DEXT`, `glTexImage1D`, `glTexImage2D`, `glTexImage2DMultisample`, `glTexImage3D`, `glTexImage3DEXT`, `glTexImage3DMultisample`, `glTexStorage1D`, `glTexStorage1DEXT`, `glTexStorage2D`, `glTexStorage2DEXT`, `glTexStorage2DMultisample`, `glTexStorage3D`, `glTexStorage3DEXT`, `glTexStorage3DMultisample`, `glTexStorageMem1DEXT`, `glTexStorageMem2DEXT`, `glTexStorageMem2DMultisampleEXT`, `glTexStorageMem3DEXT`, `glTexStorageMem3DMultisampleEXT`, `glTextureImage1DEXT`, `glTextureImage2DEXT`, `glTextureImage3DEXT`, `glTextureStorage1D`, `glTextureStorage1DEXT`, `glTextureStorage2D`, `glTextureStorage2DEXT`, `glTextureStorage2DMultisample`, `glTextureStorage2DMultisampleEXT`, `glTextureStorage3D`, `glTextureStorage3DEXT`, `glTextureStorage3DMultisample`, `glTextureStorage3DMultisampleEXT`, `glTextureStorageMem1DEXT`, `glTextureStorageMem2DEXT`, `glTextureStorageMem2DMultisampleEXT`, `glTextureStorageMem3DEXT`, `glTextureStorageMem3DMultisampleEXT`.
 
 ### T2 mip generation
+
+Immutable generation has no descriptor work. Known mutable storage checks only descendants of its
+selected base through the generated maximum level; existing image descriptors determine that range.
+Unchanged descriptors preserve storage revisions and view certificates. Unknown storage uses recovery.
 
 `glGenerateMipmap`, `glGenerateMipmapEXT`, `glGenerateMultiTexMipmapEXT`, `glGenerateTextureMipmap`, `glGenerateTextureMipmapEXT`.
 
@@ -317,6 +335,10 @@ tracked backing. No resource key gains an incarnation or generation field.
 `glMultiTexBufferEXT`, `glMultiTexRenderbufferEXT`, `glTexBuffer`, `glTexBufferARB`, `glTexBufferEXT`, `glTexBufferRange`, `glTextureBuffer`, `glTextureBufferEXT`, `glTextureBufferRange`, `glTextureBufferRangeEXT`, `glTextureRenderbufferEXT`, `glTextureView`.
 
 ### T4 texture parameters
+
+Controlled base/max changes publish the supplied value. External setters read only the changed
+represented parameter when other facts are available; they never rescan known image storage.
+Unrepresented parameters and invalid multisample mip parameters have no metadata observation work.
 
 `glMultiTexParameterfEXT`, `glMultiTexParameterfvEXT`, `glMultiTexParameteriEXT`, `glMultiTexParameterIivEXT`, `glMultiTexParameterIuivEXT`, `glMultiTexParameterivEXT`, `glTexParameterf`, `glTexParameterfv`, `glTexParameteri`, `glTexParameterIiv`, `glTexParameterIivEXT`, `glTexParameterIuiv`, `glTexParameterIuivEXT`, `glTexParameteriv`, `glTextureParameterf`, `glTextureParameterfEXT`, `glTextureParameterfv`, `glTextureParameterfvEXT`, `glTextureParameteri`, `glTextureParameteriEXT`, `glTextureParameterIiv`, `glTextureParameterIivEXT`, `glTextureParameterIuiv`, `glTextureParameterIuivEXT`, `glTextureParameteriv`, `glTextureParameterivEXT`.
 

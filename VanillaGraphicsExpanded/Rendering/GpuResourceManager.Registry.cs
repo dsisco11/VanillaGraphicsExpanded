@@ -63,8 +63,10 @@ internal sealed partial class GpuResourceManager
             var tracked = (GpuResourceMetadataEntry<TMetadata>)existing;
             if (tracked.State != GpuResourceRegistrationState.Live) return null;
             tracked.Reader ??= reader;
-            if (tracked.OperationInProgress) return null;
+            // A completed candidate is available before dependent publication. An open
+            // operation with an unpublished candidate remains unavailable below.
             if (tracked.IsUsable) return tracked;
+            if (tracked.OperationInProgress) return null;
             if (tracked.CompletionInProgress) return null;
             tracked.Reader = reader;
             return RefreshMetadata(tracked, tracked.MetadataRevision == 0 ? GpuMetadataChange.None : GpuMetadataChange.Metadata) ? tracked : null;

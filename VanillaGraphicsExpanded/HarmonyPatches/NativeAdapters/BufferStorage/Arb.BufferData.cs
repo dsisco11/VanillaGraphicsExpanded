@@ -8,183 +8,53 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.BufferStorage;
 internal static unsafe partial class Arb
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void BufferData(BufferTargetArb @target, int @size, IntPtr @data, BufferUsageArb @usage)
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BufferData(@target, @size, @data, @usage);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbBufferData(@target, @size, @data, @usage);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void BufferData(BufferTargetArb @target, IntPtr @size, IntPtr @data, BufferUsageArb @usage)
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BufferData(@target, @size, @data, @usage);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbBufferData(@target, @size, @data, @usage);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void BufferData<T2>(BufferTargetArb @target, int @size, ref T2 @data, BufferUsageArb @usage)
         where T2 : struct
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BufferData<T2>(@target, @size, ref @data, @usage);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbBufferData<T2>(@target, @size, ref @data, @usage);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void BufferData<T2>(BufferTargetArb @target, int @size, T2[,,] @data, BufferUsageArb @usage)
         where T2 : struct
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BufferData<T2>(@target, @size, @data, @usage);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbBufferData<T2>(@target, @size, @data, @usage);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void BufferData<T2>(BufferTargetArb @target, int @size, T2[,] @data, BufferUsageArb @usage)
         where T2 : struct
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BufferData<T2>(@target, @size, @data, @usage);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbBufferData<T2>(@target, @size, @data, @usage);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void BufferData<T2>(BufferTargetArb @target, int @size, T2[] @data, BufferUsageArb @usage)
         where T2 : struct
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BufferData<T2>(@target, @size, @data, @usage);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbBufferData<T2>(@target, @size, @data, @usage);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void BufferData<T2>(BufferTargetArb @target, IntPtr @size, ref T2 @data, BufferUsageArb @usage)
         where T2 : struct
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BufferData<T2>(@target, @size, ref @data, @usage);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbBufferData<T2>(@target, @size, ref @data, @usage);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void BufferData<T2>(BufferTargetArb @target, IntPtr @size, T2[,,] @data, BufferUsageArb @usage)
         where T2 : struct
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BufferData<T2>(@target, @size, @data, @usage);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbBufferData<T2>(@target, @size, @data, @usage);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void BufferData<T2>(BufferTargetArb @target, IntPtr @size, T2[,] @data, BufferUsageArb @usage)
         where T2 : struct
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BufferData<T2>(@target, @size, @data, @usage);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbBufferData<T2>(@target, @size, @data, @usage);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void BufferData<T2>(BufferTargetArb @target, IntPtr @size, T2[] @data, BufferUsageArb @usage)
         where T2 : struct
-    {
-        var observation = StateCache.BeginNativeBufferStorage(unchecked((int)@target), false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.BufferData<T2>(@target, @size, @data, @usage);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbBufferData<T2>(@target, @size, @data, @usage);
 
     #endregion
 }

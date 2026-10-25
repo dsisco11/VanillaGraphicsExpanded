@@ -26,8 +26,8 @@ public sealed class ArrayTextureViewTests(HeadlessGLFixture fixture):RenderTestB
     public void ViewRejectsOutOfRangeLayers()
     {
         EnsureContextValid();using var owner=DynamicTexture3D.Create(2,2,3,PixelInternalFormat.Rgba32f,immutableStorage:true);
-        Assert.Throws<InvalidOperationException>(()=>GpuTextureView.CreateFromTexture(owner,TextureTarget.Texture2DArray,PixelInternalFormat.Rgba32f,0,1,1,3));
-        Assert.Throws<ArgumentOutOfRangeException>(()=>GpuTextureView.CreateFromTexture(owner,TextureTarget.Texture2DArray,PixelInternalFormat.Rgba32f,0,1,-1,1));
+        Assert.ThrowsAny<ArgumentException>(()=>GpuTextureView.CreateFromTexture(owner,TextureTarget.Texture2DArray,PixelInternalFormat.Rgba32f,0,1,1,3));
+        Assert.ThrowsAny<ArgumentException>(()=>GpuTextureView.CreateFromTexture(owner,TextureTarget.Texture2DArray,PixelInternalFormat.Rgba32f,0,1,-1,1));
         Assert.Equal(ErrorCode.NoError,GL.GetError());
     }
     /// <summary>A three-dimensional sampler reaches every z slice even though its texture-view layer count is one.</summary>
