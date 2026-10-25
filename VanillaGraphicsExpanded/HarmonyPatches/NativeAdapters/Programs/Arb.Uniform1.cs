@@ -4,77 +4,24 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Programs;
 
-/// <summary>Forwards GL.Arb.Uniform1 overloads through their existing StateCache observation contract.</summary>
+/// <summary>Routes exact Arb overloads through their command execution boundary.</summary>
 internal static unsafe partial class Arb
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void Uniform1(int @location, int @count, ref int @value)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), unchecked((int)@count), false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.Uniform1(@location, @count, ref @value);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbUniform1(@location, @count, ref @value);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void Uniform1(int @location, int @count, int[] @value)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), unchecked((int)@count), false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.Uniform1(@location, @count, @value);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbUniform1(@location, @count, @value);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void Uniform1(int @location, int @count, int* @value)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), unchecked((int)@count), false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.Uniform1(@location, @count, @value);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteArbUniform1(@location, @count, @value);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void Uniform1(int @location, int @v0)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(0, false, true, unchecked((int)@location), 1, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.Uniform1(@location, @v0);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
-
+        => StateCache.Current.ExecuteArbUniform1(@location, @v0);
     #endregion
 }

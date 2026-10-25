@@ -294,10 +294,10 @@ public sealed class GpuMetadataOperationFoundationTests(HeadlessGLFixture fixtur
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(manager.GetResourceRegistration(framebuffer));
             var candidate = entry.Metadata;
             ulong revision = entry.MetadataRevision;
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>(framebuffer, GpuMetadataChange.Metadata))
+            using (var operation = new StateCache.FramebufferOperation(framebuffer))
             {
                 Assert.Throws<ArgumentException>(() => image.AttachTo(framebuffer, FramebufferAttachment.DepthAttachment, operation));
-                Assert.Throws<InvalidOperationException>(() => operation.Commit(candidate));
+                Assert.Throws<InvalidOperationException>(() => operation.Commit());
             }
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(revision, entry.MetadataRevision);

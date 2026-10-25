@@ -17,14 +17,5 @@ internal sealed partial class GpuResourceManager
         return candidate;
     }
 
-    /// <summary>Reads a completed attachment operation without issuing publication or retrying commands.</summary>
-    internal static GpuFramebufferMetadata ReadFramebufferOperationResult(GpuFramebuffer framebuffer)
-    {
-        var entry = framebuffer.ResourceManager?.GetResourceRegistration(framebuffer) as GpuResourceMetadataEntry<GpuFramebufferMetadata>;
-        var reader = entry is null ? GpuFramebufferMetadataReader.Instance : entry.Reader ??= GpuFramebufferMetadataReader.Instance;
-        if (!reader.TryRead(framebuffer.ResourceId, out var candidate))
-            throw new InvalidOperationException("Framebuffer operation metadata recovery failed.");
-        return candidate;
-    }
     #endregion
 }

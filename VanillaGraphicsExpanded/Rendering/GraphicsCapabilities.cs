@@ -100,6 +100,14 @@ public sealed record GraphicsCapabilities
     public int MaxRectangleTextureSize { get; init; }
     /// <summary>Maximum width or height of renderbuffer storage.</summary>
     public int MaxRenderbufferSize { get; init; }
+    /// <summary>Gets the cached attachmentless framebuffer width limit.</summary>
+    public int MaxFramebufferWidth { get; init; }
+    /// <summary>Gets the cached attachmentless framebuffer height limit.</summary>
+    public int MaxFramebufferHeight { get; init; }
+    /// <summary>Gets the cached attachmentless framebuffer layer limit.</summary>
+    public int MaxFramebufferLayers { get; init; }
+    /// <summary>Gets the cached attachmentless framebuffer sample limit.</summary>
+    public int MaxFramebufferSamples { get; init; }
     /// <summary>Maximum size of each dimension of a three-dimensional texture, in texels.</summary>
     public int Max3DTextureSize { get; init; }
     /// <summary>Maximum width or height of a cube-map face, in texels.</summary>

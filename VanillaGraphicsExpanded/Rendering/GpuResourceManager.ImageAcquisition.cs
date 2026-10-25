@@ -28,7 +28,8 @@ internal sealed partial class GpuResourceManager
     }
 
     /// <summary>Refreshes an image association after explicit owner replacement without letting imported IDs adopt reused objects.</summary>
-    internal static void AcquireImageMetadata(GpuFramebufferAttachment image, GpuTextureMetadata? acquiredTexture = null)
+    internal static void AcquireImageMetadata(GpuFramebufferAttachment image, GpuTextureMetadata? acquiredTexture = null,
+        GpuRenderbufferMetadata? acquiredRenderbuffer = null)
     {
         if (image.IsDisposed || image.ResourceId == 0 || Integration.RenderContextRegistry.Current() == default) return;
         if (image.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(image))
@@ -44,7 +45,7 @@ internal sealed partial class GpuResourceManager
             bool external = image.Resource is null;
             bool bufferTexture = entry is GpuResourceMetadataEntry<GpuTextureMetadata> textureEntry
                 && textureEntry.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.TextureBuffer;
-            if (entry is null || external && !bufferTexture && !acquiredTexture.HasValue)
+            if (entry is null || external && !bufferTexture && !acquiredTexture.HasValue && !acquiredRenderbuffer.HasValue)
                 entry = image.Kind == GpuResourceKind.Renderbuffer
                     ? external ? manager.RecoverResource(image.Kind, image.ResourceId, GpuRenderbufferMetadataReader.Instance) : manager.AcquireResource(image.Kind, image.ResourceId, GpuRenderbufferMetadataReader.Instance)
                     : external ? manager.RecoverResource(image.Kind, image.ResourceId, new GpuTextureMetadataReader(image.ImageTarget))
@@ -58,8 +59,12 @@ internal sealed partial class GpuResourceManager
         DiscardUntrackedMetadata(image);
         StateCache.Current.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
         GpuImageMetadata? projected = null;
-        if (image.Kind == GpuResourceKind.Renderbuffer && GpuRenderbufferMetadataReader.Instance.TryRead(image.ResourceId, out var renderbuffer))
-            projected = ProjectRenderbufferImage(renderbuffer, image.MetadataImageSelection);
+        if (image.Kind == GpuResourceKind.Renderbuffer)
+        {
+            if (acquiredRenderbuffer is { } supplied) projected = ProjectRenderbufferImage(supplied, image.MetadataImageSelection);
+            else if (GpuRenderbufferMetadataReader.Instance.TryRead(image.ResourceId, out var renderbuffer))
+                projected = ProjectRenderbufferImage(renderbuffer, image.MetadataImageSelection);
+        }
         else if (image.Kind == GpuResourceKind.Texture)
         {
             if (acquiredTexture is { } texture) projected = ProjectTextureImage(texture, image.MetadataImageSelection);

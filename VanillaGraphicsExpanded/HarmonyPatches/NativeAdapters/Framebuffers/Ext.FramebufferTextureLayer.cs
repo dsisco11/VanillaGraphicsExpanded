@@ -4,43 +4,16 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Framebuffers;
 
-/// <summary>Forwards GL.Ext.FramebufferTextureLayer overloads through their existing StateCache observation contract.</summary>
+/// <summary>Routes exact Ext overloads through their command execution boundary.</summary>
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void FramebufferTextureLayer(FramebufferTarget @target, FramebufferAttachment @attachment, int @texture, int @level, int @layer)
-    {
-        var observation = StateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), unchecked((int)@layer), 1);
-        bool returned = false;
-        try
-        {
-            GL.Ext.FramebufferTextureLayer(@target, @attachment, @texture, @level, @layer);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtFramebufferTextureLayer(@target, @attachment, @texture, @level, @layer);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void FramebufferTextureLayer(FramebufferTarget @target, FramebufferAttachment @attachment, uint @texture, int @level, int @layer)
-    {
-        var observation = StateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), unchecked((int)@layer), 1);
-        bool returned = false;
-        try
-        {
-            GL.Ext.FramebufferTextureLayer(@target, @attachment, @texture, @level, @layer);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
-
+        => StateCache.Current.ExecuteExtFramebufferTextureLayer(@target, @attachment, @texture, @level, @layer);
     #endregion
 }

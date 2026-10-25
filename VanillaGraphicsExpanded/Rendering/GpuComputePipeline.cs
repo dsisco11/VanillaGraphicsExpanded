@@ -65,7 +65,7 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
     public new bool IsValid => base.IsValid;
 
     /// <summary>Retains preparation policy and acquires metadata for a realized executable.</summary>
-    private GpuComputePipeline(int programId, GpuProgramLayout programLayout, Action<string>? warn)
+    private GpuComputePipeline(int programId, GpuProgramLayout programLayout, Action<string>? warn, GpuProgramMetadata? suppliedMetadata = null)
     {
         this.programId = programId;
         if (programId != 0)
@@ -75,7 +75,11 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
         }
         this.programLayout = programLayout;
         this.warn = warn;
-        if (programId != 0) GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance);
+        if (programId != 0)
+        {
+            if (suppliedMetadata is { } facts) GpuResourceManager.InstallTransferredProgramMetadata(this, facts);
+            else GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance);
+        }
         if (ResourceManager?.GetResourceRegistration(this) is { MetadataAvailable: true } entry)
             programLayout.UseNativeMetadata(programId, metadata, entry.MetadataRevision);
     }
@@ -180,17 +184,23 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
         int program = candidate.ProgramId;
         // Prepare a separate layout so failure cannot mutate the caller's installed interface.
         var prepared = layout?.CreateCandidate() ?? new GpuProgramLayout();
-        if (contract != null) prepared.BinaryInterface = new Spirv.GpuProgramInterface(program, [contract]);
+        if (contract != null) prepared.BinaryInterface = new Spirv.GpuProgramInterface(program, [contract],
+            metadata: GpuResourceManager.RequireProgramSnapshot(candidate));
+        prepared.UseNativeMetadata(program, GpuResourceManager.RequireProgramSnapshot(candidate),
+            candidate.ResourceManager?.GetResourceRegistration(candidate)?.MetadataRevision ?? 0);
         prepared.ApplyContract(program, warn);
+        // Preparation can fail while the candidate still owns deletion. Transfer only
+        // at the final construction boundary, whose cleanup covers a failed wrapper.
+        prepared.RefreshLocalProgramAssignments(candidate);
+        var facts = GpuResourceManager.RequireProgramSnapshot(candidate);
+        prepared.UseNativeMetadata(program, facts, candidate.ResourceManager?.GetResourceRegistration(candidate)?.MetadataRevision ?? 0);
 #if DEBUG
         prepared.ValidateContract(program, warn);
 #endif
-        // Preparation can fail while the candidate still owns deletion. Transfer only
-        // at the final construction boundary, whose cleanup covers a failed wrapper.
         candidate.Detach();
         return CompleteOwnedCreation(GpuResourceKind.Program, program, () =>
         {
-            var pipeline = new GpuComputePipeline(program, prepared, warn);
+            var pipeline = new GpuComputePipeline(program, prepared, warn, facts);
             pipeline.SetDebugName(debugName);
             return pipeline;
         });

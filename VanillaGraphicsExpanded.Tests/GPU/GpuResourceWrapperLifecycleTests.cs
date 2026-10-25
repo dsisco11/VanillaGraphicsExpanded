@@ -55,7 +55,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>A driver-rejected color slot cannot appear in canonical framebuffer descriptors.</summary>
+    /// <summary>An unsupported controlled color slot is rejected before native dispatch or canonical publication.</summary>
     [Fact]
     public void RejectedFramebufferAttachmentDoesNotPublishInventedDescriptor()
     {
@@ -67,13 +67,10 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             lifetime.Manager.GetResourceRegistration(framebuffer));
         int limit = GL.GetInteger(GetPName.MaxColorAttachments);
         var slot = FramebufferAttachment.ColorAttachment0 + limit;
-        if (limit < 16) Assert.Throws<InvalidOperationException>(() => framebuffer.SetAttachment(slot, image));
-        else Assert.Throws<ArgumentException>(() => framebuffer.SetAttachment(slot, image));
+        Assert.Throws<ArgumentException>(() => framebuffer.SetAttachment(slot, image));
         Assert.False(entry.Metadata.Attachments?.ContainsKey(slot) ?? false);
         Assert.Null(framebuffer.GetAttachment(slot));
-        // The rejected native command retains its error for the boundary's caller.
-        if (limit < 16) Assert.NotEqual(ErrorCode.NoError, GL.GetError());
-        while (GL.GetError() != ErrorCode.NoError) { }
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
     /// <summary>Replacing an attached owner leaves old descriptors unavailable until the new native image is attached.</summary>

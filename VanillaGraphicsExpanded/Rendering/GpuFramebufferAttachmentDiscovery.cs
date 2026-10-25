@@ -18,33 +18,8 @@ internal static class GpuFramebufferAttachmentDiscovery
         }
         if (framebuffer.IsDisposed || framebuffer.FboId == 0)
             throw new InvalidOperationException("An external FBO image is required.");
-        using var bindings = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
-        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
-            FramebufferParameterName.FramebufferAttachmentObjectType, out int type);
-        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
-            FramebufferParameterName.FramebufferAttachmentObjectName, out int name);
-        if (name == 0) throw new InvalidOperationException("The requested attachment is absent.");
-        if (type == (int)All.Renderbuffer)
-        {
-            return GpuFramebufferAttachment.FromExternalImage(name, true, 0, 0, null);
-        }
-        if (type != (int)All.Texture) throw new InvalidOperationException("Unsupported framebuffer image type.");
-        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
-            FramebufferParameterName.FramebufferAttachmentTextureLevel, out int level);
-        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
-            FramebufferParameterName.FramebufferAttachmentTextureCubeMapFace, out int face);
-        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
-            FramebufferParameterName.FramebufferAttachmentTextureLayer, out int layer);
-        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
-            FramebufferParameterName.FramebufferAttachmentLayered, out int layered);
-        var texture = GpuResourceManager.AcquireExternalImageTexture(name);
-        var target = texture.Target;
-        // Layer zero is still a selected layer; querying the texture target distinguishes
-        // it from an ordinary 2D image without probing invalid binding targets.
-        bool hasLayers = target is TextureTarget.Texture1DArray or TextureTarget.Texture3D or TextureTarget.Texture2DArray
-            or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray;
-        return GpuFramebufferAttachment.FromExternalImage(name, false, face == 0 ? target : (TextureTarget)face, level,
-            layer: layered == 0 && hasLayers ? layer : null, acquiredTexture: texture);
+        var discovered = framebuffer.DiscoverAttachment(slot, forceNative);
+        return discovered;
     }
     #endregion
 }

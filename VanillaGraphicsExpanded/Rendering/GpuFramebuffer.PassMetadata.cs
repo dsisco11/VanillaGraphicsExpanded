@@ -27,23 +27,19 @@ public abstract partial class GpuFramebuffer
         if (fboId == 0) throw new NotSupportedException("Default framebuffer surface metadata is unavailable.");
         StateCache.Current.InvalidateFramebufferDrawRouting(fboId);
         passMetadataPublished = false;
-        using var binding = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, fboId);
-        // Build a complete candidate before replacing metadata; partial discovery must not escape.
-        using var errors = new GlDebug.ErrorScope("Framebuffer metadata publication");
-        using var source = DynamicGpuFramebuffer.Wrap(fboId, width: wrappedWidth, height: wrappedHeight);
-        var candidate = new Dictionary<FramebufferAttachment, GpuFramebufferAttachment>();
-        int count = Math.Min(16, GpuSupport.Graphics.MaxColorAttachments);
-        for (int i = 0; i < count; i++) ReadPassAttachment(source, ColorSlot(i), candidate);
-        ReadPassAttachment(source, FramebufferAttachment.DepthAttachment, candidate);
-        ReadPassAttachment(source, FramebufferAttachment.StencilAttachment, candidate);
-        GlDebug.ThrowIfErrors("Framebuffer metadata publication");
-        attachments.Clear();
-        foreach (var pair in candidate)
+        // One manager-owned discovery supplies both canonical descriptors and image reconciliation.
+        // Do not scan slots independently before asking the canonical reader for the same facts.
+        try
         {
-            attachments.Add(pair.Key, pair.Value);
-            pair.Value.Observe(this);
+            GpuResourceManager.RecoverWrapperMetadata(this, GpuFramebufferMetadataReader.Instance);
+            ReconcileAttachmentMetadata(allowUnpublishedExternal: true, recoverBackings: true);
         }
-        GpuResourceManager.RecoverWrapperMetadata(this, GpuFramebufferMetadataReader.Instance);
+        catch
+        {
+            GpuResourceManager.InvalidateWrapperMetadata(this);
+            GpuResourceManager.DiscardUntrackedMetadata(this);
+            throw;
+        }
         passMetadataPublished = true;
         PublishAttachmentsChanged();
 
@@ -68,14 +64,4 @@ public abstract partial class GpuFramebuffer
     }
     #endregion
 
-    #region Private
-    /// <summary>Uses an empty borrowed wrapper so discovery cannot reuse a prior publication's stale images.</summary>
-    private static void ReadPassAttachment(GpuFramebuffer source, FramebufferAttachment slot,
-        Dictionary<FramebufferAttachment, GpuFramebufferAttachment> candidate)
-    {
-        GL.GetFramebufferAttachmentParameter(FramebufferTarget.ReadFramebuffer, slot,
-            FramebufferParameterName.FramebufferAttachmentObjectType, out int type);
-        if (type != (int)All.None) candidate.Add(slot, GpuFramebufferAttachmentDiscovery.Read(source, slot, forceNative: true));
-    }
-    #endregion
 }

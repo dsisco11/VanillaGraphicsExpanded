@@ -4,43 +4,16 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Framebuffers;
 
-/// <summary>Forwards GL.Ext.NamedFramebufferTexture1D overloads through their existing StateCache observation contract.</summary>
+/// <summary>Routes exact Ext overloads through their command execution boundary.</summary>
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedFramebufferTexture1D(int @framebuffer, FramebufferAttachment @attachment, TextureTarget @textarget, int @texture, int @level)
-    {
-        var observation = StateCache.BeginNativeFramebufferAttachment(unchecked((int)@framebuffer), true, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), -1, 3);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedFramebufferTexture1D(@framebuffer, @attachment, @textarget, @texture, @level);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtNamedFramebufferTexture1D(@framebuffer, @attachment, @textarget, @texture, @level);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void NamedFramebufferTexture1D(uint @framebuffer, FramebufferAttachment @attachment, TextureTarget @textarget, uint @texture, int @level)
-    {
-        var observation = StateCache.BeginNativeFramebufferAttachment(unchecked((int)@framebuffer), true, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), -1, 3);
-        bool returned = false;
-        try
-        {
-            GL.Ext.NamedFramebufferTexture1D(@framebuffer, @attachment, @textarget, @texture, @level);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
-
+        => StateCache.Current.ExecuteExtNamedFramebufferTexture1D(@framebuffer, @attachment, @textarget, @texture, @level);
     #endregion
 }

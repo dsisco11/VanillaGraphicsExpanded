@@ -39,7 +39,7 @@ internal sealed partial class GpuResourceManager
         foreach (var pair in actual.Attachments)
         {
             var image = pair.Value;
-            var mode = GpuSupport.Graphics.SupportsOvrMultiview
+            var mode = image.Mode != GpuFramebufferAttachmentMode.Unknown ? image.Mode : GpuSupport.Graphics.SupportsOvrMultiview
                 ? GpuFramebufferAttachmentMode.Unknown : GpuFramebufferAttachmentMode.Ordinary;
             if (image.Kind != GpuResourceKind.Texture || FindResource(image.Kind, image.Id)
                 is GpuResourceMetadataEntry<GpuTextureMetadata> backing
@@ -47,7 +47,7 @@ internal sealed partial class GpuResourceManager
                 mode = GpuFramebufferAttachmentMode.Ordinary;
             bool unchanged = previous is not null && previous.TryGetValue(pair.Key, out var prior)
                 && (prior with { Mode = GpuFramebufferAttachmentMode.Unknown }) == (image with { Mode = GpuFramebufferAttachmentMode.Unknown });
-            if (unchanged) mode = previous![pair.Key].Mode;
+            if (unchanged && image.Mode == GpuFramebufferAttachmentMode.Unknown) mode = previous![pair.Key].Mode;
             if (commands is not null && commands.TryGetValue(pair.Key, out var command))
             {
                 if (command.Eligible && command.Matches(image)) mode = command.Mode;

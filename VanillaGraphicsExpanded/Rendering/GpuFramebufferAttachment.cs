@@ -234,7 +234,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
 
     /// <summary>Selects the native attachment command for this image while StateCache validates and publishes its result.</summary>
     internal void AttachTo(GpuFramebuffer framebuffer, FramebufferAttachment slot,
-        GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>? operation = null)
+        StateCache.FramebufferOperation? operation = null)
     {
         try
         {
@@ -243,13 +243,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
             if (target == TextureTarget.Texture2DArray && attachmentMode == GpuFramebufferAttachmentMode.Unknown
                 && GpuSupport.Graphics.SupportsOvrMultiview)
                 throw new NotSupportedException("Native attachment queries do not establish ordinary versus multiview replay semantics.");
-            // Image selection belongs to the wrapper; each native operation remains a StateCache command.
-            if (attachmentMode == GpuFramebufferAttachmentMode.Multiview) cache.FramebufferTextureMultiview(framebuffer, slot, this, operation);
-            else if (Kind == GpuResourceKind.Renderbuffer) cache.FramebufferRenderbuffer(framebuffer, slot, this, operation);
-            else if (Layer.HasValue) cache.FramebufferTextureLayer(framebuffer, slot, this, operation);
-            else if (target is TextureTarget.Texture2D or TextureTarget.TextureRectangle || CubeFace.HasValue)
-                cache.FramebufferTexture2D(framebuffer, slot, this, operation);
-            else cache.FramebufferTexture(framebuffer, slot, this, operation);
+            cache.FramebufferTexture(framebuffer, slot, this, operation);
         }
         catch { operation?.Interrupt(); throw; }
     }
@@ -275,7 +269,9 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
             FramebufferAttachment.StencilAttachment => stencil,
             FramebufferAttachment.DepthStencilAttachment => depth && stencil,
             _ => (int)slot >= (int)FramebufferAttachment.ColorAttachment0
-                && (int)slot <= (int)FramebufferAttachment.ColorAttachment15 && !depth && !stencil
+                && (int)slot <= (int)FramebufferAttachment.ColorAttachment15
+                && (int)slot - (int)FramebufferAttachment.ColorAttachment0 < GpuSupport.Graphics.MaxColorAttachments
+                && !depth && !stencil
         };
         if (!compatible) throw new ArgumentException("Storage format does not match the attachment point.", nameof(slot));
     }
@@ -284,8 +280,8 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     /// <summary>Builds a borrowed image discovered from an external framebuffer without claiming storage ownership.</summary>
     internal static GpuFramebufferAttachment FromExternalImage(int id, bool renderbuffer, TextureTarget target,
         int mipLevel, int? layer, GpuTextureMetadata? acquiredTexture = null, int baseView = 0, int viewCount = 0,
-        GpuFramebufferAttachmentMode mode = GpuFramebufferAttachmentMode.Ordinary)
-        => new(id, renderbuffer, target, mipLevel, layer, acquiredTexture, baseView, viewCount, mode);
+        GpuFramebufferAttachmentMode mode = GpuFramebufferAttachmentMode.Ordinary, GpuRenderbufferMetadata? acquiredRenderbuffer = null)
+        => new(id, renderbuffer, target, mipLevel, layer, acquiredTexture, baseView, viewCount, mode, acquiredRenderbuffer);
     #endregion
 
     #region Protected API
@@ -348,7 +344,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
 
     /// <summary>Retains an imported image selection while the manager acquires its native snapshot.</summary>
     private GpuFramebufferAttachment(int id, bool renderbuffer, TextureTarget target, int mipLevel, int? layer, GpuTextureMetadata? acquiredTexture = null,
-        int baseView = 0, int viewCount = 0, GpuFramebufferAttachmentMode mode = GpuFramebufferAttachmentMode.Ordinary)
+        int baseView = 0, int viewCount = 0, GpuFramebufferAttachmentMode mode = GpuFramebufferAttachmentMode.Ordinary, GpuRenderbufferMetadata? acquiredRenderbuffer = null)
     {
         externalId = id;
         this.renderbuffer = renderbuffer;
@@ -360,7 +356,7 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         attachmentMode = mode;
         disposalQueue = GpuResourceManagerSystem.CaptureDisposalQueue();
         ValidateSelection();
-        GpuResourceManager.AcquireImageMetadata(this, acquiredTexture);
+        GpuResourceManager.AcquireImageMetadata(this, acquiredTexture, acquiredRenderbuffer);
         GC.SuppressFinalize(this);
     }
 

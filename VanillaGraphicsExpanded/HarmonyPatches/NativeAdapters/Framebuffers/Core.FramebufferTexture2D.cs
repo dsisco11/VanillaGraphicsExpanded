@@ -4,43 +4,16 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Framebuffers;
 
-/// <summary>Forwards GL.FramebufferTexture2D overloads through their existing StateCache observation contract.</summary>
+/// <summary>Routes exact Core overloads through their command execution boundary.</summary>
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void FramebufferTexture2D(FramebufferTarget @target, FramebufferAttachment @attachment, TextureTarget @textarget, int @texture, int @level)
-    {
-        var observation = StateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), -1, 3);
-        bool returned = false;
-        try
-        {
-            GL.FramebufferTexture2D(@target, @attachment, @textarget, @texture, @level);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteCoreFramebufferTexture2D(@target, @attachment, @textarget, @texture, @level);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void FramebufferTexture2D(FramebufferTarget @target, FramebufferAttachment @attachment, TextureTarget @textarget, uint @texture, int @level)
-    {
-        var observation = StateCache.BeginNativeFramebufferAttachment(unchecked((int)@target), false, unchecked((int)@attachment), unchecked((int)@texture), unchecked((int)@level), -1, 3);
-        bool returned = false;
-        try
-        {
-            GL.FramebufferTexture2D(@target, @attachment, @textarget, @texture, @level);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
-
+        => StateCache.Current.ExecuteCoreFramebufferTexture2D(@target, @attachment, @textarget, @texture, @level);
     #endregion
 }

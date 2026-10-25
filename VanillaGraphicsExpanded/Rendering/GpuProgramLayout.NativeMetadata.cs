@@ -11,6 +11,14 @@ public partial class GpuProgramLayout
     private GpuProgramMetadata? nativeMetadata;
 
     #region Internal API
+    /// <summary>Recovers only mutable legacy assignments when no registered owner observed the commands.</summary>
+    internal void RefreshLocalProgramAssignments(GpuProgramObject owner)
+    {
+        if (compiledContract || uniformBlockContract.Count + shaderStorageBlockContract.Count + samplerContract.Count + imageContract.Count == 0) return;
+        GpuResourceManager.RefreshLocalProgramAssignments(owner, uniformBlockContract.Keys, shaderStorageBlockContract.Keys,
+            samplerContract.Keys.Concat(imageContract.Keys));
+    }
+
     /// <summary>Gets the canonical revision used by this derived layout, independently of owner installation revisions.</summary>
     internal ulong NativeMetadataRevision { get; private set; }
 

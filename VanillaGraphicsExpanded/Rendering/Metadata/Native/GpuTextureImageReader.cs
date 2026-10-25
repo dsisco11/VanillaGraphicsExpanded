@@ -21,14 +21,14 @@ internal static class GpuTextureImageReader
         bool bound = face != 0 || !GpuSupport.Graphics.SupportsArbDirectStateAccess;
         using var binding = bound ? StateCache.Current.BindTextureScope(target, 0, texture) : (StateCache.TextureScope?)null;
         var queryTarget = face != 0 ? face : target;
-        int width = Read(texture, queryTarget, level, GetTextureParameter.TextureWidth, bound);
+        int width = Read(texture, queryTarget, level, GetTextureParameter.TextureWidth);
         if (width < 0) return false;
         if (width == 0) { image = new(level, face, 0, 0, 0, 0, 0, false); return true; }
-        int height = Read(texture, queryTarget, level, GetTextureParameter.TextureHeight, bound);
-        int depth = Read(texture, queryTarget, level, GetTextureParameter.TextureDepth, bound);
-        int format = Read(texture, queryTarget, level, GetTextureParameter.TextureInternalFormat, bound);
+        int height = Read(texture, queryTarget, level, GetTextureParameter.TextureHeight);
+        int depth = Read(texture, queryTarget, level, GetTextureParameter.TextureDepth);
+        int format = Read(texture, queryTarget, level, GetTextureParameter.TextureInternalFormat);
         int samples = target is TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray
-            ? Read(texture, queryTarget, level, GetTextureParameter.TextureSamples, bound) : 0;
+            ? Read(texture, queryTarget, level, GetTextureParameter.TextureSamples) : 0;
         if (height < 0 || depth < 0 || format <= 0 || samples < 0) return false;
         image = new(level, face, width, System.Math.Max(1, height), System.Math.Max(1, depth), (PixelInternalFormat)format, samples, true);
         return true;
@@ -37,10 +37,11 @@ internal static class GpuTextureImageReader
 
     #region Private
     /// <summary>Reads one descriptor component without consuming the native error queue.</summary>
-    private static int Read(int texture, TextureTarget target, int level, GetTextureParameter parameter, bool bound)
+    private static int Read(int texture, TextureTarget target, int level, GetTextureParameter parameter)
     {
         int value = -1;
-        if (bound) GL.GetTexLevelParameter(target, level, parameter, out value);
+        if (target >= TextureTarget.TextureCubeMapPositiveX && target <= TextureTarget.TextureCubeMapNegativeZ
+            || !GpuSupport.Graphics.SupportsArbDirectStateAccess) GL.GetTexLevelParameter(target, level, parameter, out value);
         else GL.GetTextureLevelParameter(texture, level, parameter, out value);
         return value;
     }

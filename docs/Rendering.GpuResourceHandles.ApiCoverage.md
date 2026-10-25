@@ -177,7 +177,9 @@ storage; observation must not consume the pending GL error or publish the reques
 
 ### F1 framebuffer attachments
 
-Attachment/default adapters refresh existing registrations after native dispatch. Named attachment
+Attachment/default adapters execute through StateCache and recover the affected slot/default after
+exact native dispatch, preserving known unaffected descriptors. Initial unknown FBOs retain full discovery.
+Managed attachment operations publish command-established selections without descriptor queries. Named attachment
 queries preserve DSA binding behavior; fallback queries preserve separate read/draw bindings.
 [ARB_framebuffer_no_attachments](https://registry.khronos.org/OpenGL/extensions/ARB/ARB_framebuffer_no_attachments.txt)
 controls default-parameter query availability, and
@@ -185,8 +187,9 @@ controls default-parameter query availability, and
 defines the canonical base-view/count fields.
 The native probe in `artifacts/gpu-resource-phase4/framebuffer-view-defaults-expanded-probe.*`
 shows this driver also returns positive OVR counts for ordinary 2D, single-layer and whole-array
-attachments. A positive count cannot establish multiview command provenance. Canonical descriptors
-retain the actual queried values and a separate mode established by admitted observed commands.
+attachments. A positive count cannot establish multiview command provenance. Externally acquired descriptors
+retain queried values and a separate mode established by admitted observed commands. Controlled
+selections instead retain their supplied ordinary or multiview mode and range.
 Known array allocation and legal slot/layer/level certify ordinary intercepted command eligibility;
 the resulting queried descriptor must also match. Ordinary intercepted whole-array/layer commands and managed multiview operations
 therefore remain distinct even when queries coincide. Rejected commands preserve prior evidence only
@@ -216,7 +219,9 @@ are retained in `artifacts/gpu-resource-phase4/multiview-mode-repair-focused.trx
 ### P1 executable interface
 
 Exact OpenTK link, program-binary, interface-block and signed integer unit setters use common
-StateCache observation. Unit setters classify represented sampler/image locations before reading
+StateCache execution. Available unit/block snapshots update only affected values; managed assignments
+publish supplied values and external assignments use narrow getters. Link/binary results retain executable
+reflection at completion. Unit setters classify represented sampler/image locations before reading
 metadata; ordinary numeric uniforms do not refresh it. Bound setters resolve the active program,
 including the active program of a selected pipeline. Selector-only commands retain binding knowledge
 separately from resource revisions. Canonical snapshots carry resource properties, block stage flags

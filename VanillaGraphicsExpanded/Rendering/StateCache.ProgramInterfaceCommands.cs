@@ -18,7 +18,9 @@ internal sealed partial class StateCache
     /// <summary>Executes the native command and publishes measured program facts to existing aliases.</summary>
     internal void UniformBlockBinding(int program, int index, int binding)
     {
-        var observation = BeginNativeProgramMetadata(program, true, false, -1, 1);
+        if ((uint)binding >= (uint)GpuSupport.Graphics.MaxUniformBufferBindings)
+            throw new System.ArgumentOutOfRangeException(nameof(binding));
+        var observation = BeginNativeProgramMetadata(program, true, false, -1, 1, block: ProgramInterface.UniformBlock, blockIndex: index, supplied: binding);
         bool returned = false;
         try { GL.UniformBlockBinding(program, index, binding); returned = true; }
         finally { observation.Complete(returned); }
@@ -27,7 +29,9 @@ internal sealed partial class StateCache
     /// <summary>Executes the native command and publishes measured program facts to existing aliases.</summary>
     internal void ShaderStorageBlockBinding(int program, int index, int binding)
     {
-        var observation = BeginNativeProgramMetadata(program, true, false, -1, 1);
+        if ((uint)binding >= (uint)GpuSupport.Graphics.MaxShaderStorageBufferBindings)
+            throw new System.ArgumentOutOfRangeException(nameof(binding));
+        var observation = BeginNativeProgramMetadata(program, true, false, -1, 1, block: ProgramInterface.ShaderStorageBlock, blockIndex: index, supplied: binding);
         bool returned = false;
         try { GL.ShaderStorageBlockBinding(program, index, binding); returned = true; }
         finally { observation.Complete(returned); }

@@ -6,27 +6,10 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     #region Internal API
-    /// <summary>Submits linking without completion queries; the candidate coordinator owns the later validation boundary.</summary>
-    internal void SubmitProgramLink(GpuProgramObject program)
-    {
-        _ = BeginNativeProgramMetadata(program.ProgramId, true, false, -1, 1, executable: true);
-        if (program.ResourceManager?.GetResourceRegistration(program) is null)
-            program.OnNativeProgramMetadataChanged(GpuMetadataChange.Executable, available: false);
-        GL.LinkProgram(program.ProgramId);
-    }
-
-    /// <summary>Acquires executable facts only after a caller has reached its link-completion dependency.</summary>
-    internal void CompleteProgramLink(int program)
-    {
-        var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.FindObservedResource(GpuResourceKind.Program, program)
-            is not GpuResourceMetadataEntry<GpuProgramMetadata> entry) return;
-        if (!manager.RefreshMetadata(entry, GpuMetadataChange.Metadata | GpuMetadataChange.Executable))
-            throw new System.InvalidOperationException("Program metadata is unavailable after link completion.");
-    }
     /// <summary>Preserves manager-owned acquisition for context-local wrappers without a registry entry.</summary>
     internal void LinkProgram(GpuProgramObject program)
     {
+        program.PendingLink = null;
         bool tracked = program.ResourceManager?.GetResourceRegistration(program) is not null;
         if (tracked)
         {
@@ -59,16 +42,17 @@ internal sealed partial class StateCache
     }
 
     /// <summary>Assigns an explicit program's integer uniform without changing its active-program selection when supported.</summary>
-    internal void SetProgramUniformUnit(int program, int location, int unit, bool direct)
+    internal void SetProgramUniformUnit(int program, int location, int unit)
     {
         // Authored helper calls can preserve stable canonical assignments. Exact external
         // adapters still forward native commands unchanged, including their error behavior.
+        GpuResourceManagerSystem.CurrentManager?.ValidateProgramUnit(program, location, unit);
         if (GpuResourceManagerSystem.CurrentManager?.IsProgramUnitCurrent(program, location, unit) == true) return;
-        var observation = BeginNativeProgramMetadata(program, true, true, location, 1);
+        var observation = BeginNativeProgramMetadata(program, true, true, location, 1, supplied: unit);
         bool returned = false;
         try
         {
-            if (direct) GL.ProgramUniform1(program, location, unit);
+            if (GpuSupport.Graphics.SupportsArbSeparateShaderObjects) GL.ProgramUniform1(program, location, unit);
             else
             {
                 using var scope = UseProgramScope(program);

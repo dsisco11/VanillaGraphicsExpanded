@@ -95,8 +95,7 @@ internal static class TerrainMaterialParamsTextureBindingHook
                 {
                     StateCache.Current.ActiveTexture(MaterialTextureUnit);
                     StateCache.Current.BindTextureOnActiveUnit(TextureTarget.Texture2D, materialTexId);
-                    StateCache.Current.SetProgramUniformUnit(programId, materialUniformLoc, MaterialTextureUnit,
-                        GpuSupport.Graphics.SupportsArbSeparateShaderObjects);
+                    StateCache.Current.SetProgramUniformUnit(programId, materialUniformLoc, MaterialTextureUnit);
                 }
             }
 
@@ -116,8 +115,7 @@ internal static class TerrainMaterialParamsTextureBindingHook
                 {
                     StateCache.Current.ActiveTexture(NormalDepthTextureUnit);
                     StateCache.Current.BindTextureOnActiveUnit(TextureTarget.Texture2D, normalDepthTexId);
-                    StateCache.Current.SetProgramUniformUnit(programId, normalDepthUniformLoc, NormalDepthTextureUnit,
-                        GpuSupport.Graphics.SupportsArbSeparateShaderObjects);
+                    StateCache.Current.SetProgramUniformUnit(programId, normalDepthUniformLoc, NormalDepthTextureUnit);
                 }
             }
         }

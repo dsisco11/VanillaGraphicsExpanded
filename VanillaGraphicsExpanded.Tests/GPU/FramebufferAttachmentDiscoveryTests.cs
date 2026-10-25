@@ -27,24 +27,49 @@ public sealed class FramebufferAttachmentDiscoveryTests(HeadlessGLFixture fixtur
         Assert.Throws<InvalidOperationException>(() => blitter.Blit());
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
-    /// <summary>External array attachments preserve layer zero and nonzero layers when configuring scratch FBOs.</summary>
+    /// <summary>Covered aliases retain observed ordinary attachment provenance and copy the selected array layer.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
     public void ExternalArrayLayerCopiesSelectedImage(int layer)
     {
         EnsureContextValid();
-        using var scope = StateCache.Current.BindFramebufferScope();
+        fixture.InitializeResourceDisposal();
+        try
+        {
+            using var scope = StateCache.Current.BindFramebufferScope();
+            using var texture = DynamicTexture3D.Create(2, 2, 2, PixelInternalFormat.Rgba32f);
+            using var image = GpuFramebufferAttachment.FromTexture(texture, layer: layer);
+            using var source = DynamicGpuFramebuffer.Create([image])!;
+            source.Bind();
+            GL.ClearBuffer(ClearBuffer.Color, 0, new[] { 0.25f, 0.5f, 0.75f, 1f });
+            using var external = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
+            using var output = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
+            using var destination = DynamicGpuFramebuffer.CreateSingle(output)!;
+            using var blitter = new GpuFramebufferBlitter(external, destination);
+            blitter.Blit();
+            Assert.Equal(new[] { 0.25f, 0.5f, 0.75f, 1f }, destination[0].ReadPixels()[..4]);
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
+        }
+        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>A context-local raw alias cannot invent ordinary replay provenance from ambiguous array attachment queries.</summary>
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void LocalArrayAliasRejectsAmbiguousReplay(int layer)
+    {
+        EnsureContextValid();
+        if (!GpuSupport.Graphics.SupportsOvrMultiview) return;
+        Assert.Null(GpuResourceManagerSystem.CurrentManager);
         using var texture = DynamicTexture3D.Create(2, 2, 2, PixelInternalFormat.Rgba32f);
         using var image = GpuFramebufferAttachment.FromTexture(texture, layer: layer);
-        using var source = DynamicGpuFramebuffer.Create([image])!;
-        source.Bind();
-        GL.ClearBuffer(ClearBuffer.Color, 0, new[] { 0.25f, 0.5f, 0.75f, 1f });
+        using var source = DynamicGpuFramebuffer.Create([image]);
         using var external = DynamicGpuFramebuffer.Wrap(source.FboId, width: 2, height: 2);
-        using var destination = CreateRenderTarget(2, 2, PixelInternalFormat.Rgba32f);
-        using var blitter = new GpuFramebufferBlitter(external, destination);
-        blitter.Blit();
-        Assert.Equal(new[] { 0.25f, 0.5f, 0.75f, 1f }, destination[0].ReadPixels()[..4]);
+        using var output = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f);
+        using var destination = DynamicGpuFramebuffer.CreateSingle(output)!;
+        Assert.Throws<NotSupportedException>(() => new GpuFramebufferBlitter(external, destination));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 

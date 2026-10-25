@@ -261,18 +261,18 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         framebuffer.Bind();
         try
         {
-            using (var operation = new GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>(framebuffer, GpuMetadataChange.Metadata))
+            using (var operation = new StateCache.FramebufferOperation(framebuffer))
             {
-                cache.FramebufferTexture2D(framebuffer, FramebufferAttachment.ColorAttachment0, replacement, operation);
+                replacement.AttachTo(framebuffer, FramebufferAttachment.ColorAttachment0, operation);
                 Assert.False(entry.MetadataAvailable);
                 Assert.Equal(revision, entry.MetadataRevision);
-                var invalid = FramebufferAttachment.ColorAttachment0 + GL.GetInteger(GetPName.MaxColorAttachments);
-                Assert.Throws<InvalidOperationException>(() => cache.FramebufferTexture2D(framebuffer, invalid, replacement, operation));
+                var invalid = FramebufferAttachment.DepthAttachment;
+                Assert.Throws<ArgumentException>(() => replacement.AttachTo(framebuffer, invalid, operation));
             }
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(revision, entry.MetadataRevision);
             Assert.Equal(previous, entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0]);
-            Assert.NotEqual(ErrorCode.NoError, GL.GetError());
+            Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally { while (GL.GetError() != ErrorCode.NoError) { } }
     }

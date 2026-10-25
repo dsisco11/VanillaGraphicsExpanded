@@ -1,8 +1,8 @@
 Command execution and metadata publication
 
-Status: Phases 1, 2, 2a, 3, 3a and 4 complete after second review and independent completion audit.
+Status: Phases 1, 2, 2a, 3, 3a, 4 and 5 complete after second review and independent completion audit.
 The narrower command-result policy is approved. Binding repairs, DEBUG-only diagnostics and the shared
-creation/publication boundary, explicit operation ownership and buffer/image migration are implemented; Phases 5–9 remain open.
+creation/publication boundary, explicit operation ownership and buffer/image/framebuffer/executable migration are implemented; Phases 6–9 remain open.
 Source: [approved proposal](Rendering.CommandPublication.Proposal.md).
 Inherited contracts: [resource design](Rendering.GpuResourceHandles.Proposal.md),
 [inventory](Rendering.GpuResourceHandles.Inventory.md), [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
@@ -348,28 +348,45 @@ Phase 4: Migrate buffer and image creation and mutations
 Phase 5: Migrate framebuffer and executable resource creation and publication
   Depends on Phase 4. Sources: proposal coverage/command examples; API F1/P1; analysis corresponding findings.
 
-  ☐ Implement GpuFramebufferInitialization -> GpuFramebufferMetadata for GpuFramebuffer,
+  ☑ Implement GpuFramebufferInitialization -> GpuFramebufferMetadata for GpuFramebuffer,
     DynamicGpuFramebuffer and StaticGpuFramebuffer. Construct GpuFramebufferImageMetadata centrally;
     keep attachment ownership/static locks, proven multiview semantics and independent routing intact.
-  ☐ Refactor RequireNativeAttachment, ObserveFramebufferAttachment, BindFramebufferResource,
+  ☑ Refactor RequireNativeAttachment, ObserveFramebufferAttachment, BindFramebufferResource,
     PublishRenderPassMetadata, GpuFramebufferAttachmentDiscovery.Read and ReconcileAttachmentMetadata
     to avoid targeted verification followed by a full scan. Use explicit operation-owned attachment composition and dependency publication.
     GpuFramebufferAttachment receives projected GpuImageMetadata; owned backing uses Phase 4 creation.
     Default framebuffer/surface metadata retains its separate publication path.
-  ☐ Implement GpuShaderInitialization -> GpuShaderMetadata for GpuShaderModule: retain established fixed
+  ☑ Implement GpuShaderInitialization -> GpuShaderMetadata for GpuShaderModule: retain established fixed
     stage without rediscovery; compilation/binary loading retains its existing success/lifetime boundary.
-  ☐ Implement GpuProgramInitialization -> GpuProgramMetadata for GpuProgramObject/GpuComputePipeline.
+  ☑ Implement GpuProgramInitialization -> GpuProgramMetadata for GpuProgramObject/GpuComputePipeline.
     Fresh creation publishes an empty executable without reflection. Preserve GpuProgram/GpuComputeProgram
     composition and existing deferred linking. AcquireCreatedProgramMetadata and AcquireProgramMetadata
     follow separate creation versus discovery contracts.
-  ☐ Keep explicit pending identity/context for SubmitProgramLink/CompleteProgramLink behavior. Acquire
+  ☑ Keep explicit pending identity/context for SubmitProgramLink/CompleteProgramLink behavior. Acquire
     GpuProgramResourceMetadata and GpuProgramTextureUnitMetadata when executable results require it;
     unit/block changes update affected facts without full interface reflection. Preserve unsupported-bindless
     withdrawal, prepared-layout invalidation, full-stage selection and owner-controlled re-preparation.
-  ☐ Have subagents verify attachment groups/modes, failed/rejected commands, actual link outcomes,
+  ☑ Have subagents verify attachment groups/modes, failed/rejected commands, actual link outcomes,
     deferred retirement/name reuse, unit/block updates, empty programs and unchanged render-pass facts.
-  ☐ Completion: framebuffer and executable creation/update paths satisfy canonical publication with
+  ☑ Completion: framebuffer and executable creation/update paths satisfy canonical publication with
     targeted acquisition and existing ownership, validation and preparation boundaries intact.
+
+  Verification and traceability: proposal creation/operation contracts, inventory canonical schemas and
+  API F1/P1 map to manager framebuffer/shader/program creation, explicit attachment composition,
+  targeted external field recovery, deferred original-context completion and executable snapshot transfer.
+  Framebuffer/executable creation, narrow publication and discovery tests cover those paths alongside
+  inherited resource, binding, ownership and preparation regressions. Second review and independent
+  audit-stage-completion found no remaining required issues.
+  Frozen Debug: 731/731; exact packaged Release: 71/71 ordinary and 731/731 with process-only
+  observer settings; zero failures/skips. Canonical Release/SPIR-V packaging passed. Runtime hashes
+  match tested/published/packaged files; all 761 shaders match, dependencies are unchanged and the
+  3,034-file source manifest has zero drift. Receipts: artifacts/command-publication-phase5/
+  commands-and-limits.txt, final2-debug-affected.trx, canonical-release-{normal,observed}.trx and
+  canonical-package-identity.json. The local compute fixture owns a live restoration sentinel;
+  earlier deletion-pending shared program contamination is documented in the diagnostic receipt.
+  Coverage is headless on one RTX 4090, including forced fallback paths; it does not establish
+  old physical hardware, concurrent independent native contexts, live appearance or performance.
+  Inherited external-memory import/coverage-sample limitations remain. Later phases stay open.
 
 Phase 6: Migrate remaining resource creation families
   Depends on Phase 5. Sources: proposal Resource coverage; inventory per-kind schemas and lifecycle.

@@ -86,8 +86,7 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
                 // The sampler uniform value (texture unit) is per-program; update it when state changes.
                 if (genLoc >= 0 && LumonSceneChunkSlotUniformState.GenerationTextureId != 0)
                 {
-                    StateCache.Current.SetProgramUniformUnit(programId, genLoc, LumonSceneChunkSlotUniformState.GenerationTextureUnit,
-                        GpuSupport.Graphics.SupportsArbSeparateShaderObjects);
+                    StateCache.Current.SetProgramUniformUnit(programId, genLoc, LumonSceneChunkSlotUniformState.GenerationTextureUnit);
                 }
             }
 

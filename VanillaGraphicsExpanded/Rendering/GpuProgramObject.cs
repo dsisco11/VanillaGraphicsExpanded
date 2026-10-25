@@ -12,10 +12,14 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDisposable
 {
     private int programId;
+    /// <summary>Exposes the last manager-published executable facts for an explicit ownership handoff.</summary>
+    internal GpuProgramMetadata MetadataSnapshot => metadata;
     private readonly (nint Handle, long Generation) context = Integration.RenderContextRegistry.Current();
     protected override (nint Handle, long Generation) NativeProgramContext => context;
     private string? debugName;
     private GpuProgramLayout bindingCache = new();
+    /// <summary>Retains the currently submitted link's original identity until its explicit completion.</summary>
+    internal StateCache.PendingProgramLink? PendingLink { get; set; }
 
     /// <inheritdoc />
     public override nint ResourceId
@@ -61,12 +65,11 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDispo
     public new bool IsValid => base.IsValid;
 
     /// <summary>Adopts native identity and acquires its canonical executable snapshot.</summary>
-    private GpuProgramObject(int programId, string? debugName, bool newlyCreated = false)
+    private GpuProgramObject(int programId, string? debugName)
     {
         this.programId = programId;
         this.debugName = debugName;
-        if (newlyCreated) GpuResourceManager.AcquireCreatedProgramMetadata(this);
-        else GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance);
+        if (programId != 0) GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance);
     }
 
     /// <summary>Takes deletion ownership of a program returned by an external linker.</summary>
@@ -81,19 +84,12 @@ internal sealed class GpuProgramObject : GpuResource<GpuProgramMetadata>, IDispo
     /// </summary>
     public static GpuProgramObject Create(string? debugName = null)
     {
-        int id = GL.CreateProgram();
-        if (id == 0)
-        {
+        var recipient = new GpuProgramObject(0, debugName);
+        if (!GpuResourceManager.CreateProgram(new GpuProgramInitialization(), recipient, out _).HasValue)
             throw new InvalidOperationException("glCreateProgram returned 0.");
-        }
-
-#if DEBUG
-        GlDebug.TryLabel(ObjectLabelIdentifier.Program, id, debugName);
-#endif
-
-        return CompleteOwnedCreation(GpuResourceKind.Program, id, () => new GpuProgramObject(id, debugName, newlyCreated: true));
+        recipient.SetDebugName(debugName);
+        return recipient;
     }
-
     /// <summary>
     /// Sets the debug label for this program (debug builds only).
     /// </summary>

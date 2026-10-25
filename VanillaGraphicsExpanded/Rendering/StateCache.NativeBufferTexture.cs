@@ -61,8 +61,8 @@ internal sealed partial class StateCache
         if (!ReferenceEquals(entry, entry.Manager.FindObservedResource(entry.Kind, entry.Id))) return false;
         bool named = GpuSupport.Graphics.SupportsArbDirectStateAccess;
         using var binding = !named ? Current.BindTextureScope(TextureTarget.TextureBuffer, 0, checked((int)entry.Id)) : (TextureScope?)null;
-        int buffer = ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferDataStoreBindingExt, named);
-        int format = ReadBufferTextureParameter((int)entry.Id, GetTextureParameter.TextureInternalFormat, named);
+        int buffer = ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferDataStoreBindingExt);
+        int format = ReadBufferTextureParameter((int)entry.Id, GetTextureParameter.TextureInternalFormat);
         if (format <= 0) return false;
         if (buffer == 0)
         {
@@ -88,13 +88,13 @@ internal sealed partial class StateCache
             nint expectedSize = requested.WholeBuffer ? capacity : requested.Size;
             if (expectedOffset <= int.MaxValue)
             {
-                int observed = ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferOffset, named);
+                int observed = ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferOffset);
                 if (observed < 0) return false;
                 accepted &= observed == expectedOffset;
             }
             if (expectedSize <= int.MaxValue)
             {
-                int observed = ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferSize, named);
+                int observed = ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferSize);
                 if (observed < 0) return false;
                 accepted &= observed == expectedSize;
             }
@@ -114,8 +114,8 @@ internal sealed partial class StateCache
                 nint oldOffset = old.WholeBuffer ? 0 : old.Offset;
                 nint oldSize = old.WholeBuffer ? capacity : old.Size;
                 if (oldOffset > int.MaxValue || oldSize > int.MaxValue
-                    || ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferOffset, named) != oldOffset
-                    || ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferSize, named) != oldSize) return false;
+                    || ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferOffset) != oldOffset
+                    || ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferSize) != oldSize) return false;
             }
             result = old;
             return true;
@@ -124,10 +124,10 @@ internal sealed partial class StateCache
     }
 
     /// <summary>Reads a single native association fact through DSA or the binding-preserving fallback.</summary>
-    private static int ReadBufferTextureParameter(int texture, GetTextureParameter parameter, bool named)
+    private static int ReadBufferTextureParameter(int texture, GetTextureParameter parameter)
     {
         int value = -1;
-        if (named) GL.GetTextureLevelParameter(texture, 0, parameter, out value);
+        if (GpuSupport.Graphics.SupportsArbDirectStateAccess) GL.GetTextureLevelParameter(texture, 0, parameter, out value);
         else GL.GetTexLevelParameter(TextureTarget.TextureBuffer, 0, parameter, out value);
         return value;
     }

@@ -679,7 +679,6 @@ public partial class GpuProgramLayout
             return;
         }
 
-        bool direct = GpuSupport.Graphics.SupportsArbSeparateShaderObjects;
 
         foreach (var (uniformName, spec) in contract)
         {
@@ -712,7 +711,7 @@ public partial class GpuProgramLayout
 
             // Publication failure must reach preparation; stale native unit facts cannot
             // be treated as a successfully applied authored contract.
-            StateCache.Current.SetProgramUniformUnit(programId, loc, spec.BindingOrUnit, direct);
+            StateCache.Current.SetProgramUniformUnit(programId, loc, spec.BindingOrUnit);
         }
     }
 

@@ -38,6 +38,7 @@ public abstract partial class GpuFramebuffer
         fboId = existingFboId;
         ResourceManager?.RegisterWrapperDeclaration(this);
         GpuResourceManager.InvalidateWrapperMetadata(this);
+        GpuResourceManager.DiscardUntrackedMetadata(this);
         wrappedWidth = width;
         wrappedHeight = height;
         if (!publishPassMetadata) PublishAttachmentsChanged();

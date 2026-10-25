@@ -189,8 +189,8 @@ Internal steps receive their operation state explicitly. The manager commits a s
 once; publication never silently stages, and disposal never performs recovery. A temporary execution
 guard rejects unrelated same-resource reentry before dispatch, while deletion cancels original completion.
 Local operation admission withdraws the wrapper snapshot through manager services. The guard stores no
-metadata or alias recipients; local tools introduce no persistent registry. Texture and framebuffer
-operations explicitly invoke manager recovery services while their existing readers remain necessary.
+metadata or alias recipients; local tools introduce no persistent registry. Controlled texture and framebuffer operations construct complete candidates from command-established facts;
+explicit recovery remains available for unknown or invalidated native state.
 Native helper binding acquisition belongs to
 `GpuResourceManager.AcquireVertexBindingFacts` and `GpuVertexBindingReader`, with requested fields only.
 
@@ -213,7 +213,18 @@ No abstract per-wrapper metadata-query handler remains.
 
 CPU declarations retain requested creation parameters locally until native realization. Register in the
 actual owning context. Default framebuffer zero stays on surface publication with no native entry.
-Program installation transfers the candidate association without duplicate registration. Unregistered
+Framebuffer creation uses GpuFramebufferInitialization and the common private handoff. Empty creation
+publishes known defaults without descriptor queries; optional selections and attachmentless defaults
+are validated against cached capabilities. Shader creation uses GpuShaderInitialization to publish its
+fixed stage before compilation; programs use GpuProgramInitialization to publish an empty executable.
+Compilation and linking retain their existing result checks. Deferred links retain original owner,
+registration and context until exactly-once completion; submission guards prohibit reentrant discovery.
+Known unit/block changes preserve unrelated interface facts: managed assignments publish supplied values,
+while exact external commands read only affected values. Unsupported bindless assignments remain withdrawn.
+
+Program installation transfers the candidate association and executable snapshot without repeating interface
+reflection. Context-local legacy authored assignments recover only their affected mutable fields before
+transfer; compiled preparation consumes the supplied snapshot directly. Unregistered
 or offline paths remain conservative until a live manager exists; a thread-local StateCache does not
 confer persistent tracking. A fresh registered context lifetime requires a fresh manager/registry;
 never retarget an existing manager. Preserve existing RenderContextRegistry checks at the manager
@@ -366,8 +377,11 @@ ARB and EXT calls. Native backing/format queries and range admission facts certi
 rejected commands preserve the previous certified descriptor. Whole-buffer mode comes from the
 accepted command, not equality with an explicit full-range attachment. Range arguments retain
 pointer width in both native adapters and the owning wrapper's bound fallback.
-Framebuffer attachment/default adapters capture the selected existing registration and refresh
-canonical descriptors after exact native dispatch. Readers use named attachment queries with DSA,
+Framebuffer attachment/default adapters capture the original registration and recover only the affected
+slot or default when the remaining descriptor is available. Unknown descriptors use initial discovery.
+Controlled attachment composition publishes supplied selections once, without verification followed by
+a full scan. External pass discovery reuses its canonical descriptor for transactional image reconciliation.
+Readers use named attachment queries with DSA,
 preserve split read/draw bindings on fallback, and gate attachmentless/multiview queries by capability.
 Native configuration notifications invalidate retained helper/completeness state; managed helper
 updates notify aliases while preserving the initiating helper's image ownership and completion event.

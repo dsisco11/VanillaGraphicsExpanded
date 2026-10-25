@@ -17,7 +17,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
         {
             using var program=CreateProgram(out int shader,true); StateCache.Current.DeleteShader(shader);
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
-            StateCache.Current.SetProgramUniformUnit(program.ProgramId,location,5,true);
+            StateCache.Current.SetProgramUniformUnit(program.ProgramId,location,5);
             Assert.Equal(5,program.BindingCache.SamplerBindings["inputs"]);
             int index=GL.GetUniformBlockIndex(program.ProgramId,"Parameters");
             StateCache.Current.UniformBlockBinding(program.ProgramId,index,4);
@@ -60,7 +60,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             var layout=PrepareArrayLayout(program);
             using var alias=new ProgramAlias(program.ProgramId); GpuResourceManager.AcquireWrapperMetadata(alias,GpuProgramMetadataReader.Instance);
             int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
-            Assert.ThrowsAny<Exception>(()=>StateCache.Current.SetProgramUniformUnit(program.ProgramId,location,5,true));
+            Assert.ThrowsAny<Exception>(()=>StateCache.Current.SetProgramUniformUnit(program.ProgramId,location,5));
             Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
             Assert.Contains(alias.Snapshot.TextureUnits,item=>item.Location==location && item.Unit==5);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
@@ -81,7 +81,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
                 StateCache.Current.LinkProgram(program.ProgramId);
                 Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
                 int location=GL.GetUniformLocation(program.ProgramId,"inputs[0]");
-                StateCache.Current.SetProgramUniformUnit(program.ProgramId,location,0,true);
+                StateCache.Current.SetProgramUniformUnit(program.ProgramId,location,0);
                 Assert.True(program.NeedsNativePreparation); Assert.Throws<InvalidOperationException>(()=>layout.BinaryInterface);
                 Assert.Equal(ErrorCode.NoError,GL.GetError());
             }

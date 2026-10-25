@@ -33,27 +33,8 @@ internal static class ShaderProgramLink
         catch { program.Dispose(); throw; }
     }
 
-    /// <summary>Checks final status; deferred callers must first establish extension completion.</summary>
-    internal static bool Validate(int program, out string infoLog)
-    {
-        GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked);
-        infoLog = linked == 0 ? GL.GetProgramInfoLog(program) ?? string.Empty : string.Empty;
-        StateCache.Current.CompleteProgramLink(program);
-        return linked != 0;
-    }
-
-    /// <summary>Validates the original owned allocation and publishes context-local facts after completion.</summary>
+    /// <summary>Completes the pending original allocation after its owner establishes driver completion.</summary>
     internal static bool Validate(GpuProgramObject program, out string infoLog)
-    {
-        if (!program.IsValid) { infoLog = "The program candidate has retired."; return false; }
-        bool linked = Validate(program.ProgramId, out infoLog);
-        if (program.ResourceManager?.GetResourceRegistration(program) is null)
-        {
-            const GpuMetadataChange change = GpuMetadataChange.Metadata | GpuMetadataChange.Executable;
-            GpuResourceManager.ObserveWrapperMetadata(program, GpuProgramMetadataReader.Instance, change);
-            program.OnNativeProgramMetadataChanged(change, available: true);
-        }
-        return linked;
-    }
+        => StateCache.Current.CompleteProgramLink(program, out infoLog);
     #endregion
 }

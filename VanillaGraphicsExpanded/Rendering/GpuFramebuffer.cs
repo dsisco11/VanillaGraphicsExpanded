@@ -154,6 +154,8 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     #region Internal API
     /// <summary>Reports whether the manager has assigned a native framebuffer snapshot.</summary>
     internal bool HasNativeMetadata => metadata.Attachments is not null;
+    /// <summary>Supplies the current immutable descriptor to command-owned composition.</summary>
+    internal GpuFramebufferMetadata MetadataSnapshot => metadata;
 
     /// <summary>Validates registered image snapshots and refreshes context-local selections with binding-preserving native reads.</summary>
     internal void ValidateAttachments()
@@ -223,18 +225,15 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
     private protected GpuFramebuffer(bool ownsFramebuffer, int id = 0, string? name = null, int width = 0, int height = 0)
     {
         this.ownsFramebuffer = ownsFramebuffer;
-        fboId = ownsFramebuffer ? GL.GenFramebuffer() : id;
-        if (ownsFramebuffer && fboId == 0) throw new InvalidOperationException("Framebuffer allocation failed.");
-        if (ownsFramebuffer) StateCache.Current.InvalidateFramebufferDrawRouting(fboId);
+        fboId = ownsFramebuffer ? 0 : id;
         wrappedWidth = width; wrappedHeight = height;
-        SetDebugName(name);
         if (ownsFramebuffer)
-            CompleteOwnedCreation(GpuResourceKind.Framebuffer, fboId, () =>
-            {
-                ResourceManager?.RegisterWrapperDeclaration(this);
-                return this;
-            });
+        {
+            if (!GpuResourceManager.CreateFramebuffer(new GpuFramebufferInitialization(), this, out _).HasValue)
+                throw new InvalidOperationException("Framebuffer allocation failed.");
+        }
         else ResourceManager?.RegisterWrapperDeclaration(this);
+        SetDebugName(name);
     }
     /// <summary>Finds the lowest color slot, then depth or stencil, for viewport compatibility.</summary>
     private GpuFramebufferAttachment? FirstAttachment

@@ -4,145 +4,40 @@ using VanillaGraphicsExpanded.Rendering;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Programs;
 
-/// <summary>Forwards GL.Ext.ProgramUniform1 overloads through their existing StateCache observation contract.</summary>
+/// <summary>Routes exact Ext overloads through their command execution boundary.</summary>
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void ProgramUniform1(int @program, int @location, int @count, ref int @value)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.ProgramUniform1(@program, @location, @count, ref @value);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, ref @value);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void ProgramUniform1(int @program, int @location, int @count, int[] @value)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.ProgramUniform1(@program, @location, @count, @value);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, @value);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void ProgramUniform1(int @program, int @location, int @count, int* @value)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.ProgramUniform1(@program, @location, @count, @value);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, @value);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void ProgramUniform1(int @program, int @location, int @v0)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), 1, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.ProgramUniform1(@program, @location, @v0);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @v0);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void ProgramUniform1(uint @program, int @location, int @count, ref int @value)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.ProgramUniform1(@program, @location, @count, ref @value);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, ref @value);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void ProgramUniform1(uint @program, int @location, int @count, int[] @value)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.ProgramUniform1(@program, @location, @count, @value);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, @value);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void ProgramUniform1(uint @program, int @location, int @count, int* @value)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), unchecked((int)@count), false, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.ProgramUniform1(@program, @location, @count, @value);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @count, @value);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
     internal static void ProgramUniform1(uint @program, int @location, int @v0)
-    {
-        var observation = StateCache.BeginNativeProgramMetadata(unchecked((int)@program), true, true, unchecked((int)@location), 1, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.ProgramUniform1(@program, @location, @v0);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
-
+        => StateCache.Current.ExecuteExtProgramUniform1(@program, @location, @v0);
     #endregion
 }

@@ -53,17 +53,17 @@ internal sealed class GpuTextureMetadataReader : IGpuResourceMetadataReader<GpuT
             ? StateCache.Current.BindTextureScope(target, 0, texture) : (StateCache.TextureScope?)null;
         var capabilities = GpuSupport.Graphics;
         int immutable = capabilities.SupportsTextureStorage
-            ? ReadParameter(texture, target, GetTextureParameter.TextureImmutableFormat, bound) : 0;
+            ? ReadParameter(texture, target, GetTextureParameter.TextureImmutableFormat) : 0;
         int immutableLevels = capabilities.SupportsTextureView
-            ? ReadParameter(texture, target, GetTextureParameter.TextureImmutableLevels, bound) : 0;
+            ? ReadParameter(texture, target, GetTextureParameter.TextureImmutableLevels) : 0;
         if (immutable < 0 || immutableLevels < 0) return false;
         GpuTextureViewMetadata? view = null;
         if (immutable != 0 && capabilities.SupportsTextureView)
         {
-            int viewLevel = ReadParameter(texture, target, GetTextureParameter.TextureViewMinLevel, bound);
-            int viewLevels = ReadParameter(texture, target, GetTextureParameter.TextureViewNumLevels, bound);
-            int viewLayer = ReadParameter(texture, target, GetTextureParameter.TextureViewMinLayer, bound);
-            int viewLayers = ReadParameter(texture, target, GetTextureParameter.TextureViewNumLayers, bound);
+            int viewLevel = ReadParameter(texture, target, GetTextureParameter.TextureViewMinLevel);
+            int viewLevels = ReadParameter(texture, target, GetTextureParameter.TextureViewNumLevels);
+            int viewLayer = ReadParameter(texture, target, GetTextureParameter.TextureViewMinLayer);
+            int viewLayers = ReadParameter(texture, target, GetTextureParameter.TextureViewNumLayers);
             if (viewLevel < 0 || viewLevels < 0 || viewLayer < 0 || viewLayers < 0) return false;
             if (viewLevels > 0 && viewLayers > 0) view = new(viewLevel, viewLevels, viewLayer, viewLayers);
         }
@@ -86,14 +86,14 @@ internal sealed class GpuTextureMetadataReader : IGpuResourceMetadataReader<GpuT
             for (int face = 0; face < faces; face++)
             {
                 TextureTarget imageTarget = faces == 6 ? TextureTarget.TextureCubeMapPositiveX + face : target;
-                int width = ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureWidth, bound);
+                int width = ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureWidth);
                 if (width < 0) return false;
                 if (width == 0) continue;
-                int height = ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureHeight, bound);
-                int depth = ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureDepth, bound);
-                int format = ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureInternalFormat, bound);
+                int height = ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureHeight);
+                int depth = ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureDepth);
+                int format = ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureInternalFormat);
                 int samples = target is TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray
-                    ? ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureSamples, bound) : 0;
+                    ? ReadLevel(texture, imageTarget, level, GetTextureParameter.TextureSamples) : 0;
                 if (format <= 0 || height < 0 || depth < 0 || samples < 0) return false;
                 levels.Add(new(level, faces == 6 ? imageTarget : 0, width, Math.Max(1, height), Math.Max(1, depth),
                     (PixelInternalFormat)format, samples, true));
@@ -105,8 +105,8 @@ internal sealed class GpuTextureMetadataReader : IGpuResourceMetadataReader<GpuT
         // not TEXTURE_IMMUTABLE_LEVELS. Derive that count from the images just queried.
         if (!capabilities.SupportsTextureView && immutable != 0)
             foreach (var image in levels) immutableLevels = Math.Max(immutableLevels, image.Level + 1);
-        int baseLevel = ReadParameter(texture, target, GetTextureParameter.TextureBaseLevel, bound);
-        int maxLevel = ReadParameter(texture, target, GetTextureParameter.TextureMaxLevel, bound);
+        int baseLevel = ReadParameter(texture, target, GetTextureParameter.TextureBaseLevel);
+        int maxLevel = ReadParameter(texture, target, GetTextureParameter.TextureMaxLevel);
         if (immutable < 0 || immutableLevels < 0 || baseLevel < 0 || maxLevel < 0) return false;
         metadata = new(target, levels.ToImmutable(), immutable != 0, immutableLevels, baseLevel, maxLevel, View: view);
         return true;
@@ -115,18 +115,19 @@ internal sealed class GpuTextureMetadataReader : IGpuResourceMetadataReader<GpuT
 
     #region Private
     /// <summary>Reads object parameters through the available API while a fallback scope preserves bindings.</summary>
-    private static int ReadParameter(int texture, TextureTarget target, GetTextureParameter parameter, bool bound)
+    private static int ReadParameter(int texture, TextureTarget target, GetTextureParameter parameter)
     {
         int value = -1;
-        if (bound) GL.GetTexParameter(target, parameter, out value);
+        if (target == TextureTarget.TextureCubeMap || !GpuSupport.Graphics.SupportsArbDirectStateAccess) GL.GetTexParameter(target, parameter, out value);
         else GL.GetTextureParameter(texture, parameter, out value);
         return value;
     }
     /// <summary>Reads one image descriptor with an invalid sentinel and preserves the native error queue.</summary>
-    private static int ReadLevel(int texture, TextureTarget target, int level, GetTextureParameter parameter, bool bound)
+    private static int ReadLevel(int texture, TextureTarget target, int level, GetTextureParameter parameter)
     {
         int value = -1;
-        if (bound) GL.GetTexLevelParameter(target, level, parameter, out value);
+        if (target >= TextureTarget.TextureCubeMapPositiveX && target <= TextureTarget.TextureCubeMapNegativeZ
+            || !GpuSupport.Graphics.SupportsArbDirectStateAccess) GL.GetTexLevelParameter(target, level, parameter, out value);
         else GL.GetTextureLevelParameter(texture, level, parameter, out value);
         return value;
     }

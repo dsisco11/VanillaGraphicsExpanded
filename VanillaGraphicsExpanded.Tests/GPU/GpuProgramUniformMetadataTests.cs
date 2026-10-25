@@ -25,6 +25,7 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             using var program = CreateProgram();
             using var sentinel = CreateProgram();
             using var pipeline = GpuProgramPipeline.Create();
+            using var capability = new SeparateShaderObjectsCapabilityScope(direct);
             pipeline.Bind();
             StateCache.Current.UseProgram(sentinel.ProgramId);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuProgramMetadata>>(
@@ -33,14 +34,14 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
             int numeric = GL.GetUniformLocation(program.ProgramId, "numericValue");
             Assert.True(sampler >= 0 && numeric >= 0);
             ulong previous = entry.MetadataRevision;
-            StateCache.Current.SetProgramUniformUnit(program.ProgramId, sampler, 3, direct);
+            StateCache.Current.SetProgramUniformUnit(program.ProgramId, sampler, 3);
             GL.GetUniform(program.ProgramId, sampler, out int actualUnit);
             Assert.Equal(3, actualUnit);
             Assert.Equal(previous + 1, entry.MetadataRevision);
             Assert.Equal(sentinel.ProgramId, GL.GetInteger(GetPName.CurrentProgram));
             Assert.Equal(pipeline.PipelineId, GL.GetInteger(GetPName.ProgramPipelineBinding));
             previous = entry.MetadataRevision;
-            StateCache.Current.SetProgramUniformUnit(program.ProgramId, numeric, 42, direct);
+            StateCache.Current.SetProgramUniformUnit(program.ProgramId, numeric, 42);
             GL.GetUniform(program.ProgramId, numeric, out int actualNumeric);
             Assert.Equal(42, actualNumeric);
             Assert.Equal(previous, entry.MetadataRevision);
@@ -60,17 +61,17 @@ public sealed class GpuProgramUniformMetadataTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal(); var harmony=new Harmony("VGE.Tests.StableUnits");
         try
         {
-            using var program=CreateProgram(); int sampler=GL.GetUniformLocation(program.ProgramId,"inputTexture"),numeric=GL.GetUniformLocation(program.ProgramId,"numericValue");
+            using var program=CreateProgram(); using var capability=new SeparateShaderObjectsCapabilityScope(direct); int sampler=GL.GetUniformLocation(program.ProgramId,"inputTexture"),numeric=GL.GetUniformLocation(program.ProgramId,"numericValue");
             var entry=(GpuResourceMetadataEntry<GpuProgramMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(program)!;
-            StateCache.Current.SetProgramUniformUnit(program.ProgramId,sampler,3,direct);
+            StateCache.Current.SetProgramUniformUnit(program.ProgramId,sampler,3);
             var reader=new CountingReader(entry.Reader!); entry.Reader=reader;
             harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.Uniform1),[typeof(int),typeof(int)]),prefix:new HarmonyMethod(typeof(GpuProgramUniformMetadataTests),nameof(CountNative)));
             harmony.Patch(AccessTools.Method(typeof(GL),nameof(GL.ProgramUniform1),[typeof(int),typeof(int),typeof(int)]),prefix:new HarmonyMethod(typeof(GpuProgramUniformMetadataTests),nameof(CountNative)));
             nativeCalls=0; ulong revision=entry.MetadataRevision;
-            StateCache.Current.SetProgramUniformUnit(program.ProgramId,sampler,3,direct);
+            StateCache.Current.SetProgramUniformUnit(program.ProgramId,sampler,3);
             Assert.Equal(0,nativeCalls); Assert.Equal(0,reader.Reads); Assert.Equal(revision,entry.MetadataRevision);
-            StateCache.Current.SetProgramUniformUnit(program.ProgramId,numeric,3,direct); Assert.Equal(1,nativeCalls); Assert.Equal(0,reader.Reads); Assert.Equal(revision,entry.MetadataRevision);
-            entry.BeginRefresh(GpuMetadataChange.Metadata); StateCache.Current.SetProgramUniformUnit(program.ProgramId,sampler,3,direct);
+            StateCache.Current.SetProgramUniformUnit(program.ProgramId,numeric,3); Assert.Equal(1,nativeCalls); Assert.Equal(0,reader.Reads); Assert.Equal(revision,entry.MetadataRevision);
+            entry.BeginRefresh(GpuMetadataChange.Metadata); StateCache.Current.SetProgramUniformUnit(program.ProgramId,sampler,3);
             Assert.Equal(2,nativeCalls); Assert.Equal(1,reader.Reads); Assert.True(entry.IsUsable); Assert.True(entry.MetadataRevision>revision); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
         finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.UseProgram(0); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }

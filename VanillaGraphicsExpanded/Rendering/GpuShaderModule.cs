@@ -47,6 +47,16 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>, IDisposa
     /// </summary>
     public new bool IsValid => base.IsValid;
 
+    /// <summary>Declares a shader recipient before native creation and compilation.</summary>
+    private GpuShaderModule() { }
+
+    /// <summary>Creates the fixed-stage resource through manager-owned initialization.</summary>
+    private static GpuShaderModule? Create(ShaderType stage)
+    {
+        var recipient = new GpuShaderModule();
+        return GpuResourceManager.CreateShader(new GpuShaderInitialization { Stage = stage }, recipient, out _).HasValue
+            ? recipient : null;
+    }
     /// <summary>Adopts an owned shader handle loaded by the binary asset loader.</summary>
     internal GpuShaderModule(int shaderId, ShaderType shaderType)
     {
@@ -102,9 +112,11 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>, IDisposa
         }
 
         int id = 0;
+        GpuShaderModule? created = null;
         try
         {
-            id = GL.CreateShader(shaderType);
+            created = Create(shaderType);
+            id = created?.ShaderId ?? 0;
             if (id == 0)
             {
                 return false;
@@ -118,12 +130,12 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>, IDisposa
 
             if (status == 0)
             {
-                try { StateCache.Current.DeleteShader(id); } catch { }
+                try { created?.Dispose(); } catch { }
                 return false;
             }
 
-            var created = new GpuShaderModule(id, shaderType);
-            created.SetDebugName(debugName);
+
+            created!.SetDebugName(debugName);
             module = created;
             return true;
         }
@@ -133,7 +145,7 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>, IDisposa
             {
                 if (id != 0)
                 {
-                    StateCache.Current.DeleteShader(id);
+                    created?.Dispose();
                 }
             }
             catch
@@ -282,9 +294,11 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>, IDisposa
         using var errors = new GlDebug.ErrorScope($"SPIR-V {debugName} ({shaderType}), entry {entryPoint}");
 #endif
         int id = 0;
+        GpuShaderModule? created = null;
         try
         {
-            id = GL.CreateShader(shaderType);
+            created = Create(shaderType);
+            id = created?.ShaderId ?? 0;
             if (id == 0)
             {
                 infoLog = "glCreateShader returned 0.";
@@ -331,13 +345,13 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>, IDisposa
                 infoLog = GL.GetShaderInfoLog(id) ?? string.Empty;
                 if (status == 0)
                 {
-                    try { StateCache.Current.DeleteShader(id); } catch { }
+                    try { created?.Dispose(); } catch { }
                     infoLog = WithPendingShaderErrors(infoLog);
                     return false;
                 }
             }
-            var created = new GpuShaderModule(id, shaderType);
-            created.SetDebugName(debugName);
+
+            created!.SetDebugName(debugName);
             module = created;
             return true;
         }
@@ -348,7 +362,7 @@ internal sealed class GpuShaderModule : GpuResource<GpuShaderMetadata>, IDisposa
             {
                 if (id != 0)
                 {
-                    StateCache.Current.DeleteShader(id);
+                    created?.Dispose();
                 }
             }
             catch
