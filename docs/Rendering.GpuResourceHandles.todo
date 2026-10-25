@@ -1110,6 +1110,10 @@ Phase 7: Design and implement the unified GpuTextureRef API
   Depends on Phase 6's qualified resource, metadata and binding contracts.
   Outcome: owned textures, borrowed textures and native texture views expose a common non-owning
   texture-reference API for binding and validation, without changing native storage or ownership.
+  Approved design: [Rendering.GpuTextureRef.Proposal.md](Rendering.GpuTextureRef.Proposal.md).
+  Status: simplified consumer-only reference design approved; implementation and verification remain open.
+  A readonly value retains one private GpuResource<GpuTextureMetadata> reference and follows the wrapper's
+  current native object. No public lifecycle methods, underlying-resource accessor or captured identity token.
 
   ☐ Design GpuTextureRef and record its contract in a focused proposal before implementation.
     Inventory GpuTexture, BorrowedTexture, GpuTextureView, GpuTextureBinding, framebuffer attachment
@@ -1117,9 +1121,9 @@ Phase 7: Design and implement the unified GpuTextureRef API
     Define the representation, construction, empty-reference behavior, equality and access to resource
     identity, target, available metadata and view-relative subresources. Resolve class/value/interface
     choices from these requirements rather than introducing a second resource or metadata hierarchy.
-  ☐ Define reference lifetime and retention explicitly: a reference must preserve the original
-    association, reject deletion/name reuse and context retirement, and respect native-view source
-    dependency checks. Decide whether references retain their managed wrapper; obtaining or releasing
+  ☐ Define reference lifetime and retention explicitly: retain the managed wrapper and follow its
+    intentional native-object replacement. Preserve manager-owned borrower retirement, deletion/name-reuse
+    safety, context retirement and native-view source dependencies. Obtaining or releasing
     a reference must never transfer ownership or delete the native resource.
     Keep registration, availability, revisions and snapshot publication manager-owned; do not add
     another lifetime registry, metadata snapshot authority or binding/validation cache.
@@ -1135,6 +1139,12 @@ Phase 7: Design and implement the unified GpuTextureRef API
   ☐ Implement GpuTextureRef and conversions/accessors from GpuTexture (including BorrowedTexture)
     and GpuTextureView through their existing manager associations. Keep focused source ownership
     and preserve existing context/thread, pass-usage, content-readiness and native deletion contracts.
+    Declare implicit conversion operators on GpuTexture and GpuTextureView, using an internal
+    GpuTextureRef(GpuResource<GpuTextureMetadata>?) constructor. BorrowedTexture uses its base conversion;
+    null produces an empty reference. Add no reverse conversion or public From factory.
+    Store only the private GpuResource<GpuTextureMetadata> reference; expose no public underlying-resource
+    accessor or lifecycle/mutation methods. Consolidate remaining GpuTextureView usability checks in
+    GpuResourceManager, including local-tool handling, without recursive wrapper validity calls.
   ☐ Migrate binding/validation entry points, generated shader-binding support and their consumers
     to the unified contract. Consolidate duplicated owned/borrowed/view handling where semantics
     match; preserve explicit view-relative validation and shared-storage feedback/alias checks.
@@ -1143,6 +1153,8 @@ Phase 7: Design and implement the unified GpuTextureRef API
   ☐ Have subagents verify equivalent binding and validation for owned textures, mutable borrowed
     textures and native views; cover empty inputs, incompatible targets/formats, subresource bounds,
     metadata changes/unavailability, deletion/name reuse, source replacement and context retirement.
+    Verify retained references follow intentional owner native-object replacement and compatibility is
+    revalidated from current facts even when reference equality is unchanged. Verify the restricted API.
     Verify releasing references preserves owners and native views, stable references introduce no
     redundant metadata queries/native binds, and reference creation adds no native object allocation.
   ☐ Reconcile permanent texture/binding documentation and affected planning contracts with the
