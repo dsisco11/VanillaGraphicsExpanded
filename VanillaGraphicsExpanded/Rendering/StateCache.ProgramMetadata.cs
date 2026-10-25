@@ -9,6 +9,7 @@ internal sealed partial class StateCache
     /// <summary>Preserves manager-owned acquisition for context-local wrappers without a registry entry.</summary>
     internal void LinkProgram(GpuProgramObject program)
     {
+        GpuResourceManager.RequireWrapperMetadataAccess(program);
         program.PendingLink = null;
         bool tracked = program.ResourceManager?.GetResourceRegistration(program) is not null;
         if (tracked)

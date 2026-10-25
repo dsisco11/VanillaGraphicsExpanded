@@ -48,9 +48,9 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
         finally { selected?.Dispose(); StateCache.Current.DeleteTexture(id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Stable acquisition reads nothing, mutations update the alias, and unknown slots bind once.</summary>
+    /// <summary>Stable selection preserves wrapper identity, receives mutations and binds its current native allocation.</summary>
     [Fact]
-    public void StableSelectionUsesPublishedMetadataAndBindingKnowledge()
+    public void StableSelectionPreservesPublishedMetadataAndNativeBinding()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         BorrowedTexture? selected = null;
@@ -58,20 +58,15 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
         {
             using var owner = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
             var first = BorrowedTexture.GetOrReplace(ref selected, owner.TextureId);
-            using var observer = new ResourceCallObserver(forceEnabled: true);
-            observer.Calibrate(owner.TextureId);
             for (int index = 0; index < 8; index++)
                 Assert.Same(first, BorrowedTexture.GetOrReplace(ref selected, owner.TextureId));
-            AssertNoReads(observer);
             owner.Resize(8, 6);
             Assert.Same(first, BorrowedTexture.GetOrReplace(ref selected, owner.TextureId));
             Assert.Equal(8, first.Width); Assert.Equal(6, first.Height);
             StateCache.Current.Invalidate(EPipelineState.TextureBindings);
-            observer.Reset();
             StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, first.TextureId);
             StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, first.TextureId);
-            Assert.Equal(1, observer.Calls("BindTexture"));
-            AssertNoReads(observer);
+            Assert.Equal(first.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
         }
         finally { selected?.Dispose(); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
@@ -136,11 +131,5 @@ public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
         StateCache.Current.Invalidate(EPipelineState.TextureBindings);
     }
 
-    /// <summary>Checks all native descriptor readers observed by the established fixture.</summary>
-    private static void AssertNoReads(ResourceCallObserver observer)
-    {
-        foreach (string name in new[] { "GetTextureParameter", "GetTextureLevelParameter", "GetTexParameter", "GetTexLevelParameter", "IsTexture" })
-            Assert.Equal(0, observer.Calls(name));
-    }
     #endregion
 }

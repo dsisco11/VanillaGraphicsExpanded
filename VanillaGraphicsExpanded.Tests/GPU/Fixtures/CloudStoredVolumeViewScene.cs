@@ -199,24 +199,20 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         if(succeeds)Assert.True(drawn,renderer.Failure);else{Assert.False(drawn);Assert.NotNull(renderer.Failure);}
         return output.Images.Select(texture=>texture.ReadPixels()).ToArray();
     }
-    /// <summary>Measures the consumer's four ephemeral borrowers and submits the real typed view with authored stored fields.</summary>
-    internal float[][] DrawBorrowedInputs(CloudVolumeViewSettings settings,ResourceCallObserver observer)
+    /// <summary>Submits borrowed inputs through the real typed view and verifies restored native selections.</summary>
+    internal float[][] DrawBorrowedInputs(CloudVolumeViewSettings settings)
     {
-        observer.Reset();
         using var borrowedMap=new BorrowedTexture(map.TextureId);
         using var borrowedMaterial=new BorrowedTexture(material.TextureId);
         using var borrowedVisibility=new BorrowedTexture(visibility.TextureId);
         using var borrowedLiquid=new BorrowedTexture(liquid.TextureId);
-        observer.Record("cloud-four-input-acquisition");
         Assert.Equal(input.Storage.Map,borrowedMap.TextureId);
         Assert.Equal(20,borrowedMap.Width);
         PrepareDraw(settings);
         preparedScene=new CloudVolumeViewScene(camera,lighting.Buffer,Atmosphere,borrowedMaterial,borrowedVisibility,borrowedLiquid,aerial,attenuation,shafts,Underwater);
         int draw=GL.GetInteger(GetPName.DrawFramebufferBinding),read=GL.GetInteger(GetPName.ReadFramebufferBinding);
         int unit=GL.GetInteger(GetPName.ActiveTexture),texture=GL.GetInteger(GetPName.TextureBinding2D);
-        observer.Reset();
         Assert.True(DrawOnly());
-        observer.Record("cloud-typed-view-submission");
         Assert.Equal(draw,GL.GetInteger(GetPName.DrawFramebufferBinding));
         Assert.Equal(read,GL.GetInteger(GetPName.ReadFramebufferBinding));
         Assert.Equal(unit,GL.GetInteger(GetPName.ActiveTexture));

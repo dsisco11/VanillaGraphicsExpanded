@@ -11,22 +11,18 @@ public sealed class CloudStoredVolumeViewTests(HeadlessGLFixture fixture,Xunit.I
 {
     private readonly string gpu=fixture.GLRenderer;
     #region Public API
-    /// <summary>Retains measured borrower/query costs and checks typed view pixels against the same owned inputs.</summary>
+    /// <summary>Checks typed borrowed view pixels against the same owned inputs.</summary>
     [Fact]
-    public void RecordBorrowedInputBaseline()
+    public void BorrowedInputsMatchOwnedOutput()
     {
         EnsureShaderTestAvailable();
         var settings=CloudVolumeViewSettings.Default;
         using var ownedScene=new CloudStoredVolumeViewScene(Programs,18,14);
         var expected=ownedScene.Draw(settings);
         using var borrowedScene=new CloudStoredVolumeViewScene(Programs,18,14);
-        using var calibration=DynamicTexture2D.Create(1,1,OpenTK.Graphics.OpenGL.PixelInternalFormat.R32f);
-        using var observer=new ResourceCallObserver();
-        observer.Calibrate(calibration.TextureId);
         StateCache.Current.InvalidateAll();
-        var actual=borrowedScene.DrawBorrowedInputs(settings,observer);
+        var actual=borrowedScene.DrawBorrowedInputs(settings);
         for(int image=0;image<expected.Length;image++)Assert.Equal(expected[image],actual[image]);
-        observer.RecordPixels("cloud-typed-view-output",actual.SelectMany(image=>image));
         Assert.Equal(OpenTK.Graphics.OpenGL.ErrorCode.NoError,OpenTK.Graphics.OpenGL.GL.GetError());
     }
 

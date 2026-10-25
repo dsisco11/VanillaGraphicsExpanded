@@ -1,5 +1,9 @@
 # Generated shader binding state
 
+The shared [GPU resource contract](Rendering.GpuResources.md) defines canonical metadata,
+initialization, query policy, original associations and deletion. Binding knowledge and shader-local
+compatibility history remain separate from that resource metadata.
+
 ## Executable ownership and current compatibility
 
 Graphics `GpuProgram` and compute `GpuComputeProgram` implement internal `IGpuProgram`;
@@ -27,10 +31,6 @@ longer implement engine `Uniform`/`HasUniform`/texture APIs or `IShaderProgram`;
 bindings/CPU blocks instead. `LiquidPoolInputAdapter` translates the three supported logical pool
 inputs without engine executable ownership. Real native terrain/material/atmosphere/frame/light hooks
 retain their engine interfaces. See [supported replacements](GpuProgram.md#shared-workflows-and-compatibility).
-
-Dated receipts and initial-checkpoint descriptions below are historical evidence; they do not retain
-removed engine inheritance or temporary compatibility paths. Current qualification and live acceptance
-are tracked in [Rendering.ShaderOwnership.todo](Rendering.ShaderOwnership.todo).
 
 ## Prepared executable bindings
 
@@ -77,36 +77,8 @@ Neither path repeats linked-interface enumeration. Native executable discovery b
 reader boundary; preparation projects block sizes, stage ownership and native diagnostic indices from
 the supplied collections.
 
-Three fullscreen vertex declarations formerly imported unrelated fragment resource contracts.
-Display resolve, PIS mask and the trace-anchor fixture now have distinct vertex layout identities.
-The layout-binding and ring-buffer compute fixtures now explicitly declare their image resources.
-
-Validation includes generator contract/range/index tests and packaged SPIR-V preparation tests:
-arrays sharing numeric sampler/image units, unused required resources, location-free and renamed
-diagnostic metadata, incompatible type rejection, and executable/table replacement preservation.
-Preparation does not yet change normal resource submission or remove authored location adapters;
-those remain assigned to subsequent tasks in the implementation list.
-The migration baselines retain their original settings and layouts except the reviewed vertex
-identity/default corrections, newly explicit resources, and test executable. They also incorporate
-the preceding water work's capture mode 3, optical/source inputs and two water fixtures, which had
-not yet been recorded in those baselines.
-
-Executed verification: the production/offline build and 162 generator tests passed. Broad
-GPU/contracts coverage passed 1,317 cases, followed by a clean 99-case rerun covering the final
-target-compatibility, preparation and migration-baseline fixes. The second source review and
-independent completion audit passed. Receipts: [generator](../artifacts/ShaderBindingState/phase2/generator-reviewed-final.log),
-[broad GPU/contracts](../artifacts/ShaderBindingState/phase2/prepared-reviewed-final.log), and
-[final affected checks](../artifacts/ShaderBindingState/phase2/prepared-audit-fixes.log).
-
-The explicit enum/target correction passed 163 generator tests and 99 focused contract/GPU tests,
-along with the production and offline shader build. Receipts:
-[generator type contracts](../artifacts/ShaderBindingState/phase2/type-contract-fix-generator.log) and
-[focused type contracts](../artifacts/ShaderBindingState/phase2/type-contract-fix-focused.log).
-
-The reflection reuse correction passed the production/offline shader build and 512 focused
-GPU/contract tests with no failures or skips. Repeated layout-cache rebuilds verify retained
-snapshot identity and sampler/image namespace assignments. Receipt:
-[reflection reuse checks](../artifacts/ShaderBindingState/phase2/reflection-reuse.log).
+Validation covers fixed sampler/image namespaces, array activity, incompatible types, supplied metadata,
+executable replacement and failure preservation. Generated submission consumes the resulting table.
 
 ## Prepared resource submission
 
@@ -136,12 +108,6 @@ the current allocation. Owner metadata is sampled without driver queries; curren
 is still checked before publication. Resize, capacity changes and executable replacement invalidate the applicable result. Failed checks never
 replace a successful result. Context-wide binding comparisons and UBO content uploads remain independent
 of this compatibility history.
-Validation reuse passed the production/offline build, 163 generator tests and 120 focused tests.
-Coverage proves one entry resolution/compatibility check across repeated generated-owner uses,
-revalidation after resize or executable replacement, failed-validation retry and retirement rejection.
-Receipts: [generator](../artifacts/ShaderBindingState/validation-reuse/generator-initial.log) and
-[focused validation reuse](../artifacts/ShaderBindingState/validation-reuse/focused-final.log).
-
 Managed resources resolve their current allocation and validity on each use. Raw engine IDs are checked
 once during validation, and their texture slot cache is invalidated before binding because equal IDs
 cannot establish external allocation identity. CPU uniform-block uploads and dirty-state commitment
@@ -157,26 +123,8 @@ validation and binding behavior above; registry membership does not extend inter
 [StateCache.ResourceSlots](../VanillaGraphicsExpanded/Rendering/StateCache.ResourceSlots.cs)
 adds complete image-view and indexed buffer-range keys to the existing context cache. Cache invalidation,
 immediate and queued deletion, image scopes, buffer texture views and engine terrain buffer binds use
-the same owner. Image/buffer slot bind counts distinguish actual driver calls from cache comparisons.
+the same owner. Debug-only image/buffer slot bind counts distinguish actual driver calls from cache comparisons.
 No second global cache or texture attachment is introduced.
-
-At the initial prepared-submission checkpoint, `ShaderBindingSubmission`, `ShaderBindingAccess` and named layout APIs remained compatibility
-adapters for generic catalogs, authored alternate emitters and existing test/engine consumers listed
-below. Generated production submission did not call them. Their subsequent reviewed removal or
-retained responsibility is recorded in the declaration migration section; ordinary uniform uploads remain supported.
-
-Executed verification passed the production/offline build, 163 generator tests and 119 focused
-runtime/contract tests with no focused failures or skips. The broader GPU/contracts run passed
-3,031 cases, skipped eight and reproduced one SH9 spatial-lighting failure at yaw 1. An isolated
-export of the pre-change staged sources, supplemented only with existing ignored debug GLSL includes,
-reproduced the same failure without the prepared-submission changes. It remains a pre-existing
-rendering issue rather than evidence of a binding migration regression.
-Receipts: [generator](../artifacts/ShaderBindingState/phase3/generator-final-corrections.log),
-[focused submission](../artifacts/ShaderBindingState/phase3/submission-final-corrections.log),
-[broad GPU/contracts](../artifacts/ShaderBindingState/phase3/gpu-final-corrections.log), and
-[isolated baseline comparison](../artifacts/ShaderBindingState/phase3/baseline-mixed-consumers-retry.log).
-The second source review and independent completion audit passed, covering the linked proposal, activity policy,
-format/view validation, direct publication, context/lifetime boundaries and generated-owner retry.
 
 ## Generated desired state and ordinary value publication
 

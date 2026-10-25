@@ -2,9 +2,9 @@ GPU resource metadata registry and typed resource wrappers
 =========================================================
 
 Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
-Status: Phases 1–5 complete after delegated validation, second review and independent audit.
-Phases 6–9 remain open. Retained CommandPublication Phase 9 records foundation evidence and limits.
-Persistent consumer integration is verified; integrated qualification remains unchecked.
+Status: Phases 1–6 complete after delegated validation, second review and independent audit.
+Phases 7–9 remain open. Retained CommandPublication Phase 9 records foundation evidence and limits.
+Persistent consumer integration and integrated qualification are verified with the recorded evidence limits.
 Phase 8 is a separately requested follow-on RHI design; it does not authorize runtime migration.
 
 Planning authority
@@ -946,7 +946,7 @@ Phase 4d: Analyze binding-cache behavior and metadata acquisition queries
 
 Phase 4e: Record the approved command-publication architecture
   Depends on Phase 4d.
-  Decision: the user approved [the command-publication proposal](Rendering.CommandPublication.Proposal.md).
+  Decision: the user approved the command-publication proposal (`3f307365:docs/Rendering.CommandPublication.Proposal.md`).
   Sources: that proposal and [the analysis](Rendering.GpuResourceHandles.Analysis.md).
   Outcome: the architectural direction and delegated implementation contract are explicit.
 
@@ -954,7 +954,7 @@ Phase 4e: Record the approved command-publication architecture
     completion; the manager owns creation, canonical facts and publication; wrappers supply initialization
     records and receive snapshots. Retain internal grouping/deferred handling where operations require it.
   ☑ Delegate remaining command-success policy, initialization-field/default contracts and wrapper handoff
-    decisions to Phase 1 of [Rendering.CommandPublication.todo](Rendering.CommandPublication.todo).
+    decisions to Phase 1 of Rendering.CommandPublication.todo (`3f307365:docs/Rendering.CommandPublication.todo`).
     Its decision gate precedes runtime changes. Approval of the architecture does not settle those details.
   ☑ Confirm the delegated checklist covers the analysis findings, initialization families, rejected and
     interrupted operations, binding restoration, identity/context safety and supplied-metadata preparation.
@@ -963,8 +963,8 @@ Phase 4e: Record the approved command-publication architecture
 
 Phase 4f: Implement and verify command publication
   Depends on Phase 4e.
-  Sources: [approved proposal](Rendering.CommandPublication.Proposal.md) and
-  [authoritative implementation checklist](Rendering.CommandPublication.todo).
+  Sources: approved proposal (`3f307365:docs/Rendering.CommandPublication.Proposal.md`) and
+  authoritative implementation checklist (`3f307365:docs/Rendering.CommandPublication.todo`).
   Outcome: repaired bindings, manager-owned creation/publication, targeted acquisition and preparation
   from supplied metadata provide the verified foundation for consumer integration.
 
@@ -1028,6 +1028,10 @@ Phase 5: Integrate persistent cloud and depth resources
 Phase 6: Qualify the integrated design and reconcile documentation
   Depends on Phase 5.
   Outcome: a reproducible candidate satisfies the proposal with measured costs and explicit evidence limits.
+  Authority: the source proposal, inventory and API matrix above, plus the approved command-publication
+  proposal/checklist retained at `3f307365:docs/Rendering.CommandPublication.Proposal.md` and
+  `3f307365:docs/Rendering.CommandPublication.todo`. Consult these immutable versions rather than the
+  deleted live paths. Current implemented responsibilities are documented in Rendering.GpuResources.md.
 
   ☑ Resolve the installed-engine generic UBO.Update<T> discovery rejection before claiming integrated
     engine startup qualification. Approved direction: discover and patch concrete value-type method
@@ -1044,36 +1048,63 @@ Phase 6: Qualify the integrated design and reconcile documentation
     are unchanged. Receipts: artifacts/generic-ubo-probe/README.md and canonical-package-identity.json.
     Installed built-in assemblies have no current Update<T> specifications; tests supply concrete
     int/struct references through both base and concrete declarations. No game startup/visual claim.
-  ☐ Freeze candidate source/binary identity and repeat matched baseline fixtures through subagents.
+  ☑ Freeze candidate source/binary identity and repeat matched baseline fixtures through subagents.
     Measure actual metadata queries and native binds, separately accounting for registration, dispatch
     and retirement costs. Compare outputs and restored state; disclose regressions and limitations.
-  ☐ Have subagents run relevant regression suites and canonical build/package verification for the
+  ☑ Have subagents run relevant regression suites and canonical build/package verification for the
     candidate. Verify package identity and required generated assets against tested outputs.
     Re-evaluate the two retained SceneColorParticlePublicationTests failures at BeginDraw admission
     (line 151), reproduced with the untouched CDE19F10 baseline and consumer candidate in observer
     processes. The supplied-owned-depth renderer test qualifies consumption independently; it does
     not establish successful particle-producer admission. Receipts are in artifacts/resource-handles-phase5.
-  ☐ Verify bounded associations through repeated acquisition, disposal, collection and context cycles;
+  ☑ Verify bounded associations through repeated acquisition, disposal, collection and context cycles;
     ensure no old wrapper/queued retirement can affect a replacement allocation.
-  ☐ Remove temporary migration scaffolding and obsolete duplicated identity/notification paths.
+  ☑ Reject tracked metadata operations and available command inputs on a foreign context or thread
+    before native dispatch or availability withdrawal. Cover existing-entry fast paths and texture-view
+    source inputs, deferred program-link submission and executable snapshot transfer, preserving
+    context-local tools and retired-manager behavior for new objects.
+    Recheck explicit participation after callbacks; no GPU query is required for this admission check.
+  ☑ Remove temporary migration scaffolding and obsolete duplicated identity/notification paths.
     Reconcile the full command matrix and all temporary compatibility dispositions; retain intentional
     conservative raw-ID support with its documented boundary.
-  ☐ After the final matched measurements, remove ResourceCallObserver.cs, its temporary interception,
+  ☑ After the final matched measurements, remove ResourceCallObserver.cs, its temporary interception,
     VGE_RESOURCE_BASELINE activation and measurement-only fixture methods/calls and output writers.
     Preserve useful correctness assertions as ordinary tests without the observer. Retain measurement
     receipts and the instrumented source/patch needed to reproduce them in baseline artifacts.
-  ☐ Have subagents rerun affected correctness tests and canonical build/package verification after
+  ☑ Have subagents rerun affected correctness tests and canonical build/package verification after
     observer cleanup. Record the final source/binary identity and verify that cleanup changed no runtime
     implementation; distinguish the archived instrumented measurements from the final clean test suite.
-  ☐ Update Rendering.ShaderBindingState.md and relevant resource/cloud architecture documentation to
+  ☑ Update Rendering.ShaderBindingState.md and relevant resource/cloud architecture documentation to
     describe current implemented responsibilities, command coverage, ownership and metadata behavior.
     Keep permanent docs free of phase narratives and removed implementation history.
-  ☐ Perform a second review against every proposal section and resolve discrepancies. Record source,
+  ☑ Perform a second review against every proposal section and resolve discrepancies. Record source,
     unit, GPU integration, package and measurement evidence separately; do not claim appearance or
     frame-time benefits from headless checks. Any live appearance acceptance is user-run and separately
     reported; unmeasured runtime performance remains unclaimed.
-  ☐ Completion: proposal coverage, regression/package receipts, measurements, cleanup and current-state
+  ☑ Completion: proposal coverage, regression/package receipts, measurements, cleanup and current-state
     documentation agree for the same candidate; unresolved required work is explicitly left open.
+
+  Qualification receipts: artifacts/resource-handles-phase6/README.md, canonical-package-identity.json,
+  call-comparison.csv and final-replay-comparison.json retain commands, identities and measurement limits.
+  Canonical ordinary Release passes 299/299; the separate contract selection passes 1039/1039, no skips.
+  Debug contract verification passed 1045 cases and found one cancellation exception-contract regression;
+  preserving the original exception ordering fixed it, and the affected final Debug selection passes 19/19.
+  The final packaged runtime is F7D6E7CA9C90FFBE4C77700D24B7984119755BAF61D8141852405ED0F9A6BF0F;
+  tested/published/package identities and all 761 shaders match. Exact-final-runtime replay preserves
+  all archived call-count and pixel receipts. Separate CPU admission/publication/retirement/dispatch
+  probes are archived; their numbers do not establish constant-cost retirement or frame-time improvement.
+  Registered four-borrower acquisition uses zero recorded texture descriptor queries versus baseline 24;
+  first/stable registered depth uses zero. Typed cloud view binds increase from 68 to 96, and first depth
+  binds from 4 to 6. Context-local discovery also reads more facts; these regressions remain disclosed.
+  Retention stress covers 6144 collected recipients across 12 logical manager lifetimes and 384 reuse
+  cycles. Context/thread admission tests preserve availability, revisions, pending links and native size.
+  This is not qualification of multiple simultaneously live native contexts or actual older hardware.
+  The two particle admission failures reproduce on the untouched baseline. An additional exploratory
+  broad Debug run was stopped and remains unqualified: some unrelated failures reproduce on baseline,
+  some are ordering-sensitive, and not every broad failure is classified. No whole-suite pass is claimed.
+  Second review and independent completion audit passed. Source review, instrumented measurement replay
+  and the clean regression/package receipts are distinct.
+  No live game startup, appearance or whole-frame performance qualification is claimed.
 
 Phase 7: Design and implement the unified GpuTextureRef API
   Depends on Phase 6's qualified resource, metadata and binding contracts.

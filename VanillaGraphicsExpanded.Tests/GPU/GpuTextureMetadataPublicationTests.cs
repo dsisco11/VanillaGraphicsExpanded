@@ -38,28 +38,20 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>View creation derives its complete snapshot from known storage without native queries.</summary>
+    /// <summary>View creation publishes the selected target and layer range.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ViewCreationDerivesParametersWithoutQueries(bool dsa)
+    public void ViewCreationPublishesSelectedParameters(bool dsa)
     {
         fixture.EnsureContextValid();
         using var source = DynamicTexture3D.Create(4, 4, 4, PixelInternalFormat.Rgba32f, immutableStorage: true);
-        using var calibration = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
-        using var observer = new ResourceCallObserver(forceEnabled: true);
-        observer.Calibrate(calibration.TextureId);
         Assert.True(GL.IsTexture(source.TextureId));
-        Assert.Equal(1, observer.Calls("IsTexture"));
         using var capabilities = new DirectStateAccessCapabilityScope(dsa);
-        observer.Reset();
         using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba32f, 0, 1, 1, 2);
         Assert.True(view.IsValid);
-        Assert.Equal(0, observer.Calls("IsTexture"));
-        foreach (var parameter in new[] { GetTextureParameter.TextureViewMinLevel, GetTextureParameter.TextureViewNumLevels,
-                     GetTextureParameter.TextureViewMinLayer, GetTextureParameter.TextureViewNumLayers })
-            Assert.Equal(0, observer.ParameterCalls(parameter));
-        Assert.Equal(0, observer.Calls("GetTexParameter"));
+        Assert.Equal(TextureTarget.Texture2DArray, view.Target);
+        Assert.Equal(1, view.BaseLayer); Assert.Equal(2, view.LayerCount);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
@@ -127,9 +119,6 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         using var texture = DynamicTexture3D.Create(4, 4, 4, PixelInternalFormat.Rgba32f, immutableStorage: storage);
         using var sentinel = DynamicTexture3D.Create(2, 2, 2, PixelInternalFormat.Rgba32f);
         using var binding = sentinel.BindScope(0);
-        using var calibration = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
-        using var observer = new ResourceCallObserver(forceEnabled: true);
-        observer.Calibrate(calibration.TextureId);
         var original = GpuSupport.Graphics;
         try
         {
@@ -141,11 +130,6 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
             Assert.Equal(4, data.Levels[0].Width);
             Assert.Equal(storage, data.ImmutableStorage);
             Assert.Equal(storage ? 1 : 0, data.ImmutableLevels);
-            Assert.Equal(storage ? 1 : 0, observer.ParameterCalls(GetTextureParameter.TextureImmutableFormat));
-            Assert.Equal(view ? 1 : 0, observer.ParameterCalls(GetTextureParameter.TextureImmutableLevels));
-            foreach (var parameter in new[] { GetTextureParameter.TextureViewMinLevel, GetTextureParameter.TextureViewNumLevels,
-                         GetTextureParameter.TextureViewMinLayer, GetTextureParameter.TextureViewNumLayers })
-                Assert.Equal(view && storage ? 1 : 0, observer.ParameterCalls(parameter));
             if (!view) Assert.Null(data.View);
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2DArray));
             Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());

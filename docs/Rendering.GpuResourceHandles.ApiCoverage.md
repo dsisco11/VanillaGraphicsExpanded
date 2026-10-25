@@ -6,7 +6,7 @@ variant and every managed overload has the implementation and verification oblig
 
 ## Publication policy
 
-The [approved command-publication policy](Rendering.CommandPublication.Proposal.md#approved-command-result-policy)
+The approved command-publication policy (`3f307365:docs/Rendering.CommandPublication.Proposal.md`)
 controls how the families below publish metadata. Here, "refresh" means make canonical facts current;
 it does not mandate native readback after controlled commands. Controlled inputs/defaults/derivations
 are authoritative under existing failure handling. Unknown external effects use acquisition/recovery;

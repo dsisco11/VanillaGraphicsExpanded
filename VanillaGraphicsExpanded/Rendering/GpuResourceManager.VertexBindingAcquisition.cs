@@ -12,6 +12,7 @@ internal sealed partial class GpuResourceManager
         ref int buffer, ref nint offset, ref int stride, ref int divisor)
     {
         ObjectDisposedException.ThrowIf(!owner.IsValid || owner.VertexArrayId != vao, owner);
+        RequireWrapperMetadataAccess(owner);
         if (context != Integration.RenderContextRegistry.Current())
             throw new InvalidOperationException("The vertex binding belongs to another native context.");
         var manager = owner.ResourceManager;

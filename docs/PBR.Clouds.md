@@ -47,6 +47,7 @@ same frame, owner, world, allocation and shader certificates immediately before 
 Ordinary completed worker commits advance content identity; texture names alone certify nothing.
 
 The adapter retains non-owning texture wrappers through the common `GpuResourceManager`.
+The shared [GPU resource contract](Rendering.GpuResources.md) governs their metadata and retirement.
 Deletion, unavailable metadata or a changed storage revision withdraws content admission until storage
 validation and a fresh raw upload succeed. Allocation hooks qualify content; GL deletion observation
 owns resource retirement. Stable publication checks compare manager facts without descriptor queries.

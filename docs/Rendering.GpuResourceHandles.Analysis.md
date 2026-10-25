@@ -47,7 +47,7 @@ These rules apply to every row, including the reader and observer rows:
 
 ## Binding paths
 
-The binding increment in [CommandPublication](Rendering.CommandPublication.todo) implements these
+The binding increment in CommandPublication (`3f307365:docs/Rendering.CommandPublication.todo`) implements these
 repairs; the rows below retain the original source baseline for comparison. Controlled selector
 transitions now retain inputs without post-bind queries. EBO commands retain per-VAO facts independently
 of revision publication. Known framebuffer scopes no longer issue binding getters, while cold
@@ -216,8 +216,8 @@ These extend the checklist rather than hiding additional work in a generic catch
 ## Architectural decision inputs
 
 The discussion below records the questions raised by this analysis. The resulting
-[approved proposal](Rendering.CommandPublication.Proposal.md) and
-[implementation checklist](Rendering.CommandPublication.todo) now govern their resolution and repairs. The user subsequently approved controlled inputs/defaults/
+approved proposal (`3f307365:docs/Rendering.CommandPublication.Proposal.md`) and
+implementation checklist (`3f307365:docs/Rendering.CommandPublication.todo`) now govern their resolution and repairs. The user subsequently approved controlled inputs/defaults/
 derivations with existing failure handling rather than universal post-command verification. Historical
 readback recommendations above are evidence of the reviewed implementation, not requirements to retain
 those reads. The proposal now maps each method/family to its narrowed disposition.
@@ -246,7 +246,7 @@ implicitly selected. Repairs remain ordered binding first, acquisition second, s
 
 The original rows above retain their measured baseline. The following reconciliation maps every
 named acquisition/observer/binding finding to the implementation; verification receipts are recorded
-in [the command-publication checklist](Rendering.CommandPublication.todo). Preparation consumes supplied
+in the command-publication checklist (`3f307365:docs/Rendering.CommandPublication.todo`). Preparation consumes supplied
 metadata; its caller owns any required acquisition.
 
 | Analyzed entry points | Implemented disposition and evidence families |
@@ -279,7 +279,8 @@ metadata; its caller owns any required acquisition.
 
 Source tracing, second review and independent completion audit are complete. Every named task and
 additional entry point has a disposition above; phase 4d is complete. Architecture approval is recorded
-in the linked proposal; runtime repairs remain delegated by Phase 4f to the CommandPublication checklist.
+in the retained proposal; the command-publication repairs are implemented. Integrated qualification and
+its evidence limits are recorded in Phase 6 of the parent checklist.
 The phase 4d independent audit verified all 803 recorded source/binary identities against the files at
 that review. [Probe receipts](../artifacts/gpu-resource-phase4d/README.md),
 [counts](../artifacts/gpu-resource-phase4d/counts.json),

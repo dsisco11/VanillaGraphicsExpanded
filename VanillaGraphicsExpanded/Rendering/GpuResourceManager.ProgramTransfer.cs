@@ -13,6 +13,7 @@ internal sealed partial class GpuResourceManager
     internal static GpuProgramMetadata RequireProgramSnapshot(GpuProgramObject source)
     {
         ObjectDisposedException.ThrowIf(!source.IsValid, source);
+        RequireWrapperMetadataAccess(source);
         StateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Program, source.ProgramId);
         if (source.ResourceManager?.GetResourceRegistration(source) is { } entry
             && !entry.Manager.IsResourceMetadataAvailable(source))

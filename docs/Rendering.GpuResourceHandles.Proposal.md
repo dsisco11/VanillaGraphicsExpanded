@@ -4,7 +4,7 @@ Status: approved direction, reconciled with the manager-owned metadata design. I
 [Rendering.GpuResourceHandles.todo](Rendering.GpuResourceHandles.todo). This is a design contract, not
 an assertion that the runtime migration is implemented.
 
-The approved [command-publication refinement](Rendering.CommandPublication.Proposal.md) controls
+The approved command-publication refinement (`3f307365:docs/Rendering.CommandPublication.Proposal.md`) controls
 creation and query policy: controlled inputs/defaults/derivations are authoritative under existing
 failure handling; external unknown facts and specifically justified outputs are acquired. No universal
 post-command verification or duplicate requested/actual metadata cache is required.
@@ -29,7 +29,7 @@ supported native deletion commands and preserves their binding/restoration effec
 [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) redirects exact
 supported GL signatures within the owner boundary below. Cloud and depth consumers retain non-owning
 typed wrappers for stable native selections and share owned material depth directly. Integrated
-qualification remains tracked in the implementation checklist.
+qualification and its evidence limits are recorded in the implementation checklist.
 
 ## Responsibilities
 

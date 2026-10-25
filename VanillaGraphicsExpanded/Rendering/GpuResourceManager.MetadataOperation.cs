@@ -98,6 +98,9 @@ internal sealed partial class GpuResourceManager
                 || entry is not null && (!entry.Manager.IsRegistered(entry)
                     || entry.State != GpuResourceRegistrationState.Live))
                 throw new InvalidOperationException("The original operation is no longer available for completion.");
+            // Preserve terminal-operation rejection above, then recheck affinity before
+            // a participating dispatch or commit that could still use the live identity.
+            entry?.Manager.RequireMetadataContext();
         }
         #endregion
 

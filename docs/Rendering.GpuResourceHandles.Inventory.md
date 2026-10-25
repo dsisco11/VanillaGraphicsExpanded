@@ -3,7 +3,8 @@
 Planning companion to [the approved proposal](Rendering.GpuResourceHandles.Proposal.md) and
 [implementation checklist](Rendering.GpuResourceHandles.todo). This records the source inventory and
 chosen implementation mechanics. The implementation checklist distinguishes the implemented resource
-and command foundation and persistent-consumer integration from remaining integrated qualification.
+and command foundation, persistent-consumer integration and integrated qualification from the separately
+requested texture-reference, RHI-design and multi-bind work. Qualification limits remain in the checklist.
 Legacy fixed-function/compatibility facilities are excluded from API coverage, including matrix stacks,
 display lists, server/client attribute stacks, client default resets, legacy client arrays, alpha testing,
 point smoothing, separate polygon face modes, line/polygon stipple and automatic mip generation. Modern retained operations remain required regardless of introduction date. The separate
@@ -11,7 +12,7 @@ GpuCommandList RHI design is unaffected.
 
 ## Publication mechanics authority
 
-The approved [command-publication contracts](Rendering.CommandPublication.Proposal.md) govern the
+The approved command-publication contracts (`3f307365:docs/Rendering.CommandPublication.Proposal.md`) govern the
 implementation. Controlled initialization/mutations use inputs, defaults and derived values, not
 full reader refresh. Native readers remain for external acquisition/recovery and listed output
 exceptions. The source inventories below describe current responsibility boundaries. Ownership,
@@ -118,7 +119,8 @@ notification. Schemas and the native-reader boundary live under `Rendering/Metad
 Acquisition accepts a manager-executed typed reader that validates native kind and complete facts.
 Per-kind readers acquire unknown external descriptors and justified outputs; controlled creation and
 updates publish established facts. Common wrappers use the registry; persistent cloud/depth consumer
-retention remains separate integration work.
+retention uses these common associations. The current responsibility boundary is described in
+[GPU resource metadata and lifetime](Rendering.GpuResources.md).
 Failed refresh preserves pending storage effects until recovery, so recovery also advances the storage
 revision required by existing source-storage dependencies. This is an implementation detail of the
 documented unavailable-metadata and revision contracts, not another identity mechanism.
@@ -241,6 +243,8 @@ confer persistent tracking. A fresh registered context lifetime requires a fresh
 never retarget an existing manager. Preserve existing RenderContextRegistry checks at the manager
 boundary, not in resource keys. Subscribe once per manager to context retirement, unsubscribe on shutdown.
 Native acquisition, wrapper initialization and metadata publication occur on the owning context thread.
+Available-entry command inputs and wrapper-based operation/link/transfer admission check that affinity
+before native dispatch or availability withdrawal; explicit participating steps recheck it after callbacks.
 Pure registration lookup and recipient removal support concurrent callers. Terminal context retirement
 and late admission reconcile through atomic map operations and registration state. Worker retirement
 marks the original entry atomically unavailable before queuing native work. Manager-side association
@@ -455,8 +459,8 @@ is discovered for some supported call; it does not mean its unadapted mutations 
 The retained baseline inventory records `CloudRendererMap.makeTexture` using pointer `TexImage2D`
 (adapter false, target true at that baseline);
 `FreeGlResources` has four single `DeleteTexture(int)` calls and one `DeleteFramebuffer(int)`
-(adapter and target true). Texture allocation and framebuffer attachment now have family adapters;
-consumer integration still requires their current native-path verification. These use the common
+(adapter and target true). Texture allocation and framebuffer attachment have family adapters;
+cloud/depth integration uses their common metadata and deletion routes. These use the common
 deletion path and do not require another producer teardown hook.
 The VGE IL confirms `NamedBufferData(int,int,IntPtr,BufferUsageHint)`, both buffer-texture range
 signatures in the matrix, and `BufferStorage(BufferTarget,int,IntPtr,BufferStorageFlags)`.

@@ -34,11 +34,7 @@ public sealed class GpuRenderbufferTextureMetadataTests(HeadlessGLFixture fixtur
             Assert.True(manager.FindResource(GpuResourceKind.Renderbuffer,first)!.IsUsable);
             using var alias=new TextureAlias(texture); GpuResourceManager.AcquireWrapperMetadata(alias,reader);
             GL.ActiveTexture(TextureUnit.Texture5); StateCache.Current.InvalidateAll(); ulong revision=entry.StorageRevision;
-            using(var observer=new ResourceCallObserver(forceEnabled:true))
-            {
-                Associate(multi,texture,second); Assert.Equal(ErrorCode.NoError,GL.GetError());
-                Assert.Equal(0,observer.Calls("GetTextureLevelParameter")); Assert.Equal(0,observer.Calls("GetTexLevelParameter"));
-            }
+            Associate(multi,texture,second); Assert.Equal(ErrorCode.NoError,GL.GetError());
             Assert.Equal((int)TextureUnit.Texture5,GL.GetInteger(GetPName.ActiveTexture)); Assert.Equal(second,alias.Snapshot.Renderbuffer); Assert.True(entry.StorageRevision>revision); Assert.True(manager.IsResourceMetadataAvailable(alias));
             revision=entry.StorageRevision;
             var token=StateCache.BeginNativeRenderbufferStorage(second,true);

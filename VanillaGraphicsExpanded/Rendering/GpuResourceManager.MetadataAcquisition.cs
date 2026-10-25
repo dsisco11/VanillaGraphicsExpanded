@@ -6,6 +6,14 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class GpuResourceManager
 {
     #region Internal API
+    /// <summary>Checks original tracked identity and context before wrapper-based execution or ownership transfer.</summary>
+    internal static void RequireWrapperMetadataAccess(GpuResource resource)
+    {
+        ObjectDisposedException.ThrowIf(resource.IsDisposed, resource);
+        if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
+            manager.RequireOriginalWrapper(resource);
+    }
+
     /// <summary>Initializes an existing allocation through its canonical entry or a context-local native read.</summary>
     internal static void AcquireWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader) where T : struct
     {
@@ -81,8 +89,20 @@ internal sealed partial class GpuResourceManager
     /// <summary>Allows new context-local objects after service retirement without reviving old associations.</summary>
     private bool CanAcquireWrapperMetadata(GpuResource resource)
     {
-        if (Integration.RenderContextRegistry.Current() == default) return false;
-        if (!IsMetadataRegistryRetired) return true;
+        if (Integration.RenderContextRegistry.Current() == default)
+        {
+            // A tracked wrapper cannot become a context-local object merely because its
+            // originating namespace is no longer current. Reject before reads or dispatch.
+            if (GetResourceRegistration(resource) is not null) RequireMetadataContext();
+            return false;
+        }
+        if (!IsMetadataRegistryRetired)
+        {
+            // Available snapshots skip acquisition, but not native context/thread admission.
+            // Every caller must pass this gate before withdrawing facts or issuing commands.
+            RequireMetadataContext();
+            return true;
+        }
         // A retired service may still be installed while a replacement context creates objects.
         // Such new objects use native reads, but existing recipients retain their terminal identity.
         if (GetResourceRegistration(resource) is not null)

@@ -12,6 +12,7 @@ internal sealed partial class StateCache
     internal void SubmitProgramLink(GpuProgramObject program)
     {
         ObjectDisposedException.ThrowIf(!program.IsValid, program);
+        GpuResourceManager.RequireWrapperMetadataAccess(program);
         RequireResourceOperationAvailable(GpuResourceKind.Program, program.ProgramId);
         if (program.ResourceManager?.GetResourceRegistration(program) is GpuResourceMetadataEntry<GpuProgramMetadata> entry
             && (entry.OperationInProgress || entry.CompletionInProgress))

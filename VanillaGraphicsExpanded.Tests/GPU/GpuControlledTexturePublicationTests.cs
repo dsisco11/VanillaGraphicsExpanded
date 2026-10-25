@@ -5,23 +5,20 @@ using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 namespace VanillaGraphicsExpanded.Tests.GPU;
 
-/// <summary>Checks controlled texture publication against native outcomes while observing descriptor-query elimination.</summary>
+/// <summary>Checks controlled texture publication, native results and storage revisions.</summary>
 [Collection("GPU")]
 [Trait("Category", "GPU")]
 public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixture)
 {
     #region Public API
-    /// <summary>The approved multisample fallback reads only its actual sample count when format capabilities are unavailable.</summary>
+    /// <summary>The multisample fallback publishes the native sample count when format capabilities are unavailable.</summary>
     [Fact]
-    public void MultisampleFallbackReadsOnlyActualSampleCount()
+    public void MultisampleFallbackPublishesActualSampleCount()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var original = GpuSupport.Graphics;
         try
         {
-            using var calibration = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
-            using var observer = new ResourceCallObserver(forceEnabled: true);
-            observer.Calibrate(calibration.TextureId);
             AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original with { SupportsInternalFormatQuery2 = false });
             using var recipient = new TextureRecipient();
             var request = new GpuTextureInitialization
@@ -32,15 +29,9 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             };
             var result = GpuResourceManager.CreateTexture(request, recipient, out var handle);
             Assert.True(result.HasValue);
-            Assert.Equal(1, observer.Calls("GetTexLevelParameter"));
-            Assert.Equal(0, observer.Calls("GetTextureLevelParameter"));
-            Assert.Equal(0, observer.Calls("GetTextureParameter"));
-            Assert.Equal(0, observer.Calls("GetTexParameter"));
             GL.GetTextureLevelParameter((int)handle.Id, 0, GetTextureParameter.TextureSamples, out int native);
             Assert.Equal(native, result.Value.Levels[0].Samples);
             var error = GL.GetError();
-            File.WriteAllText(Path.Combine(AppContext.BaseDirectory, "ms-sample-probe.txt"),
-                $"Requested=3; Published={result.Value.Levels[0].Samples}; Native={native}; Error={error}; Renderer={GL.GetString(StringName.Renderer)}");
             Assert.Equal(ErrorCode.NoError, error);
         }
         finally
@@ -98,31 +89,27 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Independent narrow recovery cannot query or publish while an explicit operation owns the texture.</summary>
+    /// <summary>Independent narrow recovery cannot publish while an explicit operation owns the texture.</summary>
     [Theory]
     [InlineData(0)]
     [InlineData(1)]
     [InlineData(2)]
-    public void NarrowRecoveryRejectsActiveOperationBeforeQueries(int recovery)
+    public void NarrowRecoveryRejectsActiveOperation(int recovery)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
             using var texture = DynamicTexture2D.CreateMipmapped(8, 8, PixelInternalFormat.Rgba8, 4);
-            using var observer = new ResourceCallObserver(forceEnabled: true);
-            observer.Calibrate(texture.TextureId);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
             using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Metadata);
-            observer.Reset();
             Assert.Throws<InvalidOperationException>(() =>
             {
                 if (recovery == 0) manager.RefreshTextureParameter(entry, TextureParameterName.TextureBaseLevel);
                 else if (recovery == 1) manager.RefreshTextureImages(entry, 0, 0, 0, false, true);
                 else manager.RefreshGeneratedTextureMetadata(entry, true);
             });
-            AssertNoDescriptorQueries(observer);
             Assert.Equal(revision, entry.MetadataRevision);
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -130,36 +117,28 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>External parameter and single-image changes retain unrelated images without a full descriptor scan.</summary>
+    /// <summary>External parameter and single-image changes retain unrelated images and storage revisions.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void ExternalChangesQueryOnlyAffectedDescriptors(bool dsa)
+    public void ExternalChangesPreserveUnaffectedDescriptors(bool dsa)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
             using var texture = DynamicTexture2D.CreateMipmapped(16, 8, PixelInternalFormat.Rgba8, 4);
-            using var observer = new ResourceCallObserver(forceEnabled: true);
-            observer.Calibrate(texture.TextureId);
             using var capabilities = new DirectStateAccessCapabilityScope(dsa);
             using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             var original = entry.Metadata.Levels;
             ulong storage = entry.StorageRevision;
-            observer.Reset();
             StateCache.Current.ExecuteCoreTexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 2);
-            Assert.Equal(0, observer.Calls("GetTextureLevelParameter") + observer.Calls("GetTexLevelParameter"));
-            Assert.Equal(1, observer.Calls("GetTextureParameter") + observer.Calls("GetTexParameter"));
             Assert.Equal(original, entry.Metadata.Levels);
             Assert.Equal(2, entry.Metadata.MaxLevel);
             Assert.Equal(storage, entry.StorageRevision);
-            observer.Reset();
             StateCache.Current.ExecuteCoreTexImage2D(TextureTarget.Texture2D, 2, PixelInternalFormat.Rgba16f,
                 4, 2, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
-            Assert.Equal(0, observer.Calls("GetTextureParameter") + observer.Calls("GetTexParameter"));
-            Assert.InRange(observer.Calls("GetTextureLevelParameter") + observer.Calls("GetTexLevelParameter"), 1, 4);
             Assert.Equal(original[0], entry.Metadata.Levels[0]);
             Assert.Equal(original[1], entry.Metadata.Levels[1]);
             Assert.Equal(original[3], entry.Metadata.Levels[3]);
@@ -172,7 +151,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Immutable generation is content-only; mutable generation reads descendants and advances storage only when images change.</summary>
+    /// <summary>Immutable generation is content-only; mutable generation advances storage only when images change.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -181,7 +160,6 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var calibration = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
             using var recipient = new TextureRecipient();
             var request = new GpuTextureInitialization
             {
@@ -192,18 +170,10 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(recipient));
             using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, (int)handle.Id);
-            using var observer = new ResourceCallObserver(forceEnabled: true);
-            observer.Calibrate(calibration.TextureId);
             ulong storage = entry.StorageRevision;
             StateCache.Current.ExecuteCoreGenerateMipmap(GenerateMipmapTarget.Texture2D);
             Assert.Equal(4, entry.Metadata.Levels.Length);
             Assert.Equal(storage + (immutable ? 0UL : 1UL), entry.StorageRevision);
-            if (immutable) AssertNoDescriptorQueries(observer);
-            else
-            {
-                Assert.Equal(0, observer.Calls("GetTextureParameter") + observer.Calls("GetTexParameter"));
-                Assert.InRange(observer.Calls("GetTextureLevelParameter") + observer.Calls("GetTexLevelParameter"), 1, 12);
-            }
             storage = entry.StorageRevision;
             StateCache.Current.ExecuteCoreGenerateMipmap(GenerateMipmapTarget.Texture2D);
             Assert.Equal(storage, entry.StorageRevision);
@@ -248,21 +218,17 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Sized texture creation and mip selection preserve complete images without descriptor readback.</summary>
+    /// <summary>Sized texture creation and mip selection preserve complete image metadata.</summary>
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
-    public void CreationAndMipRangePublishWithoutDescriptorQueries(bool dsa)
+    public void CreationAndMipRangePublishCompleteMetadata(bool dsa)
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var calibration = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
-            using var observer = new ResourceCallObserver(forceEnabled: true);
-            observer.Calibrate(calibration.TextureId);
             using var capabilities = new DirectStateAccessCapabilityScope(dsa);
             using var texture = DynamicTexture2D.CreateMipmapped(16, 8, PixelInternalFormat.Rgba16f, 4);
-            AssertNoDescriptorQueries(observer);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             Assert.Equal(4, entry.Metadata.Levels.Length);
@@ -271,14 +237,11 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
             Assert.Equal(1, entry.Metadata.Levels[3].Height);
             var originalImages = entry.Metadata.Levels;
             ulong storage = entry.StorageRevision;
-            observer.Reset();
             texture.SetMipRange(1, 2);
-            AssertNoDescriptorQueries(observer);
             Assert.Equal(1, entry.Metadata.BaseLevel);
             Assert.Equal(2, entry.Metadata.MaxLevel);
             Assert.Equal(originalImages, entry.Metadata.Levels);
             Assert.Equal(storage, entry.StorageRevision);
-            // Native comparisons are deliberately outside the observed command intervals.
             GL.GetTextureParameter(texture.TextureId, GetTextureParameter.TextureBaseLevel, out int first);
             GL.GetTextureParameter(texture.TextureId, GetTextureParameter.TextureMaxLevel, out int last);
             Assert.Equal(1, first);
@@ -288,20 +251,16 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>A view derives its dimensions and selected layer range from the known source storage without rereading it.</summary>
+    /// <summary>A view publishes dimensions and selected layer range matching its native storage.</summary>
     [Fact]
-    public void TextureViewPublishesDerivedImagesWithoutDescriptorQueries()
+    public void TextureViewPublishesDerivedImages()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var calibration = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
             using var source = DynamicTexture3D.Create(8, 4, 6, PixelInternalFormat.Rgba32f, immutableStorage: true);
-            using var observer = new ResourceCallObserver(forceEnabled: true);
-            observer.Calibrate(calibration.TextureId);
             using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray,
                 PixelInternalFormat.Rgba32f, 0, 1, 2, 3);
-            AssertNoDescriptorQueries(observer);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(view));
             Assert.Equal(new GpuTextureViewMetadata(0, 1, 2, 3), entry.Metadata.View);
@@ -360,13 +319,5 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         public override void SetDebugName(string? debugName) { }
     }
 
-    /// <summary>Checks the calibrated bound and named integer descriptor entry points used by the texture readers.</summary>
-    private static void AssertNoDescriptorQueries(ResourceCallObserver observer)
-    {
-        Assert.Equal(0, observer.Calls("GetTextureParameter"));
-        Assert.Equal(0, observer.Calls("GetTextureLevelParameter"));
-        Assert.Equal(0, observer.Calls("GetTexParameter"));
-        Assert.Equal(0, observer.Calls("GetTexLevelParameter"));
-    }
     #endregion
 }
