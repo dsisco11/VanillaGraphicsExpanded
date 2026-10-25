@@ -1,7 +1,8 @@
 Command execution and metadata publication
 
-Status: Phases 1, 2 and 2a complete after second review and independent completion audit.
-The narrower command-result policy is approved. Binding repairs and DEBUG-only diagnostics are implemented; Phases 3–9 remain open.
+Status: Phases 1, 2, 2a, 3 and 3a complete after second review and independent completion audit.
+The narrower command-result policy is approved. Binding repairs, DEBUG-only diagnostics and the shared
+creation/publication boundary and explicit operation ownership are implemented; Phases 4–9 remain open.
 Source: [approved proposal](Rendering.CommandPublication.Proposal.md).
 Inherited contracts: [resource design](Rendering.GpuResourceHandles.Proposal.md),
 [inventory](Rendering.GpuResourceHandles.Inventory.md), [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
@@ -18,7 +19,7 @@ Scope and ordering
   This checklist is the authoritative implementation sequence delegated by parent Phase 4f.
   The parent records architectural approval and gates later consumer integration on this entire checklist.
   Phase 1 defines the settled contracts; Phase 2 repairs bindings; Phase 2a confines diagnostic counters
-  to DEBUG builds; Phases 3–7 implement creation,
+  to DEBUG builds; Phases 3–7 (including 3a) implement creation,
   publication and acquisition; Phase 8 handles supplied-metadata preparation; Phase 9 qualifies the whole.
   Parent phase markers are not prerequisites for individual child phases or separate implementation tasks.
   Completion evidence lives here; parent consumer/integrated qualification remains later.
@@ -176,42 +177,133 @@ Phase 2a: Confine rendering diagnostic counters to DEBUG builds
   outputs match. See artifacts/profiler-noop-package-identity.json.
 
 Phase 3: Establish manager creation and publication machinery
-  Depends on Phase 2a. Sources: proposal Responsibilities, Initialization and Transactions; inventory
+  Depends on Phase 2a. Sources: proposal Responsibilities, Initialization and Operation-owned publication; inventory
   manager API, publication and lifecycle contracts. Outcome: one reusable creation/publication boundary.
 
-  ☐ Separate available lookup from native acquire/recover and established-result publication in
+  ☑ Separate available lookup from native acquire/recover and established-result publication in
     AcquireResource, AcquireWrapperMetadata, ObserveWrapperMetadata, PublishObservedMetadata,
     RefreshMetadata and PublishMetadata. Remove default forced-refresh ambiguity without bypassing
     genuinely unavailable state. Preserve canonical revisions, original association and weak recipients.
-  ☐ Move native binding-fact acquisition from GpuVertexAttribBinding constructors/RequireCurrentFacts
+  ☑ Move native binding-fact acquisition from GpuVertexAttribBinding constructors/RequireCurrentFacts
     into the GpuResourceManager acquisition/recovery system and its native readers. The helper must not
     call GL.GetVertexArrayIndexed or GL.GetVertexArrayIndexed64 directly. Acquire only requested unknown
     buffer/offset/stride/divisor fields, retain established command results and preserve native-width offsets.
     Use the same manager-owned boundary for registered resources and context-local tools. Preserve original
     owner/context checks, availability, stale-copy detection and non-DSA stale-helper rejection without
     adding a full VAO layout mirror, second registry or canonical metadata writes in the helper.
-  ☐ Implement the agreed initialization-record conventions and nullable creation result/handle protocol.
+  ☑ Implement the agreed initialization-record conventions and nullable creation result/handle protocol.
     Canonical structs remain output-only and flag-free; setters track intent automatically. Empty records
     and non-null empty metadata are valid where the resource has no optional inputs/represented facts.
-  ☐ Implement manager-owned creation commit, association and typed snapshot delivery, including local tools.
+  ☑ Implement manager-owned creation commit, association and typed snapshot delivery, including local tools.
     Failure cleans newly owned native objects/provisional entries, clears the output handle and leaves
     borrowed dependencies intact. Preserve required exceptions, ownership, detach and retirement behavior.
-  ☐ Move begin/complete pairing inside explicit command methods where execution is immediate. Capture
+  ☑ Move begin/complete pairing inside explicit command methods where execution is immediate. Capture
     original identity only where needed; simple selectors do not require heap transaction objects.
     Introduce no mandatory per-call closure allocations or generic string/reflection dispatch.
-  ☐ Coordinate grouped initialization/updates by original manager entry, not individual wrapper. Suppress
+  ☑ Coordinate grouped initialization/updates by original manager entry, not individual wrapper. Suppress
     repeated acquisition and double publication across aliases; publish coherent results only. Interrupted
     groups leave affected facts unavailable while preserving unrelated established facts.
-  ☐ Have subagents verify assignment masks, omission/zero/false, conditional defaults, nullable success and
+  ☑ Have subagents verify assignment masks, omission/zero/false, conditional defaults, nullable success and
     failure, handoff failure, cleanup, alias groups, reentrancy, context retirement and exactly-once delivery.
     Verify manager-owned vertex-binding acquisition for registered/local resources, field-specific recovery,
     query-free established facts, DSA/fallback behavior, unavailable facts and deletion/name reuse.
-  ☐ Completion: the common boundary is verified; family migrations can use it without inventing their
+  ☑ Completion: the common boundary is verified; family migrations can use it without inventing their
     own acquisition, publication or failure protocols. Existing consumers remain functional during migration.
     GpuVertexAttribBinding contains no native query machinery; its missing facts come through the manager.
 
+  Second source review and independent completion audit passed with no unresolved current-phase findings.
+  Verification: Debug passed 637/637 affected cases, including the 149-case focused foundation group.
+  The exact canonical Release runtime passed the same 637/637 and 149/149 groups with the existing
+  test-hook process settings COMPlus_JitNoInline=1 and COMPlus_TieredCompilation=0; no skipped cases.
+  All 57 new foundation cases also passed against that runtime in the normal Release process.
+  Ordinary Release's initial focused run passed 147/149: two unchanged direct-OpenTK Harmony
+  fault-injection fixtures did not execute their prefixes, also reproduced cold. This is an explicit
+  test-hook/JIT qualification limit, not a clean default-process suite claim or an instrumented Release build.
+  Canonical ./build.ps1 --configuration=Release --spirv=true passed without those test process settings.
+  Tested/published/packaged runtime SHA-256: 598C3AFEC11F20988FA78B00E772EDEAA53E4A8C7AA4E2FCFA9C6D5A71150735.
+  All 761 packaged SPIR-V files match both canonical producer and tested assets; dependency hashes
+  are unchanged and frozen source drift is zero. Receipts: artifacts/command-publication-phase3-results,
+  canonical-package-identity.json, final-source.sha256, commands-and-limits.txt and the referenced TRX files.
+  The canonical runtime was retested directly because its hash differs from the isolated build;
+  the package identity claim applies to that exact tested artifact.
+
+  Traceability: lookup/recovery and vertex acquisition -> proposal Responsibilities/Separate operations,
+  inventory Manager API, analysis acquisition/binding rows and API V1; creation and assignment intent ->
+  proposal Initialization records/Creation handoff; grouped publication/cleanup -> proposal Operation-owned publication (replacement tracked in Phase 3a),
+  inherited lifecycle/revision/weak-recipient contracts and API L1. These map to the registry tests,
+  new initialization/creation/group/vertex foundation tests and affected recovery/lifecycle regressions.
+  The shared boundary and representative records are established; family-specific creation/default
+  resolution and elimination of existing command recovery readers remain in Phases 4–7.
+  Headless results do not establish live appearance, frame-time improvement or hardware without DSA.
+
+Phase 3a: Replace ambient groups with operation-owned publication
+  Depends on Phase 3. Sources: proposal Operation-owned publication and Shared commit and interruption
+  contract. The completed Phase 3 receipts describe the earlier implementation; they do not qualify this
+  replacement. This phase supersedes its automatic nested/alias grouping contract. Complete before Phase 4.
+
+  ☑ Replace GpuResourceManager.MetadataGroups.cs, MetadataGroup<T>/Lease, entry.ActiveUpdate and the
+    thread-local localMetadataGroups lookup with narrowly scoped operation-owned state. Preserve original
+    entry/context identity, affected availability, combined effects and exactly-once commit/failure handling.
+    Share the contract for registered and context-local resources through existing manager services.
+  ☑ Make PublishMetadata/PublishObservedMetadata commit complete supplied candidates unconditionally with
+    respect to grouping; make RefreshMetadata/ObserveWrapperMetadata explicit recovery paths. Remove
+    hidden stage/defer branches in publication, acquisition and texture generation. A busy guard may reject
+    access/reentry but must not act as an ambient collector or second resource registry.
+  ☑ Move ownership of Allocate2DStorage, layered allocation, SetMipRange and framebuffer attachment-update
+    sequences from wrapper-held BeginTextureStorageUpdate/BeginTextureMetadataUpdate/
+    BeginFramebufferAttachmentUpdate leases into explicit StateCache operations. Preserve wrapper policy,
+    owning APIs, DSA/fallback behavior and binding restoration. Internal steps receive operation state
+    explicitly and contribute facts/effects without independent publication; wrappers do not author metadata.
+  ☑ Keep newly created resources unpublished until the existing CreateResource handoff commits a complete
+    result. Do not introduce alias groups for creation or pull family-specific initialization migrations
+    forward from Phases 4–6. Preserve nullable failures, cleanup and borrowed-dependency ownership.
+  ☑ Reject unrelated same-resource reentrant mutations, including alias calls, before native dispatch.
+    Explicitly participating nested steps share failure state; a caught participating failure still prevents
+    commit. Deletion/context retirement cancels original completion; reused IDs cannot redirect it.
+    Preserve unrelated bindings and independent resource outcomes; do not roll back native commands.
+  ☑ Keep texture generation/query policy in its operation and framebuffer reconciliation/dependency
+    notification in manager services. Remove resource-specific branches and reader selection from shared
+    commit machinery. For unmigrated families, invoke necessary existing readers explicitly in the owning
+    operation, at most once per complete result; no recovery-on-disposal or additional queries. Input-derived
+    family migrations remain Phases 4–7. Keep deferred linking under its separate existing owner.
+  ☑ Preserve manager-owned local snapshot discard and image invalidation on failure, combined revisions
+    and snapshot-before-notification ordering. Dispose only cleans bookkeeping; explicit success commits.
+    Publication failure must not retry native mutation or replace an original dispatch exception.
+  ☑ Replace tests requiring automatic alias-group joining with behavioral tests for explicit composition,
+    final alias delivery, pre-dispatch reentry rejection, caught nested failure, deletion/name reuse,
+    context retirement, local failure, exactly-once publication and recovery boundaries. Have subagents
+    run focused Debug/Release tests and relevant binding/resource regressions; verify dispatch/query counts
+    and canonical package identity, documenting existing Release observer limitations accurately.
+  ☑ Reconcile current-state inventory and affected architecture documentation after implementation; audit
+    source/callers for surviving ambient group dependencies. Obtain an independent completion audit.
+  ☑ Completion: explicit operations own coherent results; publication and recovery have stable meanings;
+    no ambient joining, thread-local group registry, generic reader fallback or wrapper-authored metadata
+    remains. Family migrations can build on the revised boundary; later tasks remain unchecked.
+
+  Second review and independent completion audit passed. Traceability: proposal Operation-owned publication
+  and Shared commit and interruption contract -> MetadataOperation, ResourceOperations, texture/FBO
+  command owners and explicit manager recovery services -> operation/context foundation tests and existing
+  texture/FBO publication, recovery and routing regressions. Inherited inventory/schema/lifecycle and
+  API T/F/L obligations retain original identity, alias delivery, storage effects and binding restoration.
+  Current-state inventory and inherited proposal/API wording are reconciled; family readers remain in 4–7.
+
+  Verification: 635/635 affected Debug tests passed; strengthened interruption assertions passed 2/2 after
+  their final test-only change. The exact canonical ordinary Release runtime passed 22/22 operation tests
+  in the normal process and 635/635 affected tests with existing process-only observer controls
+  COMPlus_JitNoInline=1 and COMPlus_TieredCompilation=0. Zero skips; no instrumented Release build or
+  default-process full-suite claim. Clear-only routing tests explicitly scope program zero and restore
+  incoming state; diagnostics established shared-fixture raw-program contamination, with no production
+  routing change. Context retirement tests use an isolated fixture; generation isolation does not claim
+  qualification on two simultaneous native contexts.
+  Canonical ./build.ps1 --configuration=Release --spirv=true passed. Tested/published/ZIP runtime SHA-256:
+  94945AC51B474C6830C594DA3D6DCAFC1B1DDDA8E3CB0B04CEA942B7D7E2267C.
+  All 761 packaged SPIR-V outputs match producer and tested assets; test dependencies are unchanged and
+  all 2,567 frozen source files have zero drift. Receipts: artifacts/command-publication-phase3a/
+  commands-and-limits.txt, canonical-package-identity.json and corresponding TRX/logs.
+  Headless verification does not establish live appearance or frame-time improvement.
+
 Phase 4: Migrate buffer and image creation and mutations
-  Depends on Phase 3. Sources: proposal Resource coverage; analysis readers/observers; API B1, T1–T4, R1, I1.
+  Depends on Phase 3a. Sources: proposal Resource coverage; analysis readers/observers; API B1, T1–T4, R1, I1.
   Each task includes input/default definition, accepted-result publication, failure cleanup and call-site migration.
 
   ☐ Implement GpuBufferInitialization -> GpuBufferMetadata for GpuBufferObject, GpuVbo, GpuEbo,
@@ -250,7 +342,7 @@ Phase 5: Migrate framebuffer and executable resource creation and publication
     keep attachment ownership/static locks, proven multiview semantics and independent routing intact.
   ☐ Refactor RequireNativeAttachment, ObserveFramebufferAttachment, BindFramebufferResource,
     PublishRenderPassMetadata, GpuFramebufferAttachmentDiscovery.Read and ReconcileAttachmentMetadata
-    to avoid targeted verification followed by a full scan. Coordinate attachment groups and dependencies.
+    to avoid targeted verification followed by a full scan. Use explicit operation-owned attachment composition and dependency publication.
     GpuFramebufferAttachment receives projected GpuImageMetadata; owned backing uses Phase 4 creation.
     Default framebuffer/surface metadata retains its separate publication path.
   ☐ Implement GpuShaderInitialization -> GpuShaderMetadata for GpuShaderModule: retain established fixed
@@ -301,7 +393,7 @@ Phase 7: Finish external acquisition, recovery and adapter migration
     GpuProgramMetadataReader: preserve unknown-state discovery while narrowing result reads. Avoid repeat
     context-local reads when established results suffice, without trusting stale snapshots after failure.
   ☐ Reconcile every remaining BeginNative*/Complete observer in the analysis with immediate internal
-    execution, grouped or deferred handling. Migrate exact compiler-checked adapters; preserve each allowed
+    execution, explicit operation composition or deferred handling. Migrate exact compiler-checked adapters; preserve each allowed
     overload, external dispatch/error behavior, per-object failure and no-content-only metadata work.
   ☐ Review CompleteResourceDeletion/WasResourceDeleted query policy separately from acquisition under
     Phase 1's contract. Preserve retained shader/program deletion semantics and old-association safety.

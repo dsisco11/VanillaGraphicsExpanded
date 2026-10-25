@@ -11,6 +11,8 @@ internal sealed partial class GpuResourceManager
     {
         RequireMetadataContext();
         RequireLiveEntry(entry);
+        if (entry.OperationInProgress) throw new System.InvalidOperationException("An operation owns this resource result.");
+        BeginMetadataCompletion(entry, GpuMetadataChange.None);
         entry.BeginRefresh(GpuMetadataChange.None);
         bool finished = false;
         bool notify = true;
@@ -22,6 +24,7 @@ internal sealed partial class GpuResourceManager
             // Compare native image facts rather than immutable-array instance identity.
             // Regeneration of existing levels changes pixels but does not replace storage.
             bool allocationChanged = !entry.Metadata.Levels.AsSpan().SequenceEqual(candidate.Levels.AsSpan());
+            RequireUninterruptedCompletion(entry);
             entry.Publish(candidate, allocationChanged ? GpuMetadataChange.Storage : GpuMetadataChange.None);
             notify = allocationChanged || !wasAvailable;
             finished = true;
@@ -29,6 +32,7 @@ internal sealed partial class GpuResourceManager
         }
         finally
         {
+            entry.CompletionInProgress = false;
             if (notify) entry.NotifyImageDependents(suppressErrors: !finished);
         }
     }

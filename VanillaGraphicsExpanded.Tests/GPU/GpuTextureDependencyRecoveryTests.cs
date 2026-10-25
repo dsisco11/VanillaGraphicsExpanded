@@ -74,21 +74,21 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Only an interrupted storage group retires views; interrupted parameter publication can recover.</summary>
+    /// <summary>Only an interrupted storage operation retires views; interrupted parameter publication can recover.</summary>
     [Theory]
     [InlineData(false, false)]
     [InlineData(false, true)]
     [InlineData(true, false)]
     [InlineData(true, true)]
-    public void InterruptedGroupPreservesOnlyMetadataIdentity(bool retiredManager, bool storage)
+    public void InterruptedOperationPreservesOnlyMetadataIdentity(bool retiredManager, bool storage)
     {
         PrepareContext(retiredManager);
         try
         {
             using var source = DynamicTexture3D.Create(4, 4, 2, PixelInternalFormat.Rgba8, immutableStorage: true);
             using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba8, 0, 1, 0, 1);
-            // An incomplete group cannot certify whether native storage commands executed before failure.
-            using (storage ? StateCache.Current.BeginTextureStorageUpdate(source) : StateCache.Current.BeginTextureMetadataUpdate(source)) { }
+            // An incomplete operation cannot certify whether native storage commands executed before failure.
+            using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata)) { }
             Assert.False(view.IsValid);
             source.SetMipRange(0, 0);
             Assert.Equal(4, source.Width);
@@ -106,7 +106,11 @@ public sealed class GpuTextureDependencyRecoveryTests(HeadlessGLFixture fixture)
         using var source = DynamicTexture3D.Create(4, 4, 2, PixelInternalFormat.Rgba8, immutableStorage: true);
         using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba8, 0, 1, 0, 1);
         var before = source.StorageImages;
-        using (var update = StateCache.Current.BeginTextureStorageUpdate(source)) update.Complete();
+        using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, GpuMetadataChange.Storage))
+        {
+            Assert.True(new GpuTextureMetadataReader(source.TextureTarget).TryRead(source.TextureId, out var candidate));
+            operation.Commit(candidate);
+        }
         Assert.True(before.SequenceEqual(source.StorageImages));
         Assert.False(view.IsValid);
         Assert.Equal(ErrorCode.NoError, GL.GetError());

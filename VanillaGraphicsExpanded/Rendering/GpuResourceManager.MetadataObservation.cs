@@ -36,25 +36,13 @@ internal sealed partial class GpuResourceManager
         }
     }
 
-    /// <summary>Withdraws an unfinished command group without reading or publishing its partial native state.</summary>
-    internal static void FailWrapperMetadataUpdate<T>(GpuResource<T> resource, GpuMetadataChange change) where T : struct
-    {
-        if (resource.ResourceManager?.GetResourceRegistration(resource) is GpuResourceMetadataEntry<T> entry)
-        {
-            // Group admission already withdrew availability. Notify every image consumer now,
-            // preserving any exception that caused the caller to abandon the command group.
-            entry.NotifyImageDependents(suppressErrors: true);
-            entry.NotifyFramebufferDependents(resource);
-        }
-        else DiscardUntrackedMetadata(resource, change);
-    }
-
-    /// <summary>Refreshes aliases after StateCache executes a native command, including rejected operations.</summary>
+    /// <summary>Explicitly recovers complete native facts after existing commands; established-result publication uses PublishObservedMetadata.</summary>
     internal static void ObserveWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader,
         GpuMetadataChange change) where T : struct
     {
         if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
         {
+            manager.RequireOriginalWrapper(resource);
             var entry = manager.RegisterCreatedResource(resource.Kind, resource.ResourceId, reader);
             if (!ReferenceEquals(manager.GetResourceRegistration(resource), entry)) manager.AssociateResource(entry, resource);
             try
@@ -70,6 +58,7 @@ internal sealed partial class GpuResourceManager
             }
             return;
         }
+        StateCache.Current.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
         T data;
         try
         {
@@ -93,11 +82,18 @@ internal sealed partial class GpuResourceManager
     {
         if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
         {
+            manager.RequireOriginalWrapper(resource);
             var entry = manager.RegisterCreatedResource<T>(resource.Kind, resource.ResourceId);
             if (!ReferenceEquals(manager.GetResourceRegistration(resource), entry)) manager.AssociateResource(entry, resource);
             manager.PublishMetadata(entry, data, change);
         }
-        else resource.HandleMetadataChanged(data);
+        else
+        {
+            StateCache.Current.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
+            if ((change & GpuMetadataChange.Storage) != 0 && resource is GpuTexture texture)
+                texture.UntrackedStorageIdentity = new();
+            resource.HandleMetadataChanged(data);
+        }
     }
 
     #endregion

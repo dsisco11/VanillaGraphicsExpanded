@@ -86,8 +86,11 @@ only at a completed publication boundary.
 The out handle starts invalid and becomes valid only after the handoff completes. The returned
 metadata is the same committed snapshot; the wrapper tests success rather than assigning it again.
 If allocation, association or delivery fails, rollback removes provisional delivery membership and
-registration, clears any newly installed wrapper identity, and retires only the new owned native
-object through StateCache in the original context. Required exceptions still propagate after cleanup.
+wrapper association, clears any newly installed wrapper identity, and retires only the new owned native
+object through StateCache in the original context. Immediate cleanup removes the provisional entry.
+Deferred cleanup retains only its unavailable retiring identity in the existing registry until the
+original-context deletion queue drains or that context retires; it cannot deliver metadata or adopt
+a replacement name. Required exceptions still propagate after cleanup.
 Borrowed backing objects are never part of that cleanup. Replacement must use the existing explicit
 retirement/replacement path; creation cannot overwrite a live or retired original association.
 
@@ -358,56 +361,65 @@ claims that migration has occurred.
 | TryGetBufferBindingQuery, BindFramebufferScope, BindScopeTracker, BindBufferScope, BindTextureScope, CaptureBoundaryBindings | Correct atomic-counter binding token; reuse known selections and query only unknown state. Restore separate read/draw FBO and original context state. |
 | GpuVertexAttribBinding constructors, BindVertexBuffer, SetDivisor, RequireCurrentFacts | Retain supplied current helper fields and original owner/revision. Query unknown fields only; preserve stale fallback rejection. |
 | BindFramebufferResource, PublishRenderPassMetadata, GpuFramebufferAttachmentDiscovery.Read, ReconcileAttachmentMetadata | Fresh FBO starts empty without scan. External discovery produces one reusable descriptor/backing set; do not scan again during publication/reconciliation. |
-| BeginTextureStorageUpdate, BeginTextureMetadataUpdate, BeginFramebufferAttachmentUpdate, MetadataUpdate.Dispose | Apply group contract below. Collect command facts instead of running a full reader on disposal. |
+| BeginTextureStorageUpdate, BeginTextureMetadataUpdate, BeginFramebufferAttachmentUpdate, MetadataUpdate.Dispose | Replace ambient scopes with operation-owned execution and explicit internal participation as described below. Collect command facts; do not recover on disposal. |
 | GpuPreparedBindings constructor, ReadBlocks | Validate supplied complete metadata only; acquisition belongs to the caller. |
 
-## Where transactions are still useful
+## Operation-owned publication
 
-Allocation loops and attachment groups should coordinate through the original manager entry, so
-aliases participate in the same update. Accumulate affected facts and publish a coherent snapshot at
-successful completion; interruption leaves affected metadata unavailable. Internal grouping must avoid
-both repeated readback and duplicate notifications.
+Each meaningful operation owns execution and construction of its complete metadata result. Wrappers
+request operations; StateCache owns native dispatch and command-derived facts; GpuResourceManager owns
+canonical publication and recipient/dependency notifications. Wrappers never author canonical snapshots.
 
-Deferred linking needs explicit pending state because execution and completion are separated in time.
-Pending work retains its original association and context; it cannot attach to a reused numeric ID.
-Simple selector operations need neither a heap-allocated transaction nor a resource metadata refresh.
+For example, CreateTexture validates an initialization record, allocates and configures the object,
+constructs metadata from supplied inputs and guaranteed defaults, then hands the complete result to the
+manager. The unpublished object needs no general alias group. AllocateTextureStorage on an existing
+object captures its original identity, withdraws affected availability, executes all face/mip commands,
+constructs a complete candidate, and commits once. Framebuffer configuration follows the same pattern.
 
-Context-local tools use the same execution/publication rules through the manager's existing static
-path. Established command results can supply snapshots directly; missing facts still require acquisition.
-Persistent alias tracking requires the existing manager, not a second registry or tracking in wrappers.
+Internal steps explicitly receive the enclosing operation state and contribute facts/effects to its
+candidate. They do not independently publish. Standalone intercepted OpenTK calls remain independently
+handled operations. PublishMetadata always commits a supplied complete snapshot; recovery always means
+explicit acquisition. Neither silently stages or defers work because an ambient group exists.
 
-### Group and interruption contract
+### Shared commit and interruption contract
 
-Immediate commands capture only the original context/cache, affected identity and prior facts needed
-for their operation. Dispatch, result handling and exceptional exit belong to that command method.
-Completion is executed once; a publication exception never retries the native mutation. During
-unwind, preserve the original dispatch exception and withdraw uncertain knowledge; do not perform
-unconditional recovery reads merely because dispatch threw. Recovery is an explicit later operation.
+Keep the shared mechanism limited to original entry/context capture, affected availability, accumulated
+storage/configuration effects, and exactly-once commit or failure withdrawal. A busy marker may guard
+an entry, but it must not become an ambient collector that changes publication semantics. Registered
+and context-local paths use the same operation contract through existing manager services, without a
+thread-local group lookup or a second persistent resource registry.
 
-A group is keyed by original manager entry and context. Nested operations and calls through aliases
-join that entry's active group; they accumulate affected facts and storage/configuration effects.
-Only the outermost successful completion publishes. An interrupted nested operation poisons the
-affected group even if an outer caller catches its exception. Disposal releases bookkeeping but is
-not success evidence. The group never rolls back already executed GPU commands; recovery reads
-actual remaining state. Different entries retain independent outcomes.
+Explicitly participating internal steps share operation state. Unrelated reentrant mutations of the
+same resource are rejected before native dispatch, including calls through aliases; they do not
+implicitly join. An interrupted participating step prevents commit even if its exception is caught.
+Aliases receive the final canonical snapshot through the existing registry. Different resources
+retain independent outcomes. This contract does not require arbitrary alias calls to join an update.
 
-While a group is open, consumers cannot acquire its partially updated affected snapshot. Unaffected
-binding knowledge remains usable. Retain unaffected canonical fields in the candidate, but do not
-invent public per-field availability: if the current schema exposes availability only for the complete
-snapshot, that snapshot remains unavailable until coherent completion or recovery. Each final commit
-delivers snapshots before availability/dependent notifications and applies revisions once for its
-combined effects. Deletion or context retirement cancels publication to the original entry; no lookup
-by reused numeric ID can redirect completion.
+GPU commands execute immediately. Completion never retries a native mutation after publication failure
+and never rolls back already executed GPU commands. Preserve the original dispatch exception during
+cleanup. Disposal is cleanup, not success evidence. Failure leaves affected metadata unavailable;
+recovery is a separate explicit operation, not an automatic branch of generic completion.
 
-Deferred program linking retains its existing submission/completion boundary. Submission withdraws
+While an operation is open, consumers cannot acquire its partially updated affected snapshot.
+Unrelated binding knowledge remains usable. Preserve unaffected fields in the candidate; where the
+schema exposes only whole-snapshot availability, keep that snapshot unavailable until coherent commit
+or recovery. Apply combined revisions once and deliver snapshots before availability/dependent
+notifications. Deletion or context retirement cancels completion against the original identity;
+lookup by reused numeric ID must never redirect it.
+
+Texture-generation policy and any justified output queries belong to the texture operation. Framebuffer
+reconciliation and dependency notifications belong to their existing manager services. The shared
+commit mechanism contains no texture-specific recovery, framebuffer policy, or native reader selection.
+Existing unmigrated readers may run explicitly in their owning operation until command-derived facts
+replace them; this must not introduce additional reads or a generic recovery-on-disposal fallback.
+
+Deferred program linking retains its separate submission/completion boundary. Submission withdraws
 executable availability; completion consumes the pending original association once, obtains the link
 outcome and required interface facts, then publishes or leaves the executable unavailable. Starting
-another link must resolve or supersede pending work explicitly, never complete an older request
-against a newer executable. Context-local operation state exists only for the duration of the static
-manager operation or existing deferred owner; it introduces no second persistent registry.
-On context-local acquisition or publication failure, use the existing manager-owned snapshot discard
-path, including selected-image projections. A previous wrapper snapshot cannot remain usable merely
-because no persistent registration exists. Recovery must establish and deliver a complete replacement.
+another link resolves or supersedes pending work explicitly. It does not use a synchronous group.
+Context-local operation state lives only for the operation or existing deferred owner. Failure uses
+manager-owned snapshot discard, including selected-image projections, so no stale usable snapshot
+survives solely because a persistent registration is absent.
 
 ## Why this structure
 
@@ -415,9 +427,9 @@ because no persistent registration exists. Recovery must establish and deliver a
 | --- | --- |
 | Only remove individual redundant queries | Small initial diff, but leaves duplicated execution/completion policies and inconsistent grouping. Useful fixes alone do not address the foundation. |
 | Begin/complete tokens at every caller | Preserve identity, but callers remain responsible for correct pairing and exactly-once completion. Keep tokens internal only where necessary. |
-| Disposable scope for every command | Helps exception cleanup, but disposal does not prove native success and does not naturally represent deferred completion. Reserve scopes for actual groups. |
+| Disposable scope for every command | Helps exception cleanup, but disposal does not prove native success and does not naturally represent deferred completion. Keep any cleanup scope internal to the owning operation. |
 | Post-command notifications everywhere | Simple, but cannot reliably recover pre-command identity or account for interrupted operations. Suitable only when those concerns do not apply. |
-| Explicit StateCache command methods with internal publication | Recommended: one owner for dispatch and bookkeeping, testable per operation, with explicit exceptions for grouping and deferred work. |
+| Explicit StateCache command methods with internal publication | Recommended: one owner for dispatch and bookkeeping, testable per operation, with explicit internal composition and separate deferred completion. |
 
 Compiler-checked entry points reduce opportunities to omit completion; they cannot prove GL acceptance.
 Avoid per-call closures or heap objects as a prerequisite for using this design. Measure queries,
@@ -438,7 +450,7 @@ Then refine the existing checklist: repair binding behavior first, acquisition/p
 and supplied-metadata preparation afterward. Foundational restructuring belongs in those repairs,
 before further consumer integration.
 
-Verification must cover rejected/interrupted commands, aliases, grouped and deferred work, deletion/name
+Verification must cover rejected/interrupted commands, aliases, explicitly composed and deferred work, deletion/name
 reuse, context-local tools, DSA/fallback equivalence and binding restoration. Compare query/bind counts
 with the analysis baseline. Preserve available-entry reuse and image projection; demonstrate that narrow
 mutations no longer trigger unrelated full reads. Verify omitted versus explicit inputs, conditional defaults,

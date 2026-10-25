@@ -11,10 +11,12 @@ internal sealed partial class StateCache
     internal static NativeRenderbufferStorage BeginNativeRenderbufferStorage(int selector, bool named)
     {
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata != true) return default;
+        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null) return default;
         // Invalid targets must remain native errors, without withdrawing an unrelated object.
         if (!named && selector != (int)RenderbufferTarget.Renderbuffer) return default;
         int id = named ? selector : Current.GetCurrentRenderbuffer();
+        Current.RequireResourceOperationAvailable(GpuResourceKind.Renderbuffer, id);
+        if (manager?.CanObserveNativeMetadata != true) return default;
         var entry = manager.FindObservedResource(GpuResourceKind.Renderbuffer, id)
             as GpuResourceMetadataEntry<GpuRenderbufferMetadata>;
         if (entry is not null)

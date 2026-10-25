@@ -18,9 +18,11 @@ internal sealed partial class StateCache
     internal static NativeFramebufferMetadata BeginNativeFramebufferMetadata(int selector, bool named)
     {
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata != true) return default;
+        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null) return default;
         if (!named && (FramebufferTarget)selector is not (FramebufferTarget.Framebuffer or FramebufferTarget.DrawFramebuffer or FramebufferTarget.ReadFramebuffer)) return default;
         int id = named ? selector : Current.GetCurrentFramebuffer((FramebufferTarget)selector);
+        Current.RequireResourceOperationAvailable(GpuResourceKind.Framebuffer, id);
+        if (manager?.CanObserveNativeMetadata != true) return default;
         var entry = manager.FindObservedResource(GpuResourceKind.Framebuffer, id) as GpuResourceMetadataEntry<GpuFramebufferMetadata>;
         if (entry is null) return default;
         Current.RequireMutableFramebufferConfiguration(id);

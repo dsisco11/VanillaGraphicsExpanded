@@ -17,7 +17,7 @@ internal sealed partial class StateCache
         // Only base/max level parameters affect represented texture metadata.
         if (effect == TextureMetadataEffect.Parameter && argument is not ((int)TextureParameterName.TextureBaseLevel or (int)TextureParameterName.TextureMaxLevel)) return default;
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata != true) return default;
+        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null) return default;
         var target = (TextureTarget)nativeTarget;
         if (target >= TextureTarget.TextureCubeMapPositiveX && target <= TextureTarget.TextureCubeMapNegativeZ)
             target = TextureTarget.TextureCubeMap;
@@ -32,6 +32,8 @@ internal sealed partial class StateCache
             if ((uint)unit >= (uint)GpuSupport.Graphics.MaxCombinedTextureImageUnits) return default;
             id = Current.GetBoundTexture(target, unit);
         }
+        Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
+        if (manager?.CanObserveNativeMetadata != true) return default;
         var entry = manager.FindObservedResource(GpuResourceKind.Texture, id)
             as GpuResourceMetadataEntry<GpuTextureMetadata>;
         // Buffer textures only acquire storage through association commands. Image storage,

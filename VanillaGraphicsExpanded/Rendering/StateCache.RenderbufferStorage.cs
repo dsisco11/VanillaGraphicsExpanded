@@ -9,6 +9,7 @@ internal sealed partial class StateCache
     /// <summary>Publishes measured dimensions, format and rounded sample count after a storage command.</summary>
     internal void RenderbufferStorage(GpuRenderbuffer resource, RenderbufferStorage storage, int width, int height, int samples)
     {
+        RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
         using var errors = new GlDebug.ErrorScope("Renderbuffer storage allocation");
         if (GpuSupport.Graphics.SupportsArbDirectStateAccess)
         {

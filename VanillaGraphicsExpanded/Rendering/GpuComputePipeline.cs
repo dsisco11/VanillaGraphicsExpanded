@@ -75,7 +75,7 @@ internal sealed partial class GpuComputePipeline : GpuResource<GpuProgramMetadat
         }
         this.programLayout = programLayout;
         this.warn = warn;
-        if (programId != 0) GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance, refreshExisting: false);
+        if (programId != 0) GpuResourceManager.AcquireWrapperMetadata(this, GpuProgramMetadataReader.Instance);
         if (ResourceManager?.GetResourceRegistration(this) is { MetadataAvailable: true } entry)
             programLayout.UseNativeMetadata(programId, metadata, entry.MetadataRevision);
     }

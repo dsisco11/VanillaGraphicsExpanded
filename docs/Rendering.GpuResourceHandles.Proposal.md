@@ -72,10 +72,11 @@ availability, revisions and subscription membership. Metadata-dependent validati
 about the wrapper's original association; neither base stores that association or runs a tracking state machine.
 Ownership, disposal, authored policy and selected subresources remain local.
 Sampling, growth, streaming and attachment selection remain wrapper/helper policy. Manager creation
-orchestrates initialization records and allocation groups through explicit StateCache commands; existing
+orchestrates initialization records and complete allocation operations through explicit StateCache commands; existing
 upload helpers and capability-appropriate DSA/fallback paths remain in use.
-StateCache can defer publication across a complete command group; an interrupted group leaves metadata
-unavailable rather than publishing an intermediate configuration.
+StateCache operations explicitly compose their internal steps and supply a complete result for manager
+publication. Interruption leaves affected metadata unavailable. The command-publication proposal defines
+the operation-owned commit boundary and rejection of unrelated same-resource reentry.
 
 The [inventory](Rendering.GpuResourceHandles.Inventory.md#canonical-metadata-schemas-and-field-migration)
 specifies structs, field migration and the image projection for attachments that can reference textures
@@ -112,8 +113,8 @@ live entry for other aliases. Borrowed transfer stays rejected. Native replaceme
 object rather than retargeting old aliases. Context retirement issues no GL deletion into another context.
 
 Existing pass/lifetime checks and releases remain authoritative. Move only alias-wide counters into the
-manager entry; declaration-only counters remain local until realization. Do not add another mutation guard
-at the native adapter boundary. Preserve static framebuffer locks and existing retirement scheduling.
+manager entry; declaration-only counters remain local until realization. Do not duplicate pass/lifetime guards at the native adapter boundary. The command-publication
+contract separately requires rejecting unrelated reentry while an explicit operation owns its result. Preserve static framebuffer locks and existing retirement scheduling.
 
 ## Metadata publication and validation
 

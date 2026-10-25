@@ -233,20 +233,25 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
     }
 
     /// <summary>Selects the native attachment command for this image while StateCache validates and publishes its result.</summary>
-    internal void AttachTo(GpuFramebuffer framebuffer, FramebufferAttachment slot)
+    internal void AttachTo(GpuFramebuffer framebuffer, FramebufferAttachment slot,
+        GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>? operation = null)
     {
-        ValidateSlot(slot);
-        var cache = StateCache.Current;
-        if (target == TextureTarget.Texture2DArray && attachmentMode == GpuFramebufferAttachmentMode.Unknown
-            && GpuSupport.Graphics.SupportsOvrMultiview)
-            throw new NotSupportedException("Native attachment queries do not establish ordinary versus multiview replay semantics.");
-        // Image selection belongs to the wrapper; each native operation remains a StateCache command.
-        if (attachmentMode == GpuFramebufferAttachmentMode.Multiview) cache.FramebufferTextureMultiview(framebuffer, slot, this);
-        else if (Kind == GpuResourceKind.Renderbuffer) cache.FramebufferRenderbuffer(framebuffer, slot, this);
-        else if (Layer.HasValue) cache.FramebufferTextureLayer(framebuffer, slot, this);
-        else if (target is TextureTarget.Texture2D or TextureTarget.TextureRectangle || CubeFace.HasValue)
-            cache.FramebufferTexture2D(framebuffer, slot, this);
-        else cache.FramebufferTexture(framebuffer, slot, this);
+        try
+        {
+            ValidateSlot(slot);
+            var cache = StateCache.Current;
+            if (target == TextureTarget.Texture2DArray && attachmentMode == GpuFramebufferAttachmentMode.Unknown
+                && GpuSupport.Graphics.SupportsOvrMultiview)
+                throw new NotSupportedException("Native attachment queries do not establish ordinary versus multiview replay semantics.");
+            // Image selection belongs to the wrapper; each native operation remains a StateCache command.
+            if (attachmentMode == GpuFramebufferAttachmentMode.Multiview) cache.FramebufferTextureMultiview(framebuffer, slot, this, operation);
+            else if (Kind == GpuResourceKind.Renderbuffer) cache.FramebufferRenderbuffer(framebuffer, slot, this, operation);
+            else if (Layer.HasValue) cache.FramebufferTextureLayer(framebuffer, slot, this, operation);
+            else if (target is TextureTarget.Texture2D or TextureTarget.TextureRectangle || CubeFace.HasValue)
+                cache.FramebufferTexture2D(framebuffer, slot, this, operation);
+            else cache.FramebufferTexture(framebuffer, slot, this, operation);
+        }
+        catch { operation?.Interrupt(); throw; }
     }
 
     /// <summary>Rejects retired storage and incompatible color, depth, or stencil attachment points.</summary>

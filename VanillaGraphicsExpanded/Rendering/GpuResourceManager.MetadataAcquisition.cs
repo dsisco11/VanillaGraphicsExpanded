@@ -15,11 +15,11 @@ internal sealed partial class GpuResourceManager
     }
 
     /// <summary>Initializes an existing allocation through its canonical entry or a context-local native read.</summary>
-    internal static void AcquireWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader,
-        bool refreshExisting = true) where T : struct
+    internal static void AcquireWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader) where T : struct
     {
         if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
         {
+            manager.RequireOriginalWrapper(resource);
             // A generic image wrapper cannot represent a buffer texture. Reject before replacing
             // the shared target-specific reader or withdrawing a valid buffer-view snapshot.
             if (resource is GpuTexture && manager.FindResource(resource.Kind, resource.ResourceId)
@@ -32,11 +32,12 @@ internal sealed partial class GpuResourceManager
                 if (reader is GpuTextureMetadataReader && texture.Metadata.Target != 0)
                     reader = (IGpuResourceMetadataReader<T>)(object)new GpuTextureMetadataReader(texture.Metadata.Target);
             }
-            var entry = manager.AcquireResource(resource.Kind, resource.ResourceId, reader, refreshExisting)
+            var entry = manager.AcquireResource(resource.Kind, resource.ResourceId, reader)
                 ?? throw new InvalidOperationException("Native resource metadata is unavailable.");
             if (!entry.ContainsRecipient(resource)) manager.AssociateResource(entry, resource);
             return;
         }
+        StateCache.Current.RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
         // Tools without an installed render service still receive facts from the same reader;
         // this creates no parallel registry or persistent tracking claim.
         T data;
@@ -53,6 +54,24 @@ internal sealed partial class GpuResourceManager
         resource.HandleMetadataChanged(data);
     }
 
+    /// <summary>Explicitly withdraws external facts before reacquiring them; available lookup never forces this path.</summary>
+    internal static void RecoverWrapperMetadata<T>(GpuResource<T> resource, IGpuResourceMetadataReader<T> reader) where T : struct
+    {
+        if (resource.ResourceManager is { } manager && manager.CanAcquireWrapperMetadata(resource))
+        {
+            manager.RequireOriginalWrapper(resource);
+            var entry = manager.FindResource(resource.Kind, resource.ResourceId) as GpuResourceMetadataEntry<T>;
+            // Reject incompatible borrowing before withdrawing another wrapper's valid snapshot.
+            if (resource is GpuTexture && entry is GpuResourceMetadataEntry<GpuTextureMetadata> texture
+                && texture.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.TextureBuffer)
+                throw new NotSupportedException("Use GpuBufferView for buffer textures.");
+            if (entry?.OperationInProgress == true)
+                throw new InvalidOperationException("Metadata cannot be acquired during an unfinished update.");
+            entry?.BeginRefresh(GpuMetadataChange.Metadata);
+        }
+        AcquireWrapperMetadata(resource, reader);
+    }
+
     /// <summary>Registers a resource kind whose metadata schema is empty without reading contents or mutable state.</summary>
     internal static void RegisterEmptyMetadata<T>(GpuResource<T> resource) where T : struct
     {
@@ -64,6 +83,17 @@ internal sealed partial class GpuResourceManager
     #endregion
 
     #region Private
+    /// <summary>Rejects retired aliases before lookup can discover or modify a reused numeric name.</summary>
+    private void RequireOriginalWrapper(GpuResource resource)
+    {
+        ObjectDisposedException.ThrowIf(resource.IsDisposed, resource);
+        if (GetResourceRegistration(resource) is { } original)
+        {
+            RequireLiveEntry(original);
+            ValidateAssociation(original, resource);
+        }
+    }
+
     /// <summary>Allows new context-local objects after service retirement without reviving old associations.</summary>
     private bool CanAcquireWrapperMetadata(GpuResource resource)
     {

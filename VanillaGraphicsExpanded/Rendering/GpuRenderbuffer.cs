@@ -139,7 +139,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
 #endif
 
         var wrapper = new GpuRenderbuffer(existingRenderbufferId, ownsRenderbuffer: false, debugName);
-        GpuResourceManager.AcquireWrapperMetadata(wrapper, GpuRenderbufferMetadataReader.Instance);
+        GpuResourceManager.RecoverWrapperMetadata(wrapper, GpuRenderbufferMetadataReader.Instance);
         return wrapper;
     }
 

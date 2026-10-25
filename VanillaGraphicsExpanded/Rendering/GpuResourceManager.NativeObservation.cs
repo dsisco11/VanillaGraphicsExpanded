@@ -12,6 +12,7 @@ internal sealed partial class GpuResourceManager
     {
         if (id == 0 || !CanObserveNativeMetadata) return null;
         RequireMetadataContext();
+        StateCache.Current.RequireResourceOperationAvailable(kind, id);
         var entry = FindResource(kind, id);
         return entry?.State == GpuResourceRegistrationState.Live ? entry : null;
     }

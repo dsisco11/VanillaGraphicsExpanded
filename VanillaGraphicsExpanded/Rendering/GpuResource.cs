@@ -12,7 +12,7 @@ public abstract partial class GpuResource : IDisposable
     private int activePassReferences;
     private int lifetimeReferences;
     private readonly GpuResourceManager? deletionManager = GpuResourceManagerSystem.CurrentManager;
-    private readonly (nint Handle, long Generation) nativeContext = Integration.RenderContextRegistry.Current();
+    private (nint Handle, long Generation) nativeContext = Integration.RenderContextRegistry.Current();
     protected virtual (nint Handle, long Generation) NativeProgramContext => default;
 
     /// <summary>Exposes the wrapper's native resource kind.</summary>
@@ -101,6 +101,16 @@ public abstract partial class GpuResource : IDisposable
     #endregion
 
     #region Internal API
+    /// <summary>Installs or clears identity during manager-owned creation without invoking wrapper policy.</summary>
+    internal void SetCreationIdentity(nint id)
+    {
+        ObjectDisposedException.ThrowIf(id != 0 && IsDisposed, this);
+        if (id != 0 && ResourceId != 0)
+            throw new InvalidOperationException("Creation requires an unpublished resource declaration.");
+        ResourceId = id;
+        if (id != 0) nativeContext = Integration.RenderContextRegistry.Current();
+    }
+
     /// <summary>Rejects storage mutation or retirement while a pass or immutable framebuffer borrows its configuration.</summary>
     internal void RequireMutableStorage(bool allowRetired = false)
     {
@@ -165,7 +175,7 @@ public abstract partial class GpuResource : IDisposable
     }
 
     /// <summary>Retires a resource only in its originating namespace, independently of other resource owners.</summary>
-    private static void RetireResource(GpuResourceKind kind, nint id,
+    internal static void RetireResource(GpuResourceKind kind, nint id,
         (nint Handle, long Generation) origin, GpuResourceManager? manager)
     {
         // Context-free CPU declarations retain the existing service policy. Native owners

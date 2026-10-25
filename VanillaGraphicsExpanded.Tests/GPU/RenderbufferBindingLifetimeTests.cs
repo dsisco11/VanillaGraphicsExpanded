@@ -55,19 +55,20 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>A failed unknown-state query never publishes a fabricated binding and a clean retry resolves the real owner.</summary>
+    /// <summary>An unrelated pending error does not invalidate a valid binding query or get consumed by cache recovery.</summary>
     [Fact]
-    public void FailedUnknownQueryDoesNotPublishBinding()
+    public void UnrelatedNativeErrorSurvivesBindingRecovery()
     {
         EnsureContextValid();
         using var bound = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 2, 2);
         var cache = StateCache.Current;
         GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, (int)bound.ResourceId);
         cache.Invalidate(EPipelineState.RenderbufferBinding);
-        GL.LineWidth(-1); // A deliberate native failure must be reported before any value is admitted as known.
-        Assert.Throws<InvalidOperationException>(() => cache.GetCurrentRenderbuffer());
+        GL.LineWidth(-1); // Preserve this unrelated error while querying the actual renderbuffer selection.
+        Assert.Equal((int)bound.ResourceId, cache.GetCurrentRenderbuffer());
         Assert.Equal((int)bound.ResourceId, cache.GetCurrentRenderbuffer());
         Assert.Equal((int)bound.ResourceId, GL.GetInteger(GetPName.RenderbufferBinding));
+        Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion

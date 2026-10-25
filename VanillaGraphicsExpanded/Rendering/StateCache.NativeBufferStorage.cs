@@ -11,9 +11,11 @@ internal sealed partial class StateCache
     internal static NativeBufferStorage BeginNativeBufferStorage(int selector, bool named)
     {
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata != true) return default;
+        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null) return default;
         var cache = Current;
         int id = named ? selector : cache.GetBoundBuffer((BufferTarget)selector);
+        Current.RequireResourceOperationAvailable(GpuResourceKind.Buffer, id);
+        if (manager?.CanObserveNativeMetadata != true) return default;
         var entry = manager.FindObservedResource(GpuResourceKind.Buffer, id)
             as GpuResourceMetadataEntry<GpuBufferMetadata>;
         // No registration is created for untracked engine objects. Existing aliases share

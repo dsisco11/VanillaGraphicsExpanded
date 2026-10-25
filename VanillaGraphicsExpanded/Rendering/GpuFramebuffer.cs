@@ -92,11 +92,7 @@ public abstract partial class GpuFramebuffer : GpuResource<GpuFramebufferMetadat
             StateCache.Current.RequireMutableFramebufferConfiguration(fboId);
             // Shared image changes can affect several FBOs; refresh each FBO lazily
             // at its next use while preserving its independently configured routing.
-            using (var update = StateCache.Current.BeginFramebufferAttachmentUpdate(this))
-            {
-                foreach (var pair in attachments) pair.Value.AttachTo(this, pair.Key);
-                update.Complete();
-            }
+            StateCache.Current.ReattachFramebuffer(this, attachments);
             attachmentsDirty = false;
         }
     }

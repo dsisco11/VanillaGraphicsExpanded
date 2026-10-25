@@ -43,7 +43,7 @@ public abstract partial class GpuFramebuffer
             attachments.Add(pair.Key, pair.Value);
             pair.Value.Observe(this);
         }
-        GpuResourceManager.AcquireWrapperMetadata(this, GpuFramebufferMetadataReader.Instance);
+        GpuResourceManager.RecoverWrapperMetadata(this, GpuFramebufferMetadataReader.Instance);
         passMetadataPublished = true;
         PublishAttachmentsChanged();
 

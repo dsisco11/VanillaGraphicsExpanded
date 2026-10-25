@@ -17,6 +17,7 @@ internal sealed partial class StateCache
     internal void CompleteResourceDeletion(GpuResourceKind kind, nint nativeId)
     {
         if (nativeId == 0 || !WasResourceDeleted(kind, nativeId)) return;
+        CancelResourceOperation(kind, nativeId);
         GpuResourceManagerSystem.CurrentManager?.ObserveDeletion(kind, nativeId);
         int id = unchecked((int)nativeId);
         // Reconcile only the bindings whose native command has an implicit unbinding effect.

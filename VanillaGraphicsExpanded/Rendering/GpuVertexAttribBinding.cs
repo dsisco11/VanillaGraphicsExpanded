@@ -15,11 +15,8 @@ internal struct GpuVertexAttribBinding
     private readonly (nint Handle, long Generation) context;
     private ulong metadataRevision;
     private ulong localEpoch;
-    private BindingFacts knownFacts;
+    private GpuVertexBindingFields knownFacts;
 
-    /// <summary>Identifies the selected binding fields retained by this helper value.</summary>
-    [Flags]
-    private enum BindingFacts { None = 0, Buffer = 1, Offset = 2, Stride = 4, Divisor = 8, All = 15 }
     private readonly int vaoId;
     private readonly int bindingIndex;
 
@@ -43,22 +40,22 @@ internal struct GpuVertexAttribBinding
     /// <summary>
     /// Gets the buffer id bound to this binding (if known; primarily for fallback paths).
     /// </summary>
-    public int BufferId { get { RequireCurrentFacts(BindingFacts.Buffer); return vboId; } }
+    public int BufferId { get { RequireCurrentFacts(GpuVertexBindingFields.Buffer); return vboId; } }
 
     /// <summary>
     /// Gets the base byte offset for this binding (if known; primarily for fallback paths).
     /// </summary>
-    public nint BaseOffsetBytes { get { RequireCurrentFacts(BindingFacts.Offset); return baseOffsetBytes; } }
+    public nint BaseOffsetBytes { get { RequireCurrentFacts(GpuVertexBindingFields.Offset); return baseOffsetBytes; } }
 
     /// <summary>
     /// Gets the stride (in bytes) for this binding (if known; primarily for fallback paths).
     /// </summary>
-    public int StrideBytes { get { RequireCurrentFacts(BindingFacts.Stride); return strideBytes; } }
+    public int StrideBytes { get { RequireCurrentFacts(GpuVertexBindingFields.Stride); return strideBytes; } }
 
     /// <summary>
     /// Gets the instance divisor for this binding (0 for per-vertex).
     /// </summary>
-    public int Divisor { get { RequireCurrentFacts(BindingFacts.Divisor); return divisor; } }
+    public int Divisor { get { RequireCurrentFacts(GpuVertexBindingFields.Divisor); return divisor; } }
 
     /// <summary>Captures the owning wrapper so a retained helper cannot target a reused native name.</summary>
     public GpuVertexAttribBinding(GpuVao owner, int bindingIndex)
@@ -74,7 +71,7 @@ internal struct GpuVertexAttribBinding
     /// </summary>
     public GpuVertexAttribBinding BindVertexBuffer(int vboId, nint offsetBytes, int strideBytes)
     {
-        RequireCurrentFacts(BindingFacts.Divisor);
+        RequireCurrentFacts(GpuVertexBindingFields.Divisor);
         if (vaoId == 0)
         {
             Debug.WriteLine("[GpuVertexAttribBinding] Attempted to configure binding on invalid VAO (0)");
@@ -107,7 +104,7 @@ internal struct GpuVertexAttribBinding
     /// </summary>
     public GpuVertexAttribBinding SetDivisor(int divisor)
     {
-        RequireCurrentFacts(BindingFacts.Buffer | BindingFacts.Offset | BindingFacts.Stride);
+        RequireCurrentFacts(GpuVertexBindingFields.Buffer | GpuVertexBindingFields.Offset | GpuVertexBindingFields.Stride);
         if (vaoId == 0)
         {
             return this;
@@ -272,18 +269,18 @@ internal struct GpuVertexAttribBinding
         metadataRevision = owner.ResourceManager?.GetResourceRegistration(owner)?.MetadataRevision ?? 0;
         localEpoch = StateCache.Current.VertexConfigurationEpoch;
         knownFacts = discover && GpuSupport.Graphics.SupportsArbDirectStateAccess
-            ? BindingFacts.None : BindingFacts.All;
+            ? GpuVertexBindingFields.None : GpuVertexBindingFields.All;
         vaoId = owner.VertexArrayId;
         this.bindingIndex = bindingIndex;
         this.vboId = vboId;
         this.baseOffsetBytes = baseOffsetBytes;
         this.strideBytes = strideBytes;
         this.divisor = divisor;
-        RequireCurrentFacts(BindingFacts.All);
+        RequireCurrentFacts(GpuVertexBindingFields.All);
     }
 
     /// <summary>Checks original ownership and acquires only unknown fields needed by this operation.</summary>
-    private void RequireCurrentFacts(BindingFacts required = BindingFacts.None)
+    private void RequireCurrentFacts(GpuVertexBindingFields required = GpuVertexBindingFields.None)
     {
         if (owner is null) return;
         ObjectDisposedException.ThrowIf(!owner.IsValid || owner.VertexArrayId != vaoId, owner);
@@ -304,36 +301,10 @@ internal struct GpuVertexAttribBinding
             if (changed) throw new InvalidOperationException("The vertex binding changed; obtain and configure a new binding helper.");
             return;
         }
-        if (changed) knownFacts = BindingFacts.None;
-        BindingFacts missing = required & ~knownFacts;
-        if ((missing & BindingFacts.Buffer) != 0)
-        {
-            int value = -1;
-            GL.GetVertexArrayIndexed(vaoId, bindingIndex, (VertexArrayIndexedParameter)All.VertexBindingBuffer, out value);
-            if (value < 0) throw new InvalidOperationException("The selected vertex buffer could not be acquired.");
-            vboId = value;
-        }
-        if ((missing & BindingFacts.Offset) != 0)
-        {
-            long value = -1;
-            GL.GetVertexArrayIndexed64(vaoId, bindingIndex, VertexArrayIndexed64Parameter.VertexBindingOffset, out value);
-            if (value < 0) throw new InvalidOperationException("The selected vertex offset could not be acquired.");
-            baseOffsetBytes = checked((nint)value);
-        }
-        if ((missing & BindingFacts.Stride) != 0)
-        {
-            int value = -1;
-            GL.GetVertexArrayIndexed(vaoId, bindingIndex, (VertexArrayIndexedParameter)All.VertexBindingStride, out value);
-            if (value < 0) throw new InvalidOperationException("The selected vertex stride could not be acquired.");
-            strideBytes = value;
-        }
-        if ((missing & BindingFacts.Divisor) != 0)
-        {
-            int value = -1;
-            GL.GetVertexArrayIndexed(vaoId, bindingIndex, (VertexArrayIndexedParameter)All.VertexBindingDivisor, out value);
-            if (value < 0) throw new InvalidOperationException("The selected vertex divisor could not be acquired.");
-            divisor = value;
-        }
+        if (changed) knownFacts = GpuVertexBindingFields.None;
+        GpuVertexBindingFields missing = required & ~knownFacts;
+        GpuResourceManager.AcquireVertexBindingFacts(owner, vaoId, bindingIndex, context, missing,
+            ref vboId, ref baseOffsetBytes, ref strideBytes, ref divisor);
         knownFacts |= missing;
         CaptureRevision();
     }

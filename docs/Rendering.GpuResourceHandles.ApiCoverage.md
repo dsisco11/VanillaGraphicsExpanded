@@ -184,7 +184,7 @@ Known array allocation and legal slot/layer/level certify ordinary intercepted c
 the resulting queried descriptor must also match. Ordinary intercepted whole-array/layer commands and managed multiview operations
 therefore remain distinct even when queries coincide. Rejected commands preserve prior evidence only
 when their descriptor is unchanged. Manager-owned transient command evidence is consumed by canonical
-publication, including grouped managed attachment updates; no second framebuffer registry is created.
+publication, including explicitly composed managed attachment updates; no second framebuffer registry is created.
 Direct VGE multiview operations retain selected range projection and named or bound OVR replay.
 External GL.Ovr calls are not intercepted; later mutations through them cannot keep registered snapshots current.
 Initial external acquisition cannot establish an unqueryable mode; its range can be inspected, but

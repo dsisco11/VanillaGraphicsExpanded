@@ -15,9 +15,9 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
     private static int[]? capturedAdvancedArguments;
     private static int renderbufferBinds;
     #region Public API
-    /// <summary>An interrupted texture storage group withdraws all selected images and notifies their consumers before recovery.</summary>
+    /// <summary>An interrupted texture storage operation withdraws all selected images and notifies their consumers before recovery.</summary>
     [Fact]
-    public void AbortedTextureStorageGroupInvalidatesDependents()
+    public void AbortedTextureStorageOperationInvalidatesDependents()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -32,9 +32,9 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             firstFramebuffer.AttachmentsChanged += () => firstChanges++;
             secondFramebuffer.AttachmentsChanged += () => secondChanges++;
             using (texture.BindScope(0))
-            using (StateCache.Current.BeginTextureStorageUpdate(texture))
+            using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
                 StateCache.Current.TextureImage2D(texture, TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8,
-                    8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+                    8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero, operation);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.False(manager.IsResourceMetadataAvailable(first));
             Assert.False(manager.IsResourceMetadataAvailable(second));

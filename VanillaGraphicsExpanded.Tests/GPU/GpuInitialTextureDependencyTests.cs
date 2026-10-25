@@ -41,7 +41,8 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
             GL.BindTexture(TextureTarget.TextureBuffer,texture);
             var manager=GpuResourceManagerSystem.CurrentManager!;
             Assert.Throws<InvalidOperationException>(()=>manager.AcquireResource(GpuResourceKind.Texture,texture,new KnownAssociationReader(int.MaxValue)));
-            Assert.False(manager.FindResource(GpuResourceKind.Texture,texture)!.IsUsable);
+            // Failed initial admission removes its provisional identity rather than retaining unusable publication.
+            Assert.Null(manager.FindResource(GpuResourceKind.Texture,texture));
             // Invalid-object admission is rejected before any descriptor query.
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }

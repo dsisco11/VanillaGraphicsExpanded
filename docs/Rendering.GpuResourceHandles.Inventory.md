@@ -28,7 +28,7 @@ sync. Registration must occur when a native object exists, not merely when a CPU
 Resource wrappers retain growth/sampling policy, attachment selection and upload helper strategy.
 Manager creation orchestrates allocation from initialization records.
 StateCache executes their native commands and owns metadata publication, including deferred publication
-for complete texture allocation and framebuffer reattachment groups.
+for complete texture allocation and framebuffer reattachment operations.
 
 | Kind | Existing wrappers / acquisition | Metadata and disposition |
 | --- | --- | --- |
@@ -151,10 +151,13 @@ image dispatch reads wrapper-local selection without allocating association obje
 The internal entry supplies registration state; its reference is not a generation counter or key.
 BCL concurrent dictionaries provide synchronized operations, not completely lock-free writes.
 
-Planned internal operation contracts:
+Internal operation contracts:
 
 - `RegisterCreatedResource(kind, id)` registers a created/reserved name without inventing storage.
 - `AcquireResource(kind, id)` reuses existing canonical metadata or validates/captures an external object.
+  `LookupAvailableResource` never reads; `RecoverResource` explicitly replaces external facts.
+  Wrapper acquisition follows the same split through `AcquireWrapperMetadata` and
+  `RecoverWrapperMetadata`; there is no optional forced-refresh switch.
   A generated but unrealized external name is insufficient. External texture/renderbuffer wrapper
   construction explicitly refreshes an existing entry until its complete mutation observation is
   qualified; retaining a registry entry alone does not qualify persistent consumer metadata.
@@ -166,6 +169,20 @@ Planned internal operation contracts:
   still execute normally without eagerly populating a speculative registry of every native object.
 - `RetireResource(entry)` / `ObserveDeletion(kind, id)` integrate scheduled owner retirement and observed
   native deletion, invalidate associations and cancel obsolete queued work.
+
+The common `CreateResource` boundary freezes the initialization value, validates it through a typed
+value backend, and keeps the newly owned ID private until canonical commit and typed handoff finish.
+Failed handoff removes wrapper membership and identity. When native cleanup must wait for its original
+context, only the existing unavailable retiring entry remains until the deletion queue drains.
+Explicit StateCache operations own multi-command allocation, mip-range changes and attachment replay.
+Internal steps receive their operation state explicitly. The manager commits a supplied complete result
+once; publication never silently stages, and disposal never performs recovery. A temporary execution
+guard rejects unrelated same-resource reentry before dispatch, while deletion cancels original completion.
+Local operation admission withdraws the wrapper snapshot through manager services. The guard stores no
+metadata or alias recipients; local tools introduce no persistent registry. Texture and framebuffer
+operations explicitly invoke manager recovery services while their existing readers remain necessary.
+Native helper binding acquisition belongs to
+`GpuResourceManager.AcquireVertexBindingFacts` and `GpuVertexBindingReader`, with requested fields only.
 
 `GpuResource<TMetadata> : GpuResource where TMetadata : struct` retains a private snapshot with
 `protected ref readonly TMetadata metadata` access for derived wrappers. Public non-virtual
@@ -221,7 +238,7 @@ external deletion authority and never use owning construction cleanup.
 ### Publication, failure and validation
 
 Context-local tools without a registration discard uncertified snapshots after a failed read or an
-interrupted command group. Empty descriptors represent unavailable facts, not native zero-sized storage.
+interrupted explicit operation. Empty descriptors represent unavailable facts, not native zero-sized storage.
 The manager retains only the established texture target for explicit native refresh (for example,
 SetMipRange); image binding rejects an empty image snapshot. Local framebuffer image validation projects
 available backing facts and recovers only unknown/invalidated backing before dependent use; failed
@@ -232,7 +249,7 @@ changes continue to reject views certified against the previous allocation.
 Failed replacement cleanup also clears the surviving texture wrapper's native ID after retiring the new
 name, so later disposal cannot delete a reused name.
 
-Mark affected metadata unavailable during acquisition or grouped mutation. Controlled commands use
+Mark affected metadata unavailable during acquisition or explicitly composed mutation. Controlled commands use
 inputs/defaults/derivations; external acquisition initializes read outputs to invalid sentinels and
 validates them in the original context. Do not drain GetError or add unconditional Is-object checks.
 Reported failures do not publish success. Silent native failure detection remains the existing error

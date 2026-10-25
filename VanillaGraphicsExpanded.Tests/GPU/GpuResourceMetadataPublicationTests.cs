@@ -242,9 +242,9 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>A failed framebuffer command group cannot expose earlier successful commands as a complete configuration.</summary>
+    /// <summary>A failed framebuffer operation cannot expose earlier successful commands as a complete configuration.</summary>
     [Fact]
-    public void FailedAttachmentGroupLeavesCanonicalMetadataUnavailable()
+    public void FailedAttachmentOperationLeavesCanonicalMetadataUnavailable()
     {
         using var lifetime = StartLifetime(true);
         using var originalTexture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
@@ -261,13 +261,13 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         framebuffer.Bind();
         try
         {
-            using (cache.BeginFramebufferAttachmentUpdate(framebuffer))
+            using (var operation = new GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>(framebuffer, GpuMetadataChange.Metadata))
             {
-                cache.FramebufferTexture2D(framebuffer, FramebufferAttachment.ColorAttachment0, replacement);
+                cache.FramebufferTexture2D(framebuffer, FramebufferAttachment.ColorAttachment0, replacement, operation);
                 Assert.False(entry.MetadataAvailable);
                 Assert.Equal(revision, entry.MetadataRevision);
                 var invalid = FramebufferAttachment.ColorAttachment0 + GL.GetInteger(GetPName.MaxColorAttachments);
-                Assert.Throws<InvalidOperationException>(() => cache.FramebufferTexture2D(framebuffer, invalid, replacement));
+                Assert.Throws<InvalidOperationException>(() => cache.FramebufferTexture2D(framebuffer, invalid, replacement, operation));
             }
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(revision, entry.MetadataRevision);

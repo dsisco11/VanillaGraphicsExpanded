@@ -15,7 +15,7 @@ internal sealed class BorrowedTexture : GpuTexture
             throw new ArgumentOutOfRangeException(nameof(externalTexture));
 
         textureId = externalTexture;
-        GpuResourceManager.AcquireWrapperMetadata(this, GpuTextureMetadataReader.Instance);
+        GpuResourceManager.RecoverWrapperMetadata(this, GpuTextureMetadataReader.Instance);
 
         if (width <= 0 || height <= 0)
             throw new ArgumentException("Texture has no allocated base-level image.", nameof(externalTexture));

@@ -154,7 +154,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
 
     /// <summary>Recovery of an interrupted storage command advances the pending storage revision.</summary>
     [Fact]
-    public void IncompleteStorageGroupPreservesStorageRevisionOnRecovery()
+    public void IncompleteStorageOperationPreservesStorageRevisionOnRecovery()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -165,16 +165,16 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             ulong previousStorageRevision = entry.StorageRevision;
             using (texture.BindScope(0))
-            using (StateCache.Current.BeginTextureStorageUpdate(texture))
+            using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
             {
                 StateCache.Current.TextureImage2D(texture, TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8,
-                    12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
-                // Abandon the command group after a real accepted image replacement.
+                    12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero, operation);
+                // Abandon the operation after a real accepted image replacement.
             }
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(8, texture.Width);
-            Assert.Same(entry, manager.AcquireResource(GpuResourceKind.Texture, texture.TextureId,
-                GpuTextureMetadataReader.Instance, refreshExisting: true));
+            Assert.Same(entry, manager.RecoverResource(GpuResourceKind.Texture, texture.TextureId,
+                GpuTextureMetadataReader.Instance));
             Assert.Equal(12, texture.Width);
             Assert.Equal(6, texture.Height);
             Assert.True(entry.StorageRevision > previousStorageRevision);
@@ -200,7 +200,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
                 GpuResource.CompleteOwnedCreation<GpuResource>(GpuResourceKind.Buffer, buffer, () =>
                 {
                     // Simulate acquisition failure after registration, before an owner can be returned.
-                    Assert.Null(manager.AcquireResource(GpuResourceKind.Buffer, buffer, new UnreadableBuffer(), refreshExisting: true));
+                    Assert.Null(manager.RecoverResource(GpuResourceKind.Buffer, buffer, new UnreadableBuffer()));
                     throw failure;
                 })));
             manager.OnRenderFrame(0f, GpuResourceManager.Stage);

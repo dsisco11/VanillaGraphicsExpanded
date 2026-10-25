@@ -11,6 +11,7 @@ internal sealed partial class GpuResourceManager
     internal static GpuTextureMetadata AcquireExternalImageTexture(int id)
     {
         if (id <= 0) throw new ArgumentOutOfRangeException(nameof(id));
+        StateCache.Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
         var manager = GpuResourceManagerSystem.CurrentManager;
         if (manager is not null && !manager.IsMetadataRegistryRetired)
         {
@@ -18,7 +19,7 @@ internal sealed partial class GpuResourceManager
             if (existing?.Metadata.Target == TextureTarget.TextureBuffer)
                 throw new NotSupportedException("Buffer textures cannot supply framebuffer images.");
             var reader = new GpuTextureMetadataReader(existing?.Metadata.Target ?? 0);
-            return manager.AcquireResource(GpuResourceKind.Texture, id, reader, refreshExisting: true)?.Metadata
+            return manager.RecoverResource(GpuResourceKind.Texture, id, reader)?.Metadata
                 ?? throw new InvalidOperationException("Native texture image metadata is unavailable.");
         }
         if (!GpuTextureMetadataReader.Instance.TryRead(id, out var data))
@@ -45,9 +46,9 @@ internal sealed partial class GpuResourceManager
                 && textureEntry.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.TextureBuffer;
             if (entry is null || external && !bufferTexture && !acquiredTexture.HasValue)
                 entry = image.Kind == GpuResourceKind.Renderbuffer
-                    ? manager.AcquireResource(image.Kind, image.ResourceId, GpuRenderbufferMetadataReader.Instance, refreshExisting: external)
-                    : manager.AcquireResource(image.Kind, image.ResourceId,
-                        new GpuTextureMetadataReader(image.ImageTarget), refreshExisting: external);
+                    ? external ? manager.RecoverResource(image.Kind, image.ResourceId, GpuRenderbufferMetadataReader.Instance) : manager.AcquireResource(image.Kind, image.ResourceId, GpuRenderbufferMetadataReader.Instance)
+                    : external ? manager.RecoverResource(image.Kind, image.ResourceId, new GpuTextureMetadataReader(image.ImageTarget))
+                        : manager.AcquireResource(image.Kind, image.ResourceId, new GpuTextureMetadataReader(image.ImageTarget));
             if (entry is not null) manager.AssociateImageResource(entry, image);
             return;
         }
@@ -55,6 +56,7 @@ internal sealed partial class GpuResourceManager
         // and snapshot assignment, so wrappers never synthesize dimensions or sample counts.
         // Withdraw the old projection before any read that can fail or reject this selection.
         DiscardUntrackedMetadata(image);
+        StateCache.Current.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
         GpuImageMetadata? projected = null;
         if (image.Kind == GpuResourceKind.Renderbuffer && GpuRenderbufferMetadataReader.Instance.TryRead(image.ResourceId, out var renderbuffer))
             projected = ProjectRenderbufferImage(renderbuffer, image.MetadataImageSelection);

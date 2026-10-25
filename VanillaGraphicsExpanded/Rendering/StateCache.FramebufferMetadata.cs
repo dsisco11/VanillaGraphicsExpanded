@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
 
 namespace VanillaGraphicsExpanded.Rendering;
@@ -7,7 +8,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     #region Internal API
-    #region Update groups
+    #region Framebuffer configuration
     /// <summary>Binds a managed framebuffer and acquires initial native facts after a generated name is realized.</summary>
     internal void BindFramebufferResource(GpuFramebuffer resource, FramebufferTarget target)
     {
@@ -16,63 +17,124 @@ internal sealed partial class StateCache
             GpuResourceManager.AcquireWrapperMetadata(resource, GpuFramebufferMetadataReader.Instance);
     }
 
-    /// <summary>Defers publication while the framebuffer owner reattaches all pending image replacements.</summary>
-    internal MetadataUpdate<GpuFramebufferMetadata> BeginFramebufferAttachmentUpdate(GpuFramebuffer resource)
-        => new(this, resource, GpuFramebufferMetadataReader.Instance, GpuMetadataChange.Metadata);
+    /// <summary>Reattaches the supplied images and publishes one completed framebuffer result.</summary>
+    internal void ReattachFramebuffer(GpuFramebuffer resource, IEnumerable<KeyValuePair<FramebufferAttachment, GpuFramebufferAttachment>> attachments)
+    {
+        using var operation = new GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>(resource, GpuMetadataChange.Metadata);
+        foreach (var pair in attachments) pair.Value.AttachTo(resource, pair.Key, operation);
+        operation.RequireLive();
+        operation.Commit(GpuResourceManager.ReadFramebufferOperationResult(resource));
+    }
 
     #endregion
 
     #region Native commands
     /// <summary>Attaches a proven multiview range through a capability-selected named command or bound fallback.</summary>
-    internal void FramebufferTextureMultiview(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment image)
+    internal void FramebufferTextureMultiview(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment image,
+        GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>? operation = null)
     {
-        if (!GpuSupport.Graphics.SupportsOvrMultiview) throw new NotSupportedException("OVR multiview is unavailable.");
-        if (GpuSupport.Graphics.SupportsArbDirectStateAccess)
-            GL.Ovr.NamedFramebufferTextureMultiview(resource.FboId, slot, image.TextureId, image.MipLevel, image.BaseView, image.ViewCount);
-        else GL.Ovr.FramebufferTextureMultiview(FramebufferTarget.Framebuffer, slot, image.TextureId, image.MipLevel, image.BaseView, image.ViewCount);
-        ObserveFramebufferAttachment(resource, slot, image);
+        if (operation is null) RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
+        else operation.RequireParticipation(resource, GpuMetadataChange.Metadata);
+        try
+        {
+            if (!GpuSupport.Graphics.SupportsOvrMultiview) throw new NotSupportedException("OVR multiview is unavailable.");
+            if (GpuSupport.Graphics.SupportsArbDirectStateAccess)
+                GL.Ovr.NamedFramebufferTextureMultiview(resource.FboId, slot, image.TextureId, image.MipLevel, image.BaseView, image.ViewCount);
+            else GL.Ovr.FramebufferTextureMultiview(FramebufferTarget.Framebuffer, slot, image.TextureId, image.MipLevel, image.BaseView, image.ViewCount);
+            ObserveFramebufferAttachment(resource, slot, image, operation);
+        }
+        catch
+        {
+            operation?.Interrupt();
+            throw;
+        }
     }
 
     /// <summary>Attaches a renderbuffer image to the bound framebuffer.</summary>
-    internal void FramebufferRenderbuffer(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment image)
+    internal void FramebufferRenderbuffer(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment image,
+        GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>? operation = null)
     {
-        GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, slot, RenderbufferTarget.Renderbuffer, image.RenderbufferId);
-        ObserveFramebufferAttachment(resource, slot, image);
+        if (operation is null) RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
+        else operation.RequireParticipation(resource, GpuMetadataChange.Metadata);
+        try
+        {
+            GL.FramebufferRenderbuffer(FramebufferTarget.Framebuffer, slot, RenderbufferTarget.Renderbuffer, image.RenderbufferId);
+            ObserveFramebufferAttachment(resource, slot, image, operation);
+        }
+        catch
+        {
+            operation?.Interrupt();
+            throw;
+        }
     }
 
     /// <summary>Attaches one selected texture layer to the bound framebuffer.</summary>
-    internal void FramebufferTextureLayer(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment image)
+    internal void FramebufferTextureLayer(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment image,
+        GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>? operation = null)
     {
-        GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, slot, image.TextureId, image.MipLevel, image.Layer!.Value);
-        ObserveFramebufferAttachment(resource, slot, image);
+        if (operation is null) RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
+        else operation.RequireParticipation(resource, GpuMetadataChange.Metadata);
+        try
+        {
+            GL.FramebufferTextureLayer(FramebufferTarget.Framebuffer, slot, image.TextureId, image.MipLevel, image.Layer!.Value);
+            ObserveFramebufferAttachment(resource, slot, image, operation);
+        }
+        catch
+        {
+            operation?.Interrupt();
+            throw;
+        }
     }
 
     /// <summary>Attaches a two-dimensional texture image or cube face to the bound framebuffer.</summary>
-    internal void FramebufferTexture2D(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment image)
+    internal void FramebufferTexture2D(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment image,
+        GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>? operation = null)
     {
-        GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, slot, image.ImageTarget, image.TextureId, image.MipLevel);
-        ObserveFramebufferAttachment(resource, slot, image);
+        if (operation is null) RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
+        else operation.RequireParticipation(resource, GpuMetadataChange.Metadata);
+        try
+        {
+            GL.FramebufferTexture2D(FramebufferTarget.Framebuffer, slot, image.ImageTarget, image.TextureId, image.MipLevel);
+            ObserveFramebufferAttachment(resource, slot, image, operation);
+        }
+        catch
+        {
+            operation?.Interrupt();
+            throw;
+        }
     }
 
     /// <summary>Attaches a complete texture level, or detaches the slot when no image is supplied.</summary>
-    internal void FramebufferTexture(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment? image)
+    internal void FramebufferTexture(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment? image,
+        GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>? operation = null)
     {
-        GL.FramebufferTexture(FramebufferTarget.Framebuffer, slot, image?.TextureId ?? 0, image?.MipLevel ?? 0);
-        ObserveFramebufferAttachment(resource, slot, image);
+        if (operation is null) RequireResourceOperationAvailable(resource.Kind, resource.ResourceId);
+        else operation.RequireParticipation(resource, GpuMetadataChange.Metadata);
+        try
+        {
+            GL.FramebufferTexture(FramebufferTarget.Framebuffer, slot, image?.TextureId ?? 0, image?.MipLevel ?? 0);
+            ObserveFramebufferAttachment(resource, slot, image, operation);
+        }
+        catch
+        {
+            operation?.Interrupt();
+            throw;
+        }
     }
     #endregion
     #endregion
 
     #region Private
-    /// <summary>Validates the native result and publishes immediately unless an attachment group is still active.</summary>
-    private void ObserveFramebufferAttachment(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment? image)
+    /// <summary>Validates the native result and publishes only for an independent attachment operation.</summary>
+    private void ObserveFramebufferAttachment(GpuFramebuffer resource, FramebufferAttachment slot, GpuFramebufferAttachment? image,
+        GpuResourceManager.MetadataOperation<GpuFramebufferMetadata>? operation = null)
     {
         RequireNativeAttachment(resource, slot, image);
         if (image is { Kind: GpuResourceKind.Texture, ImageTarget: TextureTarget.Texture2DArray }
             && resource.ResourceManager?.GetResourceRegistration(resource) is GpuResourceMetadataEntry<GpuFramebufferMetadata> entry)
             entry.Manager.RecordFramebufferAttachmentCommand(entry, new(slot, image.TextureId, image.MipLevel,
                 image.Layer ?? -1, image.BaseView, image.ViewCount, image.AttachmentMode, true, false));
-        ObserveMetadata(resource, GpuFramebufferMetadataReader.Instance, GpuMetadataChange.Metadata);
+        if (operation is null) GpuResourceManager.ObserveWrapperMetadata(resource, GpuFramebufferMetadataReader.Instance, GpuMetadataChange.Metadata);
     }
 
     /// <summary>Checks the actual bound attachment without consuming native errors or certifying a rejected command.</summary>

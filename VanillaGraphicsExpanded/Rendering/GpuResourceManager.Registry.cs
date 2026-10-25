@@ -49,9 +49,9 @@ internal sealed partial class GpuResourceManager
         return entry;
     }
 
-    /// <summary>Reuses tracked facts or reads an external object, optionally refreshing an existing registration.</summary>
+    /// <summary>Reuses available canonical facts; acquires or recovers only missing facts.</summary>
     internal GpuResourceMetadataEntry<TMetadata>? AcquireResource<TMetadata>(GpuResourceKind kind, nint id,
-        IGpuResourceMetadataReader<TMetadata> reader, bool refreshExisting = false) where TMetadata : struct
+        IGpuResourceMetadataReader<TMetadata> reader) where TMetadata : struct
     {
         ArgumentNullException.ThrowIfNull(reader);
         RequireMetadataContext();
@@ -63,23 +63,51 @@ internal sealed partial class GpuResourceManager
             var tracked = (GpuResourceMetadataEntry<TMetadata>)existing;
             if (tracked.State != GpuResourceRegistrationState.Live) return null;
             tracked.Reader ??= reader;
-            if (tracked.MetadataAvailable && !refreshExisting) return tracked;
+            if (tracked.OperationInProgress) return null;
+            if (tracked.IsUsable) return tracked;
+            if (tracked.CompletionInProgress) return null;
             tracked.Reader = reader;
             return RefreshMetadata(tracked, tracked.MetadataRevision == 0 ? GpuMetadataChange.None : GpuMetadataChange.Metadata) ? tracked : null;
         }
-        if (!reader.TryRead(id, out var candidate)) return null;
+        // Admit an unavailable provisional identity before reading so reentrant acquisition
+        // cannot recursively rediscover the same object. Failed reads remove only this entry.
+        var entry = RegisterCreatedResource(kind, id, reader);
+        bool acquired = false;
+        try
+        {
+            acquired = RefreshMetadata(entry, GpuMetadataChange.None);
+            return acquired ? entry : null;
+        }
+        finally
+        {
+            if (!acquired)
+            {
+                metadataRegistry.TryRemove(new System.Collections.Generic.KeyValuePair<GpuResourceHandle, GpuResourceRegistration>(key, entry));
+                entry.Invalidate(GpuResourceRegistrationState.Deleted);
+            }
+        }
+    }
+
+    /// <summary>Explicitly recovers external facts even when a previous canonical snapshot is available.</summary>
+    internal GpuResourceMetadataEntry<TMetadata>? RecoverResource<TMetadata>(GpuResourceKind kind, nint id,
+        IGpuResourceMetadataReader<TMetadata> reader) where TMetadata : struct
+    {
         RequireMetadataContext();
-        var entry = new GpuResourceMetadataEntry<TMetadata>(this, kind, id, reader);
-        // Native acquisition is context-thread confined. Keep the map operation atomic and
-        // never run native readers in a GetOrAdd factory, whose execution can be repeated.
-        if (!metadataRegistry.TryAdd(key, entry))
-            throw new InvalidOperationException("The native resource was registered during metadata acquisition.");
-        CompleteRegistryAdmission(entry);
-        RequireLiveEntry(entry);
-        // Initial acquisition must establish the same backing dependencies as a later
-        // refresh before making the new canonical snapshot available to recipients.
-        PublishMetadata(entry, candidate, GpuMetadataChange.None);
-        return entry;
+        ValidateMetadataType<TMetadata>(kind, id);
+        var entry = FindResource(kind, id) as GpuResourceMetadataEntry<TMetadata>;
+        if (entry is null) return AcquireResource(kind, id, reader);
+        if (entry.State != GpuResourceRegistrationState.Live || entry.OperationInProgress || entry.CompletionInProgress) return null;
+        entry.Reader = reader;
+        return RefreshMetadata(entry, GpuMetadataChange.Metadata) ? entry : null;
+    }
+
+    /// <summary>Returns an available canonical entry without issuing native reads or initiating recovery.</summary>
+    internal GpuResourceMetadataEntry<TMetadata>? LookupAvailableResource<TMetadata>(GpuResourceKind kind, nint id)
+        where TMetadata : struct
+    {
+        RequireMetadataContext();
+        ValidateMetadataType<TMetadata>(kind, id);
+        return FindResource(kind, id) is GpuResourceMetadataEntry<TMetadata> { IsUsable: true } entry ? entry : null;
     }
 
     /// <summary>Looks up registration identity on any thread without native queries or ownership transfer.</summary>
@@ -126,6 +154,7 @@ internal sealed partial class GpuResourceManager
     internal void ObserveDeletion(GpuResourceKind kind, nint id)
     {
         if (id == 0 || context != currentMetadataContext()) return;
+        StateCache.Current.CancelResourceOperation(kind, id);
         if (metadataRegistry.TryRemove(new(kind, id), out var entry))
         {
             entry.Invalidate(GpuResourceRegistrationState.Deleted);

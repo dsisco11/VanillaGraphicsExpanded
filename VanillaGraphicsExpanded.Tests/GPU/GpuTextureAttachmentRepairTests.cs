@@ -70,7 +70,7 @@ public sealed class GpuTextureAttachmentRepairTests(HeadlessGLFixture fixture)
             using var source = DynamicTexture3D.Create(4, 4, 2, PixelInternalFormat.Rgba8, immutableStorage: true);
             using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba8, 0, 1, 0, 1);
             if (own) GpuResourceManager.InvalidateWrapperMetadata(view);
-            else using (storage ? StateCache.Current.BeginTextureStorageUpdate(source) : StateCache.Current.BeginTextureMetadataUpdate(source)) { }
+            else using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(source, storage ? GpuMetadataChange.Storage : GpuMetadataChange.Metadata)) { }
             Assert.False(view.IsValid);
             StateCache.Current.BindTexture(TextureTarget.Texture2DArray, 0, 0);
             view.Bind(0);

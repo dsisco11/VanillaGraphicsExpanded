@@ -75,7 +75,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid();
         Assert.Null(GpuResourceManagerSystem.CurrentManager);
         using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
-        using (StateCache.Current.BeginTextureMetadataUpdate(texture)) { }
+        using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Metadata)) { }
         Assert.Equal(0, texture.Width);
         Assert.False(texture.TryBind(0));
         texture.SetMipRange(0, 0);

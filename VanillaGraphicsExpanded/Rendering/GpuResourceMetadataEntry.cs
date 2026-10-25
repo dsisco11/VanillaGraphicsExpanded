@@ -9,6 +9,12 @@ internal sealed class GpuResourceMetadataEntry<TMetadata> : GpuResourceRegistrat
 {
     private readonly ConcurrentDictionary<WeakReference<GpuResource>, bool> recipients = new();
     private GpuMetadataChange pendingChange;
+    /// <summary>Prevents recursive native acquisition while a complete result is being recovered or committed.</summary>
+    internal bool CompletionInProgress { get; set; }
+    /// <summary>Rejects a stale outer candidate after a caught reentrant mutation attempt.</summary>
+    internal bool CompletionInterrupted { get; set; }
+    /// <summary>Blocks acquisition while an explicit operation constructs a complete result.</summary>
+    internal bool OperationInProgress { get; set; }
 
     #region Internal API
     #region Recipient initialization

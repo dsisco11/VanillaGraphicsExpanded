@@ -12,6 +12,7 @@ internal sealed partial class StateCache
     {
         var cache = Current;
         int vao = named ? selector : cache.GetCurrentVao();
+        cache.RequireResourceOperationAvailable(GpuResourceKind.VertexArray, vao);
         cache.VertexConfigurationEpoch++;
         if (elementBinding) cache.elementArrayBufferByVao.Remove(vao);
         var manager = GpuResourceManagerSystem.CurrentManager;

@@ -154,6 +154,8 @@ public sealed class FramebufferRoutingCacheTests(HeadlessGLFixture fixture, ITes
     public void CachedPassesMatchExplicitlyForgottenRoutesWithFewerCalls()
     {
         EnsureContextValid();
+        // Clear-only passes declare no executable and restore the incoming shared-fixture program.
+        using var program = StateCache.Current.UseProgramScope(0);
         using var target = Target();
         var cache = StateCache.Current;
         // Reset image contents and the incoming mapping identically for each comparison.

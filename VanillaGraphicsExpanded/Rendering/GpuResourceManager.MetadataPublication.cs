@@ -11,6 +11,8 @@ internal sealed partial class GpuResourceManager
     {
         RequireMetadataContext();
         RequireLiveEntry(entry);
+        if (entry.OperationInProgress) throw new System.InvalidOperationException("An operation owns this resource result.");
+        BeginMetadataCompletion(entry, change);
         entry.BeginRefresh(change);
         change |= entry.PendingChange;
         bool finished = false;
@@ -26,6 +28,7 @@ internal sealed partial class GpuResourceManager
             AcquireRenderbufferTextureBacking(entry, candidate, renewTextureAssociation);
             RequireMetadataContext();
             RequireLiveEntry(entry);
+            RequireUninterruptedCompletion(entry);
             ulong previousStorage = entry.StorageRevision;
             change = entry.Publish(candidate, change);
             PublishBufferTextureDependencies(entry, previousStorage);
@@ -35,6 +38,7 @@ internal sealed partial class GpuResourceManager
         }
         finally
         {
+            entry.CompletionInProgress = false;
             try { entry.NotifyImageDependents(suppressErrors: !finished); }
             finally { entry.NotifyProgramDependents(change, finished); }
         }
@@ -44,9 +48,18 @@ internal sealed partial class GpuResourceManager
     internal void PublishMetadata<TMetadata>(GpuResourceMetadataEntry<TMetadata> entry, TMetadata candidate, GpuMetadataChange change,
         bool renewTextureAssociation = false)
         where TMetadata : struct
+        => PublishMetadataCore(entry, candidate, change, renewTextureAssociation, null);
+
+    /// <summary>Commits a supplied result, allowing only an explicitly authorized operation past its execution guard.</summary>
+    private void PublishMetadataCore<TMetadata>(GpuResourceMetadataEntry<TMetadata> entry, TMetadata candidate,
+        GpuMetadataChange change, bool renewTextureAssociation, StateCache.ResourceOperationGuard? operation)
+        where TMetadata : struct
     {
         RequireMetadataContext();
         RequireLiveEntry(entry);
+        if (entry.OperationInProgress && operation is null) throw new System.InvalidOperationException("An operation owns this resource result.");
+        StateCache.Current.RequireResourceOperationAvailable(entry.Kind, entry.Id, operation);
+        BeginMetadataCompletion(entry, change);
         entry.BeginRefresh(change);
         change |= entry.PendingChange;
         bool finished = false;
@@ -59,6 +72,7 @@ internal sealed partial class GpuResourceManager
             AcquireRenderbufferTextureBacking(entry, candidate, renewTextureAssociation);
             RequireMetadataContext();
             RequireLiveEntry(entry);
+            RequireUninterruptedCompletion(entry);
             ulong previousStorage = entry.StorageRevision;
             change = entry.Publish(candidate, change);
             PublishBufferTextureDependencies(entry, previousStorage);
@@ -67,9 +81,32 @@ internal sealed partial class GpuResourceManager
         }
         finally
         {
+            entry.CompletionInProgress = false;
             try { entry.NotifyImageDependents(suppressErrors: !finished); }
             finally { entry.NotifyProgramDependents(change, finished); }
         }
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Rejects same-entry reentrant completion and poisons the outer candidate even when the caller catches it.</summary>
+    private static void BeginMetadataCompletion<T>(GpuResourceMetadataEntry<T> entry, GpuMetadataChange change) where T : struct
+    {
+        if (entry.CompletionInProgress)
+        {
+            entry.CompletionInterrupted = true;
+            entry.BeginRefresh(change);
+            throw new System.InvalidOperationException("Metadata completion is already in progress for this resource.");
+        }
+        entry.CompletionInProgress = true;
+        entry.CompletionInterrupted = false;
+    }
+
+    /// <summary>Prevents a reader or dependency callback from publishing an obsolete outer result.</summary>
+    private static void RequireUninterruptedCompletion<T>(GpuResourceMetadataEntry<T> entry) where T : struct
+    {
+        if (entry.CompletionInterrupted)
+            throw new System.InvalidOperationException("Metadata completion was interrupted by a reentrant update.");
     }
     #endregion
 }

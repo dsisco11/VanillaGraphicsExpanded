@@ -13,7 +13,7 @@ internal sealed partial class StateCache
         bool named, bool explicitUnit, int buffer, int format, nint offset, nint size, bool whole)
     {
         var manager = GpuResourceManagerSystem.CurrentManager;
-        if (manager?.CanObserveNativeMetadata != true || target != (int)TextureTarget.TextureBuffer) return default;
+        if (manager?.CanObserveNativeMetadata != true && Current.resourceOperation is null || target != (int)TextureTarget.TextureBuffer) return default;
         int id = selector;
         if (!named)
         {
@@ -21,6 +21,8 @@ internal sealed partial class StateCache
             if ((uint)selectedUnit >= (uint)GpuSupport.Graphics.MaxCombinedTextureImageUnits) return default;
             id = Current.GetBoundTexture(TextureTarget.TextureBuffer, selectedUnit);
         }
+        Current.RequireResourceOperationAvailable(GpuResourceKind.Texture, id);
+        if (manager?.CanObserveNativeMetadata != true) return default;
         var entry = manager.FindObservedResource(GpuResourceKind.Texture, id) as GpuResourceMetadataEntry<GpuTextureMetadata>;
         if (entry is null || entry.Metadata.Target != 0 && entry.Metadata.Target != TextureTarget.TextureBuffer) return default;
         var previous = entry.IsUsable ? entry.Metadata.Buffer : null;

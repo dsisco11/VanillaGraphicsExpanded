@@ -18,6 +18,8 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
     public void NamedAndBoundRestorationProduceEquivalentResults(bool standalone)
     {
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
+        // Clear-only passes declare no executable; preserve any program left by another shared-fixture test.
+        using var program = StateCache.Current.UseProgramScope(0);
         using var scene=new RoutingScene();scene.Initialize();List<string> fallback;
         using(var capability=new DirectStateAccessCapabilityScope(false))
         using(var capture=new GraphicsTransitionCapture()){scene.Render(standalone);fallback=[..capture.Calls];}
@@ -38,6 +40,8 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
     public void WindowRestorationAlwaysPreservesGroupedSelector(bool directStateAccess)
     {
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
+        // Clear-only passes declare no executable; preserve any program left by another shared-fixture test.
+        using var program = StateCache.Current.UseProgramScope(0);
         using var capability=new DirectStateAccessCapabilityScope(directStateAccess);
         using var originalBindings=StateCache.Current.BindFramebufferScope();
         using var window=DynamicGpuFramebuffer.Wrap(0,width:1,height:1);window.PublishSurfaceMetadata(1,1);
@@ -74,7 +78,10 @@ public sealed class FramebufferRoutingDsaTests(HeadlessGLFixture fixture,ITestOu
     public void NamedRestoreFailureStillCleansRemainingOwners()
     {
         EnsureContextValid();Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
+        // Clear-only passes declare no executable; preserve any program left by another shared-fixture test.
+        using var program = StateCache.Current.UseProgramScope(0);
         using var scene=new RoutingScene();scene.Initialize();
+
         using(var capture=new GraphicsTransitionCapture()){capture.FailNamedFramebuffer=scene.FirstFramebuffer;var failure=Assert.ThrowsAny<Exception>(()=>scene.Render(false));Assert.Contains("Injected named restoration failure",failure.ToString());}
         scene.AssertRestored(includeFirst:false);scene.AssertReleased();Assert.Equal(ErrorCode.NoError,GL.GetError());
     }

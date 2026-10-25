@@ -179,13 +179,10 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         {
             CompleteOwnedCreation(GpuResourceKind.Texture, textureId, () =>
             {
-                using (StateCache.Current.BindTextureScope(target, 0, textureId))
-                using (var update = StateCache.Current.BeginTextureStorageUpdate(this, target))
-                {
-                    Allocate3DStorageBound(target, format, width, height, depth, immutableStorage);
-                    Apply3DTextureObjectParamsBound(target, filterMode);
-                    update.Complete();
-                }
+                var min = filterMode == TextureFilterMode.Linear ? TextureMinFilter.Linear : TextureMinFilter.Nearest;
+                var mag = filterMode == TextureFilterMode.Linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
+                StateCache.Current.AllocateTexture3D(this, target, format, width, height, depth, immutableStorage, min, mag,
+                    TextureWrapMode.ClampToEdge, 0, 0);
                 return this;
             });
         }
@@ -254,21 +251,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
             return;
         }
 
-        var cache = StateCache.Current;
-        using var binding = cache.BindTextureScope(textureTarget, 0, textureId);
-        using var update = cache.BeginTextureMetadataUpdate(this);
-        try
-        {
-            cache.TextureParameter(this, textureTarget, TextureParameterName.TextureBaseLevel, baseLevel);
-            cache.TextureParameter(this, textureTarget, TextureParameterName.TextureMaxLevel, maxLevel);
-        }
-        catch
-        {
-            // Preserve best-effort native dispatch handling; an interrupted group stays unavailable.
-            return;
-        }
-        // Publication runs outside the native catch so authoritative refresh failure reaches callers.
-        update.Complete();
+        StateCache.Current.SetTextureMipRange(this, textureTarget, baseLevel, maxLevel);
     }
 
     /// <summary>
