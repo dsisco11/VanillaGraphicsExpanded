@@ -35,7 +35,7 @@ flowchart TD
 | --- | --- |
 | `RHICommand` | Immutable operation code and typed argument location in a recorded list. No native dispatch, metadata or lifetime authority. |
 | `RHICommandList` | Ordered recording, argument retention, closing, submission state and reset. Provides named operations rather than public arbitrary callbacks. |
-| `RHICommandContext` | Immediate execution facade and synchronous submission of a closed list to its originating backend/context. |
+| `RHICommandContext` | Replaces `GraphicsCommandContext`: owns immediate graphics/compute submission and closed-list execution, coordinating passes, pipelines, dynamic state, binding validation/publication, draw/dispatch and engine-boundary restoration. |
 | `IRHIBackend` / OpenGL implementation | Semantic operations implemented directly with core 4.5 calls; optional extension operations, outcome handling and explicit operation composition. |
 | `OpenGlStateCache` (renamed `StateCache`) | Existing executed binding/routing knowledge, suppression decisions, boundary restoration facts and forwarding established resource effects to the manager. No public native execution surface in the final design. |
 | `GpuResourceManager` | Creation handoff, original associations, canonical metadata, operation candidates, availability, revisions, dependency validation and retirement queues. |
@@ -457,6 +457,17 @@ Commit only the captured uniform version that actually executed; never clear a n
 an incompatible executable/table change and require re-recording rather than replaying old slot indices
 against a new interface. Submission-time equality checks cannot discard a needed upload based solely
 on a successful recording that has not executed.
+
+`RHICommandContext` entirely supersedes `GraphicsCommandContext`. Move its pass lifecycle/sequencing,
+pipeline selection, dynamic state, binding validation/publication and draw submission responsibilities
+into the unified context alongside compute dispatch. Migrate all callers and delete the old class in
+the same replacement unit; no forwarding facade, parallel graphics context API or duplicated submission
+state remains. Renderers retain orchestration: choosing work and its order, not another execution context.
+
+Specialized pass, validation, usage-guard and engine-boundary restoration helpers remain behind the
+unified context with their existing responsibilities. Reuse them rather than duplicating their state
+inside the context. Immediate calls and recorded execution use the same execution machinery; recording
+itself still acquires no pass guards and changes no executed state.
 
 Render pass scopes retain clear/load/store behavior, feedback guards and boundary restoration. Draw and
 dispatch enter the same backend; no direct native draw escape remains in migrated consumers. Retirement
