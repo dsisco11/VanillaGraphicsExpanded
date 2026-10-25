@@ -54,8 +54,8 @@ No second binding cache, resource registry or metadata hierarchy is introduced.
 
 The command API uses project-owned descriptors/enums for formats, dimensions, access, pipeline state,
 vertex layout and synchronization intent. No public operation accepts an OpenTK enum, binding target,
-DSA flag, GL method name or native overload selector. Existing GL-shaped wrapper APIs can translate
-at their compatibility boundary while they migrate.
+DSA flag, GL method name or native overload selector. Migration proceeds through complete operation-family
+replacements against this final contract, as defined below.
 
 Use the implemented `GpuTextureRef` unchanged for texture consumption. Its native accessors and
 OpenTK-valued metadata are an existing compatibility surface, not fields exposed in command descriptors.
@@ -211,12 +211,26 @@ Allowed owners remain GL/Core, Ext and Arb; legacy exclusions and the built-in-a
 boundary remain unchanged. Backend native calls are outside rewritten engine call sites, preventing
 recursion. Raw unsupported external inputs retain conservative handling.
 
+Define the final RHI interfaces and dependency rules before migrating callers. Migration proceeds through
+complete operation-family replacements: update every affected caller, move native execution and capability
+selection into the OpenGL backend, and remove superseded entry points in the same replacement.
+Temporary compatibility facades and forwarding shims are prohibited. Unmigrated families may retain their
+existing implementation only while explicitly tracked as incomplete; a completed family cannot depend on
+a temporary compatibility layer. If a dependency prevents complete replacement, include it in the same
+migration unit. Final acceptance requires removing every internal execution bypass of the RHI boundary.
+
+Each replacement must verify behavior, exactly-once publication, binding suppression and restoration,
+and inspect callers/dependencies for residual old entry points or native dispatch outside the backend.
+The compiler-checked engine adapters above remain a permanent external integration boundary, not a
+temporary migration exception. Existing resource/reference accessors are retained contracts, not permission
+for internal callers to issue native operations or select backend paths.
+
 The final split moves native execution from `StateCache` into focused OpenGL backend modules, then
-renames the remaining class `OpenGlStateCache`. During migration each operation has exactly one owner:
-an old entry point may temporarily forward to the new backend, but cannot execute or notify again.
+renames the remaining class `OpenGlStateCache`. Each operation has exactly one execution owner.
 Manager creation calls the backend through the execution context; backend effects use existing manager
-operation/publication services without recursively invoking creation. Retain existing wrapper constructors
-and helper policy while replacing their native path selection. Readers keep manager acquisition ownership.
+operation/publication services without recursively invoking creation. Preserve wrapper allocation policy,
+ownership and helper responsibilities; update GL-shaped signatures and their callers where the final
+contract requires it rather than retaining obsolete overloads. Readers keep manager acquisition ownership.
 
 `ShaderPreparedSubmission` retains complete-set validation and compatibility history; its publication
 target becomes command operations. `GpuPreparedBindings` continues preparing supplied program metadata
