@@ -29,7 +29,7 @@ flowchart TD
     W[Wrappers, upload helpers, render submission] --> C[Semantic commands: immediate or recorded]
     C --> B[OpenGL backend operation]
     B --> P[Validate and consult OpenGlStateCache]
-    P --> N[Execute selected native path]
+    P --> N[Execute OpenGL 4.5 operation]
     N --> R[Reconcile OpenGlStateCache]
     R --> M[GpuResourceManager publishes metadata effects]
     E[Exact engine GL adapters] --> B
@@ -40,14 +40,15 @@ flowchart TD
 | `RHICommand` | Immutable operation code and typed argument location in a recorded list. No native dispatch, metadata or lifetime authority. |
 | `RHICommandList` | Ordered recording, argument retention, closing, submission state and reset. Provides named operations rather than public arbitrary callbacks. |
 | `RHICommandContext` | Immediate execution facade and synchronous submission of a closed list to its originating backend/context. |
-| `IRHIBackend` / OpenGL implementation | Semantic operation execution, capability dispatch, native calls, temporary bindings, outcome handling and explicit operation composition. |
+| `IRHIBackend` / OpenGL implementation | Semantic operations implemented directly with core 4.5 calls; optional extension operations, outcome handling and explicit operation composition. |
 | `OpenGlStateCache` (renamed `StateCache`) | Existing executed binding/routing knowledge, suppression decisions, boundary restoration facts and forwarding established resource effects to the manager. No public native execution surface in the final design. |
 | `GpuResourceManager` | Creation handoff, original associations, canonical metadata, operation candidates, availability, revisions, dependency validation and retirement queues. |
 | Existing wrappers/renderers | Ownership, allocation/growth/streaming policy, content readiness, pass orchestration and ordering. |
 
-Backend operations and cache are collaborators, not two dispatchers. Cache restoration plans are
-executed by the backend and recorded back into the same cache. Native metadata readers remain
-manager-owned services; their binding-preserving execution uses the same backend/cache boundary.
+Backend operations and cache are collaborators, not two dispatchers. Ordinary named resource operations
+leave selectors untouched and need no binding scope or restoration plan. Cache restoration remains for
+render/engine boundaries and operations whose semantics actually change bindings. Native metadata readers
+remain manager-owned services, using core named queries wherever available through the backend.
 No second binding cache, resource registry or metadata hierarchy is introduced.
 
 ## Public operations and resource inputs
@@ -95,10 +96,16 @@ usage guards, not methods on the reference itself. Imported resources keep their
 | Synchronization | Resource access barriers, fence insertion, GPU waits and external semaphore operations. Backend maps supported access intent; no inferred render graph. CPU waits are explicit immediate calls. Imported-handle ownership is never inferred from a command. |
 | Queries/readback | Begin/end timestamp or statistics operations and enqueue readback into owned staging storage are recordable. Typed result requests expose `Pending`, `Ready`, `Failed` or `Cancelled`; polling/waiting/mapping is explicit and immediate. Raw client pointers and mapped spans are never recorded. |
 
-`GpuCapabilities` exposes semantic availability and limits. Context-owned backend dispatch tables
-contain native variant choices; capability discovery is cached, not repeated per command. Unsupported
-operations reject before dispatch with a specific feature reason. External interop remains an optional
-feature contract with platform-specific import descriptors; another backend need not emulate it.
+Expose semantic limits and optional features through `RHICapabilities`, projected from the existing
+context capability/limit data rather than creating a second discovery system. Baseline operations call
+their core implementation directly: no per-operation variant table, DSA enable flag, backend fallback
+strategy objects or runtime core/ARB/EXT resolver. `IRHIBackend` selects the graphics backend, not an
+OpenGL version strategy. The command opcode dispatcher only interprets recorded operations.
+
+Optional operations, such as external memory/semaphore imports, have explicit feature checks and
+focused extension implementations. Reject unsupported requests before dispatch with a feature reason;
+do not invent a general fallback registry for them. Format-dependent limits and sample counts remain
+cached. Native entry-point loading is still required, but it is not semantic implementation selection.
 
 ## Immediate execution and recorded lists
 
@@ -160,7 +167,8 @@ owner; the command list does not invent snapshot semantics. Revalidate bounds, e
 manager usability and pass feedback before use, even when reference equality is unchanged.
 
 Recording performs argument-shape and balanced-pass checks without native queries, cache updates,
-guards or metadata publication. Submission rechecks context and capabilities and validates each complete
+guards or metadata publication. Submission rechecks context, required optional features and resource limits,
+and validates each complete
 binding set before publishing it. Pass guards start on execution and end on execution/unwind. Lists must
 contain complete passes; they cannot leave an active pass for another list or straddle an engine callback.
 They are not implicitly state-isolated: commands leave their specified state, while temporary operation
@@ -188,8 +196,8 @@ unavailable without issuing GL into a replacement context.
 
 Every operation has one execution owner:
 
-1. Check context, resource usability, legal inputs and existing usage/reentry guards. Resolve native
-   implementation from the cached per-operation capability table.
+1. Check context, resource usability, legal inputs and existing usage/reentry guards. Baseline operations
+   use their fixed core implementation; only optional operations check their extension requirement.
 2. Ask `OpenGlStateCache` whether an eligible known-equal state change can be suppressed. Allocation,
    content upload, draw, link and synchronization are not suppressible just because metadata matches.
 3. Capture original associations and required restoration facts. For metadata mutations use the existing
@@ -197,8 +205,9 @@ Every operation has one execution owner:
 4. Execute native calls in the backend. Explicit internal steps share the owning operation; they do not
    independently publish. Intercepted calls remain individual operations.
 5. Reconcile established binding and lifecycle effects through `OpenGlStateCache`; deliver metadata effects
-   to the manager for exactly-once canonical commit and typed notification. Restore temporary selections
-   through backend calls and the same cache, including exceptional paths.
+   to the manager for exactly-once canonical commit and typed notification. Named resource operations
+   do not invalidate unrelated selectors. Where a binding scope is actually required, restore it through
+   backend calls and the same cache, including exceptional paths.
 
 This replaces caller-facing Begin/End pairs with complete semantic operations. Internal operation state
 remains necessary for original identity, grouped work and interruption; disposal is cleanup, not evidence
@@ -228,15 +237,28 @@ supported implementation before dispatch or reject as unsupported. Format-specif
 intercepted calls never drain errors to discover capabilities.
 Cache-restoration failure marks affected selectors unknown and preserves the original failure.
 
+Managed creation uses core `Create*` entry points where available so named operations receive realized
+objects. Do not introduce a generate-name/temporary-bind realization fallback. Kinds without `Create*`
+retain their specific core creation contract. Exact intercepted `Gen*` calls still preserve reserved-name
+semantics; acquiring external resources must not pretend those names are already realized.
+
+Managed metadata acquisition likewise uses named core queries where equivalent. Remove older-context
+reader switches and their bound-query implementations in the same family replacement. Keep discovery
+for unknown external state and binding-based queries only where the required fact has no equivalent
+named query. OpenGL 4.5 availability does not turn mutable storage into immutable storage, make content
+immutable, or make unknown external facts query-free.
+
 ## Engine integration and migration boundaries
 
 Keep compiler-checked `EngineStateCallMap` adapters and exact call replacement. An intercepted operation
 uses an internal OpenGL compatibility entry point on the backend: preserve the original overload,
 arguments, side effects and error behavior, execute it exactly once, then use the shared reconciliation
 contract. It is not converted to a suppressible managed command and is never deferred into a list.
-Allowed owners remain GL/Core, Ext and Arb; legacy exclusions and the built-in-assembly interception
+Allowed intercepted owners remain GL/Core, Ext and Arb; legacy exclusions and the built-in-assembly interception
 boundary remain unchanged. Backend native calls are outside rewritten engine call sites, preventing
 recursion. Raw unsupported external inputs retain conservative handling.
+Keep exact forwarding modules separate from managed core operation modules. Their required older-shaped
+signatures preserve engine behavior on the same 4.5 context; they do not provide a lower-version RHI.
 
 Define the final RHI interfaces and dependency rules before migrating callers. Migration proceeds through
 complete operation-family replacements: update every affected caller, move native execution and capability
@@ -248,6 +270,11 @@ migration unit. Final acceptance requires removing every internal execution bypa
 
 Each replacement must verify behavior, exactly-once publication, binding suppression and restoration,
 and inspect callers/dependencies for residual old entry points or native dispatch outside the backend.
+Remove that family's baseline capability branches, variant tables, retry-based fallback state, temporary
+DSA-emulation binding scopes and obsolete fallback-only tests together. Cover wrappers, upload helpers,
+manager creation, native readers and fixtures, not only the public command facade. Replace forced
+DSA-disabled tests with direct core-operation/state-preservation tests; retain tests for necessary bound
+semantics and exact external calls. Do not preserve an old backend implementation just to satisfy fixtures.
 The compiler-checked engine adapters above remain a permanent external integration boundary, not a
 temporary migration exception. Existing resource/reference accessors are retained contracts, not permission
 for internal callers to issue native operations or select backend paths.
@@ -278,7 +305,7 @@ Recorded references never authorize a queued delete to reacquire an entry by reu
 Organize source by responsibility: `Rendering/RHI/Commands` for command contracts/recording,
 `Rendering/RHI/Backends/OpenGL` for native operations/dispatch and cache modules, and existing manager,
 metadata, initialization and wrapper domains for their current responsibilities. Separate argument
-storage, list lifecycle, operation families and capability tables rather than making one large dispatcher.
+storage, list lifecycle, core operation families and optional extension modules rather than making one large dispatcher.
 Other backends implement the semantic interface; optional features can reject unsupported requests.
 No second backend, shader-language translation, render graph or global resource-model rewrite is proposed.
 PSO multi-bind fits inside the binding backend using baseline support and existing slot knowledge;
@@ -327,7 +354,8 @@ measurements justify it and that additional scope is approved. No CPU-time resul
 
 Recommended decisions: semantic backend operations; immediate default with initially single-threaded,
 single-use recorded lists and the required context-independent recording contract; execution-time resource resolution; immediate creation/storage/lifecycle
-operations; backend-owned capability dispatch; existing manager publication and error policy.
+operations; direct OpenGL 4.5 execution with explicit optional features; existing manager publication
+and error policy.
 These choices are proposed together for review. No unresolved external specification blocks the design;
 API naming and measured storage tuning remain implementation details, not permission to change semantics.
 
