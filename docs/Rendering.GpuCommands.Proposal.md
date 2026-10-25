@@ -117,9 +117,26 @@ before execution and releases owned arguments/references. During synchronous sub
 concurrent cancellation. Reset is permitted after execution, failure or cancellation, never while
 executing. Reset returns to empty recording; lists are single-use recordings, not replayable snapshots.
 
-The first implementation records and submits on the originating context thread. There is no worker
-thread, asynchronous submission, shared-context execution, nested-list execution or cross-list scheduler.
-CPU-only multithreaded recording could be added later behind the boundary; it is not required now.
+The first implementation uses immediate execution and single-threaded recording/submission on the
+originating context thread. Recording must nevertheless be independent of a current native context by
+contract, rather than relying on a future refactor to permit concurrency:
+
+- Each recording list has one exclusive owner. Its command storage and mutable recording state are
+  list-local; no shared mutable recorder, ambient current context or global scratch storage is allowed.
+- Recording consumes supplied values, copied payloads and retained immutable descriptions/references.
+  It does not inspect mutable wrapper metadata, resource validity, the manager registry or executed cache
+  state. Resource-dependent checks remain at execution; recording checks only supplied argument shape.
+- Closing freezes the recording. Ownership transfer must publish the complete recording before another
+  thread consumes it, with exclusive ownership of submission, cancellation and reset. Retaining a managed
+  reference does not make its resource thread-safe or prevent explicit retirement.
+- Execution remains on the originating context thread. The orchestrator specifies submission order;
+  future worker completion order must never implicitly determine rendering order. Recorded work retains
+  its intended context identity without requiring that context to be current during recording.
+
+These are required architectural boundaries now. Worker scheduling, concurrent recording integration,
+asynchronous submission, shared-context execution, nested lists and a cross-list scheduler remain outside
+the initial implementation. A dedicated RHI execution thread and parallel native translation are separate
+design decisions, not implied by enabling CPU-only parallel recording.
 
 Record commands in reusable typed payload pages with an ordered `RHICommand` header stream. Store
 managed references in list-owned tables, not an unmanaged union. Copy spans/arrays and mutable binding
@@ -284,10 +301,18 @@ pooling policy. No promised frame-time gain. Debug instrumentation remains DEBUG
 Release product variant. Future implementation qualification includes delegated regression tests,
 canonical build/package identity and user-run visual checks, distinct from this document review.
 
+Verify recording with no current native context and supplied inputs only; verify closing prevents further
+mutation and that reset/cancellation release retained CPU data without native work. These checks establish
+the recording boundary, not full concurrent execution qualification. Before proposing worker recording,
+measure preparation, payload copying, recording, validation and native dispatch separately. Compare the
+parallelizable portion against scheduling, handoff and ordering costs; command recording alone may be
+too cheap to justify workers. Add concurrency integration and its race/lifetime tests only when those
+measurements justify it and that additional scope is approved. No CPU-time result alone proves a frame-time gain.
+
 ## Approval and controlling contracts
 
-Recommended decisions: semantic backend operations; immediate default with optional same-thread,
-single-use recorded lists; execution-time resource resolution; immediate creation/storage/lifecycle
+Recommended decisions: semantic backend operations; immediate default with initially single-threaded,
+single-use recorded lists and the required context-independent recording contract; execution-time resource resolution; immediate creation/storage/lifecycle
 operations; backend-owned capability dispatch; existing manager publication and error policy.
 These choices are proposed together for review. No unresolved external specification blocks the design;
 API naming and measured storage tuning remain implementation details, not permission to change semantics.
