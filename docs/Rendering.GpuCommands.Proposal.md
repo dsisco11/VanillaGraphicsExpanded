@@ -83,7 +83,7 @@ usage guards, not methods on the reference itself. Imported resources keep their
 
 | Operation family | API intent and execution disposition |
 | --- | --- |
-| Creation/destruction | Manager creation retains legal-input initialization records and nullable metadata handoff. Backend creation executes immediately; no unresolved resource placeholders in lists. Owner disposal schedules existing retirement; deletion is internal and never a consumer `Destroy(ref)` API. Covers every existing resource kind, including views and external-memory/semaphore objects. |
+| Creation/destruction | Typed RHI factories return owned resources or failure results. Legal-input initialization records and nullable metadata handoff remain internal to manager orchestration. Creation executes immediately; no unresolved resource placeholders in lists. Owner disposal schedules existing retirement; deletion is internal and never a consumer `Destroy(ref)` API. Covers every existing resource kind, including views and external-memory/semaphore objects. |
 | Storage/configuration | Allocate buffer/image/renderbuffer storage; configure attachments, vertex input and samplers. Executable configuration belongs to shader creation, with subsequent managed changes producing a new generation. Owner operations execute immediately and commit one coherent result. Immutable storage restrictions remain enforced. |
 | Shader work | Create an executable from stage-code inputs through the shader contract below. Compilation, linking, binary installation and native stage configuration are backend details. Existing deferred link completion remains internal to pending creation; it is not command-list GPU completion. |
 | Upload/copy/clear/mips | Typed buffer ranges, texture regions, row/slice pitches and view-relative subresources. Upload, copy and clear can be recorded. Mip generation is immediate initially because mutable generation can change storage facts. Contents never become canonical metadata. |
@@ -102,6 +102,75 @@ Optional operations, such as external memory/semaphore imports, have explicit fe
 focused extension implementations. Reject unsupported requests before dispatch with a feature reason;
 do not invent a general fallback registry for them. Format-dependent limits and sample counts remain
 cached. Native entry-point loading is still required, but it is not semantic implementation selection.
+
+## Resource creation and adoption
+
+Expose one creation pattern across resource kinds:
+
+```text
+context.CreateTexture(description, optionalInitialData)
+    -> RHICreationResult<owned texture resource>
+```
+
+`RHICreationResult<TResource>` exposes either the completed owned resource or a failure with diagnostics,
+never a provisional resource, native handle or nullable metadata snapshot. Successful ownership passes
+to the caller; failed creation exposes no resource to dispose. Preserve required exception propagation;
+the result reports detected initialization failure, not a universal detector for silent native errors.
+General resource creation is synchronous and context-affine. The separately defined pending shader
+creation request produces the same success/failure contract when complete.
+
+Factories cover buffers, textures, renderbuffers, framebuffers, samplers, vertex arrays, queries,
+transform feedback and supported external memory/semaphore objects. Buffer textures and native texture
+views are explicit creation operations with required backing references and ranges. Fence insertion
+retains its synchronization result contract. Native shader/program/program-pipeline allocation stays
+private to shader realization. Return existing appropriate owned resource abstractions; do not introduce
+a parallel RHI resource hierarchy or replace the established consumer reference types.
+
+Descriptions contain only legal inputs using project-owned types, including required dimensions,
+formats, usage and storage mode. Preserve omitted-versus-explicit-zero/false semantics where relevant.
+Higher-level wrappers/helpers retain growth, streaming and allocation policy and request creation using
+those decisions. They do not pass themselves as public factory recipients or coordinate registration.
+
+Internally the creation service declares an unpublished recipient, validates/freezes the request,
+executes backend allocation and initialization, establishes canonical metadata, and completes manager
+association and typed snapshot delivery before returning success. Existing recipient-bearing manager
+methods and nullable metadata handoff can remain private machinery. This is not a temporary public
+compatibility facade: their purpose is the manager's identity/publication transaction. Avoid recursion
+between resource constructors and factories by keeping unpublished declaration construction internal.
+
+Initial content is a separate optional payload, never metadata. Buffer payloads specify offset/extent;
+texture payloads specify subresources, layout and row/slice pitches. Validate supplied ranges against the
+description before native work. Immediate CPU payloads must remain stable until the call returns and
+must not be retained afterward unless an explicit staging ownership contract transfers them. GPU-backed
+payloads retain their source allocation through consumption under the existing synchronization rules.
+Unspecified regions remain unspecified; creating storage does not establish application content readiness.
+
+A successful result means the resource is usable for subsequent correctly ordered commands and its
+canonical metadata is available. It does not mean initial upload work has completed on the GPU.
+Ordinary client-memory upload consumption and GPU staging reuse have distinct lifetimes; staging owners
+retain their memory until explicit completion permits reuse. Do not insert an unconditional GPU wait or
+fence into every creation. No writable staging-initializer API is required without a demonstrated need.
+
+Failure retires only newly owned candidate allocations, clears provisional identity/association and
+preserves the original error. Borrowed backing dependencies are never deleted by failed creation.
+Keep the existing original-context deletion queue and context-retirement rules, including local tools.
+
+External adoption is separate from creation. Explicit borrow operations acquire available facts and
+establish existing non-owning wrappers without taking native deletion authority. Any ownership-taking
+adoption must explicitly accept transfer under existing ownership rules; neither a bare native ID nor
+ordinary borrowing implies transfer. Keep native-ID adoption at the OpenGL integration boundary rather
+than adding native IDs to portable creation descriptions. Covered aliases reuse manager metadata;
+unknown external facts retain explicit acquisition and coverage limitations.
+
+Replacement creates a new allocation and commits it through the existing owning wrapper's replacement
+contract only when ready. `GpuTextureRef` follows intentional owner replacement as already specified;
+old borrowers and native views retain their original associations and cannot silently follow it.
+Failed replacement preserves the existing documented failure behavior rather than inventing rollback of
+already retired storage. Shader/pipeline candidate installation has its stricter preservation contract below.
+
+The manager continues to own registry entries, canonical metadata, dependencies, alias publication and
+retirement. Creation factories hide those mechanics; they do not replace them with a second registry,
+reference-counting system or metadata authority.
 
 ## Shader and pipeline objects
 
@@ -432,6 +501,13 @@ compute stage validation and renderer-owned reuse. Verify pipeline disposal pres
 shader retirement rejects dependent pipeline use, failed reload preserves the installed set, and successful
 reload never retargets recorded bindings. Assert PSO realization performs no duplicate link/reflection.
 Exercise graphics and compute through the same lifetime/result contracts, including cached-binary creation.
+
+For general creation, verify each resource family returns only completed owned resources, preserves
+input omission semantics and publishes once without descriptor readback. Cover initial-data bounds and
+lifetimes, partial allocation/initialization failure, context-local creation and original-context cleanup.
+Verify borrowing versus explicit ownership transfer, available-alias reuse, replacement and native-view
+dependencies. Assert public callers cannot obtain provisional identity or perform metadata handoff,
+and distinguish usable creation from GPU completion and producer content readiness.
 
 Measure immediate baseline versus command facade and recorded submission: CPU time per operation/list,
 recording allocation bytes, retained capacity, native binds, metadata queries and publication counts.
