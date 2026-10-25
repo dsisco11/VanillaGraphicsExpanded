@@ -20,28 +20,28 @@ internal interface ILumOnScreenProbeAtlasTemporalShaderProgramBindings
     CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the octahedralCurrent Sampler slot.</summary>
     [ShaderBinding("octahedralCurrent", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? ScreenProbeAtlasCurrent { set; }
+    GpuTextureRef ScreenProbeAtlasCurrent { set; }
     /// <summary>Declares the octahedralHistory Sampler slot.</summary>
     [ShaderBinding("octahedralHistory", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? ScreenProbeAtlasHistory { set; }
+    GpuTextureRef ScreenProbeAtlasHistory { set; }
     /// <summary>Declares the position and normal anchor array sampler.</summary>
     [ShaderBinding("probeAnchors", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? ProbeAnchors { set; }
+    GpuTextureRef ProbeAnchors { set; }
     /// <summary>Declares the probeAtlasMetaCurrent Sampler slot.</summary>
     [ShaderBinding("probeAtlasMetaCurrent", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? ScreenProbeAtlasMetaCurrent { set; }
+    GpuTextureRef ScreenProbeAtlasMetaCurrent { set; }
     /// <summary>Declares the probeAtlasMetaHistory Sampler slot.</summary>
     [ShaderBinding("probeAtlasMetaHistory", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? ScreenProbeAtlasMetaHistory { set; }
+    GpuTextureRef ScreenProbeAtlasMetaHistory { set; }
     /// <summary>Declares the velocityTex Sampler slot.</summary>
     [ShaderBinding("velocityTex", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? VelocityTex { set; }
+    GpuTextureRef VelocityTex { set; }
     /// <summary>Declares the pmjJitter Sampler slot.</summary>
     [ShaderBinding("pmjJitter", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? PmjJitter { set; }
+    GpuTextureRef PmjJitter { set; }
     /// <summary>Declares the probeTraceMask Sampler slot.</summary>
     [ShaderBinding("probeTraceMask", ShaderBindingKind.Sampler, 7, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuTexture? ProbeTraceMask { set; }
+    GpuTextureRef ProbeTraceMask { set; }
     /// <summary>Supplies optional shared world-probe storage.</summary>
     [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuUniformBuffer? LumOnWorldProbe { get; }

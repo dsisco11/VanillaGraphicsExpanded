@@ -23,9 +23,9 @@ public sealed partial class SceneColorParticleSsaoShaderProgram : GpuProgram, IS
     /// <summary>Receives depth after the original cube-particle draw.</summary>
     public partial int AfterDepth { set; }
     /// <summary>Receives isolated original particle normal metadata.</summary>
-    public partial DynamicTexture2D? ParticleNormal { set; }
+    public partial GpuTextureRef ParticleNormal { set; }
     /// <summary>Receives isolated original particle position metadata.</summary>
-    public partial DynamicTexture2D? ParticlePosition { set; }
+    public partial GpuTextureRef ParticlePosition { set; }
     #endregion
 
     #region Internal API

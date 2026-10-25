@@ -82,6 +82,14 @@ executable replacement and failure preservation. Generated submission consumes t
 
 ## Prepared resource submission
 
+Texture inputs use `GpuTextureRef` for owned textures, borrowers and native views. Wrapper-owned implicit
+conversions retain the managed object without exposing lifecycle operations to the shader contract.
+`GpuTextureBinding` combines that reference with explicit image access, mip, layer and format selection.
+Native-view selections are relative to the view; source offsets are used only for shared-storage checks.
+Resource usability belongs to `GpuResourceManager`, while shader compatibility and pass feedback checks
+remain at submission. A reference follows intentional replacement by its owning wrapper, so equality
+alone never suppresses current-identity, availability or compatibility checks.
+
 Generated `Submit` snapshots each source once, selects entries from the installed prepared table,
 validates the complete active input set, then publishes resources directly to fixed slots through
 [ShaderPreparedSubmission](../VanillaGraphicsExpanded/Rendering/ShaderPreparedSubmission.cs).

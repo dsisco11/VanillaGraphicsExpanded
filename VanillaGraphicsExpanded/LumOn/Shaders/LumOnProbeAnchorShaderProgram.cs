@@ -89,12 +89,12 @@ public partial class LumOnProbeAnchorShaderProgram : LumOnShaderProgram, ILumOnP
     /// <summary>
     /// G-buffer world-space normals.
     /// </summary>
-    public partial GpuTexture? GBufferSurface { set; }
+    public partial GpuTextureRef GBufferSurface { set; }
 
     /// <summary>
     /// PMJ jitter sequence texture (RG16_UNorm, width=cycleLength, height=1).
     /// </summary>
-    public partial GpuTexture? PmjJitter { set; }
+    public partial GpuTextureRef PmjJitter { set; }
 
     #endregion
 

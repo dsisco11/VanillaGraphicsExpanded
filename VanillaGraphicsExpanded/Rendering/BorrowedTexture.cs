@@ -35,7 +35,7 @@ internal sealed class BorrowedTexture : GpuTexture
     {
         // Original association validity distinguishes deletion/name reuse from a surviving object's
         // metadata change. Never retarget an old wrapper to a replacement registration.
-        if (selected is null || !selected.IsValid || selected.TextureId != externalTexture)
+        if (selected is null || !((GpuResource)selected).IsValid || selected.TextureId != externalTexture)
         {
             selected?.Dispose();
             selected = null;

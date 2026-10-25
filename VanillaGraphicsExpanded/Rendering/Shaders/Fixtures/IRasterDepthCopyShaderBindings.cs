@@ -11,6 +11,6 @@ internal interface IRasterDepthCopyShaderBindings
     #region Public API
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
     [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? PrimaryDepth { set; }
+    GpuTextureRef PrimaryDepth { set; }
     #endregion
 }

@@ -25,7 +25,7 @@ internal sealed partial class CameraHistogramShaderProgram : GpuComputeProgram, 
         inputs = OwnUniformBuffer(new CameraExposureInputs());
     }
     /// <summary>Stages the SceneRadiance texture for submission.</summary>
-    public partial GpuTexture? SceneRadiance { set; }
+    public partial GpuTextureRef SceneRadiance { set; }
     /// <summary>Receives disjoint workgroup histograms.</summary>
     public partial GpuShaderStorageBuffer? Histogram { set; }
     /// <summary>Captures the complete metering parameters for one submission.</summary>

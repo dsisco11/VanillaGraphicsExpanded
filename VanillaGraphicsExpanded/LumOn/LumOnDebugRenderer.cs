@@ -708,10 +708,10 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         shader.GBufferSurface = gBufferManager?.SurfaceTexture;
         shader.GBufferPatchId = gBufferManager?.PatchIdTextureId ?? 0;
         shader.ProbeAnchors = bufferManager?.ProbeAnchors;
-        shader.RadianceTexture0 = null;
-        shader.RadianceTexture1 = null;
+        shader.RadianceTexture0 = default;
+        shader.RadianceTexture1 = default;
         shader.IndirectHalf = bufferManager?.IndirectHalfTex;
-        shader.HistoryMeta = null;
+        shader.HistoryMeta = default;
 
         // Outcome colors use raw trace metadata, not temporally blended confidence.
         shader.ProbeAtlasMeta = mode == LumOnDebugMode.ProbeAtlasTraceOutcome
@@ -775,11 +775,11 @@ public sealed partial class LumOnDebugRenderer : IRenderer, IDisposable
         }
         else
         {
-            shader.WorldProbeRadianceAtlas = null;
-            shader.WorldProbeVis0 = null;
-            shader.WorldProbeDist0 = null;
-            shader.WorldProbeMeta0 = null;
-            shader.WorldProbeDebugState0 = null;
+            shader.WorldProbeRadianceAtlas = default;
+            shader.WorldProbeVis0 = default;
+            shader.WorldProbeDist0 = default;
+            shader.WorldProbeMeta0 = default;
+            shader.WorldProbeDebugState0 = default;
             // Publish a stable, disabled buffer so UBO-backed shaders can safely read from the block.
             uniformBuffers.UpdateWorldProbe(
                 skyTint: capi.Render.AmbientColor,

@@ -131,7 +131,7 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
                 // disjoint destination. Compatible frames use a quarter-sized physical raw target.
                 currentTrace=HistoryCompatible?targets:previous;
                 temporal.Frame=scene.Camera;temporal.Lighting=scene.Lighting;
-                temporal.BlueNoise=noise;temporal.PreviousAge=previous.Images[3];temporal.Diagnostics=null;
+                temporal.BlueNoise=noise;temporal.PreviousAge=previous.Images[3];temporal.Diagnostics=default;
                 temporal.Cloud=currentTrace.Images[0];temporal.Bins=currentTrace.Images[1];temporal.Metadata=currentTrace.Images[2];
                 temporal.PreviousCloud=previous.Images[0];temporal.PreviousBins=previous.Images[1];temporal.PreviousMetadata=previous.Images[2];
                 temporal.MaterialDepth=scene.MaterialDepth;temporal.VisibilityDepth=scene.VisibilityDepth;temporal.LiquidDepth=scene.LiquidDepth;
@@ -222,15 +222,15 @@ internal sealed class CloudVolumeViewRenderer(CloudVolumeViewProgram program,Clo
     /// <summary>Drops synchronous camera/scene borrows and private field bindings after each submission.</summary>
     private void ReleaseBorrows()
     {
-        program.Frame=null;program.Lighting=null;program.Occupancy=null;program.Regions=null;program.Density=null;program.Direct=null;program.DiffuseField=null;
-        program.MaterialDepth=null;program.VisibilityDepth=null;program.LiquidDepth=null;program.Aerial=null;program.Attenuation=null;program.Shafts=null;
-        reconstruct.Frame=null;reconstruct.Temporal=null;reconstruct.Diagnostics=null;reconstruct.Cloud=null;reconstruct.Bins=null;reconstruct.Metadata=null;
-        reconstruct.Lighting=null;program.BlueNoise=null;
-        reconstruct.MaterialDepth=null;reconstruct.VisibilityDepth=null;reconstruct.LiquidDepth=null;
-        temporal.Frame=null;temporal.Lighting=null;temporal.Cloud=null;temporal.Bins=null;temporal.Metadata=null;
-        temporal.PreviousCloud=null;temporal.PreviousBins=null;temporal.PreviousMetadata=null;
-        temporal.BlueNoise=null;temporal.PreviousAge=null;temporal.Diagnostics=null;
-        temporal.MaterialDepth=null;temporal.VisibilityDepth=null;temporal.LiquidDepth=null;
+        program.Frame=null;program.Lighting=null;program.Occupancy=null;program.Regions=null;program.Density=default;program.Direct=default;program.DiffuseField=default;
+        program.MaterialDepth=default;program.VisibilityDepth=default;program.LiquidDepth=default;program.Aerial=default;program.Attenuation=default;program.Shafts=default;
+        reconstruct.Frame=null;reconstruct.Temporal=null;reconstruct.Diagnostics=default;reconstruct.Cloud=default;reconstruct.Bins=default;reconstruct.Metadata=default;
+        reconstruct.Lighting=null;program.BlueNoise=default;
+        reconstruct.MaterialDepth=default;reconstruct.VisibilityDepth=default;reconstruct.LiquidDepth=default;
+        temporal.Frame=null;temporal.Lighting=null;temporal.Cloud=default;temporal.Bins=default;temporal.Metadata=default;
+        temporal.PreviousCloud=default;temporal.PreviousBins=default;temporal.PreviousMetadata=default;
+        temporal.BlueNoise=default;temporal.PreviousAge=default;temporal.Diagnostics=default;
+        temporal.MaterialDepth=default;temporal.VisibilityDepth=default;temporal.LiquidDepth=default;
     }
     #endregion
 }

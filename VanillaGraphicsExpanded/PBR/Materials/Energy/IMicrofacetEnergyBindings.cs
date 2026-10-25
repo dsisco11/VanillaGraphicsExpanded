@@ -11,6 +11,6 @@ internal interface IMicrofacetEnergyBindings
     [ShaderBinding("vge_microfacetEnergy", ShaderBindingKind.Sampler, GpuBindingRegistry.Sampler.MicrofacetEnergy,
         ShaderStageKind.Fragment, ShaderStageKind.Compute, Required = false,
         TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture MicrofacetEnergy => MicrofacetEnergyLookup.Prepare();
+    GpuTextureRef MicrofacetEnergy => MicrofacetEnergyLookup.Prepare();
     #endregion
 }

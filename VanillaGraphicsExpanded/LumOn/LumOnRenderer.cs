@@ -774,9 +774,9 @@ public partial class LumOnRenderer : IRenderer, IDisposable
         }
         else
         {
-            shader.WorldProbeRadianceAtlas = null;
-            shader.WorldProbeVis0 = null;
-            shader.WorldProbeMeta0 = null;
+            shader.WorldProbeRadianceAtlas = default;
+            shader.WorldProbeVis0 = default;
+            shader.WorldProbeMeta0 = default;
         }
 
         // Indirect lighting tint

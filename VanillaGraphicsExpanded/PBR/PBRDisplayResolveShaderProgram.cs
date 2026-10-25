@@ -33,7 +33,7 @@ public sealed partial class PBRDisplayResolveShaderProgram : GpuProgram, IPBRDis
     public int SceneLinear { set => routing.SceneLinear = value; }
 
     /// <summary>Composes ordered particle radiance over transported opaque lighting on the linear route.</summary>
-    public partial DynamicTexture2D? ParticleLayer { set; }
+    public partial GpuTextureRef ParticleLayer { set; }
 
     /// <summary>Enables sampling only for a completed particle layer from the current frame.</summary>
     public int ParticleLayerEnabled { set => routing.ParticleLayerEnabled = value; }

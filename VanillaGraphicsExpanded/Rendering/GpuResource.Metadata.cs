@@ -5,6 +5,9 @@ public abstract class GpuResource<TMetadata> : GpuResource where TMetadata : str
 {
     private TMetadata metadataSnapshot;
 
+    /// <summary>Supplies the published snapshot to manager-owned consumers without acquisition.</summary>
+    internal TMetadata PublishedMetadata => metadataSnapshot;
+
     #region Public API
     /// <summary>Replaces this wrapper's snapshot without querying native state or altering ownership.</summary>
     public void HandleMetadataChanged(TMetadata data)

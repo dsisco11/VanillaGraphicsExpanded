@@ -102,46 +102,46 @@ public partial class LumOnScreenProbeAtlasTemporalShaderProgram : LumOnShaderPro
     /// Current frame probe atlas trace output.
     /// Shader uniform name remains <c>octahedralCurrent</c> for compatibility.
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlasCurrent { set; }
+    public partial GpuTextureRef ScreenProbeAtlasCurrent { set; }
 
     /// <summary>
     /// History probe atlas from previous frame.
     /// Shader uniform name remains <c>octahedralHistory</c> for compatibility.
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlasHistory { set; }
+    public partial GpuTextureRef ScreenProbeAtlasHistory { set; }
 
     /// <summary>
     /// Probe anchor positions for validity check.
     /// </summary>
-    public partial GpuTexture? ProbeAnchors { set; }
+    public partial GpuTextureRef ProbeAnchors { set; }
 
     /// <summary>
     /// Current frame probe-atlas meta trace output.
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlasMetaCurrent { set; }
+    public partial GpuTextureRef ScreenProbeAtlasMetaCurrent { set; }
 
         /// <summary>
         /// Probe-resolution trace mask (RG32F packed uint bits) selecting which atlas texels were traced.
         /// </summary>
-        public partial GpuTexture? ProbeTraceMask { set; }
+        public partial GpuTextureRef ProbeTraceMask { set; }
 
     /// <summary>
     /// Previous frame probe-atlas meta history (after last swap).
     /// Used for confidence-aware temporal blending.
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlasMetaHistory { set; }
+    public partial GpuTextureRef ScreenProbeAtlasMetaHistory { set; }
 
     /// <summary>
     /// Phase 14 velocity buffer (RGBA32F): RG = currUv - prevUv, A = packed flags.
     /// Used for velocity-based reprojection.
     /// </summary>
-    public partial GpuTexture? VelocityTex { set; }
+    public partial GpuTextureRef VelocityTex { set; }
 
     /// <summary>
     /// PMJ jitter sequence texture (RG16_UNorm, width=cycleLength, height=1).
     /// Used to reconstruct the same jittered probe UV as the probe-anchor pass.
     /// </summary>
-    public partial GpuTexture? PmjJitter { set; }
+    public partial GpuTextureRef PmjJitter { set; }
 
     #endregion
 

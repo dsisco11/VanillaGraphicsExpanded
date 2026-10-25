@@ -12,11 +12,11 @@ internal interface ICelestialGenerationBindings
     CpuUniformBuffer Inputs { get; }
     /// <summary>Supplies directions and normalized residual flux; no native sky textures are accepted.</summary>
     [ShaderBinding("catalog", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment)]
-    GpuTexture? Catalog { set; }
+    GpuTextureRef Catalog { set; }
     /// <summary>Supplies bounded tile-local omitted-star indices.</summary>
     [ShaderBinding("indices", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment)]
-    GpuTexture? Indices { set; }
+    GpuTextureRef Indices { set; }
     /// <summary>Reads a completed parent mip while writing separate scratch storage.</summary>
     [ShaderBinding("parentMap", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.TextureCubeMap)]
-    GpuTexture? ParentMap { set; }
+    GpuTextureRef ParentMap { set; }
 }

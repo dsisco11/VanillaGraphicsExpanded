@@ -9,7 +9,7 @@ internal static class ShaderBindingAccess
 {
     #region Public API
     /// <summary>Validates a borrowed texture and publishes its fixed sampler unit.</summary>
-    internal static void Sampler(GpuProgramLayout layout, int program, string name, GpuTexture texture)
+    internal static void Sampler(GpuProgramLayout layout, int program, string name, GpuTextureRef texture)
     {
         var binding = Resolve(layout, ShaderBindingKind.Sampler, name);
         ShaderPreparedSubmission.ValidateSampler(binding, texture);
@@ -25,7 +25,7 @@ internal static class ShaderBindingAccess
     }
 
     /// <summary>Resolves the shader-compatible default view for a directly supplied image texture.</summary>
-    internal static void Image(GpuProgramLayout layout, int program, string name, GpuTexture texture)
+    internal static void Image(GpuProgramLayout layout, int program, string name, GpuTextureRef texture)
     {
         var binding = Resolve(layout, ShaderBindingKind.Image, name);
         var history = new ShaderInputValidation();

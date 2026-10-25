@@ -23,12 +23,12 @@ internal interface IVgeWorldProbeOrbsPointsShaderProgramBindings
     CpuUniformBuffer Parameters { get; }
     /// <summary>Retains the worldProbeRadianceAtlas sampler.</summary>
     [ShaderBinding("worldProbeRadianceAtlas", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment)]
-    GpuTexture? WorldProbeRadianceAtlas { set; }
+    GpuTextureRef WorldProbeRadianceAtlas { set; }
     /// <summary>Retains the worldProbeVis0 sampler.</summary>
     [ShaderBinding("worldProbeVis0", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment)]
-    GpuTexture? WorldProbeVis0 { set; }
+    GpuTextureRef WorldProbeVis0 { set; }
     /// <summary>Retains the worldProbeDebugState0 sampler.</summary>
     [ShaderBinding("worldProbeDebugState0", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment)]
-    GpuTexture? WorldProbeDebugState0 { set; }
+    GpuTextureRef WorldProbeDebugState0 { set; }
     #endregion
 }

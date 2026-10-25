@@ -72,7 +72,7 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
     /// <summary>
     /// Half-resolution indirect diffuse texture.
     /// </summary>
-    public partial GpuTexture? IndirectHalf { set; }
+    public partial GpuTextureRef IndirectHalf { set; }
 
     /// <summary>
     /// Primary depth texture for edge-aware upsampling.
@@ -82,7 +82,7 @@ public partial class LumOnUpsampleShaderProgram : LumOnShaderProgram, ILumOnUpsa
     /// <summary>
     /// G-buffer normals for edge-aware upsampling.
     /// </summary>
-    public partial GpuTexture? GBufferSurface { set; }
+    public partial GpuTextureRef GBufferSurface { set; }
 
     #endregion
 

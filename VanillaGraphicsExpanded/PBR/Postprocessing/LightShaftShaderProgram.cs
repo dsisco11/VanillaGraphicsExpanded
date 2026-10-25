@@ -21,11 +21,11 @@ internal sealed partial class LightShaftShaderProgram : GpuProgram, ILightShaftS
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Stages the VisibilityImage image.</summary>
-    public partial GpuTexture? VisibilityImage { set; }
+    public partial GpuTextureRef VisibilityImage { set; }
     /// <summary>Stages the DepthImage image.</summary>
-    public partial GpuTexture? DepthImage { set; }
+    public partial GpuTextureRef DepthImage { set; }
     /// <summary>Stages the current scene or radial input.</summary>
-    public partial GpuTexture? SourceImage { set; }
+    public partial GpuTextureRef SourceImage { set; }
     /// <summary>Stages the published camera exposure buffer.</summary>
     public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
     /// <summary>Captures the complete draw parameters for the shader contract.</summary>

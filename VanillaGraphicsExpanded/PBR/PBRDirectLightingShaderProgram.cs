@@ -77,7 +77,7 @@ public sealed partial class PBRDirectLightingShaderProgram : GpuProgram, IPBRDir
     public partial int GBufferPosition { set; }
 
     /// <summary>Normal, material and environmental-irradiance layers for deferred lighting.</summary>
-    public partial GpuTexture? GBufferSurface { set; }
+    public partial GpuTextureRef GBufferSurface { set; }
 
     /// <summary>
     /// Near shadow map (texture unit 4).

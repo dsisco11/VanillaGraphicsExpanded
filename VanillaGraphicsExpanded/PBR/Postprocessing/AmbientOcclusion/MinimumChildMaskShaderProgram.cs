@@ -20,7 +20,7 @@ internal sealed partial class MinimumChildMaskShaderProgram : GpuProgram, IMinim
         foreach(var stage in Contract.Stages) ProgramLayout.RegisterContract(stage.Bindings);
     }
     /// <summary>Borrows the completed shared depth chain.</summary>
-    public partial GpuTexture? Hierarchy { set; }
+    public partial GpuTextureRef Hierarchy { set; }
     /// <summary>Stages the parent level without allocating parameters during rendering.</summary>
     internal void Capture(int level)
     {

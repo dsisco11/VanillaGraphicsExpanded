@@ -67,12 +67,12 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
     /// <summary>
     /// Scene with direct lighting only (captured before GI application).
     /// </summary>
-    public partial GpuTexture? SceneDirect { set; }
+    public partial GpuTextureRef SceneDirect { set; }
 
     /// <summary>
     /// LumOn indirect diffuse output (upsampled to full resolution).
     /// </summary>
-    public partial GpuTexture? IndirectDiffuse { set; }
+    public partial GpuTextureRef IndirectDiffuse { set; }
 
     /// <summary>
     /// G-Buffer albedo texture for material modulation.
@@ -82,7 +82,7 @@ public partial class LumOnCombineShaderProgram : LumOnShaderProgram, ILumOnCombi
     /// <summary>
     /// G-Buffer material properties (roughness, metallic, etc.).
     /// </summary>
-    public partial GpuTexture? GBufferSurface { set; }
+    public partial GpuTextureRef GBufferSurface { set; }
 
     /// <summary>
     /// Primary depth texture for sky detection.

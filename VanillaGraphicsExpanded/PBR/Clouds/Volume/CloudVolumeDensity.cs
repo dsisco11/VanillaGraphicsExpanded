@@ -166,7 +166,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
         finally
         {
             // Generated bindings may retain owned snapshots, but never a previous-frame native map borrow.
-            foreach(var p in programs)if(p is not null)p.Map=null;
+            foreach(var p in programs)if(p is not null)p.Map=default;
         }
     }
     #endregion
@@ -212,7 +212,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
         programs[0]!.Map=map;programs[0]!.Summary=summary;
         programs[0]!.Descriptors=new(nativeSnapshot,TextureAccess.WriteOnly);
         Check(current);Run(0,()=>programs[0]!.Dispatch((input.Storage.Width*input.Storage.Width+63)/64));Check(current);
-        programs[0]!.Map=null;
+        programs[0]!.Map=default;
     }
     /// <summary>Consumes a completed height/error reduction without rereading native storage.</summary>
     private (float Minimum,float Maximum) ReadBounds()

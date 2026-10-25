@@ -23,14 +23,14 @@ internal sealed partial class BloomShaderProgram : GpuProgram, IBloomShaderProgr
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Stages the SourceImage image.</summary>
-    public partial GpuTexture? SourceImage { set; }
+    public partial GpuTextureRef SourceImage { set; }
     /// <summary>Stages the SecondaryImage image.</summary>
-    public partial GpuTexture? SecondaryImage { set; }
+    public partial GpuTextureRef SecondaryImage { set; }
     /// <summary>Selects source-local exposure without requiring its sampler on the disabled path.</summary>
     [ShaderOption("VGE_LOCAL_EXPOSURE", false)]
     internal partial bool LocalExposureEnabled { get; set; }
     /// <summary>Borrows the completed current-frame scene base for highlight extraction.</summary>
-    public partial GpuTexture? LocalBase { set; }
+    public partial GpuTextureRef LocalBase { set; }
     /// <summary>Stages the bounded source-local correction independently of per-pass filtering inputs.</summary>
     internal void CaptureLocal(LocalExposure.LocalExposureParameters settings, float logMiddleGray)
         => inputs.CaptureLocal(settings, logMiddleGray);

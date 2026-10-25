@@ -20,7 +20,7 @@ internal sealed partial class PostLumaShaderProgram : GpuProgram, IPostLumaShade
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Stages the SourceImage image.</summary>
-    public partial GpuTexture? SourceImage { set; }
+    public partial GpuTextureRef SourceImage { set; }
     /// <summary>Stages the published exposure buffer.</summary>
     public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
     /// <summary>Captures the complete draw parameters for the shader contract.</summary>

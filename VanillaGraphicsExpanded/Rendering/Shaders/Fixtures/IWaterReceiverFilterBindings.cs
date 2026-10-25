@@ -15,10 +15,10 @@ internal interface IWaterReceiverFilterBindings
     CpuUniformBuffer Inputs { get; }
     /// <summary>Supplies associated linear radiance and receiver eligibility.</summary>
     [ShaderBinding("vge_refractionColor", ShaderBindingKind.Sampler, 9, ShaderStageKind.Fragment, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    DynamicTexture2D Color { get; set; }
+    GpuTextureRef Color { get; set; }
     /// <summary>Supplies hardware depth and, at reduced size, original-source coordinates.</summary>
     [ShaderBinding("vge_refractionDepth", ShaderBindingKind.Sampler, 10, ShaderStageKind.Fragment, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    DynamicTexture2D Depth { get; set; }
+    GpuTextureRef Depth { get; set; }
     /// <summary>Locates the requested normalized background sample.</summary>
     Vector2 SampleUv { get; set; }
 

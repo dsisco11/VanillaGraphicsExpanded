@@ -24,9 +24,9 @@ internal sealed partial class CelestialGalaxyProgram : GpuProgram, ICelestialDra
     /// <summary>Identifies the precompiled map program.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
     /// <summary>Supplies only generated map storage.</summary>
-    public partial GpuTexture? GalaxyMap { set; }
+    public partial GpuTextureRef GalaxyMap { set; }
     /// <summary>Supplies cached existing atmospheric extinction.</summary>
-    public partial GpuTexture? ExternalTransmission { set; }
+    public partial GpuTextureRef ExternalTransmission { set; }
     /// <summary>Borrows a complete alternate view only outside prepared submissions.</summary>
     internal VgeFrameUniformBuffer? Frame { get => frame; set { RequireInputMutation(); frame = value; } }
     /// <summary>Borrows explicit alternate-view storage while normal world draws use frozen camera storage.</summary>

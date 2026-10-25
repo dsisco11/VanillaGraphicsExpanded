@@ -46,6 +46,19 @@ another canonical entry or reader when facts are available.
 
 ## Binding knowledge and retirement
 
+`GpuTextureRef` is a readonly consumer value holding one private `GpuResource<GpuTextureMetadata>`
+reference. Implicit operators on `GpuTexture` and `GpuTextureView` supply it; borrowers use the texture
+base conversion. It exposes identity and published metadata without public disposal, mutation or
+underlying-resource access. Null wrappers produce an empty value. Equality compares managed wrappers;
+intentional owner replacement is visible through retained references. The value adds no registration,
+native allocation, captured lifetime token or metadata cache.
+
+The manager checks usability and native-view source dependencies using existing associations and local
+storage certificates. Metadata access performs no recovery. Explicit recovery remains with the producer;
+unavailable facts reject active submission. Shader compatibility history examines current identity and
+metadata revisions even when the reference value compares equal. Texture-reference retention does not
+acquire a pass guard or prevent explicit owner disposal.
+
 Resource validity and metadata availability do not prove that an object is bound. StateCache separately
 tracks selectors, image parameters, buffer ranges and framebuffer routing. Controlled known-equal bindings
 can be suppressed. Arbitrary external selectors preserve exact execution and withdraw uncertain knowledge

@@ -18,7 +18,7 @@ internal sealed partial class DebugSurfaceShaderProgram : GpuProgram, IDebugSurf
     public DebugSurfaceShaderProgram() => ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
 
     /// <summary>Supplies the displayed image using the shared nearest-clamp sampler.</summary>
-    public partial VanillaGraphicsExpanded.Rendering.GpuTexture? Scene { set; }
+    public partial VanillaGraphicsExpanded.Rendering.GpuTextureRef Scene { set; }
     /// <summary>Selects material instead of normal array data for the overlay.</summary>
     [ShaderOption("VGE_DEBUG_MATERIAL", false)]
     public partial bool MaterialLayer { get; set; }

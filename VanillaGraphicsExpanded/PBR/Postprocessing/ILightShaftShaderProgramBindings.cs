@@ -15,13 +15,13 @@ internal interface ILightShaftShaderProgramBindings : VanillaGraphicsExpanded.PB
     CpuUniformBuffer Inputs { get; }
     /// <summary>Supplies visibilityImage with explicit edge-clamped sampling.</summary>
     [ShaderBinding("visibilityImage", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture? VisibilityImage { set; }
+    GpuTextureRef VisibilityImage { set; }
     /// <summary>Supplies depthImage with explicit edge-clamped sampling.</summary>
     [ShaderBinding("depthImage", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? DepthImage { set; }
+    GpuTextureRef DepthImage { set; }
     /// <summary>Supplies HDR scene radiance or the preceding radial result.</summary>
     [ShaderBinding("sourceImage", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture? SourceImage { set; }
+    GpuTextureRef SourceImage { set; }
     /// <summary>Supplies the shared camera exposure without exposing the stored scene.</summary>
     [ShaderBinding("CameraExposure", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Fragment, Required = false)]
     GpuShaderStorageBuffer? ExposureBuffer { set; }

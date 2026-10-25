@@ -12,7 +12,7 @@ internal interface ICloudVolumeDensityBindings
     CpuUniformBuffer Inputs { get; }
     /// <summary>Borrows only the currently certified native map for validation and snapshot observation.</summary>
     [ShaderBinding("nativeMap",ShaderBindingKind.Sampler,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? Map { set; }
+    GpuTextureRef Map { set; }
     /// <summary>Owns the single persistent circular descriptor snapshot.</summary>
     [ShaderBinding("descriptors",ShaderBindingKind.Image,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture2D)]
     GpuTextureBinding Descriptors { set; }
@@ -21,7 +21,7 @@ internal interface ICloudVolumeDensityBindings
     GpuTextureBinding Density { set; }
     /// <summary>Reads stored density exactly while repairing conservative filter-footprint occupancy.</summary>
     [ShaderBinding("storedDensity",ShaderBindingKind.Sampler,1,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
-    GpuTexture? StoredDensity { set; }
+    GpuTextureRef StoredDensity { set; }
     /// <summary>Retains demand ages, target revisions and actual completion stamps.</summary>
     [ShaderBinding("DensityRegions",ShaderBindingKind.StorageBlock,0,ShaderStageKind.Compute)]
     GpuShaderStorageBuffer? Regions { set; }

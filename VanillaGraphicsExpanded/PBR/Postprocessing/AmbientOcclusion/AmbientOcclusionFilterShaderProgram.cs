@@ -21,11 +21,11 @@ internal sealed partial class AmbientOcclusionFilterShaderProgram : GpuProgram, 
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Stages sourceImage without transferring ownership.</summary>
-    public partial GpuTexture? SourceImage { set; }
+    public partial GpuTextureRef SourceImage { set; }
     /// <summary>Stages depthImage without transferring ownership.</summary>
-    public partial GpuTexture? DepthImage { set; }
+    public partial GpuTextureRef DepthImage { set; }
     /// <summary>Stages surfaceImage without transferring ownership.</summary>
-    public partial GpuTexture? SurfaceImage { set; }
+    public partial GpuTextureRef SurfaceImage { set; }
     /// <summary>Stages the complete operation parameters before submission.</summary>
     internal void Capture(VgeFrameUniformBuffer camera, Vector4 frame, Vector4 sampling, Vector4 distance)
     {

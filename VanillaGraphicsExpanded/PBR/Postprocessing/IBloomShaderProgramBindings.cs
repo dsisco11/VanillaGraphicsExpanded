@@ -12,14 +12,14 @@ internal interface IBloomShaderProgramBindings : VanillaGraphicsExpanded.PBR.Cam
     CpuUniformBuffer Inputs { get; }
     /// <summary>Supplies sourceImage with explicit edge-clamped sampling.</summary>
     [ShaderBinding("sourceImage", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture? SourceImage { set; }
+    GpuTextureRef SourceImage { set; }
     /// <summary>Supplies secondaryImage with explicit edge-clamped sampling.</summary>
     [ShaderBinding("secondaryImage", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture? SecondaryImage { set; }
+    GpuTextureRef SecondaryImage { set; }
     /// <summary>Supplies the current scene base only to the optional source-local exposure variant.</summary>
     [ShaderBinding("localBaseImage", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, Required = false,
         TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? LocalBase { set; }
+    GpuTextureRef LocalBase { set; }
     /// <summary>Supplies published exposure when automatic camera control is enabled.</summary>
     [ShaderBinding("CameraExposure", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Fragment, Required = false)]
     GpuShaderStorageBuffer? ExposureBuffer { set; }

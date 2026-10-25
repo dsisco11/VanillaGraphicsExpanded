@@ -102,13 +102,13 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
 
     #region SH9 Textures
 
-    public partial GpuTexture? ProbeSh9 { set; }
+    public partial GpuTextureRef ProbeSh9 { set; }
 
     #endregion
 
     #region Probe Anchors
 
-    public partial GpuTexture? ProbeAnchors { set; }
+    public partial GpuTextureRef ProbeAnchors { set; }
 
 
     #endregion
@@ -116,7 +116,7 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
     #region GBuffer Inputs
 
     public partial int PrimaryDepth { set; }
-    public partial GpuTexture? GBufferSurface { set; }
+    public partial GpuTextureRef GBufferSurface { set; }
 
     #endregion
 
@@ -179,9 +179,9 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
         return !changed;
     }
 
-    public partial GpuTexture? WorldProbeRadianceAtlas { set; }
-    public partial GpuTexture? WorldProbeVis0 { set; }
-    public partial GpuTexture? WorldProbeMeta0 { set; }
+    public partial GpuTextureRef WorldProbeRadianceAtlas { set; }
+    public partial GpuTextureRef WorldProbeVis0 { set; }
+    public partial GpuTextureRef WorldProbeMeta0 { set; }
 
     /// <summary>Gets or sets the declared WorldProbeBaseSpacing shader selection.</summary>
     [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeBaseSpacing))]
@@ -208,8 +208,8 @@ public partial class LumOnProbeSh9GatherShaderProgram : LumOnShaderProgram, ILum
     /// <summary>Supplies retained visibility parameters through the declared block.</summary>
     CpuUniformBuffer ILumOnProbeSh9GatherShaderProgramBindings.LumOnNearField => NearFieldVisibility.Parameters;
     /// <summary>Supplies the retained geometry texture.</summary>
-    GpuTexture? ILumOnProbeSh9GatherShaderProgramBindings.NearFieldGeometry => NearFieldVisibility.Geometry;
+    GpuTextureRef ILumOnProbeSh9GatherShaderProgramBindings.NearFieldGeometry => NearFieldVisibility.Geometry;
     /// <summary>Supplies the retained readiness texture.</summary>
-    GpuTexture? ILumOnProbeSh9GatherShaderProgramBindings.NearFieldRegions => NearFieldVisibility.Regions;
+    GpuTextureRef ILumOnProbeSh9GatherShaderProgramBindings.NearFieldRegions => NearFieldVisibility.Regions;
     #endregion
 }

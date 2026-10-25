@@ -67,19 +67,19 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
 
 #region Texture Samplers
     /// <summary>Supplies diffuse, specular and emissive radiance layers.</summary>
-    public partial GpuTexture? DirectLighting { set; }
+    public partial GpuTextureRef DirectLighting { set; }
     /// <summary>Controls access to optional pre-overlay images without sampling absent fallback storage.</summary>
     internal bool PreOverlaySourceEnabled { set => Params.PreOverlaySourceEnabled = value; }
     /// <summary>Unattenuated world color captured before the local overlay.</summary>
-    public partial DynamicTexture2D? PreOverlayColor { set; }
+    public partial GpuTextureRef PreOverlayColor { set; }
     /// <summary>Matching clean world depth.</summary>
-    public partial DynamicTexture2D? PreOverlayDepth { set; }
+    public partial GpuTextureRef PreOverlayDepth { set; }
 
     /// <summary>Supplies the current atmospheric visibility image.</summary>
-    public partial GpuTexture? LightShaftOcclusion { set; }
+    public partial GpuTextureRef LightShaftOcclusion { set; }
 
     /// <summary>Supplies visibility for indirect/environment lighting without attenuating direct light.</summary>
-    public partial GpuTexture? AmbientOcclusion { set; }
+    public partial GpuTextureRef AmbientOcclusion { set; }
 
     /// <summary>Publishes visibility and its validity flag from one coherent owner result.</summary>
     internal void SetAmbientOcclusion(GpuTexture? texture)
@@ -88,12 +88,12 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
         Params.AmbientOcclusionEnabled = texture is not null;
     }
 
-    public partial GpuTexture? IndirectDiffuse { set; }
+    public partial GpuTextureRef IndirectDiffuse { set; }
 
     public partial int GBufferAlbedo { set; }
 
     /// <summary>Supplies normal, material and environmental-irradiance layers.</summary>
-    public partial GpuTexture? GBufferSurface { set; }
+    public partial GpuTextureRef GBufferSurface { set; }
 
     public partial int PrimaryDepth { set; }
 
@@ -101,7 +101,7 @@ public sealed partial class PBRCompositeShaderProgram : GpuProgram, IPBRComposit
     public partial int GBufferPosition { set; }
 
     /// <summary>Supplies optical-depth and scattering-source layers from the completed water capture.</summary>
-    public partial GpuTexture? WaterTransport { set; }
+    public partial GpuTextureRef WaterTransport { set; }
     /// <summary>Publishes water resources and invalidates the optional path when capture is unavailable.</summary>
     internal void SetWaterVolume(Liquids.WaterVolumeFrame? frame)
     {

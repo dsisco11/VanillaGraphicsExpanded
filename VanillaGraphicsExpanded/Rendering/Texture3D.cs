@@ -61,7 +61,7 @@ public sealed class Texture3D : GpuTexture
     /// <summary>Synchronously reads a color region into pooled storage. The caller must dispose the returned owner.</summary>
     public PooledArray<float> ReadPixelsRegion(int x, int y, int regionWidth, int regionHeight, int layer)
     {
-        if (!IsValid) throw new ObjectDisposedException(nameof(Texture3D));
+        if (!((GpuResource)this).IsValid) throw new ObjectDisposedException(nameof(Texture3D));
         if ((uint)layer >= (uint)depth) throw new ArgumentOutOfRangeException(nameof(layer));
         if (x < 0 || y < 0 || regionWidth <= 0 || regionHeight <= 0 ||
             (long)x + regionWidth > width || (long)y + regionHeight > height)

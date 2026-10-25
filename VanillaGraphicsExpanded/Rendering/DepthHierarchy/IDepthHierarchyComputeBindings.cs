@@ -6,7 +6,7 @@ internal interface IDepthHierarchyComputeBindings
     #region Public API
     /// <summary>Supplies the corrected receiver depth.</summary>
     [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute, Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? PrimaryDepth { set; }
+    GpuTextureRef PrimaryDepth { set; }
     /// <summary>Supplies the full extent and mip count.</summary>
     [ShaderBinding("VgeDepthHierarchyComputeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Object, ShaderStageKind.Compute)]
     CpuUniformBuffer Parameters { get; }

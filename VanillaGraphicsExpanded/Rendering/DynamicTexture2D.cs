@@ -178,7 +178,7 @@ public class DynamicTexture2D : GpuTexture
     public bool Resize(int newWidth, int newHeight)
     {
         RequireMutableStorage();
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to resize disposed or invalid texture");
             return false;
@@ -210,7 +210,7 @@ public class DynamicTexture2D : GpuTexture
     /// </summary>
     public virtual void Clear()
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to clear disposed or invalid texture");
             return;
@@ -235,7 +235,7 @@ public class DynamicTexture2D : GpuTexture
     /// </summary>
     public override void UploadDataImmediate(float[] data)
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -278,7 +278,7 @@ public class DynamicTexture2D : GpuTexture
     /// </summary>
     public override void UploadDataImmediate(ushort[] data)
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -334,7 +334,7 @@ public class DynamicTexture2D : GpuTexture
     /// </summary>
     public override void UploadDataImmediate(float[] data, int x, int y, int regionWidth, int regionHeight)
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -371,7 +371,7 @@ public class DynamicTexture2D : GpuTexture
 
     internal void EnqueueUploadData(float[] data, int x, int y, int regionWidth, int regionHeight, int priority = 0, int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to enqueue upload for disposed or invalid texture");
             return;
@@ -420,7 +420,7 @@ public class DynamicTexture2D : GpuTexture
 
     internal void EnqueueUploadData(ushort[] data, int x, int y, int regionWidth, int regionHeight, int priority = 0, int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to enqueue upload for disposed or invalid texture");
             return;
@@ -480,7 +480,7 @@ public class DynamicTexture2D : GpuTexture
     /// </remarks>
     public override float[] ReadPixels()
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to read pixels from disposed or invalid texture");
             return [];
@@ -516,7 +516,7 @@ public class DynamicTexture2D : GpuTexture
     /// </summary>
     public override float[] ReadPixelsRegion(int x, int y, int regionWidth, int regionHeight)
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to read pixels from disposed or invalid texture");
             return [];
@@ -555,7 +555,7 @@ public class DynamicTexture2D : GpuTexture
     /// </summary>
     public override float[] ReadPixels(int mipLevel)
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture] Attempted to read pixels from disposed or invalid texture");
             return [];

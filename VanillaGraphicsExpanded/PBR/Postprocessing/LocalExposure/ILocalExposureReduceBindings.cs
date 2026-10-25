@@ -10,7 +10,7 @@ internal interface ILocalExposureReduceBindings : IPhotometricFrameBindings
     #region Public API
     /// <summary>Samples the complete unexposed scene.</summary>
     [ShaderBinding("sceneRadiance",ShaderBindingKind.Sampler,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture2D,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture SceneRadiance { set; }
+    GpuTextureRef SceneRadiance { set; }
     /// <summary>Receives physical log luminance and explicit validity for every coarse cell.</summary>
     [ShaderBinding("logOutput",ShaderBindingKind.Image,0,ShaderStageKind.Compute)]
     GpuTextureBinding LogOutput { set; }

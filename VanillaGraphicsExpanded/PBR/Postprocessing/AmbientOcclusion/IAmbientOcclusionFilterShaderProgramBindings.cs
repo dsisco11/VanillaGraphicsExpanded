@@ -14,12 +14,12 @@ internal interface IAmbientOcclusionFilterShaderProgramBindings
     CpuUniformBuffer Inputs { get; }
     /// <summary>Supplies sourceImage through the retained typed texture contract.</summary>
     [ShaderBinding("sourceImage", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? SourceImage { set; }
+    GpuTextureRef SourceImage { set; }
     /// <summary>Supplies depthImage through the retained typed texture contract.</summary>
     [ShaderBinding("depthImage", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? DepthImage { set; }
+    GpuTextureRef DepthImage { set; }
     /// <summary>Supplies surfaceImage through the retained typed texture contract.</summary>
     [ShaderBinding("surfaceImage", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? SurfaceImage { set; }
+    GpuTextureRef SurfaceImage { set; }
     #endregion
 }

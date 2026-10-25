@@ -20,9 +20,9 @@ internal interface ISceneColorParticleSsaoShaderProgramBindings
     int AfterDepth { set; }
     /// <summary>Samples the original cube shader's SSAO normal output.</summary>
     [ShaderBinding("particleNormal", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    DynamicTexture2D? ParticleNormal { set; }
+    GpuTextureRef ParticleNormal { set; }
     /// <summary>Samples the original cube shader's SSAO view-position output.</summary>
     [ShaderBinding("particlePosition", ShaderBindingKind.Sampler, 4, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    DynamicTexture2D? ParticlePosition { set; }
+    GpuTextureRef ParticlePosition { set; }
     #endregion
 }

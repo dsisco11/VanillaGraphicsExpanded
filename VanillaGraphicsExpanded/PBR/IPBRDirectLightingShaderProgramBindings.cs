@@ -31,7 +31,7 @@ internal interface IPBRDirectLightingShaderProgramBindings : VanillaGraphicsExpa
     int GBufferPosition { set; }
     /// <summary>Declares the normal, material and environment surface array sampler.</summary>
     [ShaderBinding("gBufferSurface", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? GBufferSurface { set; }
+    GpuTextureRef GBufferSurface { set; }
     /// <summary>Declares the shadowMapNear Sampler slot.</summary>
     [ShaderBinding("shadowMapNear", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.ShadowCompareLinearClamp, Required = false)]
     int ShadowMapNear { set; }

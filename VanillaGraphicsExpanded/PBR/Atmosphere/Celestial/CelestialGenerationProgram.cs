@@ -24,11 +24,11 @@ internal sealed partial class CelestialGenerationProgram : GpuProgram, ICelestia
     /// <summary>Returns the declaration shared by asset compilation and executable loading.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
     /// <summary>Supplies stable catalog storage.</summary>
-    public partial GpuTexture? Catalog { set; }
+    public partial GpuTextureRef Catalog { set; }
     /// <summary>Supplies tile-local index storage.</summary>
-    public partial GpuTexture? Indices { set; }
+    public partial GpuTextureRef Indices { set; }
     /// <summary>Supplies parent cube storage independently of the scratch target.</summary>
-    public partial GpuTexture? ParentMap { set; }
+    public partial GpuTextureRef ParentMap { set; }
     /// <summary>Returns the owned packed parameter block.</summary>
     CpuUniformBuffer ICelestialGenerationBindings.Inputs => inputs;
     /// <summary>Stages the complete geometry, source and mip parameters before one submission.</summary>

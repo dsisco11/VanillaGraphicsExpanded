@@ -21,13 +21,13 @@ internal sealed partial class PostSsaoShaderProgram : GpuProgram, IPostSsaoShade
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Stages depthImage without transferring ownership.</summary>
-    public partial GpuTexture? DepthImage { set; }
+    public partial GpuTextureRef DepthImage { set; }
     /// <summary>Stages surfaceImage without transferring ownership.</summary>
-    public partial GpuTexture? SurfaceImage { set; }
+    public partial GpuTextureRef SurfaceImage { set; }
     /// <summary>Borrows the complete corrected-depth mip chain.</summary>
-    public partial GpuTexture? DepthHierarchy { set; }
+    public partial GpuTextureRef DepthHierarchy { set; }
     /// <summary>Borrows current all-minimum membership without owning sidecar storage.</summary>
-    public partial GpuTexture? MinimumChildren { set; }
+    public partial GpuTextureRef MinimumChildren { set; }
     /// <summary>Stages the complete operation parameters before submission.</summary>
     internal void Capture(VgeFrameUniformBuffer camera, Vector4 frame, Vector4 sampling, Vector4 distance)
     {

@@ -17,13 +17,13 @@ internal interface ILumOnScreenProbeAtlasProjectSh9ShaderProgramBindings
     GpuUniformBuffer? LumOnFrame { get; }
     /// <summary>Declares the octahedralAtlas Sampler slot.</summary>
     [ShaderBinding("octahedralAtlas", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? ScreenProbeAtlas { set; }
+    GpuTextureRef ScreenProbeAtlas { set; }
     /// <summary>Declares the probeAtlasMeta Sampler slot.</summary>
     [ShaderBinding("probeAtlasMeta", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? ScreenProbeAtlasMeta { set; }
+    GpuTextureRef ScreenProbeAtlasMeta { set; }
     /// <summary>Declares the position and normal anchor array sampler.</summary>
     [ShaderBinding("probeAnchors", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? ProbeAnchors { set; }
+    GpuTextureRef ProbeAnchors { set; }
     /// <summary>Supplies optional shared world-probe storage.</summary>
     [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuUniformBuffer? LumOnWorldProbe { get; }

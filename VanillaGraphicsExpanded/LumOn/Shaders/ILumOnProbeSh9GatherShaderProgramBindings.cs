@@ -15,25 +15,25 @@ internal interface ILumOnProbeSh9GatherShaderProgramBindings : VanillaGraphicsEx
     CpuUniformBuffer FrameInputs { get; }
     /// <summary>Declares the packed SH9 coefficient array sampler.</summary>
     [ShaderBinding("probeSh9", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? ProbeSh9 { set; }
+    GpuTextureRef ProbeSh9 { set; }
     /// <summary>Declares the position and normal anchor array sampler.</summary>
     [ShaderBinding("probeAnchors", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? ProbeAnchors { set; }
+    GpuTextureRef ProbeAnchors { set; }
     /// <summary>Declares the primaryDepth Sampler slot.</summary>
     [ShaderBinding("primaryDepth", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
     int PrimaryDepth { set; }
     /// <summary>Declares the normal, material and environment surface array sampler.</summary>
     [ShaderBinding("gBufferSurface", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? GBufferSurface { set; }
+    GpuTextureRef GBufferSurface { set; }
     /// <summary>Declares the worldProbeRadianceAtlas Sampler slot.</summary>
     [ShaderBinding("worldProbeRadianceAtlas", ShaderBindingKind.Sampler, 4, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuTexture? WorldProbeRadianceAtlas { set; }
+    GpuTextureRef WorldProbeRadianceAtlas { set; }
     /// <summary>Declares the worldProbeVis0 Sampler slot.</summary>
     [ShaderBinding("worldProbeVis0", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuTexture? WorldProbeVis0 { set; }
+    GpuTextureRef WorldProbeVis0 { set; }
     /// <summary>Declares the worldProbeMeta0 Sampler slot.</summary>
     [ShaderBinding("worldProbeMeta0", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
-    GpuTexture? WorldProbeMeta0 { set; }
+    GpuTextureRef WorldProbeMeta0 { set; }
     /// <summary>Declares the LumOnFrameUBO UniformBlock slot.</summary>
     [ShaderBinding("LumOnFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.LumOnFrame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     GpuUniformBuffer? LumOnFrame { get; }
@@ -45,10 +45,10 @@ internal interface ILumOnProbeSh9GatherShaderProgramBindings : VanillaGraphicsEx
     CpuUniformBuffer LumOnNearField { get; }
     /// <summary>Declares the nearFieldGeometry Sampler slot.</summary>
     [ShaderBinding("nearFieldGeometry", ShaderBindingKind.Sampler, 7, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? NearFieldGeometry { get; }
+    GpuTextureRef NearFieldGeometry { get; }
     /// <summary>Declares the nearFieldRegions Sampler slot.</summary>
     [ShaderBinding("nearFieldRegions", ShaderBindingKind.Sampler, 8, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? NearFieldRegions { get; }
+    GpuTextureRef NearFieldRegions { get; }
     /// <summary>Supplies optional shared world-probe storage.</summary>
     [ShaderBinding("LumOnWorldProbeUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.WorldProbe, ShaderStageKind.Vertex, ShaderStageKind.Fragment, Required = false)]
     GpuUniformBuffer? LumOnWorldProbe { get; }

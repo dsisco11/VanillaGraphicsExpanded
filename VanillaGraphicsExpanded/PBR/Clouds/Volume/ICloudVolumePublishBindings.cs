@@ -12,13 +12,13 @@ internal interface ICloudVolumePublishBindings
     CpuUniformBuffer Inputs {get;}
     /// <summary>Reads completed stored extinction.</summary>
     [ShaderBinding("sourceDensity",ShaderBindingKind.Sampler,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
-    GpuTexture? Density {set;}
+    GpuTextureRef Density {set;}
     /// <summary>Reads completed direct visibility.</summary>
     [ShaderBinding("sourceDirect",ShaderBindingKind.Sampler,1,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
-    GpuTexture? Direct {set;}
+    GpuTextureRef Direct {set;}
     /// <summary>Reads completed diffuse irradiance.</summary>
     [ShaderBinding("sourceDiffuse",ShaderBindingKind.Sampler,2,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
-    GpuTexture? Diffuse {set;}
+    GpuTextureRef Diffuse {set;}
     /// <summary>Writes drawable extinction without touching solver storage.</summary>
     [ShaderBinding("targetDensity",ShaderBindingKind.Image,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D)]
     GpuTextureBinding TargetDensity {set;}

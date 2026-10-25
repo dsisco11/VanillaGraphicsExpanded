@@ -112,13 +112,13 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
     /// Layout: (probeCountX × 8, probeCountY × 8)
     /// Format: RGB = radiance, A = log-encoded hit distance
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlas { set; }
+    public partial GpuTextureRef ScreenProbeAtlas { set; }
 
     /// <summary>
     /// Probe anchor positions (world-space).
     /// Format: xyz = posWS, w = validity
     /// </summary>
-    public partial GpuTexture? ProbeAnchors { set; }
+    public partial GpuTextureRef ProbeAnchors { set; }
 
     /// <summary>
     /// Primary depth texture (G-buffer).
@@ -128,7 +128,7 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
     /// <summary>
     /// G-buffer normals (world-space, encoded).
     /// </summary>
-    public partial GpuTexture? GBufferSurface { set; }
+    public partial GpuTextureRef GBufferSurface { set; }
 
     #endregion
 
@@ -224,9 +224,9 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
         return !changed;
     }
 
-    public partial GpuTexture? WorldProbeRadianceAtlas { set; }
-    public partial GpuTexture? WorldProbeVis0 { set; }
-    public partial GpuTexture? WorldProbeMeta0 { set; }
+    public partial GpuTextureRef WorldProbeRadianceAtlas { set; }
+    public partial GpuTextureRef WorldProbeVis0 { set; }
+    public partial GpuTextureRef WorldProbeMeta0 { set; }
 
     /// <summary>Gets or sets the declared WorldProbeBaseSpacing shader selection.</summary>
     [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeBaseSpacing))]
@@ -253,8 +253,8 @@ public partial class LumOnScreenProbeAtlasGatherShaderProgram : LumOnShaderProgr
     /// <summary>Supplies retained visibility parameters through the declared block.</summary>
     CpuUniformBuffer ILumOnScreenProbeAtlasGatherShaderProgramBindings.LumOnNearField => NearFieldVisibility.Parameters;
     /// <summary>Supplies the retained geometry texture.</summary>
-    GpuTexture? ILumOnScreenProbeAtlasGatherShaderProgramBindings.NearFieldGeometry => NearFieldVisibility.Geometry;
+    GpuTextureRef ILumOnScreenProbeAtlasGatherShaderProgramBindings.NearFieldGeometry => NearFieldVisibility.Geometry;
     /// <summary>Supplies the retained readiness texture.</summary>
-    GpuTexture? ILumOnScreenProbeAtlasGatherShaderProgramBindings.NearFieldRegions => NearFieldVisibility.Regions;
+    GpuTextureRef ILumOnScreenProbeAtlasGatherShaderProgramBindings.NearFieldRegions => NearFieldVisibility.Regions;
     #endregion
 }

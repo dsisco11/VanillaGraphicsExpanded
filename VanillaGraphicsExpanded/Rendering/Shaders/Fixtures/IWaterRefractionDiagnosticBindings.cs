@@ -15,10 +15,10 @@ internal interface IWaterRefractionDiagnosticBindings
     CpuUniformBuffer Inputs { get; }
     /// <summary>Supplies immutable receiver radiance and coverage metadata.</summary>
     [ShaderBinding("vge_refractionColor", ShaderBindingKind.Sampler, 9, ShaderStageKind.Fragment, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    DynamicTexture2D Color { get; set; }
+    GpuTextureRef Color { get; set; }
     /// <summary>Supplies independently projected opaque receiver depths.</summary>
     [ShaderBinding("vge_refractionDepth", ShaderBindingKind.Sampler, 10, ShaderStageKind.Fragment, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    DynamicTexture2D Depth { get; set; }
+    GpuTextureRef Depth { get; set; }
     /// <summary>Selects the independently authored optical geometry.</summary>
     int Scenario { get; set; }
 

@@ -14,15 +14,15 @@ internal interface IPostSsaoShaderProgramBindings
     CpuUniformBuffer Inputs { get; }
     /// <summary>Supplies depthImage through the retained typed texture contract.</summary>
     [ShaderBinding("depthImage", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? DepthImage { set; }
+    GpuTextureRef DepthImage { set; }
     /// <summary>Supplies surfaceImage through the retained typed texture contract.</summary>
     [ShaderBinding("surfaceImage", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? SurfaceImage { set; }
+    GpuTextureRef SurfaceImage { set; }
     /// <summary>Supplies the shared hardware-depth hierarchy with explicit shader LOD selection.</summary>
     [ShaderBinding("depthHierarchy", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? DepthHierarchy { set; }
+    GpuTextureRef DepthHierarchy { set; }
     /// <summary>Supplies all-minimum membership for query-dependent source recovery.</summary>
     [ShaderBinding("minimumChildren", ShaderBindingKind.Sampler, 3, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? MinimumChildren { set; }
+    GpuTextureRef MinimumChildren { set; }
     #endregion
 }

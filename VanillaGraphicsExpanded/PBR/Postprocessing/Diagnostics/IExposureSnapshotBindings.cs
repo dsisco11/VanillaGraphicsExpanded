@@ -18,10 +18,10 @@ internal interface IExposureSnapshotBindings : IPhotometricFrameBindings
     CpuUniformBuffer FrameInputs { get; }
     /// <summary>Samples the completed pre-glare display scene.</summary>
     [ShaderBinding("sceneImage", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture Scene { set; }
+    GpuTextureRef Scene { set; }
     /// <summary>Samples the completed local-exposure base.</summary>
     [ShaderBinding("localBaseImage", ShaderBindingKind.Sampler, 1, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture LocalBase { set; }
+    GpuTextureRef LocalBase { set; }
     /// <summary>Borrows the current camera history or explicitly neutral manual-mode metadata.</summary>
     [ShaderBinding("SnapshotHistory", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Compute)]
     GpuShaderStorageBuffer History { set; }

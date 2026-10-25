@@ -21,6 +21,10 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
     private ulong sourceGeneration;
     // This is a dependency certificate, not a second authoritative descriptor or a lifetime tracker.
     private object? sourceStorageIdentity;
+    /// <summary>Supplies the original storage revision to manager-owned dependency validation.</summary>
+    internal ulong SourceGeneration => sourceGeneration;
+    /// <summary>Supplies the local source certificate to manager-owned dependency validation.</summary>
+    internal object? SourceStorageIdentity => sourceStorageIdentity;
     /// <summary>Gets the native view target from the canonical texture snapshot.</summary>
     private TextureTarget target => metadata.Target;
     /// <summary>Gets the native view internalFormat from the canonical texture snapshot.</summary>
@@ -35,6 +39,8 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
     private int layerCount => metadata.View?.LayerCount ?? 0;
 
     #region Public API
+    /// <summary>Exposes this view to consumers without transferring lifecycle authority.</summary>
+    public static implicit operator GpuTextureRef(GpuTextureView? texture) => new(texture);
     /// <inheritdoc />
     public override nint ResourceId
     {
@@ -88,12 +94,7 @@ public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposabl
     /// <summary>
     /// Returns <c>true</c> while the view and its original managed source allocation remain live with available metadata.
     /// </summary>
-    public new bool IsValid => base.IsValid && !metadata.Levels.IsDefaultOrEmpty &&
-        (ResourceManager?.GetResourceRegistration(this) is null || ResourceManager.IsResourceMetadataAvailable(this)) &&
-        (source is null || source.IsValid && source.TextureId == sourceTextureId && source.StorageGeneration == sourceGeneration
-            && !source.StorageImages.IsDefaultOrEmpty
-            && (ResourceManager?.IsTextureViewSourceCurrent(this, source)
-                ?? ReferenceEquals(source.UntrackedStorageIdentity, sourceStorageIdentity)));
+    public new bool IsValid => GpuResourceManager.TryGetTextureReferenceMetadata(this, out _);
 
     /// <summary>
     /// Sets the debug label for this texture view (debug builds only).

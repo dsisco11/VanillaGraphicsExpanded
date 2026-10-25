@@ -47,17 +47,17 @@ public partial class LumOnScreenProbeAtlasProjectSh9ShaderProgram : LumOnShaderP
     /// <summary>
     /// Input stabilized/filtered probe atlas (RGB radiance, A hit distance).
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlas { set; }
+    public partial GpuTextureRef ScreenProbeAtlas { set; }
 
     /// <summary>
     /// Input stabilized/filtered probe-atlas meta (confidence + flags).
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlasMeta { set; }
+    public partial GpuTextureRef ScreenProbeAtlasMeta { set; }
 
     /// <summary>
     /// Probe anchor positions for validity checks.
     /// </summary>
-    public partial GpuTexture? ProbeAnchors { set; }
+    public partial GpuTextureRef ProbeAnchors { set; }
 
     #endregion
 

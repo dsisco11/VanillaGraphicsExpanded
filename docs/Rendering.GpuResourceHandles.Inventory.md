@@ -26,6 +26,10 @@ inherit `GpuResource`'s local disposal, `Detach`/`ReleaseHandle`, captured manag
 ownership unless a row says otherwise. All native IDs are integers except `GpuFence`'s pointer-sized
 sync. Registration must occur when a native object exists, not merely when a CPU declaration is created.
 Resource wrappers retain growth/sampling policy, attachment selection and upload helper strategy.
+`GpuTextureRef` is the consumer-facing value for owned, borrowed and native-view texture inputs.
+It retains the typed resource wrapper without exposing ownership or mutation methods. Conversion
+operators live on `GpuTexture` and `GpuTextureView`; manager-certified published metadata supplies
+binding and attachment validation without native discovery during reference construction or access.
 Manager creation orchestrates allocation from initialization records.
 StateCache executes their native commands and owns metadata publication, including deferred publication
 for complete texture allocation and framebuffer reattachment operations.

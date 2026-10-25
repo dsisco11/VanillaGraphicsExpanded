@@ -28,12 +28,12 @@ internal abstract partial class TraceGeometryComputeShader : GpuComputeProgram, 
     /// <summary>Supplies the retained logical sampling domains.</summary>
     CpuUniformBuffer ITraceGeometryInputs.LumOnNearField => geometryParameters;
     /// <summary>Supplies the retained occupancy texture.</summary>
-    GpuTexture? ITraceGeometryInputs.NearFieldGeometry => scene?.Geometry;
+    GpuTextureRef ITraceGeometryInputs.NearFieldGeometry => scene?.Geometry;
     /// <summary>Supplies the retained readiness texture.</summary>
-    GpuTexture? ITraceGeometryInputs.NearFieldRegions => scene?.Readiness;
+    GpuTextureRef ITraceGeometryInputs.NearFieldRegions => scene?.Readiness;
     /// <summary>Supplies the retained legacy-light texture.</summary>
-    GpuTexture? ITraceGeometryInputs.TraceSceneLegacy => scene?.Legacy;
+    GpuTextureRef ITraceGeometryInputs.TraceSceneLegacy => scene?.Legacy;
     /// <summary>Supplies retained face geometry.</summary>
-    GpuTexture? ITraceGeometryInputs.TraceSceneFaces => scene?.Faces;
+    GpuTextureRef ITraceGeometryInputs.TraceSceneFaces => scene?.Faces;
     #endregion
 }

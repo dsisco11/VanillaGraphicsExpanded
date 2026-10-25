@@ -17,24 +17,24 @@ internal interface ICloudVolumeReconstructBindings:IPhotometricFrameBindings
     CpuUniformBuffer TemporalInputs {get;}
     /// <summary>Reads effective prior weight, update status, rejection reason and frames since observation.</summary>
     [ShaderBinding("reconstructDiagnostics",ShaderBindingKind.Sampler,11,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? Diagnostics {set;}
+    GpuTextureRef Diagnostics {set;}
     /// <summary>Hardware-filters premultiplied integrated radiance and opacity together.</summary>
     [ShaderBinding("reconstructCloud",ShaderBindingKind.Sampler,0,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture? Cloud {set;}
+    GpuTextureRef Cloud {set;}
     /// <summary>Hardware-filters all three bucket transmissions before native product expansion.</summary>
     [ShaderBinding("reconstructBins",ShaderBindingKind.Sampler,1,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture? Bins {set;}
+    GpuTextureRef Bins {set;}
     /// <summary>Reads exact trace clip depths and whole-ray validity.</summary>
     [ShaderBinding("reconstructMetadata",ShaderBindingKind.Sampler,2,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? Metadata {set;}
+    GpuTextureRef Metadata {set;}
     /// <summary>Reads the destination material depth.</summary>
     [ShaderBinding("reconstructMaterialDepth",ShaderBindingKind.Sampler,3,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? MaterialDepth {set;}
+    GpuTextureRef MaterialDepth {set;}
     /// <summary>Reads foreground particle visibility depth.</summary>
     [ShaderBinding("reconstructVisibilityDepth",ShaderBindingKind.Sampler,4,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? VisibilityDepth {set;}
+    GpuTextureRef VisibilityDepth {set;}
     /// <summary>Reads liquid depth independently of material correction.</summary>
     [ShaderBinding("reconstructLiquidDepth",ShaderBindingKind.Sampler,5,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? LiquidDepth {set;}
+    GpuTextureRef LiquidDepth {set;}
     #endregion
 }

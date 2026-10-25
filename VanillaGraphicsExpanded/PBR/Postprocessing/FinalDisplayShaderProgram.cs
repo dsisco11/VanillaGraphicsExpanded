@@ -23,20 +23,20 @@ internal sealed partial class FinalDisplayShaderProgram : GpuProgram, IFinalDisp
         ProgramLayout.RegisterContract(Contract.Stages[1].Bindings);
     }
     /// <summary>Stages the SceneImage sampler.</summary>
-    public partial GpuTexture? SceneImage { set; }
+    public partial GpuTextureRef SceneImage { set; }
     /// <summary>Stages the BloomImage sampler.</summary>
-    public partial GpuTexture? BloomImage { set; }
+    public partial GpuTextureRef BloomImage { set; }
     /// <summary>Stages the ShaftImage sampler.</summary>
-    public partial GpuTexture? ShaftImage { set; }
+    public partial GpuTextureRef ShaftImage { set; }
     /// <summary>Borrows the complete display lookup matching the captured grading controls.</summary>
-    public partial DynamicTexture3D? GradingLookup { set; }
+    public partial GpuTextureRef GradingLookup { set; }
     /// <summary>Stages the published exposure buffer.</summary>
     public partial GpuShaderStorageBuffer? ExposureBuffer { set; }
     /// <summary>Selects the optional local variant without increasing disabled-path resource requirements.</summary>
     [ShaderOption("VGE_LOCAL_EXPOSURE",false)]
     internal partial bool LocalExposureEnabled { get; set; }
     /// <summary>Borrows the completed current-frame log-luminance base.</summary>
-    public partial GpuTexture? LocalBase { set; }
+    public partial GpuTextureRef LocalBase { set; }
     /// <summary>Captures local policy separately from cached color-grading controls.</summary>
     internal void CaptureLocal(LocalExposure.LocalExposureParameters settings)=>inputs.CaptureLocal(settings);
     /// <summary>Borrows a camera/frame snapshot for alternate views and fixtures.</summary>

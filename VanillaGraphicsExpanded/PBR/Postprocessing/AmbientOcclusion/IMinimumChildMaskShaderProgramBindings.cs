@@ -11,6 +11,6 @@ internal interface IMinimumChildMaskShaderProgramBindings
     CpuUniformBuffer Parameters { get; }
     /// <summary>Borrows every completed R32F depth level without modifying shared storage.</summary>
     [ShaderBinding("depthHierarchy", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? Hierarchy { set; }
+    GpuTextureRef Hierarchy { set; }
     #endregion
 }

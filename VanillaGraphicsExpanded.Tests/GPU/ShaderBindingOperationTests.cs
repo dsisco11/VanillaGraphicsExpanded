@@ -78,7 +78,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         var image = table.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Image, "outputImage"));
         using var first = Texture2D.CreateWithDataImmediate(1, 1, PixelInternalFormat.Rgba32f, [1, 2, 3, 4]);
         using var second = Texture2D.CreateWithDataImmediate(1, 1, PixelInternalFormat.Rgba32f, [10, 20, 30, 40]);
-        GpuTexture?[] desired = [first, second];
+        GpuTextureRef[] desired = [first, second];
         var view = new GpuTextureBinding(result, TextureAccess.WriteOnly);
         ShaderPreparedSubmission.SamplerArray(input, desired);
         ShaderPreparedSubmission.Image(image, view);

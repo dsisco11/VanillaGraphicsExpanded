@@ -23,22 +23,13 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
 
     #region Public API
     #region Construction
-    /// <summary>Borrows a selected multiview range without creating a new texture object or taking storage ownership.</summary>
-    public static GpuFramebufferAttachment FromMultiviewTexture(GpuTexture texture, int baseView, int viewCount, int mipLevel = 0)
+    /// <summary>Borrows a view-relative multiview range without transferring storage ownership.</summary>
+    public static GpuFramebufferAttachment FromMultiviewTexture(GpuTextureRef texture, int baseView, int viewCount, int mipLevel = 0)
     {
-        ArgumentNullException.ThrowIfNull(texture);
-        if (!texture.IsValid || texture.TextureTarget != TextureTarget.Texture2DArray)
-            throw new ArgumentException("Multiview attachments require a live two-dimensional array texture.", nameof(texture));
-        return new(texture, false, mipLevel, null, null, baseView, viewCount, GpuFramebufferAttachmentMode.Multiview);
-    }
-
-    /// <summary>Borrows a multiview range relative to an existing two-dimensional array view.</summary>
-    public static GpuFramebufferAttachment FromMultiviewTexture(GpuTextureView texture, int baseView, int viewCount, int mipLevel = 0)
-    {
-        ArgumentNullException.ThrowIfNull(texture);
         if (!texture.IsValid || texture.Target != TextureTarget.Texture2DArray)
-            throw new ArgumentException("Multiview attachments require a live two-dimensional array view.", nameof(texture));
-        return new(texture, false, mipLevel, null, null, baseView, viewCount, GpuFramebufferAttachmentMode.Multiview);
+            throw new ArgumentException("Multiview attachments require a live two-dimensional array texture.", nameof(texture));
+        texture.RequireImage(mipLevel);
+        return new(texture.Resource!, false, mipLevel, null, null, baseView, viewCount, GpuFramebufferAttachmentMode.Multiview);
     }
     /// <summary>Allocates and owns a resizable two-dimensional texture image.</summary>
     public GpuFramebufferAttachment(int width, int height, PixelInternalFormat format,
@@ -50,33 +41,22 @@ public sealed class GpuFramebufferAttachment : GpuResource<GpuImageMetadata>
         int samples = 0, string? debugName = null)
         : this(CreateRenderbufferStorage(storage, width, height, samples, debugName), true, 0, null) { }
 
-    /// <summary>Borrows an existing texture image; null layer selects the entire mip level.</summary>
-    public static GpuFramebufferAttachment FromTexture(GpuTexture texture, int mipLevel = 0, int? layer = null,
+    /// <summary>Borrows a published texture image with selection relative to the referenced object.</summary>
+    public static GpuFramebufferAttachment FromTexture(GpuTextureRef texture, int mipLevel = 0, int? layer = null,
         TextureTarget? cubeFace = null)
     {
-        ArgumentNullException.ThrowIfNull(texture);
-        if (!texture.IsValid) throw new ArgumentException("Texture must be live.", nameof(texture));
-        if ((uint)mipLevel >= (uint)texture.StorageMipLevels) throw new ArgumentOutOfRangeException(nameof(mipLevel));
-        if (cubeFace.HasValue && (texture.TextureTarget != TextureTarget.TextureCubeMap || !IsCubeFace(cubeFace.Value) || layer.HasValue))
+        if (!texture.IsValid) throw new ArgumentException("Texture must be usable.", nameof(texture));
+        GpuTextureLevelMetadata selected;
+        try { selected = texture.RequireImage(mipLevel); }
+        catch (InvalidOperationException) { throw new ArgumentOutOfRangeException(nameof(mipLevel)); }
+        if (cubeFace.HasValue && (texture.Target != TextureTarget.TextureCubeMap || !IsCubeFace(cubeFace.Value) || layer.HasValue))
             throw new ArgumentOutOfRangeException(nameof(cubeFace));
-        if (layer.HasValue && (texture.TextureTarget is not (TextureTarget.Texture3D or TextureTarget.Texture2DArray)
-            || (uint)layer.Value >= (uint)(texture.TextureTarget == TextureTarget.Texture3D
-                ? Math.Max(1, texture.Depth >> mipLevel) : texture.Depth)))
-            throw new ArgumentOutOfRangeException(nameof(layer));
-        return new(texture, false, mipLevel, layer, cubeFace);
+        int layers = texture.Target == TextureTarget.Texture1DArray ? selected.Height : selected.Depth;
+        if (layer.HasValue && (texture.Target is not (TextureTarget.Texture3D or TextureTarget.Texture2DArray
+                or TextureTarget.Texture1DArray or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray)
+            || (uint)layer.Value >= (uint)layers)) throw new ArgumentOutOfRangeException(nameof(layer));
+        return new(texture.Resource!, false, mipLevel, layer, cubeFace);
     }
-
-    /// <summary>Borrows an existing texture view with selection relative to that view's exposed images.</summary>
-    public static GpuFramebufferAttachment FromTexture(GpuTextureView view, int mipLevel = 0, int? layer = null,
-        TextureTarget? cubeFace = null)
-    {
-        ArgumentNullException.ThrowIfNull(view);
-        if (!view.IsValid) throw new ArgumentException("Texture view must be live.", nameof(view));
-        if (cubeFace.HasValue && (view.Target != TextureTarget.TextureCubeMap || !IsCubeFace(cubeFace.Value) || layer.HasValue))
-            throw new ArgumentOutOfRangeException(nameof(cubeFace));
-        return new(view, false, mipLevel, layer, cubeFace);
-    }
-
     /// <summary>Borrows an external texture image, capturing validated metadata without creating a texture view.</summary>
     /// <remarks>The external owner must refresh publications after replacing or reallocating storage.</remarks>
     public static GpuFramebufferAttachment FromTextureId(int textureId, int mipLevel = 0, int? layer = null,

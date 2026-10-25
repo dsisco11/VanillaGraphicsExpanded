@@ -57,16 +57,15 @@ internal struct ShaderInputValidation
 #endif
     }
 
-    /// <summary>Snapshots allocation metadata already owned by the texture without driver queries.</summary>
-    internal static InputKey TextureKey(GpuTexture texture, GpuTextureBinding view = default) => new(texture,
-        texture.TextureId, (int)texture.TextureTarget, (int)texture.InternalFormat, texture.Width, texture.Height,
-        texture.Depth, texture.StorageMipLevels, view, 0, 0, 0, RequireMetadata(texture));
-
-    /// <summary>Snapshots a separate immutable view object and its fixed subresource range.</summary>
-    internal static InputKey TextureKey(GpuTextureView view) => new(view,
-        view.TextureId, (int)view.Target, (int)view.InternalFormat, 0, 0,
-        view.LayerCount, view.LevelCount, default, view.BaseLevel, view.BaseLayer, view.SourceTextureId, RequireMetadata(view));
-
+    /// <summary>Captures current published identity and image facts independently of reference equality.</summary>
+    internal static InputKey TextureKey(GpuTextureRef texture, GpuTextureBinding view = default)
+    {
+        var data = texture.RequireMetadata();
+        var image = texture.RequireImage(view.Level);
+        return new(texture.Resource!, texture.TextureId, (int)data.Target, (int)image.Format,
+            image.Width, image.Height, image.Depth, data.Levels.Length, view,
+            data.View?.BaseLevel ?? 0, data.View?.BaseLayer ?? 0, 0, RequireMetadata(texture.Resource!));
+    }
     /// <summary>Snapshots the retained range and current owner-controlled capacity.</summary>
     internal static InputKey StorageKey(GpuStorageBufferBinding range) => new(range.Buffer!,
         range.Buffer!.BufferId, 0, 0, 0, 0, 0, 0, default, range.OffsetBytes, range.SizeBytes, range.Buffer.SizeBytes,

@@ -9,7 +9,7 @@ internal interface IGeneratedResourceBindings
     #region Public API
     /// <summary>Binds the input texture at the compute fixture's declared unit.</summary>
     [ShaderBinding("uOcc", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute)]
-    GpuTexture Input { set; }
+    GpuTextureRef Input { set; }
 
     /// <summary>Binds the output image while preserving its explicit view parameters.</summary>
     [ShaderBinding("outImg", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
@@ -17,6 +17,6 @@ internal interface IGeneratedResourceBindings
 
     /// <summary>Exercises an optional resource absent from the linked fixture.</summary>
     [ShaderBinding("unusedTexture", ShaderBindingKind.Sampler, 7, ShaderStageKind.Compute, Required = false)]
-    GpuTexture Unused { set; }
+    GpuTextureRef Unused { set; }
     #endregion
 }

@@ -16,9 +16,9 @@ internal interface ICelestialDrawBindings : CameraExposure.IPhotometricFrameBind
     CpuUniformBuffer Inputs { get; }
     /// <summary>Samples only the VGE-generated HDR map.</summary>
     [ShaderBinding("galaxyMap", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.TextureCubeMap, Required = false)]
-    GpuTexture? GalaxyMap { set; }
+    GpuTextureRef GalaxyMap { set; }
     /// <summary>Samples cached existing atmospheric extinction, without integrating inside the draw.</summary>
     [ShaderBinding("externalTransmission", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture? ExternalTransmission { set; }
+    GpuTextureRef ExternalTransmission { set; }
 }
 

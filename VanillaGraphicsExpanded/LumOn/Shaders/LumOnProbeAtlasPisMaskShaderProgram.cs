@@ -85,11 +85,11 @@ public sealed partial class LumOnProbeAtlasPisMaskShaderProgram : LumOnShaderPro
 
     #region Texture Samplers
 
-    public partial GpuTexture? ProbeAnchors { set; }
+    public partial GpuTextureRef ProbeAnchors { set; }
 
-    public partial GpuTexture? ScreenProbeAtlasHistory { set; }
+    public partial GpuTextureRef ScreenProbeAtlasHistory { set; }
 
-    public partial GpuTexture? ScreenProbeAtlasMetaHistory { set; }
+    public partial GpuTextureRef ScreenProbeAtlasMetaHistory { set; }
 
     #endregion
 

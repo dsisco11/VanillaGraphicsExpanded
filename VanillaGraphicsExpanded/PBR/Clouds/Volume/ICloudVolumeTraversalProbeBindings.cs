@@ -12,7 +12,7 @@ internal interface ICloudVolumeTraversalProbeBindings
     CpuUniformBuffer Inputs {get;}
     /// <summary>Fetches constant-cell extinction through the retained circular physical cell address.</summary>
     [ShaderBinding("volumeDensity",ShaderBindingKind.Sampler,0,ShaderStageKind.Compute,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
-    GpuTexture? Density {set;}
+    GpuTextureRef Density {set;}
     /// <summary>Supplies exact conservative occupancy certificates.</summary>
     [ShaderBinding("VolumeOccupancy",ShaderBindingKind.StorageBlock,0,ShaderStageKind.Compute)]
     GpuShaderStorageBuffer? Occupancy {set;}

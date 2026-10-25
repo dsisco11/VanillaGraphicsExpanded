@@ -16,13 +16,13 @@ internal interface ILiquidShaderProgramBindings : VanillaGraphicsExpanded.PBR.Ca
     CpuUniformBuffer LightsInputs { get; }
     /// <summary>Supplies current-frame occlusion for atmospheric in-scattering only.</summary>
     [ShaderBinding("vge_lightShaftOcclusion", ShaderBindingKind.Sampler, 11, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp, Required = false)]
-    GpuTexture? LightShaftOcclusion { set; }
+    GpuTextureRef LightShaftOcclusion { set; }
     /// <summary>Declares optional immutable opaque radiance.</summary>
     [ShaderBinding("vge_refractionColor", ShaderBindingKind.Sampler, 9, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
-    DynamicTexture2D? RefractionColorTexture { set; }
+    GpuTextureRef RefractionColorTexture { set; }
     /// <summary>Declares optional immutable opaque depth.</summary>
     [ShaderBinding("vge_refractionDepth", ShaderBindingKind.Sampler, 10, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
-    DynamicTexture2D? RefractionDepthTexture { set; }
+    GpuTextureRef RefractionDepthTexture { set; }
     /// <summary>Supplies the universal camera snapshot shared with other world passes.</summary>
     [ShaderBinding("VgeFrameUBO", ShaderBindingKind.UniformBlock, GpuBindingRegistry.Ubo.Frame, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
     CpuUniformBuffer FrameInputs { get; }
@@ -43,13 +43,13 @@ internal interface ILiquidShaderProgramBindings : VanillaGraphicsExpanded.PBR.Ca
     int DepthTexture { set; }
     /// <summary>Declares the vge_materialParamsTex Sampler slot.</summary>
     [ShaderBinding("vge_materialParamsTex", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    Texture2D? MaterialParamsTexture { set; }
+    GpuTextureRef MaterialParamsTexture { set; }
     /// <summary>Declares the optional current-generation medium index image.</summary>
     [ShaderBinding("vge_waterMediumIndices", ShaderBindingKind.Sampler, 7, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
-    Texture2D? WaterMediumIndicesTexture { set; }
+    GpuTextureRef WaterMediumIndicesTexture { set; }
     /// <summary>Declares the optional current-generation coefficient table.</summary>
     [ShaderBinding("vge_waterMediumRecords", ShaderBindingKind.Sampler, 8, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp, Required = false)]
-    Texture2D? WaterMediumRecordsTexture { set; }
+    GpuTextureRef WaterMediumRecordsTexture { set; }
     /// <summary>Declares the shadowMapNear Sampler slot.</summary>
     [ShaderBinding("shadowMapNear", ShaderBindingKind.Sampler, 3, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.ShadowCompareLinearClamp, Required = false)]
     int ShadowMapNear { set; }
@@ -58,9 +58,9 @@ internal interface ILiquidShaderProgramBindings : VanillaGraphicsExpanded.PBR.Ca
     int ShadowMapFar { set; }
     /// <summary>Declares the vge_atmosphereAerialRadiance Sampler slot.</summary>
     [ShaderBinding("vge_atmosphereAerialRadiance", ShaderBindingKind.Sampler, 5, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.Default)]
-    DynamicTexture3D? AerialRadianceTexture { set; }
+    GpuTextureRef AerialRadianceTexture { set; }
     /// <summary>Declares the vge_atmosphereAerialAttenuation Sampler slot.</summary>
     [ShaderBinding("vge_atmosphereAerialAttenuation", ShaderBindingKind.Sampler, 6, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.Default)]
-    DynamicTexture3D? AerialAttenuationTexture { set; }
+    GpuTextureRef AerialAttenuationTexture { set; }
     #endregion
 }

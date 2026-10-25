@@ -8,9 +8,12 @@ public sealed class RuntimeSubmissionTests
         {
             public static class ShaderInputSnapshot
             {
-                public static T Copy<T>(T value) => value is System.Array array ? (T)(object)array.Clone() : value;
+                public static bool Equal<T>(T[] left, T[] right) => System.Linq.Enumerable.SequenceEqual(left ?? System.Array.Empty<T>(), right ?? System.Array.Empty<T>());
+                public static int Copies;
+                public static T Copy<T>(T value) { if (value is not System.Array array) return value; Copies++; return (T)(object)array.Clone(); }
             }
-            public class GpuTexture { }
+            public class GpuTexture { public static implicit operator GpuTextureRef(GpuTexture value) => new(value); }
+            public readonly record struct GpuTextureRef(object Resource);
             public class CpuUniformBuffer { }
             public class GpuShaderStorageBuffer { }
             public class GpuAtomicCounterBuffer { }
@@ -39,7 +42,9 @@ public sealed class RuntimeSubmissionTests
             }
             public static class ShaderPreparedSubmission
             {
-                public static void ValidateSampler(ulong binding, GpuTexture texture, ref ShaderInputValidation history) { SubmissionRecorder.Calls += "validate-sampler;"; }
+                public static void ValidateSamplerArray(ulong binding, GpuTextureRef[] textures) { SubmissionRecorder.Calls += "validate-array;"; }
+                public static void SamplerArray(ulong binding, GpuTextureRef[] textures) { SubmissionRecorder.Calls += "array;"; }
+                public static void ValidateSampler(ulong binding, GpuTextureRef texture, ref ShaderInputValidation history) { SubmissionRecorder.Calls += "validate-sampler;"; }
                 public static void ValidateImage(ulong binding, GpuTexture texture, ref ShaderInputValidation history) { SubmissionRecorder.Calls += "validate-image;"; }
                 public static void ValidateImage(ulong binding, GpuTextureBinding image, ref ShaderInputValidation history) { SubmissionRecorder.Calls += "validate-image;"; }
                 public static void ValidateStorageBlock(ulong binding, GpuStorageBufferBinding range, ref ShaderInputValidation history) { SubmissionRecorder.Calls += "validate-storage;"; }
@@ -226,9 +231,7 @@ public sealed class RuntimeSubmissionTests
     [Fact]
     public void TextureViewSamplerPublishesAtActivation()
     {
-        string support = Support.Replace("public class GpuTexture { }", "public class GpuTexture { } public class GpuTextureView { }")
-            .Replace("public static void ValidateSampler(ulong binding, GpuTexture texture, ref ShaderInputValidation history)",
-                "public static void ValidateSampler(ulong binding, GpuTextureView texture, ref ShaderInputValidation history)");
+        string support = Support + "namespace VanillaGraphicsExpanded.Rendering { public class GpuTextureView { public static implicit operator GpuTextureRef(GpuTextureView value) => new(value); } }";
         string source = """
             internal interface IInputs
             {
@@ -250,6 +253,36 @@ public sealed class RuntimeSubmissionTests
             }
             """;
         Assert.Equal("|validate-sampler;sampler;", GeneratorFixture.Generate(source, supportSource: support).Run());
+    }
+
+    /// <summary>Reference arrays compile to complete array validation and publication with stable retained storage.</summary>
+    [Fact]
+    public void TextureReferenceArraysUseArraySubmission()
+    {
+        string source = """
+            internal interface IInputs
+            {
+                [ShaderBinding("sources", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment,
+                    ArrayLength = 2, TextureTarget = ShaderTextureTarget.Texture2D)]
+                VanillaGraphicsExpanded.Rendering.GpuTextureRef[] Sources { get; set; }
+            }
+            """ + Header + """
+            internal partial class Shader : VanillaGraphicsExpanded.Rendering.Shaders.GpuProgram, IInputs { }
+            public static class Proof
+            {
+                public static string Run()
+                {
+                    var shader = new Shader();
+                    var texture = new VanillaGraphicsExpanded.Rendering.GpuTexture();
+                    shader.Sources = [texture, texture];
+                    shader.Sources = [texture, texture];
+                    shader.Use(); shader.Use();
+                    return VanillaGraphicsExpanded.Rendering.SubmissionRecorder.Calls + "|" +
+                        VanillaGraphicsExpanded.Rendering.ShaderInputSnapshot.Copies;
+                }
+            }
+            """;
+        Assert.Equal("validate-array;array;validate-array;array;|1", GeneratorFixture.Generate(source, supportSource: Support).Run());
     }
 
     /// <summary>Compute owners retain storage ranges and atomic counters and publish them at every dispatch.</summary>

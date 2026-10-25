@@ -20,6 +20,21 @@ internal sealed class RenderPass : IDisposable
     internal DynamicDrawState Viewport => new() { X = Area.X, Y = Area.Y, Width = Area.Width, Height = Area.Height };
 
     #region Public API
+    /// <summary>Checks sampling feedback for a consumer reference using its existing view relationship.</summary>
+    internal static void ValidateSampledTexture(GpuTextureRef texture)
+    {
+        if (texture.Resource is GpuTextureView view) ValidateSampledView(view);
+        else if (active is not null)
+            foreach (var pair in active.description.Target.AttachmentImages)
+            {
+                var attachment = pair.Value;
+                int source = attachment.Resource is GpuTextureView attachedView
+                    ? attachedView.SourceTextureId : attachment.TextureId;
+                if (source == texture.TextureId)
+                    throw new InvalidOperationException("Sampled texture overlaps an active framebuffer image.");
+            }
+    }
+
     /// <summary>Rejects typed view sampling when its exposed storage overlaps any active framebuffer image.</summary>
     internal static void ValidateSampledView(GpuTextureView view)
     {

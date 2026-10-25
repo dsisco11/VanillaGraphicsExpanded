@@ -29,7 +29,7 @@ public sealed partial class RasterDepthCopyShaderProgram : GpuProgram, IRasterDe
     }
 
     /// <summary>Supplies the current corrected receiver depth texture.</summary>
-    public partial GpuTexture? PrimaryDepth { set; }
+    public partial GpuTextureRef PrimaryDepth { set; }
     #endregion
 
     #region Binding sources

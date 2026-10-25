@@ -157,7 +157,7 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
     /// <summary>
     /// Probe anchor positions (posWS.xyz, valid) - stored in world-space.
     /// </summary>
-    public partial GpuTexture? ProbeAnchors { set; }
+    public partial GpuTextureRef ProbeAnchors { set; }
 
     /// <summary>
     /// Primary depth texture for ray marching.
@@ -167,33 +167,33 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
     /// <summary>
     /// LumOn-owned captured surface albedo.
     /// </summary>
-    public partial GpuTexture? SurfaceAlbedo { set; }
+    public partial GpuTextureRef SurfaceAlbedo { set; }
 
     /// <summary>
     /// VGE material properties used to derive emissive radiance at ray hits.
     /// </summary>
-    public partial GpuTexture? GBufferSurface { set; }
+    public partial GpuTextureRef GBufferSurface { set; }
 
     /// <summary>
     /// History probe atlas (octahedral-mapped) for temporal preservation.
     /// Shader uniform name remains <c>octahedralHistory</c> for compatibility.
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlasHistory { set; }
+    public partial GpuTextureRef ScreenProbeAtlasHistory { set; }
 
     /// <summary>
     /// History probe-atlas meta (confidence + flags) for temporal preservation.
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlasMetaHistory { set; }
+    public partial GpuTextureRef ScreenProbeAtlasMetaHistory { set; }
 
     /// <summary>
     /// Probe-resolution trace mask (RG32F packed uint bits) selecting which atlas texels to trace.
     /// </summary>
-    public partial GpuTexture? ProbeTraceMask { set; }
+    public partial GpuTextureRef ProbeTraceMask { set; }
 
     /// <summary>
     /// Optional HZB depth pyramid (mipmapped R32F).
     /// </summary>
-    public partial GpuTexture? HzbDepth { set; }
+    public partial GpuTextureRef HzbDepth { set; }
 
     #endregion
 
@@ -308,9 +308,9 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram : LumOnShaderProgra
         return !changed;
     }
 
-    public partial GpuTexture? WorldProbeRadianceAtlas { set; }
-    public partial GpuTexture? WorldProbeVis0 { set; }
-    public partial GpuTexture? WorldProbeMeta0 { set; }
+    public partial GpuTextureRef WorldProbeRadianceAtlas { set; }
+    public partial GpuTextureRef WorldProbeVis0 { set; }
+    public partial GpuTextureRef WorldProbeMeta0 { set; }
 
     #endregion
     #region Binding sources

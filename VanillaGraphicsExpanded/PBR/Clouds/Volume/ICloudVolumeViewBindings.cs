@@ -20,7 +20,7 @@ internal interface ICloudVolumeViewBindings:IPhotometricFrameBindings
     CpuUniformBuffer TemporalInputs {get;}
     /// <summary>Distributes rotating reduced-pixel phases with the existing cloud blue-noise resource.</summary>
     [ShaderBinding("viewBlueNoise",ShaderBindingKind.Sampler,9,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp,Required=false)]
-    GpuTexture? BlueNoise {set;}
+    GpuTextureRef BlueNoise {set;}
     /// <summary>Reads conservative stored-density occupancy.</summary>
     [ShaderBinding("VolumeOccupancy",ShaderBindingKind.StorageBlock,0,ShaderStageKind.Fragment)]
     GpuShaderStorageBuffer? Occupancy {set;}
@@ -29,30 +29,30 @@ internal interface ICloudVolumeViewBindings:IPhotometricFrameBindings
     GpuShaderStorageBuffer? Regions {set;}
     /// <summary>Fetches authoritative constant-cell extinction by exact physical texel address.</summary>
     [ShaderBinding("volumeDensity",ShaderBindingKind.Sampler,0,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
-    GpuTexture? Density {set;}
+    GpuTextureRef Density {set;}
     /// <summary>Samples retained solar/lunar transmission in the compiled shadow path.</summary>
     [ShaderBinding("viewDirect",ShaderBindingKind.Sampler,1,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
-    GpuTexture? Direct {set;}
+    GpuTextureRef Direct {set;}
     /// <summary>Samples the published diffuse field with its paired scale.</summary>
     [ShaderBinding("viewDiffuse",ShaderBindingKind.Sampler,2,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture3D,Sampler=ShaderSamplerPolicy.Default)]
-    GpuTexture? DiffuseField {set;}
+    GpuTextureRef DiffuseField {set;}
     /// <summary>Clips to material depth at explicit mip zero.</summary>
     [ShaderBinding("viewMaterialDepth",ShaderBindingKind.Sampler,3,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? MaterialDepth { set; }
+    GpuTextureRef MaterialDepth { set; }
     /// <summary>Preserves foreground-particle visibility independently of material correction.</summary>
     [ShaderBinding("viewVisibilityDepth",ShaderBindingKind.Sampler,4,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? VisibilityDepth { set; }
+    GpuTextureRef VisibilityDepth { set; }
     /// <summary>Clips to liquid depth using normalized full-view coordinates.</summary>
     [ShaderBinding("viewLiquidDepth",ShaderBindingKind.Sampler,5,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? LiquidDepth { set; }
+    GpuTextureRef LiquidDepth { set; }
     /// <summary>Borrows the matching completed aerial radiance publication.</summary>
     [ShaderBinding("vge_atmosphereAerialRadiance",ShaderBindingKind.Sampler,6,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture3D)]
-    DynamicTexture3D? Aerial { set; }
+    GpuTextureRef Aerial { set; }
     /// <summary>Borrows dimensionless aerial attenuation.</summary>
     [ShaderBinding("vge_atmosphereAerialAttenuation",ShaderBindingKind.Sampler,7,ShaderStageKind.Fragment,TextureTarget=ShaderTextureTarget.Texture3D)]
-    DynamicTexture3D? Attenuation { set; }
+    GpuTextureRef Attenuation { set; }
     /// <summary>Modulates incoming atmosphere through the existing optional shaft publication.</summary>
     [ShaderBinding("vge_lightShaftOcclusion",ShaderBindingKind.Sampler,8,ShaderStageKind.Fragment,Sampler=ShaderSamplerPolicy.LinearClamp,Required=false)]
-    GpuTexture? Shafts { set; }
+    GpuTextureRef Shafts { set; }
     #endregion
 }

@@ -24,9 +24,9 @@ internal sealed partial class CelestialStarProgram : GpuProgram, ICelestialDrawB
     /// <summary>Identifies the precompiled instanced program.</summary>
     internal override GpuShaderContract ProgramContract => Contract;
     /// <summary>Supplies the source cube independently of native assets.</summary>
-    public partial GpuTexture? GalaxyMap { set; }
+    public partial GpuTextureRef GalaxyMap { set; }
     /// <summary>Supplies the same admitted extinction as galaxy drawing.</summary>
-    public partial GpuTexture? ExternalTransmission { set; }
+    public partial GpuTextureRef ExternalTransmission { set; }
     /// <summary>Borrows a complete alternate view only outside prepared submissions.</summary>
     internal VgeFrameUniformBuffer? Frame { get => frame; set { RequireInputMutation(); frame = value; } }
     /// <summary>Borrows explicit alternate-view storage while normal world draws use frozen camera storage.</summary>

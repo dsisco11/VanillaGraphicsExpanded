@@ -136,7 +136,7 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
             temporalProgram.Frame=authoredCamera;temporalProgram.Lighting=lighting.Buffer;temporalProgram.BlueNoise=noise;
             temporalProgram.Cloud=raw.Images[0];temporalProgram.Bins=raw.Images[1];temporalProgram.Metadata=raw.Images[2];
             temporalProgram.PreviousCloud=previous.Images[0];temporalProgram.PreviousBins=previous.Images[1];
-            temporalProgram.PreviousMetadata=previous.Images[2];temporalProgram.PreviousAge=previous.Images[3];temporalProgram.Diagnostics=null;
+            temporalProgram.PreviousMetadata=previous.Images[2];temporalProgram.PreviousAge=previous.Images[3];temporalProgram.Diagnostics=default;
             temporalProgram.MaterialDepth=material;temporalProgram.VisibilityDepth=visibility;temporalProgram.LiquidDepth=liquid;
             pass.Prepare(destination.Target,destination.FilterOutputs,false);
             Assert.True(GraphicsCommandContext.TryRun("Tests.Cloud.Temporal.Authored",[pass.Pipeline!],true,commands=>pass.Draw(commands,geometry)));
@@ -145,10 +145,10 @@ internal sealed class CloudStoredVolumeViewScene:IDisposable
         }
         finally
         {
-            temporalProgram.Frame=null;temporalProgram.Lighting=null;temporalProgram.BlueNoise=null;
-            temporalProgram.Cloud=null;temporalProgram.Bins=null;temporalProgram.Metadata=null;
-            temporalProgram.PreviousCloud=null;temporalProgram.PreviousBins=null;temporalProgram.PreviousMetadata=null;temporalProgram.PreviousAge=null;temporalProgram.Diagnostics=null;
-            temporalProgram.MaterialDepth=null;temporalProgram.VisibilityDepth=null;temporalProgram.LiquidDepth=null;
+            temporalProgram.Frame=null;temporalProgram.Lighting=null;temporalProgram.BlueNoise=default;
+            temporalProgram.Cloud=default;temporalProgram.Bins=default;temporalProgram.Metadata=default;
+            temporalProgram.PreviousCloud=default;temporalProgram.PreviousBins=default;temporalProgram.PreviousMetadata=default;temporalProgram.PreviousAge=default;temporalProgram.Diagnostics=default;
+            temporalProgram.MaterialDepth=default;temporalProgram.VisibilityDepth=default;temporalProgram.LiquidDepth=default;
         }
     }
     /// <summary>Authors independent material, particle and liquid depth clips in projection space.</summary>

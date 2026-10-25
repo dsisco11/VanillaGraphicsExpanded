@@ -2,8 +2,8 @@ GPU resource metadata registry and typed resource wrappers
 =========================================================
 
 Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
-Status: Phases 1–6 complete after delegated validation, second review and independent audit.
-Phases 7–9 remain open. Retained CommandPublication Phase 9 records foundation evidence and limits.
+Status: Phases 1–7 complete after delegated validation, second review and independent audit.
+Phases 8–9 remain open. Retained CommandPublication Phase 9 records foundation evidence and limits.
 Persistent consumer integration and integrated qualification are verified with the recorded evidence limits.
 Phase 8 is a separately requested follow-on RHI design; it does not authorize runtime migration.
 
@@ -1111,32 +1111,32 @@ Phase 7: Design and implement the unified GpuTextureRef API
   Outcome: owned textures, borrowed textures and native texture views expose a common non-owning
   texture-reference API for binding and validation, without changing native storage or ownership.
   Approved design: [Rendering.GpuTextureRef.Proposal.md](Rendering.GpuTextureRef.Proposal.md).
-  Status: simplified consumer-only reference design approved; implementation and verification remain open.
+  Status: complete after implementation, delegated validation, second review and independent audit.
   A readonly value retains one private GpuResource<GpuTextureMetadata> reference and follows the wrapper's
   current native object. No public lifecycle methods, underlying-resource accessor or captured identity token.
 
-  ☐ Design GpuTextureRef and record its contract in a focused proposal before implementation.
+  ☑ Design GpuTextureRef and record its contract in a focused proposal before implementation.
     Inventory GpuTexture, BorrowedTexture, GpuTextureView, GpuTextureBinding, framebuffer attachment
     selection, ShaderInputValidation, ShaderPreparedSubmission and generated shader bindings.
     Define the representation, construction, empty-reference behavior, equality and access to resource
     identity, target, available metadata and view-relative subresources. Resolve class/value/interface
     choices from these requirements rather than introducing a second resource or metadata hierarchy.
-  ☐ Define reference lifetime and retention explicitly: retain the managed wrapper and follow its
+  ☑ Define reference lifetime and retention explicitly: retain the managed wrapper and follow its
     intentional native-object replacement. Preserve manager-owned borrower retirement, deletion/name-reuse
     safety, context retirement and native-view source dependencies. Obtaining or releasing
     a reference must never transfer ownership or delete the native resource.
     Keep registration, availability, revisions and snapshot publication manager-owned; do not add
     another lifetime registry, metadata snapshot authority or binding/validation cache.
-  ☐ Separate the consumer-facing binding/validation contract from ownership and mutation operations.
+  ☑ Separate the consumer-facing binding/validation contract from ownership and mutation operations.
     Preserve allocation, uploads, storage changes, disposal and Detach on the appropriate existing
     resource APIs. Borrowing remains valid for mutable external textures; obtaining GpuTextureRef
     must not create a GL texture view, allocate native storage or query already-available metadata.
     Preserve explicit image level/layer/access/format and framebuffer attachment selection rather
     than conflating a managed reference with a native texture view or an image-binding descriptor.
-  ☐ Walk owned, borrowed and native-view examples through the proposed API, including producer
+  ☑ Walk owned, borrowed and native-view examples through the proposed API, including producer
     replacement, unavailable metadata/recovery and shared-storage alias validation. Review the design
     with the user and record approval before implementing the selected representation.
-  ☐ Implement GpuTextureRef and conversions/accessors from GpuTexture (including BorrowedTexture)
+  ☑ Implement GpuTextureRef and conversions/accessors from GpuTexture (including BorrowedTexture)
     and GpuTextureView through their existing manager associations. Keep focused source ownership
     and preserve existing context/thread, pass-usage, content-readiness and native deletion contracts.
     Declare implicit conversion operators on GpuTexture and GpuTextureView, using an internal
@@ -1145,25 +1145,33 @@ Phase 7: Design and implement the unified GpuTextureRef API
     Store only the private GpuResource<GpuTextureMetadata> reference; expose no public underlying-resource
     accessor or lifecycle/mutation methods. Consolidate remaining GpuTextureView usability checks in
     GpuResourceManager, including local-tool handling, without recursive wrapper validity calls.
-  ☐ Migrate binding/validation entry points, generated shader-binding support and their consumers
+  ☑ Migrate binding/validation entry points, generated shader-binding support and their consumers
     to the unified contract. Consolidate duplicated owned/borrowed/view handling where semantics
     match; preserve explicit view-relative validation and shared-storage feedback/alias checks.
     Migrate cloud, depth, postprocessing and other affected consumers without wrapping existing owned
     textures unnecessarily or changing shader algorithms, render order or producer selection.
-  ☐ Have subagents verify equivalent binding and validation for owned textures, mutable borrowed
+  ☑ Have subagents verify equivalent binding and validation for owned textures, mutable borrowed
     textures and native views; cover empty inputs, incompatible targets/formats, subresource bounds,
     metadata changes/unavailability, deletion/name reuse, source replacement and context retirement.
     Verify retained references follow intentional owner native-object replacement and compatibility is
     revalidated from current facts even when reference equality is unchanged. Verify the restricted API.
     Verify releasing references preserves owners and native views, stable references introduce no
     redundant metadata queries/native binds, and reference creation adds no native object allocation.
-  ☐ Reconcile permanent texture/binding documentation and affected planning contracts with the
+  ☑ Reconcile permanent texture/binding documentation and affected planning contracts with the
     implemented API. Have subagents run affected regression suites and canonical build/package
     verification; verify tested/package identity and perform a second review and independent audit.
-  ☐ Completion: the approved GpuTextureRef design is implemented across affected consumers,
+  ☑ Completion: the approved GpuTextureRef design is implemented across affected consumers,
     ownership/mutation remain explicit, manager authority and binding suppression are preserved,
     and documentation plus validation identify the same qualified implementation. Supply this
     implemented contract to the following GpuCommand/GpuCommandList design.
+  Verification: 180/180 generator tests; 113/113 Debug GPU tests plus 2/2 added-path tests;
+  115/115 canonical Release GPU tests. Canonical build/package succeeded; tested/published/packaged
+  runtime SHA256 7D5AFEFE4FCA17E8EB9F44C0FBBDCB68CE1F63BF374B3F0F6C2A0C2FB0DFE46E matches,
+  all 761 shaders match, and the final source manifest has zero drift. Receipts: artifacts/texture-ref/
+  generator-full-07.trx, focused-07.trx, debug-additions-final.trx, release-focused-final.trx,
+  canonical-release-07.log, canonical-package-identity.json and final-source.csv.
+  Qualification is headless/package only; live appearance and frame-time performance are not established.
+
 Phase 8: Design the GpuCommand and GpuCommandList render hardware interface
   Depends on Phase 7 and its implemented GpuTextureRef API, together with Phase 6's qualified contracts.
   Outcome: a standalone, reviewable design for an RHI-style command system, with the OpenGL backend
@@ -1304,7 +1312,7 @@ Final acceptance
     while render/content behavior and existing state restoration remain correct.
   ☐ Required tests, package checks, cleanup, documentation and measured call/cost comparisons are
     complete for the qualified candidate. Live appearance and frame-time claims match actual evidence.
-  ☐ Phase 7 supplies the unified GpuTextureRef binding/validation API for owned, borrowed and native-view
+  ☑ Phase 7 supplies the unified GpuTextureRef binding/validation API for owned, borrowed and native-view
     inputs while preserving ownership, manager metadata authority, lifecycle and cache behavior.
   ☐ The separately requested Phase 8 command-system design is reviewed and approved; its completion
     does not claim that GpuCommand, GpuCommandList or the GpuStateCache rename are implemented.

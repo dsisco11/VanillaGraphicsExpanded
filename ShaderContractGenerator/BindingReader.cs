@@ -164,7 +164,10 @@ internal static class BindingReader
         bool cpuBuffer = kind == ShaderBindingKind.UniformBlock && RuntimeSubmissionEmitter.IsCpuBuffer(property.Type);
         bool textureResource = kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image && IsTextureResource(property.Type);
         bool textureView = kind == ShaderBindingKind.Sampler && type == "VanillaGraphicsExpanded.Rendering.GpuTextureView";
-        bool resource = textureView || textureResource || (kind == ShaderBindingKind.StorageBlock && type == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding") || cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
+        bool textureReference = kind is ShaderBindingKind.Sampler or ShaderBindingKind.Image && type == "VanillaGraphicsExpanded.Rendering.GpuTextureRef";
+        bool textureArray = kind == ShaderBindingKind.Sampler && property.Type is IArrayTypeSymbol { Rank: 1 } array
+            && array.ElementType.ToDisplayString() == "VanillaGraphicsExpanded.Rendering.GpuTextureRef";
+        bool resource = textureArray || textureReference || textureView || textureResource || (kind == ShaderBindingKind.StorageBlock && type == "VanillaGraphicsExpanded.Rendering.GpuStorageBufferBinding") || cpuBuffer || (resourceType != null && type == "VanillaGraphicsExpanded.Rendering." + resourceType) ||
             (contract && kind == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32) ||
             (kind == ShaderBindingKind.Image && type == "VanillaGraphicsExpanded.Rendering.GpuTexture");
         if (kind == ShaderBindingKind.UniformLocation && !descriptor)

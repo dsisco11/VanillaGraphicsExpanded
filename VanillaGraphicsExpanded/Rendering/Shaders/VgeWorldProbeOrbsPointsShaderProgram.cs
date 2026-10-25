@@ -123,9 +123,9 @@ public sealed partial class VgeWorldProbeOrbsPointsShaderProgram : VanillaGraphi
         return !changed;
     }
 
-    public partial GpuTexture? WorldProbeRadianceAtlas { set; }
-    public partial GpuTexture? WorldProbeVis0 { set; }
-    public partial GpuTexture? WorldProbeDebugState0 { set; }
+    public partial GpuTextureRef WorldProbeRadianceAtlas { set; }
+    public partial GpuTextureRef WorldProbeVis0 { set; }
+    public partial GpuTextureRef WorldProbeDebugState0 { set; }
     /// <summary>Supplies retained packed parameters for generated submission.</summary>
     CpuUniformBuffer IVgeWorldProbeOrbsPointsShaderProgramBindings.Parameters => paramsUbo;
     /// <summary>Supplies shared frame storage.</summary>

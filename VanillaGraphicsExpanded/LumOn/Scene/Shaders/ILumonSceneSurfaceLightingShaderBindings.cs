@@ -14,19 +14,19 @@ internal interface ILumonSceneSurfaceLightingShaderBindings : ISurfaceLightingIn
     CpuUniformBuffer FrameInputs { get; }
     /// <summary>Supplies the engine's normalized accessor light field for calibrated direct seeding.</summary>
     [ShaderBinding("nearFieldLight", ShaderBindingKind.Sampler, 12, ShaderStageKind.Compute, TextureTarget = ShaderTextureTarget.Texture3D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? NormalizedLight { set; }
+    GpuTextureRef NormalizedLight { set; }
     /// <summary>Declares the lightColors Sampler slot.</summary>
     [ShaderBinding("lightColors", ShaderBindingKind.Sampler, 3, ShaderStageKind.Compute, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? LightColors { set; }
+    GpuTextureRef LightColors { set; }
     /// <summary>Declares the blockLevels Sampler slot.</summary>
     [ShaderBinding("blockLevels", ShaderBindingKind.Sampler, 4, ShaderStageKind.Compute, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? BlockLevels { set; }
+    GpuTextureRef BlockLevels { set; }
     /// <summary>Declares the sunLevels Sampler slot.</summary>
     [ShaderBinding("sunLevels", ShaderBindingKind.Sampler, 5, ShaderStageKind.Compute, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? SunLevels { set; }
+    GpuTextureRef SunLevels { set; }
     /// <summary>Declares the surfaces Sampler slot.</summary>
     [ShaderBinding("surfaces", ShaderBindingKind.Sampler, 7, ShaderStageKind.Compute, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? Surfaces { set; }
+    GpuTextureRef Surfaces { set; }
     /// <summary>Declares the indirectIrradiance Image slot.</summary>
     [ShaderBinding("indirectIrradiance", ShaderBindingKind.Image, 0, ShaderStageKind.Compute)]
     GpuTextureBinding IndirectIrradiance { set; }

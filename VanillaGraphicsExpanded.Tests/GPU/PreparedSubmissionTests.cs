@@ -13,6 +13,30 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderTestBase(fixture)
 {
     #region Public API
+    /// <summary>Native view image publication keeps selections relative to the view rather than its source layers.</summary>
+    [Fact]
+    public void NativeViewImageSubmissionUsesViewRelativeSelection()
+    {
+        EnsureContextValid();
+        using var pipeline = Load();
+        var binding = pipeline.ProgramLayout.BinaryInterface!.PreparedBindings.Resolve(
+            GpuBindingEntry.Identity(ShaderBindingKind.Image, "outputImage"));
+        using var source = DynamicTexture3D.Create(2, 2, 6, PixelInternalFormat.Rgba32f, immutableStorage: true);
+        using var nativeView = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray,
+            PixelInternalFormat.Rgba32f, 0, 1, 3, 2);
+        var image = new GpuTextureBinding(nativeView, TextureAccess.WriteOnly, Level: 0, Layered: false, Layer: 1);
+        ShaderPreparedSubmission.ValidateImage(binding, image);
+        ShaderPreparedSubmission.Image(binding, image);
+        // Query the native assignment to catch accidental source-relative argument translation.
+        GL.GetInteger((GetIndexedPName)All.ImageBindingName, 7, out int name);
+        GL.GetInteger((GetIndexedPName)All.ImageBindingLevel, 7, out int level);
+        GL.GetInteger((GetIndexedPName)All.ImageBindingLayer, 7, out int layer);
+        Assert.Equal(nativeView.TextureId, name);
+        Assert.Equal(0, level);
+        Assert.Equal(1, layer);
+        Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(binding, image with { Layer = 2 }));
+    }
+
     /// <summary>Successful compatibility is reused while input changes, executable replacement and retirement remain observable.</summary>
     [Fact]
     public void RetainedValidationSkipsUnchangedInputsAndRefreshesChangedFacts()
@@ -76,13 +100,13 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         using var other = Texture2D.CreateWithDataImmediate(1, 1, PixelInternalFormat.Rgba32f, [100, 200, 300, 400]);
         using var output = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         var view = new GpuTextureBinding(output, TextureAccess.WriteOnly);
-        GpuTexture?[] desired = [first, second];
+        GpuTextureRef[] desired = [first, second];
         // Validate the entire set before publication, as generated Submit does.
         ShaderPreparedSubmission.ValidateSamplerArray(inputs, desired);
         ShaderPreparedSubmission.ValidateImage(outputBinding, view);
         ShaderPreparedSubmission.SamplerArray(inputs, desired);
         ShaderBindingAccess.Image(pipeline.ProgramLayout, pipeline.ProgramId, "outputImage", view);
-        ShaderBindingAccess.Sampler(pipeline.ProgramLayout, pipeline.ProgramId, "unused", null!);
+        ShaderBindingAccess.Sampler(pipeline.ProgramLayout, pipeline.ProgramId, "unused", default(GpuTextureRef));
         pipeline.Dispatch(1);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderImageAccessBarrierBit | MemoryBarrierFlags.FramebufferBarrierBit);
         Assert.Equal(new float[] { 11, 22, 33, 44 }, output.ReadPixels());
@@ -208,7 +232,7 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         Assert.Throws<InvalidOperationException>(() => ShaderPreparedSubmission.ValidateImage(image,
             new GpuTextureBinding(array, Layered: true)));
         var optional = image with { Contract = image.Contract with { Binding = image.Contract.Binding with { Required = false } } };
-        ShaderPreparedSubmission.Image(optional, new GpuTextureBinding(null!, (TextureAccess)(-1), -1, true, -1, (SizedInternalFormat)(-1)));
+        ShaderPreparedSubmission.Image(optional, new GpuTextureBinding(default, (TextureAccess)(-1), -1, true, -1, (SizedInternalFormat)(-1)));
         Assert.True(StateCache.Current.TryGetCachedImageTexture(7, out int cleared));
         Assert.Equal(0, cleared);
     }

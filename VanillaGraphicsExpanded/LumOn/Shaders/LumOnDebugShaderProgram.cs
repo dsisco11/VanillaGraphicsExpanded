@@ -23,7 +23,7 @@ namespace VanillaGraphicsExpanded.LumOn;
 public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugShaderProgramBindings
 {
     /// <summary>Supplies all direct-lighting radiance layers.</summary>
-    public partial GpuTexture? DirectLighting { set; }
+    public partial GpuTextureRef DirectLighting { set; }
 
 
     #region Shader options
@@ -117,11 +117,11 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
         return !changed;
     }
 
-    public partial GpuTexture? WorldProbeRadianceAtlas { set; }
-    public partial GpuTexture? WorldProbeVis0 { set; }
-    public partial GpuTexture? WorldProbeDist0 { set; }
-    public partial GpuTexture? WorldProbeMeta0 { set; }
-    public partial GpuTexture? WorldProbeDebugState0 { set; }
+    public partial GpuTextureRef WorldProbeRadianceAtlas { set; }
+    public partial GpuTextureRef WorldProbeVis0 { set; }
+    public partial GpuTextureRef WorldProbeDist0 { set; }
+    public partial GpuTextureRef WorldProbeMeta0 { set; }
+    public partial GpuTextureRef WorldProbeDebugState0 { set; }
 
     /// <summary>Gets or sets the declared WorldProbeBaseSpacing shader selection.</summary>
     [ShaderOptionReference(typeof(LumOnShaderOptions), nameof(LumOnShaderOptions.WorldProbeBaseSpacing))]
@@ -147,7 +147,7 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     /// <summary>
     /// G-buffer normals texture.
     /// </summary>
-    public partial GpuTexture? GBufferSurface { set; }
+    public partial GpuTextureRef GBufferSurface { set; }
 
     /// <summary>
     /// PatchId G-buffer (RGBA32UI) used by LumonScene debug views.
@@ -157,62 +157,62 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     /// <summary>
     /// Probe anchor positions (posWS.xyz, valid).
     /// </summary>
-    public partial GpuTexture? ProbeAnchors { set; }
+    public partial GpuTextureRef ProbeAnchors { set; }
 
     /// <summary>
     /// Radiance SH texture 0 (for SH debug view).
     /// </summary>
-    public partial GpuTexture? RadianceTexture0 { set; }
+    public partial GpuTextureRef RadianceTexture0 { set; }
 
     /// <summary>
     /// Radiance SH texture 1 (for SH debug view - second texture for full unpacking).
     /// </summary>
-    public partial GpuTexture? RadianceTexture1 { set; }
+    public partial GpuTextureRef RadianceTexture1 { set; }
 
     /// <summary>
     /// Half-resolution indirect diffuse.
     /// </summary>
-    public partial GpuTexture? IndirectHalf { set; }
+    public partial GpuTextureRef IndirectHalf { set; }
 
     /// <summary>
     /// History metadata texture (depth, normal, accumCount) for temporal debug.
     /// </summary>
-    public partial GpuTexture? HistoryMeta { set; }
+    public partial GpuTextureRef HistoryMeta { set; }
 
     /// <summary>
     /// Screen-probe atlas meta (confidence/flags) for probe-atlas debug modes.
     /// </summary>
-    public partial GpuTexture? ProbeAtlasMeta { set; }
+    public partial GpuTextureRef ProbeAtlasMeta { set; }
 
     /// <summary>
     /// Screen-probe atlas radiance (current/temporal output) for probe-atlas debug modes.
     /// </summary>
-    public partial GpuTexture? ProbeAtlasCurrent { set; }
+    public partial GpuTextureRef ProbeAtlasCurrent { set; }
 
     /// <summary>
     /// Screen-probe atlas radiance (filtered output) for probe-atlas debug modes.
     /// </summary>
-    public partial GpuTexture? ProbeAtlasFiltered { set; }
+    public partial GpuTextureRef ProbeAtlasFiltered { set; }
 
     /// <summary>
     /// The atlas texture currently selected as gather input (raw vs filtered).
     /// </summary>
-    public partial GpuTexture? ProbeAtlasGatherInput { set; }
+    public partial GpuTextureRef ProbeAtlasGatherInput { set; }
 
     /// <summary>
     /// Raw/trace probe-atlas radiance (pre-temporal). Used by probe-atlas debug modes.
     /// </summary>
-    public partial GpuTexture? ProbeAtlasTrace { set; }
+    public partial GpuTextureRef ProbeAtlasTrace { set; }
 
     /// <summary>
     /// Phase 10: probe-resolution trace mask (RG32F packed uint bits).
     /// </summary>
-    public partial GpuTexture? ProbeTraceMask { set; }
+    public partial GpuTextureRef ProbeTraceMask { set; }
 
     /// <summary>
     /// Phase 10: probe-resolution importance energy (R32F, sum of weights).
     /// </summary>
-    public partial GpuTexture? ProbePisEnergy { set; }
+    public partial GpuTextureRef ProbePisEnergy { set; }
 
     /// <summary>Controls the diagnostic display sensitivity without modifying lighting.</summary>
     public float WorldProbeEffectGain
@@ -234,17 +234,17 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     }
 
     /// <summary>Full-resolution indirect diffuse used by composite debug views.</summary>
-    public partial GpuTexture? IndirectDiffuseFull { set; }
+    public partial GpuTextureRef IndirectDiffuseFull { set; }
 
     /// <summary>
     /// Albedo source for composite debug views (fallback: captured scene).
     /// </summary>
-    public partial GpuTexture? GBufferAlbedo { set; }
+    public partial GpuTextureRef GBufferAlbedo { set; }
 
     /// <summary>
     /// Full-resolution velocity texture (RGBA32F): RG = velocityUv, A = packed flags.
     /// </summary>
-    public partial GpuTexture? VelocityTex { set; }
+    public partial GpuTextureRef VelocityTex { set; }
 
     #endregion
 
@@ -283,20 +283,20 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     }
 
     /// <summary>Binds the array of page-table layers indexed by scene chunk slot.</summary>
-    public partial GpuTexture? LumonScenePageTableMip0 { set; }
+    public partial GpuTextureRef LumonScenePageTableMip0 { set; }
 
     /// <summary>Binds the irradiance atlas array using the same target as its physical storage.</summary>
-    public partial GpuTexture? LumonSceneIrradianceAtlas { set; }
+    public partial GpuTextureRef LumonSceneIrradianceAtlas { set; }
 
     /// <summary>Binds the captured material atlas array without changing its texture target.</summary>
-    public partial GpuTexture? LumonSceneMaterialAtlas { set; }
+    public partial GpuTextureRef LumonSceneMaterialAtlas { set; }
 
-    public partial GpuTexture? LumonSceneSurfaceLut { set; }
+    public partial GpuTextureRef LumonSceneSurfaceLut { set; }
 
     #endregion
 
     /// <summary>Binds the shared packed light payload for geometry diagnostics.</summary>
-    public partial GpuTexture? TraceSceneLegacy { set; }
+    public partial GpuTextureRef TraceSceneLegacy { set; }
 
     // Camera and frame data come from VgeFrameUBO; probe controls remain in LumOnFrameUBO.
 
@@ -426,8 +426,8 @@ public partial class LumOnDebugShaderProgram : LumOnShaderProgram, ILumOnDebugSh
     /// <summary>Supplies retained visibility parameters.</summary>
     CpuUniformBuffer ILumOnDebugShaderProgramBindings.LumOnNearField => NearFieldVisibility.Parameters;
     /// <summary>Supplies retained visibility geometry.</summary>
-    GpuTexture? ILumOnDebugShaderProgramBindings.NearFieldGeometry => NearFieldVisibility.Geometry;
+    GpuTextureRef ILumOnDebugShaderProgramBindings.NearFieldGeometry => NearFieldVisibility.Geometry;
     /// <summary>Supplies retained visibility readiness.</summary>
-    GpuTexture? ILumOnDebugShaderProgramBindings.NearFieldRegions => NearFieldVisibility.Regions;
+    GpuTextureRef ILumOnDebugShaderProgramBindings.NearFieldRegions => NearFieldVisibility.Regions;
     #endregion
 }

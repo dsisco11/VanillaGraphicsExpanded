@@ -12,7 +12,7 @@ internal interface ICloudVolumeCopyBindings
     CpuUniformBuffer Inputs { get; }
     /// <summary>Reads the still-published source by exact texel address.</summary>
     [ShaderBinding("oldDiffuse", ShaderBindingKind.Sampler, 0, ShaderStageKind.Compute, TextureTarget=ShaderTextureTarget.Texture3D, Sampler=ShaderSamplerPolicy.Default)]
-    GpuTexture? Source { set; }
+    GpuTextureRef Source { set; }
     /// <summary>Writes only the unpublished spare.</summary>
     [ShaderBinding("newDiffuse", ShaderBindingKind.Image, 0, ShaderStageKind.Compute, TextureTarget=ShaderTextureTarget.Texture3D)]
     GpuTextureBinding Destination { set; }

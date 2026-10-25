@@ -88,7 +88,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         int layer = 0,
         SizedInternalFormat? format = null)
     {
-        if (!IsValid || metadata.Levels.IsDefaultOrEmpty)
+        if (!base.IsValid || metadata.Levels.IsDefaultOrEmpty)
         {
             Debug.WriteLine("[GpuTexture] Attempted to bind disposed or invalid texture as image");
             return;
@@ -116,7 +116,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// <summary>Binds this live allocation and restores the previous binding when the scope ends.</summary>
     public BindingScope BindScope(int unit)
     {
-        ObjectDisposedException.ThrowIf(!IsValid, this);
+        ObjectDisposedException.ThrowIf(!base.IsValid, this);
         if (metadata.Levels.IsDefaultOrEmpty)
             throw new InvalidOperationException("Texture image metadata is unavailable; refresh before binding.");
         var gl = StateCache.Current;
@@ -150,7 +150,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     protected void Reallocate2DStorageInPlace(int width, int height, int mipLevels)
     {
         RequireMutableStorage();
-        if (!IsValid) throw new InvalidOperationException("Cannot reallocate retired texture storage.");
+        if (!base.IsValid) throw new InvalidOperationException("Cannot reallocate retired texture storage.");
         Validate2DAllocation(textureTarget, width, height, mipLevels);
         Allocate2DStorage(textureTarget, internalFormat, width, height, mipLevels);
         if (ResourceManager?.GetResourceRegistration(this) is null)
@@ -199,7 +199,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public virtual void Bind(int unit)
     {
-        if (!IsValid || metadata.Levels.IsDefaultOrEmpty)
+        if (!base.IsValid || metadata.Levels.IsDefaultOrEmpty)
         {
             Debug.WriteLine("[GpuTexture] Attempted to bind disposed or invalid texture");
             return;
@@ -212,7 +212,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public bool TryBind(int unit)
     {
-        if (!IsValid || metadata.Levels.IsDefaultOrEmpty)
+        if (!base.IsValid || metadata.Levels.IsDefaultOrEmpty)
         {
             return false;
         }
@@ -237,7 +237,9 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// </summary>
     public void SetMipRange(int baseLevel, int maxLevel)
     {
-        if (!IsValid)
+        // Parameter operations can explicitly restore withdrawn facts. Admission uses native
+        // lifetime; consumer usability remains manager-owned and requires available metadata.
+        if (!base.IsValid)
         {
             return;
         }
@@ -258,7 +260,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// </summary>
     public void SetTexFilter(TextureMinFilter minFilter, TextureMagFilter magFilter)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             return;
         }
@@ -279,7 +281,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// </summary>
     public void SetTexWrap(TextureWrapMode wrapS, TextureWrapMode wrapT, TextureWrapMode? wrapR = null)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             return;
         }
@@ -324,7 +326,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public virtual void UploadDataStreamed(float[] data, int priority = 0, int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -366,7 +368,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// </summary>
     public virtual void UploadDataStreamed(float[] data, int x, int y, int regionWidth, int regionHeight, int priority = 0, int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -411,7 +413,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public virtual void UploadDataStreamed(ushort[] data, int priority = 0, int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -465,7 +467,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
         int priority = 0,
         int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -502,7 +504,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public virtual void UploadDataImmediate(float[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -539,7 +541,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// <summary>Uploads tightly packed byte data to a 3D region, preserving the caller's unpack alignment.</summary>
     public virtual void UploadDataImmediate(byte[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -570,7 +572,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// <summary>Uploads tightly packed UNORM16 or unsigned integer nodes to a layered region without float conversion.</summary>
     public virtual void UploadDataImmediate(ushort[] data,int x,int y,int z,int regionWidth,int regionHeight,int regionDepth,int mipLevel=0)
     {
-        ObjectDisposedException.ThrowIf(!IsValid,this);
+        ObjectDisposedException.ThrowIf(!base.IsValid,this);
         ArgumentNullException.ThrowIfNull(data);
         Ensure3DLike();
         if(TextureFormatHelper.GetPixelType(internalFormat)!=PixelType.UnsignedShort)
@@ -590,7 +592,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public virtual void UploadDataImmediate(uint[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -637,7 +639,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// <summary>Uploads native bytes to a bounded 2D region while preserving pixel-store alignment.</summary>
     public virtual void UploadDataImmediate(byte[] data, int x, int y, int regionWidth, int regionHeight)
     {
-        if (!IsValid) throw new ObjectDisposedException(nameof(GpuTexture));
+        if (!base.IsValid) throw new ObjectDisposedException(nameof(GpuTexture));
         ArgumentNullException.ThrowIfNull(data);
         Ensure2DLike();
         if (TextureFormatHelper.GetPixelType(internalFormat) != PixelType.UnsignedByte)
@@ -655,7 +657,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// <summary>Uploads a full texture immediately from floating-point input.</summary>
     public virtual void UploadDataImmediate(float[] data)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -689,7 +691,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public virtual void UploadDataImmediate(uint[] data)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -729,7 +731,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public virtual void UploadDataImmediate(float[] data, int x, int y, int regionWidth, int regionHeight)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -769,7 +771,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public virtual void UploadDataImmediate(uint[] data, int x, int y, int regionWidth, int regionHeight)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -815,7 +817,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public virtual void UploadDataImmediate(ushort[] data)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to upload data to disposed or invalid texture");
             return;
@@ -862,7 +864,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// </summary>
     public virtual float[] ReadPixels()
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to read pixels from disposed or invalid texture");
             return [];
@@ -898,7 +900,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// </summary>
     public virtual float[] ReadPixelsRegion(int x, int y, int regionWidth, int regionHeight)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to read pixels from disposed or invalid texture");
             return [];
@@ -939,7 +941,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
     /// </summary>
     public virtual float[] ReadPixels(int mipLevel)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             Debug.WriteLine("[GpuTexture] Attempted to read pixels from disposed or invalid texture");
             return [];
@@ -987,7 +989,7 @@ public abstract partial class GpuTexture : GpuResource<GpuTextureMetadata>, IDis
 
     public unsafe bool TryClearToZero(int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!base.IsValid)
         {
             return false;
         }

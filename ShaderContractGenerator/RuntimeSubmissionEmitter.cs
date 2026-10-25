@@ -123,7 +123,8 @@ internal static class RuntimeSubmissionEmitter
             if (property.SetMethod != null)
             {
                 text.Append("set { RequireInputMutation(); if (");
-                if (property.Type.IsReferenceType) text.Append("global::System.Object.ReferenceEquals(");
+                if (property.Type is IArrayTypeSymbol) text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderInputSnapshot.Equal(");
+                else if (property.Type.IsReferenceType) text.Append("global::System.Object.ReferenceEquals(");
                 else text.Append("global::System.Collections.Generic.EqualityComparer<").Append(type).Append(">.Default.Equals(");
                 text.Append(storage).Append(", value)) return; ").Append(storage).Append(" = ")
                     .Append(property.Type is IArrayTypeSymbol ? "global::VanillaGraphicsExpanded.Rendering.ShaderInputSnapshot.Copy(value)" : "value").Append("; ");
@@ -152,7 +153,8 @@ internal static class RuntimeSubmissionEmitter
             if (IsStateful(property) && !InterfaceBindingReader.NeedsImplementation(InterfaceBindingReader.Implementation(owner, property)))
             {
                 text.Append("if (!");
-                if (property.Type.IsReferenceType) text.Append("global::System.Object.ReferenceEquals(");
+                if (property.Type is IArrayTypeSymbol) text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderInputSnapshot.Equal(");
+                else if (property.Type.IsReferenceType) text.Append("global::System.Object.ReferenceEquals(");
                 else text.Append("global::System.Collections.Generic.EqualityComparer<").Append(TypeName(property)).Append(">.Default.Equals(");
                 text.Append("__activeState.").Append(property.Name).Append(", input").Append(i).Append(")) { __activeState.").Append(property.Name).Append(" = ");
                 if (property.Type is IArrayTypeSymbol) text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderInputSnapshot.Copy(input").Append(i).Append(')');
@@ -171,17 +173,16 @@ internal static class RuntimeSubmissionEmitter
                 var property = resources[i];
                 var attr = Attributes(property, "ShaderBinding").Single();
                 var kind = BindingReader.ReadKind(attr);
+                bool samplerArray = kind == ShaderBindingKind.Sampler && property.Type is IArrayTypeSymbol;
                 if (validate && kind == ShaderBindingKind.Sampler && property.Type.SpecialType == SpecialType.System_Int32)
                     text.Append("input").Append(i).Append(" = ");
                 text.Append("global::VanillaGraphicsExpanded.Rendering.ShaderPreparedSubmission.").Append(validate ? "Validate" : "").Append(kind)
-                    .Append("(binding").Append(i).Append(", ");
+                    .Append(samplerArray ? "Array" : "").Append("(binding").Append(i).Append(", ");
                 // Select the managed-resource overload even when a concrete texture also converts to an engine ID.
-                if (kind == ShaderBindingKind.Sampler && property.Type.SpecialType != SpecialType.System_Int32)
-                    text.Append(property.Type.ToDisplayString().TrimEnd('?') == "VanillaGraphicsExpanded.Rendering.GpuTextureView"
-                        ? "(global::VanillaGraphicsExpanded.Rendering.GpuTextureView?)"
-                        : "(global::VanillaGraphicsExpanded.Rendering.GpuTexture?)");
+                if (kind == ShaderBindingKind.Sampler && !samplerArray && property.Type.SpecialType != SpecialType.System_Int32)
+                    text.Append("(global::VanillaGraphicsExpanded.Rendering.GpuTextureRef)");
                 text.Append("input").Append(i);
-                if (validate && (kind == ShaderBindingKind.Image ||
+                if (validate && !samplerArray && (kind == ShaderBindingKind.Image ||
                     (kind == ShaderBindingKind.Sampler && property.Type.SpecialType != SpecialType.System_Int32) ||
                     (kind == ShaderBindingKind.StorageBlock && property.Type.IsValueType)))
                     text.Append(", ref __validation_").Append(property.Name);

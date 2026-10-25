@@ -23,9 +23,9 @@ internal interface ILumOnProbeAnchorShaderProgramBindings
     int PrimaryDepth { set; }
     /// <summary>Declares the normal, material and environment surface array sampler.</summary>
     [ShaderBinding("gBufferSurface", ShaderBindingKind.Sampler, 1, ShaderStageKind.Vertex, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2DArray, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    GpuTexture? GBufferSurface { set; }
+    GpuTextureRef GBufferSurface { set; }
     /// <summary>Declares the pmjJitter Sampler slot.</summary>
     [ShaderBinding("pmjJitter", ShaderBindingKind.Sampler, 2, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? PmjJitter { set; }
+    GpuTextureRef PmjJitter { set; }
     #endregion
 }

@@ -12,7 +12,7 @@ internal interface IPostLumaShaderProgramBindings : VanillaGraphicsExpanded.PBR.
     CpuUniformBuffer Inputs { get; }
     /// <summary>Supplies sourceImage with explicit edge-clamped sampling.</summary>
     [ShaderBinding("sourceImage", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.LinearClamp)]
-    GpuTexture? SourceImage { set; }
+    GpuTextureRef SourceImage { set; }
     /// <summary>Supplies published exposure when automatic camera control is enabled.</summary>
     [ShaderBinding("CameraExposure", ShaderBindingKind.StorageBlock, 0, ShaderStageKind.Fragment, Required = false)]
     GpuShaderStorageBuffer? ExposureBuffer { set; }

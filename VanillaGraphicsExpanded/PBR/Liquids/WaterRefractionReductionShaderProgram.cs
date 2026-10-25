@@ -21,9 +21,9 @@ internal sealed partial class WaterRefractionReductionShaderProgram : GpuProgram
     internal override GpuShaderContract ProgramContract => Contract;
 
     /// <summary>Borrows the restored radiance image for this reduction draw.</summary>
-    public partial DynamicTexture2D? SourceColor { set; }
+    public partial GpuTextureRef SourceColor { set; }
 
     /// <summary>Borrows the matching full-resolution depth image.</summary>
-    public partial DynamicTexture2D? SourceDepth { set; }
+    public partial GpuTextureRef SourceDepth { set; }
     #endregion
 }

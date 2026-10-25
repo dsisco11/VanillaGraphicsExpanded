@@ -20,6 +20,6 @@ internal interface IPBRDisplayResolveShaderProgramBindings
     CpuUniformBuffer Routing { get; }
     /// <summary>Supplies visible premultiplied particle radiance after opaque transport has completed.</summary>
     [ShaderBinding("particleLayer", ShaderBindingKind.Sampler, 2, ShaderStageKind.Fragment, Required = false, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    DynamicTexture2D? ParticleLayer { set; }
+    GpuTextureRef ParticleLayer { set; }
     #endregion
 }

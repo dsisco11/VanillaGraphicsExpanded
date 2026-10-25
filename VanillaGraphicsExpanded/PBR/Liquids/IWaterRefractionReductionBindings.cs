@@ -11,10 +11,10 @@ internal interface IWaterRefractionReductionBindings
     #region Public API
     /// <summary>Supplies restored linear radiance with opaque receiver validity in alpha.</summary>
     [ShaderBinding("sourceColor", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    DynamicTexture2D? SourceColor { set; }
+    GpuTextureRef SourceColor { set; }
 
     /// <summary>Supplies matching hardware depth from the same composite draw.</summary>
     [ShaderBinding("sourceDepth", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    DynamicTexture2D? SourceDepth { set; }
+    GpuTextureRef SourceDepth { set; }
     #endregion
 }

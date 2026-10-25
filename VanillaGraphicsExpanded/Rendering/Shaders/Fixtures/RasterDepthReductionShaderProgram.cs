@@ -31,7 +31,7 @@ public sealed partial class RasterDepthReductionShaderProgram : GpuProgram, IRas
     }
 
     /// <summary>Supplies the mipmapped R32F minimum-depth texture.</summary>
-    public partial GpuTexture? HzbDepth { set; }
+    public partial GpuTextureRef HzbDepth { set; }
 
     /// <summary>Selects a source mip relative to the texture's accessible base level.</summary>
     public int SrcMip { set => Params.SrcMip = value; }

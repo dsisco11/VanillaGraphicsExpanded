@@ -14,6 +14,6 @@ internal interface IRasterDepthReductionShaderBindings
     CpuUniformBuffer Parameters { get; }
     /// <summary>Declares the hzbDepth Sampler slot.</summary>
     [ShaderBinding("hzbDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Vertex, ShaderStageKind.Fragment)]
-    GpuTexture? HzbDepth { set; }
+    GpuTextureRef HzbDepth { set; }
     #endregion
 }

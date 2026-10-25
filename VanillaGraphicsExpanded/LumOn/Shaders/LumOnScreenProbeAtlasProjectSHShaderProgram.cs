@@ -48,17 +48,17 @@ public partial class LumOnScreenProbeAtlasProjectSHShaderProgram : LumOnShaderPr
     /// Input stabilized screen-probe atlas radiance.
     /// Shader uniform name remains <c>octahedralAtlas</c> for compatibility.
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlas { set; }
+    public partial GpuTextureRef ScreenProbeAtlas { set; }
 
     /// <summary>
     /// Input stabilized probe-atlas meta (confidence + flags).
     /// </summary>
-    public partial GpuTexture? ScreenProbeAtlasMeta { set; }
+    public partial GpuTextureRef ScreenProbeAtlasMeta { set; }
 
     /// <summary>
     /// Probe anchor positions for validity checks.
     /// </summary>
-    public partial GpuTexture? ProbeAnchors { set; }
+    public partial GpuTextureRef ProbeAnchors { set; }
 
     #endregion
 

@@ -178,7 +178,7 @@ public sealed class DynamicTexture3D : GpuTexture
 
     public void ClearImmediate(float r = 0f, float g = 0f, float b = 0f, float a = 0f)
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture3D] Attempted to clear disposed or invalid texture");
             return;
@@ -205,7 +205,7 @@ public sealed class DynamicTexture3D : GpuTexture
 
     internal void EnqueueUploadData(float[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int priority = 0, int mipLevel = 0)
     {
-        if (!IsValid)
+        if (!((GpuResource)this).IsValid)
         {
             Debug.WriteLine("[DynamicTexture3D] Attempted to enqueue upload for disposed or invalid texture");
             return;

@@ -22,11 +22,11 @@ public partial class LumOnScreenProbeAtlasTraceShaderProgram
     /// <summary>Supplies the retained sampling domain.</summary>
     CpuUniformBuffer ILumOnScreenProbeAtlasTraceShaderProgramBindings.SurfaceLightingParameters => surfaceLightingParameters;
     /// <summary>Supplies captured material from the retained generation.</summary>
-    GpuTexture? ILumOnScreenProbeAtlasTraceShaderProgramBindings.CapturedMaterial => surfaceLighting?.Material;
+    GpuTextureRef ILumOnScreenProbeAtlasTraceShaderProgramBindings.CapturedMaterial => surfaceLighting?.Material;
     /// <summary>Supplies radiance from the retained generation.</summary>
-    GpuTexture? ILumOnScreenProbeAtlasTraceShaderProgramBindings.PreviousOutgoing => surfaceLighting?.OutgoingRadiance;
+    GpuTextureRef ILumOnScreenProbeAtlasTraceShaderProgramBindings.PreviousOutgoing => surfaceLighting?.OutgoingRadiance;
     /// <summary>Supplies page addresses from the retained generation.</summary>
-    GpuTexture? ILumOnScreenProbeAtlasTraceShaderProgramBindings.SurfacePages => surfaceLighting?.PageTable;
+    GpuTextureRef ILumOnScreenProbeAtlasTraceShaderProgramBindings.SurfacePages => surfaceLighting?.PageTable;
     /// <summary>Supplies patch metadata from the retained generation.</summary>
     GpuShaderStorageBuffer? ILumOnScreenProbeAtlasTraceShaderProgramBindings.SurfacePatches => surfaceLighting?.Patches;
     /// <summary>Supplies slot ownership from the retained generation.</summary>
