@@ -3,9 +3,9 @@ GPU resource metadata registry and typed resource wrappers
 
 Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
 Status: Phases 1–5 complete after delegated validation, second review and independent audit.
-Phases 6–8 remain open. Retained CommandPublication Phase 9 records foundation evidence and limits.
+Phases 6–9 remain open. Retained CommandPublication Phase 9 records foundation evidence and limits.
 Persistent consumer integration is verified; integrated qualification remains unchecked.
-Phase 7 is a separately requested follow-on RHI design; it does not authorize runtime migration.
+Phase 8 is a separately requested follow-on RHI design; it does not authorize runtime migration.
 
 Planning authority
   The governing contracts record the agreed manager-owned metadata direction. The linked proposal,
@@ -1075,8 +1075,54 @@ Phase 6: Qualify the integrated design and reconcile documentation
   ☐ Completion: proposal coverage, regression/package receipts, measurements, cleanup and current-state
     documentation agree for the same candidate; unresolved required work is explicitly left open.
 
-Phase 7: Design the GpuCommand and GpuCommandList render hardware interface
-  Depends on Phase 6 and its reconciled resource, command and metadata contracts.
+Phase 7: Design and implement the unified GpuTextureRef API
+  Depends on Phase 6's qualified resource, metadata and binding contracts.
+  Outcome: owned textures, borrowed textures and native texture views expose a common non-owning
+  texture-reference API for binding and validation, without changing native storage or ownership.
+
+  ☐ Design GpuTextureRef and record its contract in a focused proposal before implementation.
+    Inventory GpuTexture, BorrowedTexture, GpuTextureView, GpuTextureBinding, framebuffer attachment
+    selection, ShaderInputValidation, ShaderPreparedSubmission and generated shader bindings.
+    Define the representation, construction, empty-reference behavior, equality and access to resource
+    identity, target, available metadata and view-relative subresources. Resolve class/value/interface
+    choices from these requirements rather than introducing a second resource or metadata hierarchy.
+  ☐ Define reference lifetime and retention explicitly: a reference must preserve the original
+    association, reject deletion/name reuse and context retirement, and respect native-view source
+    dependency checks. Decide whether references retain their managed wrapper; obtaining or releasing
+    a reference must never transfer ownership or delete the native resource.
+    Keep registration, availability, revisions and snapshot publication manager-owned; do not add
+    another lifetime registry, metadata snapshot authority or binding/validation cache.
+  ☐ Separate the consumer-facing binding/validation contract from ownership and mutation operations.
+    Preserve allocation, uploads, storage changes, disposal and Detach on the appropriate existing
+    resource APIs. Borrowing remains valid for mutable external textures; obtaining GpuTextureRef
+    must not create a GL texture view, allocate native storage or query already-available metadata.
+    Preserve explicit image level/layer/access/format and framebuffer attachment selection rather
+    than conflating a managed reference with a native texture view or an image-binding descriptor.
+  ☐ Walk owned, borrowed and native-view examples through the proposed API, including producer
+    replacement, unavailable metadata/recovery and shared-storage alias validation. Review the design
+    with the user and record approval before implementing the selected representation.
+  ☐ Implement GpuTextureRef and conversions/accessors from GpuTexture (including BorrowedTexture)
+    and GpuTextureView through their existing manager associations. Keep focused source ownership
+    and preserve existing context/thread, pass-usage, content-readiness and native deletion contracts.
+  ☐ Migrate binding/validation entry points, generated shader-binding support and their consumers
+    to the unified contract. Consolidate duplicated owned/borrowed/view handling where semantics
+    match; preserve explicit view-relative validation and shared-storage feedback/alias checks.
+    Migrate cloud, depth, postprocessing and other affected consumers without wrapping existing owned
+    textures unnecessarily or changing shader algorithms, render order or producer selection.
+  ☐ Have subagents verify equivalent binding and validation for owned textures, mutable borrowed
+    textures and native views; cover empty inputs, incompatible targets/formats, subresource bounds,
+    metadata changes/unavailability, deletion/name reuse, source replacement and context retirement.
+    Verify releasing references preserves owners and native views, stable references introduce no
+    redundant metadata queries/native binds, and reference creation adds no native object allocation.
+  ☐ Reconcile permanent texture/binding documentation and affected planning contracts with the
+    implemented API. Have subagents run affected regression suites and canonical build/package
+    verification; verify tested/package identity and perform a second review and independent audit.
+  ☐ Completion: the approved GpuTextureRef design is implemented across affected consumers,
+    ownership/mutation remain explicit, manager authority and binding suppression are preserved,
+    and documentation plus validation identify the same qualified implementation. Supply this
+    implemented contract to the following GpuCommand/GpuCommandList design.
+Phase 8: Design the GpuCommand and GpuCommandList render hardware interface
+  Depends on Phase 7 and its implemented GpuTextureRef API, together with Phase 6's qualified contracts.
   Outcome: a standalone, reviewable design for an RHI-style command system, with the OpenGL backend
   encapsulating native execution and subsequent GpuStateCache updates. This phase produces a proposal,
   not the command implementation or the StateCache rename.
@@ -1091,7 +1137,8 @@ Phase 7: Design the GpuCommand and GpuCommandList render hardware interface
     without requiring another backend implementation as part of this design.
   ☐ Define coverage for resource creation/destruction, storage changes, uploads/copies/readback,
     pipeline and resource binding, render passes, draw/dispatch, synchronization and queries.
-    Specify typed resource references, descriptors, capabilities and unsupported-operation behavior.
+    Use the implemented GpuTextureRef contract for texture references; specify other typed resource references,
+    descriptors, capabilities and unsupported-operation behavior.
     Keep wrapper allocation policy and higher-level rendering orchestration above backend execution;
     retain manager ownership of canonical metadata and typed snapshot publication.
   ☐ Design backend-owned dispatch between DSA and non-DSA implementations. Callers express a typed
@@ -1131,8 +1178,8 @@ Phase 7: Design the GpuCommand and GpuCommandList render hardware interface
     migration and validation strategy are concrete and internally consistent; design review is complete
     and the proposal is approved. Implementation and renaming remain separately authorized work.
 
-Phase 8: Upgrade PSO resource binding to capability-selected multi-bind
-  Depends on Phase 6's qualified resource/cache integration; reconcile with the Phase 7 RHI design.
+Phase 9: Upgrade PSO resource binding to capability-selected multi-bind
+  Depends on Phase 7's unified texture-reference integration and Phase 6's qualification; reconcile with the Phase 8 RHI design.
   Outcome: PSO graphics/compute submission batches eligible resource bindings when multi-bind is
   available, while preserving equivalent behavior through the existing individual-call fallback.
   This work does not require implementing the proposed RHI or renaming StateCache.
@@ -1169,7 +1216,7 @@ Phase 8: Upgrade PSO resource binding to capability-selected multi-bind
     cost, allocations and representative changed/unchanged binding patterns. Retain reproducible
     receipts and choose batching policy from the results; do not infer frame-time gains from call
     counts. Keep any measurement instrumentation temporary and remove it after qualification.
-  ☐ Reconcile current PSO/cache documentation and Phase 7 design integration, run affected regression
+  ☐ Reconcile current PSO/cache documentation and Phase 8 design integration, run affected regression
     tests and canonical build/package verification through subagents, and independently review the
     final candidate. Preserve the existing public resource APIs and rendering behavior.
   ☐ Completion: eligible PSO bindings use multi-bind on supported contexts, fallback behavior is
@@ -1191,8 +1238,9 @@ Proposal traceability
   Cloud/depth consumers and content contracts: Phase 5.
   Scope, source layout and documentation: governing contracts; Phases 2–6.
   Acceptance and measurements: baseline in Phase 1; focused verification in Phases 2–5; Phase 6.
-  Separately requested RHI command-system design and GpuStateCache rename planning: Phase 7.
-  Separately requested capability-selected PSO multi-bind upgrade: Phase 8.
+  Separately requested unified GpuTextureRef design and implementation: Phase 7.
+  Separately requested RHI command-system design and GpuStateCache rename planning: Phase 8.
+  Separately requested capability-selected PSO multi-bind upgrade: Phase 9.
 
 Final acceptance
   ☐ Every proposal requirement is implemented and verified, or an explicit deferral is approved with
@@ -1213,7 +1261,9 @@ Final acceptance
     while render/content behavior and existing state restoration remain correct.
   ☐ Required tests, package checks, cleanup, documentation and measured call/cost comparisons are
     complete for the qualified candidate. Live appearance and frame-time claims match actual evidence.
-  ☐ The separately requested Phase 7 command-system design is reviewed and approved; its completion
+  ☐ Phase 7 supplies the unified GpuTextureRef binding/validation API for owned, borrowed and native-view
+    inputs while preserving ownership, manager metadata authority, lifecycle and cache behavior.
+  ☐ The separately requested Phase 8 command-system design is reviewed and approved; its completion
     does not claim that GpuCommand, GpuCommandList or the GpuStateCache rename are implemented.
-  ☐ Phase 8 PSO multi-bind integration preserves individual-call fallback semantics and authoritative
+  ☐ Phase 9 PSO multi-bind integration preserves individual-call fallback semantics and authoritative
     cache behavior, with regression, package and matched measurement evidence for the final candidate.
