@@ -41,28 +41,27 @@ internal sealed class GpuQuery : GpuResource<GpuQueryMetadata>, IDisposable
 #endif
     }
 
-    private GpuQuery(int queryId)
-    {
-        this.queryId = queryId;
-        GpuResourceManager.RegisterEmptyMetadata(this);
-    }
+    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
+    private GpuQuery() { }
 
     /// <summary>
     /// Creates a new OpenGL query object.
     /// </summary>
     public static GpuQuery Create(string? debugName = null)
     {
-        int id = GL.GenQuery();
-        if (id == 0)
+        var value = new GpuQuery();
+        try
         {
-            throw new InvalidOperationException("glGenQuery returned 0.");
-        }
-
-        return CompleteOwnedCreation(GpuResourceKind.Query, id, () =>
-        {
-            var value = new GpuQuery(id);
+            if (!GpuResourceManager.CreateQuery(new GpuQueryInitialization(), value, out _).HasValue)
+                throw new InvalidOperationException("Query creation failed.");
             value.SetDebugName(debugName);
             return value;
-        });
+        }
+        catch
+        {
+            // The manager retires provisional allocation; dispose a completed handoff too.
+            value.Dispose();
+            throw;
+        }
     }
 }

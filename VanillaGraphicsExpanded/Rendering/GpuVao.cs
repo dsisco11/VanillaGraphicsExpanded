@@ -26,36 +26,26 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.VertexArray;
 
-    private GpuVao(int vertexArrayId, string? debugName)
-    {
-        this.vertexArrayId = vertexArrayId;
-        GpuResourceManager.RegisterEmptyMetadata(this);
-        this.debugName = debugName;
-    }
+    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
+    private GpuVao() { }
 
     /// <summary>Creates a realized vertex array suitable for bound and direct configuration.</summary>
     public static GpuVao Create(string? debugName = null)
     {
-        int id;
-        if (GpuSupport.Graphics.SupportsArbDirectStateAccess) GL.CreateVertexArrays(1, out id);
-        else id = GL.GenVertexArray();
-        if (id == 0)
+        var value = new GpuVao();
+        try
         {
-            throw new InvalidOperationException("glGenVertexArrays failed.");
+            if (!GpuResourceManager.CreateVertexArray(new GpuVertexArrayInitialization(), value, out _).HasValue)
+                throw new InvalidOperationException("VertexArray creation failed.");
+            value.SetDebugName(debugName);
+            return value;
         }
-
-        return CompleteOwnedCreation(GpuResourceKind.VertexArray, id, () =>
+        catch
         {
-            // Generated names become objects on first binding. Restore the caller's VAO.
-            if (!GpuSupport.Graphics.SupportsArbDirectStateAccess)
-            {
-                using var scope = StateCache.Current.BindVertexArrayScope(id);
-            }
-#if DEBUG
-            GlDebug.TryLabel(ObjectLabelIdentifier.VertexArray, id, debugName);
-#endif
-            return new GpuVao(id, debugName);
-        });
+            // The manager retires provisional allocation; dispose a completed handoff too.
+            value.Dispose();
+            throw;
+        }
     }
 
     public override void SetDebugName(string? debugName)

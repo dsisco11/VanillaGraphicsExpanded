@@ -31,21 +31,25 @@ internal sealed class GpuFence : GpuResource<GpuSyncMetadata>, IDisposable
         this.debugName = debugName;
     }
 
-    private GpuFence(nint handle)
-    {
-        this.handle = handle;
-        GpuResourceManager.RegisterEmptyMetadata(this);
-    }
+    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
+    private GpuFence() { }
 
+    /// <summary>Inserts a fence through the manager without polling its status.</summary>
     public static GpuFence Insert()
     {
-        IntPtr sync = GL.FenceSync(SyncCondition.SyncGpuCommandsComplete, WaitSyncFlags.None);
-        if (sync == IntPtr.Zero)
+        var value = new GpuFence();
+        try
         {
-            throw new InvalidOperationException("glFenceSync failed.");
+            if (!GpuResourceManager.CreateSync(new GpuSyncInitialization(), value, out _).HasValue)
+                throw new InvalidOperationException("Sync creation failed.");
+            return value;
         }
-
-        return CompleteOwnedCreation(GpuResourceKind.Sync, (nint)sync, () => new GpuFence((nint)sync));
+        catch
+        {
+            // The manager retires provisional allocation; dispose a completed handoff too.
+            value.Dispose();
+            throw;
+        }
     }
 
     public WaitSyncStatus Poll()

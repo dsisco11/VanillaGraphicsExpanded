@@ -33,29 +33,28 @@ internal sealed class GpuTransformFeedback : GpuResource<GpuTransformFeedbackMet
     /// </summary>
     public new bool IsValid => base.IsValid;
 
-    private GpuTransformFeedback(int transformFeedbackId)
-    {
-        this.transformFeedbackId = transformFeedbackId;
-        GpuResourceManager.RegisterEmptyMetadata(this);
-    }
+    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
+    private GpuTransformFeedback() { }
 
     /// <summary>
     /// Creates a new transform feedback object.
     /// </summary>
     public static GpuTransformFeedback Create(string? debugName = null)
     {
-        int id = GL.GenTransformFeedback();
-        if (id == 0)
+        var value = new GpuTransformFeedback();
+        try
         {
-            throw new InvalidOperationException("glGenTransformFeedbacks failed.");
-        }
-
-        return CompleteOwnedCreation(GpuResourceKind.TransformFeedback, id, () =>
-        {
-            var value = new GpuTransformFeedback(id);
+            if (!GpuResourceManager.CreateTransformFeedback(new GpuTransformFeedbackInitialization(), value, out _).HasValue)
+                throw new InvalidOperationException("TransformFeedback creation failed.");
             value.SetDebugName(debugName);
             return value;
-        });
+        }
+        catch
+        {
+            // The manager retires provisional allocation; dispose a completed handoff too.
+            value.Dispose();
+            throw;
+        }
     }
 
     /// <summary>

@@ -33,35 +33,28 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
     /// </summary>
     public new bool IsValid => base.IsValid;
 
-    private GpuSampler(int samplerId)
-    {
-        this.samplerId = samplerId;
-        GpuResourceManager.RegisterEmptyMetadata(this);
-    }
+    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
+    private GpuSampler() { }
 
     /// <summary>
     /// Creates a new sampler object.
     /// </summary>
     public static GpuSampler Create(string? debugName = null)
     {
-        int id = GL.GenSampler();
-        if (id == 0)
+        var value = new GpuSampler();
+        try
         {
-            throw new InvalidOperationException("glGenSamplers failed.");
-        }
-
-        // Some drivers treat names returned by glGenSamplers as "reserved" until first bind.
-        // glObjectLabel requires an existing object name, so ensure the sampler is realized.
-        using (StateCache.Current.BindSamplerScope(unit: 0, samplerId: id))
-        {
-        }
-
-        return CompleteOwnedCreation(GpuResourceKind.Sampler, id, () =>
-        {
-            var value = new GpuSampler(id);
+            if (!GpuResourceManager.CreateSampler(new GpuSamplerInitialization(), value, out _).HasValue)
+                throw new InvalidOperationException("Sampler creation failed.");
             value.SetDebugName(debugName);
             return value;
-        });
+        }
+        catch
+        {
+            // The manager retires provisional allocation; dispose a completed handoff too.
+            value.Dispose();
+            throw;
+        }
     }
 
     /// <summary>

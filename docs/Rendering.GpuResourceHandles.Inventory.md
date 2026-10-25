@@ -40,6 +40,15 @@ renderbuffer and multisample-texture allocation without those capabilities reads
 Known source metadata supplies view geometry and backing ranges without object rediscovery. Buffer
 realization binds generated names before publication when direct creation is unavailable.
 
+Vertex arrays, program pipelines, samplers, queries, sync fences, transform feedback objects,
+semaphores and memory objects also use resource-specific manager creation entry points and empty
+initialization records. StateCache performs native creation; the common handoff publishes their empty
+canonical schemas without descriptor or status queries. VAO/pipeline fallback realization restores
+the previous binding, as does sampler realization. Query and transform-feedback creation retain
+generated-name semantics; empty metadata does not certify realization. Fence handles remain native-width.
+Semaphore/memory-object capability checks precede allocation; imports, handle ownership, waits,
+sampling policy and configuration remain separate wrapper operations.
+
 | Kind | Existing wrappers / acquisition | Metadata and disposition |
 | --- | --- | --- |
 | Texture | `GpuTexture`: `Texture2D`, `Texture3D`, `DynamicTexture2D` (including `DepthTexture`, `StencilTexture`, `DepthStencilTexture`), `DynamicTexture3D`, `DynamicTextureCube`, `PmjJitterTexture`, `PBR/Clouds/CloudBlueNoiseTexture` | Allocation helpers generate/bind/allocate. Target, dimensions, internal format, allocated mips, immutable-layered flag and storage generation participate in validation/dependencies. Replacement registers the new object; in-place mutation updates canonical metadata and entry revision. Filter mode is an owner policy, not a complete snapshot of arbitrary GL sampler parameters. |

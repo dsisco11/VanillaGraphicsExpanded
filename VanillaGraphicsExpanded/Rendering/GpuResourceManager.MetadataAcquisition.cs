@@ -64,14 +64,6 @@ internal sealed partial class GpuResourceManager
         AcquireWrapperMetadata(resource, reader);
     }
 
-    /// <summary>Registers a resource kind whose metadata schema is empty without reading contents or mutable state.</summary>
-    internal static void RegisterEmptyMetadata<T>(GpuResource<T> resource) where T : struct
-    {
-        if (resource.Kind is GpuResourceKind.Texture or GpuResourceKind.Buffer or GpuResourceKind.Framebuffer
-            or GpuResourceKind.Renderbuffer or GpuResourceKind.Program or GpuResourceKind.Shader)
-            throw new InvalidOperationException("This resource kind requires native metadata acquisition.");
-        PublishObservedMetadata(resource, default(T), GpuMetadataChange.None);
-    }
     #endregion
 
     #region Private

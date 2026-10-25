@@ -38,24 +38,20 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
     /// </summary>
     public static GpuProgramPipeline Create(string? debugName = null)
     {
-        bool direct = GpuSupport.Graphics.SupportsArbDirectStateAccess;
-        int id;
-        if (direct) GL.CreateProgramPipelines(1, out id);
-        else id = GL.GenProgramPipeline();
-        if (id == 0)
+        var value = new GpuProgramPipeline();
+        try
         {
-            throw new InvalidOperationException("Program pipeline creation failed.");
-        }
-
-        return CompleteOwnedCreation(GpuResourceKind.ProgramPipeline, id, () =>
-        {
-            // Realize fallback generated names before labels or publication. Named
-            // creation already establishes the object without touching selector state.
-            using var binding = direct ? (StateCache.ProgramPipelineScope?)null : StateCache.Current.BindProgramPipelineScope(id);
-            var value = new GpuProgramPipeline(id);
+            if (!GpuResourceManager.CreateProgramPipeline(new GpuProgramPipelineInitialization(), value, out _).HasValue)
+                throw new InvalidOperationException("ProgramPipeline creation failed.");
             value.SetDebugName(debugName);
             return value;
-        });
+        }
+        catch
+        {
+            // The manager retires provisional allocation; dispose a completed handoff too.
+            value.Dispose();
+            throw;
+        }
     }
 
     /// <summary>
@@ -230,11 +226,7 @@ internal sealed class GpuProgramPipeline : GpuResource<GpuProgramPipelineMetadat
     #endregion
 
     #region Private
-    /// <summary>Registers one realized native pipeline without mirroring authored stage assignments.</summary>
-    private GpuProgramPipeline(int pipelineId)
-    {
-        this.pipelineId = pipelineId;
-        GpuResourceManager.RegisterEmptyMetadata(this);
-    }
+    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
+    private GpuProgramPipeline() { }
     #endregion
 }

@@ -16,11 +16,13 @@ public class GpuSemaphoreMemoryObjectIntegrationTests
 {
     private readonly HeadlessGLFixture fixture;
 
+    /// <summary>Uses the shared native context for supported extension creation checks.</summary>
     public GpuSemaphoreMemoryObjectIntegrationTests(HeadlessGLFixture fixture)
     {
         this.fixture = fixture;
     }
 
+    /// <summary>Creation and disposal do not require an imported semaphore payload.</summary>
     [Fact]
     public void Semaphore_Create_Dispose()
     {
@@ -32,12 +34,12 @@ public class GpuSemaphoreMemoryObjectIntegrationTests
         Assert.True(sem.IsValid);
         Assert.True(sem.SemaphoreId > 0);
 
-        // Some drivers may not report the object as "created" until first use.
-        // This is a smoke test: ensure the entrypoints are usable without throwing.
-        sem.Signal(ReadOnlySpan<int>.Empty, ReadOnlySpan<int>.Empty, ReadOnlySpan<TextureLayout>.Empty);
-        sem.Wait(ReadOnlySpan<int>.Empty, ReadOnlySpan<int>.Empty, ReadOnlySpan<TextureLayout>.Empty);
+        // Signal and wait require an imported payload; creation alone does not establish one.
+        sem.Dispose();
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
+    /// <summary>An unimported memory object accepts its creation-time dedicated-memory policy.</summary>
     [Fact]
     public void MemoryObject_Create_Dispose()
     {
@@ -51,5 +53,7 @@ public class GpuSemaphoreMemoryObjectIntegrationTests
 
         // Smoke test: ensure the entrypoints are usable without throwing.
         mem.SetParameter(MemoryObjectParameterName.DedicatedMemoryObjectExt, 0);
+        mem.Dispose();
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 }

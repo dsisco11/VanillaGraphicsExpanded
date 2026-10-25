@@ -36,29 +36,27 @@ internal sealed class GpuSemaphore : GpuResource<GpuSemaphoreMetadata>, IDisposa
     /// </summary>
     public new bool IsValid => base.IsValid;
 
-    private GpuSemaphore(int semaphoreId)
-    {
-        this.semaphoreId = semaphoreId;
-        GpuResourceManager.RegisterEmptyMetadata(this);
-    }
+    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
+    private GpuSemaphore() { }
 
     /// <summary>
     /// Creates a new semaphore object via <c>glGenSemaphoresEXT</c>.
     /// </summary>
     public static GpuSemaphore Create()
     {
-        if (!IsSupported)
+        var value = new GpuSemaphore();
+        try
         {
-            throw new NotSupportedException("GL_EXT_semaphore is not supported by the current context.");
+            if (!GpuResourceManager.CreateSemaphore(new GpuSemaphoreInitialization(), value, out _).HasValue)
+                throw new InvalidOperationException("Semaphore creation failed.");
+            return value;
         }
-
-        int id = GL.Ext.GenSemaphore();
-        if (id == 0)
+        catch
         {
-            throw new InvalidOperationException("glGenSemaphoresEXT returned 0.");
+            // The manager retires provisional allocation; dispose a completed handoff too.
+            value.Dispose();
+            throw;
         }
-
-        return CompleteOwnedCreation(GpuResourceKind.Semaphore, id, () => new GpuSemaphore(id));
     }
 
     /// <summary>

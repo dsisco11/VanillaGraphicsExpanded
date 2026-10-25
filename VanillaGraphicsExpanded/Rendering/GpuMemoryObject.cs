@@ -36,30 +36,27 @@ internal sealed class GpuMemoryObject : GpuResource<GpuMemoryObjectMetadata>, ID
     /// </summary>
     public new bool IsValid => base.IsValid;
 
-    private GpuMemoryObject(int memoryObjectId)
-    {
-        this.memoryObjectId = memoryObjectId;
-        GpuResourceManager.RegisterEmptyMetadata(this);
-    }
+    /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
+    private GpuMemoryObject() { }
 
     /// <summary>
     /// Creates a new memory object via <c>glCreateMemoryObjectsEXT</c>.
     /// </summary>
     public static GpuMemoryObject Create()
     {
-        if (!IsSupported)
+        var value = new GpuMemoryObject();
+        try
         {
-            throw new NotSupportedException("GL_EXT_memory_object is not supported by the current context.");
+            if (!GpuResourceManager.CreateMemoryObject(new GpuMemoryObjectInitialization(), value, out _).HasValue)
+                throw new InvalidOperationException("MemoryObject creation failed.");
+            return value;
         }
-
-        int id = 0;
-        GL.Ext.CreateMemoryObjects(1, out id);
-        if (id == 0)
+        catch
         {
-            throw new InvalidOperationException("glCreateMemoryObjectsEXT returned 0.");
+            // The manager retires provisional allocation; dispose a completed handoff too.
+            value.Dispose();
+            throw;
         }
-
-        return CompleteOwnedCreation(GpuResourceKind.MemoryObject, id, () => new GpuMemoryObject(id));
     }
 
     /// <summary>

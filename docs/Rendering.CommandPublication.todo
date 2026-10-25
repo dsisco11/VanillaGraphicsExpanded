@@ -1,8 +1,8 @@
 Command execution and metadata publication
 
-Status: Phases 1, 2, 2a, 3, 3a, 4 and 5 complete after second review and independent completion audit.
+Status: Phases 1, 2, 2a, 3, 3a, 4, 5 and 6 complete after second review and independent completion audit.
 The narrower command-result policy is approved. Binding repairs, DEBUG-only diagnostics and the shared
-creation/publication boundary, explicit operation ownership and buffer/image/framebuffer/executable migration are implemented; Phases 6–9 remain open.
+creation/publication boundary, explicit operation ownership and buffer/image/framebuffer/executable migration are implemented; Phases 7–9 remain open.
 Source: [approved proposal](Rendering.CommandPublication.Proposal.md).
 Inherited contracts: [resource design](Rendering.GpuResourceHandles.Proposal.md),
 [inventory](Rendering.GpuResourceHandles.Inventory.md), [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
@@ -392,19 +392,35 @@ Phase 6: Migrate remaining resource creation families
   Depends on Phase 5. Sources: proposal Resource coverage; inventory per-kind schemas and lifecycle.
   Each family uses the Phase 3 protocol, legal inputs only, nullable output and failure cleanup.
 
-  ☐ GpuVao: GpuVertexArrayInitialization -> GpuVertexArrayMetadata; preserve empty revision schema.
-  ☐ GpuProgramPipeline: GpuProgramPipelineInitialization -> GpuProgramPipelineMetadata.
-  ☐ GpuSampler: GpuSamplerInitialization -> GpuSamplerMetadata; retain authored sampling policy.
-  ☐ GpuQuery: GpuQueryInitialization -> GpuQueryMetadata; GpuTimerQuery/GpuTimestampQuery remain composition.
-  ☐ GpuFence: GpuSyncInitialization -> GpuSyncMetadata; preserve pointer-width identity and wait semantics.
-  ☐ GpuTransformFeedback: GpuTransformFeedbackInitialization -> GpuTransformFeedbackMetadata.
-  ☐ GpuSemaphore: GpuSemaphoreInitialization -> GpuSemaphoreMetadata; preserve import ownership.
-  ☐ GpuMemoryObject: GpuMemoryObjectInitialization -> GpuMemoryObjectMetadata; preserve import ownership.
-  ☐ Keep empty metadata empty; do not add queries or persistent fields to justify initialization records.
+  ☑ GpuVao: GpuVertexArrayInitialization -> GpuVertexArrayMetadata; preserve empty revision schema.
+  ☑ GpuProgramPipeline: GpuProgramPipelineInitialization -> GpuProgramPipelineMetadata.
+  ☑ GpuSampler: GpuSamplerInitialization -> GpuSamplerMetadata; retain authored sampling policy.
+  ☑ GpuQuery: GpuQueryInitialization -> GpuQueryMetadata; GpuTimerQuery/GpuTimestampQuery remain composition.
+  ☑ GpuFence: GpuSyncInitialization -> GpuSyncMetadata; preserve pointer-width identity and wait semantics.
+  ☑ GpuTransformFeedback: GpuTransformFeedbackInitialization -> GpuTransformFeedbackMetadata.
+  ☑ GpuSemaphore: GpuSemaphoreInitialization -> GpuSemaphoreMetadata; preserve import ownership.
+  ☑ GpuMemoryObject: GpuMemoryObjectInitialization -> GpuMemoryObjectMetadata; preserve import ownership.
+  ☑ Keep empty metadata empty; do not add queries or persistent fields to justify initialization records.
     GpuVertexAttribBinding remains a helper with no additional canonical struct.
-  ☐ Have subagents verify creation/failure/cleanup and retained metadata/lifetime semantics per family;
+  ☑ Have subagents verify creation/failure/cleanup and retained metadata/lifetime semantics per family;
     exercise native capability paths where available and explicitly record unexecuted capability cases.
-  ☐ Completion: all proposal creation families are migrated and no generic wrapper metadata tracking exists.
+  ☑ Completion: all proposal creation families are migrated and no generic wrapper metadata tracking exists.
+
+  Verification and traceability: proposal empty initialization records/creation handoff and inventory
+  per-kind schemas/lifecycle map to the eight manager factories, StateCache creation commands and
+  wrapper declarations. Empty canonical schemas remain unchanged; shared nullable/failure cleanup,
+  generated-name semantics, native-width fences and separate configuration/import policy are preserved.
+  Second review and independent audit-stage-completion passed with no remaining required findings.
+  Debug: 213/213; exact packaged Release: 72/72 ordinary and 213/213 with process-only observer
+  settings, zero failures/skips. Canonical Release/SPIR-V packaging passed; tested/published/ZIP runtime
+  hashes and all 761 shaders match, with zero drift across 2,779 frozen source/project files.
+  Receipts: artifacts/command-publication-phase6/{final-debug,canonical-release-normal,
+  canonical-release-observed}.trx, canonical-package-identity.json and commands-and-limits.txt.
+  The existing semaphore creation smoke test no longer signals/waits an unimported payload; it now
+  asserts creation/disposal without native errors. All eight creation families ran on one RTX 4090,
+  including supported EXT semaphore/memory-object creation and forced DSA fallback. Imported payload
+  execution and OS handle transfer remain unqualified; no live appearance or performance claim.
+  Parent Phase 4f and later phases remain open.
 
 Phase 7: Finish external acquisition, recovery and adapter migration
   Depends on Phase 6. Sources: complete analysis method inventory; proposal lookup/acquire/publication;
