@@ -16,7 +16,7 @@ internal interface ICloudSimpleBindings : CameraExposure.IPhotometricFrameBindin
     CpuUniformBuffer Inputs { get; }
     /// <summary>Borrows native liquid depth using normalized full-view coordinates.</summary>
     [ShaderBinding("liquidDepth", ShaderBindingKind.Sampler, 0, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture2D, Sampler = ShaderSamplerPolicy.NearestClamp)]
-    int LiquidDepth { set; }
+    GpuTexture? LiquidDepth { set; }
     /// <summary>Borrows the completed aerial radiance bands with their published encoding.</summary>
     [ShaderBinding("vge_atmosphereAerialRadiance", ShaderBindingKind.Sampler, 1, ShaderStageKind.Fragment, TextureTarget = ShaderTextureTarget.Texture3D)]
     DynamicTexture3D? AerialRadiance { set; }

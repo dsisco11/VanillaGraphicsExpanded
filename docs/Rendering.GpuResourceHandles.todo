@@ -2,9 +2,9 @@ GPU resource metadata registry and typed resource wrappers
 =========================================================
 
 Source proposal: [Rendering.GpuResourceHandles.Proposal.md](Rendering.GpuResourceHandles.Proposal.md)
-Status: Phases 1–4f complete after delegated implementation, qualification and independent audit.
-Phases 5–8 remain open. CommandPublication Phase 9 records evidence and integration limits.
-Persistent consumer integration and integrated qualification remain unchecked.
+Status: Phases 1–5 complete after delegated validation, second review and independent audit.
+Phases 6–8 remain open. Retained CommandPublication Phase 9 records foundation evidence and limits.
+Persistent consumer integration is verified; integrated qualification remains unchecked.
 Phase 7 is a separately requested follow-on RHI design; it does not authorize runtime migration.
 
 Planning authority
@@ -981,24 +981,49 @@ Phase 5: Integrate persistent cloud and depth resources
   Gate: Phase 4f, including the entire CommandPublication checklist, must be complete and verified
   before starting this phase.
   Outcome: cloud/depth consumers use the common resource mechanism without repeated stable acquisition.
+  Retained command-publication authority: `3f307365:docs/Rendering.CommandPublication.Proposal.md`
+  and its completed checklist at the same commit (read with `git show`). These approved documents
+  were removed from the live tree by a5763ef2; their retained contracts still govern this integration.
 
-  ☐ Update CloudNativeMapAdapter/CloudNativeRuntime and cloud consumers to retain common tracked
+  ☑ Update CloudNativeMapAdapter/CloudNativeRuntime and cloud consumers to retain common tracked
     native map wrappers across stable object lifetimes. Remove conservative refresh-on-acquisition only
     after their full mutation coverage is verified; reacquire after deletion, refresh after metadata
     changes and reject invalid resources before dependent use.
-  ☐ Integrate native primary/visibility and liquid depth acquisition with ScreenResourceManager and
+  ☑ Integrate native primary/visibility and liquid depth acquisition with ScreenResourceManager and
     DepthHierarchyRenderer as applicable. Verify native rebuild/replacement paths use covered commands.
     Share existing owned material depth directly where GpuTexture is accepted.
-  ☐ Migrate eligible raw sampler inputs to typed wrappers and ordinary StateCache binding behavior.
+  ☑ Migrate eligible raw sampler inputs to typed wrappers and ordinary StateCache binding behavior.
     Retain conservative paths for unsupported raw IDs; record their exact coverage limitations.
-  ☐ Reconcile existing allocation hooks: remove lifecycle-only work made redundant by StateCache;
+  ☑ Reconcile existing allocation hooks: remove lifecycle-only work made redundant by StateCache;
     retain observations needed by CloudMapPublication and content generation. Preserve world/owner
     selection, uploads, frame readiness, synchronous use and consumer disposal authority.
-  ☐ Have subagents verify cloud/depth replacement, same-name reuse, surviving-object metadata changes,
+  ☑ Have subagents verify cloud/depth replacement, same-name reuse, surviving-object metadata changes,
     rebuild failures, world/context teardown, stale content rejection and direct owned-resource sharing.
     Confirm unknown/external binding state still binds correctly and stable known slots skip binds.
-  ☐ Completion: intended consumers use common tracking with verified coverage and unchanged content
+  ☑ Completion: intended consumers use common tracking with verified coverage and unchanged content
     qualification. No lifecycle-only producer teardown hook or dedicated borrowed registry is needed.
+
+  Verification and traceability: proposal Command coverage/consumers, inventory native paths and API
+  T1/F1/L1 map to retained ordinary BorrowedTexture recipients, typed Simple liquid-depth input,
+  volume map/visibility/liquid selections and direct owned material-depth sharing. Existing allocation
+  hooks retain only producer content-certificate work. Storage revision/availability checks revoke stale
+  certificates independently of uploads; terminal adapter retirement cannot reacquire recipients.
+  Installed discovery/patch installation and external TexImage2D redirection verify retained routes.
+  Tests cover stable zero descriptor reads, unknown/known binding behavior, surviving storage changes,
+  selected-name replacement, failed admission/rebuild recovery, world/manager retirement and ownership.
+  Same-name reuse is a deterministic manager-identity simulation; a separate case deletes and reallocates
+  actual native storage. Manager lifetime tests use one native context, not concurrent contexts.
+  Second review and independent completion audit passed. Debug 121/121; exact canonical Release 77/77
+  ordinary and 121/121 observer, zero failures/skips in focused filters. Observer settings are process-only
+  COMPlus_JitNoInline=1 and COMPlus_TieredCompilation=0; no instrumented Release build.
+  Canonical build/package passed: tested/published/ZIP runtime hashes and all 761 shaders match,
+  dependencies are unchanged and 3,107 frozen source/project files have no drift. Receipts:
+  artifacts/resource-handles-phase5/{final-debug,canonical-ordinary,canonical-observer}.trx,
+  canonical-package-identity.json and commands-and-limits.txt. Two additional particle-producer
+  admission failures reproduce on the untouched baseline and remain recorded under Phase 6.
+  Owned-depth consumption is verified separately with supplied publication and actual renderer GPU
+  readback; producer admission is outside that seam. Headless checks establish neither live appearance
+  nor frame time. Integrated measurements, observer cleanup and broader qualification remain Phase 6.
 
 Phase 6: Qualify the integrated design and reconcile documentation
   Depends on Phase 5.
@@ -1024,6 +1049,10 @@ Phase 6: Qualify the integrated design and reconcile documentation
     and retirement costs. Compare outputs and restored state; disclose regressions and limitations.
   ☐ Have subagents run relevant regression suites and canonical build/package verification for the
     candidate. Verify package identity and required generated assets against tested outputs.
+    Re-evaluate the two retained SceneColorParticlePublicationTests failures at BeginDraw admission
+    (line 151), reproduced with the untouched CDE19F10 baseline and consumer candidate in observer
+    processes. The supplied-owned-depth renderer test qualifies consumption independently; it does
+    not establish successful particle-producer admission. Receipts are in artifacts/resource-handles-phase5.
   ☐ Verify bounded associations through repeated acquisition, disposal, collection and context cycles;
     ensure no old wrapper/queued retirement can affect a replacement allocation.
   ☐ Remove temporary migration scaffolding and obsolete duplicated identity/notification paths.

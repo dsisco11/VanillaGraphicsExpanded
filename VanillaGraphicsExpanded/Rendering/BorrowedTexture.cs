@@ -15,10 +15,39 @@ internal sealed class BorrowedTexture : GpuTexture
             throw new ArgumentOutOfRangeException(nameof(externalTexture));
 
         textureId = externalTexture;
-        GpuResourceManager.AcquireWrapperMetadata(this, GpuTextureMetadataReader.Instance);
+        try
+        {
+            GpuResourceManager.AcquireWrapperMetadata(this, GpuTextureMetadataReader.Instance);
+            if (width <= 0 || height <= 0)
+                throw new ArgumentException("Texture has no allocated base-level image.", nameof(externalTexture));
+        }
+        catch
+        {
+            // Failed admission must release any provisional recipient without deleting the owner.
+            Dispose();
+            throw;
+        }
+    }
 
-        if (width <= 0 || height <= 0)
-            throw new ArgumentException("Texture has no allocated base-level image.", nameof(externalTexture));
+    /// <summary>Retains a selected external texture while its original registration remains live.</summary>
+    /// <remarks>Unregistered tools conservatively reacquire facts; covered managed contexts reuse current snapshots.</remarks>
+    internal static BorrowedTexture GetOrReplace(ref BorrowedTexture? selected, int externalTexture)
+    {
+        // Original association validity distinguishes deletion/name reuse from a surviving object's
+        // metadata change. Never retarget an old wrapper to a replacement registration.
+        if (selected is null || !selected.IsValid || selected.TextureId != externalTexture)
+        {
+            selected?.Dispose();
+            selected = null;
+            selected = new BorrowedTexture(externalTexture);
+        }
+        else if (selected.ResourceManager is not { } manager || !manager.IsResourceMetadataAvailable(selected))
+        {
+            GpuResourceManager.AcquireWrapperMetadata(selected, GpuTextureMetadataReader.Instance);
+        }
+        if (selected.Width <= 0 || selected.Height <= 0)
+            throw new InvalidOperationException("Texture has no allocated base-level image.");
+        return selected;
     }
 
     /// <summary>Labels the managed borrower without modifying the external object.</summary>

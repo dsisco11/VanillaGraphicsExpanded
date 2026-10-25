@@ -147,6 +147,13 @@ once during validation, and their texture slot cache is invalidated before bindi
 cannot establish external allocation identity. CPU uniform-block uploads and dirty-state commitment
 remain with `CpuUniformBuffer` and the existing ring allocator, using the prepared binding slot.
 
+Cloud map, primary visibility and liquid-depth consumers retain typed non-owning wrappers through the
+common resource manager. Stable selections use published metadata and ordinary slot comparisons;
+deletion invalidates their original associations before a reused name can be selected again. Simple
+cloud liquid depth uses the same typed route. Material depth is supplied as its existing owned texture.
+These covered paths do not use raw-ID slot invalidation. Unsupported raw callers retain the conservative
+validation and binding behavior above; registry membership does not extend interception coverage.
+
 [StateCache.ResourceSlots](../VanillaGraphicsExpanded/Rendering/StateCache.ResourceSlots.cs)
 adds complete image-view and indexed buffer-range keys to the existing context cache. Cache invalidation,
 immediate and queued deletion, image scopes, buffer texture views and engine terrain buffer binds use

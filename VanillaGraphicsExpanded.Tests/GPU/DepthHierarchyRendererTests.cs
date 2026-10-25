@@ -1,4 +1,6 @@
 using VanillaGraphicsExpanded.Rendering.Integration;
+using HarmonyLib;
+using VanillaGraphicsExpanded.PBR.SceneColor;
 using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -14,6 +16,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 [Trait("Category","GPU")]
 public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : LumOnShaderFunctionalTestBase(fixture)
 {
+    private static GpuTexture? suppliedReceiver;
     #region Public API
     /// <summary>Explicit enablement shares one current-view chain and retires it immediately when disabled.</summary>
     [Fact]
@@ -39,6 +42,9 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
         GpuShaderProgramLibraries.Create(api.Object);
         using var frame=new VgeFrameRenderer(api.Object);using var owner=new DepthHierarchyRenderer(api.Object);owner.SetEnabled(true);
         var lifetime=ClientRenderingLifetime.Find(api.Object)!;lifetime.Attach(owner.Dispose);
+        var receiverHook=new Harmony("Tests.DepthHierarchy.SuppliedReceiver");
+        receiverHook.Patch(AccessTools.Method(typeof(SceneColorParticleCapture),nameof(SceneColorParticleCapture.ReceiverDepthTexture)),
+            prefix:new HarmonyMethod(typeof(DepthHierarchyRendererTests),nameof(SupplyReceiver)));
         try {
             Assert.True(VgeShaderPrograms.RegisterAll(api.Object));Assert.Equal(8.7,owner.RenderOrder);
             events.Render(EnumRenderStage.Before);Assert.Null(DepthHierarchyRenderer.Texture);
@@ -78,6 +84,30 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             ClientRenderingLifetime.BeginNativeReload(); events.ReloadShaders(); ClientRenderingLifetime.CompleteNativeReload();Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(second.IsValid);
             events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
             var third=DepthHierarchyRenderer.Texture!;
+            // A new primary attachment with unchanged screen dimensions must be selected immediately.
+            using var replacement=new EngineTerrainBuffers(7,3);
+            replacement.Depth.UploadDataImmediate(Enumerable.Repeat(.3f,21).ToArray());
+            framebuffers[(int)EnumFrameBuffer.Primary]=replacement.Primary;
+            events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
+            Assert.Same(third,DepthHierarchyRenderer.Texture);
+            Assert.All(third.ReadPixels(0),v=>Assert.Equal(.3f,v));
+            // A failed rebuild cannot expose the preceding frame's chain; restoring the owner recovers.
+            int replacementDepth=replacement.Primary.DepthTextureId;
+            suppliedReceiver=replacement.Depth;
+            replacement.Primary.DepthTextureId=0;
+            events.Render(EnumRenderStage.Before);events.Render(EnumRenderStage.Opaque);
+            Assert.All(DepthHierarchyRenderer.Texture!.ReadPixels(0),v=>Assert.Equal(.3f,v));
+            suppliedReceiver=null;
+            replacement.Primary.DepthTextureId=replacementDepth;
+            events.Render(EnumRenderStage.Before);
+            replacement.Primary.DepthTextureId=0;
+            Assert.Throws<ArgumentOutOfRangeException>(()=>events.Render(EnumRenderStage.Opaque));
+            Assert.Null(DepthHierarchyRenderer.Texture);
+            Assert.False(DepthHierarchyRenderer.TryGetCurrent(VgeFrameRenderer.Current,7,3,out _));
+            replacement.Primary.DepthTextureId=replacementDepth;
+            events.Render(EnumRenderStage.Opaque);
+            Assert.Same(third,DepthHierarchyRenderer.Texture);
+            Assert.True(GL.IsTexture(replacementDepth));
             // Exercise the same publication boundary used after engine attachment replacement.
             using var resized=new EngineTerrainBuffers(9,5);
             resized.Depth.UploadDataImmediate(Enumerable.Repeat(.2f,45).ToArray());
@@ -91,7 +121,15 @@ public sealed class DepthHierarchyRendererTests(HeadlessGLFixture fixture) : Lum
             events.LeaveWorld();Assert.Null(DepthHierarchyRenderer.Texture);Assert.False(fourth.IsValid);
             owner.Dispose();Assert.DoesNotContain(events.Registrations,r=>ReferenceEquals(r.Renderer,owner));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
-        } finally {lifetime.Shutdown();PbrShaderLightingMode.GenerationLumOnEnabled=previous;}
+        } finally {suppliedReceiver=null;receiverHook.UnpatchAll(receiverHook.Id);lifetime.Shutdown();PbrShaderLightingMode.GenerationLumOnEnabled=previous;}
+    }
+    #endregion
+    #region Private
+    /// <summary>Supplies an already-owned receiver independently of the particle producer's admission prerequisites.</summary>
+    private static bool SupplyReceiver(ref GpuTexture? __result)
+    {
+        if(suppliedReceiver is null)return true;
+        __result=suppliedReceiver;return false;
     }
     #endregion
 }

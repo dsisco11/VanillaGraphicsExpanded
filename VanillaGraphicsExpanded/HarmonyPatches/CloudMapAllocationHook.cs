@@ -5,7 +5,7 @@ using VanillaGraphicsExpanded.PBR.Clouds;
 
 namespace VanillaGraphicsExpanded.HarmonyPatches;
 
-/// <summary>Separates native allocation lifetimes from reusable texture names.</summary>
+/// <summary>Withdraws producer content certificates around native allocation; common GL observation owns resource lifetimes.</summary>
 [HarmonyPatch(typeof(CloudRendererMap), nameof(CloudRendererMap.InitCloudTiles))]
 internal static class CloudMapAllocationHook
 {

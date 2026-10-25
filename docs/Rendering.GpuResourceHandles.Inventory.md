@@ -3,7 +3,7 @@
 Planning companion to [the approved proposal](Rendering.GpuResourceHandles.Proposal.md) and
 [implementation checklist](Rendering.GpuResourceHandles.todo). This records the source inventory and
 chosen implementation mechanics. The implementation checklist distinguishes the implemented resource
-and command foundation from remaining persistent-consumer integration and integrated qualification.
+and command foundation and persistent-consumer integration from remaining integrated qualification.
 Legacy fixed-function/compatibility facilities are excluded from API coverage, including matrix stacks,
 display lists, server/client attribute stacks, client default resets, legacy client arrays, alpha testing,
 point smoothing, separate polygon face modes, line/polygon stipple and automatic mip generation. Modern retained operations remain required regardless of introduction date. The separate
@@ -431,13 +431,18 @@ Buffer and texture commands use that mechanism, including callers containing onl
 Nested extension deletion uses exact declaring types/signatures within the same assembly boundary.
 
 Cloud `CloudNativeMapAdapter` validates native map storage at allocation and keeps publication/world/
-upload/generation certificates. `CloudStoredVolumeConsumer` currently constructs map, material, primary
-visibility and liquid-depth borrowers per use. Material depth is already owned and should be shared
-directly. `DepthHierarchyRenderer` retains a primary-depth borrower until resize/world retirement;
-`ScreenResourceManager` invalidates state and invokes ordered consumers after framebuffer rebuild.
-These intended consumers may gain persistent tracking only after their exact allocation/mutation/
-deletion signatures are adapted and exercised through actual redirection. Allocation hooks retain any
-content-certificate responsibility; they are not the common identity mechanism.
+upload/generation certificates. Ordinary non-owning texture recipients qualify those certificates
+against their original manager associations and storage revisions. A changed or unavailable backing
+withdraws content admission; fresh allocation validation and a successful upload are required again.
+`CloudStoredVolumeConsumer` retains map, primary visibility and liquid-depth borrowers across stable
+selections and shares the owned material-depth texture directly. `DepthHierarchyRenderer` retains its
+primary-depth borrower and replaces it when selection or original allocation validity changes.
+`ScreenResourceManager` invalidates state and invokes ordered consumers after framebuffer rebuild;
+consumer teardown releases managed recipients without deleting native storage. Allocation hooks retain
+content-certificate responsibility; common StateCache deletion owns native lifetime observation.
+Available registered snapshots require no repeated descriptor acquisition. Context-local tools without
+a manager retain conservative acquisition, and unobserved third-party mutations still require explicit
+invalidation/recovery rather than relying on the integer name.
 
 Unsupported third-party raw IDs keep current conservative validation/invalidation. This is a deliberate
 external boundary, not permission to omit the installed engine's required cloud/depth paths. Native

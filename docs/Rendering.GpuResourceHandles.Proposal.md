@@ -27,8 +27,9 @@ acquires initial metadata through that common registry without acquiring ownersh
 [StateCache](../VanillaGraphicsExpanded/Rendering/StateCache.ResourceDeletion.Publication.cs) observes
 supported native deletion commands and preserves their binding/restoration effects.
 [EngineStateCallMap](../VanillaGraphicsExpanded/HarmonyPatches/EngineStateCallMap.cs) redirects exact
-supported GL signatures within the owner boundary below. Persistent consumer migration remains
-unchecked in the implementation checklist.
+supported GL signatures within the owner boundary below. Cloud and depth consumers retain non-owning
+typed wrappers for stable native selections and share owned material depth directly. Integrated
+qualification remains tracked in the implementation checklist.
 
 ## Responsibilities
 

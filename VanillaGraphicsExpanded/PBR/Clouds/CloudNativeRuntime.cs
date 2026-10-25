@@ -185,7 +185,7 @@ internal sealed class CloudNativeRuntime : IDisposable
     {
         input = default;
         return TryGetFrame(out uint frame) && mapOwner is not null && ForMap(mapOwner) is { } current &&
-            current.Publication.TryGet(mapOwner, world, frame, out input);
+            current.TryGet(world, frame, out input);
     }
 
     /// <summary>Suppresses only the current native volume draw when its functioning VGE consumer owns the selected mode.</summary>

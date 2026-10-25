@@ -19,6 +19,85 @@ namespace VanillaGraphicsExpanded.Tests.GPU;
 public sealed class CloudNativeAdapterTests(HeadlessGLFixture fixture)
 {
     #region Public API
+    /// <summary>Target recreation preserves selected scene inputs, while screen retirement releases their borrowers.</summary>
+    [Fact]
+    public void VolumeTargetRetirementPreservesSelectedDepth()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var depth = DynamicTexture2D.Create(4, 4, PixelInternalFormat.R32f);
+            var api = new Mock<ICoreClientAPI> { DefaultValue = DefaultValue.Mock };
+            using var runtime = new CloudNativeRuntime(api.Object);
+            using var consumer = new VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudStoredVolumeConsumer(api.Object, runtime,
+                () => VanillaGraphicsExpanded.PBR.Clouds.Volume.CloudVolumeViewSettings.Default);
+            var borrower = new BorrowedTexture(depth.TextureId);
+            var field = AccessTools.Field(consumer.GetType(), "visibilityTexture");
+            field.SetValue(consumer, borrower);
+            AccessTools.Method(consumer.GetType(), "RetireTarget").Invoke(consumer, null);
+            Assert.Same(borrower, field.GetValue(consumer)); Assert.True(borrower.IsValid);
+            AccessTools.Method(consumer.GetType(), "RetireScreenResources").Invoke(consumer, null);
+            Assert.Null(field.GetValue(consumer)); Assert.False(borrower.IsValid);
+            Assert.True(GL.IsTexture(depth.TextureId));
+        }
+        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Storage revisions revoke content certificates until a new observed upload qualifies them.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void StorageChangesRequireFreshUploadAndRetirementDoesNotDelete(bool external)
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var native = new NativeMap();
+            var adapter = new CloudNativeMapAdapter(native.Owner, 5);
+            adapter.BeginGeneration(); adapter.BeginUpload(); native.Upload(); adapter.CompleteUpload(true); adapter.CompleteGeneration(10, true);
+            Assert.True(adapter.TryGet(5, 10, out _));
+            // Restore the same descriptor after replacing storage: dimensions alone cannot certify contents.
+            if (external)
+            {
+                using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, native.Raw1.TextureId);
+                VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures.Core.TexImage2D(
+                    TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16, 20, 20, 0, PixelFormat.Rgba, PixelType.Short, IntPtr.Zero);
+            }
+            else { native.Raw1.Resize(21, 20); native.Raw1.Resize(20, 20); }
+            Assert.False(adapter.TryGet(5, 10, out _));
+            adapter.BeginGeneration(); adapter.CompleteGeneration(11, true);
+            Assert.False(adapter.TryGet(5, 11, out _));
+            adapter.BeginGeneration(); adapter.BeginUpload(); native.Upload(); adapter.CompleteUpload(true); adapter.CompleteGeneration(12, true);
+            Assert.True(adapter.TryGet(5, 12, out _));
+            adapter.Retire(); Assert.False(adapter.TryGet(5, 12, out _));
+            adapter.BeginAllocation(); adapter.CompleteAllocation();
+            adapter.BeginGeneration(); adapter.BeginUpload(); adapter.CompleteUpload(true); adapter.CompleteGeneration(13, true);
+            Assert.False(adapter.TryGet(5, 13, out _));
+            Assert.Empty((BorrowedTexture[])AccessTools.Field(typeof(CloudNativeMapAdapter), "storageTextures").GetValue(adapter));
+            Assert.True(GL.IsTexture(native.Map.TextureId)); Assert.True(GL.IsTexture(native.Raw1.TextureId));
+            Assert.True(GL.IsProgram(native.Program));
+        }
+        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Observed producer deletion rejects an otherwise current map without another generation callback.</summary>
+    [Fact]
+    public void DeletedBackingRejectsCurrentPublication()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        try
+        {
+            using var native = new NativeMap();
+            var adapter = new CloudNativeMapAdapter(native.Owner, 5);
+            adapter.BeginGeneration(); adapter.BeginUpload(); native.Upload(); adapter.CompleteUpload(true); adapter.CompleteGeneration(10, true);
+            Assert.True(adapter.TryGet(5, 10, out _));
+            StateCache.Current.DeleteTexture(native.Raw1.TextureId);
+            Assert.False(adapter.TryGet(5, 10, out _));
+            adapter.Retire();
+        }
+        finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+
     /// <summary>Records native acquisition and stable generation costs while checking publication and restored bindings.</summary>
     [Fact]
     public void RecordNativeMapResourceBaseline()

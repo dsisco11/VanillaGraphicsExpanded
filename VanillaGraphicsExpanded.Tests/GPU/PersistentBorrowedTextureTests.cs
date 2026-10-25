@@ -1,0 +1,146 @@
+using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
+using VanillaGraphicsExpanded.Rendering.Integration;
+using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
+
+namespace VanillaGraphicsExpanded.Tests.GPU;
+
+/// <summary>Qualifies retained external selections against common metadata and binding ownership.</summary>
+[Collection("GPU")]
+[Trait("Category", "GPU")]
+public sealed class PersistentBorrowedTextureTests(HeadlessGLFixture fixture)
+{
+    #region Public API
+    /// <summary>Failed admission releases its provisional subscription while the external object survives.</summary>
+    [Fact]
+    public void FailedInitializationReleasesRecipient()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        BorrowedTexture? selected = null;
+        int id = GL.GenTexture();
+        try
+        {
+            GL.BindTexture(TextureTarget.Texture2D, id);
+            Assert.Throws<InvalidOperationException>(() => BorrowedTexture.GetOrReplace(ref selected, id));
+            Assert.Null(selected); Assert.True(GL.IsTexture(id));
+            var entry = GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, id);
+            Assert.True(entry is null || entry.AssociationCount == 0);
+        }
+        finally { selected?.Dispose(); StateCache.Current.DeleteTexture(id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Retiring the manager lifetime invalidates retained references without deleting external storage.</summary>
+    [Fact]
+    public void ContextRetirementRequiresNewSelection()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        BorrowedTexture? selected = null;
+        int id = GL.GenTexture();
+        try
+        {
+            Allocate(id, 4);
+            var first = BorrowedTexture.GetOrReplace(ref selected, id);
+            fixture.CleanupGpuResources();
+            Assert.False(first.IsValid); Assert.True(GL.IsTexture(id));
+            fixture.InitializeResourceDisposal();
+            Assert.NotSame(first, BorrowedTexture.GetOrReplace(ref selected, id));
+        }
+        finally { selected?.Dispose(); StateCache.Current.DeleteTexture(id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Stable acquisition reads nothing, mutations update the alias, and unknown slots bind once.</summary>
+    [Fact]
+    public void StableSelectionUsesPublishedMetadataAndBindingKnowledge()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        BorrowedTexture? selected = null;
+        try
+        {
+            using var owner = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            var first = BorrowedTexture.GetOrReplace(ref selected, owner.TextureId);
+            using var observer = new ResourceCallObserver(forceEnabled: true);
+            observer.Calibrate(owner.TextureId);
+            for (int index = 0; index < 8; index++)
+                Assert.Same(first, BorrowedTexture.GetOrReplace(ref selected, owner.TextureId));
+            AssertNoReads(observer);
+            owner.Resize(8, 6);
+            Assert.Same(first, BorrowedTexture.GetOrReplace(ref selected, owner.TextureId));
+            Assert.Equal(8, first.Width); Assert.Equal(6, first.Height);
+            StateCache.Current.Invalidate(EPipelineState.TextureBindings);
+            observer.Reset();
+            StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, first.TextureId);
+            StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, first.TextureId);
+            Assert.Equal(1, observer.Calls("BindTexture"));
+            AssertNoReads(observer);
+        }
+        finally { selected?.Dispose(); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Selection changes retire only borrowers; unavailable snapshots recover on explicit acquisition.</summary>
+    [Fact]
+    public void ReplacementAndRecoveryPreserveExternalOwnership()
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        BorrowedTexture? selected = null;
+        try
+        {
+            using var owner = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var other = DynamicTexture2D.Create(6, 6, PixelInternalFormat.Rgba8);
+            var first = BorrowedTexture.GetOrReplace(ref selected, owner.TextureId);
+            GpuResourceManager.InvalidateWrapperMetadata(owner, GpuMetadataChange.Storage);
+            Assert.Same(first, BorrowedTexture.GetOrReplace(ref selected, owner.TextureId));
+            var second = BorrowedTexture.GetOrReplace(ref selected, other.TextureId);
+            Assert.NotSame(first, second); Assert.False(first.IsValid);
+            Assert.True(GL.IsTexture(owner.TextureId));
+            selected.Dispose(); selected = null;
+            Assert.True(GL.IsTexture(other.TextureId));
+            Assert.Throws<ArgumentOutOfRangeException>(() => BorrowedTexture.GetOrReplace(ref selected, 0));
+            Assert.Null(selected);
+            Assert.Equal(6, BorrowedTexture.GetOrReplace(ref selected, other.TextureId).Width);
+        }
+        finally { selected?.Dispose(); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+
+    /// <summary>Observed deletion makes the old borrower unusable before a numeric name is reused.</summary>
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void DeletedNameCannotReuseOldBorrower(bool reuseId)
+    {
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
+        BorrowedTexture? selected = null;
+        int id = GL.GenTexture();
+        try
+        {
+            Allocate(id, 4);
+            var first = BorrowedTexture.GetOrReplace(ref selected, id);
+            // Isolate same-name registry replacement from driver-specific free-name allocation policy.
+            if (reuseId) GpuResourceManagerSystem.CurrentManager!.ObserveDeletion(GpuResourceKind.Texture, id);
+            else { StateCache.Current.DeleteTexture(id); id = GL.GenTexture(); }
+            Assert.False(first.IsValid);
+            Allocate(id, 8);
+            var replacement = BorrowedTexture.GetOrReplace(ref selected, id);
+            Assert.NotSame(first, replacement); Assert.Equal(8, replacement.Width);
+            first.Dispose(); Assert.True(GL.IsTexture(id));
+        }
+        finally { selected?.Dispose(); StateCache.Current.DeleteTexture(id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Creates compatibility-profile external storage without pretending the raw command is covered.</summary>
+    private static void Allocate(int id, int width)
+    {
+        GL.BindTexture(TextureTarget.Texture2D, id);
+        GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, width, width, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+        StateCache.Current.Invalidate(EPipelineState.TextureBindings);
+    }
+
+    /// <summary>Checks all native descriptor readers observed by the established fixture.</summary>
+    private static void AssertNoReads(ResourceCallObserver observer)
+    {
+        foreach (string name in new[] { "GetTextureParameter", "GetTextureLevelParameter", "GetTexParameter", "GetTexLevelParameter", "IsTexture" })
+            Assert.Equal(0, observer.Calls(name));
+    }
+    #endregion
+}

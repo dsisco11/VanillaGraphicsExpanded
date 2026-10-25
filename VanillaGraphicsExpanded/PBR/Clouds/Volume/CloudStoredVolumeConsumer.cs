@@ -21,6 +21,7 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     private CloudVolumeSolution? solution;
     private CloudVolumeViewRenderer? view;
     private GpuFramebuffer? target;
+    private BorrowedTexture? mapTexture, visibilityTexture, liquidDepthTexture;
     private CloudVolumeViewSettings settings;
     private AtmosphereLighting? admitted;
     private bool prepared,failed,disposed,configurationPending;
@@ -37,7 +38,7 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     internal CloudStoredVolumeConsumer(ICoreClientAPI api,CloudNativeRuntime runtime,Func<CloudVolumeViewSettings> selection)
     {
         this.api=api;this.runtime=runtime;this.selection=selection;
-        unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,RetireTarget);
+        unregisterResize=ScreenResourceManager.Register(ScreenResourceManager.CompositeOrder,RetireScreenResources);
     }
     /// <summary>Applies cached cloud controls before Opaque while preserving compatible fields for view-only changes.</summary>
     public bool Prepare()
@@ -98,21 +99,20 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
         {
             SceneLightingPublicationRenderer.RequireNativeInputs("cloud_volume");
             bool Current()=>runtime.TryGetMap(out var current) && current==input && ReferenceEquals(lighting,AtmosphereModSystem.Lighting);
-            // Borrow only for synchronous submissions. No native map wrapper survives this callback.
-            using var map=new BorrowedTexture(input.Storage.Map);
+            // Keep metadata associations across frames; content admission remains tied to this input.
+            var map=BorrowedTexture.GetOrReplace(ref mapTexture,input.Storage.Map);
             solution!.Poll(input);
             if(solution.Failure is not null)throw new InvalidOperationException(solution.Failure);
             if(solution.Drawable is {} publication)
             {
-            using var material=new BorrowedTexture(depth.TextureId);
-            using var visibility=new BorrowedTexture(primary.DepthTextureId);
-            using var liquidDepth=new BorrowedTexture(liquid.DepthTextureId);
+            var visibility=BorrowedTexture.GetOrReplace(ref visibilityTexture,primary.DepthTextureId);
+            var liquidDepth=BorrowedTexture.GetOrReplace(ref liquidDepthTexture,liquid.DepthTextureId);
             var shafts=Postprocessing.LightShaftOcclusionRenderer.Texture;
             var scene=new CloudVolumeViewScene(VgeFrameRenderer.Current,CameraExposureRenderer.FrozenLighting,lighting,
-                material,visibility,liquidDepth,aerial,attenuation,shafts,render.ShaderUniforms.CameraUnderwater,
+                depth,visibility,liquidDepth,aerial,attenuation,shafts,render.ShaderUniforms.CameraUnderwater,
                 new(api.Ambient.BlendedFlatFogDensity,
                     api.Ambient.BlendedFlatFogYPosForShader-(float)api.World.Player.Entity.CameraPos.Y));
-            if(target is null || target.FboId!=transparent.FboId || target.Width!=transparent.Width || target.Height!=transparent.Height)
+            if(target is null || !target.IsValid || target.FboId!=transparent.FboId || target.Width!=transparent.Width || target.Height!=transparent.Height)
             {
                 RetireTarget();target=DynamicGpuFramebuffer.Wrap(transparent.FboId,"Cloud.Volume.Transparent",transparent.Width,transparent.Height);
                 target.PublishRenderPassMetadata();
@@ -137,7 +137,8 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     public void Reset()
     {
         prepared=failed=false;admitted=null;
-        RenderingCleanup.Run(()=>{view?.Dispose();view=null;},()=>{solution?.Dispose();solution=null;},RetireTarget);
+        RenderingCleanup.Run(()=>{view?.Dispose();view=null;},()=>{solution?.Dispose();solution=null;},RetireScreenResources,
+            ()=>{mapTexture?.Dispose();mapTexture=null;});
     }
     /// <summary>Unregisters visible drawing before disposing every private owner and resize callback.</summary>
     public void Dispose()
@@ -150,6 +151,13 @@ internal sealed class CloudStoredVolumeConsumer : ICloudVolumeConsumer
     #region Private
     /// <summary>Retires framebuffer metadata on resize while cloud-space history remains compatible.</summary>
     private void RetireTarget() {target?.Dispose();target=null;view?.ReleaseTargets();}
+    /// <summary>Releases screen-dependent recipients after rebuild, outside synchronous scene submission.</summary>
+    private void RetireScreenResources()
+    {
+        RenderingCleanup.Run(RetireTarget,
+            ()=>{visibilityTexture?.Dispose();visibilityTexture=null;},
+            ()=>{liquidDepthTexture?.Dispose();liquidDepthTexture=null;});
+    }
     /// <summary>Latches admitted failure until recovery without releasing native suppression midway through the frame.</summary>
     private void Fail(Exception error)
     {

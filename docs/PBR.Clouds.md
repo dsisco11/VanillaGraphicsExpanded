@@ -46,6 +46,11 @@ availability. Generation completion copies matching committed placement; consume
 same frame, owner, world, allocation and shader certificates immediately before submission.
 Ordinary completed worker commits advance content identity; texture names alone certify nothing.
 
+The adapter retains non-owning texture wrappers through the common `GpuResourceManager`.
+Deletion, unavailable metadata or a changed storage revision withdraws content admission until storage
+validation and a fresh raw upload succeed. Allocation hooks qualify content; GL deletion observation
+owns resource retirement. Stable publication checks compare manager facts without descriptor queries.
+
 VGE samples `TextureMap` read-only. Its red component is extinction control per native tile unit;
 blue/alpha carry lower/upper vertical bounds divided by tile size. The inspected 1.22.7 GPU
 producer/consumer hardcode 50 world units. Runtime uses one metre per world unit:
@@ -69,7 +74,8 @@ Simple clouds use physical directional and environment lighting without volume m
 self-shadowing, three-dimensional noise or temporal targets. Native shape and coverage controls
 remain authoritative; perception's factor 20 is applied locally without changing engine uniforms.
 Terrain depth occludes the geometry. The adjusted OIT depth and separate liquid/underwater treatment
-retain native composition behavior. Volumetric feature controls do not affect Simple clouds.
+retain native composition behavior. The liquid-depth sampler uses a retained non-owning typed texture
+wrapper, released on screen rebuild or consumer retirement. Volumetric feature controls do not affect Simple clouds.
 ## Shared depth inputs
 
 Volumetric tracing, its full-resolution reference and reconstruction borrow mip zero of the
@@ -85,6 +91,12 @@ The shared owner rebuilds current scene depth once per enabled frame in Opaque b
 OIT callback and retains allocation/lifecycle ownership.
 Cloud submission requires matching current frame, camera identity, extent and a valid resource;
 a missing or stale publication invalidates cloud history and skips submission.
+
+The volume consumer uses the owned material-depth texture directly. Native map, primary visibility
+and liquid-depth wrappers persist while their selected original allocations remain live, receiving
+metadata changes from the manager. Native replacement selects a new wrapper even when GL reuses the
+same numeric name. Screen rebuild, world/context retirement and consumer disposal release only VGE's
+non-owning references; native owners retain deletion authority.
 
 Material receiver correction removes opaque-pass particle depths for deferred lighting. Clouds
 retain primary visibility depth as an additional clip, alongside separate liquid depth, to

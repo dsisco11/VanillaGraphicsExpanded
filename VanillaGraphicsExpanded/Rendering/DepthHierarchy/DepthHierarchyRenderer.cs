@@ -14,7 +14,6 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     private readonly ICoreClientAPI api;
     private readonly Action unregisterResize;
     private readonly DepthHierarchyPass pass=new();
-    private GpuResourceCollection resources=new();
     private BorrowedTexture? depth;
     private DepthHierarchyComputeShader? compute;
     private bool published,disposed;
@@ -68,9 +67,11 @@ internal sealed class DepthHierarchyRenderer : IRenderer
         if(stage==EnumRenderStage.Before) {published=false;view=null;return;}
         if(stage!=EnumRenderStage.Opaque || published)return;
         var primary=api.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        depth??=resources.Own(new BorrowedTexture(primary.DepthTextureId));
+        // Corrected material depth already has an owner and published facts. Acquire native
+        // fallback only when that shared input is absent.
+        var receiver=SceneColorParticleCapture.ReceiverDepthTexture(api)
+            ??BorrowedTexture.GetOrReplace(ref depth,primary.DepthTextureId);
         compute??=DepthHierarchyComputeShader.Create(api);
-        var receiver=SceneColorParticleCapture.ReceiverDepthTexture(api)??depth;
         pass.Prepare(primary.Width,primary.Height,compute);
         var snapshot=VgeFrameRenderer.Current;
         using var gpuScope=GlGpuProfiler.Instance.Scope("DepthHierarchy");
@@ -88,7 +89,7 @@ internal sealed class DepthHierarchyRenderer : IRenderer
     #region Private
     private VgeFrameUniformBuffer? view;
     /// <summary>Withdraws frame identity and retires executable references before attachments.</summary>
-    private void Retire() {published=false;view=null;pass.Dispose();compute?.Dispose();compute=null;resources.Dispose();resources=new();depth=null;}
+    private void Retire() {published=false;view=null;pass.Dispose();compute?.Dispose();compute=null;depth?.Dispose();depth=null;}
     /// <summary>Rejects stale executable generations.</summary>
     private bool Reload() {published=false;view=null;pass.Dispose();return true;}
     #endregion

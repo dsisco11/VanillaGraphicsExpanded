@@ -20,6 +20,7 @@ internal sealed class CloudSimpleRenderer : IDisposable
     private readonly GraphicsPipelineLifetime lifetime = new();
     private readonly Action unregisterResize;
     private GpuFramebuffer? target;
+    private BorrowedTexture? liquidDepth;
     private GraphicsPipeline? pipeline;
     private CloudSimpleProgram? program;
     private bool failed, disposed;
@@ -61,11 +62,11 @@ internal sealed class CloudSimpleRenderer : IDisposable
             // compatibility remains conservatively reserved for mid-frame ownership release.
             SceneLightingPublicationRenderer.RequireNativeInputs("cloud_simple");
             program.Parameters.Capture(api, input, lighting);
-            program.LiquidDepth = liquid.DepthTextureId;
+            program.LiquidDepth = BorrowedTexture.GetOrReplace(ref liquidDepth, liquid.DepthTextureId);
             program.AerialRadiance = AtmosphereModSystem.AerialRadianceTexture;
             program.AerialAttenuation = AtmosphereModSystem.AerialAttenuationTexture;
             program.LightShafts = Postprocessing.LightShaftOcclusionRenderer.Texture;
-            if (target is null || target.FboId != transparent.FboId || target.Width != transparent.Width || target.Height != transparent.Height)
+            if (target is null || !target.IsValid || target.FboId != transparent.FboId || target.Width != transparent.Width || target.Height != transparent.Height)
             {
                 var replacement = DynamicGpuFramebuffer.Wrap(transparent.FboId, "Cloud.Simple.Transparent", transparent.Width, transparent.Height);
                 try { replacement.PublishRenderPassMetadata(); }
@@ -108,7 +109,8 @@ internal sealed class CloudSimpleRenderer : IDisposable
     internal void Reset()
     {
         failed = false; program = null;
-        RenderingCleanup.Run(() => { pipeline?.Dispose(); pipeline = null; }, () => { target?.Dispose(); target = null; });
+        RenderingCleanup.Run(() => { pipeline?.Dispose(); pipeline = null; }, () => { target?.Dispose(); target = null; },
+            () => { liquidDepth?.Dispose(); liquidDepth = null; });
     }
     #endregion
 }

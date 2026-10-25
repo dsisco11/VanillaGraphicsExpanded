@@ -164,7 +164,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         aerial.UploadDataImmediate([scatter/16,scatter/16,scatter/16,0,0,0,0,0],0,0,0,1,2,1,0);
         attenuation.UploadDataImmediate([loss,loss,loss,0],0,0,0,1,1,1,0);
         liquid.UploadDataImmediate(new float[]{liquidDepth}); shafts.UploadDataImmediate(new float[]{0});
-        program.AerialRadiance=aerial; program.AerialAttenuation=attenuation; program.LiquidDepth=liquid.TextureId; program.LightShafts=shafts;
+        program.AerialRadiance=aerial; program.AerialAttenuation=attenuation; program.LiquidDepth=liquid; program.LightShafts=shafts;
         using var reveal=DynamicTexture2D.Create(size,size,PixelInternalFormat.Rgb32f);
         using var overall=DynamicTexture2D.Create(size,size,PixelInternalFormat.R32f);
         using var glow=DynamicTexture2D.Create(size,size,PixelInternalFormat.Rgba32f);

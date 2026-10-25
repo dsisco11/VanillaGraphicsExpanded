@@ -2,11 +2,12 @@ using System.Numerics;
 using FluffyClouds;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
+using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Client;
 
 namespace VanillaGraphicsExpanded.PBR.Clouds;
 
-/// <summary>Observes completed native map work. Owns certificates only, never textures, shaders, workers or subscriptions.</summary>
+/// <summary>Observes native map work and retains non-owning metadata recipients to qualify content certificates.</summary>
 internal sealed class CloudNativeMapAdapter
 {
     private static readonly AccessTools.FieldRef<CloudRendererMap, int> Raw1 = AccessTools.FieldRefAccess<CloudRendererMap, int>("TextureData1");
@@ -21,6 +22,9 @@ internal sealed class CloudNativeMapAdapter
     private bool generationClean;
     private IShaderProgram? validatedProgram;
     private bool shaderDirty = true;
+    private bool retired;
+    private BorrowedTexture[] storageTextures = [];
+    private ulong[] storageRevisions = [];
 
     #region Public API
     #region Acquisition
@@ -43,10 +47,32 @@ internal sealed class CloudNativeMapAdapter
     /// <summary>Checks actual texture dimensions and framebuffer completeness after replacement, restoring all inspected bindings.</summary>
     internal void CompleteAllocation()
     {
+        if (retired) return;
+        ReleaseStorageReferences();
         storage = CaptureStorage();
         bool clean = DrainErrors();
         bool valid = ValidateStorage();
         bool validationClean = DrainErrors();
+        if (clean && valid && validationClean)
+        {
+            try
+            {
+                // These are ordinary non-owning recipients. The manager remains the sole
+                // lifetime authority; revisions only qualify this producer's content certificate.
+                foreach (int id in new[] { storage.Map, storage.Color, storage.Raw1, storage.Raw2 })
+                {
+                    var texture = new BorrowedTexture(id);
+                    storageTextures = [.. storageTextures, texture];
+                    storageRevisions = [.. storageRevisions, texture.StorageGeneration];
+                }
+            }
+            catch
+            {
+                ReleaseStorageReferences();
+                publication.CompleteAllocation(storage, false);
+                throw;
+            }
+        }
         publication.CompleteAllocation(storage, clean && valid && validationClean);
     }
 
@@ -57,7 +83,7 @@ internal sealed class CloudNativeMapAdapter
     internal void CompleteUpload(bool success)
     {
         bool clean = DrainErrors(); generationClean &= clean && success;
-        publication.CompleteUpload(success && clean);
+        publication.CompleteUpload(success && clean && StorageReferencesCurrent());
     }
 
     /// <summary>Withdraws map publication synchronously before native shader replacement.</summary>
@@ -68,9 +94,10 @@ internal sealed class CloudNativeMapAdapter
     /// <summary>Expires the last map before native tick/generation, without advancing time or weather.</summary>
     internal void BeginGeneration()
     {
+        if (retired) return;
         publication.BeginGeneration();
         generationClean = DrainErrors() && Enabled(owner);
-        if (CaptureStorage() != storage) { BeginAllocation(); CompleteAllocation(); }
+        if (CaptureStorage() != storage || !StorageReferencesCurrent()) { BeginAllocation(); CompleteAllocation(); }
         RefreshShader();
     }
 
@@ -83,15 +110,55 @@ internal sealed class CloudNativeMapAdapter
         var placement = new CloudPlacement(state.CenterTilePos.X, state.CenterTilePos.Z, state.TileOffsetX, state.TileOffsetZ,
             state.WindTileOffsetX, state.WindTileOffsetZ, owner.windOffsetX, owner.windOffsetZ,
             new Vector3(offset.X, offset.Y, offset.Z), Clock(owner));
-        publication.CompleteGeneration(frame, CaptureStorage(), placement, success && clean && generationClean && Enabled(owner));
+        publication.CompleteGeneration(frame, CaptureStorage(), placement,
+            success && clean && generationClean && Enabled(owner) && StorageReferencesCurrent());
     }
 
     /// <summary>Withdraws borrowed names at world/context teardown without issuing deletion calls.</summary>
-    internal void Retire() => publication.Retire();
+    internal void Retire()
+    {
+        retired = true;
+        publication.Retire();
+        ReleaseStorageReferences();
+    }
+
+    /// <summary>Rejects a content certificate whose observed backing storage has changed or retired.</summary>
+    internal bool TryGet(long world, uint frame, out CloudMapInput input)
+    {
+        if (retired) { input = default; return false; }
+        if (CaptureStorage() != storage || !StorageReferencesCurrent())
+        {
+            publication.BeginAllocation();
+            input = default;
+            return false;
+        }
+        return publication.TryGet(owner, world, frame, out input);
+    }
     #endregion
     #endregion
 
     #region Private
+    /// <summary>Checks original associations and storage revisions without reading native descriptors.</summary>
+    private bool StorageReferencesCurrent()
+    {
+        if (storageTextures.Length != 4) return false;
+        for (int index = 0; index < storageTextures.Length; index++)
+        {
+            var texture = storageTextures[index];
+            if (!texture.IsValid || texture.StorageGeneration != storageRevisions[index] ||
+                texture.ResourceManager is { } manager && !manager.IsResourceMetadataAvailable(texture)) return false;
+        }
+        return true;
+    }
+
+    /// <summary>Releases managed recipients while leaving all native storage with its producer.</summary>
+    private void ReleaseStorageReferences()
+    {
+        foreach (var texture in storageTextures) texture.Dispose();
+        storageTextures = [];
+        storageRevisions = [];
+    }
+
     /// <summary>Checks the current program at acquisition, reload or reference replacement rather than hooking native shader loading.</summary>
     private void RefreshShader()
     {
