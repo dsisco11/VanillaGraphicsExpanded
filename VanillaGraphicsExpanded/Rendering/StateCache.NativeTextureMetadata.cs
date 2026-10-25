@@ -53,8 +53,8 @@ internal sealed partial class StateCache
             if (generation && wasAvailable && entry.Metadata.ImmutableStorage) return default;
             // A rejected named command may supply a different target. Prefer the established
             // object target so readback certifies actual state without speculative rebinding.
+            if (entry.OperationInProgress || entry.CompletionInProgress) throw new System.InvalidOperationException("A resource metadata operation is already in progress.");
             entry.Reader ??= new GpuTextureMetadataReader(entry.Metadata.Target != 0 ? entry.Metadata.Target : target);
-            entry.BeginRefresh(change);
         }
         // A matching established target and a live realized backing prove the simple
         // association command's admission conditions. Untracked backing names remain
@@ -62,6 +62,11 @@ internal sealed partial class StateCache
         bool renewAssociation = effect == TextureMetadataEffect.RenderbufferAssociation
             && target == (TextureTarget)All.TextureRenderbufferNv && entry?.Metadata.Target == target
             && (argument == 0 || manager.FindObservedResource(GpuResourceKind.Renderbuffer, argument)?.IsUsable == true);
+        if (entry is not null)
+        {
+            entry.OperationInProgress = true;
+            entry.BeginRefresh(change);
+        }
         return new(entry, change, generation, wasAvailable, renewAssociation,
             effect == TextureMetadataEffect.Parameter ? (TextureParameterName)argument : 0, imageLevel,
             nativeTarget >= (int)TextureTarget.TextureCubeMapPositiveX && nativeTarget <= (int)TextureTarget.TextureCubeMapNegativeZ ? (TextureTarget)nativeTarget : 0);
@@ -94,6 +99,7 @@ internal sealed partial class StateCache
         /// <summary>Publishes real allocated images without interpreting texel upload contents.</summary>
         internal void Complete(bool nativeReturned)
         {
+            if (entry is not null) entry.OperationInProgress = false;
             if (entry is null || !entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
             if (!nativeReturned) { entry.NotifyImageDependents(suppressErrors: true); return; }
             bool available = parameter != 0 && wasAvailable

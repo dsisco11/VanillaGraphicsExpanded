@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.VertexArrays;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexAttribBinding(int @attribindex, int @bindingindex)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.VertexAttribBinding(@attribindex, @bindingindex);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexAttribBinding(int @attribindex, int @bindingindex) => StateCache.Current.ExecuteCoreVertexAttribBinding(@attribindex, @bindingindex);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexAttribBinding(uint @attribindex, uint @bindingindex)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.VertexAttribBinding(@attribindex, @bindingindex);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexAttribBinding(uint @attribindex, uint @bindingindex) => StateCache.Current.ExecuteCoreVertexAttribBinding(@attribindex, @bindingindex);
 
     #endregion
 }

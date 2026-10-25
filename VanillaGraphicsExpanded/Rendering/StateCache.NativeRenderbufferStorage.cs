@@ -21,6 +21,8 @@ internal sealed partial class StateCache
             as GpuResourceMetadataEntry<GpuRenderbufferMetadata>;
         if (entry is not null)
         {
+            if (entry.OperationInProgress || entry.CompletionInProgress) throw new System.InvalidOperationException("A resource metadata operation is already in progress.");
+            entry.OperationInProgress = true;
             entry.Reader ??= GpuRenderbufferMetadataReader.Instance;
             entry.BeginRefresh(GpuMetadataChange.Storage);
         }
@@ -35,6 +37,7 @@ internal sealed partial class StateCache
         /// <summary>Publishes measured dimensions, format and samples to aliases and dependent images.</summary>
         internal void Complete(bool nativeReturned)
         {
+            if (entry is not null) entry.OperationInProgress = false;
             if (entry is null || !entry.Manager.IsRegistered(entry) || entry.State != GpuResourceRegistrationState.Live) return;
             if (!nativeReturned) { entry.NotifyImageDependents(suppressErrors: true); return; }
             // External calls retain their original request, including invalid or coverage

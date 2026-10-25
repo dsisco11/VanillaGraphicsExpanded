@@ -52,7 +52,7 @@ sampling policy and configuration remain separate wrapper operations.
 | Kind | Existing wrappers / acquisition | Metadata and disposition |
 | --- | --- | --- |
 | Texture | `GpuTexture`: `Texture2D`, `Texture3D`, `DynamicTexture2D` (including `DepthTexture`, `StencilTexture`, `DepthStencilTexture`), `DynamicTexture3D`, `DynamicTextureCube`, `PmjJitterTexture`, `PBR/Clouds/CloudBlueNoiseTexture` | Allocation helpers generate/bind/allocate. Target, dimensions, internal format, allocated mips, immutable-layered flag and storage generation participate in validation/dependencies. Replacement registers the new object; in-place mutation updates canonical metadata and entry revision. Filter mode is an owner policy, not a complete snapshot of arbitrary GL sampler parameters. |
-| Texture | `BorrowedTexture(int)` | Validates `IsTexture`, queries target/base dimensions/format and mip widths. Non-owning; transfer rejected; dispose is local only. Same live native object must share the owner's canonical entry. |
+| Texture | `BorrowedTexture(int)` | Reuses available covered canonical facts; unknown or unavailable objects use native target/image discovery. Non-owning; transfer rejected; dispose is local only. Same live native object must share the owner's canonical entry. |
 | Texture | `GpuBufferView`, derived `GpuBufferTexture` | Own the texture name, not the buffer. Buffer ID, format, offset and size describe the view; track texture association changes. Whole-buffer views currently use size zero as a sentinel, not a cached capacity; preserve that convention. |
 | Texture | `GpuTextureView` | Owns a distinct texture object sharing immutable storage, with source reference/ID/generation, target, format, base/count levels and layers. It gets its own canonical texture entry, distinct from its source. Preserve current source-generation validation. |
 | Buffer | `GpuBufferObject`: `GpuVbo`, `GpuEbo`, `GpuUniformBuffer`, `GpuShaderStorageBuffer`, `GpuAtomicCounterBuffer`, `GpuIndirectBuffer`, `GpuPixelPackBuffer`, `GpuPixelUnpackBuffer` | CreateBuffers with GenBuffer fallback; size/usage are storage metadata. Target is the wrapper's intended binding role. EBO index type/count are authored interpretation/content extent, not discoverable from GL bytes. Pack/unpack methods return mapping pointers to their callers; they do not retain a mapping snapshot for notification to refresh. |
@@ -177,9 +177,9 @@ Internal operation contracts:
   `LookupAvailableResource` never reads; `RecoverResource` explicitly replaces external facts.
   Wrapper acquisition follows the same split through `AcquireWrapperMetadata` and
   `RecoverWrapperMetadata`; there is no optional forced-refresh switch.
-  A generated but unrealized external name is insufficient. External texture/renderbuffer wrapper
-  construction explicitly refreshes an existing entry until its complete mutation observation is
-  qualified; retaining a registry entry alone does not qualify persistent consumer metadata.
+  A generated but unrealized external name is insufficient. Texture/renderbuffer borrowers and raw
+  image aliases reuse available covered entries. Unsupported native mutations require explicit
+  invalidation/recovery; registry membership alone does not certify observation coverage.
 - `AssociateResource(entry, wrapper)` / `UnregisterResource(entry, wrapper)` initialize typed snapshots,
   maintain weak associations and prune expired references. Image associations include local selection.
 - `RefreshMetadata(entry, change)` explicitly acquires/recovers unavailable native facts. Controlled
@@ -271,7 +271,8 @@ Context-local tools without a registration discard uncertified snapshots after a
 interrupted explicit operation. Empty descriptors represent unavailable facts, not native zero-sized storage.
 The manager retains only the established texture target for explicit native refresh (for example,
 SetMipRange); image binding rejects an empty image snapshot. Local framebuffer image validation projects
-available backing facts and recovers only unknown/invalidated backing before dependent use; failed
+the typed owner's current snapshot without native reads; raw local names retain native discovery.
+Discarded owner facts require explicit owner recovery before image use; failed
 reads or absent selections cannot retain a previous projection. Registered resources retain canonical availability and recovery.
 Managed texture views require available manager snapshots for both their own registration and their
 original source dependency before use. Metadata-only recovery restores usability; storage revision

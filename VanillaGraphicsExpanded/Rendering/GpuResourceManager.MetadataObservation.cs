@@ -34,6 +34,7 @@ internal sealed partial class GpuResourceManager
             entry.BeginRefresh(change);
             entry.NotifyProgramDependents(change, available: false);
         }
+        else DiscardUntrackedMetadata(resource, change);
     }
 
     /// <summary>Explicitly recovers complete native facts after existing commands; established-result publication uses PublishObservedMetadata.</summary>

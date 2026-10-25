@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.VertexArrays;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexAttribIFormat(int @attribindex, int @size, VertexAttribIntegerType @type, int @relativeoffset)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.VertexAttribIFormat(@attribindex, @size, @type, @relativeoffset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexAttribIFormat(int @attribindex, int @size, VertexAttribIntegerType @type, int @relativeoffset) => StateCache.Current.ExecuteCoreVertexAttribIFormat(@attribindex, @size, @type, @relativeoffset);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexAttribIFormat(uint @attribindex, int @size, VertexAttribIntegerType @type, uint @relativeoffset)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.VertexAttribIFormat(@attribindex, @size, @type, @relativeoffset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexAttribIFormat(uint @attribindex, int @size, VertexAttribIntegerType @type, uint @relativeoffset) => StateCache.Current.ExecuteCoreVertexAttribIFormat(@attribindex, @size, @type, @relativeoffset);
 
     #endregion
 }

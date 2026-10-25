@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.VertexArrays;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DisableVertexAttribArray(int @index)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.DisableVertexAttribArray(@index);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DisableVertexAttribArray(int @index) => StateCache.Current.ExecuteCoreDisableVertexAttribArray(@index);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void DisableVertexAttribArray(uint @index)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.DisableVertexAttribArray(@index);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void DisableVertexAttribArray(uint @index) => StateCache.Current.ExecuteCoreDisableVertexAttribArray(@index);
 
     #endregion
 }

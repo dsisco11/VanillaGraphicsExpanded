@@ -19,7 +19,7 @@ internal sealed partial class GpuResourceManager
             if (existing?.Metadata.Target == TextureTarget.TextureBuffer)
                 throw new NotSupportedException("Buffer textures cannot supply framebuffer images.");
             var reader = new GpuTextureMetadataReader(existing?.Metadata.Target ?? 0);
-            return manager.RecoverResource(GpuResourceKind.Texture, id, reader)?.Metadata
+            return manager.AcquireResource(GpuResourceKind.Texture, id, reader)?.Metadata
                 ?? throw new InvalidOperationException("Native texture image metadata is unavailable.");
         }
         if (!GpuTextureMetadataReader.Instance.TryRead(id, out var data))
@@ -38,19 +38,19 @@ internal sealed partial class GpuResourceManager
             var backing = image.Resource is { } resource ? manager.GetResourceRegistration(resource) : null;
             if (original is not null && (original.Id != image.ResourceId
                 || backing is not null && !ReferenceEquals(original, backing))) manager.ReplaceWrapperResource(image);
-            else if (original is not null) return;
-            var entry = manager.FindResource(image.Kind, image.ResourceId);
-            // Explicit external acquisition refreshes native facts; retained managed images
-            // consume their owner's already published entry instead of issuing another read.
-            bool external = image.Resource is null;
-            bool bufferTexture = entry is GpuResourceMetadataEntry<GpuTextureMetadata> textureEntry
-                && textureEntry.Metadata.Target == OpenTK.Graphics.OpenGL.TextureTarget.TextureBuffer;
-            if (entry is null || external && !bufferTexture && !acquiredTexture.HasValue && !acquiredRenderbuffer.HasValue)
-                entry = image.Kind == GpuResourceKind.Renderbuffer
-                    ? external ? manager.RecoverResource(image.Kind, image.ResourceId, GpuRenderbufferMetadataReader.Instance) : manager.AcquireResource(image.Kind, image.ResourceId, GpuRenderbufferMetadataReader.Instance)
-                    : external ? manager.RecoverResource(image.Kind, image.ResourceId, new GpuTextureMetadataReader(image.ImageTarget))
-                        : manager.AcquireResource(image.Kind, image.ResourceId, new GpuTextureMetadataReader(image.ImageTarget));
-            if (entry is not null) manager.AssociateImageResource(entry, image);
+            else if (original is not null)
+            {
+                // Existing images receive publication through their original association. A
+                // failure notification must not silently reacquire and revive withdrawn facts.
+                return;
+            }
+            // A raw alias does not itself invalidate covered canonical facts. Acquisition
+            // reuses available entries and recovers only missing or explicitly withdrawn state.
+            GpuResourceRegistration? entry = image.Kind == GpuResourceKind.Renderbuffer
+                ? manager.AcquireResource(image.Kind, image.ResourceId, GpuRenderbufferMetadataReader.Instance)
+                : manager.AcquireResource(image.Kind, image.ResourceId, new GpuTextureMetadataReader(image.ImageTarget));
+            if (entry is null) throw new InvalidOperationException("The selected framebuffer image metadata is unavailable.");
+            if (!entry.ContainsRecipient(image)) manager.AssociateImageResource(entry, image);
             return;
         }
         // Context-local tools have no persistent registry. The manager still owns projection
@@ -58,6 +58,15 @@ internal sealed partial class GpuResourceManager
         // Withdraw the old projection before any read that can fail or reject this selection.
         DiscardUntrackedMetadata(image);
         StateCache.Current.RequireResourceOperationAvailable(image.Kind, image.ResourceId);
+        // Typed local owners already hold command-established facts. Raw local IDs have no
+        // such owner or registry guarantee and retain explicit native discovery.
+        if (image.Resource is { } owner)
+        {
+            if (!owner.IsValid) throw new InvalidOperationException("The selected image owner has retired.");
+            if (owner is GpuTexture textureOwner) acquiredTexture = textureOwner.MetadataSnapshot;
+            else if (owner is GpuTextureView view) acquiredTexture = view.MetadataSnapshot;
+            else if (owner is GpuRenderbuffer renderbufferOwner) acquiredRenderbuffer = renderbufferOwner.MetadataSnapshot;
+        }
         GpuImageMetadata? projected = null;
         if (image.Kind == GpuResourceKind.Renderbuffer)
         {

@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.VertexArrays;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexArrayVertexBindingDivisor(int @vaobj, int @bindingindex, int @divisor)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.VertexArrayVertexBindingDivisor(@vaobj, @bindingindex, @divisor);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexArrayVertexBindingDivisor(int @vaobj, int @bindingindex, int @divisor) => StateCache.Current.ExecuteExtVertexArrayVertexBindingDivisor(@vaobj, @bindingindex, @divisor);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexArrayVertexBindingDivisor(uint @vaobj, uint @bindingindex, uint @divisor)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.VertexArrayVertexBindingDivisor(@vaobj, @bindingindex, @divisor);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexArrayVertexBindingDivisor(uint @vaobj, uint @bindingindex, uint @divisor) => StateCache.Current.ExecuteExtVertexArrayVertexBindingDivisor(@vaobj, @bindingindex, @divisor);
 
     #endregion
 }

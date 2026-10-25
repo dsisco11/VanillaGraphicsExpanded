@@ -25,7 +25,9 @@ internal sealed partial class StateCache
         if (manager?.CanObserveNativeMetadata != true) return default;
         var entry = manager.FindObservedResource(GpuResourceKind.Texture, id) as GpuResourceMetadataEntry<GpuTextureMetadata>;
         if (entry is null || entry.Metadata.Target != 0 && entry.Metadata.Target != TextureTarget.TextureBuffer) return default;
+        if (entry.OperationInProgress || entry.CompletionInProgress) throw new System.InvalidOperationException("A resource metadata operation is already in progress.");
         var previous = entry.IsUsable ? entry.Metadata.Buffer : null;
+        entry.OperationInProgress = true;
         entry.BeginRefresh(GpuMetadataChange.Storage);
         return new(entry, new(buffer, (SizedInternalFormat)format, offset, size, whole), previous);
     }
@@ -39,15 +41,21 @@ internal sealed partial class StateCache
         /// <summary>Publishes accepted facts or retains a proven rejected-command result without consuming native errors.</summary>
         internal void Complete(bool nativeReturned)
         {
-            // A throwing dispatch provides no command-admission proof. Keep availability
-            // withdrawn and let the original exception propagate without further queries.
-            if (!nativeReturned || entry is null || !entry.Manager.IsRegistered(entry)
-                || entry.State != GpuResourceRegistrationState.Live) return;
-            if (!TryObserveBufferAssociation(entry, requested, previous, out var association))
-                throw new InvalidOperationException("Native buffer texture association metadata is unavailable.");
-            var data = new GpuTextureMetadata(TextureTarget.TextureBuffer, ImmutableArray<GpuTextureLevelMetadata>.Empty,
-                false, 0, 0, 0, association);
-            entry.Manager.PublishMetadata(entry, data, GpuMetadataChange.Storage, renewTextureAssociation: true);
+            if (entry is null) return;
+            try
+            {
+                // Keep acquisition and reentry blocked while native association/range facts
+                // are collected. Publication takes over the completion guard synchronously.
+                if (!nativeReturned || !entry.Manager.IsRegistered(entry)
+                    || entry.State != GpuResourceRegistrationState.Live) return;
+                if (!TryObserveBufferAssociation(entry, requested, previous, out var association))
+                    throw new InvalidOperationException("Native buffer texture association metadata is unavailable.");
+                var data = new GpuTextureMetadata(TextureTarget.TextureBuffer, ImmutableArray<GpuTextureLevelMetadata>.Empty,
+                    false, 0, 0, 0, association);
+                entry.OperationInProgress = false;
+                entry.Manager.PublishMetadata(entry, data, GpuMetadataChange.Storage, renewTextureAssociation: true);
+            }
+            finally { entry.OperationInProgress = false; }
         }
         #endregion
     }

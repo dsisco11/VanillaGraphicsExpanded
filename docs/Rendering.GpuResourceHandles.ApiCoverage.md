@@ -81,10 +81,9 @@ not adapter implementation. Existing assembly interception boundaries remain exp
 code bypassing the StateCache is not silently tracked.
 
 Metadata adapters are ordinary C# methods under `HarmonyPatches/NativeAdapters`, grouped by command
-family and native owner. Selector/routing adapters forward the exact signature to explicit StateCache
+family and native owner. Adapters forward the exact signature to explicit StateCache
 execution methods under `Rendering/Commands`; those methods own native dispatch and completion together.
-Other families still select the StateCache observation and call the exact OpenTK overload in their
-adapter bodies. `MetadataAdapterCatalog` declares owner pairs; initialization matches exact method
+Observation tokens remain internal to those execution paths, including vertex revision publication. `MetadataAdapterCatalog` declares owner pairs; initialization matches exact method
 names, return/parameter types and generic constraints. Closed generic calls instantiate those compiled
 adapter definitions with the caller's types. No runtime adapter IL emission, command-name pattern
 classification or parameter-name inference participates in dispatch. The existing engine IL discovery

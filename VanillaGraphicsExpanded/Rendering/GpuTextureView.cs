@@ -12,6 +12,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 public sealed class GpuTextureView : GpuResource<GpuTextureMetadata>, IDisposable
 {
+    /// <summary>Supplies the manager-published view descriptor for selected-image projection.</summary>
+    internal GpuTextureMetadata MetadataSnapshot => metadata;
+
     private int textureId;
     private readonly int sourceTextureId;
     private GpuTexture? source;

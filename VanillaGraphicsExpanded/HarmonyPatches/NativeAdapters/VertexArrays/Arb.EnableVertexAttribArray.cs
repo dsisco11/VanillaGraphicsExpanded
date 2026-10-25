@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.VertexArrays;
 internal static unsafe partial class Arb
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void EnableVertexAttribArray(int @index)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.EnableVertexAttribArray(@index);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void EnableVertexAttribArray(int @index) => StateCache.Current.ExecuteArbEnableVertexAttribArray(@index);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void EnableVertexAttribArray(uint @index)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.Arb.EnableVertexAttribArray(@index);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void EnableVertexAttribArray(uint @index) => StateCache.Current.ExecuteArbEnableVertexAttribArray(@index);
 
     #endregion
 }

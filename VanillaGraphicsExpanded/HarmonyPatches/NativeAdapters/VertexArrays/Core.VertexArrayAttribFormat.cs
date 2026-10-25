@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.VertexArrays;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexArrayAttribFormat(int @vaobj, int @attribindex, int @size, VertexAttribType @type, bool @normalized, int @relativeoffset)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
-        bool returned = false;
-        try
-        {
-            GL.VertexArrayAttribFormat(@vaobj, @attribindex, @size, @type, @normalized, @relativeoffset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexArrayAttribFormat(int @vaobj, int @attribindex, int @size, VertexAttribType @type, bool @normalized, int @relativeoffset) => StateCache.Current.ExecuteCoreVertexArrayAttribFormat(@vaobj, @attribindex, @size, @type, @normalized, @relativeoffset);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexArrayAttribFormat(uint @vaobj, uint @attribindex, int @size, VertexAttribType @type, bool @normalized, uint @relativeoffset)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
-        bool returned = false;
-        try
-        {
-            GL.VertexArrayAttribFormat(@vaobj, @attribindex, @size, @type, @normalized, @relativeoffset);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexArrayAttribFormat(uint @vaobj, uint @attribindex, int @size, VertexAttribType @type, bool @normalized, uint @relativeoffset) => StateCache.Current.ExecuteCoreVertexArrayAttribFormat(@vaobj, @attribindex, @size, @type, @normalized, @relativeoffset);
 
     #endregion
 }

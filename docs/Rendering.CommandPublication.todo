@@ -1,8 +1,8 @@
 Command execution and metadata publication
 
-Status: Phases 1, 2, 2a, 3, 3a, 4, 5 and 6 complete after second review and independent completion audit.
+Status: Phases 1, 2, 2a, 3, 3a, 4, 5, 6 and 7 complete after second review and independent completion audit.
 The narrower command-result policy is approved. Binding repairs, DEBUG-only diagnostics and the shared
-creation/publication boundary, explicit operation ownership and buffer/image/framebuffer/executable migration are implemented; Phases 7–9 remain open.
+creation/publication boundary, explicit operation ownership and buffer/image/framebuffer/executable migration are implemented; Phases 8–9 remain open.
 Source: [approved proposal](Rendering.CommandPublication.Proposal.md).
 Inherited contracts: [resource design](Rendering.GpuResourceHandles.Proposal.md),
 [inventory](Rendering.GpuResourceHandles.Inventory.md), [API coverage](Rendering.GpuResourceHandles.ApiCoverage.md).
@@ -426,27 +426,44 @@ Phase 7: Finish external acquisition, recovery and adapter migration
   Depends on Phase 6. Sources: complete analysis method inventory; proposal lookup/acquire/publication;
   inventory association/dependency contracts and API coverage. Outcome: acquisition repairs are ready for audit.
 
-  ☐ Reconcile AcquireExternalImageTexture, AcquireImageMetadata, AcquireBufferTextureBacking,
+  ☑ Reconcile AcquireExternalImageTexture, AcquireImageMetadata, AcquireBufferTextureBacking,
     AcquireRenderbufferTextureBacking, AssociateImageResource and AssignImageMetadata. Reuse available
     covered entries for raw aliases; keep image projection query-free and retain original backing identity.
-  ☐ Migrate BorrowedTexture and external texture/renderbuffer/framebuffer/shader/program wrap/adopt paths
+  ☑ Migrate BorrowedTexture and external texture/renderbuffer/framebuffer/shader/program wrap/adopt paths
     to lookup or acquisition without creation-time mutation. Unsupported external changes retain explicit
     invalidation/recovery; registry membership alone does not certify observation coverage.
-  ☐ Reconcile GpuBufferMetadataReader, GpuTextureMetadataReader, GpuRenderbufferMetadataReader,
+  ☑ Reconcile GpuBufferMetadataReader, GpuTextureMetadataReader, GpuRenderbufferMetadataReader,
     GpuRenderbufferTextureMetadataReader, GpuFramebufferMetadataReader, GpuShaderMetadataReader and
     GpuProgramMetadataReader: preserve unknown-state discovery while narrowing result reads. Avoid repeat
     context-local reads when established results suffice, without trusting stale snapshots after failure.
-  ☐ Reconcile every remaining BeginNative*/Complete observer in the analysis with immediate internal
+  ☑ Reconcile every remaining BeginNative*/Complete observer in the analysis with immediate internal
     execution, explicit operation composition or deferred handling. Migrate exact compiler-checked adapters; preserve each allowed
     overload, external dispatch/error behavior, per-object failure and no-content-only metadata work.
-  ☐ Review CompleteResourceDeletion/WasResourceDeleted query policy separately from acquisition under
+  ☑ Review CompleteResourceDeletion/WasResourceDeleted query policy separately from acquisition under
     Phase 1's contract. Preserve retained shader/program deletion semantics and old-association safety.
-  ☐ Reconcile every analysis row with an implemented disposition and evidence; remove superseded forced
+  ☑ Reconcile every analysis row with an implemented disposition and evidence; remove superseded forced
     refresh paths, redundant checks and caller-managed pairing. Preserve required discovery and recovery.
-  ☐ Have subagents verify available/raw-alias/unknown/unavailable/local-tool scenarios, dependent invalidation,
+  ☑ Have subagents verify available/raw-alias/unknown/unavailable/local-tool scenarios, dependent invalidation,
     failed commands, context loss, name reuse, supported adapters and binding-preserving fallback readers.
     Run affected regressions/package checks, second-review and independently audit acquisition repairs.
-  ☐ Completion: all analyzed methods have verified dispositions; no foundation repair is deferred to consumers.
+  ☑ Completion: all analyzed methods have verified dispositions; no foundation repair is deferred to consumers.
+
+  Verification and traceability: proposal lookup/acquisition/publication and inherited association,
+  dependency, API and lifecycle contracts map to the implemented dispositions in the analysis document.
+  Available raw aliases reuse canonical entries; local typed images project owner snapshots; explicit
+  invalidation/recovery remains required for unsupported external changes. All 197 remaining vertex
+  overloads retain exact signatures/native arguments behind StateCache execution. Native result
+  certification stays guarded through publication; deletion outcome checks retain their separate policy.
+  Second review and independent completion audit passed with no unresolved required findings.
+  Debug: 537/537; exact packaged Release: 103/103 ordinary and 537/537 with process-only observer
+  settings (COMPlus_JitNoInline=1, COMPlus_TieredCompilation=0), zero failures/skips. No instrumented
+  Release build. Canonical Release/SPIR-V packaging passed; tested/published/ZIP runtime hashes and
+  all 761 shaders match, dependencies are unchanged and 2,819 frozen source/project files have no drift.
+  Receipts: artifacts/command-publication-phase7/{final-debug,canonical-release-normal,
+  canonical-release-observed}.trx, canonical-package-identity.json and commands-and-limits.txt.
+  Headless qualification uses one RTX 4090 with forced fallback; imported external payload operations,
+  unsupported capabilities and independent concurrent native contexts remain unqualified. No live
+  appearance or frame-time claim. Phases 8–9 and parent Phase 4f remain open.
 
 Phase 8: Require supplied metadata for binding preparation
   Depends on Phase 7. Sources: proposal Decisions and acceptance; Rendering.ShaderBindingState.md,

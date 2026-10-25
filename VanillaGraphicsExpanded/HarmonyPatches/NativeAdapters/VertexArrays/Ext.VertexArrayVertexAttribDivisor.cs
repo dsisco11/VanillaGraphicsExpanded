@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.VertexArrays;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexArrayVertexAttribDivisor(int @vaobj, int @index, int @divisor)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.VertexArrayVertexAttribDivisor(@vaobj, @index, @divisor);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexArrayVertexAttribDivisor(int @vaobj, int @index, int @divisor) => StateCache.Current.ExecuteExtVertexArrayVertexAttribDivisor(@vaobj, @index, @divisor);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexArrayVertexAttribDivisor(uint @vaobj, uint @index, uint @divisor)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.VertexArrayVertexAttribDivisor(@vaobj, @index, @divisor);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexArrayVertexAttribDivisor(uint @vaobj, uint @index, uint @divisor) => StateCache.Current.ExecuteExtVertexArrayVertexAttribDivisor(@vaobj, @index, @divisor);
 
     #endregion
 }

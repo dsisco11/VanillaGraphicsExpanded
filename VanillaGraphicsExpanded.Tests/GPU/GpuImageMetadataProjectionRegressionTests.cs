@@ -52,6 +52,9 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
             using var sentinel = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
             using (texture.BindScope(0))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            // This direct external mutation bypasses command publication, so its owner must
+            // explicitly withdraw the old covered snapshot before requesting recovery.
+            GpuResourceManager.InvalidateWrapperMetadata(texture, GpuMetadataChange.Storage);
             using var binding = sentinel.BindScope(0);
             using var image = GpuFramebufferAttachment.FromTextureId(texture.TextureId);
             var manager = GpuResourceManagerSystem.CurrentManager!;

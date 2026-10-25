@@ -11,11 +11,11 @@ internal sealed class BorrowedTexture : GpuTexture
     /// <summary>Captures target, dimensions, format and allocated mip levels without changing native state.</summary>
     internal BorrowedTexture(int externalTexture)
     {
-        if (externalTexture <= 0 || !GL.IsTexture(externalTexture))
+        if (externalTexture <= 0)
             throw new ArgumentOutOfRangeException(nameof(externalTexture));
 
         textureId = externalTexture;
-        GpuResourceManager.RecoverWrapperMetadata(this, GpuTextureMetadataReader.Instance);
+        GpuResourceManager.AcquireWrapperMetadata(this, GpuTextureMetadataReader.Instance);
 
         if (width <= 0 || height <= 0)
             throw new ArgumentException("Texture has no allocated base-level image.", nameof(externalTexture));

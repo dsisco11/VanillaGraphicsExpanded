@@ -16,7 +16,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
 {
     #region Public API
     #region Ownership and alias guards
-    /// <summary>Constructing a borrower refreshes surviving-id external storage and all existing aliases.</summary>
+    /// <summary>Constructing a borrower recovers explicitly invalidated external storage and all existing aliases.</summary>
     [Fact]
     public void BorrowerConstructionRefreshesExternallyReallocatedTextureAliases()
     {
@@ -26,6 +26,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, owner.TextureId))
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, 12, 6, 0,
                 PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
+        GpuResourceManager.InvalidateWrapperMetadata(owner, GpuMetadataChange.Storage);
         using var second = new BorrowedTexture(owner.TextureId);
         Assert.Equal(12, first.Width);
         Assert.Equal(6, first.Height);
@@ -36,7 +37,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
 
-    /// <summary>Wrapping an existing renderbuffer refreshes externally changed storage for its existing aliases.</summary>
+    /// <summary>Wrapping a renderbuffer recovers explicitly invalidated storage for its existing aliases.</summary>
     [Fact]
     public void RenderbufferWrapRefreshesExternallyReallocatedAliases()
     {
@@ -45,6 +46,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var first = GpuRenderbuffer.Wrap(owner.RenderbufferId);
         using (StateCache.Current.BindRenderbufferScope(owner.RenderbufferId))
             GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.Rgba16f, 12, 6);
+        GpuResourceManager.InvalidateWrapperMetadata(owner, GpuMetadataChange.Storage);
         using var second = GpuRenderbuffer.Wrap(owner.RenderbufferId);
         Assert.Equal(12, first.Width);
         Assert.Equal(6, first.Height);

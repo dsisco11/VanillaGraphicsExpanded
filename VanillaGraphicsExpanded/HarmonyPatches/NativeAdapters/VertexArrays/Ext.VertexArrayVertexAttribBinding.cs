@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.VertexArrays;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexArrayVertexAttribBinding(int @vaobj, int @attribindex, int @bindingindex)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.VertexArrayVertexAttribBinding(@vaobj, @attribindex, @bindingindex);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexArrayVertexAttribBinding(int @vaobj, int @attribindex, int @bindingindex) => StateCache.Current.ExecuteExtVertexArrayVertexAttribBinding(@vaobj, @attribindex, @bindingindex);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexArrayVertexAttribBinding(uint @vaobj, uint @attribindex, uint @bindingindex)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(unchecked((int)@vaobj), true, false);
-        bool returned = false;
-        try
-        {
-            GL.Ext.VertexArrayVertexAttribBinding(@vaobj, @attribindex, @bindingindex);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexArrayVertexAttribBinding(uint @vaobj, uint @attribindex, uint @bindingindex) => StateCache.Current.ExecuteExtVertexArrayVertexAttribBinding(@vaobj, @attribindex, @bindingindex);
 
     #endregion
 }

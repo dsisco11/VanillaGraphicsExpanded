@@ -7,7 +7,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class GpuResourceManager
 {
     #region Private
-    /// <summary>Admits a backing object only after native association readback establishes the dependency.</summary>
+    /// <summary>Acquires missing backing facts for an established association, reusing available original entries.</summary>
     private void AcquireRenderbufferTextureBacking<TMetadata>(GpuResourceRegistration entry, TMetadata candidate,
         bool renewAssociation) where TMetadata : struct
     {

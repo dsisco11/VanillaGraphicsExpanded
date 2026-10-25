@@ -18,7 +18,12 @@ internal sealed partial class StateCache
         var manager = GpuResourceManagerSystem.CurrentManager;
         var entry = manager?.FindObservedResource(GpuResourceKind.VertexArray, vao)
             as GpuResourceMetadataEntry<GpuVertexArrayMetadata>;
-        entry?.BeginRefresh(GpuMetadataChange.Metadata);
+        if (entry is not null)
+        {
+            if (entry.OperationInProgress || entry.CompletionInProgress) throw new System.InvalidOperationException("A resource metadata operation is already in progress.");
+            entry.OperationInProgress = true;
+            entry.BeginRefresh(GpuMetadataChange.Metadata);
+        }
         return new(cache, vao, elementBinding, entry, Integration.RenderContextRegistry.Current());
     }
     #endregion
@@ -31,6 +36,7 @@ internal sealed partial class StateCache
         /// <summary>Advances helper revision after execution; exceptions retain unavailable metadata.</summary>
         internal void Complete(bool nativeReturned)
         {
+            if (entry is not null) entry.OperationInProgress = false;
             cache.VertexConfigurationEpoch++;
             if (elementBinding) cache.elementArrayBufferByVao.Remove(vao);
             if (!nativeReturned || entry is null || !entry.Manager.CanObserveNativeMetadata

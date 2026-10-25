@@ -12,6 +12,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDisposable
 {
+    /// <summary>Supplies the manager-published descriptor for query-free selected-image projection.</summary>
+    internal GpuRenderbufferMetadata MetadataSnapshot => metadata;
+
     private int renderbufferId;
     private readonly bool ownsRenderbuffer;
     private string? debugName;
@@ -125,7 +128,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
 #endif
 
         var wrapper = new GpuRenderbuffer(existingRenderbufferId, ownsRenderbuffer: false, debugName);
-        GpuResourceManager.RecoverWrapperMetadata(wrapper, GpuRenderbufferMetadataReader.Instance);
+        GpuResourceManager.AcquireWrapperMetadata(wrapper, GpuRenderbufferMetadataReader.Instance);
         return wrapper;
     }
 

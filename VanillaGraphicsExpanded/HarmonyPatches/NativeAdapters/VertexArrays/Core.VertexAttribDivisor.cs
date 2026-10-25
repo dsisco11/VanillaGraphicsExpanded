@@ -8,39 +8,11 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.VertexArrays;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexAttribDivisor(int @index, int @divisor)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.VertexAttribDivisor(@index, @divisor);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexAttribDivisor(int @index, int @divisor) => StateCache.Current.ExecuteCoreVertexAttribDivisor(@index, @divisor);
 
-    /// <summary>Preserves the native arguments and publishes observed metadata after dispatch.</summary>
-    internal static void VertexAttribDivisor(uint @index, uint @divisor)
-    {
-        var observation = StateCache.BeginNativeVertexMetadata(0, false, false);
-        bool returned = false;
-        try
-        {
-            GL.VertexAttribDivisor(@index, @divisor);
-            returned = true;
-        }
-        finally
-        {
-            // A throwing native call keeps affected metadata unavailable.
-            observation.Complete(returned);
-        }
-    }
+    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    internal static void VertexAttribDivisor(uint @index, uint @divisor) => StateCache.Current.ExecuteCoreVertexAttribDivisor(@index, @divisor);
 
     #endregion
 }
