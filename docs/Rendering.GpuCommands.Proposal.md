@@ -52,6 +52,14 @@ No second binding cache, resource registry or metadata hierarchy is introduced.
 
 ## Public operations and resource inputs
 
+The OpenGL backend requires an OpenGL 4.5-or-newer context and uses `OpenTK.Graphics.OpenGL4`
+bindings for managed RHI execution. This is the approved minimum, not an optional fast path.
+Validate the version and required entry-point availability once at backend initialization; reject
+unsupported contexts rather than providing an older-version backend. No platform/adoption survey is
+required to adopt this policy. It does not require changing the host engine's context profile.
+Core DSA and multi-bind are baseline facilities. Optional features beyond 4.5 retain explicit capability
+checks. Exact engine adapters retain their original OpenTK signatures at the external boundary.
+
 The command API uses project-owned descriptors/enums for formats, dimensions, access, pipeline state,
 vertex layout and synchronization intent. No public operation accepts an OpenTK enum, binding target,
 DSA flag, GL method name or native overload selector. Migration proceeds through complete operation-family
@@ -203,19 +211,21 @@ interfaces, external discovery/recovery and kind-specific deletion outcomes. Rep
 publish success; uncertain effects withdraw only affected knowledge. This does not claim detection of
 every silent GL rejection. Metadata publication failure never retries native work.
 
-| Example | Named path | Bound path and required reconciliation |
+| Example | OpenGL 4.5 execution | Required reconciliation |
 | --- | --- | --- |
-| Buffer allocation/upload | Supported named buffer storage/data/subdata variant | Resolve saved selector only if unknown; bind scratch-compatible target, execute, restore. Storage commits once; subdata does not publish capacity. |
-| Cube/mip allocation | Supported named texture storage or compatible EXT operation | Bind correct target/unit; allocate faces/mips as one operation; restore active unit and target binding. Derive images and commit once. Immutable storage preferred when requested and supported, never substituted for mutable semantics. |
-| Framebuffer attachment | Supported named attachment operation | Preserve distinct read/draw selections; bind required target, attach, restore. Routing and attachment metadata have distinct owners. |
-| Vertex input | Supported named VAO format/binding/EBO operation | Bind target VAO and required buffer selectors; preserve the original VAO's EBO association when restoring. Publish configuration revision once, without a new full-layout metadata mirror. |
+| Buffer allocation/upload | Core named buffer storage/data/subdata | Preserve surrounding selectors without temporary binds. Storage commits once; subdata does not publish capacity. |
+| Cube/mip allocation | Core named immutable texture storage when immutable storage is requested | Derive face/mip images and commit once. Retained mutable image definition uses the required bound API; preserve active unit and target binding. Never substitute immutable storage for mutable semantics. |
+| Framebuffer attachment | Core named attachment operation | Preserve distinct read/draw selections without temporary binds. Routing and attachment metadata have distinct owners. |
+| Vertex input | Core named VAO format/binding/EBO operations | Preserve surrounding VAO/buffer state. Publish configuration revision once, without a new full-layout metadata mirror. |
 
-Select core/ARB/EXT paths per operation and semantic compatibility, not with one global DSA Boolean.
-If a named path is unavailable, select the supported bound path **before dispatch**. A throw or partial
-execution is failure, never a signal to attempt the other path. In particular, migrate the existing
-`GpuBufferUploader` try-named/catch-and-fallback policy into capability selection rather than preserving
-it as the new error model. Missing capabilities are discovered during backend initialization, with lazy
-format-specific capability caching where needed; intercepted calls never drain errors to discover them.
+Use core 4.5 DSA wherever it expresses the operation. Remove older-context named/bound fallback branches
+and redundant core/ARB/EXT alternatives for baseline operations. Binding is still required for drawing,
+exact external calls and operations without an equivalent core named API; these are semantic requirements,
+not older-version fallbacks. Keep their binding/restoration mechanics inside the backend.
+A throw or partial execution is failure, never a signal to try another path. Remove `GpuBufferUploader`'s
+try-named/catch-and-fallback policy when replacing that family. Optional extension operations select a
+supported implementation before dispatch or reject as unsupported. Format-specific limits remain cached;
+intercepted calls never drain errors to discover capabilities.
 Cache-restoration failure marks affected selectors unknown and preserves the original failure.
 
 ## Engine integration and migration boundaries
@@ -271,15 +281,18 @@ metadata, initialization and wrapper domains for their current responsibilities.
 storage, list lifecycle, operation families and capability tables rather than making one large dispatcher.
 Other backends implement the semantic interface; optional features can reject unsupported requests.
 No second backend, shader-language translation, render graph or global resource-model rewrite is proposed.
-PSO multi-bind fits inside the binding backend using independent cached capability selection and existing
-slot knowledge; this design does not require it to wait for deferred recording.
+PSO multi-bind fits inside the binding backend using baseline support and existing slot knowledge;
+individual calls remain useful for ineligible semantics or measured batching policy, not older contexts.
+This design does not require multi-bind to wait for deferred recording. The separately scheduled PSO
+work may precede this backend migration; its existing-runtime capability path is removed when that family
+is replaced under the 4.5 contract.
 
 ## Representative outcomes and verification
 
 | Path | Required outcome / focused verification |
 | --- | --- |
 | Cube with several mips | Existing constructor supplies its allocation request. Manager/backend creates privately, derives all face/mip facts, publishes once, then hands off identity. Partial allocation failure cleans only the provisional object; no usable partial wrapper. |
-| Buffer named/bound upload | Same semantic request with capability on/off produces identical contents. Sentinel bindings restored; no per-call capability query, extra metadata refresh or retry after native failure. |
+| Buffer upload | Core named operations produce expected contents while sentinel bindings remain unchanged; no temporary bind, per-call capability query, extra metadata refresh or retry after native failure. |
 | Framebuffer reattachment failure | Capture original association, apply configuration as an explicit operation. A detected partial failure leaves affected metadata unavailable, restores surrounding selectors and prevents drawing from stale attachments. No rollback claim; explicit repair/recovery remains possible. |
 | Draw/dispatch | Bind complete validated inputs and pipeline, execute work in order, preserve shader algorithms and content readiness. Stable bindings suppress native calls without bypassing current resource checks. |
 | External deletion | Exact engine overload executes once, per-object outcomes retire original entries and repair affected binding knowledge. Duplicate/zero names and retained shader/program native references keep their existing semantics. |
@@ -288,9 +301,10 @@ slot knowledge; this design does not require it to wait for deferred recording.
 Test immediate and recorded paths against the same outputs and sentinel state, including native views,
 view-relative selections, aliases, owner replacement, unavailable metadata, context-local tools and
 context retirement. Cover list close/reset/cancel, copied array mutation, partial execution, staged
-readback ownership, shader reload and deferred link completion. Test enabled/disabled DSA independently
-for buffers, images, framebuffers and VAOs; test core/ARB/EXT dispatch decisions separately when hardware
-cannot execute every variant. External exact-forwarding tests must count one native execution and one
+readback ownership, shader reload and deferred link completion. Test baseline admission/rejection and
+core DSA for buffers, images, framebuffers and VAOs. Test binding preservation for operations that still
+require bound semantics. Test optional features enabled/disabled separately, retaining unexecuted native
+cases as explicit gaps. External exact-forwarding tests must count one native execution and one
 publication, preserve errors and prove no recursion. Keep hardware coverage gaps explicit.
 
 Measure immediate baseline versus command facade and recorded submission: CPU time per operation/list,
