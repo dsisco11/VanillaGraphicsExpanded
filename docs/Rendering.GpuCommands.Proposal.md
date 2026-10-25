@@ -72,7 +72,7 @@ Introduce analogous consumer-only values as needed: `GpuBufferRef`, `GpuSamplerR
 `GpuProgramPipelineRef`, `GpuQueryRef`, `GpuSyncRef`, `GpuTransformFeedbackRef`,
 `GpuSemaphoreRef` and `GpuMemoryObjectRef`. Each retains its existing typed resource base, exposes
 no ownership API and uses manager validation; none captures another lifetime token or metadata copy.
-Pipeline bindings reference immutable graphics/compute descriptions and the existing executable owner.
+Pipeline bindings use the immutable RHI pipeline realizations and executable generations defined below.
 Framebuffer references remain useful for the OpenGL integration; portable passes describe attachments,
 not read/draw framebuffer binding targets. The default surface is an explicit surface input, not ID zero.
 
@@ -84,8 +84,8 @@ usage guards, not methods on the reference itself. Imported resources keep their
 | Operation family | API intent and execution disposition |
 | --- | --- |
 | Creation/destruction | Manager creation retains legal-input initialization records and nullable metadata handoff. Backend creation executes immediately; no unresolved resource placeholders in lists. Owner disposal schedules existing retirement; deletion is internal and never a consumer `Destroy(ref)` API. Covers every existing resource kind, including views and external-memory/semaphore objects. |
-| Storage/configuration | Allocate buffer/image/renderbuffer storage; configure attachments, vertex input, samplers and executable interfaces. Owner operations execute immediately and commit one coherent result. Immutable storage restrictions remain enforced. |
-| Shader work | Compile, link/binary installation and pipeline-stage configuration remain explicit immediate operations. Existing deferred link completion owns reflection/results; it is not command-list GPU completion. |
+| Storage/configuration | Allocate buffer/image/renderbuffer storage; configure attachments, vertex input and samplers. Executable configuration belongs to shader creation, with subsequent managed changes producing a new generation. Owner operations execute immediately and commit one coherent result. Immutable storage restrictions remain enforced. |
+| Shader work | Create an executable from stage-code inputs through the shader contract below. Compilation, linking, binary installation and native stage configuration are backend details. Existing deferred link completion remains internal to pending creation; it is not command-list GPU completion. |
 | Upload/copy/clear/mips | Typed buffer ranges, texture regions, row/slice pitches and view-relative subresources. Upload, copy and clear can be recorded. Mip generation is immediate initially because mutable generation can change storage facts. Contents never become canonical metadata. |
 | Binding/passes | Set pipeline, bind resource table, set dynamic state, begin/end render pass. Include explicit image level/layer/access/format and attachment load/store/clear intent. Preserve full-input validation and alias feedback checks. Recordable. |
 | Draw/dispatch | Direct, indexed, instanced and indirect draw/dispatch with explicit offsets/counts. Vertex/index semantics stay above GL addressing. Recordable; no reordering. |
@@ -102,6 +102,101 @@ Optional operations, such as external memory/semaphore imports, have explicit fe
 focused extension implementations. Reject unsupported requests before dispatch with a feature reason;
 do not invent a general fallback registry for them. Format-dependent limits and sample counts remain
 cached. Native entry-point loading is still required, but it is not semantic implementation selection.
+
+## Shader and pipeline objects
+
+Define these contracts before implementing command payloads or migrating draw/dispatch. Shader and PSO
+implementation is a separate complete migration unit; it must implement these contracts rather than
+temporarily exposing current program objects through the command API. Resource-family operations and
+command storage can be implemented first. Draw/dispatch integration depends on shader/PSO realization.
+
+### Shader assets, executable creation and ownership
+
+Keep asset loading, preprocessing, permutation selection and offline compilation above the RHI.
+An immutable `RHIShaderDescription` contains the selected stage-code inputs, entry points, specialization
+values and authored binding contract. Stage inputs explicitly identify their code format and immutable
+bytes/text. Validate stage combinations and format support before native work. OpenGL 4.5 alone does
+not imply SPIR-V ingestion: use the supplied supported GLSL path or require the relevant optional feature
+for SPIR-V. The backend does not silently translate or substitute an unrelated asset.
+
+`CreateShader(description)` creates one graphics or compute executable, returning an owned `RHIShader`
+only when its executable and immutable binding interface are ready. This is an executable bundle, not
+one native stage object. The OpenGL backend privately creates stage objects, compiles/specializes them,
+links a program or installs a valid cached binary, and obtains required driver-produced interface facts.
+Linking and program IDs are not caller-facing RHI operations. Existing asset and driver-binary caches
+retain their responsibilities; their native execution moves behind this boundary.
+
+Native shader/program objects remain existing `GpuResource<TMetadata>` resources created and published
+through `GpuResourceManager`. `RHIShader` owns the resulting native executable resource; its prepared
+interface derives from supplied canonical metadata through the existing preparation system. It does not
+create another canonical metadata authority. Intermediate stages are cleaned up after successful linking
+where no longer needed; failed candidates retire only their own allocations. Creation returns a typed
+success/failure result with diagnostics, preserving exceptional error propagation where required.
+
+Preserve existing deferred linking through `BeginCreateShader(description)` returning a pending creation
+request. Its explicit completion returns Pending, Ready with an owned `RHIShader`, or Failed with diagnostics;
+it never exposes a partially usable shader. The synchronous convenience completes the same operation and
+may wait. Both run through the originating context; pending requests retain their frozen inputs and
+original native associations. Cancellation/teardown cleans the candidate through existing retirement
+services. This is deferred native creation completion, not worker compilation or asynchronous submission.
+
+Each ready `RHIShader` represents a fixed executable generation. Published code/interface cannot be
+relinked in place through the managed RHI. Record native association and executable revision so external
+mutation or context retirement invalidates use through existing manager validation. A consumer-only
+`RHIShaderRef` retains that managed object without exposing disposal, relinking or its native resource.
+It never follows a higher-level shader asset's replacement generation.
+
+### Graphics and compute PSO realization
+
+Use `CreateGraphicsPipeline(RHIGraphicsPipelineDescription)` and
+`CreateComputePipeline(RHIComputePipelineDescription)` on the context. Both return a typed creation
+result containing a ready owned realization or failure diagnostics; creation is immediate and does not
+require the caller to bind the result. No pending PSO handle is exposed in the initial design.
+
+| Object | Required input and contract |
+| --- | --- |
+| `RHIGraphicsPipelineDescription` | A specific ready graphics `RHIShaderRef`, vertex layout, topology/assembly, blend, depth/stencil, rasterizer, sampling/output state, render-target format/sample signature and explicitly dynamic state fields. Reuse the existing immutable description/value contracts with project-owned enums. |
+| `RHIComputePipelineDescription` | A specific ready compute `RHIShaderRef`; executable compatibility and dispatch limits derive from that executable and cached capabilities. No graphics state or invented framebuffer dependency. |
+| `RHIGraphicsPipeline` / `RHIComputePipeline` | Immutable context-bound realizations retaining the exact shader generation, prepared binding interface and backend application data. Graphics realization also retains target compatibility and the state footprint needed for engine-boundary restoration. |
+| `RHIGraphicsPipelineRef` / `RHIComputePipelineRef` | Consumer-only references used by command recording and submission. They expose no lifecycle methods and never resolve to a different pipeline after replacement. |
+
+OpenGL PSO realization need not allocate a native monolithic pipeline object. Graphics realization can
+hold validated fixed-state application data and the executable; compute realization holds its executable
+and binding interface. Selecting a pipeline applies it through `OpenGlStateCache`, preserving suppression.
+Dynamic state values remain command inputs. Binding tables, texture/buffer instances, framebuffer identity,
+viewport dimensions and ordinary uniform values are not part of immutable PSO identity.
+
+Descriptions compare all behavior-bearing fields and the exact shader generation, excluding diagnostic
+labels. Creation does not introduce a global PSO cache or automatic sharing: the existing renderer owner
+retains and reuses its realizations. Identical descriptions may produce distinct lightweight realizations.
+This provides a deterministic future cache key without requiring cache eviction, reference-counted sharing,
+precaching or asynchronous PSO compilation now. Pipeline realization does not independently relink or
+reflect a ready shader; it consumes the executable's prepared facts.
+
+### Replacement, recording and retirement
+
+Shader ownership stays with the higher-level shader owner; pipeline ownership stays with the renderer.
+Pipelines strongly retain their shader reference but do not acquire disposal authority or prevent explicit
+shader retirement. Disposing a pipeline retires that realization and its exclusively owned backend data;
+it does not dispose the shader. Native deletion continues through existing resource retirement queues.
+Managed PSO records do not need native registry entries when they own no native object.
+
+Reload builds a fresh shader candidate and the required replacement pipelines before installation. The
+higher-level owner publishes the compatible shader/pipeline set together between submissions. On failure,
+the installed set remains usable and candidate-only allocations are retired. Desired CPU binding values
+survive; prepared layouts and successful-upload history belong to the installed executable generation.
+The owner can retain an old set deliberately, but retiring it invalidates later use of its references.
+
+`SetPipeline` records a pipeline reference, not a mutable shader owner or lookup key. Recorded resource
+tables carry that pipeline's prepared-interface identity. Execution rejects retired pipelines, unavailable
+or externally changed executables, mismatched tables and incompatible pass targets before issuing the
+affected work. It never silently retargets recorded slot indices to a replacement generation. A still-live
+old set can execute; a retired set requires re-recording. Texture references retain their separately agreed
+owner-following behavior: executable identity has a stricter contract because it defines command layout.
+
+There is no general replay recovery or list-wide native rollback. If a later command fails validation,
+earlier executed commands retain their normal outcomes. Creation, cancellation and context retirement
+must preserve original associations and prevent stale candidates from installing after a newer selection.
 
 ## Immediate execution and recorded lists
 
@@ -283,7 +378,8 @@ ownership and helper responsibilities; update GL-shaped signatures and their cal
 contract requires it rather than retaining obsolete overloads. Readers keep manager acquisition ownership.
 
 `ShaderPreparedSubmission` retains complete-set validation and compatibility history; its publication
-target becomes command operations. `GpuPreparedBindings` continues preparing supplied program metadata
+target becomes command operations using the pipeline's exact executable/interface generation.
+`GpuPreparedBindings` continues preparing supplied program metadata
 only. Generated submissions retain immutable desired arguments for recording; successful-upload history
 must advance on execution, never merely when commands are recorded. On cancellation/failure, preserve
 dirty CPU uniform state and invalidate only affected execution history. Prepared tables/executable owners
@@ -329,6 +425,13 @@ core DSA for buffers, images, framebuffers and VAOs. Test binding preservation f
 require bound semantics. Test optional features enabled/disabled separately, retaining unexecuted native
 cases as explicit gaps. External exact-forwarding tests must count one native execution and one
 publication, preserve errors and prove no recursion. Keep hardware coverage gaps explicit.
+
+For shader/PSO replacement, verify synchronous and pending creation, compile/link/interface failure,
+candidate cleanup, context retirement, exact shader-generation identity, graphics target compatibility,
+compute stage validation and renderer-owned reuse. Verify pipeline disposal preserves its shader owner,
+shader retirement rejects dependent pipeline use, failed reload preserves the installed set, and successful
+reload never retargets recorded bindings. Assert PSO realization performs no duplicate link/reflection.
+Exercise graphics and compute through the same lifetime/result contracts, including cached-binary creation.
 
 Measure immediate baseline versus command facade and recorded submission: CPU time per operation/list,
 recording allocation bytes, retained capacity, native binds, metadata queries and publication counts.
