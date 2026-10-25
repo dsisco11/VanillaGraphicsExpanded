@@ -16,13 +16,9 @@ For example, an upload helper requests `UploadBuffer(destination, offset, bytes)
 `NamedBufferSubData` versus `BufferSubData`, bind a temporary target or restore that binding afterward.
 One operation may require several native calls; it is not an OpenTK overload renamed as a command.
 
-Unreal's RHI provides the useful separation: commands express platform-independent work, and an API
-command context translates it with backend state handling. We adopt that separation, not Unreal's
-thread scheduling or engine infrastructure. See Epic's [parallel rendering overview](https://dev.epicgames.com/documentation/en-us/unreal-engine/parallel-rendering-overview-for-unreal-engine).
-Its [command-list API](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/RHI/FRHICommandListBase)
-also distinguishes immediate behavior and list-owned argument storage; its
-[dynamic RHI](https://dev.epicgames.com/documentation/en-us/unreal-engine/API/Runtime/RHI/FDynamicRHI)
-illustrates the backend boundary. These are architectural references, not dependencies.
+Commands express backend-independent operations. The command context executes them immediately or
+submits a recorded list to the backend, which owns native execution and state reconciliation.
+Recorded lists own their retained arguments; recording and execution have separate lifetime contracts.
 
 ```mermaid
 flowchart TD
