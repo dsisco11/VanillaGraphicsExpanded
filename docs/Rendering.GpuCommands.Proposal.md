@@ -278,9 +278,15 @@ must preserve original associations and prevent stale candidates from installing
 
 Draws consume retained geometry inputs: vertex-buffer references with stream ranges, offsets and strides,
 an optional index-buffer reference with its format/range, and explicit draw parameters. The pipeline
-supplies the immutable vertex-layout contract. Validate layout compatibility, resource usability and
-accessed ranges at execution before issuing the draw. Indirect inputs retain their buffer references and
-ranges under the same execution-time rules.
+supplies the immutable vertex-layout contract. Before issuing a draw, validate layout compatibility,
+resource usability, supplied offsets/alignment and declared ranges against known resource bounds.
+Validate accesses derivable from explicit draw parameters; indirect inputs retain their buffer references
+and argument ranges under the same execution-time rules.
+
+Producers remain responsible for index values and GPU-generated draw arguments, including the validity
+of accesses those contents determine. Ordinary RHI submission does not inspect or read back those
+contents, or synchronize the GPU to prove their values. Descriptor/range validation does not claim to
+prove every content-dependent vertex access.
 
 Geometry adapters supply these inputs and retain ownership/adoption policy; they do not execute draws.
 Replace `GraphicsGeometry.Submit` and concrete engine/native draw paths with backend-owned submission.
@@ -588,7 +594,9 @@ within an existing boundary cannot widen its declaration. Verify selective resto
 failure without blanket capture or recording-time resource inspection.
 
 Verify geometry inputs for owned and borrowed streams, indexed/instanced/indirect ranges, replacement
-and expiration of engine borrowing intervals; adapters must issue no native draws. Verify recorded
+and expiration of engine borrowing intervals; adapters must issue no native draws. Verify that descriptor
+and known-bound checks reject invalid supplied ranges without reading index/indirect contents back or
+adding GPU synchronization to validate their values. Verify recorded
 uniform submission across allocator epoch changes, cancellation before execution, failed binding and
 newer CPU edits, with physical allocation deferred until execution and no expired ring-offset reuse.
 
