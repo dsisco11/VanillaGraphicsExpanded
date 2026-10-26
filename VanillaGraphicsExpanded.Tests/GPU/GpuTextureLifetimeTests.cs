@@ -1,3 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -18,8 +21,8 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
     public void DeletedBoundTextureIsNotRestoredByLaterUpload()
     {
         EnsureContextValid();
-        using var target = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var retired = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var target = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var retired = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         target.Bind(3);
         retired.Bind(0);
         retired.Bind(2);
@@ -31,7 +34,7 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
         Assert.Equal(ErrorCode.NoError, GL.GetError());
         Assert.Equal(0, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 2));
         Assert.Equal(target.TextureId, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, 3));
-        StateCache.Current.ActiveTexture(0);
+        OpenGLImageBindings.ActiveTexture(StateCache.Current, 0);
         Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2D));
         Assert.Equal(new float[] { .25f, .5f, .75f, 1 }, target.ReadPixels());
         Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -46,8 +49,8 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
         try
         {
             manager.OnRenderFrame(0, GpuResourceManager.Stage);
-            using var target = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-            using var retired = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+            using var target = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var retired = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             retired.Bind(0);
             int retiredId = retired.TextureId;
             Exception? workerError = null;
@@ -73,7 +76,7 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
     public void BorrowedTextureRetirementPreservesExternalStorage()
     {
         EnsureContextValid();
-        using var external = DynamicTexture2D.CreateWithData(2,1,PixelInternalFormat.Rgba32f,[8f,4f,2f,.3f,1f,2f,3f,.7f]);
+        using var external = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 2, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 8f,4f,2f,.3f,1f,2f,3f,.7f }).AsSpan()).ToArray())]).RequireResource();
         external.Bind(3);
         int handle = external.TextureId;
         using var borrowed = new BorrowedTexture(handle);
@@ -114,7 +117,7 @@ public sealed class GpuTextureLifetimeTests : RenderTestBase
             Assert.True(GL.IsTexture(texture));
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { StateCache.Current.DeleteTexture(texture); }
+        finally { RHICommandContext.Current.OpenGL.DeleteTexture(texture); }
     }
     #endregion
 }

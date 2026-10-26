@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -207,8 +209,8 @@ public sealed class GBufferExternalFramebufferTests(HeadlessGLFixture fixture) :
         api.SetupGet(value => value.Logger).Returns(assets.Api.Logger);
         using var buffers = new DirectLightingBufferManager(api.Object);
         Assert.True(buffers.EnsureBuffers(2, 2));
-        using var stale = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
-        StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, stale.TextureId);
+        using var stale = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 0, stale.TextureId);
         GL.DeleteTexture(stale.ReleaseHandle().ToInt32());
         GBufferHooks.RebuildFrameBuffers_Hook();
 

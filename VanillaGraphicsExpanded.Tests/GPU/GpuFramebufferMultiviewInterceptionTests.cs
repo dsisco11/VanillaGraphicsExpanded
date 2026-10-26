@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -18,7 +20,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
         try
         {
             GL.TextureStorage3D(texture,1,SizedInternalFormat.Rgba8,8,4,6);
-            using var array=new BorrowedTexture(texture); using var view=GpuTextureView.CreateFromTexture(array,TextureTarget.Texture2DArray,PixelInternalFormat.Rgba8,0,1,1,4);
+            using var array=new BorrowedTexture(texture); using var view=RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = array, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 1, LayerCount = 4, Label = null }).RequireResource();
             using var image=useView?GpuFramebufferAttachment.FromMultiviewTexture(view,1,2):GpuFramebufferAttachment.FromMultiviewTexture(array,1,2);
             using var capabilities=new DirectStateAccessCapabilityScope(direct);
             using var first=DynamicGpuFramebuffer.Create([image])!; using var target=DynamicGpuFramebuffer.Create([image])!;
@@ -29,7 +31,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             var descriptor=entry.Metadata.Attachments[FramebufferAttachment.ColorAttachment0]; Assert.Equal(GpuFramebufferAttachmentMode.Multiview,descriptor.Mode); Assert.Equal(1,descriptor.BaseView); Assert.Equal(2,descriptor.ViewCount); Assert.Equal(useView?view.TextureId:array.TextureId,descriptor.Id);
             Assert.Equal(2,image.ImageDepth); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { StateCache.Current.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Unobserved initial attachment mode may expose native range facts but cannot invent replay semantics.</summary>
     [Fact]
@@ -46,7 +48,7 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             using var ordinary=GpuFramebufferAttachment.FromTexture(array,layer:0); using var target=DynamicGpuFramebuffer.Create([ordinary])!;
             Assert.Throws<NotSupportedException>(()=>image.AttachTo(target,FramebufferAttachment.ColorAttachment0)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { StateCache.Current.DeleteFramebuffer(framebuffer); StateCache.Current.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { StateCache.Current.DeleteFramebuffer(framebuffer); RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>Backing storage publication refreshes selected extents and replays the proven OVR range.</summary>
     [Theory]
@@ -59,13 +61,13 @@ public sealed class GpuFramebufferMultiviewInterceptionTests(HeadlessGLFixture f
             GL.BindTexture(TextureTarget.Texture2DArray,texture); GL.TexImage3D(TextureTarget.Texture2DArray,0,PixelInternalFormat.Rgba8,8,4,4,0,PixelFormat.Rgba,PixelType.UnsignedByte,IntPtr.Zero);
             GpuResourceManagerSystem.CurrentManager!.AcquireResource(GpuResourceKind.Texture,texture,new GpuTextureMetadataReader(TextureTarget.Texture2DArray));
             using var array=new BorrowedTexture(texture); using var image=GpuFramebufferAttachment.FromMultiviewTexture(array,1,2); using var capabilities=new DirectStateAccessCapabilityScope(direct); using var framebuffer=DynamicGpuFramebuffer.Create([image])!;
-            StateCache.Current.BindTexture(TextureTarget.Texture2DArray,0,texture);
-            StateCache.Current.TextureImage3D(array,TextureTarget.Texture2DArray,0,PixelInternalFormat.Rgba8,16,8,4,0,PixelFormat.Rgba,PixelType.UnsignedByte,IntPtr.Zero);
+            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2DArray,0,texture);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage3D(TextureTarget.Texture2DArray, 0, PixelInternalFormat.Rgba8, 16, 8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             framebuffer.Bind();
             Assert.Equal(16,image.Width); Assert.Equal(8,image.Height); Assert.Equal(2,image.ImageDepth);
             GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer,FramebufferAttachment.ColorAttachment0,(FramebufferParameterName)All.FramebufferAttachmentTextureBaseViewIndexOvr,out int first); GL.GetFramebufferAttachmentParameter(FramebufferTarget.Framebuffer,FramebufferAttachment.ColorAttachment0,(FramebufferParameterName)All.FramebufferAttachmentTextureNumViewsOvr,out int count); Assert.Equal(1,first); Assert.Equal(2,count); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { StateCache.Current.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
 }

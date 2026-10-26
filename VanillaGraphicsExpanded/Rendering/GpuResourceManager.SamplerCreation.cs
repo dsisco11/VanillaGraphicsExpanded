@@ -21,7 +21,7 @@ internal sealed partial class GpuResourceManager
         public void Validate(in GpuSamplerInitialization initialization) { }
         /// <inheritdoc />
         public GpuSamplerMetadata? Initialize(StateCache cache, in GpuSamplerInitialization initialization, out nint id)
-            => cache.CreateSampler(out id);
+            => RHI.RHICommandContext.Current.OpenGL.InitializeSampler(out id);
         #endregion
     }
     #endregion

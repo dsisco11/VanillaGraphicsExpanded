@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -28,7 +29,7 @@ public sealed class StencilTexture : DynamicTexture2D
         StateCache.Current.SetDrawBuffer(DrawBufferMode.None);
         GL.ReadBuffer(ReadBufferMode.None);
         // Borrow a tightly packed layout and restore every incoming pack field through the cache.
-        using (StateCache.Current.SetPixelPackScope(new StateCache.PixelPackState(Alignment: 1)))
+        using (OpenGLPixelLayouts.PackScope(StateCache.Current, new StateCache.PixelPackState(Alignment: 1)))
         {
             GL.ReadPixels(0, 0, Width, Height, PixelFormat.StencilIndex, PixelType.UnsignedByte, pixels);
         }

@@ -1,3 +1,4 @@
+using System;
 using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
@@ -22,7 +23,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         EnsureContextValid();
         using var pipeline = Load("uniform_state", UniformStateComputeShader.Contract);
         using var shader = new UniformStateComputeShader(pipeline);
-        using var result = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var result = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         shader.Values = [2, 3];
         shader.Scalar = 7;
         shader.Output = new(result, TextureAccess.WriteOnly);
@@ -78,8 +79,8 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         var table = arrays.ProgramLayout.BinaryInterface!.PreparedBindings;
         var input = table.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "inputs"));
         var image = table.Resolve(GpuBindingEntry.Identity(ShaderBindingKind.Image, "outputImage"));
-        using var first = Texture2D.CreateWithDataImmediate(1, 1, PixelInternalFormat.Rgba32f, [1, 2, 3, 4]);
-        using var second = Texture2D.CreateWithDataImmediate(1, 1, PixelInternalFormat.Rgba32f, [10, 20, 30, 40]);
+        using var first = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1, 2, 3, 4 }).AsSpan()).ToArray())]).RequireResource();
+        using var second = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 10, 20, 30, 40 }).AsSpan()).ToArray())]).RequireResource();
         GpuTextureRef[] desired = [first, second];
         var view = new GpuTextureBinding(result, TextureAccess.WriteOnly);
         ShaderPreparedSubmission.SamplerArray(input, desired);
@@ -150,7 +151,7 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
             GpuBindingEntry.Identity(ShaderBindingKind.Sampler, "inputs"));
         // The descriptor fixture has no wrapper target policy; model the explicit engine-ID contract.
         input = input with { Contract = input.Contract with { Binding = input.Contract.Binding with { TextureTarget = (int)TextureTarget.Texture2D } } };
-        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         int borrowedId = texture.TextureId;
         var cache = StateCache.Current;
 #if DEBUG

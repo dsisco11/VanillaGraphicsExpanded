@@ -44,7 +44,8 @@ internal static class TextureStreamingSystem
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
         int unpackRowLength = 0,
-        int unpackImageHeight = 0)
+        int unpackImageHeight = 0,
+        GpuTexture? textureOwner = null)
     {
         return Manager.StageCopy(
             textureId,
@@ -56,7 +57,7 @@ internal static class TextureStreamingSystem
             priority,
             unpackAlignment,
             unpackRowLength,
-            unpackImageHeight);
+            unpackImageHeight, textureOwner);
     }
 
     public static TextureStageResult StageCopy(
@@ -69,7 +70,8 @@ internal static class TextureStreamingSystem
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
         int unpackRowLength = 0,
-        int unpackImageHeight = 0)
+        int unpackImageHeight = 0,
+        GpuTexture? textureOwner = null)
     {
         return Manager.StageCopy(
             textureId,
@@ -81,7 +83,7 @@ internal static class TextureStreamingSystem
             priority,
             unpackAlignment,
             unpackRowLength,
-            unpackImageHeight);
+            unpackImageHeight, textureOwner);
     }
 
     public static TextureStageResult StageCopy(
@@ -94,7 +96,8 @@ internal static class TextureStreamingSystem
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
         int unpackRowLength = 0,
-        int unpackImageHeight = 0)
+        int unpackImageHeight = 0,
+        GpuTexture? textureOwner = null)
     {
         return Manager.StageCopy(
             textureId,
@@ -106,7 +109,7 @@ internal static class TextureStreamingSystem
             priority,
             unpackAlignment,
             unpackRowLength,
-            unpackImageHeight);
+            unpackImageHeight, textureOwner);
     }
 
     /// <summary>Stages floating-point data, optionally retaining a concrete destination lifetime for transfer admission.</summary>

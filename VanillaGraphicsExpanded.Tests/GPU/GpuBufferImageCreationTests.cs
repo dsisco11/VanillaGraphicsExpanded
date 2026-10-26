@@ -52,8 +52,8 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         var original = GpuSupport.Graphics;
         try
         {
-            AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original with { SupportsInternalFormatQuery2 = false });
-            using var renderbuffer = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 8, 4, 3);
+            // Sample selection uses the baseline per-format capability cache.
+            using var renderbuffer = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 8, Height = 4, Samples = 3, Label = null }).RequireResource();
             Assert.Equal(8, renderbuffer.Width);
             Assert.Equal(4, renderbuffer.Height);
             Assert.Equal(RenderbufferStorage.Rgba8, renderbuffer.Storage);
@@ -219,18 +219,16 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
 
     /// <summary>Renderbuffer creation publishes dimensions and format without native descriptor acquisition.</summary>
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void RenderbufferCreationPublishesCompleteFacts(bool registered, bool dsa)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void RenderbufferCreationPublishesCompleteFacts(bool registered)
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
         try
         {
-            using var capabilities = new DirectStateAccessCapabilityScope(dsa);
-            using var sentinel = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 2, 2);
+
+            using var sentinel = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
             using var binding = StateCache.Current.BindRenderbufferScope(sentinel.RenderbufferId);
             using var recipient = new Recipient<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer);
             var request = new GpuRenderbufferInitialization { Format = RenderbufferStorage.Rgba8, Width = 8, Height = 4 };
@@ -258,7 +256,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var owner = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 8, 4);
+            using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 8, Height = 4, Samples = 0, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuRenderbufferMetadata>>(manager.GetResourceRegistration(owner));
             using var alias = new Recipient<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer, owner.RenderbufferId, false);
@@ -266,7 +264,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
             var reader = new RejectReader<GpuRenderbufferMetadata>();
             entry.Reader = reader;
             ulong storage = entry.StorageRevision;
-            owner.AllocateStorage(RenderbufferStorage.Rgba8, 16, 8);
+            owner.AllocateStorage(RHIFormat.Rgba8, 16, 8);
             Assert.Equal(storage + 1, entry.StorageRevision);
             Assert.Equal(new GpuRenderbufferMetadata(16, 8, PixelInternalFormat.Rgba8, 0), alias.Snapshot);
             Assert.Equal(0, reader.Calls);

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -41,9 +42,9 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         float[] hData = BuildDeterministicNoise(w, h, seed: 101);
         float[] bData = BuildDeterministicNoise(w, h, seed: 202);
 
-        using var hTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, hData, TextureFilterMode.Nearest);
-        using var bTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, bData, TextureFilterMode.Nearest);
-        using var rTex = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var hTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = w, Height = h, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((hData).AsSpan()).ToArray())]).RequireResource();
+        using var bTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = w, Height = h, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((bData).AsSpan()).ToArray())]).RequireResource();
+        using var rTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
         RenderTo(rTex, progResidual, () =>
         {
@@ -84,8 +85,8 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
 
         float[] fine = BuildDeterministicNoise(fineW, fineH, seed: 303);
 
-        using var fineTex = DynamicTexture2D.CreateWithData(fineW, fineH, PixelInternalFormat.R32f, fine, TextureFilterMode.Nearest);
-        using var coarseTex = DynamicTexture2D.Create(coarseW, coarseH, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var fineTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = fineW, Height = fineH, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, fineW, fineH), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((fine).AsSpan()).ToArray())]).RequireResource();
+        using var coarseTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, coarseW), Height = System.Math.Max(1, coarseH), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
         RenderTo(coarseTex, progRestrict, () =>
         {
@@ -126,9 +127,9 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         float[] fineHData = BuildDeterministicNoise(fineW, fineH, seed: 404);
         float[] coarseE = BuildDeterministicNoise(coarseW, coarseH, seed: 505);
 
-        using var fineTex = DynamicTexture2D.CreateWithData(fineW, fineH, PixelInternalFormat.R32f, fineHData, TextureFilterMode.Nearest);
-        using var coarseTex = DynamicTexture2D.CreateWithData(coarseW, coarseH, PixelInternalFormat.R32f, coarseE, TextureFilterMode.Nearest);
-        using var outTex = DynamicTexture2D.Create(fineW, fineH, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var fineTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = fineW, Height = fineH, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, fineW, fineH), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((fineHData).AsSpan()).ToArray())]).RequireResource();
+        using var coarseTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = coarseW, Height = coarseH, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, coarseW, coarseH), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((coarseE).AsSpan()).ToArray())]).RequireResource();
+        using var outTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, fineW), Height = System.Math.Max(1, fineH), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
         RenderTo(outTex, progProlongate, () =>
         {
@@ -182,16 +183,16 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         int cw = Math.Max(1, w / 2);
         int ch = Math.Max(1, h / 2);
 
-        using var bFine = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, rhs.Data, TextureFilterMode.Nearest);
+        using var bFine = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = w, Height = h, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((rhs.Data).AsSpan()).ToArray())]).RequireResource();
 
-        using var h0 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var h1 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var h0 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var h1 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
-        using var resFine = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var bCoarse = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var resFine = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var bCoarse = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, cw), Height = System.Math.Max(1, ch), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
-        using var e0 = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var e1 = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var e0 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, cw), Height = System.Math.Max(1, ch), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var e1 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, cw), Height = System.Math.Max(1, ch), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
         ClearR32f(h0, 0f);
         ClearR32f(h1, 0f);
@@ -277,23 +278,23 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         int cw = Math.Max(1, mw / 2);
         int ch = Math.Max(1, mh / 2);
 
-        using var bFine = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, rhs.Data, TextureFilterMode.Nearest);
+        using var bFine = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = w, Height = h, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((rhs.Data).AsSpan()).ToArray())]).RequireResource();
 
         // Fine solution buffers.
-        using var h0 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var h1 = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var resFine = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var h0 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var h1 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var resFine = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
         // Mid (coarse-1) buffers.
-        using var bMid = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var eMid0 = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var eMid1 = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var resMid = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var bMid = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var eMid0 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var eMid1 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var resMid = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
         // Coarsest buffers.
-        using var bCoarse = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var eCoarse0 = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var eCoarse1 = DynamicTexture2D.Create(cw, ch, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var bCoarse = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, cw), Height = System.Math.Max(1, ch), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var eCoarse0 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, cw), Height = System.Math.Max(1, ch), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var eCoarse1 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, cw), Height = System.Math.Max(1, ch), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
         ClearR32f(h0, 0f);
         ClearR32f(h1, 0f);
@@ -315,9 +316,9 @@ public sealed class PbrPoissonMultigridVCycleTests : RenderTestBase
         // Compute a 2-level V-cycle result for comparison.
         float rms2LevelFinal;
         {
-            using var bCoarse2 = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var eC0 = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-            using var eC1 = DynamicTexture2D.Create(mw, mh, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+            using var bCoarse2 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var eC0 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var eC1 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             ClearR32f(eC0, 0f);
             ClearR32f(eC1, 0f);
 

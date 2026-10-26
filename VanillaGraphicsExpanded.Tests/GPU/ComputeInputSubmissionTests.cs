@@ -20,8 +20,8 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
-        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32ui);
-        using var usage = Texture3D.Create(1, 1, 1, PixelInternalFormat.R32ui, textureTarget: TextureTarget.Texture2DArray);
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var usage = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var counter = new ComponentAtomicCounters(23, 3);
         Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var loaded, out string log), log);
         using var shader = loaded!;
@@ -44,8 +44,8 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         using var assets = new BinaryShaderApiFixture();
-        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32ui);
-        using var usage = Texture3D.Create(1, 1, 1, PixelInternalFormat.R32ui, textureTarget: TextureTarget.Texture2DArray);
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var usage = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var counters = new ComponentAtomicCounters(0, 3);
         Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var loaded, out string log), log);
         using var outer = loaded!;
@@ -53,7 +53,7 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         outer.BindPageUsageStampImage(usage);
         outer.BindDebugCounters(counters.Buffer);
         using var outerScope = outer.UseScope();
-        using var graphicsDepth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        using var graphicsDepth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var graphics = programs.Create<RasterDepthCopyShaderProgram>();
         graphics.PrimaryDepth = graphicsDepth;
         IDisposable inner;
@@ -73,9 +73,9 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         using var assets = new BinaryShaderApiFixture();
-        using var firstTexture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32ui);
-        using var secondTexture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32ui);
-        using var usage = Texture3D.Create(1, 1, 1, PixelInternalFormat.R32ui, textureTarget: TextureTarget.Texture2DArray);
+        using var firstTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var secondTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var usage = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var firstCounters = new ComponentAtomicCounters(17, 3);
         using var secondCounters = new ComponentAtomicCounters(29, 3);
         Assert.True(LumonSceneFeedbackMarkPagesComputeShader.TryCreate(assets.Api, out var firstOwner, out string firstLog), firstLog);
@@ -88,7 +88,7 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         second.BindPatchIdGBuffer(secondTexture.TextureId);
         second.BindPageUsageStampImage(usage);
         second.BindDebugCounters(secondCounters.Buffer);
-        using var graphicsDepth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        using var graphicsDepth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var graphics = programs.Create<RasterDepthCopyShaderProgram>();
         graphics.PrimaryDepth = graphicsDepth;
         using (graphics.UseScope())

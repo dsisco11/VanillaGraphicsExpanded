@@ -1,84 +1,14 @@
-using System;
-using OpenTK.Graphics.OpenGL;
-
 namespace VanillaGraphicsExpanded.Rendering;
 
-/// <summary>Tracks pixel-pack layout used by framebuffer readback.</summary>
+/// <summary>Owns executed pixel-pack layout knowledge independently of native execution.</summary>
 internal sealed partial class StateCache
 {
-    private PixelPackState? pixelPackState;
-
-    #region Public API
-    /// <summary>Forgets pack state after explicitly reported external GL changes.</summary>
-    public void DirtyPixelPackState() => pixelPackState = null;
-
-    /// <summary>Gets the cached layout, querying GL only when the state is unknown.</summary>
-    public PixelPackState GetPixelPackState()
-    {
-        // External rendering boundaries must invalidate the cache before borrowing state.
-        return pixelPackState ??= new PixelPackState(
-            QueryBoundary(() => GL.GetInteger(GetPName.PackAlignment)),
-            QueryBoundary(() => GL.GetInteger(GetPName.PackRowLength)),
-            QueryBoundary(() => GL.GetInteger(GetPName.PackSkipRows)),
-            QueryBoundary(() => GL.GetInteger(GetPName.PackSkipPixels)),
-            QueryBoundary(() => GL.GetInteger(GetPName.PackSwapBytes)) != 0,
-            QueryBoundary(() => GL.GetInteger(GetPName.PackLsbFirst)) != 0);
-    }
-
-    /// <summary>Applies a pack layout, omitting driver calls for known unchanged values.</summary>
-    public void SetPixelPackState(PixelPackState state)
-    {
-        if (state.Alignment is not (1 or 2 or 4 or 8)) throw new ArgumentOutOfRangeException(nameof(state));
-        if (state.RowLength < 0 || state.SkipRows < 0 || state.SkipPixels < 0) throw new ArgumentOutOfRangeException(nameof(state));
-        // A known identical layout is a pure cache hit, including its error state.
-        if (pixelPackState == state) return;
-        var previous = pixelPackState;
-        // Leave the cache unknown if a driver call throws partway through the update.
-        pixelPackState = null;
-        // Optional diagnostics share the ordinary transition policy; boundary restoration owns its checks.
-        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        if (previous?.Alignment != state.Alignment) GL.PixelStore(PixelStoreParameter.PackAlignment, state.Alignment);
-        if (previous?.RowLength != state.RowLength) GL.PixelStore(PixelStoreParameter.PackRowLength, state.RowLength);
-        if (previous?.SkipRows != state.SkipRows) GL.PixelStore(PixelStoreParameter.PackSkipRows, state.SkipRows);
-        if (previous?.SkipPixels != state.SkipPixels) GL.PixelStore(PixelStoreParameter.PackSkipPixels, state.SkipPixels);
-        if (previous?.SwapBytes != state.SwapBytes) GL.PixelStore(PixelStoreParameter.PackSwapBytes, state.SwapBytes ? 1 : 0);
-        if (previous?.LsbFirst != state.LsbFirst) GL.PixelStore(PixelStoreParameter.PackLsbFirst, state.LsbFirst ? 1 : 0);
-        if (GlDebug.CheckStateTransitions && !restoringBoundary) CheckBoundaryNativeError();
-        pixelPackState = state;
-    }
-
-    /// <summary>Applies a temporary layout and restores the previous layout on disposal.</summary>
-    public PixelPackScope SetPixelPackScope(PixelPackState state)
-    {
-        var previous = GetPixelPackState();
-        try { SetPixelPackState(state); }
-        catch (Exception operation)
-        {
-            try { SetPixelPackState(previous); }
-            catch (Exception cleanup) { throw new AggregateException(operation, cleanup); }
-            throw;
-        }
-        return new PixelPackScope(this, previous);
-    }
-
-    /// <summary>Describes row layout and byte ordering for framebuffer and bitmap readback.</summary>
-    public readonly record struct PixelPackState(int Alignment, int RowLength = 0, int SkipRows = 0, int SkipPixels = 0, bool SwapBytes = false, bool LsbFirst = false);
-
-    /// <summary>Restores a borrowed pack layout through the owning cache.</summary>
-    public readonly struct PixelPackScope : IDisposable
-    {
-        private readonly StateCache cache;
-        private readonly PixelPackState previous;
-
-        /// <summary>Records the layout to restore when this scope ends.</summary>
-        internal PixelPackScope(StateCache cache, PixelPackState previous)
-        {
-            this.cache = cache;
-            this.previous = previous;
-        }
-
-        /// <summary>Restores the layout, updating the cache along with GL.</summary>
-        public void Dispose() => cache.SetPixelPackState(previous);
-    }
+    #region Internal API
+    /// <summary>Retains the current certified layout; null means external state must be acquired.</summary>
+    internal PixelPackState? PixelPackKnowledge { get; set; }
+    /// <summary>Withdraws layout knowledge after unobserved native changes.</summary>
+    public void DirtyPixelPackState() => PixelPackKnowledge = null;
+    /// <summary>Describes row/image strides, skips and byte order.</summary>
+    public readonly record struct PixelPackState(int Alignment, int RowLength = 0, int SkipRows = 0, int SkipPixels = 0, bool SwapBytes = false, bool LsbFirst = false, int ImageHeight = 0, int SkipImages = 0);
     #endregion
 }

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Buffers.Binary;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -106,7 +108,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
         Assert.Equal(Width, record.GetProperty("width").GetInt32());
         Assert.Equal(Height, record.GetProperty("height").GetInt32());
         int levels = record.GetProperty("mips").GetInt32();
-        var texture = DynamicTexture2D.CreateMipmapped(Width, Height, PixelInternalFormat.R32f, levels);
+        var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, Height), MipLevels = levels, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (levels) - 1, Label = null }).RequireResource();
         try
         {
             var subresources = record.GetProperty("subresources").EnumerateArray().ToArray();
@@ -120,7 +122,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
                 Assert.Equal(height, subresource.GetProperty("height").GetInt32());
                 float[] pixels = DecodeFloat(ReadPayload(subresource, checked(width * height * 4)));
                 using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId))
-                using (StateCache.Current.SetPixelUnpackScope(new StateCache.PixelUnpackState(4)))
+                using (OpenGLPixelLayouts.UnpackScope(StateCache.Current, new StateCache.PixelUnpackState(4)))
                     GL.TexSubImage2D(TextureTarget.Texture2D, mip, 0, 0, width, height, PixelFormat.Red, PixelType.Float, pixels);
                 Assert.Equal(pixels, texture.ReadPixels(mip));
             }
@@ -138,7 +140,7 @@ internal sealed class CapturedAmbientOcclusionFixture : IDisposable
         Assert.Equal(1, record.GetProperty("mips").GetInt32());
         int layers = record.GetProperty("arraySize").GetInt32();
         Assert.Equal(3, layers);
-        var texture = Texture3D.Create(Width, Height, layers, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray);
+        var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, Width), Height = System.Math.Max(1, Height), Depth = System.Math.Max(1, layers), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         try
         {
             var subresources = record.GetProperty("subresources").EnumerateArray().ToArray();

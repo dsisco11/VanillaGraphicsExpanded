@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using System;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text.Json;
@@ -154,7 +156,7 @@ public sealed class AoMinimumChildProductionTests(HeadlessGLFixture fixture, ITe
             float[] parent=hierarchy.ReadPixels(level),children=hierarchy.ReadPixels(level-1);
             ushort[] bits=new ushort[w*h];
             using(StateCache.Current.BindTextureScope(TextureTarget.Texture2D,0,masks.TextureId))
-            using(StateCache.Current.SetPixelPackScope(new StateCache.PixelPackState(1)))
+            using(OpenGLPixelLayouts.PackScope(StateCache.Current, new StateCache.PixelPackState(1)))
             {
                 GL.GetTexLevelParameter(TextureTarget.Texture2D,level-1,GetTextureParameter.TextureWidth,out int allocatedWidth);
                 GL.GetTexLevelParameter(TextureTarget.Texture2D,level-1,GetTextureParameter.TextureHeight,out int allocatedHeight);

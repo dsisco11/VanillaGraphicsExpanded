@@ -20,7 +20,7 @@ internal sealed partial class GpuResourceManager
         public void Validate(in GpuRenderbufferInitialization initialization) => initialization.Validate();
         /// <inheritdoc />
         public GpuRenderbufferMetadata? Initialize(StateCache cache, in GpuRenderbufferInitialization initialization, out nint id)
-            => cache.CreateRenderbuffer(initialization, out id);
+            => RHI.RHICommandContext.Current.OpenGL.InitializeRenderbuffer(initialization, out id);
         #endregion
     }
 }

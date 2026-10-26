@@ -92,7 +92,6 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
                     || storage is GpuTextureView { Source: null or BorrowedTexture })
                     throw new ArgumentException("Static framebuffers require managed attachment storage with tracked allocation ownership.");
                 Freeze(image); Freeze(storage);
-                if (storage is GpuTextureView { Source: { } source }) Freeze(source);
             }
             configurationOwner.RegisterStaticFramebuffer(this);
             Integration.RenderContextRegistry.Retiring += OnContextRetiring;
@@ -106,9 +105,12 @@ public sealed class StaticGpuFramebuffer : GpuFramebuffer
     private void Freeze(GpuResource resource)
     {
         if (frozen.Contains(resource)) return;
+        if (resource is BorrowedTexture || resource is GpuTextureView { Source: null })
+            throw new ArgumentException("Static framebuffers require managed backing ownership throughout a view chain.");
         frozen.Add(resource);
         try { resource.RetainPassReference(); }
         catch { frozen.Remove(resource); throw; }
+        if (resource is GpuTextureView { Source: { } source }) Freeze(source);
     }
     /// <summary>Removes static admission and releases all image/allocation guards without native mutations.</summary>
     private void ReleaseConfiguration(int id)

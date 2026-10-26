@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Reflection;
@@ -60,7 +61,7 @@ public sealed class CelestialPublicationAtomicityTests(HeadlessGLFixture fixture
         ownerType.GetField("celestial",flags)!.SetValue(owner,lifetime);
         var readyProperty=typeof(CelestialSourceLifetime).GetProperty("Ready",flags)!;
         var source=CelestialSource.Create(new(0,32,1024,4));
-        var first=new CelestialResourceSet(source,DynamicTextureCube.Create(32,PixelInternalFormat.R11fG11fB10f));
+        var first=new CelestialResourceSet(source,RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.R11fG11fB10f, Width = 32, Height = 32, MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         readyProperty.SetValue(lifetime,first);
         var table=ImmutableArray.CreateRange(Enumerable.Range(0,512).SelectMany(_=>new[]{1f,1f,1f,1f}));
         var lighting=new AtmosphereLighting(-Vector3.UnitY,Vector3.Zero,new(.0001f),Vector3.Zero,Vector3.Zero,
@@ -72,7 +73,7 @@ public sealed class CelestialPublicationAtomicityTests(HeadlessGLFixture fixture
         int previousSky=AtmosphereModSystem.SkyTextureId;
         var previousTransmission=AtmosphereModSystem.ExternalTransmissionTexture;
         var nextSource=source with{GalaxyAmplitude=source.GalaxyAmplitude*2};
-        var next=new CelestialResourceSet(nextSource,DynamicTextureCube.Create(32,PixelInternalFormat.R11fG11fB10f));
+        var next=new CelestialResourceSet(nextSource,RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.R11fG11fB10f, Width = 32, Height = 32, MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         readyProperty.SetValue(lifetime,next);
         var candidate=lighting with{CelestialSource=nextSource,CelestialRotation=Matrix4x4.CreateRotationX(.4f)};
         var invalid=candidate with{ExternalTransmission=table.SetItem(0,float.NaN)};

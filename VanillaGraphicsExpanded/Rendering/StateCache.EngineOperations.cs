@@ -85,36 +85,15 @@ internal sealed partial class StateCache
         }
     }
 
-    /// <summary>Forwards one integer pixel-store change after withdrawing the affected layout knowledge.</summary>
-    internal void SetPixelStore(PixelStoreParameter parameter, int value)
-    {
-        InvalidatePixelTransferLayout(parameter);
-        GL.PixelStore(parameter, value);
-    }
 
-    /// <summary>Preserves native float-to-integer conversion without retaining stale layout knowledge.</summary>
-    internal void SetPixelStore(PixelStoreParameter parameter, float value)
-    {
-        InvalidatePixelTransferLayout(parameter);
-        GL.PixelStore(parameter, value);
-    }
+
+
 
     #endregion
 
     #endregion
     #region Private
-    /// <summary>Forgets only layout fields that the specified native pixel-store command can change.</summary>
-    private void InvalidatePixelTransferLayout(PixelStoreParameter parameter)
-    {
-        // Pack owns the readback layout; unpack additionally owns image strides for layered uploads.
-        if (parameter is PixelStoreParameter.PackAlignment or PixelStoreParameter.PackRowLength
-            or PixelStoreParameter.PackSkipRows or PixelStoreParameter.PackSkipPixels
-            or PixelStoreParameter.PackSwapBytes or PixelStoreParameter.PackLsbFirst) DirtyPixelPackState();
-        else if (parameter is PixelStoreParameter.UnpackAlignment or PixelStoreParameter.UnpackRowLength
-            or PixelStoreParameter.UnpackSkipRows or PixelStoreParameter.UnpackSkipPixels
-            or PixelStoreParameter.UnpackSwapBytes or PixelStoreParameter.UnpackLsbFirst
-            or PixelStoreParameter.UnpackImageHeight or PixelStoreParameter.UnpackSkipImages) DirtyPixelUnpackState();
-    }
+
 
     /// <summary>Issues a native capability transition and records its diagnostic count.</summary>
     private void SetEnable(EnableCap cap, bool enabled)

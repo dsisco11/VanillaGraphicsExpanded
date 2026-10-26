@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -141,7 +142,7 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         var harmony = Patch(nameof(ChangeTexture));
         try
         {
-            cache.BindSampler(3, sampler);
+            OpenGLImageBindings.BindSampler(cache, 3, sampler);
 #if DEBUG
             long bindsBefore = cache.TextureBindCount;
 #endif
@@ -151,8 +152,8 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
 #endif
             Assert.True(cache.TryGetCachedActiveTextureUnit(out int unit));
             Assert.Equal(3, unit);
-            Assert.True(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out int cachedTexture));
-            Assert.Equal(texture, cachedTexture);
+            Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 3, out _));
+            Assert.Equal(texture, cache.GetBoundTexture(TextureTarget.Texture2D, 3));
             Assert.Equal(texture, GL.GetInteger(GetPName.TextureBinding2D));
             Assert.Equal(sampler, cache.GetBoundSampler(3));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
@@ -180,10 +181,10 @@ public sealed class EngineStateSwitchingGpuTests(HeadlessGLFixture fixture) : Re
         try
         {
             cache.InvalidateAll();
-            cache.BindTexture(TextureTarget.Texture2D, 1, previousTexture);
-            cache.BindTexture(TextureTarget.Texture2D, 3, previousTexture);
-            cache.BindTexture(TextureTarget.TextureCubeMap, 3, cubeTexture);
-            cache.BindSampler(3, sampler);
+            OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture2D, 1, previousTexture);
+            OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture2D, 3, previousTexture);
+            OpenGLImageBindings.BindTexture(cache, TextureTarget.TextureCubeMap, 3, cubeTexture);
+            OpenGLImageBindings.BindSampler(cache, 3, sampler);
 
             // Simulate losing only active-unit knowledge while retaining snapshots on multiple units.
             cache.Invalidate(EPipelineState.ActiveTextureUnit);

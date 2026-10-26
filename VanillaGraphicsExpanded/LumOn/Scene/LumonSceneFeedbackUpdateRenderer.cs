@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
@@ -911,12 +912,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         slotGenerations = new ushort[chunkSlotCount];
 
         slotGenerationTex?.Dispose();
-        slotGenerationTex = Texture2D.Create(
-            width: chunkSlotCount,
-            height: 1,
-            format: PixelInternalFormat.R32ui,
-            filter: TextureFilterMode.Nearest,
-            debugName: $"LumOn.LumonScene.{LumonSceneField.Near}.ChunkSlotGeneration(R32UI)");
+        slotGenerationTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32ui, Width = System.Math.Max(1, chunkSlotCount), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"LumOn.LumonScene.{LumonSceneField.Near}.ChunkSlotGeneration(R32UI)" }).RequireResource();
 
         // Clear to zero once (generation starts at 0). We'll upload per-slot updates as they change.
         slotGenerationTex.UploadDataImmediate(new uint[checked(chunkSlotCount)], x: 0, y: 0, regionWidth: chunkSlotCount, regionHeight: 1);
@@ -1243,17 +1239,10 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         }
 
         pageUsageStamp?.Dispose();
-        pageUsageStamp = Texture3D.Create(
-            width: LumonSceneVirtualAtlasConstants.VirtualPageTableWidth,
-            height: LumonSceneVirtualAtlasConstants.VirtualPageTableHeight,
-            depth: Math.Max(1, nearGpu.PageTable.ChunkSlotCount),
-            format: PixelInternalFormat.R32ui,
-            filter: TextureFilterMode.Nearest,
-            textureTarget: TextureTarget.Texture2DArray,
-            debugName: $"LumOn.LumonScene.{LumonSceneField.Near}.PageUsageStamp(R32UI)");
+        pageUsageStamp = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, LumonSceneVirtualAtlasConstants.VirtualPageTableWidth), Height = System.Math.Max(1, LumonSceneVirtualAtlasConstants.VirtualPageTableHeight), Depth = System.Math.Max(1, Math.Max(1, nearGpu.PageTable.ChunkSlotCount)), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"LumOn.LumonScene.{LumonSceneField.Near}.PageUsageStamp(R32UI)" }).RequireResource();
 
         // Clear to 0 once; stamps use frameStamp!=0 to avoid needing per-frame clears.
-        _ = pageUsageStamp.TryClearToZero();
+        pageUsageStamp.ClearToZero();
     }
 
     /// <summary>Batches the independent feedback programs only when both need creation.</summary>
@@ -2098,23 +2087,9 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
     {
         int x = virtualPageIndex % VirtualPageTableW;
         int y = virtualPageIndex / VirtualPageTableW;
-
-        int texId = nearGpu.PageTable.PageTableMip0.TextureId;
-        using var _ = StateCache.Current.BindTextureScope(TextureTarget.Texture2DArray, unit: 0, texId);
-
-        uint value = packedEntry;
-        GL.TexSubImage3D(
-            TextureTarget.Texture2DArray,
-            level: 0,
-            xoffset: x,
-            yoffset: y,
-            zoffset: chunkSlot,
-            width: 1,
-            height: 1,
-            depth: 1,
-            format: PixelFormat.RedInteger,
-            type: PixelType.UnsignedInt,
-            pixels: (IntPtr)(&value));
+        RHICommandContext.Current.UploadTexture(nearGpu.PageTable.PageTableMip0, new(new(0), x, y, chunkSlot, 1, 1),
+            new(RHIPixelChannels.RedInteger, RHIPixelType.UnsignedInt),
+            MemoryMarshal.AsBytes(MemoryMarshal.CreateReadOnlySpan(ref packedEntry, 1)));
     }
 
     private sealed class RendererPageTableWriter : ILumonScenePageTableWriter

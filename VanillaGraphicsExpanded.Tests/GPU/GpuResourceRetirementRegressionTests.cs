@@ -25,11 +25,11 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         {
             using GpuResource owner = framebuffer
                 ? DynamicGpuFramebuffer.CreateEmpty()
-                : GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 4, 4);
+                : RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             if (owner is GpuFramebuffer target) target.Bind();
             using GpuResource borrower = framebuffer
                 ? DynamicGpuFramebuffer.Wrap(checked((int)owner.ResourceId), width: 4, height: 4)
-                : GpuRenderbuffer.Wrap(checked((int)owner.ResourceId));
+                : VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(checked((int)owner.ResourceId));
             nint original = owner.ResourceId;
             Assert.Throws<NotSupportedException>(() => { if (releaseHandle) borrower.ReleaseHandle(); else borrower.Detach(); });
             Assert.Equal(original, owner.ResourceId);
@@ -56,7 +56,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             var manager = GpuResourceManagerSystem.CurrentManager!;
             if (registerBacking) Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer, buffer, new GpuBufferMetadataReader()));
             else Assert.Null(manager.FindResource(GpuResourceKind.Buffer, buffer));
-            using var view = GpuBufferView.CreateWholeBuffer(buffer, SizedInternalFormat.R32f);
+            using var view = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(buffer, SizedInternalFormat.R32f, true, 0, 0, null).RequireResource();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view));
             Assert.True(entry.MetadataAvailable);
             RHICommandContext.Current.OpenGL.DeleteBuffer(buffer);
@@ -199,16 +199,16 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             var entry = manager.AcquireResource(GpuResourceKind.Framebuffer, framebuffer, GpuFramebufferMetadataReader.Instance)!;
             Assert.NotNull(entry);
             Assert.True(entry.MetadataAvailable);
-            if (renderbuffer) StateCache.Current.DeleteRenderbuffer(backing);
-            else StateCache.Current.DeleteTexture(backing);
+            if (renderbuffer) RHICommandContext.Current.OpenGL.DeleteRenderbuffer(backing);
+            else RHICommandContext.Current.OpenGL.DeleteTexture(backing);
             Assert.False(entry.MetadataAvailable);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
             StateCache.Current.DeleteFramebuffer(framebuffer);
-            if (renderbuffer && GL.IsRenderbuffer(backing)) StateCache.Current.DeleteRenderbuffer(backing);
-            if (!renderbuffer && GL.IsTexture(backing)) StateCache.Current.DeleteTexture(backing);
+            if (renderbuffer && GL.IsRenderbuffer(backing)) RHICommandContext.Current.OpenGL.DeleteRenderbuffer(backing);
+            if (!renderbuffer && GL.IsTexture(backing)) RHICommandContext.Current.OpenGL.DeleteTexture(backing);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

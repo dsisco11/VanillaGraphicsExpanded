@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -248,7 +249,7 @@ public partial class GpuProgramLayout
         // filtering and comparison state. A surviving VGE sampler overrides that state.
         var cache = StateCache.Current;
         foreach (var binding in samplerContract.Values)
-            cache.UnbindSampler(binding.BindingOrUnit);
+            OpenGLImageBindings.UnbindSampler(cache, binding.BindingOrUnit);
     }
 
     /// <summary>
@@ -1269,10 +1270,10 @@ public partial class GpuProgramLayout
             return false;
         }
 
-        StateCache.Current.BindTexture(target, unit, textureId);
+        OpenGLImageBindings.BindTexture(StateCache.Current, target, unit, textureId);
         if (samplerId != 0)
         {
-            StateCache.Current.BindSampler(unit, samplerId);
+            OpenGLImageBindings.BindSampler(StateCache.Current, unit, samplerId);
         }
 
         return true;
@@ -1313,14 +1314,14 @@ public partial class GpuProgramLayout
             return false;
         }
 
-        StateCache.Current.BindTexture(target, unit, textureId);
+        OpenGLImageBindings.BindTexture(StateCache.Current, target, unit, textureId);
         if (samplerId != 0)
         {
-            StateCache.Current.BindSampler(unit, samplerId);
+            OpenGLImageBindings.BindSampler(StateCache.Current, unit, samplerId);
         }
         else
         {
-            StateCache.Current.UnbindSampler(unit);
+            OpenGLImageBindings.UnbindSampler(StateCache.Current, unit);
         }
 
         return true;
@@ -1341,7 +1342,7 @@ public partial class GpuProgramLayout
             return false;
         }
 
-        StateCache.Current.BindTexture(target, unit, textureId, sampler);
+        OpenGLImageBindings.BindTexture(StateCache.Current, target, unit, textureId, sampler);
         return true;
     }
 

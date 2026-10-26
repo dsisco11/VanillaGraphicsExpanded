@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
@@ -29,7 +31,7 @@ public class DynamicTexture2D : GpuTexture
 
     #region Constructor (private - use factory methods)
 
-    private DynamicTexture2D() { }
+    internal DynamicTexture2D() { }
 
     /// <summary>Initializes storage for a specialized two-dimensional texture.</summary>
     protected DynamicTexture2D(int width, int height, PixelInternalFormat format, TextureFilterMode filter, string? debugName)
@@ -46,105 +48,11 @@ public class DynamicTexture2D : GpuTexture
 
     #region Factory Methods
 
-    /// <summary>
-    /// Creates a new 2D texture with the specified parameters.
-    /// </summary>
-    /// <param name="width">Texture width in pixels.</param>
-    /// <param name="height">Texture height in pixels.</param>
-    /// <param name="format">Internal pixel format (e.g., Rgba16f, Rgba8).</param>
-    /// <param name="filter">Filtering mode for sampling. Default is Nearest.</param>
-    /// <returns>A new DynamicTexture instance.</returns>
-    public static DynamicTexture2D Create(
-        int width,
-        int height,
-        PixelInternalFormat format,
-        TextureFilterMode filter = TextureFilterMode.Nearest,
-        string? debugName = null)
-    {
-        if (TextureFormatHelper.IsDepthFormat(format) || TextureFormatHelper.IsStencilFormat(format))
-            throw new ArgumentException("Use a specialized texture type for depth or stencil formats.", nameof(format));
 
-        if (width <= 0)
-        {
-            Debug.WriteLine($"[DynamicTexture] Invalid width {width}, defaulting to 1");
-            width = 1;
-        }
-        if (height <= 0)
-        {
-            Debug.WriteLine($"[DynamicTexture] Invalid height {height}, defaulting to 1");
-            height = 1;
-        }
 
-        var texture = new DynamicTexture2D
-        {
-            filterMode = filter,
-            debugName = debugName
-        };
 
-        texture.AllocateOrReallocate2DTexture(width, height, format, mipLevels: 1);
-        return texture;
-    }
 
-    /// <summary>
-    /// Creates a new 2D texture with an explicit mip chain allocated.
-    /// Intended for hierarchical buffers like HZB.
-    /// </summary>
-    public static DynamicTexture2D CreateMipmapped(
-        int width,
-        int height,
-        PixelInternalFormat format,
-        int mipLevels,
-        string? debugName = null)
-    {
-        if (TextureFormatHelper.IsDepthFormat(format) || TextureFormatHelper.IsStencilFormat(format))
-            throw new ArgumentException("Use a specialized texture type for depth or stencil formats.", nameof(format));
 
-        if (width <= 0)
-        {
-            Debug.WriteLine($"[DynamicTexture] Invalid width {width}, defaulting to 1");
-            width = 1;
-        }
-        if (height <= 0)
-        {
-            Debug.WriteLine($"[DynamicTexture] Invalid height {height}, defaulting to 1");
-            height = 1;
-        }
-
-        if (mipLevels < 1)
-            mipLevels = 1;
-
-        var texture = new DynamicTexture2D
-        {
-            filterMode = TextureFilterMode.Nearest,
-            debugName = debugName
-        };
-
-        texture.AllocateOrReallocate2DTexture(width, height, format, mipLevels);
-        return texture;
-    }
-
-    /// <summary>
-    /// Creates a new 2D texture with initial pixel data.
-    /// </summary>
-    /// <param name="width">Texture width in pixels.</param>
-    /// <param name="height">Texture height in pixels.</param>
-    /// <param name="format">Internal pixel format (e.g., Rgba16f, Rgba8).</param>
-    /// <param name="data">Float array containing initial pixel data.</param>
-    /// <param name="filter">Filtering mode for sampling. Default is Nearest.</param>
-    /// <returns>A new DynamicTexture instance with uploaded data.</returns>
-    /// <exception cref="ArgumentException">Thrown if data array size doesn't match texture dimensions.</exception>
-    public static DynamicTexture2D CreateWithData(
-        int width,
-        int height,
-        PixelInternalFormat format,
-        float[] data,
-        TextureFilterMode filter = TextureFilterMode.Nearest,
-        string? debugName = null)
-    {
-        var texture = Create(width, height, format, filter, debugName);
-        texture.UploadDataImmediate(data);
-        return texture;
-    }
 
     #endregion
 
@@ -165,7 +73,7 @@ public class DynamicTexture2D : GpuTexture
     /// <param name="unit">Texture unit to unbind.</param>
     public static new void Unbind(int unit)
     {
-        StateCache.Current.UnbindTexture(TextureTarget.Texture2D, unit);
+        OpenGLImageBindings.UnbindTexture(StateCache.Current, TextureTarget.Texture2D, unit);
     }
 
     /// <summary>
@@ -249,16 +157,7 @@ public class DynamicTexture2D : GpuTexture
                 $"({width}×{height}×{GetChannelCount()} channels)",
                 nameof(data));
         }
-
-        using var _ = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
-        GL.TexSubImage2D(
-            TextureTarget.Texture2D,
-            0,
-            0, 0,
-            width, height,
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType.Float,
-            data);
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     /// <summary>
@@ -300,17 +199,7 @@ public class DynamicTexture2D : GpuTexture
                 $"({width}×{height}×{GetChannelCount()} channels)",
                 nameof(data));
         }
-
-        using var _ = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
-        StateCache.Current.SetPixelStore(PixelStoreParameter.UnpackAlignment, 1);
-        GL.TexSubImage2D(
-            TextureTarget.Texture2D,
-            0,
-            0, 0,
-            width, height,
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            pixelType,
-            data);
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), 0, 0, 0, width, height, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), pixelType), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     /// <summary>
@@ -354,16 +243,7 @@ public class DynamicTexture2D : GpuTexture
                 $"({regionWidth}×{regionHeight}×{GetChannelCount()} channels)",
                 nameof(data));
         }
-
-        using var _ = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, unit: 0, textureId);
-        GL.TexSubImage2D(
-            TextureTarget.Texture2D,
-            0,
-            x, y,
-            regionWidth, regionHeight,
-            TextureFormatHelper.GetPixelFormat(internalFormat),
-            PixelType.Float,
-            data);
+        RHICommandContext.Current.UploadTexture(this, new RHITextureRegion(new(0), x, y, 0, regionWidth, regionHeight, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(internalFormat), PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()));
     }
 
     internal void EnqueueUploadData(float[] data, int priority = 0, int mipLevel = 0)
@@ -407,7 +287,7 @@ public class DynamicTexture2D : GpuTexture
             PixelType.Float,
             data,
             uploadPriority,
-            unpackAlignment: 4);
+            unpackAlignment: 4, textureOwner: this);
 
         if (result.Outcome == TextureStageOutcome.Rejected)
         {
@@ -462,7 +342,7 @@ public class DynamicTexture2D : GpuTexture
             pixelType,
             data,
             uploadPriority,
-            unpackAlignment: 2);
+            unpackAlignment: 2, textureOwner: this);
 
         if (result.Outcome == TextureStageOutcome.Rejected)
         {

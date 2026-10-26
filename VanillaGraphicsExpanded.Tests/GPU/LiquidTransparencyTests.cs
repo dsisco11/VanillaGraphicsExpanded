@@ -39,15 +39,15 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
             PixelInternalFormat.Rgb32f, PixelInternalFormat.R32f,
             PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f,
             PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var terrain = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var depth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f);
-        using var aerial = DynamicTexture3D.Create(1, 2, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
+        using var terrain = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var material = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var aerial = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         terrain.UploadDataImmediate(new float[] { 1, 1, 1, 1 });
         material.UploadDataImmediate([.25f, 0, 0, water ? 1 : 0]);
         depth.UploadDataImmediate(new float[] { .98f });
-        using var receiverColor = refraction ? DynamicTexture2D.Create(size, size, PixelInternalFormat.Rgba32f) : null;
-        using var receiverDepth = refraction ? DynamicTexture2D.Create(size, size, PixelInternalFormat.R32f) : null;
+        using var receiverColor = refraction ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
+        using var receiverDepth = refraction ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
         receiverColor?.UploadDataImmediate(Enumerable.Range(0, size * size).SelectMany(_ => new float[] { 40, 20, 10, 1 }).ToArray());
         // A represented plane at twenty metres is behind both submitted water layers.
         float deviceDepth = .5f * (1 + (100 + .1f - 2 * 100 * .1f / 20) / (100 - .1f));

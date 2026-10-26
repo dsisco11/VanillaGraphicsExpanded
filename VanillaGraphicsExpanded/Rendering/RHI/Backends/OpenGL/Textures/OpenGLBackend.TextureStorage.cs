@@ -1,0 +1,113 @@
+using System;
+using OpenTK.Graphics.OpenGL;
+using Native = OpenTK.Graphics.OpenGL4;
+using GL = OpenTK.Graphics.OpenGL4.GL;
+
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+
+/// <summary>Executes owner-authorized storage and sampling policy through complete semantic operations.</summary>
+internal sealed partial class OpenGLBackend
+{
+    #region Public API
+    /// <inheritdoc />
+    public void ConfigureTexture(GpuTexture owner, in RHISamplerDescription description) => ApplyTextureSampling(owner, description);
+
+    /// <summary>Replaces mutable storage in place while retaining untouched higher images.</summary>
+    public void AllocateTextureStorage(GpuTexture owner, in RHITextureDescription description)
+    {
+        var request = description;
+        RequireContext();
+        owner.RequireOriginalContext();
+        owner.RequireMutableStorage();
+        var initialization = LowerTexture(request).Resolve();
+        var previous = GpuResourceManager.AcquireTextureCommandInput(owner);
+        if (previous.ImmutableStorage || previous.Target != initialization.Target)
+            throw new InvalidOperationException("In-place allocation requires mutable storage of the established shape.");
+        using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
+        var candidate = DefineTextureImages(owner.TextureId, initialization, operation);
+        var images = candidate.Levels.ToBuilder();
+        foreach (var image in previous.Levels)
+            if (image.Level >= initialization.Levels) images.Add(image);
+        ApplyTextureFilterPolicy(owner, request, operation);
+        operation.Commit(candidate with { Levels = images.ToImmutable() });
+    }
+
+    /// <summary>Changes represented mip parameters, committing only after both commands complete.</summary>
+    public void SetMipRange(GpuTexture owner, int baseLevel, int maxLevel)
+    {
+        RequireContext();
+        owner.RequireOriginalContext();
+        var previous = GpuResourceManager.AcquireTextureCommandInput(owner);
+        if (baseLevel < 0 || maxLevel < 0 || previous.Target == TextureTarget.TextureRectangle && baseLevel != 0
+            || previous.Target is TextureTarget.Texture2DMultisample or TextureTarget.Texture2DMultisampleArray or TextureTarget.TextureBuffer)
+            throw new ArgumentOutOfRangeException(nameof(baseLevel));
+        using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Metadata);
+        int id = owner.TextureId;
+        GL.TextureParameter(id, Native.TextureParameterName.TextureBaseLevel, baseLevel);
+        CheckTextureStep(operation);
+        GL.TextureParameter(id, Native.TextureParameterName.TextureMaxLevel, maxLevel);
+        CheckTextureStep(operation);
+        operation.Commit(previous with { BaseLevel = baseLevel, MaxLevel = maxLevel });
+    }
+    #endregion
+
+    #region Internal API
+    /// <summary>Initializes an unpublished specialized owner without exposing recipients in public factories.</summary>
+    internal void InitializeTextureOwner(GpuTexture owner, in RHITextureDescription description)
+    {
+        var request = description;
+        RequireContext();
+        var initialization = LowerTexture(request).Resolve();
+        if (!GpuResourceManager.CreateTexture(initialization, owner, out _).HasValue)
+            throw new InvalidOperationException("Texture initialization did not complete.");
+        ApplyTextureFilterPolicy(owner, request);
+        owner.SetDebugName(request.Label);
+    }
+    #endregion
+
+    #region Private
+    /// <summary>Applies sampling fields as a standalone operation or an explicit step of storage replacement.</summary>
+    private void ApplyTextureSampling(GpuTexture owner, in RHISamplerDescription description,
+        GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null)
+    {
+        var request = description;
+        RequireContext();
+        owner.RequireOriginalContext();
+        if (operation is null) _ = GpuResourceManager.RequireTextureReferenceMetadata(owner);
+        else operation.RequireParticipation(owner, GpuMetadataChange.Metadata);
+        ValidateSampler(request);
+        if (request.Has(5) || request.Has(6) || request.Has(7) || request.Has(8) || request.Has(9) || request.Has(10) || request.Has(11))
+            throw new ArgumentException("This owner operation accepts filtering and address modes.");
+        int id = owner.TextureId;
+        var guard = operation is null ? cache.EnterResourceOperation(new(GpuResourceKind.Texture, id)) : null;
+        try
+        {
+            if (request.Has(0)) { GL.TextureParameter(id, Native.TextureParameterName.TextureMinFilter, MinFilter(request.MinFilter)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
+            if (request.Has(1)) { GL.TextureParameter(id, Native.TextureParameterName.TextureMagFilter, MinFilter(request.MagFilter)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
+            if (request.Has(2)) { GL.TextureParameter(id, Native.TextureParameterName.TextureWrapS, Address(request.AddressS)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
+            if (request.Has(3)) { GL.TextureParameter(id, Native.TextureParameterName.TextureWrapT, Address(request.AddressT)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
+            if (request.Has(4)) { GL.TextureParameter(id, Native.TextureParameterName.TextureWrapR, Address(request.AddressR)); if (operation is null) CheckTextureOwner(owner, id, guard!); else CheckTextureStep(operation); }
+        }
+        finally { if (guard is not null) cache.ExitResourceOperation(guard); }
+    }
+
+    /// <summary>Preserves wrapper filtering policy while keeping parameter execution inside the backend.</summary>
+    private void ApplyTextureFilterPolicy(GpuTexture owner, in RHITextureDescription request, GpuResourceManager.MetadataOperation<GpuTextureMetadata>? operation = null)
+    {
+        if (request.Dimension is RHITextureDimension.TwoMultisample or RHITextureDimension.TwoMultisampleArray) return;
+        bool linear = request.Filter == TextureFilterMode.Linear;
+        ApplyTextureSampling(owner, new RHISamplerDescription { MinFilter = request.MipLevels > 1
+            ? linear ? RHISamplerFilter.LinearMipLinear : RHISamplerFilter.NearestMipNearest
+            : linear ? RHISamplerFilter.Linear : RHISamplerFilter.Nearest,
+            MagFilter = linear ? RHISamplerFilter.Linear : RHISamplerFilter.Nearest,
+            AddressS = RHISamplerAddress.ClampToEdge, AddressT = RHISamplerAddress.ClampToEdge, AddressR = RHISamplerAddress.ClampToEdge }, operation);
+    }
+
+    /// <summary>Stops compound setters after original identity or context changes.</summary>
+    private void CheckTextureOwner(GpuTexture owner, int id, StateCache.ResourceOperationGuard guard)
+    {
+        RequireContext();
+        if (guard.Cancelled || !owner.IsValid || owner.TextureId != id) throw new InvalidOperationException("The original texture owner has retired or changed identity.");
+    }
+    #endregion
+}

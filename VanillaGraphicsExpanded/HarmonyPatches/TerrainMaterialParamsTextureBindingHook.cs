@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using OpenTK.Graphics.OpenGL;
 
@@ -93,8 +94,8 @@ internal static class TerrainMaterialParamsTextureBindingHook
 
                 if (materialUniformLoc >= 0)
                 {
-                    StateCache.Current.ActiveTexture(MaterialTextureUnit);
-                    StateCache.Current.BindTextureOnActiveUnit(TextureTarget.Texture2D, materialTexId);
+                    OpenGLImageBindings.ActiveTexture(StateCache.Current, MaterialTextureUnit);
+                    OpenGLImageBindings.BindTextureOnActiveUnit(StateCache.Current, TextureTarget.Texture2D, materialTexId);
                     StateCache.Current.SetProgramUniformUnit(programId, materialUniformLoc, MaterialTextureUnit);
                 }
             }
@@ -113,8 +114,8 @@ internal static class TerrainMaterialParamsTextureBindingHook
 
                 if (normalDepthUniformLoc >= 0)
                 {
-                    StateCache.Current.ActiveTexture(NormalDepthTextureUnit);
-                    StateCache.Current.BindTextureOnActiveUnit(TextureTarget.Texture2D, normalDepthTexId);
+                    OpenGLImageBindings.ActiveTexture(StateCache.Current, NormalDepthTextureUnit);
+                    OpenGLImageBindings.BindTextureOnActiveUnit(StateCache.Current, TextureTarget.Texture2D, normalDepthTexId);
                     StateCache.Current.SetProgramUniformUnit(programId, normalDepthUniformLoc, NormalDepthTextureUnit);
                 }
             }

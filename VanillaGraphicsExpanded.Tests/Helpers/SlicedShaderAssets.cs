@@ -1,3 +1,4 @@
+using System;
 namespace VanillaGraphicsExpanded.Tests.Helpers;
 
 /// <summary>Serves shader assets from bounded slices and records their complete backing buffers.</summary>

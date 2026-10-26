@@ -22,15 +22,15 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
         int sampler = GL.GenSampler();
         try
         {
-            cache.BindTexture(TextureTarget.Texture2D, 1, texture);
-            cache.BindSampler(1, sampler);
+            OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture2D, 1, texture);
+            OpenGLImageBindings.BindSampler(cache, 1, sampler);
 #if DEBUG
             long textures = cache.TextureBindCount, samplers = cache.SamplerBindCount;
 #endif
-            cache.ActiveTexture(0);
-            cache.BindTexture(TextureTarget.Texture2D, 1, texture);
-            cache.BindTextureOnActiveUnit(TextureTarget.Texture2D, texture);
-            cache.BindSampler(1, sampler);
+            OpenGLImageBindings.ActiveTexture(cache, 0);
+            OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture2D, 1, texture);
+            OpenGLImageBindings.BindTextureOnActiveUnit(cache, TextureTarget.Texture2D, texture);
+            OpenGLImageBindings.BindSampler(cache, 1, sampler);
 #if DEBUG
             Assert.Equal(textures, cache.TextureBindCount);
             Assert.Equal(samplers, cache.SamplerBindCount);
@@ -43,8 +43,8 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
             GL.BindTexture(TextureTarget.Texture2D, 0);
             GL.BindSampler(1, 0);
             cache.Invalidate(EPipelineState.Bindings);
-            cache.BindTexture(TextureTarget.Texture2D, 1, texture);
-            cache.BindSampler(1, sampler);
+            OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture2D, 1, texture);
+            OpenGLImageBindings.BindSampler(cache, 1, sampler);
 #if DEBUG
             Assert.Equal(textures + 1, cache.TextureBindCount);
             Assert.Equal(samplers + 1, cache.SamplerBindCount);
@@ -54,7 +54,7 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
             // An unknown active unit cannot authorize suppression or a guessed per-unit update.
             GL.ActiveTexture(TextureUnit.Texture2);
             cache.Invalidate(EPipelineState.ActiveTextureUnit);
-            cache.BindTextureOnActiveUnit(TextureTarget.Texture2D, texture);
+            OpenGLImageBindings.BindTextureOnActiveUnit(cache, TextureTarget.Texture2D, texture);
 #if DEBUG
             Assert.Equal(textures + 2, cache.TextureBindCount);
 #endif

@@ -260,8 +260,8 @@ internal static class ShaderPreparedSubmission
             _ => throw new InvalidOperationException("Unknown sampler policy.")
         };
         var cache = StateCache.Current;
-        if (!cache.TryGetCachedBoundTexture(target, unit, out int previous) || previous != texture) cache.BindTexture(target, unit, texture);
-        if (!cache.TryGetCachedBoundSampler(unit, out int previousSampler) || previousSampler != sampler) cache.BindSampler(unit, sampler);
+        if (!cache.TryGetCachedBoundTexture(target, unit, out int previous) || previous != texture) OpenGLImageBindings.BindTexture(cache, target, unit, texture);
+        if (!cache.TryGetCachedBoundSampler(unit, out int previousSampler) || previousSampler != sampler) OpenGLImageBindings.BindSampler(cache, unit, sampler);
     }
     #endregion
 }

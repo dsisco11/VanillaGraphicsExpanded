@@ -190,6 +190,9 @@ public abstract partial class GpuResource : IDisposable
             if (IsCurrentResourceContext(origin))
             {
                 if (kind == GpuResourceKind.Buffer) RHICommandContext.Current.OpenGL.DeleteBuffer((int)id);
+                else if (kind == GpuResourceKind.Texture) RHICommandContext.Current.OpenGL.DeleteTexture((int)id);
+                else if (kind == GpuResourceKind.Renderbuffer) RHICommandContext.Current.OpenGL.DeleteRenderbuffer((int)id);
+                else if (kind == GpuResourceKind.Sampler) RHICommandContext.Current.OpenGL.DeleteSampler((int)id);
                 else DeleteOrEnqueue(kind, id);
             }
             return;
@@ -270,13 +273,13 @@ public abstract partial class GpuResource : IDisposable
                     StateCache.Current.DeleteVertexArray((int)id);
                     break;
                 case GpuResourceKind.Texture:
-                    StateCache.Current.DeleteTexture((int)id);
+                    RHICommandContext.Current.OpenGL.DeleteTexture((int)id);
                     break;
                 case GpuResourceKind.Framebuffer:
                     StateCache.Current.DeleteFramebuffer((int)id);
                     break;
                 case GpuResourceKind.Renderbuffer:
-                    StateCache.Current.DeleteRenderbuffer((int)id);
+                    RHICommandContext.Current.OpenGL.DeleteRenderbuffer((int)id);
                     break;
                 case GpuResourceKind.Query:
                     StateCache.Current.DeleteQuery((int)id);
@@ -288,7 +291,7 @@ public abstract partial class GpuResource : IDisposable
                     StateCache.Current.DeleteTransformFeedback((int)id);
                     break;
                 case GpuResourceKind.Sampler:
-                    StateCache.Current.DeleteSampler((int)id);
+                    RHICommandContext.Current.OpenGL.DeleteSampler((int)id);
                     break;
                 case GpuResourceKind.ProgramPipeline:
                     StateCache.Current.DeleteProgramPipeline((int)id);

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using ErrorCode = OpenTK.Graphics.OpenGL.ErrorCode;
 using OpenTK.Graphics.OpenGL;
 using OpenTK.Windowing.Desktop;
@@ -97,11 +99,11 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         using var context = new CompatibilityContext(fixture, output);
         var cache = StateCache.Current;
         cache.InvalidateAll();
-        using var texture = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R16);
-        cache.SetPixelUnpackState(new(8));
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R16, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        OpenGLPixelLayouts.SetUnpack(cache, new(8));
         texture.UploadDataImmediate(new ushort[] { 17 });
         Assert.Equal(1, GL.GetInteger(GetPName.UnpackAlignment));
-        Assert.Equal(1, cache.GetPixelUnpackState().Alignment);
+        Assert.Equal(1, OpenGLPixelLayouts.GetUnpack(cache).Alignment);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     /// <summary>Real fragments exercise matching clip-depth conventions.</summary>

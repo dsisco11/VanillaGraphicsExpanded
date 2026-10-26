@@ -17,14 +17,7 @@ internal sealed partial class GpuResourceManager
         bool finished = false;
         try
         {
-            int value = -1;
-            if (GpuSupport.Graphics.SupportsArbDirectStateAccess)
-                GL.GetTextureParameter((int)entry.Id, (GetTextureParameter)parameter, out value);
-            else
-            {
-                using var binding = StateCache.Current.BindTextureScope(entry.Metadata.Target, 0, (int)entry.Id);
-                GL.GetTexParameter(entry.Metadata.Target, (GetTextureParameter)parameter, out value);
-            }
+            int value = RHI.RHICommandContext.Current.OpenGL.ReadExternalTextureParameter((int)entry.Id, (GetTextureParameter)parameter);
             if (value < 0) return false;
             RequireMetadataContext();
             RequireLiveEntry(entry);

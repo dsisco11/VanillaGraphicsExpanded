@@ -115,8 +115,8 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
     /// <summary>Allocates hardware-filtered volume storage matching solver addressing.</summary>
     private DynamicTexture3D Volume(CloudVolumeDomain d,PixelInternalFormat format)
     {
-        var texture=resources!.Own(DynamicTexture3D.Create(d.Size,66,d.Size,format,textureTarget:TextureTarget.Texture3D));
-        texture.SetTexWrap(TextureWrapMode.Repeat,TextureWrapMode.ClampToEdge,TextureWrapMode.Repeat);return texture;
+        var texture=resources!.Own(RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, d.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, d.Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
+        texture.SetTexWrap(RHISamplerAddress.Repeat,RHISamplerAddress.ClampToEdge,RHISamplerAddress.Repeat);return texture;
     }
     /// <summary>Allocates exact metadata through its ordinary GPU owner.</summary>
     private GpuShaderStorageBuffer Buffer(int words)

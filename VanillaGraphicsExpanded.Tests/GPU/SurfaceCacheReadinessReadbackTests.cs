@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -84,7 +85,7 @@ public sealed class SurfaceCacheReadinessReadbackTests(HeadlessGLFixture fixture
     /// <summary>Initializes requested pages and poisons every other alpha, across two atlas layers.</summary>
     private static Texture3D CreateAtlas(uint[] pages)
     {
-        var texture = Texture3D.Create(8, 8, 2, PixelInternalFormat.Rgba32f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray);
+        var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         float[] data = new float[128 << 2];
         for (int i = 3; i < data.Length; i += 4) data[i] = float.NaN;
         foreach (uint page in pages)

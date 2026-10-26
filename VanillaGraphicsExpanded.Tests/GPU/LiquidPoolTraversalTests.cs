@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using Moq;
@@ -48,8 +49,8 @@ public sealed class LiquidPoolTraversalTests(HeadlessGLFixture fixture) : Render
         var sharedFrame = VgeFrameRenderer.Current;
         byte[] publishedBytes = sharedFrame.Bytes.ToArray();
         using var lights = new VgeLightsUniformBuffer();
-        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var volume = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var volume = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         GpuProgram program;
         if (depth) program = programs.Create<LiquidDepthShaderProgram>();
         else program = programs.Create<LiquidShaderProgram>(owner =>

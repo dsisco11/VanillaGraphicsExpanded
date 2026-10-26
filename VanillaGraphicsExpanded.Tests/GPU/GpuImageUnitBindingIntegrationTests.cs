@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -27,7 +28,7 @@ public sealed class GpuImageUnitBindingIntegrationTests
         _fixture.MakeCurrent();
 
         // 2D image binding
-        using var texture = Texture2D.Create(4, 4, PixelInternalFormat.Rgba8, debugName: "TestImage2D");
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "TestImage2D" }).RequireResource();
         texture.BindImageUnit(unit: 0, access: TextureAccess.ReadWrite, level: 0, layered: false, layer: 0, format: SizedInternalFormat.Rgba8);
 
         GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int boundName0);
@@ -46,7 +47,7 @@ public sealed class GpuImageUnitBindingIntegrationTests
             GL.BufferData(BufferTarget.TextureBuffer, 16 * sizeof(float), IntPtr.Zero, BufferUsageHint.DynamicDraw);
             GL.BindBuffer(BufferTarget.TextureBuffer, 0);
 
-            using var bufferTexture = GpuBufferTexture.CreateWholeBuffer(bufferId, SizedInternalFormat.R32f, debugName: "TestBufferTexture");
+            using var bufferTexture = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(bufferId, SizedInternalFormat.R32f, true, 0, 0, "TestBufferTexture").RequireResource();
             bufferTexture.BindImageUnit(unit: 1, access: TextureAccess.ReadOnly);
 
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 1, out int boundName1);
@@ -69,8 +70,8 @@ public sealed class GpuImageUnitBindingIntegrationTests
         _fixture.EnsureContextValid();
         _fixture.MakeCurrent();
 
-        using var texA = Texture2D.Create(4, 4, PixelInternalFormat.Rgba8, debugName: "ScopeTexA");
-        using var texB = Texture2D.Create(4, 4, PixelInternalFormat.Rgba8, debugName: "ScopeTexB");
+        using var texA = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScopeTexA" }).RequireResource();
+        using var texB = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScopeTexB" }).RequireResource();
 
         // Establish a known previous binding for unit 2.
         texA.BindImageUnit(unit: 2, access: TextureAccess.ReadOnly, level: 0, layered: false, layer: 0, format: SizedInternalFormat.Rgba8);

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -85,11 +86,11 @@ public sealed class DepthStencilTextureTests : RenderTestBase
         var cache = StateCache.Current;
         var hostile = new StateCache.PixelPackState(8, 17, 2, 3, true, true);
         // The outer scope preserves the fixture's layout; readback must restore this hostile inner owner.
-        using var restore = cache.SetPixelPackScope(hostile);
+        using var restore = OpenGLPixelLayouts.PackScope(cache, hostile);
         byte[] pixels = readback();
         Assert.Equal(count, pixels.Length);
         Assert.All(pixels, value => Assert.Equal(expected, value));
-        Assert.Equal(hostile, cache.GetPixelPackState());
+        Assert.Equal(hostile, OpenGLPixelLayouts.GetPack(cache));
         Assert.Equal(8, GL.GetInteger(GetPName.PackAlignment));
         Assert.Equal(17, GL.GetInteger(GetPName.PackRowLength));
         Assert.Equal(2, GL.GetInteger(GetPName.PackSkipRows));

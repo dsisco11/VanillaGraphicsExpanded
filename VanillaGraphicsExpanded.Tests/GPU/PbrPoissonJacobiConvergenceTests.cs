@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -65,9 +66,9 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
             PbrHeightBakeParamsUbo.EnsureHeightBakeBlockBound(programId);
         using var paramsUbo = new ObjectParamsUbo("Tests.PbrPoissonJacobiConvergence.JacobiParams");
 
-        using var hTex = DynamicTexture2D.CreateWithData(input.Width, input.Height, PixelInternalFormat.R32f, input.H, TextureFilterMode.Nearest);
-        using var bTex = DynamicTexture2D.CreateWithData(input.Width, input.Height, PixelInternalFormat.R32f, input.B, TextureFilterMode.Nearest);
-        using var outTex = DynamicTexture2D.Create(input.Width, input.Height, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var hTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = input.Width, Height = input.Height, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, input.Width, input.Height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((input.H).AsSpan()).ToArray())]).RequireResource();
+        using var bTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = input.Width, Height = input.Height, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, input.Width, input.Height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((input.B).AsSpan()).ToArray())]).RequireResource();
+        using var outTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, input.Width), Height = System.Math.Max(1, input.Height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
         // GPU step
         int vao = GL.GenVertexArray();
@@ -143,9 +144,9 @@ public sealed class PbrPoissonJacobiConvergenceTests : RenderTestBase
         // Keep this reasonably fast; Jacobi is slow but we only need to see clear reduction.
         const int iterations = 800;
 
-        using var bTex = DynamicTexture2D.CreateWithData(rhs.Width, rhs.Height, PixelInternalFormat.R32f, rhs.Data, TextureFilterMode.Nearest);
-        using var h0 = DynamicTexture2D.Create(rhs.Width, rhs.Height, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
-        using var h1 = DynamicTexture2D.Create(rhs.Width, rhs.Height, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var bTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = rhs.Width, Height = rhs.Height, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, rhs.Width, rhs.Height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((rhs.Data).AsSpan()).ToArray())]).RequireResource();
+        using var h0 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, rhs.Width), Height = System.Math.Max(1, rhs.Height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var h1 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, rhs.Width), Height = System.Math.Max(1, rhs.Height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 
         ClearR32f(h0, 0f);
         ClearR32f(h1, 0f);

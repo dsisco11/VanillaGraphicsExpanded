@@ -83,8 +83,8 @@ internal sealed partial class StateCache
             elementArrayBufferByVao.Clear();
         }
         if (states.HasFlag(EPipelineState.ImageBindings)) imageBindings.Clear();
-        if (states.HasFlag(EPipelineState.PixelUnpack)) pixelUnpackState = null;
-        if (states.HasFlag(EPipelineState.PixelPack)) pixelPackState = null;
+        if (states.HasFlag(EPipelineState.PixelUnpack)) PixelUnpackKnowledge = null;
+        if (states.HasFlag(EPipelineState.PixelPack)) PixelPackKnowledge = null;
     }
     #endregion
 }

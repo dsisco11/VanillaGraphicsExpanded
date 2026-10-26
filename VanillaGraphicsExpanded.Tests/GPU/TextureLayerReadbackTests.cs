@@ -18,7 +18,7 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
     public void RegionSelectsLayerAndPreservesFramebufferBindings(TextureTarget target)
     {
         EnsureContextValid();
-        using var texture=Texture3D.Create(5,4,3,PixelInternalFormat.Rgba32f,textureTarget:target);
+        using var texture=RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Dimension(target), Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 5), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var data=new float[5*4*3*4];
         for(int z=0;z<3;z++) for(int y=0;y<4;y++) for(int x=0;x<5;x++)
         {

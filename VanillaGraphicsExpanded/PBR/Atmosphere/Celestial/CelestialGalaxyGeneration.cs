@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -45,10 +46,8 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
                 loadingFrame = new(new GpuUniformRingBuffer(pageSizeBytes: 2 * 1024 * 1024, pageCount: 1, debugName: "Celestial.LoadUniforms"));
                 loadingFrame.BeginFrame(); loadingFrameBegan = true;
             }
-            cube = DynamicTextureCube.Create(source.Quality.FaceSize, PixelInternalFormat.R11fG11fB10f,
-                mipLevels: 1 + (int)MathF.Floor(MathF.Log2(source.Quality.FaceSize)),
-                filter: TextureFilterMode.Linear, debugName: "Celestial.Galaxy");
-            var catalog = owned.Own(DynamicTexture2D.Create(CelestialSource.StarCapacity * 2, 1, PixelInternalFormat.Rgba32f));
+            cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.R11fG11fB10f, Width = source.Quality.FaceSize, Height = source.Quality.FaceSize, MipLevels = 1 + (int)MathF.Floor(MathF.Log2(source.Quality.FaceSize)), Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1 + (int)MathF.Floor(MathF.Log2(source.Quality.FaceSize))) - 1, Label = "Celestial.Galaxy" }).RequireResource();
+            var catalog = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, CelestialSource.StarCapacity * 2), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             catalog.UploadData(residual.Catalog);
             var values = new List<float>();
             int[] offsets = new int[residual.Tiles.Length];
@@ -59,8 +58,8 @@ internal sealed class CelestialGalaxyGeneration : IDisposable
             }
             int indexHeight = Math.Max(1, (values.Count / 4 + 4095) / 4096);
             var indexData = new float[4096 * indexHeight * 4]; values.CopyTo(indexData);
-            var indices = owned.Own(DynamicTexture2D.Create(4096, indexHeight, PixelInternalFormat.Rgba32f)); indices.UploadData(indexData);
-            var scratch = owned.Own(DynamicTexture2D.Create(CelestialResidual.TileSize, CelestialResidual.TileSize, PixelInternalFormat.Rgba32f));
+            var indices = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 4096), Height = System.Math.Max(1, indexHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource()); indices.UploadData(indexData);
+            var scratch = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, CelestialResidual.TileSize), Height = System.Math.Max(1, CelestialResidual.TileSize), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             var image = owned.Own(GpuFramebufferAttachment.FromTexture(scratch));
             var target = owned.Own(StaticGpuFramebuffer.Create([image], debugName: "Celestial.GenerationScratch"));
             var layout = new VertexLayoutDesc([]);

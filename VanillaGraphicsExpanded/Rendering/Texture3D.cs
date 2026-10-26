@@ -13,50 +13,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 public sealed class Texture3D : GpuTexture
 {
-    private Texture3D() { }
+    internal Texture3D() { }
 
-    public static Texture3D Create(
-        int width,
-        int height,
-        int depth,
-        PixelInternalFormat format,
-        TextureFilterMode filter = TextureFilterMode.Linear,
-        TextureTarget textureTarget = TextureTarget.Texture3D,
-        string? debugName = null)
-    {
-        if (width <= 0)
-        {
-            Debug.WriteLine($"[Texture3D] Invalid width {width}, defaulting to 1");
-            width = 1;
-        }
 
-        if (height <= 0)
-        {
-            Debug.WriteLine($"[Texture3D] Invalid height {height}, defaulting to 1");
-            height = 1;
-        }
-
-        if (depth <= 0)
-        {
-            Debug.WriteLine($"[Texture3D] Invalid depth {depth}, defaulting to 1");
-            depth = 1;
-        }
-
-        if (textureTarget != TextureTarget.Texture3D && textureTarget != TextureTarget.Texture2DArray)
-        {
-            Debug.WriteLine($"[Texture3D] Unsupported target {textureTarget}, defaulting to Texture3D");
-            textureTarget = TextureTarget.Texture3D;
-        }
-
-        var texture = new Texture3D
-        {
-            filterMode = filter,
-            debugName = debugName
-        };
-
-        texture.AllocateOrReallocate3DTexture(width, height, depth, format, textureTarget);
-        return texture;
-    }
 
     #region Readback
     /// <summary>Synchronously reads a color region into pooled storage. The caller must dispose the returned owner.</summary>

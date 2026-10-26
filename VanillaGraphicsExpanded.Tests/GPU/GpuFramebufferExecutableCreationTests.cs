@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using System.Collections.Immutable;
@@ -26,7 +27,7 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
         if (registered) fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var framebuffer = DynamicGpuFramebuffer.CreateSingle(texture)!;
             var before = GpuFramebufferAttachmentDiscovery.Read(framebuffer, FramebufferAttachment.ColorAttachment0);
             Assert.Equal(4, before.Width);
@@ -53,13 +54,13 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
         {
             if (renderbuffer)
             {
-                using var owner = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 4, 4);
+                using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
                 using var operation = new GpuResourceManager.MetadataOperation<GpuRenderbufferMetadata>(owner, GpuMetadataChange.Storage);
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireFramebufferRenderbuffer(owner.RenderbufferId, true));
             }
             else
             {
-                using var owner = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+                using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
                 using var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(owner, GpuMetadataChange.Storage);
                 Assert.Throws<InvalidOperationException>(() => GpuResourceManager.AcquireFramebufferTexture(owner.TextureId, TextureTarget.Texture2D, true));
             }
@@ -76,8 +77,8 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
         var harmony = new Harmony("Tests.ExternalFramebufferFields." + Guid.NewGuid());
         try
         {
-            using var first = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
-            using var second = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var second = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var framebuffer = DynamicGpuFramebuffer.CreateSingle(first)!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer));
@@ -115,8 +116,8 @@ public sealed class GpuFramebufferExecutableCreationTests(HeadlessGLFixture fixt
         try
         {
             using var capabilities = new DirectStateAccessCapabilityScope(direct);
-            using var first = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
-            using var second = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var second = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var firstImage = GpuFramebufferAttachment.FromTexture(first);
             using var secondImage = GpuFramebufferAttachment.FromTexture(second);
             using var recipient = new Recipient<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);

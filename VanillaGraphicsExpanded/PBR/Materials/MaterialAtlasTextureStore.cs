@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -211,13 +212,7 @@ internal sealed partial class MaterialAtlasTextureStore : IDisposable
         float[] packed = MaterialTransmission.Pack(rgbTriplets);
         float emission = AdmittedEmissionMaximum(packed);
 
-        var updated = Texture2D.CreateWithDataImmediate(
-            width,
-            height,
-            PixelInternalFormat.Rgba16f,
-            packed,
-            TextureFilterMode.Nearest,
-            debugName: $"vge_materialParams_atlas_{atlasTextureId}");
+        var updated = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = width, Height = height, Format = RHIFormat.Rgba16f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = $"vge_materialParams_atlas_{atlasTextureId}" }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba16f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((packed).AsSpan()).ToArray())]).RequireResource();
 
         // Keep the previous publication intact until validation and replacement allocation succeed.
         float retainedEmission = entry.Textures.RetireMaterial();
@@ -263,13 +258,7 @@ internal sealed partial class MaterialAtlasTextureStore : IDisposable
             MaterialAtlasParamsBuilder.DefaultMetallic,
             MaterialAtlasParamsBuilder.DefaultEmissive);
 
-        var materialParamsTex = Texture2D.CreateWithDataImmediate(
-            width,
-            height,
-            PixelInternalFormat.Rgba16f,
-            MaterialTransmission.Pack(defaultParams),
-            TextureFilterMode.Nearest,
-            debugName: $"vge_materialParams_atlas_{atlasTextureId}");
+        var materialParamsTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = width, Height = height, Format = RHIFormat.Rgba16f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = $"vge_materialParams_atlas_{atlasTextureId}" }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba16f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((MaterialTransmission.Pack(defaultParams)).AsSpan()).ToArray())]).RequireResource();
 
         Texture2D? normalDepthTex = null;
         if (enableNormalDepth)
@@ -280,13 +269,7 @@ internal sealed partial class MaterialAtlasTextureStore : IDisposable
             // Height is encoded into [0,1] where 0.5 is neutral (signed height 0).
             SimdSpanMath.FillInterleaved4(defaultNormalDepth, 0.5f, 0.5f, 1.0f, 0.5f);
 
-            normalDepthTex = Texture2D.CreateWithDataImmediate(
-                width,
-                height,
-                PixelInternalFormat.Rgba16f,
-                defaultNormalDepth,
-                TextureFilterMode.Nearest,
-                debugName: $"vge_normalDepth_atlas_{atlasTextureId}");
+            normalDepthTex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = width, Height = height, Format = RHIFormat.Rgba16f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = $"vge_normalDepth_atlas_{atlasTextureId}" }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba16f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((defaultNormalDepth).AsSpan()).ToArray())]).RequireResource();
         }
 
         return new MaterialAtlasPageTextures(materialParamsTex, normalDepthTex);

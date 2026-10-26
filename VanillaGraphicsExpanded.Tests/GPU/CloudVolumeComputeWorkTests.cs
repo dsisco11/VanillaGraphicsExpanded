@@ -103,8 +103,8 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
     private void MeasureDiffuseRepair()
     {
         var domain=new CloudVolumeDomain(200,default,-100,100);var encoding=new CloudVolumeEncoding(Vector3.One);
-        using var source=DynamicTexture3D.Create(domain.Size,66,domain.Size,PixelInternalFormat.Rgba16f,textureTarget:TextureTarget.Texture3D);
-        using var target=DynamicTexture3D.Create(domain.Size,66,domain.Size,PixelInternalFormat.Rgba16f,textureTarget:TextureTarget.Texture3D);
+        using var source=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, domain.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, domain.Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var target=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, domain.Size), Height = System.Math.Max(1, 66), Depth = System.Math.Max(1, domain.Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         source.Clear(.25f,.5f,.75f);target.Clear();
         using var scratch=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();var header=new uint[CloudVolumeWork.RepairListWord+CloudVolumeLightingBudget.MaximumDiffuseJobs];
         header[38]=32;for(int i=0;i<32;i++)header[17280+i]=(uint)(1+i+domain.BlocksX*(4+domain.BlocksY));
@@ -119,7 +119,7 @@ public sealed class CloudVolumeComputeWorkTests(HeadlessGLFixture fixture,Xunit.
     /// <summary>Times every real deferred update callback through publication, excluding view draws and simulated frame waits.</summary>
     private void MeasureCompleteUpdates(int quality=2,bool profileOnly=false)
     {
-        using var map=DynamicTexture2D.Create(20,20,PixelInternalFormat.Rgba32f);
+        using var map=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 20), Height = System.Math.Max(1, 20), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var camera=TestFrameCamera.CreateFromProjection([1,0,0,0,0,1,0,0,0,0,-1.00020002f,-1,0,0,-.200020002f,0],1,1,.1f,1000);
         using var solution=new CloudVolumeSolution(Programs.Api,true,quality);
         var profile=CloudVolumeQuality.Resolve(quality);

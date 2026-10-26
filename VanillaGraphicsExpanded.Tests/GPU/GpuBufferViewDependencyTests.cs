@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -119,7 +120,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
                 else if (consumer == 1) view.BindImageUnit(0);
                 else { using var binding = GpuImageUnitBinding.Bind(0, view); }
             }
-            StateCache.Current.ActiveTexture(0);
+            OpenGLImageBindings.ActiveTexture(StateCache.Current, 0);
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingBuffer));
             GL.GetInteger((GetIndexedPName)All.ImageBindingName, 0, out int image);
             Assert.Equal(sentinel.TextureId, image);
@@ -183,7 +184,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             GL.NamedBufferData(buffer, (IntPtr)64, IntPtr.Zero, BufferUsageHint.DynamicDraw);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.Null(manager.FindResource(GpuResourceKind.Buffer, buffer));
-            using var view = GpuBufferView.CreateWholeBuffer(buffer, SizedInternalFormat.R32f);
+            using var view = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTextureIntegration.CreateBufferView(buffer, SizedInternalFormat.R32f, true, 0, 0, null).RequireResource();
             var backing = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.FindResource(GpuResourceKind.Buffer, buffer));
             Assert.Equal(0, backing.AssociationCount);
             Assert.True(backing.IsUsable);
@@ -214,8 +215,8 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
     #region Private
     /// <summary>Creates the range policy whose zero-size whole-buffer convention must survive observation.</summary>
     private static GpuBufferView CreateView(GpuBufferObject buffer, bool ranged) => ranged
-        ? GpuBufferView.CreateRange(buffer.BufferId, SizedInternalFormat.R32f, 0, 64)
-        : GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
+        ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = false, Offset = 0, Length = 64, Label = null }).RequireResource()
+        : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
 
     /// <summary>Selects the owning allocation API or the production-transpiled native allocation boundary.</summary>
     private static void Resize(GpuShaderStorageBuffer buffer, int bytes, bool native)

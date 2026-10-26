@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
@@ -25,8 +26,8 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
         using var camera = TestFrameCamera.CreateSolar(64,64);
         sun.FrameInputs = camera;
         var bloom=Programs.Create<BloomShaderProgram>();
-        using var color=DynamicTexture2D.Create(64,64,PixelInternalFormat.Rgba32f);
-        using var glow=DynamicTexture2D.Create(64,64,PixelInternalFormat.Rgba32f);
+        using var color=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var glow=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var depth=new DepthTexture(64,64,PixelInternalFormat.DepthComponent32f);
         using var scene=DynamicGpuFramebuffer.CreateMRT([color,glow],depth)!;
         using var extracted=TestFramework.CreateTestGBuffer(32,32,PixelInternalFormat.Rgba32f);
@@ -89,8 +90,8 @@ public sealed class AtmosphereSunBloomTests(HeadlessGLFixture fixture) : LumOnSh
         using var camera = TestFrameCamera.CreateSolar(32,32);
         sun.FrameInputs = camera;
         sun.Capture(new(100, 50, 25), -1);
-        using var color = DynamicTexture2D.Create(32, 32, PixelInternalFormat.Rgba32f);
-        using var glow = DynamicTexture2D.Create(32, 32, PixelInternalFormat.Rgba32f);
+        using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 32), Height = System.Math.Max(1, 32), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var glow = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 32), Height = System.Math.Max(1, 32), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var depth = new DepthTexture(32, 32, PixelInternalFormat.DepthComponent32f);
         using var scene = DynamicGpuFramebuffer.CreateMRT([color, glow], depth)!;
         using var lifetime = new GraphicsPipelineLifetime();

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -23,12 +24,12 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
         if (managed) fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba32f);
-            using var sentinel = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba32f);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             var sampler = Entry(ShaderBindingKind.Sampler, ActiveUniformType.Sampler2D, [true, true]);
             var image = Entry(ShaderBindingKind.Image, ActiveUniformType.Image2D, [true]);
-            StateCache.Current.ActiveTexture(0);
-            StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, sentinel.TextureId);
+            OpenGLImageBindings.ActiveTexture(StateCache.Current, 0);
+            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 0, sentinel.TextureId);
             ShaderPreparedSubmission.ValidateSampler(sampler, (GpuTexture)texture);
             ShaderPreparedSubmission.ValidateSamplerArray(sampler, [texture, sentinel]);
             ShaderPreparedSubmission.ValidateImage(image, texture);

@@ -1,3 +1,4 @@
+using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -150,10 +151,10 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         if (!string.IsNullOrEmpty(binaryDirectory)) Assert.NotEmpty(assets.Overrides);
         program.SceneLinear = sceneLinear;
         using var target = CreateMRTRenderTarget(frameSize, frameSize, PixelInternalFormat.Rgb32f, PixelInternalFormat.R32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f);
-        using var terrain = DynamicTexture2D.Create(compatibility == FlowCase ? 8 : 1, compatibility == FlowCase ? 8 : 1, PixelInternalFormat.Rgba32f);
-        using var material = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var depth = DynamicTexture2D.Create(frameSize, frameSize, PixelInternalFormat.R32f);
-        using var aerial = DynamicTexture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32f, textureTarget: TextureTarget.Texture3D);
+        using var terrain = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, compatibility == FlowCase ? 8 : 1), Height = System.Math.Max(1, compatibility == FlowCase ? 8 : 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var material = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, frameSize), Height = System.Math.Max(1, frameSize), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var aerial = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         // Allocation contents are undefined; numerical optics require an explicitly empty atmosphere.
         aerial.UploadDataImmediate(new float[4], 0, 0, 0, 1, 1, 1, 0);
         if (compatibility == FlowCase)
@@ -166,8 +167,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         float receiver = scenario == 2 ? 1 : scenario == 5 ? 80 : 10;
         float deviceDepth = .5f * (1 + (far + near - 2 * far * near / receiver) / (far - near));
         depth.UploadDataImmediate(Enumerable.Repeat(deviceDepth, frameSize * frameSize).ToArray());
-        using var sceneColor = DynamicTexture2D.Create(frameSize, frameSize, PixelInternalFormat.Rgba32f);
-        using var sceneDepth = DynamicTexture2D.Create(frameSize, frameSize, PixelInternalFormat.R32f);
+        using var sceneColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, frameSize), Height = System.Math.Max(1, frameSize), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var sceneDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, frameSize), Height = System.Math.Max(1, frameSize), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var sceneColors = Enumerable.Range(0, frameSize * frameSize).SelectMany(pixel => scenario == 9
             ? new float[] { 1f + (pixel % 16) * .2f, .2f, .1f, 1f }
             : new float[] { 4f, 2f, 1f, scenario == 3 ? 0f : 1f }).ToArray();
@@ -178,8 +179,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         sceneDepth.UploadDataImmediate(sceneDepthValues);
         if (scatteringSource != 0)
             sceneColor.UploadDataImmediate(Enumerable.Range(0, frameSize * frameSize).SelectMany(_ => new float[] { 0, 0, 0, 1 }).ToArray());
-        using var mediumIndex = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
-        using var mediumRecord = Texture2D.Create(2, 1, PixelInternalFormat.Rgba32f);
+        using var mediumIndex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var mediumRecord = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         mediumIndex.UploadDataImmediate([1f]);
         mediumRecord.UploadDataImmediate(new float[8]);
         if (scatteringSource != 0) mediumRecord.UploadDataImmediate([.1f, .2f, .3f, .7f, .2f, .3f, .4f, 0]);
@@ -279,8 +280,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
         program.ModelViewMatrix = Flatten(modelView);
         // Feed the production traversal an actual geometry-aware reduction of the
         // same receiver scene; projection/frame dimensions remain full resolution.
-        using var reducedColor = backgroundScale == 2 ? DynamicTexture2D.Create((frameSize + 1) / 2, (frameSize + 1) / 2, PixelInternalFormat.Rgba32f) : null;
-        using var reducedDepth = backgroundScale == 2 ? DynamicTexture2D.Create((frameSize + 1) / 2, (frameSize + 1) / 2, PixelInternalFormat.Rgba32f) : null;
+        using var reducedColor = backgroundScale == 2 ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, (frameSize + 1) / 2), Height = System.Math.Max(1, (frameSize + 1) / 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
+        using var reducedDepth = backgroundScale == 2 ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, (frameSize + 1) / 2), Height = System.Math.Max(1, (frameSize + 1) / 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
         using var reductionTarget = backgroundScale == 2 ? DynamicGpuFramebuffer.CreateMRT([reducedColor!, reducedDepth!]) : null;
         if (backgroundScale == 2)
         {
@@ -503,8 +504,8 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             // Keep transport, source and shared point-light reflection active.
             // Receiver eligibility alone varies between coherent and mixed regions.
             mediumRecord.UploadDataImmediate([.1f, .2f, .3f, .7f, .2f, .3f, .4f, 0]);
-            using var phaseIndices = phaseMeasurement ? Texture2D.Create(frameSize, frameSize, PixelInternalFormat.R32f) : null;
-            using var phaseRecords = phaseMeasurement ? Texture2D.Create(4, 1, PixelInternalFormat.Rgba32f) : null;
+            using var phaseIndices = phaseMeasurement ? RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, frameSize), Height = System.Math.Max(1, frameSize), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
+            using var phaseRecords = phaseMeasurement ? RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
             if (phaseMeasurement)
             {
                 phaseRecords!.UploadDataImmediate([.1f, .2f, .3f, 0, .2f, .3f, .4f, 0, .1f, .2f, .3f, .7f, .2f, .3f, .4f, 0]);

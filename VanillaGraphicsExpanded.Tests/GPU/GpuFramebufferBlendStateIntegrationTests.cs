@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -40,8 +41,8 @@ public sealed class GpuFramebufferBlendStateIntegrationTests(HeadlessGLFixture f
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         var shader = programs.Create<BlendProgram>();
-        using var t0 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
-        using var t1 = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
+        using var t0 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var t1 = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var framebuffer = DynamicGpuFramebuffer.CreateMRT([t0, t1])!;
         using var lifetime = new GraphicsPipelineLifetime();
         var first = maskOnly ? new ColorBlendDesc { WriteGreen = false, WriteBlue = false, WriteAlpha = false }

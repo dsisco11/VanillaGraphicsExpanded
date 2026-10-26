@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -36,9 +37,9 @@ internal static class GpuSamplers
             if (nearestClamp is not null && nearestClamp.IsValid) return nearestClamp;
 
             nearestClamp?.Dispose();
-            nearestClamp = GpuSampler.Create("VGE.Sampler.NearestClamp");
-            nearestClamp.SetFilter(TextureMinFilter.Nearest, TextureMagFilter.Nearest);
-            nearestClamp.SetWrap(TextureWrapMode.ClampToEdge, TextureWrapMode.ClampToEdge);
+            nearestClamp = RHICommandContext.Current.CreateSampler(new RHISamplerDescription { Label = "VGE.Sampler.NearestClamp" }).RequireResource();
+            nearestClamp.SetFilter(RHISamplerFilter.Nearest, RHISamplerFilter.Nearest);
+            nearestClamp.SetWrap(RHISamplerAddress.ClampToEdge, RHISamplerAddress.ClampToEdge);
             return nearestClamp;
         }
     }
@@ -50,9 +51,9 @@ internal static class GpuSamplers
             if (linearClamp is not null && linearClamp.IsValid) return linearClamp;
 
             linearClamp?.Dispose();
-            linearClamp = GpuSampler.Create("VGE.Sampler.LinearClamp");
-            linearClamp.SetFilter(TextureMinFilter.Linear, TextureMagFilter.Linear);
-            linearClamp.SetWrap(TextureWrapMode.ClampToEdge, TextureWrapMode.ClampToEdge);
+            linearClamp = RHICommandContext.Current.CreateSampler(new RHISamplerDescription { Label = "VGE.Sampler.LinearClamp" }).RequireResource();
+            linearClamp.SetFilter(RHISamplerFilter.Linear, RHISamplerFilter.Linear);
+            linearClamp.SetWrap(RHISamplerAddress.ClampToEdge, RHISamplerAddress.ClampToEdge);
             return linearClamp;
         }
     }
@@ -64,10 +65,10 @@ internal static class GpuSamplers
             if (shadowCompareLinearClamp is not null && shadowCompareLinearClamp.IsValid) return shadowCompareLinearClamp;
 
             shadowCompareLinearClamp?.Dispose();
-            shadowCompareLinearClamp = GpuSampler.Create("VGE.Sampler.ShadowCompareLinearClamp");
-            shadowCompareLinearClamp.SetFilter(TextureMinFilter.Linear, TextureMagFilter.Linear);
-            shadowCompareLinearClamp.SetWrap(TextureWrapMode.ClampToEdge, TextureWrapMode.ClampToEdge);
-            shadowCompareLinearClamp.SetCompare(TextureCompareMode.CompareRefToTexture, DepthFunction.Lequal);
+            shadowCompareLinearClamp = RHICommandContext.Current.CreateSampler(new RHISamplerDescription { Label = "VGE.Sampler.ShadowCompareLinearClamp" }).RequireResource();
+            shadowCompareLinearClamp.SetFilter(RHISamplerFilter.Linear, RHISamplerFilter.Linear);
+            shadowCompareLinearClamp.SetWrap(RHISamplerAddress.ClampToEdge, RHISamplerAddress.ClampToEdge);
+            shadowCompareLinearClamp.SetCompare(true, RHIComparison.LessOrEqual);
             return shadowCompareLinearClamp;
         }
     }

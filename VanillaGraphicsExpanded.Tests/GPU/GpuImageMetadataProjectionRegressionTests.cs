@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -18,8 +19,8 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture3D.Create(8, 4, 6, PixelInternalFormat.Rgba32f, immutableStorage: true);
-            using var view = GpuTextureView.CreateFromTexture(texture, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba32f, 0, 1, 2, 3);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 6), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = texture, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 2, LayerCount = 3, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view));
             var original = entry.Reader;
@@ -48,8 +49,8 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
-            using var sentinel = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using (texture.BindScope(0))
                 GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8, 12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             // This direct external mutation bypasses command publication, so its owner must
@@ -80,7 +81,7 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         try
         {
             using var capabilities = new DirectStateAccessCapabilityScope(dsa);
-            using var cube = DynamicTextureCube.Create(8, PixelInternalFormat.Rgba8, mipLevels: 2);
+            using var cube = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.Rgba8, Width = 8, Height = 8, MipLevels = 2, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (2) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTextureId(cube.TextureId, mipLevel: 1, cubeFace: TextureTarget.TextureCubeMapNegativeZ);
             Assert.Equal(4, image.Width);
             Assert.Equal(4, image.Height);
@@ -124,7 +125,7 @@ public sealed class GpuImageMetadataProjectionRegressionTests(HeadlessGLFixture 
         finally
         {
             StateCache.Current.DeleteFramebuffer(framebuffer);
-            StateCache.Current.DeleteTexture(texture);
+            RHICommandContext.Current.OpenGL.DeleteTexture(texture);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

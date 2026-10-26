@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
@@ -39,7 +40,7 @@ internal sealed class DepthHierarchyPass : IDisposable
             {
                 int levels = 1;
                 for (int extent = Math.Max(width, height); extent > 1; extent >>= 1) levels++;
-                Texture = resources.Own(DynamicTexture2D.CreateMipmapped(width, height, PixelInternalFormat.R32f, levels, "DepthHierarchy"));
+                Texture = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = levels, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (levels) - 1, Label = "DepthHierarchy" }).RequireResource());
                 ScratchBytes = 4;
                 for (int level = 0; level < levels; level++)
                 {
@@ -101,15 +102,12 @@ internal sealed class DepthHierarchyPass : IDisposable
     /// <summary>Copies the tiny coarse tail from GPU storage without mapping or CPU readback.</summary>
     private void TransferTail(DynamicTexture2D texture)
     {
-        var cache = StateCache.Current;
-        using var unpack = cache.SetPixelUnpackScope(new StateCache.PixelUnpackState(4));
-        using var buffer = cache.BindBufferScope(BufferTarget.PixelUnpackBuffer, tail!.BufferId);
-        using var binding = cache.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId);
+
         int offset = 4;
         for (int level = 7; level < texture.MipLevels; level++)
         {
             int width = Math.Max(1, texture.Width >> level), height = Math.Max(1, texture.Height >> level);
-            GL.TexSubImage2D(TextureTarget.Texture2D, level, 0, 0, width, height, PixelFormat.Red, PixelType.Float, (IntPtr)offset);
+            RHICommandContext.Current.TransferBufferToTexture(texture, new RHITextureTransfer(tail!, offset, new(new(level), 0, 0, 0, width, height), new(RHIPixelChannels.Red, RHIPixelType.Float)));
             offset += width * height * 4;
         }
     }

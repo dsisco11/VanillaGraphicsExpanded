@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -17,8 +18,8 @@ public sealed class GpuResourceCollectionTests(HeadlessGLFixture fixture) : Rend
     {
         EnsureContextValid();
         using var resources = new GpuResourceCollection();
-        using var borrowed = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
-        var owned = resources.Own(DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f));
+        using var borrowed = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        var owned = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         GpuFramebuffer? framebuffer = null;
         var observation = resources.Own(new DisposalObservation(() => Assert.True(framebuffer!.IsDisposed)));
         framebuffer = resources.Own(DynamicGpuFramebuffer.CreateMRT([owned, borrowed])!);
@@ -48,7 +49,7 @@ public sealed class GpuResourceCollectionTests(HeadlessGLFixture fixture) : Rend
         Assert.Throws<InvalidOperationException>((Action)(() =>
         {
             using var resources = new GpuResourceCollection();
-            allocated = resources.Own(DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f));
+            allocated = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
             textureId = allocated.TextureId;
             throw new InvalidOperationException("Simulated later allocation failure.");
         }));

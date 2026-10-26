@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -51,14 +52,14 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent();
         var cache = StateCache.Current;
-        using var pack = cache.SetPixelPackScope(new(1));
-        using var unpack = cache.SetPixelUnpackScope(new(1));
+        using var pack = OpenGLPixelLayouts.PackScope(cache, new(1));
+        using var unpack = OpenGLPixelLayouts.UnpackScope(cache, new(1));
 #if DEBUG
         long checks = cache.BoundaryErrorChecks, queries = cache.BoundaryQueries;
 #endif
         GL.Enable((EnableCap)(-1));
-        cache.SetPixelPackState(new(1));
-        cache.SetPixelUnpackState(new(1));
+        OpenGLPixelLayouts.SetPack(cache, new(1));
+        OpenGLPixelLayouts.SetUnpack(cache, new(1));
 #if DEBUG
         Assert.Equal(checks, cache.BoundaryErrorChecks);
         Assert.Equal(queries, cache.BoundaryQueries);
@@ -74,8 +75,8 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent();
         var cache = StateCache.Current;
-        var pack = cache.GetPixelPackState();
-        var unpack = cache.GetPixelUnpackState();
+        var pack = OpenGLPixelLayouts.GetPack(cache);
+        var unpack = OpenGLPixelLayouts.GetUnpack(cache);
         bool diagnostics = GlDebug.CheckStateTransitions;
         GlDebug.CheckStateTransitions = enabled;
         try
@@ -86,8 +87,8 @@ public sealed class StateTransitionDiagnosticsTests(HeadlessGLFixture fixture)
 #endif
             // An unrelated pending error must survive normal changes and both scope disposals.
             if (!enabled) GL.Enable((EnableCap)(-1));
-            using (cache.SetPixelPackScope(pack with { Alignment = pack.Alignment == 1 ? 4 : 1 }))
-            using (cache.SetPixelUnpackScope(unpack with { Alignment = unpack.Alignment == 1 ? 4 : 1 }))
+            using (OpenGLPixelLayouts.PackScope(cache, pack with { Alignment = pack.Alignment == 1 ? 4 : 1 }))
+            using (OpenGLPixelLayouts.UnpackScope(cache, unpack with { Alignment = unpack.Alignment == 1 ? 4 : 1 }))
             {
                 Assert.NotEqual(pack.Alignment, GL.GetInteger(GetPName.PackAlignment));
                 Assert.NotEqual(unpack.Alignment, GL.GetInteger(GetPName.UnpackAlignment));

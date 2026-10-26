@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
@@ -22,7 +23,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void BorrowerConstructionRefreshesExternallyReallocatedTextureAliases()
     {
         using var lifetime = StartManager();
-        using var owner = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var first = new BorrowedTexture(owner.TextureId);
         using (StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, owner.TextureId))
             GL.TexImage2D(TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba16f, 12, 6, 0,
@@ -43,12 +44,12 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void RenderbufferWrapRefreshesExternallyReallocatedAliases()
     {
         using var lifetime = StartManager();
-        using var owner = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 8, 4);
-        using var first = GpuRenderbuffer.Wrap(owner.RenderbufferId);
+        using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 8, Height = 4, Samples = 0, Label = null }).RequireResource();
+        using var first = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(owner.RenderbufferId);
         using (StateCache.Current.BindRenderbufferScope(owner.RenderbufferId))
             GL.RenderbufferStorage(RenderbufferTarget.Renderbuffer, RenderbufferStorage.Rgba16f, 12, 6);
         GpuResourceManager.InvalidateWrapperMetadata(owner, GpuMetadataChange.Storage);
-        using var second = GpuRenderbuffer.Wrap(owner.RenderbufferId);
+        using var second = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(owner.RenderbufferId);
         Assert.Equal(12, first.Width);
         Assert.Equal(6, first.Height);
         Assert.Equal(RenderbufferStorage.Rgba16f, first.Storage);
@@ -63,7 +64,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void RejectedFramebufferAttachmentDoesNotPublishInventedDescriptor()
     {
         using var lifetime = StartManager();
-        using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
@@ -81,7 +82,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void ResizedOwnerDefersFramebufferDescriptorUntilBind()
     {
         using var lifetime = StartManager();
-        using var texture = DynamicTexture3D.Create(4, 4, 2, PixelInternalFormat.Rgba8);
+        using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture, layer: 0);
         using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuFramebufferMetadata>>(
@@ -142,7 +143,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         int framebuffer = GL.GenFramebuffer();
         try
         {
-            StateCache.Current.BindTexture(TextureTarget.Texture1DArray, 0, texture);
+            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture1DArray, 0, texture);
             GL.TexImage2D(TextureTarget.Texture1DArray, 0, PixelInternalFormat.Rgba8, 8, 3, 0,
                 PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             StateCache.Current.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
@@ -159,7 +160,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         finally
         {
             StateCache.Current.DeleteFramebuffer(framebuffer);
-            StateCache.Current.DeleteTexture(texture);
+            RHICommandContext.Current.OpenGL.DeleteTexture(texture);
         }
     }
 
@@ -171,14 +172,14 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         int texture = GL.GenTexture();
         try
         {
-            StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, texture);
+            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 0, texture);
             GL.TexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 2, 0,
                 PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             Assert.Throws<ArgumentException>(() => new BorrowedTexture(texture));
             Assert.True(GL.IsTexture(texture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { StateCache.Current.DeleteTexture(texture); }
+        finally { RHICommandContext.Current.OpenGL.DeleteTexture(texture); }
     }
 
     /// <summary>Disposing one borrower removes its subscription without deleting or unbinding shared storage.</summary>
@@ -186,12 +187,12 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void BorrowerDisposalPreservesOwnerAliasesAndBindings()
     {
         using var lifetime = StartManager();
-        using var owner = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var borrower = new BorrowedTexture(owner.TextureId);
         using var surviving = new BorrowedTexture(owner.TextureId);
         var entry = lifetime.Manager.GetResourceRegistration(owner)!;
         Assert.Same(entry, lifetime.Manager.GetResourceRegistration(borrower));
-        StateCache.Current.BindTexture(TextureTarget.Texture2D, 2, owner.TextureId);
+        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 2, owner.TextureId);
         borrower.Dispose();
         borrower.Dispose();
         Assert.True(GL.IsTexture(owner.TextureId));
@@ -211,7 +212,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void AliasGuardsPreventOwnerRetirementAndStorageReplacement()
     {
         using var lifetime = StartManager();
-        using var owner = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var borrower = new BorrowedTexture(owner.TextureId);
         int original = owner.TextureId;
         borrower.RetainPassReference();
@@ -242,7 +243,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void DetachPreservesLiveRegistrationAndBorrowers()
     {
         using var lifetime = StartManager();
-        using var owner = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var borrower = new BorrowedTexture(owner.TextureId);
         var original = lifetime.Manager.GetResourceRegistration(owner)!;
         int transferred = (int)owner.Detach();
@@ -256,7 +257,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             owner.Dispose();
             Assert.True(GL.IsTexture(transferred));
         }
-        finally { StateCache.Current.DeleteTexture(transferred); }
+        finally { RHICommandContext.Current.OpenGL.DeleteTexture(transferred); }
         Assert.False(borrower.IsValid);
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -283,8 +284,8 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void RetiredWrappersRejectScopesAndStorageChangesAfterNameReuse()
     {
         using var lifetime = StartManager();
-        using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
-        using var textureSentinel = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var textureSentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         buffer.Allocate(32);
         using var bufferSentinel = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
@@ -329,7 +330,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            StateCache.Current.DeleteTexture(texture.TextureId);
+            RHICommandContext.Current.OpenGL.DeleteTexture(texture.TextureId);
             RHICommandContext.Current.OpenGL.DeleteBuffer(buffer.BufferId);
             StateCache.Current.DeleteFramebuffer(framebuffer.FboId);
         }
@@ -340,7 +341,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void UnavailableSelectedFramebufferImageRejectsAttachmentValidation()
     {
         using var lifetime = StartManager();
-        using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromExternalImage(texture.TextureId, false,
             TextureTarget.Texture2D, 1, null);
         Assert.False(lifetime.Manager.IsResourceMetadataAvailable(image));
@@ -354,12 +355,12 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void RedirectedExternalDeletionRetiresAliasesBeforeLaterOwnerDisposal()
     {
         using var lifetime = StartManager();
-        using var owner = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var borrower = new BorrowedTexture(owner.TextureId);
-        using var sentinel = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
+        using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         int deleted = owner.TextureId;
-        StateCache.Current.BindTexture(TextureTarget.Texture2D, 2, deleted);
-        StateCache.Current.BindTexture(TextureTarget.Texture2D, 3, sentinel.TextureId);
+        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 2, deleted);
+        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 3, sentinel.TextureId);
         var harmony = Patch(nameof(DeleteNativeTexture));
         try
         {
@@ -386,7 +387,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void QueuedOwnerRetirementDeletesOnlyAfterOriginatingContextDrains()
     {
         using var lifetime = StartManager();
-        using var owner = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var borrower = new BorrowedTexture(owner.TextureId);
         int native = owner.TextureId;
         var original = lifetime.Manager.GetResourceRegistration(owner)!;
@@ -407,7 +408,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void QueuedRetirementCannotDeleteReplacementRegistration()
     {
         using var lifetime = StartManager();
-        using var owner = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var borrower = new BorrowedTexture(owner.TextureId);
         int native = owner.TextureId;
         var original = lifetime.Manager.GetResourceRegistration(owner)!;
@@ -427,7 +428,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
             Assert.False(borrower.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { StateCache.Current.DeleteTexture(native); }
+        finally { RHICommandContext.Current.OpenGL.DeleteTexture(native); }
     }
 
     /// <summary>Retiring an originating context discards pending native work rather than deleting in its replacement.</summary>
@@ -435,7 +436,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void ContextRetirementDiscardsQueuedDeletionInReplacementContextLifetime()
     {
         using var lifetime = StartManager();
-        using var owner = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var borrower = new BorrowedTexture(owner.TextureId);
         int native = owner.TextureId;
         object replacementContext = new();
@@ -472,13 +473,13 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void RedirectedDeletionOverloadsRetireEveryListedResource(int variant)
     {
         using var lifetime = StartManager();
-        using var first = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
-        using var second = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+        using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var second = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var firstAlias = new BorrowedTexture(first.TextureId);
         using var secondAlias = new BorrowedTexture(second.TextureId);
-        using var sentinel = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
-        StateCache.Current.BindTexture(TextureTarget.Texture2D, 2, first.TextureId);
-        StateCache.Current.BindTexture(TextureTarget.Texture2D, 3, sentinel.TextureId);
+        using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 2, first.TextureId);
+        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 3, sentinel.TextureId);
         var harmony = Patch(nameof(DeleteNativeTextureList));
         try
         {
@@ -502,7 +503,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
     public void RejectedRedirectedDeletionPreservesResourceAndError()
     {
         using var lifetime = StartManager();
-        using var owner = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+        using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var alias = new BorrowedTexture(owner.TextureId);
         var original = lifetime.Manager.GetResourceRegistration(owner)!;
         var harmony = Patch(nameof(DeleteInvalidTextureList));

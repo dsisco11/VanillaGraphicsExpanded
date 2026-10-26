@@ -29,7 +29,7 @@ internal sealed class RenderPass : IDisposable
             {
                 var attachment = pair.Value;
                 int source = attachment.Resource is GpuTextureView attachedView
-                    ? attachedView.SourceTextureId : attachment.TextureId;
+                    ? GpuResourceManager.TextureViewStorageName(attachedView) : attachment.TextureId;
                 if (source == texture.TextureId)
                     throw new InvalidOperationException("Sampled texture overlaps an active framebuffer image.");
             }
@@ -43,8 +43,8 @@ internal sealed class RenderPass : IDisposable
         {
             var image = pair.Value;
             var attachedView = image.Resource as GpuTextureView;
-            int source = attachedView?.SourceTextureId ?? image.TextureId;
-            if (source != view.SourceTextureId) continue;
+            int source = attachedView is null ? image.TextureId : GpuResourceManager.TextureViewStorageName(attachedView);
+            if (source != GpuResourceManager.TextureViewStorageName(view)) continue;
             int level = image.MipLevel + (attachedView?.BaseLevel ?? 0);
             if (level < view.BaseLevel || level >= (long)view.BaseLevel + view.LevelCount) continue;
             // A 3D view exposes one volume, not one z slice. Sampling it can reach every slice

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -23,8 +24,7 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
     public void WaterVolumeContractClearsBothStaticLayersEveryFrame()
     {
         EnsureContextValid();
-        using var transport = Texture3D.Create(3, 2, 2, PixelInternalFormat.Rgba32f,
-            textureTarget: TextureTarget.Texture2DArray);
+        using var transport = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 3), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var optical = GpuFramebufferAttachment.FromTexture(transport, layer: 0);
         using var illumination = GpuFramebufferAttachment.FromTexture(transport, layer: 1);
         using var target = StaticGpuFramebuffer.Create([optical, illumination]);
@@ -58,11 +58,9 @@ public sealed class StaticTargetMigrationTests(HeadlessGLFixture fixture, ITestO
     public void ExternalTextureMetadataCannotBeFrozen(bool throughView)
     {
         EnsureContextValid();
-        using var external = DynamicTexture3D.Create(2, 2, 3, PixelInternalFormat.Rgba32f,
-            textureTarget: TextureTarget.Texture2DArray, immutableStorage: true);
+        using var external = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var borrowed = new BorrowedTexture(external.TextureId);
-        using var view = throughView ? GpuTextureView.CreateFromTexture(borrowed,
-            TextureTarget.Texture2DArray, PixelInternalFormat.Rgba32f, 0, 1, 0, 3) : null;
+        using var view = throughView ? RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = borrowed, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 3, Label = null }).RequireResource() : null;
         using var image = view is null ? GpuFramebufferAttachment.FromTexture(borrowed, layer: 0)
             : GpuFramebufferAttachment.FromTexture(view, layer: 0);
         Assert.Throws<ArgumentException>(() => StaticGpuFramebuffer.Create([image]));

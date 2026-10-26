@@ -1,3 +1,5 @@
+using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Integration;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -54,13 +56,13 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var programs = new RuntimeLightingPrograms();
         using var drawing = new ShaderTestFramework();
         using var atmosphere = new AtmosphereModSystem();
-        using var materialTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
+        using var materialTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var material = GpuFramebufferAttachment.FromTexture(materialTexture);
-        using var glowTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
+        using var glowTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var glow = GpuFramebufferAttachment.FromTexture(glowTexture);
         using var depthStorage = new DepthTexture(2, 2, PixelInternalFormat.DepthComponent32f);
         using var depth = GpuFramebufferAttachment.FromTexture(depthStorage);
-        using var liquidDepth = DynamicTexture2D.CreateWithData(2, 2, PixelInternalFormat.R32f, [1f, 1f, 1f, 1f]);
+        using var liquidDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 2, Height = 2, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 1f, 1f, 1f, 1f }).AsSpan()).ToArray())]).RequireResource();
         using var normals = drawing.CreateTexture(2,2,PixelInternalFormat.Rgba16f,Enumerable.Repeat(new[]{0f,0f,1f,0f},4).SelectMany(value=>value).ToArray());
         using var positions = drawing.CreateTexture(2,2,PixelInternalFormat.Rgba16f,Enumerable.Repeat(new[]{1f,0f,-1f,0f},4).SelectMany(value=>value).ToArray());
         using var revealage = drawing.CreateTexture(2,2,PixelInternalFormat.R16f,[1f,1f,1f,1f]);
@@ -69,7 +71,7 @@ public sealed class SceneColorRuntimeTests(HeadlessGLFixture fixture, ITestOutpu
         using var engine = DynamicGpuFramebuffer.Create([material, glow, normalAttachment, positionAttachment], depth);
         var primary = new FrameBufferRef { FboId = engine.FboId, Width = 2, Height = 2, DepthTextureId = depth.TextureId,
             ColorTextureIds = [material.TextureId, glow.TextureId, normals.TextureId, positions.TextureId] };
-        using var postStorageTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
+        using var postStorageTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var postStorage = GpuFramebufferAttachment.FromTexture(postStorageTexture);
         var frames = Enumerable.Repeat<FrameBufferRef>(null!, 25).ToList();
         frames[(int)EnumFrameBuffer.Primary] = primary;

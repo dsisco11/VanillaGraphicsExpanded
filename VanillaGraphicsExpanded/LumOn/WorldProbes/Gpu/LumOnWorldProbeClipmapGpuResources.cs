@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -66,25 +67,20 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources : IDisposable
         try
         {
             // Radiance atlas (SH replacement): one SxS octahedral tile per probe.
-            radianceAtlas = owned.Own(DynamicTexture2D.Create(
-            RadianceAtlasWidth,
-            RadianceAtlasHeight,
-            PixelInternalFormat.Rgba16f,
-            TextureFilterMode.Nearest,
-            "WorldProbe_ProbeRadianceAtlas"));
+            radianceAtlas = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, RadianceAtlasWidth), Height = System.Math.Max(1, RadianceAtlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WorldProbe_ProbeRadianceAtlas" }).RequireResource());
 
             // Visibility: RGBA16F (octU, octV, skyIntensity, aoConfidence)
-            vis0 = owned.Own(DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest, "WorldProbe_ProbeVis0"));
+            vis0 = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, AtlasWidth), Height = System.Math.Max(1, AtlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WorldProbe_ProbeVis0" }).RequireResource());
 
             // Distance: RG16F (meanLogDist, reserved)
-            dist0 = owned.Own(DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg16f, TextureFilterMode.Nearest, "WorldProbe_ProbeDist0"));
+            dist0 = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg16f, Width = System.Math.Max(1, AtlasWidth), Height = System.Math.Max(1, AtlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WorldProbe_ProbeDist0" }).RequireResource());
 
             // Meta: RG32F (confidence, uintBitsToFloat(flags))
-            meta0 = owned.Own(DynamicTexture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rg32f, TextureFilterMode.Nearest, "WorldProbe_ProbeMeta0"));
+            meta0 = owned.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg32f, Width = System.Math.Max(1, AtlasWidth), Height = System.Math.Max(1, AtlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WorldProbe_ProbeMeta0" }).RequireResource());
 
             // Debug state: RGBA16 (UNorm) encoded by CPU from scheduler lifecycle.
             // R=stale, G=in-flight, B=valid, A=1.
-            debugState0 = owned.Own(Texture2D.Create(AtlasWidth, AtlasHeight, PixelInternalFormat.Rgba16, TextureFilterMode.Nearest, "WorldProbe_DebugState0"));
+            debugState0 = owned.Own(RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16, Width = System.Math.Max(1, AtlasWidth), Height = System.Math.Max(1, AtlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WorldProbe_DebugState0" }).RequireResource());
 
             // NOTE: Radiance atlas has different dimensions than per-probe scalar atlases, so it must live in its own FBO.
             radianceFbo = owned.Own(StaticGpuFramebuffer.Create([owned.Own(GpuFramebufferAttachment.FromTexture(radianceAtlas))],

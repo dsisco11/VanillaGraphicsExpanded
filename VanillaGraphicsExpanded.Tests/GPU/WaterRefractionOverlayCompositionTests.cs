@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -43,8 +44,8 @@ public sealed class WaterRefractionOverlayCompositionTests(HeadlessGLFixture fix
         using var depth = TestFramework.CreateTexture(1, 1, PixelInternalFormat.R32f, [overlay ? .01f : .8f]);
         using var normal = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [.5f, 1f, .5f, overlay ? -1f : 1f]);
         using var position = TestFramework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, -.1f, 1f]);
-        using var cleanColor = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var cleanDepth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f);
+        using var cleanColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var cleanDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         cleanColor.UploadDataImmediate([2f, 1f, .5f, 1f]);
         cleanDepth.UploadDataImmediate([.75f]);
         using var target = CreateMRTRenderTarget(1, 1, PixelInternalFormat.Rgba32f, PixelInternalFormat.Rgba32f, PixelInternalFormat.R32f);

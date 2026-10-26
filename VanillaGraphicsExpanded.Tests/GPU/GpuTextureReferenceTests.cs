@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -19,7 +20,7 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
         int detached = 0;
         try
         {
-            using var owner = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
+            using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             GpuTextureRef reference = owner;
             detached = (int)owner.Detach();
             Assert.False(reference.IsEmpty);
@@ -36,7 +37,7 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            if (detached != 0) StateCache.Current.DeleteTexture(detached);
+            if (detached != 0) RHICommandContext.Current.OpenGL.DeleteTexture(detached);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -52,9 +53,8 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
         if (managed) fixture.InitializeResourceDisposal();
         try
         {
-            using var owner = DynamicTexture3D.Create(2, 2, 4, PixelInternalFormat.Rgba32f, immutableStorage: true);
-            using var view = GpuTextureView.CreateFromTexture(owner, TextureTarget.Texture2DArray,
-                PixelInternalFormat.Rgba32f, 0, 1, 1, 2);
+            using var owner = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 4), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = owner, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 1, LayerCount = 2, Label = null }).RequireResource();
             GpuTextureRef reference = owner;
             GpuTextureRef viewReference = view;
             var before = reference;
@@ -94,7 +94,7 @@ public sealed class GpuTextureReferenceTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var borrowed = new BorrowedTexture(texture.TextureId);
             GpuTextureRef owner = texture;
             GpuTextureRef alias = borrowed;

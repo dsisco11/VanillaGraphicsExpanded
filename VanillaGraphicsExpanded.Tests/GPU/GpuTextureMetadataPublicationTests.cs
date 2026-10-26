@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -21,9 +22,9 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         {
             GpuResourceManagerSystem.CurrentManager!.Dispose();
             Assert.True(GpuResourceManagerSystem.CurrentManager.IsDisposed);
-            using var source = DynamicTexture3D.Create(4, 4, 4, PixelInternalFormat.Rgba32f, immutableStorage: true);
+            using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 4), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             Assert.Null(GpuResourceManagerSystem.CurrentManager.GetResourceRegistration(source));
-            using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba32f, 0, 1, 0, 1);
+            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
             source.SetMipRange(0, 0);
             Assert.True(view.IsValid);
             Assert.Null(GpuResourceManagerSystem.CurrentManager!.IsTextureViewSourceCurrent(view, source));
@@ -39,16 +40,14 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
     }
 
     /// <summary>View creation publishes the selected target and layer range.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ViewCreationPublishesSelectedParameters(bool dsa)
+    [Fact]
+    public void ViewCreationPublishesSelectedParameters()
     {
         fixture.EnsureContextValid();
-        using var source = DynamicTexture3D.Create(4, 4, 4, PixelInternalFormat.Rgba32f, immutableStorage: true);
+        using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 4), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         Assert.True(GL.IsTexture(source.TextureId));
-        using var capabilities = new DirectStateAccessCapabilityScope(dsa);
-        using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba32f, 0, 1, 1, 2);
+
+        using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 1, LayerCount = 2, Label = null }).RequireResource();
         Assert.True(view.IsValid);
         Assert.Equal(TextureTarget.Texture2DArray, view.Target);
         Assert.Equal(1, view.BaseLayer); Assert.Equal(2, view.LayerCount);
@@ -63,8 +62,8 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
     {
         fixture.EnsureContextValid();
         Assert.Null(GpuResourceManagerSystem.CurrentManager);
-        using var source = DynamicTexture3D.Create(4, 4, 4, PixelInternalFormat.Rgba32f, immutableStorage: true);
-        using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba32f, 0, 1, 0, 1);
+        using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 4), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
         var before = source.StorageImages;
         source.SetMipRange(0, 0);
         Assert.True(before.SequenceEqual(source.StorageImages));
@@ -83,7 +82,7 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         fixture.InitializeResourceDisposal();
         try
         {
-            using var source = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(source));
             var original = entry.Reader;
             var failure = new FailedRead();
@@ -105,37 +104,25 @@ public sealed class GpuTextureMetadataPublicationTests(HeadlessGLFixture fixture
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Forced capability subsets acquire native image facts without consuming errors or changing bindings.</summary>
+    /// <summary>Named acquisition preserves sentinel selectors and pending native errors.</summary>
     [Theory]
-    [InlineData(false, false, false)]
-    [InlineData(false, true, false)]
-    [InlineData(false, true, true)]
-    [InlineData(true, false, false)]
-    [InlineData(true, true, false)]
-    [InlineData(true, true, true)]
-    public void MetadataQueriesRespectOptionalCapabilities(bool dsa, bool storage, bool view)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void NamedMetadataQueriesPreserveState(bool immutable)
     {
         fixture.EnsureContextValid();
-        using var texture = DynamicTexture3D.Create(4, 4, 4, PixelInternalFormat.Rgba32f, immutableStorage: storage);
-        using var sentinel = DynamicTexture3D.Create(2, 2, 2, PixelInternalFormat.Rgba32f);
+        using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = 4, Height = 4, Depth = 4, MipLevels = 1, Storage = immutable ? RHIStorageMode.Immutable : RHIStorageMode.Mutable }).RequireResource();
+        using var sentinel = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = 2, Height = 2, Depth = 2, MipLevels = 1, Storage = RHIStorageMode.Mutable }).RequireResource();
         using var binding = sentinel.BindScope(0);
-        var original = GpuSupport.Graphics;
-        try
-        {
-            // These are selection tests on modern hardware, not older-driver qualification.
-            AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original with
-            { SupportsArbDirectStateAccess = dsa, SupportsTextureStorage = storage, SupportsTextureView = view });
-            GL.Enable((EnableCap)(-1));
-            Assert.True(new GpuTextureMetadataReader(TextureTarget.Texture2DArray).TryRead(texture.TextureId, out var data));
-            Assert.Equal(4, data.Levels[0].Width);
-            Assert.Equal(storage, data.ImmutableStorage);
-            Assert.Equal(storage ? 1 : 0, data.ImmutableLevels);
-            if (!view) Assert.Null(data.View);
-            Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2DArray));
-            Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());
-            Assert.Equal(ErrorCode.NoError, GL.GetError());
-        }
-        finally { AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original); }
+        GL.Enable((EnableCap)(-1));
+        Assert.True(new GpuTextureMetadataReader(TextureTarget.Texture2DArray).TryRead(texture.TextureId, out var data));
+        Assert.Equal(4, data.Levels[0].Width);
+        Assert.Equal(immutable, data.ImmutableStorage);
+        Assert.Equal(immutable ? 1 : 0, data.ImmutableLevels);
+        if (immutable) Assert.NotNull(data.View); else Assert.Null(data.View);
+        Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2DArray));
+        Assert.Equal(ErrorCode.InvalidEnum, GL.GetError());
+        Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
     #endregion
 

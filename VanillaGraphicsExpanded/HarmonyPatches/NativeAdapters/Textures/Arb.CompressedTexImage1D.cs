@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -8,29 +9,29 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Arb
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void CompressedTexImage1D(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, IntPtr @data)
-        => StateCache.Current.ExecuteArbCompressedTexImage1D(@target, @level, @internalformat, @width, @border, @imageSize, @data);
+        => OpenGLTexturesCalls.ExecuteArbCompressedTexImage1D(@target, @level, @internalformat, @width, @border, @imageSize, @data);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void CompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, ref T6 @data)
         where T6 : struct
-        => StateCache.Current.ExecuteArbCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, ref @data);
+        => OpenGLTexturesCalls.ExecuteArbCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, ref @data);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void CompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, T6[,,] @data)
         where T6 : struct
-        => StateCache.Current.ExecuteArbCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
+        => OpenGLTexturesCalls.ExecuteArbCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void CompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, T6[,] @data)
         where T6 : struct
-        => StateCache.Current.ExecuteArbCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
+        => OpenGLTexturesCalls.ExecuteArbCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void CompressedTexImage1D<T6>(TextureTarget @target, int @level, InternalFormat @internalformat, int @width, int @border, int @imageSize, T6[] @data)
         where T6 : struct
-        => StateCache.Current.ExecuteArbCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
+        => OpenGLTexturesCalls.ExecuteArbCompressedTexImage1D<T6>(@target, @level, @internalformat, @width, @border, @imageSize, @data);
 
     #endregion
 }

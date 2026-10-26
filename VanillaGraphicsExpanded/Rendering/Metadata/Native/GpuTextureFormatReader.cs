@@ -15,13 +15,6 @@ internal static class GpuTextureFormatReader
             or PixelInternalFormat.CompressedRgb or PixelInternalFormat.CompressedRgba
             or PixelInternalFormat.CompressedSrgb or PixelInternalFormat.CompressedSrgbAlpha);
 
-    /// <summary>Retains explicit formats; reads only the format output of an unsized bound image definition.</summary>
-    internal static PixelInternalFormat ResolveBoundFormat(TextureTarget target, int level, PixelInternalFormat supplied)
-    {
-        if (IsExplicitFormat(supplied)) return supplied;
-        GL.GetTexLevelParameter(target, level, GetTextureParameter.TextureInternalFormat, out int resolved);
-        if (resolved <= 0) throw new InvalidOperationException("Unsized texture format resolution failed.");
-        return (PixelInternalFormat)resolved;
-    }
+
     #endregion
 }

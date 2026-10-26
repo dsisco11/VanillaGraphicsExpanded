@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -25,7 +26,7 @@ public sealed class SceneColorFrameTargetsTests(HeadlessGLFixture fixture) : Ren
     public void RequiresFloatingColorStorage(PixelInternalFormat format, bool expected)
     {
         EnsureContextValid();
-        using var image = DynamicTexture2D.Create(2, 2, format);
+        using var image = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var frames = CreatePublications(image);
         var targets = new SceneColorFrameTargets();
         Assert.Equal(expected, targets.Prepare(frames, out _));
@@ -39,7 +40,7 @@ public sealed class SceneColorFrameTargetsTests(HeadlessGLFixture fixture) : Ren
     public void MissingAndResizedPublicationsRequireCurrentMetadata()
     {
         EnsureContextValid();
-        using var image = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba16f);
+        using var image = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var frames = CreatePublications(image);
         var targets = new SceneColorFrameTargets();
         Assert.True(targets.Prepare(frames, out _));
@@ -81,7 +82,7 @@ public sealed class SceneColorFrameTargetsTests(HeadlessGLFixture fixture) : Ren
         Assert.DoesNotContain(instructions[begin..end], instruction => instruction.operand is FieldInfo field
             && field.DeclaringType == typeof(FrameBufferRef) && (field.Name == nameof(FrameBufferRef.Width) || field.Name == nameof(FrameBufferRef.Height)));
 
-        using var primaryImage = DynamicTexture2D.Create(128, 128, PixelInternalFormat.Rgba16f);
+        using var primaryImage = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 128), Height = System.Math.Max(1, 128), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var frames = CreatePublications(primaryImage);
         var low = new FrameBufferRef { FboId = GL.GenFramebuffer(), ColorTextureIds = [GL.GenTexture()] };
         var platform = (ClientPlatformWindows)RuntimeHelpers.GetUninitializedObject(typeof(ClientPlatformWindows));

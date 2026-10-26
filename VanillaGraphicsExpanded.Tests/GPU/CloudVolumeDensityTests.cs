@@ -22,7 +22,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         var submission=new CloudVolumeSubmission();
         using var storage=new VolumeStorage(()=>CloudVolumeMaintenanceProgram.Create(Programs.Api),()=>CloudVolumeCopyProgram.Create(Programs.Api),submission);
         using var density=new CloudVolumeDensity((op,shared)=>CloudVolumeDensityProgram.Create(Programs.Api,op,false,shared),submission);
-        using var map=DynamicTexture2D.Create(20,20,PixelInternalFormat.Rgba32f);
+        using var map=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 20), Height = System.Math.Max(1, 20), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var data=new float[20*20*4];int column=(10*20+10)*4;data[column]=.5f;data[column+3]=1f/50;
         map.UploadDataImmediate(data);
         var input=Input(map);var encoding=new CloudVolumeEncoding(new Vector3(100));
@@ -107,7 +107,7 @@ public sealed class CloudVolumeDensityTests(HeadlessGLFixture fixture):LumOnShad
         EnsureShaderTestAvailable();
         using var storage=new VolumeStorage(()=>CloudVolumeMaintenanceProgram.Create(Programs.Api),()=>CloudVolumeCopyProgram.Create(Programs.Api));
         using var density=new CloudVolumeDensity((op,shared)=>CloudVolumeDensityProgram.Create(Programs.Api,op,true,shared));
-        using var map=DynamicTexture2D.Create(50,50,PixelInternalFormat.Rgba32f);
+        using var map=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 50), Height = System.Math.Max(1, 50), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var data=new float[50*50*4];int column=(25*50+25)*4;
         data[column]=.5f;data[column+2]=-2;data[column+3]=2;map.UploadDataImmediate(data);
         var input=Input(map);var encoding=new CloudVolumeEncoding(new Vector3(100));

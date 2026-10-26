@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -70,7 +71,7 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
         var oldDiffuse = fields.Diffuse;
         var grown = new CloudVolumeEncoding(new Vector3(1e8f));
         var cache=StateCache.Current;
-        cache.BindTexture(TextureTarget.Texture3D,0,fields.Density.TextureId);
+        OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture3D,0,fields.Density.TextureId);
         cache.BindImageTexture(0,fields.Density.TextureId,0,true,0,TextureAccess.ReadOnly,SizedInternalFormat.R16f);
         fields.Regions.BindBase(0);
         int boundaries=submission.Boundaries,dispatches=submission.Dispatches,barriers=submission.Barriers;
@@ -91,7 +92,7 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
         Assert.False(storage.PublishPending(()=>false,()=>true)); Assert.Same(fields,storage.Published);
         Assert.True(storage.PublishPending(()=>true,()=>true)); Assert.False(density.IsValid);
         fields=storage.Published;
-        cache.BindTexture(TextureTarget.Texture3D,0,fields.Density.TextureId);
+        OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture3D,0,fields.Density.TextureId);
         cache.BindImageTexture(0,fields.Density.TextureId,0,true,0,TextureAccess.ReadOnly,SizedInternalFormat.R16f);
         fields.Regions.BindBase(0);
         var stable=fields.Diffuse; var stableEncoding=fields.Encoding; int certificates=0;

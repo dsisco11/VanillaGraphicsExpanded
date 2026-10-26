@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -44,17 +45,10 @@ internal sealed class LumonScenePageTableGpuResources : IDisposable
         // NOTE: This is potentially large for the Far field: 128*128*chunkSlots*4 bytes.
         // The long-term plan is to reduce this via chunk-slot budgeting and/or a more sparse representation,
         // but v1 keeps a simple dense table for deterministic addressing.
-        pageTableMip0 = Texture3D.Create(
-            width: LumonSceneVirtualAtlasConstants.VirtualPageTableWidth,
-            height: LumonSceneVirtualAtlasConstants.VirtualPageTableHeight,
-            depth: chunkSlotCount,
-            format: PageTableFormat,
-            filter: TextureFilterMode.Nearest,
-            textureTarget: TextureTarget.Texture2DArray,
-            debugName: $"LumOn.LumonScene.{field}.PageTableMip0(R32UI)");
+        pageTableMip0 = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(PageTableFormat)), Width = System.Math.Max(1, LumonSceneVirtualAtlasConstants.VirtualPageTableWidth), Height = System.Math.Max(1, LumonSceneVirtualAtlasConstants.VirtualPageTableHeight), Depth = System.Math.Max(1, chunkSlotCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"LumOn.LumonScene.{field}.PageTableMip0(R32UI)" }).RequireResource();
 
         // Best-effort clear-to-zero so all entries start invalid.
-        _ = pageTableMip0.TryClearToZero();
+        pageTableMip0.ClearToZero();
     }
 
     public void Dispose()

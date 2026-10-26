@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -30,7 +31,7 @@ internal sealed class MinimumChildMaskPass : IDisposable
             Dispose();
             try
             {
-                Texture=resources.Own(DynamicTexture2D.CreateMipmapped(mw,mh,PixelInternalFormat.R16ui,Math.Max(1,levels),"AmbientOcclusion.MinimumChildren"));
+                Texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R16ui, Width = System.Math.Max(1, mw), Height = System.Math.Max(1, mh), MipLevels = Math.Max(1,levels), Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (Math.Max(1,levels)) - 1, Label = "AmbientOcclusion.MinimumChildren" }).RequireResource());
                 targets=new StaticGpuFramebuffer[Math.Max(1,levels)];
                 for(int level=0;level<targets.Length;level++)
                 {

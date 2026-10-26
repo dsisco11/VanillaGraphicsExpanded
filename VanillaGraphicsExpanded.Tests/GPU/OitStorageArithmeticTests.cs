@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using TinyTokenizer.Ast;
 using VanillaGraphicsExpanded.Rendering;
@@ -151,7 +152,7 @@ public sealed class OitStorageArithmeticTests(HeadlessGLFixture fixture) : Rende
         }
         records[4 * 4] = -1; records[5 * 4] = float.NaN; records[6 * 4] = float.PositiveInfinity;
         records[7 * 4] = float.MaxValue;
-        using var bins = Texture3D.Create(width, 1, 3, PixelInternalFormat.Rgba32f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray);
+        using var bins = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         bins.UploadDataImmediate(records, 0, 0, 0, width, 1, 1);
         bins.UploadDataImmediate(new float[width * 4], 0, 0, 1, width, 1, 1);
         bins.UploadDataImmediate(new float[width * 4], 0, 0, 2, width, 1, 1);

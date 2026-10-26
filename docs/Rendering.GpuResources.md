@@ -19,15 +19,15 @@ subresources remain with their existing wrappers and helpers.
 
 Resource-specific initialization records expose legal inputs and automatically record assigned fields,
 including explicit zero and false values. Manager creation methods validate those requests and use
-the OpenGL backend through `RHICommandContext` for buffer allocation; other resource families use
-StateCache to allocate and configure native objects. A nullable metadata result reports detected failure;
+the OpenGL backend through `RHICommandContext` for buffer, image, renderbuffer and sampler allocation;
+other resource families use StateCache to allocate and configure native objects. A nullable metadata result reports detected failure;
 identity and a complete initial snapshot are handed to the wrapper only after successful initialization.
 Partial allocation cleanup preserves the original exception and the originating deletion context.
 
 ## Command results and queries
 
-The OpenGL RHI backend owns buffer native dispatch; StateCache retains its selector knowledge and
-operation guards. Other resource families dispatch through StateCache. Controlled operations publish inputs,
+The OpenGL RHI backend owns buffer, image, renderbuffer and sampler native dispatch; StateCache retains
+its selector knowledge and operation guards. Other resource families dispatch through StateCache. Controlled operations publish inputs,
 guaranteed defaults and derived facts. Existing failure handling remains authoritative: reported failure
 does not publish success, and interruption withdraws affected knowledge. No universal post-command query,
 error drain or separate requested/actual metadata cache is used. Available covered aliases reuse canonical
@@ -36,9 +36,9 @@ facts; external unknown state and explicit recovery use manager-owned readers.
 Driver-produced shader compilation/link results and interfaces retain their completion checks. Allocation
 uses cached target/format sample capabilities, with a single sample-count read when those capabilities
 cannot supply the result. Unsized image formats may require a resolved-format read. These exceptions do
-not authorize full descriptor scans after controlled allocation. Native readers choose supported named
-or binding-preserving query paths internally for image families. Buffer readers always use
-core named queries, and are invoked only for explicit unknown external acquisition or recovery.
+not authorize full descriptor scans after controlled allocation. Native readers use core named queries; cube-face descriptors retain their required bound selection
+and restoration; optional renderbuffer-backed association queries retain their required selectors.
+Buffer readers use core named queries, and are invoked only for explicit unknown external acquisition or recovery.
 
 An operation captures its original identity, withdraws affected availability, constructs a complete result
 and commits once. Participating internal steps receive the operation explicitly. Unrelated same-resource
@@ -49,7 +49,7 @@ another canonical entry or reader when facts are available.
 
 ## Buffer execution
 
-`RHICommandContext` admits desktop OpenGL 4.5 and required core buffer entry points for its original
+`RHICommandContext` admits desktop OpenGL 4.5 and required core buffer and image entry points for its original
 context/thread. `RHICapabilities` projects the existing capability snapshot without a second discovery
 service. `RHIBufferDescription` uses project-owned role, storage, usage and access values and distinguishes
 omission from explicit zero. Creation returns `RHICreationResult<T>` containing an already initialized
@@ -72,10 +72,42 @@ Context-local buffers retain physical context identity without registering a sec
 Local tools must dispose their owners before destroying that context; foreign-context disposal rejects
 without surrendering ownership. Registered resources retain the existing deferred retirement service.
 
+## Image execution
+
+Texture, renderbuffer, buffer-texture, native-view and sampler factories accept project-owned descriptions
+and return typed ready owners. Omitted initialization inputs retain guaranteed defaults; assigned zero
+and false remain explicit. Initial pixels are separate region/encoding/pitch payloads consumed before
+handoff. No controlled allocation reads back its complete descriptor.
+
+Immutable allocation, uploads, copies, clears and sampler configuration use core named commands.
+Mutable image definitions retain bound semantics, with backend-owned active-unit, target and pixel-buffer
+restoration. Cube faces and mip dimensions derive from the allocation request; array layers remain
+constant across mip levels. Multisample counts use the existing target/format cache, with the approved
+single-value read only when that cache cannot supply a result. Optional coverage-sample storage is
+capability checked before dispatch and reads only its resulting sample count.
+
+GPU buffer/image transfers carry explicit byte offsets and row/slice pitches. Pixel layouts and pack/unpack
+selectors use the existing cache and restore on unwind in their original context. Content operations do
+not publish allocation revisions. Mip generation is immediate: mutable image geometry commits once when
+it changes; regeneration of existing images preserves storage revisions.
+
+Buffer textures retain the original backing dependency and explicit whole/range intent. Native views
+retain source storage provenance and expose view-relative mips/layers. Failed creation retires only its
+candidate texture, never its backing. External borrowing lives at the native integration boundary and
+reuses available manager facts; readers execute only for unknown external facts or explicit recovery.
+Queued uploads retain their selected destination storage certificate and revision, so replacement cannot
+receive stale staged bytes. These payload certificates are separate from consumer references and content
+readiness. Physical-context tools use the same creation/retirement path without another registry.
+
+Exact image adapters live in backend texture, buffer-texture and renderbuffer external modules; sampler
+and image deletion overloads share the backend lifetime boundary. Each external call preserves its
+original signature and native errors, executes once, and uses the existing observation/publication service.
+External selectors never use managed duplicate suppression; uncertain binding facts recover lazily.
+
 ## Binding knowledge and retirement
 
 `GpuTextureRef` is a readonly consumer value holding one private `GpuResource<GpuTextureMetadata>`
-reference. Implicit operators on `GpuTexture` and `GpuTextureView` supply it; borrowers use the texture
+reference. Implicit operators on `GpuTexture`, `GpuBufferView` and `GpuTextureView` supply it; borrowers use the texture
 base conversion. It exposes identity and published metadata without public disposal, mutation or
 underlying-resource access. Null wrappers produce an empty value. Equality compares managed wrappers;
 intentional owner replacement is visible through retained references. The value adds no registration,
@@ -103,7 +135,7 @@ run in its originating context. Weak recipients are pruned during acquisition, p
 ## External coverage and consumers
 
 Compiler-checked adapters redirect supported calls discovered in the built-in engine assemblies through
-backend buffer modules or the remaining StateCache operation families. Allowed OpenTK owners are GL (also named Core by adapters), GL.Ext and GL.Arb. Other auxiliary
+backend buffer/image modules or the remaining StateCache operation families. Allowed OpenTK owners are GL (also named Core by adapters), GL.Ext and GL.Arb. Other auxiliary
 owners and legacy fixed-function facilities are outside interception. Generic discovery handles concrete
 value-type instantiations from built-in assembly references; arbitrary mods and dynamic callers are outside
 that boundary. A registry entry does not extend interception to unsupported callers.

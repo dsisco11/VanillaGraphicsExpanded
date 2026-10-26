@@ -173,7 +173,7 @@ internal sealed partial class StateCache
     });
 
     /// <summary>Rejects pending/native errors instead of promoting a failed read's default return value.</summary>
-    private T QueryBoundary<T>(Func<T> read)
+    internal T QueryBoundary<T>(Func<T> read)
     {
         if (ReadBoundaryError() != ErrorCode.NoError) throw new InvalidOperationException("Native error before boundary query.");
 #if DEBUG

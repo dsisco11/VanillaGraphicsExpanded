@@ -67,8 +67,6 @@ internal sealed partial class StateCache
     {
         result = default;
         if (!ReferenceEquals(entry, entry.Manager.FindObservedResource(entry.Kind, entry.Id))) return false;
-        bool named = GpuSupport.Graphics.SupportsArbDirectStateAccess;
-        using var binding = !named ? Current.BindTextureScope(TextureTarget.TextureBuffer, 0, checked((int)entry.Id)) : (TextureScope?)null;
         int buffer = ReadBufferTextureParameter((int)entry.Id, (GetTextureParameter)All.TextureBufferDataStoreBindingExt);
         int format = ReadBufferTextureParameter((int)entry.Id, GetTextureParameter.TextureInternalFormat);
         if (format <= 0) return false;
@@ -90,7 +88,7 @@ internal sealed partial class StateCache
         // Range getters return GLint, although commands accept pointer-sized ranges. Never
         // narrow a wide command into that result. Native buffer capacity and alignment prove
         // its admission; exactly representable fields additionally cross-check native state.
-        if (accepted && GpuSupport.Graphics.SupportsTextureBufferRange)
+        if (accepted)
         {
             nint expectedOffset = requested.WholeBuffer ? 0 : requested.Offset;
             nint expectedSize = requested.WholeBuffer ? capacity : requested.Size;
@@ -134,9 +132,7 @@ internal sealed partial class StateCache
     /// <summary>Reads a single native association fact through DSA or the binding-preserving fallback.</summary>
     private static int ReadBufferTextureParameter(int texture, GetTextureParameter parameter)
     {
-        int value = -1;
-        if (GpuSupport.Graphics.SupportsArbDirectStateAccess) GL.GetTextureLevelParameter(texture, 0, parameter, out value);
-        else GL.GetTexLevelParameter(TextureTarget.TextureBuffer, 0, parameter, out value);
+        int value = RHI.RHICommandContext.Current.OpenGL.ReadExternalTextureLevelParameter(texture, 0, parameter);
         return value;
     }
     #endregion

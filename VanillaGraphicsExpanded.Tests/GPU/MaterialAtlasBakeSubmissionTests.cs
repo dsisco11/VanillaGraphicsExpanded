@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
@@ -31,13 +33,13 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
             int at = (y * edge + x) * 4;
             input[at] = input[at + 1] = input[at + 2] = value; input[at + 3] = 1;
         }
-        using var source = DynamicTexture2D.CreateWithData(edge, edge, PixelInternalFormat.Rgba16f, input);
-        using var destination = DynamicTexture2D.Create(edge, edge, PixelInternalFormat.Rgba16f);
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = edge, Height = edge, Format = RHIFormat.Rgba16f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, edge, edge), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba16f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((input).AsSpan()).ToArray())]).RequireResource();
+        using var destination = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, edge), Height = System.Math.Max(1, edge), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var caller = CreateRenderTarget(3, 2, PixelInternalFormat.Rgba16f);
         using var read = CreateRenderTarget(2, 3, PixelInternalFormat.Rgba16f);
         using var transfer = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = null }).RequireResource();
         transfer.AllocateOrphan(128 * 128 * 16);
-        using var hostilePack = StateCache.Current.SetPixelPackScope(new(8, RowLength: 73, SkipRows: 2, SkipPixels: 3));
+        using var hostilePack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(8, RowLength: 73, SkipRows: 2, SkipPixels: 3));
         using var hostileTransfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, transfer.BufferId);
         StateCache.Current.BindFramebuffer(FramebufferTarget.DrawFramebuffer, caller.FboId);
         StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, read.FboId);
@@ -130,7 +132,7 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
         float[] ReadDestination()
         {
             using var bindings = StateCache.Current.BindFramebufferScope();
-            using var pack = StateCache.Current.SetPixelPackScope(new(1));
+            using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
             using var transferScope = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
             return destination.ReadPixels();
         }

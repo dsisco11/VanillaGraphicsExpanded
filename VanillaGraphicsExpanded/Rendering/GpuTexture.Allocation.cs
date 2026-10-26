@@ -22,29 +22,14 @@ public abstract partial class GpuTexture
     /// <summary>Resolves wrapper sampling policy and delegates the complete allocation operation.</summary>
     private void Allocate2DStorage(TextureTarget target, PixelInternalFormat format, int width, int height, int mipLevels)
     {
-        mipLevels = Math.Max(1, mipLevels);
-        var mag = filterMode == TextureFilterMode.Linear ? TextureMagFilter.Linear : TextureMagFilter.Nearest;
-        var min = mipLevels <= 1
-            ? (filterMode == TextureFilterMode.Linear ? TextureMinFilter.Linear : TextureMinFilter.Nearest)
-            : target == TextureTarget.TextureCubeMap && filterMode == TextureFilterMode.Linear
-                ? TextureMinFilter.LinearMipmapLinear : TextureMinFilter.NearestMipmapNearest;
-        if (mipLevels > 1 && target != TextureTarget.TextureCubeMap) mag = TextureMagFilter.Nearest;
-        if (textureId == 0)
+        var request = new RHI.RHITextureDescription
         {
-            var request = new GpuTextureInitialization
-            {
-                Target = target, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = format,
-                Width = width, Height = height, Levels = mipLevels, BaseLevel = 0, MaxLevel = mipLevels - 1
-            };
-            if (!GpuResourceManager.CreateTexture(request, this, out _).HasValue)
-                throw new InvalidOperationException("Texture creation failed.");
-            StateCache.Current.ConfigureTextureSampling(this, target, min, mag, TextureWrapMode.ClampToEdge);
-        }
-        else StateCache.Current.AllocateTexture2D(this, target, format, width, height, mipLevels, min, mag,
-            TextureWrapMode.ClampToEdge, 0, mipLevels - 1);
-#if DEBUG
-        GlDebug.TryLabel(ObjectLabelIdentifier.Texture, textureId, debugName);
-#endif
+            Dimension = RHI.Backends.OpenGL.OpenGLImageValues.Dimension(target), Format = RHI.Backends.OpenGL.OpenGLImageValues.Format(format),
+            Width = width, Height = height, MipLevels = Math.Max(1, mipLevels), Storage = RHI.RHIStorageMode.Mutable,
+            Filter = filterMode, BaseLevel = 0, MaxLevel = Math.Max(1, mipLevels) - 1, Label = debugName
+        };
+        if (textureId == 0) RHI.RHICommandContext.Current.OpenGL.InitializeTextureOwner(this, request);
+        else RHI.RHICommandContext.Current.AllocateTextureStorage(this, request);
     }
     #endregion
 }

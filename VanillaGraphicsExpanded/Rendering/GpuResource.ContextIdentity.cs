@@ -8,11 +8,11 @@ namespace VanillaGraphicsExpanded.Rendering;
 public abstract partial class GpuResource
 {
     #region Internal API
-    /// <summary>Captures registered identity, or the physical context for an explicitly local buffer tool.</summary>
+    /// <summary>Captures registered identity, or the physical context for an explicitly local buffer or image tool.</summary>
     internal static unsafe (nint Handle, long Generation) CaptureCreationContext(GpuResourceKind kind)
     {
         var context = RenderContextRegistry.Current();
-        return context == default && kind == GpuResourceKind.Buffer ? ((nint)GLFW.GetCurrentContext(), 0) : context;
+        return context == default && kind is GpuResourceKind.Buffer or GpuResourceKind.Texture or GpuResourceKind.Renderbuffer or GpuResourceKind.Sampler ? ((nint)GLFW.GetCurrentContext(), 0) : context;
     }
 
     /// <summary>Rejects resource use in a foreign namespace without native metadata discovery.</summary>

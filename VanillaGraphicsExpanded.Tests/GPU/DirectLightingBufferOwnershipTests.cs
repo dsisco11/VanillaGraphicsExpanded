@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
@@ -55,7 +56,7 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
         partialTexture = null;
         partialTextureId = 0;
         var harmony = new Harmony("VGE.Tests.DirectLightingAllocationFailure");
-        var create = AccessTools.Method(typeof(Texture3D), nameof(Texture3D.Create));
+        var create = AccessTools.Method(typeof(RHICommandContext), nameof(RHICommandContext.CreateTexture3D));
         try
         {
             harmony.Patch(create,
@@ -89,11 +90,11 @@ public sealed class DirectLightingBufferOwnershipTests(HeadlessGLFixture fixture
     }
 
     /// <summary>Retains the radiance array identity so its cleanup can be observed after framebuffer allocation failure.</summary>
-    private static void CaptureRadianceAllocation(string? debugName, Texture3D __result)
+    private static void CaptureRadianceAllocation(in RHITextureDescription description, RHICreationResult<Texture3D> __result)
     {
-        if (debugName != "DirectLighting.Radiance") return;
-        partialTexture = __result;
-        partialTextureId = __result.TextureId;
+        if (description.Label != "DirectLighting.Radiance" || !__result.IsSuccess) return;
+        partialTexture = __result.RequireResource();
+        partialTextureId = partialTexture.TextureId;
     }
 
     #endregion

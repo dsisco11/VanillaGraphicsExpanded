@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -23,8 +24,7 @@ internal sealed class GBufferTextures : IDisposable
     {
         try
         {
-            Surface = resources.Own(Texture3D.Create(width, height, 3, PixelInternalFormat.Rgba16f,
-                TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "GBuffer.Surface"));
+            Surface = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "GBuffer.Surface" }).RequireResource());
             PatchId = Create(width, height, PixelInternalFormat.Rgba32ui, "gPatchId");
         }
         catch { Dispose(); throw; }
@@ -33,10 +33,10 @@ internal sealed class GBufferTextures : IDisposable
     /// <summary>Configures non-mipmapped attachments so raw-ID readers and sampler-based readers agree.</summary>
     private DynamicTexture2D Create(int width, int height, PixelInternalFormat format, string name)
     {
-        var texture = resources.Own(DynamicTexture2D.Create(width, height, format, debugName: name));
+        var texture = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = name }).RequireResource());
         texture.DisableMipmaps();
-        texture.SetTexFilter(TextureMinFilter.Nearest, TextureMagFilter.Nearest);
-        texture.SetTexWrap(TextureWrapMode.ClampToEdge, TextureWrapMode.ClampToEdge);
+        texture.SetTexFilter(RHISamplerFilter.Nearest, RHISamplerFilter.Nearest);
+        texture.SetTexWrap(RHISamplerAddress.ClampToEdge, RHISamplerAddress.ClampToEdge);
         return texture;
     }
     #endregion

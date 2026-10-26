@@ -35,7 +35,7 @@ public sealed class EngineStateSwitchingTests
     {
         // Inspect both sides of the adapter boundary so an accidental return to the explicit-unit API fails.
         var adapter = AccessTools.Method(typeof(EngineStateCalls), nameof(EngineStateCalls.BindTexture), [typeof(TextureTarget), typeof(int)]);
-        var binding = AccessTools.Method(typeof(StateCache), "BindTextureOnActiveUnit");
+        var binding = AccessTools.Method(typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageBindingCalls), "BindTexture");
         var adapterCalls = PatchProcessor.GetOriginalInstructions(adapter).Select(instruction => instruction.operand).OfType<MethodInfo>().ToArray();
         Assert.Contains(binding, adapterCalls);
         var bindingCalls = PatchProcessor.GetOriginalInstructions(binding).Select(instruction => instruction.operand).OfType<MethodInfo>().ToArray();
@@ -88,7 +88,9 @@ public sealed class EngineStateSwitchingTests
             (typeof(GL.Arb), typeof(EngineStateDeletionCalls.Arb)),
             (typeof(GL.Ext), typeof(EngineStateDeletionCalls.Ext)),
             (typeof(GL), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferDeletionCalls.Core)),
-            (typeof(GL.Arb), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferDeletionCalls.Arb))
+            (typeof(GL.Arb), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferDeletionCalls.Arb)),
+            (typeof(GL), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageDeletionCalls.Core)),
+            (typeof(GL.Ext), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageDeletionCalls.Ext))
         };
         foreach (var (native, replacement) in EngineStateCallMap.Replacements)
         {

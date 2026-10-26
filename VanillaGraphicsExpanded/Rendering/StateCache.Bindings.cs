@@ -377,25 +377,13 @@ internal sealed partial class StateCache
         if (currentRenderbuffer.HasValue) return currentRenderbuffer.Value;
         // Metadata observation can recover bindings after a rejected native command.
         // Boundary restoration owns any required diagnostics; this query preserves errors.
-        currentRenderbuffer = GL.GetInteger(GetPName.RenderbufferBinding);
+        currentRenderbuffer = RHI.RHICommandContext.Current.OpenGL.ReadImageSelector(GetPName.RenderbufferBinding);
         return currentRenderbuffer.Value;
     }
 
-    /// <summary>Establishes a live renderbuffer binding while suppressing known-equal transitions.</summary>
-    public void BindRenderbuffer(int renderbufferId)
-    {
-        if (renderbufferId < 0) throw new ArgumentOutOfRangeException(nameof(renderbufferId));
-        RequireBoundaryResource(EPipelineState.RenderbufferBinding, renderbufferId);
-        if (currentRenderbuffer == renderbufferId) return;
-        currentRenderbuffer = null;
-        GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, renderbufferId);
-        currentRenderbuffer = renderbufferId;
-    }
 
-    public void UnbindRenderbuffer()
-    {
-        BindRenderbuffer(0);
-    }
+
+
 
     public RenderbufferScope BindRenderbufferScope(int renderbufferId)
     {
@@ -406,14 +394,19 @@ internal sealed partial class StateCache
     public readonly struct RenderbufferScope : IDisposable
     {
         private readonly int previous;
+        private readonly StateCache cache;
+        private readonly RHI.Backends.OpenGL.OpenGLBackend backend;
 
         public RenderbufferScope(int previous)
         {
             this.previous = previous;
+            cache = StateCache.Current;
+            backend = RHI.RHICommandContext.Current.OpenGL;
         }
 
         public void Dispose()
         {
+            if (!backend.IsCurrentContext) { RenderbufferScopeTracker.ClearThreadStack(); cache.RenderbufferKnowledge = null; return; }
             RenderbufferScopeTracker.End(previous);
         }
     }
@@ -485,7 +478,7 @@ internal sealed partial class StateCache
     {
         protected override int GetCurrent() => StateCache.Current.GetCurrentRenderbuffer();
 
-        protected override void Bind(int id) => StateCache.Current.BindRenderbuffer(id);
+        protected override void Bind(int id) => OpenGLImageBindings.BindRenderbuffer(StateCache.Current, id);
     }
 
     private sealed class TransformFeedbackScopeTracker : BindScopeTracker<TransformFeedbackScopeTracker>
@@ -501,7 +494,7 @@ internal sealed partial class StateCache
 
         try
         {
-            int enumValue = GL.GetInteger(GetPName.ActiveTexture);
+            int enumValue = RHI.RHICommandContext.Current.OpenGL.ReadImageSelector(GetPName.ActiveTexture);
             activeTextureUnit = enumValue - (int)TextureUnit.Texture0;
         }
         catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
@@ -512,21 +505,7 @@ internal sealed partial class StateCache
         return activeTextureUnit.Value;
     }
 
-    /// <summary>Selects the texture unit only when its cached selection differs or is unknown.</summary>
-    public void ActiveTexture(int unit)
-    {
-        if (unit < 0) throw new ArgumentOutOfRangeException(nameof(unit));
-        if (activeTextureUnit == unit) return;
 
-        try
-        {
-            GL.ActiveTexture(TextureUnit.Texture0 + unit);
-            activeTextureUnit = unit;
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
-    }
 
     public int GetBoundTexture(TextureTarget target, int unit)
     {
@@ -541,10 +520,10 @@ internal sealed partial class StateCache
         int prevActive = GetActiveTextureUnit();
         try
         {
-            ActiveTexture(unit);
+            OpenGLImageBindings.ActiveTexture(this, unit);
             if (TryGetTextureBindingQuery(target, out GetPName pname))
             {
-                int id = GL.GetInteger(pname);
+                int id = RHI.RHICommandContext.Current.OpenGL.ReadImageSelector(pname);
                 dict[target] = id;
                 return id;
             }
@@ -554,93 +533,34 @@ internal sealed partial class StateCache
         }
         finally
         {
-            ActiveTexture(prevActive);
+            OpenGLImageBindings.ActiveTexture(this, prevActive);
         }
 
         dict[target] = 0;
         return 0;
     }
 
-    /// <summary>Binds on the native active unit without querying or changing that unit.</summary>
-    internal void BindTextureOnActiveUnit(TextureTarget target, int textureId)
-    {
-        // An unknown active unit must still reach GL; never guess or query it for suppression.
-        if (activeTextureUnit is int knownUnit &&
-            TryGetCachedBoundTexture(target, knownUnit, out int cached) && cached == textureId) return;
-        GL.BindTexture(target, textureId);
-#if DEBUG
-        TextureBindCount++;
-#endif
 
-        if (activeTextureUnit is int unit)
-        {
-            EnsureTextureUnitCapacity(unit);
-            var bindings = textureBindingsByUnit![unit] ??= new Dictionary<TextureTarget, int>();
-            bindings[target] = textureId;
-        }
-        else if (textureBindingsByUnit is not null)
-        {
-            // The native bind succeeded, but its unit is unknown. Forget only this target's
-            // snapshots rather than querying GL or claiming an assignment on the wrong unit.
-            foreach (var bindings in textureBindingsByUnit) bindings?.Remove(target);
-        }
-    }
 
-    /// <summary>Selects the requested unit and changes its texture binding only when necessary.</summary>
-    public void BindTexture(TextureTarget target, int unit, int textureId)
-    {
-        EnsureTextureUnitCapacity(unit);
 
-        var dict = textureBindingsByUnit![unit] ??= new Dictionary<TextureTarget, int>();
-        try
-        {
-            ActiveTexture(unit);
-            // Selecting the unit is an observable side effect even when its texture matches.
-            if (dict.TryGetValue(target, out int cached) && cached == textureId) return;
-            GL.BindTexture(target, textureId);
-#if DEBUG
-            TextureBindCount++;
-#endif
-            dict[target] = textureId;
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
-    }
 
-    public void BindTexture(TextureTarget target, int unit, int textureId, GpuSampler? sampler)
-    {
-        BindTexture(target, unit, textureId);
 
-        if (textureId == 0)
-        {
-            UnbindSampler(unit);
-            return;
-        }
 
-        if (sampler is null || !sampler.TryBind(unit))
-        {
-            UnbindSampler(unit);
-        }
-    }
 
-    public void UnbindTexture(TextureTarget target, int unit)
-    {
-        BindTexture(target, unit, 0, sampler: null);
-    }
 
     public TextureScope BindTextureScope(TextureTarget target, int unit, int textureId)
     {
         int prevActive = GetActiveTextureUnit();
         int prevTex = GetBoundTexture(target, unit);
 
-        BindTexture(target, unit, textureId);
+        OpenGLImageBindings.BindTexture(this, target, unit, textureId);
         return new TextureScope(this, target, unit, prevTex, prevActive);
     }
 
     public readonly struct TextureScope : IDisposable
     {
         private readonly StateCache cache;
+        private readonly RHI.Backends.OpenGL.OpenGLBackend backend;
         private readonly TextureTarget target;
         private readonly int unit;
         private readonly int previousTexture;
@@ -649,6 +569,7 @@ internal sealed partial class StateCache
         public TextureScope(StateCache cache, TextureTarget target, int unit, int previousTexture, int previousActiveUnit)
         {
             this.cache = cache;
+            backend = RHI.RHICommandContext.Current.OpenGL;
             this.target = target;
             this.unit = unit;
             this.previousTexture = previousTexture;
@@ -657,8 +578,9 @@ internal sealed partial class StateCache
 
         public void Dispose()
         {
-            cache.BindTexture(target, unit, previousTexture);
-            cache.ActiveTexture(previousActiveUnit);
+            if (!backend.IsCurrentContext) { cache.ForgetImageBinding(target, null); cache.ActiveTextureKnowledge = null; return; }
+            OpenGLImageBindings.BindTexture(cache, target, unit, previousTexture);
+            OpenGLImageBindings.ActiveTexture(cache, previousActiveUnit);
         }
     }
 
@@ -672,8 +594,8 @@ internal sealed partial class StateCache
         int prevActive = GetActiveTextureUnit();
         try
         {
-            ActiveTexture(unit);
-            int sampler = GL.GetInteger(GetPName.SamplerBinding);
+            OpenGLImageBindings.ActiveTexture(this, unit);
+            int sampler = RHI.RHICommandContext.Current.OpenGL.ReadImageSelector(GetPName.SamplerBinding);
             samplerBindingByUnit[unit] = sampler;
             return sampler;
         }
@@ -684,77 +606,43 @@ internal sealed partial class StateCache
         }
         finally
         {
-            ActiveTexture(prevActive);
+            OpenGLImageBindings.ActiveTexture(this, prevActive);
         }
     }
 
-    /// <summary>Binds a sampler only when the selected slot is unknown or different.</summary>
-    public void BindSampler(int unit, int samplerId)
-    {
-        EnsureTextureUnitCapacity(unit);
-        if (samplerBindingByUnit![unit] == samplerId) return;
 
-        try
-        {
-            GL.BindSampler(unit, samplerId);
-#if DEBUG
-            SamplerBindCount++;
-#endif
-            samplerBindingByUnit![unit] = samplerId;
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
-    }
 
-    /// <summary>Binds an owned sampler only when the selected slot is unknown or different.</summary>
-    public void BindSampler(int unit, GpuSampler sampler)
-    {
-        EnsureTextureUnitCapacity(unit);
-        if (samplerBindingByUnit![unit] == sampler.SamplerId) return;
 
-        try
-        {
-            GL.BindSampler(unit, sampler.SamplerId);
-#if DEBUG
-            SamplerBindCount++;
-#endif
-            samplerBindingByUnit![unit] = sampler.SamplerId;
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
-    }
 
-    public void UnbindSampler(int unit)
-    {
-        BindSampler(unit, 0);
-    }
+
 
     public SamplerScope BindSamplerScope(int unit, int samplerId)
     {
         int previous = GetBoundSampler(unit);
 
-        BindSampler(unit, samplerId);
+        OpenGLImageBindings.BindSampler(this, unit, samplerId);
         return new SamplerScope(this, unit, previous);
     }
 
     public readonly struct SamplerScope : IDisposable
     {
         private readonly StateCache cache;
+        private readonly RHI.Backends.OpenGL.OpenGLBackend backend;
         private readonly int unit;
         private readonly int previous;
 
         public SamplerScope(StateCache cache, int unit, int previous)
         {
             this.cache = cache;
+            backend = RHI.RHICommandContext.Current.OpenGL;
             this.unit = unit;
             this.previous = previous;
         }
 
         public void Dispose()
         {
-            cache.BindSampler(unit, previous);
+            if (!backend.IsCurrentContext) { cache.SetSamplerKnowledge(unit, null); return; }
+            OpenGLImageBindings.BindSampler(cache, unit, previous);
         }
     }
 

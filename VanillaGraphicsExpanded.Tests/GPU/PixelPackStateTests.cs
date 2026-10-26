@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -17,14 +18,14 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
     {
         EnsureContextValid();
         var cache=StateCache.Current;
-        using var restore=cache.SetPixelPackScope(new(8,19,3,7,true));
-        var outer=cache.GetPixelPackState();
-        using(cache.SetPixelPackScope(new(1,11,2,4)))
+        using var restore=OpenGLPixelLayouts.PackScope(cache, new(8,19,3,7,true));
+        var outer=OpenGLPixelLayouts.GetPack(cache);
+        using(OpenGLPixelLayouts.PackScope(cache, new(1,11,2,4)))
         {
             AssertState(new(1,11,2,4));
             Assert.Throws<InvalidOperationException>((Action)(()=>
             {
-                using var inner=cache.SetPixelPackScope(new(2,8,1,2,true));
+                using var inner=OpenGLPixelLayouts.PackScope(cache, new(2,8,1,2,true));
                 AssertState(new(2,8,1,2,true));
                 throw new InvalidOperationException("controlled operation failure");
             }));
@@ -40,7 +41,7 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
     {
         EnsureContextValid();
         var cache=StateCache.Current;
-        using var restore=cache.SetPixelPackScope(new(4));
+        using var restore=OpenGLPixelLayouts.PackScope(cache, new(4));
         GL.PixelStore(PixelStoreParameter.PackAlignment,8);
         GL.PixelStore(PixelStoreParameter.PackRowLength,23);
         GL.PixelStore(PixelStoreParameter.PackSkipRows,2);
@@ -55,7 +56,7 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
         }
         var external=new PackState(8,23,2,5,true);
         AssertState(external);
-        using(cache.SetPixelPackScope(new(4))) AssertState(new(4));
+        using(OpenGLPixelLayouts.PackScope(cache, new(4))) AssertState(new(4));
         AssertState(external);
     }
 
@@ -67,8 +68,8 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
     {
         EnsureContextValid();
         var cache=StateCache.Current;
-        using var restore=cache.SetPixelPackScope(new(8,9,1,3,true));
-        Assert.Throws<ArgumentOutOfRangeException>(()=>cache.SetPixelPackState(new(alignment,rowLength,rows,pixels)));
+        using var restore=OpenGLPixelLayouts.PackScope(cache, new(8,9,1,3,true));
+        Assert.Throws<ArgumentOutOfRangeException>(()=>OpenGLPixelLayouts.SetPack(cache, new(alignment,rowLength,rows,pixels)));
         AssertState(new(8,9,1,3,true));
     }
     #endregion
@@ -77,7 +78,7 @@ public sealed class PixelPackStateTests(HeadlessGLFixture fixture) : RenderTestB
     /// <summary>Compares every tracked value to actual OpenGL state rather than cache values alone.</summary>
     private static void AssertState(PackState expected)
     {
-        Assert.Equal(expected,StateCache.Current.GetPixelPackState());
+        Assert.Equal(expected,OpenGLPixelLayouts.GetPack(StateCache.Current));
         Assert.Equal(expected.Alignment,GL.GetInteger(GetPName.PackAlignment));
         Assert.Equal(expected.RowLength,GL.GetInteger(GetPName.PackRowLength));
         Assert.Equal(expected.SkipRows,GL.GetInteger(GetPName.PackSkipRows));

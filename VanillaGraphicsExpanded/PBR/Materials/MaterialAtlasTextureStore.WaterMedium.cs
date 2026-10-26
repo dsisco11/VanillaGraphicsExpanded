@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -43,12 +44,10 @@ internal sealed partial class MaterialAtlasTextureStore
                 PbrMaterialRegistry.Instance.TryGetMaterial(tile.TargetTexture, out var material);
                 WriteWaterRecord(page, tile.Rect, material.WaterMedium ?? WaterMedium.Clear, record++, indices, records);
             }
-            var indexTexture = Texture2D.CreateWithDataImmediate(page.Width, page.Height,
-                PixelInternalFormat.R32f, indices, TextureFilterMode.Nearest, $"vge_water_indices_{page.AtlasTextureId}");
+            var indexTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = page.Width, Height = page.Height, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = $"vge_water_indices_{page.AtlasTextureId}" }, [new RHITextureInitialData(new(new(), 0, 0, 0, page.Width, page.Height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((indices).AsSpan()).ToArray())]).RequireResource();
             try
             {
-                var recordTexture = Texture2D.CreateWithDataImmediate(width, height,
-                    PixelInternalFormat.Rgba32f, records, TextureFilterMode.Nearest, $"vge_water_records_{page.AtlasTextureId}");
+                var recordTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = width, Height = height, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = $"vge_water_records_{page.AtlasTextureId}" }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((records).AsSpan()).ToArray())]).RequireResource();
                 waterMediumByAtlas.Add(page.AtlasTextureId, new(indexTexture, recordTexture));
             }
             catch { indexTexture.Dispose(); throw; }

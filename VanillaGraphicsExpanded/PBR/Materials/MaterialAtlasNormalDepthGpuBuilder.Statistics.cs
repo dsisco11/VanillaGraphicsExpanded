@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using System;
@@ -24,7 +25,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     private static (float mean, float center, float min, float max) ComputeStatsR32f(DynamicTexture2D tex)
     {
         using var framebuffer = StateCache.Current.BindFramebufferScope();
-        using var pack = StateCache.Current.SetPixelPackScope(new(1));
+        using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
         using var transfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
         float[] data = tex.ReadPixels();
         if (data.Length == 0) return (0f, 0f, 0f, 0f);

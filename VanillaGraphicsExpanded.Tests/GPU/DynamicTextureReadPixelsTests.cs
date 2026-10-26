@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -20,7 +21,7 @@ public sealed class DynamicTextureReadPixelsTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var tex = DynamicTexture2D.Create(8, 8, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var tex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var fbo = DynamicGpuFramebuffer.CreateSingle(tex) ?? throw new InvalidOperationException("Failed to create GBuffer");
 
         fbo.Bind();
@@ -54,7 +55,7 @@ public sealed class DynamicTextureReadPixelsTests : RenderTestBase
     {
         EnsureContextValid();
 
-        using var tex = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba16f, TextureFilterMode.Nearest);
+        using var tex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var fbo = DynamicGpuFramebuffer.CreateSingle(tex) ?? throw new InvalidOperationException("Failed to create GBuffer");
 
         fbo.Bind();

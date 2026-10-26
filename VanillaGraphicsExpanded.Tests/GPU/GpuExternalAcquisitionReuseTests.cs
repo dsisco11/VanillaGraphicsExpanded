@@ -25,7 +25,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
         {
             using var capability = new DirectStateAccessCapabilityScope(dsa);
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.Allocate(64);
-            using var view = GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             int observed = 0;
             foreach (var method in typeof(GL).GetMethods().Where(method => method.Name is "GetTextureLevelParameter" or "GetTexLevelParameter"))
@@ -62,11 +62,11 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
         try
         {
             using var capability = new DirectStateAccessCapabilityScope(dsa);
-            using var texture = DynamicTexture3D.Create(8, 4, 6, PixelInternalFormat.Rgba8, immutableStorage: true);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 6), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            using var view = GpuTextureView.CreateFromTexture(texture, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba8, 0, 1, 2, 3);
+            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = texture, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 2, LayerCount = 3, Label = null }).RequireResource();
             Assert.Equal(ErrorCode.NoError, GL.GetError());
-            using var renderbuffer = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 8, 4);
+            using var renderbuffer = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 8, Height = 4, Samples = 0, Label = null }).RequireResource();
             Assert.True(GL.IsRenderbuffer(renderbuffer.RenderbufferId));
             using var selectedView = GpuFramebufferAttachment.FromTexture(view, layer: 1);
             using var selectedRenderbuffer = GpuFramebufferAttachment.FromRenderbuffer(renderbuffer);
@@ -92,12 +92,12 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
-            using var renderbuffer = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 8, 4);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var renderbuffer = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 8, Height = 4, Samples = 0, Label = null }).RequireResource();
             using var vao = GpuVao.Create();
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
-            using var view = GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var textureOperation = StateCache.BeginNativeTextureMetadata(texture.TextureId, (int)TextureTarget.Texture2D, 0,
                 true, false, StateCache.TextureMetadataEffect.Storage, 0);
@@ -151,7 +151,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
         try
         {
             using var capability = new DirectStateAccessCapabilityScope(dsa);
-            using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var borrowed = new BorrowedTexture(texture.TextureId);
             using var image = GpuFramebufferAttachment.FromTextureId(texture.TextureId);
             image.ValidateSlot(FramebufferAttachment.ColorAttachment0);
@@ -192,7 +192,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             Assert.Equal(recovered.Height, stable.Height);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { StateCache.Current.DeleteTexture(native); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { RHICommandContext.Current.OpenGL.DeleteTexture(native); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Local image validation uses the owner's latest facts and clears failed projections.</summary>
@@ -205,7 +205,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
         try
         {
             using var capability = new DirectStateAccessCapabilityScope(dsa);
-            using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             image.ValidateSlot(FramebufferAttachment.ColorAttachment0);
             image.ValidateSlot(FramebufferAttachment.ColorAttachment0);

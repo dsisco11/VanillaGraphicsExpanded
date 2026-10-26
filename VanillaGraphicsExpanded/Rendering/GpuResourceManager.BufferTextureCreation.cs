@@ -8,8 +8,8 @@ internal sealed partial class GpuResourceManager
     #region Internal API
     /// <summary>Validates backing range and commits the new texture without transferring backing ownership.</summary>
     internal static GpuTextureMetadata? CreateBufferTexture(in GpuBufferTextureInitialization initialization,
-        GpuResource<GpuTextureMetadata> recipient, out GpuResourceHandle handle)
-        => CreateResource<GpuBufferTextureInitialization, GpuTextureMetadata, BufferTextureCreation>(initialization, recipient, out handle);
+        GpuResource<GpuTextureMetadata> recipient, out GpuResourceHandle handle, GpuResource<GpuBufferMetadata>? source = null)
+        => CreateResource<GpuBufferTextureInitialization, GpuTextureMetadata, BufferTextureCreation>(initialization, recipient, out handle, new(source));
 
     /// <summary>Reuses canonical backing capacity, reading only previously unknown external buffers.</summary>
     internal static GpuBufferMetadata AcquireBufferTextureInput(int buffer)
@@ -25,7 +25,7 @@ internal sealed partial class GpuResourceManager
     #endregion
 
     /// <summary>Supplies family validation and execution to the common manager handoff.</summary>
-    private readonly struct BufferTextureCreation : IGpuResourceCreation<GpuBufferTextureInitialization, GpuTextureMetadata>
+    private readonly struct BufferTextureCreation(GpuResource<GpuBufferMetadata>? source) : IGpuResourceCreation<GpuBufferTextureInitialization, GpuTextureMetadata>
     {
         #region Public API
         /// <inheritdoc />
@@ -36,15 +36,16 @@ internal sealed partial class GpuResourceManager
         public GpuTextureMetadata? Initialize(StateCache cache, in GpuBufferTextureInitialization initialization, out nint id)
         {
             id = 0;
-            var backing = AcquireBufferTextureInput(initialization.Buffer);
+            var backing = source is not null ? RequireBufferReferenceMetadata(source) : AcquireBufferTextureInput(initialization.Buffer);
+            if (source is not null && source.ResourceId != initialization.Buffer) throw new InvalidOperationException("The backing buffer identity changed.");
             if (initialization.Mode == GpuBufferTextureMode.Range)
             {
-                int alignment = GpuSupport.Graphics.TextureBufferOffsetAlignment;
+                int alignment = RHI.RHICommandContext.Current.OpenGL.NativeCapabilities.TextureBufferOffsetAlignment;
                 if (initialization.Offset > backing.Capacity || initialization.Size > backing.Capacity - initialization.Offset
                     || alignment <= 0 || initialization.Offset % alignment != 0)
                     throw new ArgumentException("Buffer texture range exceeds backing capacity or violates alignment.");
             }
-            return cache.CreateBufferTexture(initialization, out id);
+            return RHI.RHICommandContext.Current.OpenGL.InitializeBufferTexture(initialization, out id);
         }
         #endregion
     }

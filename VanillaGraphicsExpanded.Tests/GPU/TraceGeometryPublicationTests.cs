@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using VanillaGraphicsExpanded.Rendering;
@@ -103,7 +104,7 @@ public sealed class TraceGeometryPublicationTests : RenderTestBase
     public void MaterialByteUploadPreservesAlignment()
     {
         EnsureContextValid();
-        using var texture = Texture2D.Create(3, 1, PixelInternalFormat.Rgba8);
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 3), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         GL.PixelStore(PixelStoreParameter.UnpackAlignment, 8);
         try
         {

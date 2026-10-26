@@ -127,7 +127,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         int native = 0;
         try
         {
-            using var owner = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var owner = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var alias = new BorrowedTexture(owner.TextureId);
             native = checked((int)owner.Detach());
             if (pass) alias.RetainPassReference();
@@ -149,7 +149,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            if (native != 0 && GL.IsTexture(native)) StateCache.Current.DeleteTexture(native);
+            if (native != 0 && GL.IsTexture(native)) RHICommandContext.Current.OpenGL.DeleteTexture(native);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -163,15 +163,14 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             ulong previousStorageRevision = entry.StorageRevision;
             using (texture.BindScope(0))
             using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
             {
-                StateCache.Current.TextureImage2D(texture, TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8,
-                    12, 6, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero, operation);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 12, Height = 6, Levels = 1 }.Resolve(), operation);
                 // Abandon the operation after a real accepted image replacement.
             }
             Assert.False(entry.MetadataAvailable);

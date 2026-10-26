@@ -37,7 +37,6 @@ internal struct GpuTextureViewInitialization
     {
         if (assigned != 127 || Source == 0 || BaseLevel < 0 || BaseLayer < 0 || LevelCount <= 0 || LayerCount <= 0)
             throw new ArgumentException("Texture views require a source, target, format and explicit positive selection.");
-        if (!GpuSupport.Graphics.SupportsTextureView) throw new NotSupportedException("Texture views are unavailable.");
     }
     #endregion
 }

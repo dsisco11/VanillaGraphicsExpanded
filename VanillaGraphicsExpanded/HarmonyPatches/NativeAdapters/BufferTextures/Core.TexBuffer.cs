@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -8,13 +9,13 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.BufferTextures;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexBuffer(TextureBufferTarget @target, SizedInternalFormat @internalformat, int @buffer)
-        => StateCache.Current.ExecuteCoreTexBuffer(@target, @internalformat, @buffer);
+        => OpenGLBufferTexturesCalls.ExecuteCoreTexBuffer(@target, @internalformat, @buffer);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexBuffer(TextureBufferTarget @target, SizedInternalFormat @internalformat, uint @buffer)
-        => StateCache.Current.ExecuteCoreTexBuffer(@target, @internalformat, @buffer);
+        => OpenGLBufferTexturesCalls.ExecuteCoreTexBuffer(@target, @internalformat, @buffer);
 
     #endregion
 }

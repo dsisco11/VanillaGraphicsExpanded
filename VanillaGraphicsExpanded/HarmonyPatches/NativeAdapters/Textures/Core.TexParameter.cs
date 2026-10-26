@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -8,29 +9,29 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameter(TextureTarget @target, TextureParameterName @pname, int @param)
-        => StateCache.Current.ExecuteCoreTexParameter(@target, @pname, @param);
+        => OpenGLTexturesCalls.ExecuteCoreTexParameter(@target, @pname, @param);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameter(TextureTarget @target, TextureParameterName @pname, int[] @params)
-        => StateCache.Current.ExecuteCoreTexParameter(@target, @pname, @params);
+        => OpenGLTexturesCalls.ExecuteCoreTexParameter(@target, @pname, @params);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameter(TextureTarget @target, TextureParameterName @pname, int* @params)
-        => StateCache.Current.ExecuteCoreTexParameter(@target, @pname, @params);
+        => OpenGLTexturesCalls.ExecuteCoreTexParameter(@target, @pname, @params);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameter(TextureTarget @target, TextureParameterName @pname, float @param)
-        => StateCache.Current.ExecuteCoreTexParameter(@target, @pname, @param);
+        => OpenGLTexturesCalls.ExecuteCoreTexParameter(@target, @pname, @param);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameter(TextureTarget @target, TextureParameterName @pname, float[] @params)
-        => StateCache.Current.ExecuteCoreTexParameter(@target, @pname, @params);
+        => OpenGLTexturesCalls.ExecuteCoreTexParameter(@target, @pname, @params);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameter(TextureTarget @target, TextureParameterName @pname, float* @params)
-        => StateCache.Current.ExecuteCoreTexParameter(@target, @pname, @params);
+        => OpenGLTexturesCalls.ExecuteCoreTexParameter(@target, @pname, @params);
 
     #endregion
 }

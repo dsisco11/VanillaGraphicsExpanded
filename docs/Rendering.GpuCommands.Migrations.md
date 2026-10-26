@@ -298,3 +298,78 @@ All **761** packaged/ZIP shaders match the canonical producer, with zero mismatc
 `artifacts/rhi-phase2/package-identity.json` records identities;
 `artifacts/rhi-phase2-canonical-package-final.log` records canonical packaging. These receipts qualify
 this family and candidate, not a repository-wide clean suite or installed-game acceptance.
+
+## Image migration qualification (Phase 3)
+
+The before inventory is unit B and the retained Phase 1 production-site inventory. The final routes are:
+
+| Removed entry points / execution owners | Final route and retained responsibility |
+| --- | --- |
+| DynamicTexture2D/3D/Cube, Texture2D/3D, GpuRenderbuffer and GpuSampler Create/CreateWithData factories | RHICommandContext typed factories, semantic descriptions/initial pixels, existing unpublished owners and private manager handoff. Existing growth, streaming, filtering and format policy remains above execution. |
+| StateCache texture allocation/creation/storage/multisample/view/sampler/renderbuffer executors; wrapper native subimage/copy/clear/mip setters | Focused OpenGL texture/renderbuffer/sampler backend operations. Core named commands, required bound mutable definitions, one explicit publication, original-context scope restoration. Owner sampling/storage routes use the semantic context contract. |
+| Buffer-view whole/range factories and managed native-view source factories | CreateBufferTexture/CreateTextureView with backing references, explicit ranges and unchanged GpuTextureRef. GpuBufferView supplies its wrapper-owned conversion. Raw names use explicit backend integration; renderbuffer borrowing uses OpenGLRenderbufferIntegration.Borrow. |
+| Image native-reader capability forks and allocation-limit queries | Manager-owned reader facades delegate to named backend query services. Required cube-face queries remain bound. Existing cached limits/format support and narrow unsized-format/sample output reads retain their authority. |
+| TextureStreamingManager native subimage dispatch and depth-tail/LumOn transfer calls | Backend streaming consumption and semantic upload/copy/buffer-image transfers. Backend owns pixel-buffer/layout restoration. Queued uploads retain destination storage provenance and never retry failed native work. |
+| Rendering/Commands texture/buffer-texture/renderbuffer exact executors and image/sampler deletion overloads | Separate backend External modules retain exact GL/Core, Ext and Arb signatures/errors/native effects. Existing StateCache observation, dependency and deletion-outcome services remain singular. |
+
+After inventories: `artifacts/rhi-phase3/image-callers.txt`, `image-native-sites.txt` and the empty
+`removed-image-apis.txt`. Required bound mutable/cube-face semantics remain; forced old-DSA variants
+and obsolete fallback helpers were removed. No temporary executor, alias or intermediate shim remains.
+
+Residual execution is explicitly assigned to incomplete units: C/D owns existing CPU readback/fence and
+optional residency/import APIs; E owns framebuffer/pass clears/routing, shader/image-slot and multi-bind
+publication, draw/dispatch and complete GraphicsCommandContext replacement. Existing framebuffer
+allocation helpers already consume the final image factories. The small existing feedback/pass/static
+lock helpers follow complete managed view chains because image-view creation depends on that safety;
+this does not claim completion of E's pass realization or command context.
+
+| Task group -> controlling contract | Implementation / verification |
+| --- | --- |
+| Creation/storage/policy -> proposal creation/publication; Contracts factories/descriptors; archived initialization defaults; B | Typed ready-owner results, automatic omission flags, private manager transaction, mutable/immutable image geometry, sampler intent, partial creation/configuration cleanup and narrow sample/format reads. RHIImageTests and existing controlled creation/failure/cube tests. |
+| Views/backing -> unchanged archived texture-reference contract; Inventory canonical schemas/lifetimes; B | Original manager dependencies, local certificates, explicit whole/range mode, view-relative coordinates, managed nested-view shared-storage feedback and recursive existing lifetime locks. Texture/reference/view/interception, cloud and stored-volume tests. |
+| Borrow/read/retire/exact adapters -> resource/binding contracts; API coverage T1-T4/R1/image I1/L1 | Covered aliases reuse facts; native readers stay behind manager acquisition, exact adapters execute once without managed suppression or retry. Original identity and context retirement remain authoritative. Native metadata/interception/deletion/context-local tests. |
+| Transfers/callers -> Contracts content and transfer values; proposal whole-family closure; B | Checked offsets/pitches, backend pixel scopes, array layers/cube faces, staged destination identity, content-only revision preservation. RHIImageTests, streaming/depth/cloud/binding and rendering regressions. |
+| Completion -> mandatory family receipts and retained qualification rules | Second review and independent stage audit compare all task-linked authority with source closure, behavioral receipts, generator/package identity and disclosed pre-existing limitations. Final qualification results follow below. |
+
+Delegated commands, class selections and intermediate/final receipts are in
+`artifacts/rhi-phase3/commands-and-results.txt`. Final startup-corrected Debug: **929 passed, zero failed/skipped**;
+the earlier affected image/view selection passed **38** cases, including equal-sample multisample copies.
+ShaderContractGenerator.Tests: **180 passed**.
+The broad required selection excludes the explicitly out-of-scope benchmark class and the independently
+verified stale shader fingerprint class; neither exclusion hides an image-family failure.
+
+The wider exploratory Debug run detected an existing shader golden mismatch. A fresh-process rerun
+reproduced it, and current runtime binding rows/fingerprints exactly match the previous canonical
+package runtime (SHA256 CB4518C0ADD30CBCBAFF39A02223353BDF9098A4111C38E6427F677816FAD7CE).
+The expected golden was not changed. See `bindings-current.txt`, `bindings-prior.txt` and
+`debug-isolated-shader-migration.trx`. The retained raster benchmark also conflicts with the pre-existing
+conservative same-image feedback rejection before it reaches timing; no benchmark/timing acceptance
+is claimed. New test-owned pixel state is restored, and the resulting water/adapter correction group
+passed all 40 cases. Build warning-code counts match the preceding candidate (`warnings.txt`).
+
+The startup audit also verified OpenTK's independent legacy/core binding tables without invoking any
+uninitialized native pointer (`binding-startup-probe.log`). Exact image and buffer deletions now obtain
+per-name outcomes from the same legacy loader as their preserved native call and supply that fact to
+existing cache reconciliation. Managed deletion retains its admitted core path. EngineEarlyDeletionTests
+forbids core Is* probes in all four exact deletion kinds; the entire startup-corrected Debug selection
+passes **929/929**. This closes the early-engine boundary without forcing RHI admission or capability
+queries from an intercepted deletion.
+
+Final ordinary Release (`release-startup-final.trx`): **917 passed, 12 failed, zero skipped**.
+The failures are Harmony native observation/injection cases. The exact same Release binaries pass the
+entire **929-test** selection with process-only `COMPlus_JitNoInline=1` and
+`COMPlus_TieredCompilation=0` (`release-startup-controlled.trx`). This is a test-process qualification,
+not an instrumented Release product; the ordinary Release suite is not reported as green.
+
+The final canonical `./build.ps1 --configuration=Release --spirv=true` passed
+(`canonical-package-startup-final.log`). Publish, package-directory, tested and ZIP runtime DLL SHA256
+all **A33807202AC211770EF56C932F26F2643E2620BCDE5CC25A77C469958F7A74D4**.
+All **761** packaged and ZIP shaders match the canonical producer, with zero mismatches. Exact identities
+are in `package-identity.json` and `package-startup-verification.log`. These startup-corrected identities
+supersede the earlier candidate hashes in the command ledger.
+
+The final independent stage audit, following the implementation's second review, found every required
+image/sampler migration item satisfied and no unresolved source or controlling-document evidence gap.
+The disclosed observer limitation and unrelated golden/benchmark cases do not establish image-family
+defects. Other migration units remain incomplete. No installed-game, visual or performance qualification
+is claimed.

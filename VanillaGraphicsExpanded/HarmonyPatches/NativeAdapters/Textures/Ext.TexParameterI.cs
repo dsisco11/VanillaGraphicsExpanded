@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -8,29 +9,29 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameterI(TextureTarget @target, TextureParameterName @pname, ref int @params)
-        => StateCache.Current.ExecuteExtTexParameterI(@target, @pname, ref @params);
+        => OpenGLTexturesCalls.ExecuteExtTexParameterI(@target, @pname, ref @params);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameterI(TextureTarget @target, TextureParameterName @pname, int[] @params)
-        => StateCache.Current.ExecuteExtTexParameterI(@target, @pname, @params);
+        => OpenGLTexturesCalls.ExecuteExtTexParameterI(@target, @pname, @params);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameterI(TextureTarget @target, TextureParameterName @pname, int* @params)
-        => StateCache.Current.ExecuteExtTexParameterI(@target, @pname, @params);
+        => OpenGLTexturesCalls.ExecuteExtTexParameterI(@target, @pname, @params);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameterI(TextureTarget @target, TextureParameterName @pname, ref uint @params)
-        => StateCache.Current.ExecuteExtTexParameterI(@target, @pname, ref @params);
+        => OpenGLTexturesCalls.ExecuteExtTexParameterI(@target, @pname, ref @params);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameterI(TextureTarget @target, TextureParameterName @pname, uint[] @params)
-        => StateCache.Current.ExecuteExtTexParameterI(@target, @pname, @params);
+        => OpenGLTexturesCalls.ExecuteExtTexParameterI(@target, @pname, @params);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TexParameterI(TextureTarget @target, TextureParameterName @pname, uint* @params)
-        => StateCache.Current.ExecuteExtTexParameterI(@target, @pname, @params);
+        => OpenGLTexturesCalls.ExecuteExtTexParameterI(@target, @pname, @params);
 
     #endregion
 }

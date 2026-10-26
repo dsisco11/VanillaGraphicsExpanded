@@ -34,7 +34,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         using var world = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         using var replacement = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
-        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var inputs = AssignRequiredTextures(program, texture);
         // Contents are irrelevant to this binding-only contract; no draw reads these buffers.
         frame.UploadOrResize(new byte[16]);
@@ -95,7 +95,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         var program = CreateConsumer(programs, consumer);
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         ((ILumOnFrameShader)program).FrameInputs = frameCamera;
-        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         frame.Allocate(112);
         program.FrameUniformBuffer = frame;

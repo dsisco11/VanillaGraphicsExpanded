@@ -202,7 +202,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     private void EnsureSnapshot(int width)
     {
         if(nativeSnapshot?.Width==width)return;
-        nativeSnapshot?.Dispose();nativeSnapshot=DynamicTexture2D.Create(width,width,PixelInternalFormat.Rgba32f);
+        nativeSnapshot?.Dispose();nativeSnapshot=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, width), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
     }
     /// <summary>Validates and freezes the same native observation in one ordered dispatch.</summary>
     private void BeginValidation(CloudMapInput input,GpuTexture map,Func<bool> current)

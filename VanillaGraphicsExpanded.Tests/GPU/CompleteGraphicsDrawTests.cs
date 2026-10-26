@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -174,7 +175,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
         /// <summary>Checks all pixels of all outputs, independent of GL state metadata.</summary>
         public void AssertPixels()
         {
-            using var pack = StateCache.Current.SetPixelPackScope(new(1));
+            using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
             for (int target = 0; target < 3; target++)
             {
                 GL.ReadBuffer(ReadBufferMode.ColorAttachment0 + target); byte[] pixels = new byte[8 * 8 * 4];
@@ -185,7 +186,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
         /// <summary>Checks shader-observed facing for every covered pixel independently of native winding metadata.</summary>
         public void AssertFacingPixels(bool front)
         {
-            using var pack = StateCache.Current.SetPixelPackScope(new(1));
+            using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
             GL.ReadBuffer(ReadBufferMode.ColorAttachment0); byte[] pixels = new byte[8 * 8 * 4];
             GL.ReadPixels(0, 0, 8, 8, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             for (int pixel = 0; pixel < 64; pixel++)

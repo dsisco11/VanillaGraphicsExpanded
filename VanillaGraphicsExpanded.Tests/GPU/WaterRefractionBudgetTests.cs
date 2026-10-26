@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
@@ -29,10 +30,10 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     public void ClippedEndpointPreservesFallback(int quality, bool half, bool tiny)
     {
         EnsureShaderTestAvailable();
-        using var color = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.Rgba32f);
-        using var depth = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.R32f);
-        using var halfColor = half ? DynamicTexture2D.Create(Size/2,Size/2,PixelInternalFormat.Rgba32f) : null;
-        using var halfDepth = half ? DynamicTexture2D.Create(Size/2,Size/2,PixelInternalFormat.Rgba32f) : null;
+        using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var halfColor = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size/2), Height = System.Math.Max(1, Size/2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
+        using var halfDepth = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size/2), Height = System.Math.Max(1, Size/2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
         using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
@@ -118,8 +119,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     public void RayAndUvTransitionsStayWithinReceiverFootprint(bool half, float slope)
     {
         EnsureShaderTestAvailable();
-        using var color = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.Rgba32f);
-        using var depth = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.R32f);
+        using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var colors = new float[Size * Size * 4]; var depths = new float[Size * Size];
         for (int y = 0; y < Size; y++)
         for (int x = 0; x < Size; x++)
@@ -135,8 +136,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
             colors[pixel * 4 + 2] = 8 + .05f * position.Z; colors[pixel * 4 + 3] = 1;
         }
         color.UploadDataImmediate(colors); depth.UploadDataImmediate(depths);
-        using var halfColor = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
-        using var halfDepth = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
+        using var halfColor = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size / 2), Height = System.Math.Max(1, Size / 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
+        using var halfDepth = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size / 2), Height = System.Math.Max(1, Size / 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
         using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         if (half)
         {
@@ -211,8 +212,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     {
         EnsureShaderTestAvailable();
         int size = irregular ? Size / 2 : Size;
-        using var color = DynamicTexture2D.Create(size,size,PixelInternalFormat.Rgba32f);
-        using var depth = DynamicTexture2D.Create(size,size,irregular ? PixelInternalFormat.Rgba32f : PixelInternalFormat.R32f);
+        using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(irregular ? PixelInternalFormat.Rgba32f : PixelInternalFormat.R32f)), Width = System.Math.Max(1, size), Height = System.Math.Max(1, size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var colors = new float[size * size * 4]; var depths = new float[size * size * (irregular ? 4 : 1)];
         float hardware = .5f * (1 + (100.1f - 2) / 99.9f);
         if (irregular)
@@ -270,8 +271,8 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     public void ExhaustionAndTirAccountForEveryLookup(int quality, bool tir)
     {
         EnsureShaderTestAvailable();
-        using var color = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.Rgba32f);
-        using var depth = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.R32f);
+        using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         color.UploadDataImmediate(new float[Size * Size * 4]);
         depth.UploadDataImmediate(Enumerable.Repeat(1f,Size * Size).ToArray());
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
@@ -301,10 +302,10 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     public void ExhaustedFallbackReusesInitialSupport(int quality, bool half)
     {
         EnsureShaderTestAvailable();
-        using var color = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.Rgba32f);
-        using var depth = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.R32f);
-        using var halfColor = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
-        using var halfDepth = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
+        using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var halfColor = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size / 2), Height = System.Math.Max(1, Size / 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
+        using var halfDepth = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size / 2), Height = System.Math.Max(1, Size / 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
         using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();
@@ -397,10 +398,10 @@ public sealed class WaterRefractionBudgetTests(HeadlessGLFixture fixture, ITestO
     {
         EnsureShaderTestAvailable();
         int budget = 1 << quality;
-        using var color = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.Rgba32f);
-        using var depth = DynamicTexture2D.Create(Size,Size,PixelInternalFormat.R32f);
-        using var halfColor = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
-        using var halfDepth = half ? DynamicTexture2D.Create(Size / 2,Size / 2,PixelInternalFormat.Rgba32f) : null;
+        using var color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var halfColor = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size / 2), Height = System.Math.Max(1, Size / 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
+        using var halfDepth = half ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, Size / 2), Height = System.Math.Max(1, Size / 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource() : null;
         using var reduced = half ? DynamicGpuFramebuffer.CreateMRT([halfColor!,halfDepth!]) : null;
         var reduction = half ? Programs.Create<WaterRefractionReductionShaderProgram>() : null;
         var program = Programs.Create<WaterRefractionDiagnosticShaderProgram>();

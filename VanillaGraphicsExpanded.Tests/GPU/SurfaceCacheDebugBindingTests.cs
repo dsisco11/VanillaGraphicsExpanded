@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.Rendering;
@@ -24,9 +26,9 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
     {
         EnsureContextValid();
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(resource == 2 ? LumOnDebugMode.LumonSceneMaterial : LumOnDebugMode.LumonSceneIrradiance));
-        using var texture = Texture3D.Create(2, 2, 2, format, textureTarget: TextureTarget.Texture2DArray);
+        using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        using var sentinel = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba8);
+        using var sentinel = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         program.PrimaryDepth = sentinel.TextureId;
         using var surfaceInput1 = LayeredTestTexture.Create(sentinel, null, null);
         program.GBufferSurface = surfaceInput1;
@@ -35,13 +37,13 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
         Set(texture);
         using var active = program.UseScope();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        StateCache.Current.ActiveTexture(unit);
+        OpenGLImageBindings.ActiveTexture(StateCache.Current, unit);
         Assert.Equal(texture.TextureId, GL.GetInteger(GetPName.TextureBinding2DArray));
         Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBinding2D));
         Set(null);
         program.Use();
         Assert.Equal(ErrorCode.NoError, GL.GetError());
-        StateCache.Current.ActiveTexture(unit);
+        OpenGLImageBindings.ActiveTexture(StateCache.Current, unit);
         Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2DArray));
 
         /// <summary>Calls the production property used by the debug renderer for each cache resource.</summary>
@@ -64,15 +66,15 @@ public sealed class SurfaceCacheDebugBindingTests : LumOnShaderFunctionalTestBas
         var program = Programs.Create<LumOnDebugShaderProgram>(identity: LumOnDebugShaderProgramFamily.GetProgramName(LumOnDebugMode.LumonSceneIrradiance));
 
         {
-            using var patch = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32ui);
+            using var patch = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             patch.UploadDataImmediate(new uint[] { 0, 1, 0, 0 });
-            using var depth = DynamicTexture2D.Create(1, 1, PixelInternalFormat.R32f);
+            using var depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             depth.UploadDataImmediate(new float[] { .5f });
-            using var pages = Texture3D.Create(2, 1, 1, PixelInternalFormat.R32ui, textureTarget: TextureTarget.Texture2DArray);
+            using var pages = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             pages.UploadDataImmediate(new uint[] { 0, 1u | (1u << 24) }, 0, 0, 0, 2, 1, 1);
-            using var irradiance = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture2DArray);
+            using var irradiance = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             irradiance.UploadDataImmediate(new float[] { 1, 3, 7, 1 }, 0, 0, 0, 1, 1, 1);
-            using var material = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba8, textureTarget: TextureTarget.Texture2DArray);
+            using var material = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             program.GBufferPatchId = patch.TextureId;
             program.PrimaryDepth = depth;
             program.LumonScenePageTableMip0 = pages;

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
@@ -132,8 +133,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        using var previous = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
-        using var desired = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        using var previous = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var desired = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
         ring.BeginFrame(0);
         GpuUniformRingSystem.SetCurrent(ring);
@@ -143,7 +144,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
             shader.SrcMip = 1;
             var parameters = (CpuUniformBuffer)typeof(RasterDepthReductionShaderProgram)
                 .GetField("paramsUbo", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(shader)!;
-            StateCache.Current.BindTexture(TextureTarget.Texture2D, 0, previous.TextureId);
+            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, 0, previous.TextureId);
             Assert.False(shader.TryUse());
             Assert.True(parameters.IsDirty);
 #if DEBUG
@@ -179,8 +180,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        using var first = DynamicTexture2D.CreateMipmapped(4, 4, PixelInternalFormat.R32f, 3);
-        using var second = DynamicTexture2D.CreateMipmapped(4, 4, PixelInternalFormat.R32f, 3);
+        using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 3, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (3) - 1, Label = null }).RequireResource();
+        using var second = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 3, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (3) - 1, Label = null }).RequireResource();
         using var target = CreateRenderTarget(1, 1, PixelInternalFormat.R32f);
         using var draws = new VanillaGraphicsExpanded.Tests.GPU.Helpers.ShaderTestFramework();
         GpuSupport.Initialize();
@@ -224,8 +225,8 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        using var firstTexture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
-        using var secondTexture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
+        using var firstTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var secondTexture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         frame.Allocate(112);
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
@@ -271,7 +272,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         frame.Allocate(112);
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
@@ -346,7 +347,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         frame.Allocate(112);
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
@@ -413,7 +414,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
     {
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
-        using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
+        using var texture = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         frame.Allocate(112);
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);

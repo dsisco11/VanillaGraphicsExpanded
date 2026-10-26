@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Diagnostics;
 
@@ -59,24 +60,15 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
     /// <summary>
     /// Reports a live texture association whose tracked backing metadata remains available.
     /// </summary>
-    public new bool IsValid => base.IsValid && metadata.Buffer is { BufferId: not 0 }
-        && (ResourceManager?.GetResourceRegistration(this) is null || ResourceManager.IsResourceMetadataAvailable(this));
+    public new bool IsValid => GpuResourceManager.TryGetTextureReferenceMetadata(this, out _);
+
+    /// <summary>Creates a consumer-only value without transferring backing ownership.</summary>
+    public static implicit operator GpuTextureRef(GpuBufferView? value) => new(value);
 
     /// <summary>Declares an unpublished view before manager-owned creation.</summary>
     protected GpuBufferView() { }
 
-    /// <summary>Requests a validated association while retaining whole-store versus range intent.</summary>
-    protected void InitializeBufferView(int buffer, SizedInternalFormat format, nint offset, nint size, string? debugName)
-    {
-        var request = new GpuBufferTextureInitialization
-        {
-            Buffer = buffer, Format = format, Mode = size == 0 ? GpuBufferTextureMode.Whole : GpuBufferTextureMode.Range
-        };
-        if (size != 0) { request.Offset = offset; request.Size = size; }
-        if (!GpuResourceManager.CreateBufferTexture(request, this, out _).HasValue)
-            throw new InvalidOperationException("Buffer texture creation failed.");
-        SetDebugName(debugName);
-    }
+
     /// <summary>
     /// Sets the debug label for this buffer view (debug builds only).
     /// </summary>
@@ -90,57 +82,9 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
 #endif
     }
 
-    /// <summary>
-    /// Creates a new buffer view that exposes the entire buffer as a <c>GL_TEXTURE_BUFFER</c>.
-    /// </summary>
-    public static GpuBufferView CreateWholeBuffer(
-        int bufferId,
-        SizedInternalFormat format,
-        string? debugName = null)
-    {
-        if (bufferId == 0)
-        {
-            throw new ArgumentException("Buffer id must be non-zero.", nameof(bufferId));
-        }
 
-        var view = new GpuBufferView();
-        view.InitializeBufferView(bufferId, format, 0, 0, debugName);
-        return view;
-    }
 
-    /// <summary>
-    /// Creates a new buffer view that exposes a subrange of a buffer as a <c>GL_TEXTURE_BUFFER</c>.
-    /// </summary>
-    /// <remarks>
-    /// Requires <c>GL_ARB_texture_buffer_range</c> (or core GL 4.3+).
-    /// </remarks>
-    public static GpuBufferView CreateRange(
-        int bufferId,
-        SizedInternalFormat format,
-        nint offsetBytes,
-        nint sizeBytes,
-        string? debugName = null)
-    {
-        if (bufferId == 0)
-        {
-            throw new ArgumentException("Buffer id must be non-zero.", nameof(bufferId));
-        }
 
-        if (offsetBytes < 0 || sizeBytes <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(offsetBytes), "Offset must be >= 0 and size must be > 0.");
-        }
-
-        // Best-effort capability check (some drivers expose this in core without the extension string).
-        if (!GpuSupport.Graphics.SupportsTextureBufferRange)
-        {
-            throw new NotSupportedException("Texture buffer ranges require GL_ARB_texture_buffer_range.");
-        }
-
-        var view = new GpuBufferView();
-        view.InitializeBufferView(bufferId, format, offsetBytes, sizeBytes, debugName);
-        return view;
-    }
 
     /// <summary>
     /// Binds this view to a texture unit for sampling.
@@ -153,7 +97,7 @@ public class GpuBufferView : GpuResource<GpuTextureMetadata>, IDisposable
             return;
         }
 
-        StateCache.Current.BindTexture(TextureTarget.TextureBuffer, unit, textureId);
+        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.TextureBuffer, unit, textureId);
     }
 
     /// <summary>

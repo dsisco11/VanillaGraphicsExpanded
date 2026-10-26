@@ -1,3 +1,4 @@
+using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.DebugView;
@@ -43,8 +44,8 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
     [Fact]
     public void BetweenPassRetargetingAndResizePreserveRoutingAndOwnership()
     {
-        EnsureContextValid();using var image=DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f);
-        using var replacement=DynamicTexture2D.Create(3,3,PixelInternalFormat.Rgba32f);
+        EnsureContextValid();using var image=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var replacement=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 3), Height = System.Math.Max(1, 3), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var replacementImage=GpuFramebufferAttachment.FromTexture(replacement);
         using var target=DynamicGpuFramebuffer.CreateSingle(image)!;
         using var incoming=CreateRenderTarget(1,1,PixelInternalFormat.Rgba32f);incoming.Bind();
@@ -103,8 +104,8 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
     [Fact]
     public void FailedBeginDoesNotStrandRoutingOrActiveImageBorrows()
     {
-        EnsureContextValid();using var layered=DynamicTexture3D.Create(2,2,2,PixelInternalFormat.Rgba32f);
-        using var flat=DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f);
+        EnsureContextValid();using var layered=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var flat=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var layeredImage=GpuFramebufferAttachment.FromTexture(layered);using var flatImage=GpuFramebufferAttachment.FromTexture(flat);
         using var broken=DynamicGpuFramebuffer.CreateEmpty();broken.SetAttachment(FramebufferAttachment.ColorAttachment0,layeredImage);
         broken.SetAttachment(FramebufferAttachment.ColorAttachment1,flatImage);
@@ -146,10 +147,10 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         internal SequenceScene()
         {
             programs=Own(new ComponentShaderPrograms());first=programs.Create<DebugTextureShaderProgram>();second=programs.Create<DebugTextureShaderProgram>();native=programs.Create<DebugTextureShaderProgram>();
-            source=Own(DynamicTexture2D.CreateWithData(1,1,PixelInternalFormat.Rgba32f,[.25f,.5f,.75f,1]));
-            sentinel=Own(DynamicTexture2D.CreateWithData(1,1,PixelInternalFormat.Rgba32f,[0f,0f,0f,1f]));nativeSampler=Own(GpuSampler.Create());
+            source=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .25f,.5f,.75f,1 }).AsSpan()).ToArray())]).RequireResource());
+            sentinel=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 0f,0f,0f,1f }).AsSpan()).ToArray())]).RequireResource());nativeSampler=Own(RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource());
             first.Scene=source.TextureId;second.Scene=source.TextureId;native.Scene=sentinel.TextureId;
-            outputs=Enumerable.Range(0,4).Select(_=>Own(DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f))).ToArray();
+            outputs=Enumerable.Range(0,4).Select(_=>Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())).ToArray();
             a=Own(DynamicGpuFramebuffer.CreateMRT(outputs.Take(2).ToArray())!);b=Own(DynamicGpuFramebuffer.CreateMRT(outputs.Skip(2).ToArray())!);
             incoming=CreateTarget();read=CreateTarget();
             var layout=new VertexLayoutDesc([new(0,3,VertexAttribPointerType.Float,VertexInterpretation.Floating,0,0,20),new(1,2,VertexAttribPointerType.Float,VertexInterpretation.Floating,0,12,20)]);
@@ -245,7 +246,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
         /// <summary>Tracks owned resources without changing framebuffer attachment ownership.</summary>
         private T Own<T>(T value)where T:IDisposable{owned.Add(value);return value;}
         /// <summary>Creates a native fixture target whose texture is independently owned.</summary>
-        private GpuFramebuffer CreateTarget(){var image=Own(DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f));return Own(DynamicGpuFramebuffer.CreateSingle(image)!);}
+        private GpuFramebuffer CreateTarget(){var image=Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());return Own(DynamicGpuFramebuffer.CreateSingle(image)!);}
         /// <summary>Inspects framebuffer-local routes without changing the inherited read or draw bindings.</summary>
         private static void AssertRoutes(GpuFramebuffer target,DrawBuffersEnum[] expected)
         {

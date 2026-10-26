@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using System;
@@ -605,7 +606,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
         // Note: framebuffer coordinates are bottom-left origin.
         scratchFbo!.Attach(atlasTexId);
         using var framebuffer = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, scratchFbo.FboId);
-        using var pack = StateCache.Current.SetPixelPackScope(new(1));
+        using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
         using var transfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
 
@@ -619,7 +620,7 @@ internal static partial class MaterialAtlasNormalDepthGpuBuilder
     {
         scratchFbo!.Attach(tex);
         using var framebuffer = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, scratchFbo.FboId);
-        using var pack = StateCache.Current.SetPixelPackScope(new(1));
+        using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
         using var transfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, 0);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
 

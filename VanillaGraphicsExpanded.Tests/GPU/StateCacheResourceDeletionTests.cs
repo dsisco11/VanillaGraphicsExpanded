@@ -22,9 +22,9 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
         try
         {
             cache.InvalidateAll();
-            cache.BindSampler(0, retired);
-            cache.BindSampler(1, survivor);
-            cache.BindSampler(2, retired);
+            OpenGLImageBindings.BindSampler(cache, 0, retired);
+            OpenGLImageBindings.BindSampler(cache, 1, survivor);
+            OpenGLImageBindings.BindSampler(cache, 2, retired);
             EngineStateCalls.DeleteSampler(retired);
             Assert.True(cache.TryGetCachedBoundSampler(0, out int first));
             Assert.Equal(0, first);

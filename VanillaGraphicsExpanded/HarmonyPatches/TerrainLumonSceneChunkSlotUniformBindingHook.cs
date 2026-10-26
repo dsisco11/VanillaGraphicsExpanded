@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using HarmonyLib;
 
 using OpenTK.Graphics.OpenGL;
@@ -98,11 +99,11 @@ internal static class TerrainLumonSceneChunkSlotUniformBindingHook
             int texId = LumonSceneChunkSlotUniformState.GenerationTextureId;
             if (genLoc >= 0 && texId != 0)
             {
-                StateCache.Current.ActiveTexture(LumonSceneChunkSlotUniformState.GenerationTextureUnit);
-                StateCache.Current.BindTextureOnActiveUnit(TextureTarget.Texture2D, texId);
+                OpenGLImageBindings.ActiveTexture(StateCache.Current, LumonSceneChunkSlotUniformState.GenerationTextureUnit);
+                OpenGLImageBindings.BindTextureOnActiveUnit(StateCache.Current, TextureTarget.Texture2D, texId);
 
                 // Restore to unit 0 (engine code generally assumes this).
-                StateCache.Current.ActiveTexture(0);
+                OpenGLImageBindings.ActiveTexture(StateCache.Current, 0);
             }
 
             // Compute passes reuse the Object binding; a version check alone cannot restore it.

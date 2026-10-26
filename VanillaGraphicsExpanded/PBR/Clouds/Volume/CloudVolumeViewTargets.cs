@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Linq;
 using OpenTK.Graphics.OpenGL;
@@ -32,7 +33,7 @@ internal sealed class CloudVolumeViewTargets : IDisposable
         PixelInternalFormat[] formats=[PixelInternalFormat.Rgba32f,PixelInternalFormat.Rgb32f,PixelInternalFormat.Rgba32f,PixelInternalFormat.R16f];
         try
         {
-            for(int i=0;i<Images.Length;i++)Images[i]=DynamicTexture2D.Create((width+divisor-1)/divisor,(height+divisor-1)/divisor,formats[i],debugName:$"Cloud.Volume.View.{i}");
+            for(int i=0;i<Images.Length;i++)Images[i]=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(formats[i])), Width = System.Math.Max(1, (width+divisor-1)/divisor), Height = System.Math.Max(1, (height+divisor-1)/divisor), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = $"Cloud.Volume.View.{i}" }).RequireResource();
             Target=DynamicGpuFramebuffer.CreateMRT(Images,debugName:"Cloud.Volume.View.Reduced")
                 ??throw new InvalidOperationException("Stored cloud intermediate framebuffer unavailable.");
         }
@@ -52,7 +53,7 @@ internal sealed class CloudVolumeViewTargets : IDisposable
             // every physical image and its framebuffer usable under the existing failure boundary.
             if(enabled)
             {
-                added=DynamicTexture2D.Create(Target.Width,Target.Height,PixelInternalFormat.Rgba16f,debugName:"Cloud.Volume.View.Diagnostics");
+                added=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, Target.Width), Height = System.Math.Max(1, Target.Height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Cloud.Volume.View.Diagnostics" }).RequireResource();
                 next=[..Images,added];
             }
             else next=Images[..4];

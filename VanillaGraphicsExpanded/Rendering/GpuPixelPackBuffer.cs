@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 
@@ -80,7 +81,7 @@ internal sealed class GpuPixelPackBuffer : GpuBufferObject
 
         using var scope = BindScope();
 
-        using var packScope = StateCache.Current.SetPixelPackScope(new StateCache.PixelPackState(packAlignment));
+        using var packScope = OpenGLPixelLayouts.PackScope(StateCache.Current, new StateCache.PixelPackState(packAlignment));
         GL.ReadPixels(x, y, width, height, format, type, (IntPtr)dstOffsetBytes);
     }
     /// <summary>

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -22,7 +23,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
     {
         EnsureContextValid();
         using var assets = new BinaryShaderApiFixture();
-        using var depth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         var program = GpuShaderProgramLibraries.Declare(assets.Api, RasterDepthCopyShaderProgram.Contract.Identity, () => new RasterDepthCopyShaderProgram());
         program.PrimaryDepth = depth;
         using (program.UseScope())
@@ -55,7 +56,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         Assert.Empty(assets.PreparedPrograms);
         var program = Assert.IsType<RasterDepthCopyShaderProgram>(GpuShaderProgramLibraries.Get<GpuProgram>(assets.Api, "tests/depth_raster_copy"));
         Assert.Equal(0, program.ProgramId);
-        using var depth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         program.PrimaryDepth = depth;
         if (activation == 0)
         {
@@ -168,7 +169,7 @@ public sealed class ShaderDemandPreparationTests(HeadlessGLFixture fixture) : Re
         using var assets = new BinaryShaderApiFixture();
         var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram("tests/GpuUniformRingBufferIntegrationTests_1"));
         using var pipeline = GpuComputePipeline.DeclareFromAssets(assets.Api, settings);
-        using var texture = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D);
+        using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         Assert.True(GpuUniformRingSystem.TryGetCurrent(out var ring));
         byte[] data = new byte[16];
         System.Buffers.Binary.BinaryPrimitives.WriteUInt32LittleEndian(data, 123);

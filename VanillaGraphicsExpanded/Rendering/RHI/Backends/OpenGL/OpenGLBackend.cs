@@ -26,6 +26,9 @@ internal sealed partial class OpenGLBackend : IRHIBackend
     #endregion
 
     #region Internal API
+    /// <summary>Retains the original capability snapshot for backend-local policy and explicit local tools.</summary>
+    internal GraphicsCapabilities NativeCapabilities { get; }
+
     /// <summary>Reports exact context identity, without accepting a replacement registered lifetime.</summary>
     internal unsafe bool IsCurrentContext => nativeContext == (nint)GLFW.GetCurrentContext()
         && origin == RenderContextRegistry.Current() && (origin == default || RenderContextRegistry.IsAlive(origin));
@@ -43,18 +46,26 @@ internal sealed partial class OpenGLBackend : IRHIBackend
         var capabilities = GpuSupport.CaptureRHIContext();
         if (capabilities.IsOpenGles || capabilities.ApiVersion is not { } version || version < new Version(4, 5))
             throw new NotSupportedException("The RHI requires desktop OpenGL 4.5 or newer.");
-        foreach (string name in RequiredBufferEntryPoints)
+        foreach (string name in RequiredEntryPoints)
             if (bindings.GetProcAddress(name) == IntPtr.Zero) throw new NotSupportedException($"Required OpenGL entry point is unavailable: {name}.");
+        NativeCapabilities = capabilities;
         Capabilities = new(capabilities);
     }
     #endregion
 
     #region Private
-    private static readonly string[] RequiredBufferEntryPoints =
+    private static readonly string[] RequiredEntryPoints =
     [ "glCreateBuffers", "glNamedBufferData", "glNamedBufferStorage", "glNamedBufferSubData",
       "glCopyNamedBufferSubData", "glClearNamedBufferSubData", "glMapNamedBufferRange",
       "glFlushMappedNamedBufferRange", "glUnmapNamedBuffer", "glGetNamedBufferParameteri64v",
       "glGetNamedBufferParameteriv", "glGetNamedBufferSubData", "glDeleteBuffers", "glIsBuffer",
-      "glBindBuffer", "glBindBufferBase", "glBindBufferRange" ];
+      "glBindBuffer", "glBindBufferBase", "glBindBufferRange", "glCreateTextures", "glTextureStorage1D", "glTextureStorage2D", "glTextureStorage3D",
+      "glTextureStorage2DMultisample", "glTextureStorage3DMultisample", "glTextureSubImage1D", "glTextureSubImage2D", "glTextureSubImage3D", "glCopyImageSubData",
+      "glClearTexSubImage", "glGenerateTextureMipmap", "glTextureView", "glTextureBuffer", "glTextureBufferRange", "glTextureParameteri", "glGetTextureParameteriv",
+      "glGetTextureLevelParameteriv", "glGetTextureSubImage", "glCreateRenderbuffers", "glNamedRenderbufferStorage", "glNamedRenderbufferStorageMultisample",
+      "glGetNamedRenderbufferParameteriv", "glCreateSamplers", "glSamplerParameteri", "glSamplerParameterf", "glSamplerParameterfv",
+      "glTexImage1D", "glTexImage2D", "glTexImage3D", "glTexImage2DMultisample", "glTexImage3DMultisample",
+      "glActiveTexture", "glBindTexture", "glBindSampler", "glBindRenderbuffer", "glPixelStorei", "glGetIntegerv",
+      "glGetTexLevelParameteriv", "glDeleteTextures", "glDeleteRenderbuffers", "glDeleteSamplers" ];
     #endregion
 }

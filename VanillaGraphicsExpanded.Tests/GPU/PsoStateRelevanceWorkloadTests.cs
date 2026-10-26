@@ -1,3 +1,4 @@
+using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Text.Json;
 using OpenTK.Graphics.OpenGL;
@@ -75,7 +76,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         using var programs = new ComponentShaderPrograms();
         var program = programs.Create<LumOnWorldProbeRadianceTileResolveShaderProgram>();
         program.AtlasSize = new(8, 8);
-        using var image = DynamicTexture2D.CreateWithData(8, 8, PixelInternalFormat.Rgba32f, new float[8 * 8 * 4]);
+        using var image = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 8, Height = 8, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 8, 8), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[8 * 8 * 4]).AsSpan()).ToArray())]).RequireResource();
         using var target = DynamicGpuFramebuffer.CreateSingle(image)!;
         var pass = new RenderPassDesc(target, [new(0)]);
         using var metadata = new RenderPassTargets(pass);

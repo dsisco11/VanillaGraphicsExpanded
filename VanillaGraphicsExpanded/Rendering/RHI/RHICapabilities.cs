@@ -36,10 +36,25 @@ public sealed class RHICapabilities
     public bool ExternalSemaphores => source.SupportsExtSemaphore;
     /// <summary>Reports support for optional external memory objects.</summary>
     public bool ExternalMemory => source.SupportsExtMemoryObject;
+    /// <summary>Reports optional anisotropic filtering from the existing cached extension inventory.</summary>
+    public bool TextureAnisotropy { get; }
+    /// <summary>Reports optional named coverage-sample storage support.</summary>
+    public bool CoverageSampling { get; }
+    /// <summary>Reports the optional complete S3TC compressed-format family.</summary>
+    public bool S3tcTextures { get; }
+    /// <summary>Reports DXT1 support, including implementations exposing only that S3TC subset.</summary>
+    public bool Dxt1Textures { get; }
     #endregion
 
     #region Internal API
     /// <summary>Retains existing discovery results rather than querying a second capability model.</summary>
-    internal RHICapabilities(GraphicsCapabilities source) => this.source = source;
+    internal RHICapabilities(GraphicsCapabilities source)
+    {
+        this.source = source;
+        TextureAnisotropy = GpuSupport.Supports("GL_EXT_texture_filter_anisotropic") || GpuSupport.Supports("GL_ARB_texture_filter_anisotropic");
+        CoverageSampling = GpuSupport.Supports("GL_NV_framebuffer_multisample_coverage") && GpuSupport.Supports("GL_EXT_direct_state_access");
+        S3tcTextures = GpuSupport.Supports("GL_EXT_texture_compression_s3tc");
+        Dxt1Textures = S3tcTextures || GpuSupport.Supports("GL_EXT_texture_compression_dxt1");
+    }
     #endregion
 }

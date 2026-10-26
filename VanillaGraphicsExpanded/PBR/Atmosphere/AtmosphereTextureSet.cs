@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
@@ -34,18 +35,17 @@ internal sealed class AtmosphereTextureSet : IDisposable
         bands = lighting.HasNightSources ? 3 : 2;
         int depth = lighting.AerialRadiance.IsEmpty ? 1 : AtmosphereAerialPerspective.Depth;
         int width = depth == 1 ? 1 : lighting.Width, height = depth == 1 ? 1 : lighting.Height;
-        Sky = DynamicTexture2D.Create(lighting.Width, lighting.Height * bands, PixelInternalFormat.Rgba16f, debugName: "Atmosphere.Sky");
+        Sky = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, lighting.Width), Height = System.Math.Max(1, lighting.Height * bands), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Atmosphere.Sky" }).RequireResource();
         try
         {
-            Radiance = DynamicTexture3D.Create(width, height * bands, depth, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture3D);
-            Attenuation = DynamicTexture3D.Create(width, height, depth, PixelInternalFormat.Rgba16f, textureTarget: TextureTarget.Texture3D);
-            ExternalTransmission = DynamicTexture2D.Create(lighting.ExternalTransmission.IsEmpty ? 1 : AtmosphereExternalTransmission.SampleCount,
-                1,PixelInternalFormat.Rgba32f,TextureFilterMode.Linear,"Atmosphere.ExternalTransmission");
+            Radiance = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height * bands), Depth = System.Math.Max(1, depth), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            Attenuation = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, depth), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            ExternalTransmission = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, lighting.ExternalTransmission.IsEmpty ? 1 : AtmosphereExternalTransmission.SampleCount), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Atmosphere.ExternalTransmission" }).RequireResource();
             foreach (GpuTexture texture in new GpuTexture[] { Sky, Radiance, Attenuation })
             {
                 texture.DisableMipmaps();
-                texture.SetTexFilter(TextureMinFilter.Linear, TextureMagFilter.Linear);
-                texture.SetTexWrap(TextureWrapMode.Repeat, TextureWrapMode.ClampToEdge, TextureWrapMode.ClampToEdge);
+                texture.SetTexFilter(RHISamplerFilter.Linear, RHISamplerFilter.Linear);
+                texture.SetTexWrap(RHISamplerAddress.Repeat, RHISamplerAddress.ClampToEdge, RHISamplerAddress.ClampToEdge);
             }
         }
         catch { Sky.Dispose(); Radiance?.Dispose(); Attenuation?.Dispose(); ExternalTransmission?.Dispose(); throw; }

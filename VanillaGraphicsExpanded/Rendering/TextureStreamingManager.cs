@@ -145,7 +145,8 @@ internal sealed class TextureStreamingManager : IDisposable
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
         int unpackRowLength = 0,
-        int unpackImageHeight = 0)
+        int unpackImageHeight = 0,
+        GpuTexture? textureOwner = null)
     {
         if (disposed)
         {
@@ -183,7 +184,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight, textureOwner);
         }
 
         TextureUploadRequest request = new(
@@ -196,7 +197,7 @@ internal sealed class TextureStreamingManager : IDisposable
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
             UnpackRowLength: unpackRowLength,
-            UnpackImageHeight: unpackImageHeight);
+            UnpackImageHeight: unpackImageHeight, TextureOwner: textureOwner);
 
         int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
         int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
@@ -282,7 +283,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight, textureOwner);
         }
 #if DEBUG
         Interlocked.Increment(ref enqueued);
@@ -301,7 +302,8 @@ internal sealed class TextureStreamingManager : IDisposable
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
         int unpackRowLength = 0,
-        int unpackImageHeight = 0)
+        int unpackImageHeight = 0,
+        GpuTexture? textureOwner = null)
     {
         if (pixelType != PixelType.UnsignedShort && pixelType != PixelType.Short)
         {
@@ -341,7 +343,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight, textureOwner);
         }
 
         TextureUploadRequest request = new(
@@ -354,7 +356,7 @@ internal sealed class TextureStreamingManager : IDisposable
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
             UnpackRowLength: unpackRowLength,
-            UnpackImageHeight: unpackImageHeight);
+            UnpackImageHeight: unpackImageHeight, TextureOwner: textureOwner);
 
         int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
         int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
@@ -436,7 +438,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight, textureOwner);
         }
 #if DEBUG
         Interlocked.Increment(ref enqueued);
@@ -455,7 +457,8 @@ internal sealed class TextureStreamingManager : IDisposable
         TextureUploadPriority priority = TextureUploadPriority.Normal,
         int unpackAlignment = 1,
         int unpackRowLength = 0,
-        int unpackImageHeight = 0)
+        int unpackImageHeight = 0,
+        GpuTexture? textureOwner = null)
     {
         if (pixelType != PixelType.HalfFloat)
         {
@@ -495,7 +498,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight, textureOwner);
         }
 
         TextureUploadRequest request = new(
@@ -508,7 +511,7 @@ internal sealed class TextureStreamingManager : IDisposable
             Priority: (int)priority,
             UnpackAlignment: unpackAlignment,
             UnpackRowLength: unpackRowLength,
-            UnpackImageHeight: unpackImageHeight);
+            UnpackImageHeight: unpackImageHeight, TextureOwner: textureOwner);
 
         int rowLength = unpackRowLength > 0 ? unpackRowLength : region.Width;
         int imageHeight = unpackImageHeight > 0 ? unpackImageHeight : region.Height;
@@ -590,7 +593,7 @@ internal sealed class TextureStreamingManager : IDisposable
                 (int)priority,
                 unpackAlignment,
                 unpackRowLength,
-                unpackImageHeight);
+                unpackImageHeight, textureOwner);
         }
 #if DEBUG
         Interlocked.Increment(ref enqueued);
@@ -869,7 +872,9 @@ internal sealed class TextureStreamingManager : IDisposable
                 TextureUploadRequest request = cmd.Request;
                 // A queued material upload belongs to its concrete image lifetime, not
                 // a recyclable GL name. Retired owners cannot overwrite a replacement.
-                if (request.TextureOwner is { } owner && (!owner.IsValid || owner.TextureId != request.TextureId))
+                if (request.TextureOwner is { } owner && (!owner.IsValid || owner.TextureId != request.TextureId
+                    || !ReferenceEquals(owner.UntrackedStorageIdentity, request.StorageIdentity)
+                    || GpuResourceManager.TextureStorageRevision(owner) != request.StorageRevision))
                 {
                     cmd.OwnedBuffer?.Dispose();
                     // Retire a staged ring allocation through its existing fence queue
@@ -1626,30 +1631,10 @@ internal sealed class TextureStreamingManager : IDisposable
     /// <summary>Uploads pinned owned bytes while borrowing and restoring the incoming unpack layout.</summary>
     private static unsafe bool TryUploadDirectFromOwnedBytes(OwnedCpuUploadBuffer owned, in PreparedUpload prepared)
     {
-        if (owned.ByteCount < prepared.ByteCount)
-        {
-            return false;
-        }
-
-        using var unpackScope = StateCache.Current.SetPixelUnpackScope(GetUploadUnpackState(prepared));
-
-        try
-        {
-            TextureUploadRequest request = prepared.Request;
-            StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, request.TextureId);
-
-            using System.Buffers.MemoryHandle handle = owned.Memory.Pin();
-            UploadSubImage(prepared, (IntPtr)handle.Pointer);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
-        finally
-        {
-            StateCache.Current.BindTextureOnActiveUnit(prepared.Request.Target.BindTarget, 0);
-        }
+        if (owned.ByteCount < prepared.ByteCount) return false;
+        using var handle = owned.Memory.Pin();
+        RHI.RHICommandContext.Current.OpenGL.ExecuteStreamingUpload(prepared.Request, (nint)handle.Pointer, GetUploadUnpackState(prepared));
+        return true;
     }
 
     public void Dispose()
@@ -1825,17 +1810,10 @@ internal sealed class TextureStreamingManager : IDisposable
             return;
         }
 
-        if (!settings.ForceDisablePersistent && TextureStreamingUtils.SupportsBufferStorage())
+        if (!settings.ForceDisablePersistent)
         {
-            try
-            {
-                backend = new PersistentMappedPboRing(settings.PersistentRingBytes, settings.PboAlignment, settings.UseCoherentMapping);
-                return;
-            }
-            catch
-            {
-                backend = null;
-            }
+            backend = new PersistentMappedPboRing(settings.PersistentRingBytes, settings.PboAlignment, settings.UseCoherentMapping);
+            return;
         }
 
         backend = new TripleBufferedPboPool(settings.TripleBufferBytes, ComputePboSlotCount(settings));
@@ -1985,91 +1963,26 @@ internal sealed class TextureStreamingManager : IDisposable
     /// <summary>Uploads from a staged pixel buffer while restoring the borrowed unpack layout.</summary>
     private static void IssuePboUpload(in PreparedUpload prepared, in PboUpload pboUpload)
     {
-        TextureUploadRequest request = prepared.Request;
-
-        StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, request.TextureId);
-        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.PixelUnpackBuffer, pboUpload.BufferId);
-
-        try
-        {
-            using var unpackScope = StateCache.Current.SetPixelUnpackScope(GetUploadUnpackState(prepared));
-            UploadSubImage(prepared, new IntPtr(pboUpload.OffsetBytes));
-        }
-        finally
-        {
-            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.PixelUnpackBuffer, 0);
-            StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, 0);
-        }
+        RHI.RHICommandContext.Current.OpenGL.ExecuteStreamingUpload(prepared.Request, pboUpload.OffsetBytes, GetUploadUnpackState(prepared), pboUpload.BufferId);
     }
 
     private static bool TryUploadDirect(in PreparedUpload prepared)
     {
-        try
-        {
-            UploadDirect(prepared);
-            return true;
-        }
-        catch
-        {
-            return false;
-        }
+        UploadDirect(prepared);
+        return true;
     }
 
     /// <summary>Uploads managed source data with an explicit temporary unpack layout.</summary>
     private static unsafe void UploadDirect(in PreparedUpload prepared)
     {
-        TextureUploadRequest request = prepared.Request;
-        using var unpackScope = StateCache.Current.SetPixelUnpackScope(GetUploadUnpackState(prepared));
-
-        try
+        var request = prepared.Request;
+        switch (request.Data.Kind)
         {
-            StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, request.TextureId);
-
-            switch (request.Data.Kind)
-            {
-                case TextureUploadDataKind.Bytes:
-                {
-                    byte[] data = (byte[])request.Data.DataArray;
-                    fixed (byte* ptr = data)
-                    {
-                        UploadSubImage(prepared, new IntPtr(ptr));
-                    }
-                    break;
-                }
-                case TextureUploadDataKind.UShorts:
-                {
-                    ushort[] data = (ushort[])request.Data.DataArray;
-                    fixed (ushort* ptr = data)
-                    {
-                        UploadSubImage(prepared, new IntPtr(ptr));
-                    }
-                    break;
-                }
-                case TextureUploadDataKind.Halfs:
-                {
-                    Half[] data = (Half[])request.Data.DataArray;
-                    fixed (Half* ptr = data)
-                    {
-                        UploadSubImage(prepared, new IntPtr(ptr));
-                    }
-                    break;
-                }
-                case TextureUploadDataKind.Floats:
-                {
-                    float[] data = (float[])request.Data.DataArray;
-                    fixed (float* ptr = data)
-                    {
-                        UploadSubImage(prepared, new IntPtr(ptr));
-                    }
-                    break;
-                }
-                default:
-                    throw new InvalidOperationException("Unsupported upload data kind.");
-            }
-        }
-        finally
-        {
-            StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, 0);
+            case TextureUploadDataKind.Bytes: fixed (byte* bytes = (byte[])request.Data.DataArray) UploadSubImage(prepared, (nint)bytes); break;
+            case TextureUploadDataKind.UShorts: fixed (ushort* values = (ushort[])request.Data.DataArray) UploadSubImage(prepared, (nint)values); break;
+            case TextureUploadDataKind.Halfs: fixed (Half* values = (Half[])request.Data.DataArray) UploadSubImage(prepared, (nint)values); break;
+            case TextureUploadDataKind.Floats: fixed (float* values = (float[])request.Data.DataArray) UploadSubImage(prepared, (nint)values); break;
+            default: throw new InvalidOperationException("Unsupported streaming payload representation.");
         }
     }
 
@@ -2086,49 +1999,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
     private static void UploadSubImage(in PreparedUpload prepared, IntPtr dataPtr)
     {
-        TextureUploadRequest request = prepared.Request;
-        TextureUploadRegion region = request.Region;
-        TextureTarget target = request.Target.UploadTarget;
-
-        switch (TextureStreamingUtils.GetUploadDimension(target))
-        {
-            case UploadDimension.Tex1D:
-                GL.TexSubImage1D(
-                    target,
-                    region.MipLevel,
-                    region.X,
-                    region.Width,
-                    request.PixelFormat,
-                    request.PixelType,
-                    dataPtr);
-                break;
-            case UploadDimension.Tex3D:
-                GL.TexSubImage3D(
-                    target,
-                    region.MipLevel,
-                    region.X,
-                    region.Y,
-                    region.Z,
-                    region.Width,
-                    region.Height,
-                    region.Depth,
-                    request.PixelFormat,
-                    request.PixelType,
-                    dataPtr);
-                break;
-            default:
-                GL.TexSubImage2D(
-                    target,
-                    region.MipLevel,
-                    region.X,
-                    region.Y,
-                    region.Width,
-                    region.Height,
-                    request.PixelFormat,
-                    request.PixelType,
-                    dataPtr);
-                break;
-        }
+        RHI.RHICommandContext.Current.OpenGL.ExecuteStreamingUpload(prepared.Request, dataPtr, GetUploadUnpackState(prepared));
     }
 
     private readonly record struct PreparedUpload(
@@ -2724,7 +2595,13 @@ internal readonly record struct TextureUploadRequest(
     int UnpackAlignment = 1,
     int UnpackRowLength = 0,
     int UnpackImageHeight = 0,
-    GpuTexture? TextureOwner = null);
+    GpuTexture? TextureOwner = null)
+{
+    /// <summary>Retains the destination storage selected when this queued upload was authored.</summary>
+    internal object? StorageIdentity { get; init; } = TextureOwner?.UntrackedStorageIdentity;
+    /// <summary>Retains the manager's storage revision so in-place replacement cannot receive stale pixels.</summary>
+    internal ulong StorageRevision { get; init; } = TextureOwner is null ? 0 : GpuResourceManager.TextureStorageRevision(TextureOwner);
+}
 
 internal enum TextureUploadDataKind
 {
@@ -2799,10 +2676,7 @@ internal enum UploadDimension
 
 internal static class TextureStreamingUtils
 {
-    public static bool SupportsBufferStorage()
-    {
-        return GpuSupport.Graphics.SupportsArbBufferStorage;
-    }
+
 
     public static UploadDimension GetUploadDimension(TextureTarget target)
     {

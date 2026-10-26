@@ -276,8 +276,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
         int local = (int)(index % (uint)plan.TilesPerAtlas);
         int x = local % plan.TilesPerAxis * plan.TileSizeTexels;
         int y = local / plan.TilesPerAxis * plan.TileSizeTexels;
-        GL.CopyImageSubData(source.TextureId, ImageTarget.Texture2DArray, 0, x, y, layer,
-            destination.TextureId, ImageTarget.Texture2DArray, 0, x, y, layer, plan.TileSizeTexels, plan.TileSizeTexels, 1);
+        RHICommandContext.Current.CopyTexture(source, new(new(0), x, y, layer, plan.TileSizeTexels, plan.TileSizeTexels), destination, new(new(0), x, y, layer, plan.TileSizeTexels, plan.TileSizeTexels));
     }
 
     /// <summary>Includes all sampling and source-policy changes that alter the meaning of temporal batches.</summary>

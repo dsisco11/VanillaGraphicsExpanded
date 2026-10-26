@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
@@ -14,7 +15,7 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// 
 /// Usage:
 /// <code>
-/// using var texture = DynamicTexture3D.Create(8, 8, probeCount, PixelInternalFormat.Rgba16f, textureType: Texture3DType.Texture2DArray);
+/// using var texture = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), Depth = System.Math.Max(1, probeCount), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
 /// texture.Bind(0); // Bind to texture unit 0
 /// // ... use texture ...
 /// </code>
@@ -44,77 +45,15 @@ public sealed class DynamicTexture3D : GpuTexture
 
     #region Constructor (private - use factory methods)
 
-    private DynamicTexture3D() { }
+    internal DynamicTexture3D() { }
 
     #endregion
 
     #region Factory Methods
 
-    /// <summary>
-    /// Creates a new 3D texture or 2D texture array with the specified parameters.
-    /// </summary>
-    /// <param name="width">Texture width in pixels.</param>
-    /// <param name="height">Texture height in pixels.</param>
-    /// <param name="depth">Texture depth (slices for 3D, layers for array).</param>
-    /// <param name="format">Internal pixel format (e.g., Rgba16f).</param>
-    /// <param name="filter">Filtering mode for sampling. Default is Linear.</param>
-    /// <param name="textureTarget">OpenGL texture target. Default is Texture2DArray (recommended for probes).</param>
-    /// <param name="immutableStorage">Allocates immutable storage suitable for texture views when true.</param>
-    /// <returns>A new DynamicTexture3D instance.</returns>
-    public static DynamicTexture3D Create(
-        int width,
-        int height,
-        int depth,
-        PixelInternalFormat format,
-        TextureFilterMode filter = TextureFilterMode.Linear,
-        TextureTarget textureTarget = TextureTarget.Texture2DArray,
-        bool immutableStorage = false)
-    {
-        if (width <= 0)
-        {
-            Debug.WriteLine($"[DynamicTexture3D] Invalid width {width}, defaulting to 1");
-            width = 1;
-        }
-        if (height <= 0)
-        {
-            Debug.WriteLine($"[DynamicTexture3D] Invalid height {height}, defaulting to 1");
-            height = 1;
-        }
-        if (depth <= 0)
-        {
-            Debug.WriteLine($"[DynamicTexture3D] Invalid depth {depth}, defaulting to 1");
-            depth = 1;
-        }
 
-        var texture = new DynamicTexture3D
-        {
-            filterMode = filter,
-        };
 
-        texture.AllocateOrReallocate3DTexture(width, height, depth, format, textureTarget, immutableStorage);
 
-        var typeStr = textureTarget == TextureTarget.Texture2DArray ? "2D array" : "3D";
-        Debug.WriteLine($"[DynamicTexture3D] Allocated {width}x{height}x{depth} {typeStr} {format}");
-        return texture;
-    }
-
-    /// <summary>
-    /// Creates a texture sized for LumOn octahedral radiance cache.
-    /// Uses 8×8 octahedral resolution per probe.
-    /// </summary>
-    /// <param name="probeCount">Total number of probes (probeCountX × probeCountY).</param>
-    /// <param name="format">Internal pixel format. Default is Rgba16f.</param>
-    /// <param name="filter">Filtering mode. Default is Linear for smooth direction sampling.</param>
-    /// <param name="textureTarget">OpenGL texture target. Default is Texture2DArray (recommended for probes).</param>
-    /// <returns>A new DynamicTexture3D instance sized for octahedral cache.</returns>
-    public static DynamicTexture3D CreateOctahedralCache(
-        int probeCount,
-        PixelInternalFormat format = PixelInternalFormat.Rgba16f,
-        TextureFilterMode filter = TextureFilterMode.Linear,
-        TextureTarget textureTarget = TextureTarget.Texture2DArray)
-    {
-        return Create(OctahedralSize, OctahedralSize, probeCount, format, filter, textureTarget);
-    }
 
     #endregion
 
@@ -178,29 +117,15 @@ public sealed class DynamicTexture3D : GpuTexture
 
     public void ClearImmediate(float r = 0f, float g = 0f, float b = 0f, float a = 0f)
     {
-        if (!((GpuResource)this).IsValid)
-        {
-            Debug.WriteLine("[DynamicTexture3D] Attempted to clear disposed or invalid texture");
-            return;
-        }
-
-        var clearData = new float[width * height * depth * 4];
-        for (int i = 0; i < clearData.Length; i += 4)
-        {
-            clearData[i] = r;
-            clearData[i + 1] = g;
-            clearData[i + 2] = b;
-            clearData[i + 3] = a;
-        }
-
-        using var _ = StateCache.Current.BindTextureScope(textureTarget, unit: 0, textureId);
-        GL.TexSubImage3D(
-            textureTarget,
-            0, 0, 0, 0,
-            width, height, depth,
-            PixelFormat.Rgba,
-            PixelType.Float,
-            clearData);
+        ObjectDisposedException.ThrowIf(!IsValid, this);
+        if (r == 0 && g == 0 && b == 0 && a == 0) { ClearToZero(); return; }
+        Span<float> values = stackalloc float[4] { r, g, b, a };
+        var format = TextureFormatHelper.GetPixelFormat(internalFormat);
+        var encoding = RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(format, PixelType.Float);
+        int count = GetChannelCount();
+        if (format is PixelFormat.RedInteger or PixelFormat.RgInteger or PixelFormat.RgbInteger or PixelFormat.RgbaInteger)
+            throw new InvalidOperationException("Nonzero integer clears require an explicitly encoded integer clear value.");
+        RHICommandContext.Current.ClearTexture(this, new(new(), 0, 0, 0, width, height, depth), encoding, System.Runtime.InteropServices.MemoryMarshal.AsBytes(values[..count]));
     }
 
     internal void EnqueueUploadData(float[] data, int x, int y, int z, int regionWidth, int regionHeight, int regionDepth, int priority = 0, int mipLevel = 0)
@@ -255,7 +180,7 @@ public sealed class DynamicTexture3D : GpuTexture
             PixelType.Float,
             data,
             uploadPriority,
-            unpackAlignment: 4);
+            unpackAlignment: 4, textureOwner: this);
 
         if (result.Outcome == TextureStageOutcome.Rejected)
         {

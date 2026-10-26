@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
@@ -19,11 +21,11 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
     {
         EnsureContextValid();
         using var target = DynamicGpuFramebuffer.CreateEmpty();
-        using var floatStorage = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba32f);
-        using GpuResource signedStorage = textureStorage ? DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba32i)
-            : GpuRenderbuffer.Create(RenderbufferStorage.Rgba32i, 4, 4);
-        using GpuResource unsignedStorage = textureStorage ? DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba32ui)
-            : GpuRenderbuffer.Create(RenderbufferStorage.Rgba32ui, 4, 4);
+        using var floatStorage = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using GpuResource signedStorage = textureStorage ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32i, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource()
+            : RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba32i, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
+        using GpuResource unsignedStorage = textureStorage ? RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource()
+            : RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba32ui, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
         using var floats = GpuFramebufferAttachment.FromTexture(floatStorage);
         using var signed = signedStorage is GpuTexture signedTexture ? GpuFramebufferAttachment.FromTexture(signedTexture)
             : GpuFramebufferAttachment.FromRenderbuffer((GpuRenderbuffer)signedStorage);
@@ -44,7 +46,7 @@ public sealed class RenderPassClearTests(HeadlessGLFixture fixture) : RenderTest
                      new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(.25f, .5f, .75f, 1)),
                      new(4, AttachmentLoad.Clear, Clear: ColorClearValue.UInt(3, 7, 4294967294, 19))]), boundary);
                 pass.Validate();
-                using var pack = StateCache.Current.SetPixelPackScope(new(1));
+                using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
                 GL.ReadBuffer(ReadBufferMode.ColorAttachment2);
                 int[] signedPixels = new int[64]; GL.ReadPixels(0, 0, 4, 4, PixelFormat.RgbaInteger, PixelType.Int, signedPixels);
                 GL.ReadBuffer(ReadBufferMode.ColorAttachment4);

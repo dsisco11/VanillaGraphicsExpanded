@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -23,10 +24,10 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
         var harmony = Patch(); GL.CreateFramebuffers(1, out int readSentinel);
         try
         {
-            using var first = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
-            using var second = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
-            using var volume = DynamicTexture3D.Create(8, 4, 3, PixelInternalFormat.Rgba8);
-            using var renderbuffer = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 8, 4);
+            using var first = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var second = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var volume = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var renderbuffer = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 8, Height = 4, Samples = 0, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(first);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             var manager = GpuResourceManagerSystem.CurrentManager!;
@@ -104,7 +105,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
         var harmony = Patch();
         try
         {
-            using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             var entry = (GpuResourceMetadataEntry<GpuFramebufferMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(framebuffer)!;
@@ -133,10 +134,10 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
         var harmony=Patch();
         try
         {
-            using var color=DynamicTexture2D.Create(4,4,PixelInternalFormat.Rgba8);
+            using var color=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image=GpuFramebufferAttachment.FromTexture(color);
             using var framebuffer=DynamicGpuFramebuffer.Create([image])!;
-            using var packed=GpuRenderbuffer.Create(RenderbufferStorage.Depth24Stencil8,4,4);
+            using var packed=RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Depth24Stencil8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             AttachPacked(framebuffer.FboId,packed.RenderbufferId);
             var depth=framebuffer.GetAttachment(FramebufferAttachment.DepthAttachment);
             Assert.NotNull(depth);
@@ -177,7 +178,7 @@ public sealed class GpuFramebufferMetadataInterceptionTests(HeadlessGLFixture fi
         GpuResourceManagerSystem.Initialize(manager);
         try
         {
-            using var texture=DynamicTexture2D.Create(4,4,PixelInternalFormat.Rgba8);
+            using var texture=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image=GpuFramebufferAttachment.FromTexture(texture);
             using var framebuffer=DynamicGpuFramebuffer.Create([image])!;
             var entry=(GpuResourceMetadataEntry<GpuFramebufferMetadata>)manager.GetResourceRegistration(framebuffer)!;

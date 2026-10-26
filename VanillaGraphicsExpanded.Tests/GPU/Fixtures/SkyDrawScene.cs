@@ -1,3 +1,4 @@
+using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.DebugView;
@@ -47,17 +48,17 @@ internal sealed class SkyDrawScene : IDisposable
             for (int layer = 0; layer < 2; layer++)
             {
                 var color = colors[index].Select((value, channel) => layer == 1 && channel < 3 ? value * .5f : value).ToArray();
-                inputs[index, layer] = Own(DynamicTexture2D.CreateWithData(1, 1, PixelInternalFormat.Rgba32f, color));
+                inputs[index, layer] = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((color).AsSpan()).ToArray())]).RequireResource());
                 shaders[index].Scene = inputs[index, 0].TextureId;
             }
-        sentinel = Own(DynamicTexture2D.CreateWithData(1, 1, PixelInternalFormat.Rgba32f, [0f, 0f, 0f, 1f]));
-        sampler = Own(GpuSampler.Create());
+        sentinel = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 0f, 0f, 0f, 1f }).AsSpan()).ToArray())]).RequireResource());
+        sampler = Own(RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource());
         native.Scene = sentinel.TextureId;
-        outputs = Enumerable.Range(0, 2).Select(_ => Own(DynamicTexture2D.Create(4, 3, PixelInternalFormat.Rgba32f))).ToArray();
+        outputs = Enumerable.Range(0, 2).Select(_ => Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 3), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())).ToArray();
         target = Own(DynamicGpuFramebuffer.CreateMRT(outputs)!);
         incoming = CreateTarget();
         read = CreateTarget();
-        clearImage = Own(DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba32f));
+        clearImage = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         auxiliary = Own(DynamicGpuFramebuffer.CreateSingle(clearImage)!);
         clearPass = new(auxiliary, [new(0, AttachmentLoad.Clear, Clear: ColorClearValue.Float(.125f, .25f, .5f, 1))]);
 
@@ -215,7 +216,7 @@ internal sealed class SkyDrawScene : IDisposable
     /// <summary>Creates a separately owned inherited target without borrowing any output image.</summary>
     private GpuFramebuffer CreateTarget()
     {
-        var image = Own(DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f));
+        var image = Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         return Own(DynamicGpuFramebuffer.CreateSingle(image)!);
     }
     #endregion

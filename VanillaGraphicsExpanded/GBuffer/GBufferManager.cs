@@ -299,57 +299,9 @@ public sealed partial class GBufferManager : IDisposable
             return;
         }
 
-        // Prefer clearing the textures directly. This is robust even if VS unbinds the FBO
-        // before our ClearFrameBuffer postfix runs (and also avoids draw-buffer state issues).
-        // Fallback to glClearBuffer on the primary FBO if clear-texture isn't available.
-        bool clearedSurface = surfaceTex?.TryClearToZero() == true;
-        bool clearedPatchId = patchIdTex?.TryClearToZero() == true;
-
-        if (clearedSurface && clearedPatchId)
-        {
-            return;
-        }
-
-        FrameBufferRef? primaryFb = capi.Render.FrameBuffers[(int)EnumFrameBuffer.Primary];
-        if (primaryFb is null)
-        {
-            return;
-        }
-
-        // Fallback: bind the primary FBO and clear the attachments by index.
-        var gl = StateCache.Current;
-        using var _ = gl.BindFramebufferScope(FramebufferTarget.Framebuffer, primaryFb.FboId);
-
-        // Ensure our draw buffers are addressable (some drivers validate indices against the active list).
-        DrawBuffersEnum[] drawBuffers =
-        [
-            DrawBuffersEnum.ColorAttachment0,
-            DrawBuffersEnum.ColorAttachment1,
-            DrawBuffersEnum.ColorAttachment2,
-            DrawBuffersEnum.ColorAttachment3,
-            DrawBuffersEnum.ColorAttachment4,
-            DrawBuffersEnum.ColorAttachment5,
-            DrawBuffersEnum.ColorAttachment6,
-            DrawBuffersEnum.ColorAttachment7
-        ];
-        StateCache.Current.SetDrawBuffers(8, drawBuffers);
-
-        if (!clearedSurface)
-        {
-            GL.ClearBuffer(ClearBuffer.Color, NormalSlotId, clearColor);
-        }
-
-        if (!clearedSurface)
-        {
-            GL.ClearBuffer(ClearBuffer.Color, MaterialSlotId, clearColor);
-        }
-
-        if (!clearedSurface) GL.ClearBuffer(ClearBuffer.Color, EnvironmentSlotId, clearColor);
-
-        if (!clearedPatchId)
-        {
-            GL.ClearBuffer(ClearBuffer.Color, PatchIdSlotId, clearUInt4AsInt);
-        }
+        // Clear every layer directly without changing pass routing or write masks.
+        surfaceTex?.ClearToZero();
+        patchIdTex?.ClearToZero();
     }
 
     /// <summary>

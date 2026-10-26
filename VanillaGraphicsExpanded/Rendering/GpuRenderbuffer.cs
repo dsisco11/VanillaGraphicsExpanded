@@ -1,4 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 
 using OpenTK.Graphics.OpenGL;
@@ -16,6 +18,9 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
     internal GpuRenderbufferMetadata MetadataSnapshot => metadata;
 
     private int renderbufferId;
+
+    /// <summary>Supplies a query-free consumer reference without lifecycle authority.</summary>
+    public static implicit operator GpuRenderbufferRef(GpuRenderbuffer? value) => new(value);
     private readonly bool ownsRenderbuffer;
     private string? debugName;
 
@@ -74,62 +79,12 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
     /// </summary>
     public new bool IsValid => base.IsValid;
 
-    private GpuRenderbuffer(int renderbufferId, bool ownsRenderbuffer, string? debugName)
+    /// <summary>Declares an unpublished owner or explicitly borrowed native identity for manager handoff.</summary>
+    internal GpuRenderbuffer(int renderbufferId, bool ownsRenderbuffer, string? debugName)
     {
         this.renderbufferId = renderbufferId;
         this.ownsRenderbuffer = ownsRenderbuffer;
         this.debugName = debugName;
-    }
-
-    /// <summary>
-    /// Creates a new renderbuffer and allocates storage.
-    /// </summary>
-    public static GpuRenderbuffer Create(
-        RenderbufferStorage storage,
-        int width,
-        int height,
-        int samples = 0,
-        string? debugName = null)
-    {
-        var request = new GpuRenderbufferInitialization { Format = storage, Width = width, Height = height, Samples = samples };
-        var resource = new GpuRenderbuffer(0, ownsRenderbuffer: true, debugName);
-        if (!GpuResourceManager.CreateRenderbuffer(request, resource, out _).HasValue)
-            throw new InvalidOperationException("Renderbuffer creation failed.");
-        resource.SetDebugName(debugName);
-        return resource;
-    }
-
-    /// <summary>
-    /// Creates a new renderbuffer and allocates storage, using a sized internal format enum.
-    /// This overload exists for consistency with texture APIs; values are cast to <see cref="RenderbufferStorage"/>.
-    /// </summary>
-    public static GpuRenderbuffer Create(
-        PixelInternalFormat internalFormat,
-        int width,
-        int height,
-        int samples = 0,
-        string? debugName = null)
-    {
-        return Create((RenderbufferStorage)internalFormat, width, height, samples, debugName);
-    }
-
-    /// <summary>
-    /// Wraps an existing renderbuffer id without taking ownership of deletion.
-    /// </summary>
-    public static GpuRenderbuffer Wrap(int existingRenderbufferId, string? debugName = null)
-    {
-        if (existingRenderbufferId <= 0)
-        {
-            throw new ArgumentOutOfRangeException(nameof(existingRenderbufferId), existingRenderbufferId, "Renderbuffer id must be > 0.");
-        }
-
-#if DEBUG
-        GlDebug.TryLabel(ObjectLabelIdentifier.Renderbuffer, existingRenderbufferId, debugName);
-#endif
-
-        var wrapper = new GpuRenderbuffer(existingRenderbufferId, ownsRenderbuffer: false, debugName);
-        GpuResourceManager.AcquireWrapperMetadata(wrapper, GpuRenderbufferMetadataReader.Instance);
-        return wrapper;
     }
 
     /// <summary>
@@ -158,7 +113,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
             return;
         }
 
-        StateCache.Current.BindRenderbuffer(renderbufferId);
+        OpenGLImageBindings.BindRenderbuffer(StateCache.Current, renderbufferId);
     }
 
     /// <summary>
@@ -171,7 +126,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
             return false;
         }
 
-        StateCache.Current.BindRenderbuffer(renderbufferId);
+        OpenGLImageBindings.BindRenderbuffer(StateCache.Current, renderbufferId);
         return true;
     }
 
@@ -180,7 +135,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
     /// </summary>
     public void Unbind()
     {
-        StateCache.Current.BindRenderbuffer(0);
+        OpenGLImageBindings.BindRenderbuffer(StateCache.Current, 0);
     }
 
     /// <summary>
@@ -196,7 +151,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
     /// <summary>
     /// Allocates or reallocates renderbuffer storage.
     /// </summary>
-    public void AllocateStorage(RenderbufferStorage storage, int width, int height, int samples = 0)
+    public void AllocateStorage(RHIFormat storage, int width, int height, int samples = 0)
     {
         RequireMutableStorage();
         if (!IsValid)
@@ -220,18 +175,9 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
             throw new ArgumentOutOfRangeException(nameof(samples), samples, "Samples must be >= 0.");
         }
 
-        StateCache.Current.RenderbufferStorage(this, storage, width, height, samples);
+        RHICommandContext.Current.AllocateRenderbufferStorage(this, new RHIRenderbufferDescription { Format = storage, Width = width, Height = height, Samples = samples });
         if (ResourceManager?.GetResourceRegistration(this) is null)
             GpuFramebufferAttachmentObservers.NotifyChanged(this);
-    }
-
-    /// <summary>
-    /// Allocates or reallocates renderbuffer storage, using a sized internal format enum.
-    /// This overload exists for consistency with texture APIs; values are cast to <see cref="RenderbufferStorage"/>.
-    /// </summary>
-    public void AllocateStorage(PixelInternalFormat internalFormat, int width, int height, int samples = 0)
-    {
-        AllocateStorage((RenderbufferStorage)internalFormat, width, height, samples);
     }
 
     /// <summary>
@@ -241,7 +187,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
     public bool Resize(int width, int height)
     {
         if (!IsValid || (this.width == width && this.height == height)) return false;
-        AllocateStorage(storage, width, height, samples);
+        AllocateStorage(OpenGLImageValues.Format((PixelInternalFormat)storage), width, height, samples);
         return true;
     }
 
@@ -276,7 +222,7 @@ public sealed class GpuRenderbuffer : GpuResource<GpuRenderbufferMetadata>, IDis
                 return;
             }
 
-            StateCache.Current.BindRenderbuffer(previous);
+            OpenGLImageBindings.BindRenderbuffer(StateCache.Current, previous);
         }
     }
 }

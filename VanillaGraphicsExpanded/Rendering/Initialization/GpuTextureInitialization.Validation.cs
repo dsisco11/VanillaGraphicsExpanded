@@ -35,14 +35,15 @@ internal partial struct GpuTextureInitialization
         var result = this;
         if (one) result.Height = 1;
         if (!layered) result.Depth = 1;
-        if (!IsAssigned(Inputs.BaseLevel)) result.BaseLevel = 0;
-        if (!IsAssigned(Inputs.MaxLevel)) result.MaxLevel = multisample ? 0 : 1000;
+        // Resolved defaults are values, not caller assignments; repeated validation must retain omission intent.
+        if (!IsAssigned(Inputs.BaseLevel)) result.baseLevel = 0;
+        if (!IsAssigned(Inputs.MaxLevel)) result.maxLevel = multisample ? 0 : 1000;
         if (result.BaseLevel < 0 || result.MaxLevel < 0
             || target == TextureTarget.TextureRectangle && (levels != 1 || result.BaseLevel != 0)
             || target is TextureTarget.TextureCubeMap or TextureTarget.TextureCubeMapArray && width != height
             || target == TextureTarget.TextureCubeMapArray && depth % 6 != 0)
             throw new ArgumentException("Invalid mip range or cube geometry.");
-        var caps = GpuSupport.Graphics;
+        var caps = RHI.RHICommandContext.Current.OpenGL.NativeCapabilities;
         int spatialExtent = Math.Max(width, target == TextureTarget.Texture1DArray ? 1 : result.Height);
         if (target == TextureTarget.Texture3D) spatialExtent = Math.Max(spatialExtent, depth);
         int maximumLevels = 1;
@@ -51,9 +52,6 @@ internal partial struct GpuTextureInitialization
         bool sized = GpuTextureFormatReader.IsExplicitFormat(internalFormat);
         if ((allocationMode == GpuTextureAllocationMode.Immutable || multisample) && !sized)
             throw new ArgumentException("Immutable and multisample storage require an explicit sized format.");
-        if (multisample && (!caps.SupportsTextureMultisample
-            || allocationMode == GpuTextureAllocationMode.Immutable && !caps.SupportsTextureStorageMultisample))
-            throw new NotSupportedException("The requested multisample storage operation is unavailable.");
         int limit = target == TextureTarget.Texture3D ? caps.Max3DTextureSize
             : target == TextureTarget.TextureRectangle ? caps.MaxRectangleTextureSize
             : target is TextureTarget.TextureCubeMap or TextureTarget.TextureCubeMapArray ? caps.MaxCubeMapTextureSize : caps.MaxTextureSize;
@@ -62,11 +60,11 @@ internal partial struct GpuTextureInitialization
             || target is TextureTarget.Texture2DArray or TextureTarget.TextureCubeMapArray or TextureTarget.Texture2DMultisampleArray && caps.MaxArrayTextureLayers > 0 && depth > caps.MaxArrayTextureLayers
             || target == TextureTarget.Texture1DArray && caps.MaxArrayTextureLayers > 0 && height > caps.MaxArrayTextureLayers)
             throw new ArgumentOutOfRangeException(nameof(Width), "Texture dimensions exceed cached limits.");
-        if (allocationMode == GpuTextureAllocationMode.Immutable && !caps.SupportsTextureStorage)
-            throw new NotSupportedException("Immutable texture storage is unavailable.");
-        if (multisample && caps.SupportsInternalFormatQuery2)
+        if (multisample)
         {
             var support = GpuSupport.GetInternalFormatCapabilities((ImageTarget)target, (SizedInternalFormat)internalFormat);
+            if (!support.Supported) throw new ArgumentOutOfRangeException(nameof(Samples));
+            if (support.SampleCounts.IsDefaultOrEmpty) return result;
             int selected = int.MaxValue;
             foreach (int count in support.SampleCounts)
                 if (count >= samples && count < selected) selected = count;

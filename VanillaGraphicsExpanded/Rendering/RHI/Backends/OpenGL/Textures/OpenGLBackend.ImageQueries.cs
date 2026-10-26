@@ -1,0 +1,92 @@
+using OpenTK.Graphics.OpenGL;
+using Native = OpenTK.Graphics.OpenGL4;
+using GL = OpenTK.Graphics.OpenGL4.GL;
+
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+
+/// <summary>Supplies native queries only for explicit external acquisition or narrowly selected output facts.</summary>
+internal sealed partial class OpenGLBackend
+{
+    #region Internal API
+    /// <summary>Reads unknown image selectors for the existing state cache without acquiring resource descriptors.</summary>
+    internal int ReadImageSelector(GetPName parameter)
+    {
+        RequireContext();
+        int value = GL.GetInteger((Native.GetPName)parameter);
+        RequireContext();
+        return value;
+    }
+
+    /// <summary>Checks realization at the explicit external acquisition boundary.</summary>
+    internal bool IsExternalTexture(nint id)
+    {
+        RequireContext();
+        bool result = new OpenGLTextureQueries(0, this).IsResource(id);
+        RequireContext();
+        return result;
+    }
+    /// <summary>Reads unknown external image descriptors without changing controlled-allocation policy.</summary>
+    internal bool ReadExternalTexture(nint id, TextureTarget target, out GpuTextureMetadata metadata)
+    {
+        RequireContext();
+        bool result = new OpenGLTextureQueries(target, this).TryRead(id, out metadata);
+        RequireContext();
+        return result;
+    }
+    /// <summary>Reads one externally changed image while preserving semantically required cube-face selectors.</summary>
+    internal bool ReadExternalTextureImage(int id, TextureTarget target, TextureTarget face, int level, out GpuTextureLevelMetadata image)
+    {
+        RequireContext();
+        bool result = OpenGLTextureImageQueries.TryRead(id, target, face, level, this, out image);
+        RequireContext();
+        return result;
+    }
+    /// <summary>Checks renderbuffer realization only during explicit external acquisition.</summary>
+    internal bool IsExternalRenderbuffer(nint id)
+    {
+        RequireContext();
+        bool result = new OpenGLRenderbufferQueries(this).IsResource(id);
+        RequireContext();
+        return result;
+    }
+    /// <summary>Reads unknown external renderbuffer storage using core named queries.</summary>
+    internal bool ReadExternalRenderbuffer(nint id, out GpuRenderbufferMetadata metadata)
+    {
+        RequireContext();
+        bool result = new OpenGLRenderbufferQueries(this).TryRead(id, out metadata);
+        RequireContext();
+        return result;
+    }
+    /// <summary>Reads one externally altered object parameter, preserving the native error queue.</summary>
+    internal int ReadExternalTextureParameter(int texture, GetTextureParameter parameter)
+    {
+        RequireContext();
+        GL.GetTextureParameter(texture, (Native.GetTextureParameter)parameter, out int value);
+        RequireContext();
+        return value;
+    }
+    /// <summary>Reads one external buffer association field without any binding fallback.</summary>
+    internal int ReadExternalTextureLevelParameter(int texture, int level, GetTextureParameter parameter)
+    {
+        RequireContext();
+        GL.GetTextureLevelParameter(texture, level, (Native.GetTextureParameter)parameter, out int value);
+        RequireContext();
+        return value;
+    }
+
+    /// <summary>Reads the optional renderbuffer-backed texture association through its required context selector.</summary>
+    internal bool ReadExternalRenderbufferTexture(int texture, out GpuTextureMetadata metadata)
+    {
+        RequireContext();
+        metadata = default;
+        if (!GpuSupport.Graphics.SupportsRenderbufferTextures) return false;
+        var target = (TextureTarget)All.TextureRenderbufferNv;
+        using var binding = cache.BindTextureScope(target, 0, texture);
+        GL.GetInteger((Native.GetPName)All.TextureRenderbufferDataStoreBindingNv, out int backing);
+        RequireContext();
+        if (backing < 0) return false;
+        metadata = new(target, System.Collections.Immutable.ImmutableArray<GpuTextureLevelMetadata>.Empty, false, 0, 0, 0, Renderbuffer: backing);
+        return true;
+    }
+    #endregion
+}

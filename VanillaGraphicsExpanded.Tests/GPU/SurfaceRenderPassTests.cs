@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -53,7 +55,7 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
             }));
             hostile.AssertRestored();
             GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
-            using var pack = StateCache.Current.SetPixelPackScope(new(1));
+            using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
             // The fixture's native window is one pixel; larger published extents below exercise metadata refresh only.
             byte[] pixels = new byte[4]; GL.ReadPixels(0, 0, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
             Assert.Equal(255, pixels[0]); Assert.Equal(0, pixels[1]); Assert.Equal(0, pixels[2]);
@@ -89,7 +91,7 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
         using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.UploadData(new float[] { -1, -1, 0, 3, -1, 0, -1, 3, 0 });
         using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo> { [0] = buffer });
-        using var source = DynamicTexture2D.CreateWithData(2, 2, PixelInternalFormat.R32f, [.25f, .5f, .75f, 1]);
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 2, Height = 2, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 2, 2), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .25f, .5f, .75f, 1 }).AsSpan()).ToArray())]).RequireResource();
         shader.HzbDepth = source; shader.SrcMip = 0;
         using var hostile = new HostileFullscreenState();
         Assert.True(GraphicsCommandContext.TryRun("DrawSurface", [pipeline], true, commands =>
@@ -100,7 +102,7 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
         }));
         hostile.AssertRestored();
         StateCache.Current.BindFramebuffer(FramebufferTarget.ReadFramebuffer, 0); GL.ReadBuffer((ReadBufferMode)metadata.Buffer);
-        using var pack = StateCache.Current.SetPixelPackScope(new(1));
+        using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
         byte[] pixels = new byte[4]; GL.ReadPixels(0, 0, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, pixels);
         Assert.InRange(pixels[0], (byte)63, (byte)65);
         Assert.Equal(ErrorCode.NoError, GL.GetError());

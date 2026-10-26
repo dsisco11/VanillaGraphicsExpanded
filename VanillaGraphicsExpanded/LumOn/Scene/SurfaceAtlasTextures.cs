@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -22,12 +23,12 @@ internal sealed class SurfaceAtlasTextures : IDisposable
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(layers);
         try
         {
-            Depth = Texture3D.Create(width,height,layers,PixelInternalFormat.R16f,TextureFilterMode.Nearest,TextureTarget.Texture2DArray,name+"_DepthAtlas");
-            Material = Texture3D.Create(width,height,layers,PixelInternalFormat.Rgba8,TextureFilterMode.Nearest,TextureTarget.Texture2DArray,name+"_MaterialAtlas");
-            Indirect = Texture3D.Create(width,height,layers,PixelInternalFormat.Rgba16f,TextureFilterMode.Nearest,TextureTarget.Texture2DArray,name+"_IrradianceAtlas");
-            Direct = Texture3D.Create(width,height,layers,PixelInternalFormat.Rgba16f,TextureFilterMode.Nearest,TextureTarget.Texture2DArray,name+"_DirectIrradiance");
+            Depth = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, layers), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = name+"_DepthAtlas" }).RequireResource();
+            Material = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, layers), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = name+"_MaterialAtlas" }).RequireResource();
+            Indirect = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, layers), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = name+"_IrradianceAtlas" }).RequireResource();
+            Direct = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, layers), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = name+"_DirectIrradiance" }).RequireResource();
             for (int i=0;i<Outgoing.Length;i++)
-                Outgoing[i] = Texture3D.Create(width,height,layers,PixelInternalFormat.Rgba16f,TextureFilterMode.Nearest,TextureTarget.Texture2DArray,name+"_OutgoingRadiance"+i);
+                Outgoing[i] = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, layers), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = name+"_OutgoingRadiance"+i }).RequireResource();
         }
         catch { Dispose(); throw; }
     }

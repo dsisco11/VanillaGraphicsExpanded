@@ -23,14 +23,16 @@ internal sealed partial class GpuResourceManager
         if (manager?.GetResourceRegistration(resource) is not null && !manager.IsResourceMetadataAvailable(resource))
             return false;
         var snapshot = resource.PublishedMetadata;
-        if (snapshot.Levels.IsDefaultOrEmpty) return false;
+        if (snapshot.Levels.IsDefaultOrEmpty && snapshot.Buffer is null) return false;
+        if (snapshot.Buffer is { BufferId: 0 }) return false;
+        if (resource is GpuBufferView bufferView && !IsBufferTextureSourceCurrent(bufferView, snapshot)) return false;
         // Check original source storage before compatibility history can be reused.
         if (resource is GpuTextureView view && view.Source is { } source)
         {
-            if (!TryGetTextureReferenceMetadata(source, out _) || source.TextureId != view.SourceTextureId
-                || source.StorageGeneration != view.SourceGeneration
+            if (!TryGetTextureReferenceMetadata(source, out _) || (int)source.ResourceId != view.SourceTextureId
+                || TextureStorageRevision(source) != view.SourceGeneration
                 || !(manager?.IsTextureViewSourceCurrent(view, source)
-                    ?? ReferenceEquals(source.UntrackedStorageIdentity, view.SourceStorageIdentity))) return false;
+                    ?? ReferenceEquals(TextureStorageIdentity(source), view.SourceStorageIdentity))) return false;
         }
         data = snapshot;
         return true;
@@ -41,7 +43,8 @@ internal sealed partial class GpuResourceManager
     {
         if (!TryGetTextureReferenceMetadata(resource, out var data))
             throw new InvalidOperationException("Texture reference metadata is unavailable or retired.");
-        RequireWrapperMetadataAccess(resource!);
+        resource!.RequireOriginalContext();
+        RequireWrapperMetadataAccess(resource);
         return data;
     }
     #endregion
@@ -52,13 +55,13 @@ internal sealed partial class GpuResourceManager
     {
         if (resource is null || !((GpuResource)resource).IsValid) return false;
         if (resource is not GpuTextureView view || view.Source is not { } source) return true;
-        if (!((GpuResource)source).IsValid || source.TextureId != view.SourceTextureId
-            || source.StorageGeneration != view.SourceGeneration) return false;
+        if (!((GpuResource)source).IsValid || (int)source.ResourceId != view.SourceTextureId
+            || TextureStorageRevision(source) != view.SourceGeneration) return false;
         // The association comparison intentionally ignores availability: callers must reject
         // missing facts, whereas an optional input with retired storage can clear its slot.
         if (resource.ResourceManager is { } manager && manager.textureViewSources.TryGetValue(view, out var original))
             return ReferenceEquals(original, manager.GetResourceRegistration(source));
-        return ReferenceEquals(source.UntrackedStorageIdentity, view.SourceStorageIdentity);
+        return ReferenceEquals(TextureStorageIdentity(source), view.SourceStorageIdentity);
     }
     #endregion
 }

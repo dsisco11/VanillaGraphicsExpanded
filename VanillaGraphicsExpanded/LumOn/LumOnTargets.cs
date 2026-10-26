@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -56,28 +57,17 @@ internal sealed class LumOnTargets : IDisposable
             // Create Probe Anchor Buffers
             // ═══════════════════════════════════════════════════════════════
 
-            ProbeAnchors = resources.Own(Texture3D.Create(probeCountX, probeCountY, 2, PixelInternalFormat.Rgba16f,
-                TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "ProbeAnchors"));
+            ProbeAnchors = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, probeCountX), Height = System.Math.Max(1, probeCountY), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ProbeAnchors" }).RequireResource());
             ProbeAnchorFbo = CreateLayeredFramebuffer(ProbeAnchors, "ProbeAnchorFBO");
 
             // ═══════════════════════════════════════════════════════════════
             // Create Probe Trace Mask
             // ═══════════════════════════════════════════════════════════════
 
-            ProbeTraceMaskTex = resources.Own(DynamicTexture2D.Create(
-                probeCountX,
-                probeCountY,
-                PixelInternalFormat.Rg32f,
-                TextureFilterMode.Nearest,
-                debugName: "LumOn.ProbeTraceMask")!);
+            ProbeTraceMaskTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg32f, Width = System.Math.Max(1, probeCountX), Height = System.Math.Max(1, probeCountY), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "LumOn.ProbeTraceMask" }).RequireResource()!);
 
             // Debug/diagnostics: per-probe importance energy (sum of weights).
-            ProbePisEnergyTex = resources.Own(DynamicTexture2D.Create(
-                probeCountX,
-                probeCountY,
-                PixelInternalFormat.R32f,
-                TextureFilterMode.Nearest,
-                debugName: "LumOn.ProbePisEnergy")!);
+            ProbePisEnergyTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, probeCountX), Height = System.Math.Max(1, probeCountY), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "LumOn.ProbePisEnergy" }).RequireResource()!);
 
             ProbeTraceMaskFbo = CreateTextureTarget([ProbeTraceMaskTex, ProbePisEnergyTex], "LumOn.ProbeTraceMaskFBO");
 
@@ -90,44 +80,43 @@ internal sealed class LumOnTargets : IDisposable
 
             int atlasWidth = probeCountX * 8;
             int atlasHeight = probeCountY * 8;
-            ScreenProbeAtlasTraceTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasTrace")!);
-            ScreenProbeAtlasMetaTraceTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaTrace")!);
+            ScreenProbeAtlasTraceTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, atlasWidth), Height = System.Math.Max(1, atlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScreenProbeAtlasTrace" }).RequireResource()!);
+            ScreenProbeAtlasMetaTraceTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg32f, Width = System.Math.Max(1, atlasWidth), Height = System.Math.Max(1, atlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScreenProbeAtlasMetaTrace" }).RequireResource()!);
             ScreenProbeAtlasTraceFbo = CreateTextureTarget([ScreenProbeAtlasTraceTex, ScreenProbeAtlasMetaTraceTex], "ScreenProbeAtlasTraceFBO");
 
-            ScreenProbeAtlasCurrentTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasCurrent")!);
-            ScreenProbeAtlasMetaCurrentTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaCurrent")!);
+            ScreenProbeAtlasCurrentTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, atlasWidth), Height = System.Math.Max(1, atlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScreenProbeAtlasCurrent" }).RequireResource()!);
+            ScreenProbeAtlasMetaCurrentTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg32f, Width = System.Math.Max(1, atlasWidth), Height = System.Math.Max(1, atlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScreenProbeAtlasMetaCurrent" }).RequireResource()!);
             ScreenProbeAtlasCurrentFbo = CreateTextureTarget([ScreenProbeAtlasCurrentTex, ScreenProbeAtlasMetaCurrentTex], "ScreenProbeAtlasCurrentFBO");
 
-            ScreenProbeAtlasHistoryTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasHistory")!);
-            ScreenProbeAtlasMetaHistoryTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaHistory")!);
+            ScreenProbeAtlasHistoryTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, atlasWidth), Height = System.Math.Max(1, atlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScreenProbeAtlasHistory" }).RequireResource()!);
+            ScreenProbeAtlasMetaHistoryTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg32f, Width = System.Math.Max(1, atlasWidth), Height = System.Math.Max(1, atlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScreenProbeAtlasMetaHistory" }).RequireResource()!);
             ScreenProbeAtlasHistoryFbo = CreateTextureTarget([ScreenProbeAtlasHistoryTex, ScreenProbeAtlasMetaHistoryTex], "ScreenProbeAtlasHistoryFBO");
 
             // Filtered atlas output (Pass 3.5): derived from temporal output each frame
-            ScreenProbeAtlasFilteredTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rgba16f, debugName: "ScreenProbeAtlasFiltered")!);
-            ScreenProbeAtlasMetaFilteredTex = resources.Own(DynamicTexture2D.Create(atlasWidth, atlasHeight, PixelInternalFormat.Rg32f, debugName: "ScreenProbeAtlasMetaFiltered")!);
+            ScreenProbeAtlasFilteredTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, atlasWidth), Height = System.Math.Max(1, atlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScreenProbeAtlasFiltered" }).RequireResource()!);
+            ScreenProbeAtlasMetaFilteredTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg32f, Width = System.Math.Max(1, atlasWidth), Height = System.Math.Max(1, atlasHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ScreenProbeAtlasMetaFiltered" }).RequireResource()!);
             ScreenProbeAtlasFilteredFbo = CreateTextureTarget([ScreenProbeAtlasFilteredTex, ScreenProbeAtlasMetaFilteredTex], "ScreenProbeAtlasFilteredFBO");
 
             // Probe-atlas → SH9 projection output (Option B)
             // 7 RGBA16F attachments to pack 27 floats (9 RGB coeffs)
-            ProbeSh9 = resources.Own(Texture3D.Create(probeCountX, probeCountY, 7, PixelInternalFormat.Rgba16f,
-                TextureFilterMode.Nearest, TextureTarget.Texture2DArray, "ProbeSH9"));
+            ProbeSh9 = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, probeCountX), Height = System.Math.Max(1, probeCountY), Depth = System.Math.Max(1, 7), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "ProbeSH9" }).RequireResource());
             ProbeSh9Fbo = CreateLayeredFramebuffer(ProbeSh9, "ProbeSH9FBO");
 
             // ═══════════════════════════════════════════════════════════════
             // Create Indirect Diffuse Output Buffers
             // ═══════════════════════════════════════════════════════════════
 
-            IndirectHalfTex = resources.Own(DynamicTexture2D.Create(halfResWidth, halfResHeight, PixelInternalFormat.Rgba16f, debugName: "IndirectHalf")!);
+            IndirectHalfTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, halfResWidth), Height = System.Math.Max(1, halfResHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "IndirectHalf" }).RequireResource()!);
             IndirectHalfFbo = CreateTextureTarget([IndirectHalfTex], "IndirectHalfFBO");
 
-            IndirectFullTex = resources.Own(DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, debugName: "IndirectFull")!);
+            IndirectFullTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, screenWidth), Height = System.Math.Max(1, screenHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "IndirectFull" }).RequireResource()!);
             IndirectFullFbo = CreateTextureTarget([IndirectFullTex], "IndirectFullFBO");
 
             // ═══════════════════════════════════════════════════════════════
             // Create LumOn-owned surface capture buffers.
             // ═══════════════════════════════════════════════════════════════
 
-            SurfaceAlbedoTex = resources.Own(DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba16f, TextureFilterMode.Linear, debugName: "LumOn.SurfaceAlbedo")!);
+            SurfaceAlbedoTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, screenWidth), Height = System.Math.Max(1, screenHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = "LumOn.SurfaceAlbedo" }).RequireResource()!);
             SurfaceAlbedoFbo = CreateTextureTarget([SurfaceAlbedoTex], "LumOn.SurfaceAlbedoFBO");
 
             // ═══════════════════════════════════════════════════════════════
@@ -136,7 +125,7 @@ internal sealed class LumOnTargets : IDisposable
             // We use RGBA32F for simplicity and correctness.
             // ═══════════════════════════════════════════════════════════════
 
-            VelocityTex = resources.Own(DynamicTexture2D.Create(screenWidth, screenHeight, PixelInternalFormat.Rgba32f, TextureFilterMode.Nearest, debugName: "Velocity")!);
+            VelocityTex = resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, screenWidth), Height = System.Math.Max(1, screenHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Velocity" }).RequireResource()!);
             VelocityFbo = CreateTextureTarget([VelocityTex], "VelocityFBO");
 
             // ═══════════════════════════════════════════════════════════════

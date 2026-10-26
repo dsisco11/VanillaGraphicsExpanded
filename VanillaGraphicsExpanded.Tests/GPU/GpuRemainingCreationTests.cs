@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -26,14 +27,14 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
         {
             using var previousVao = GpuVao.Create();
             using var previousPipeline = GpuProgramPipeline.Create();
-            using var previousSampler = GpuSampler.Create();
+            using var previousSampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
             previousSampler.Bind(0);
             using var vaoScope = previousVao.BindScope();
             using var pipelineScope = StateCache.Current.BindProgramPipelineScope(previousPipeline.PipelineId);
             using var observation = new CreationQueryObservation();
             using var vao = GpuVao.Create();
             using var pipeline = GpuProgramPipeline.Create();
-            using var sampler = GpuSampler.Create();
+            using var sampler = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
             using var query = GpuQuery.Create();
             using var feedback = GpuTransformFeedback.Create();
             using var fence = GpuFence.Insert();
@@ -74,7 +75,7 @@ public sealed class GpuRemainingCreationTests(HeadlessGLFixture fixture, Xunit.I
             Assert.Contains(fence.Wait(TimeSpan.FromSeconds(1)), new[] { WaitSyncStatus.AlreadySignaled, WaitSyncStatus.ConditionSatisfied });
             Assert.True(fence.TryConsumeIfSignaled());
             Assert.Equal((nint)0, fence.ResourceId);
-            sampler.SetFilter(TextureMinFilter.Nearest, TextureMagFilter.Nearest);
+            sampler.SetFilter(RHISamplerFilter.Nearest, RHISamplerFilter.Nearest);
             GL.GetSamplerParameter(sampler.SamplerId, SamplerParameterName.TextureMinFilter, out int filter);
             Assert.Equal((int)TextureMinFilter.Nearest, filter);
             Assert.Equal(ErrorCode.NoError, GL.GetError());

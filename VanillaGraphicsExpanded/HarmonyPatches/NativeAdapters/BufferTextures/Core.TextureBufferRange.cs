@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -8,37 +9,37 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.BufferTextures;
 internal static unsafe partial class Core
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TextureBufferRange(int @texture, InternalFormat @internalformat, int @buffer, IntPtr @offset, int @size)
-        => StateCache.Current.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
+        => OpenGLBufferTexturesCalls.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TextureBufferRange(int @texture, InternalFormat @internalformat, int @buffer, IntPtr @offset, IntPtr @size)
-        => StateCache.Current.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
+        => OpenGLBufferTexturesCalls.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TextureBufferRange(int @texture, SizedInternalFormat @internalformat, int @buffer, IntPtr @offset, int @size)
-        => StateCache.Current.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
+        => OpenGLBufferTexturesCalls.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TextureBufferRange(int @texture, SizedInternalFormat @internalformat, int @buffer, IntPtr @offset, IntPtr @size)
-        => StateCache.Current.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
+        => OpenGLBufferTexturesCalls.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TextureBufferRange(uint @texture, InternalFormat @internalformat, uint @buffer, IntPtr @offset, int @size)
-        => StateCache.Current.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
+        => OpenGLBufferTexturesCalls.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TextureBufferRange(uint @texture, InternalFormat @internalformat, uint @buffer, IntPtr @offset, IntPtr @size)
-        => StateCache.Current.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
+        => OpenGLBufferTexturesCalls.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TextureBufferRange(uint @texture, SizedInternalFormat @internalformat, uint @buffer, IntPtr @offset, int @size)
-        => StateCache.Current.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
+        => OpenGLBufferTexturesCalls.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void TextureBufferRange(uint @texture, SizedInternalFormat @internalformat, uint @buffer, IntPtr @offset, IntPtr @size)
-        => StateCache.Current.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
+        => OpenGLBufferTexturesCalls.ExecuteCoreTextureBufferRange(@texture, @internalformat, @buffer, @offset, @size);
 
     #endregion
 }

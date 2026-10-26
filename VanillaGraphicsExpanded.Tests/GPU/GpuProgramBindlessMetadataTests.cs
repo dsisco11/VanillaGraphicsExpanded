@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -75,7 +76,7 @@ public sealed partial class GpuProgramMetadataInterceptionTests
             }
             else program=CreateProgram(out shader,true);
             using(program)
-            using(var texture=DynamicTexture2D.Create(2,2,PixelInternalFormat.Rgba32f))
+            using(var texture=RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource())
             {
                 var manager=GpuResourceManagerSystem.CurrentManager!;
                 GpuProgramLayout layout;

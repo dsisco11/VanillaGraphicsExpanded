@@ -220,7 +220,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var backing = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 4, 4);
+            using var backing = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             using var recipient = new Declaration<GpuFramebufferMetadata>(GpuResourceKind.Framebuffer);
             var result = GpuResourceManager.CreateResource<EmptyRequest, GpuFramebufferMetadata, FramebufferCreation>(
                 default, recipient, out _, new(backing.RenderbufferId));

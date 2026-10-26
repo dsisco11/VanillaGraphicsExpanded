@@ -196,13 +196,13 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
                         StateCache.Current.DeleteVertexArray((int)command.Id);
                         break;
                     case GpuResourceKind.Texture:
-                        StateCache.Current.DeleteTexture((int)command.Id);
+                        RHICommandContext.Current.OpenGL.DeleteTexture((int)command.Id);
                         break;
                     case GpuResourceKind.Framebuffer:
                         StateCache.Current.DeleteFramebuffer((int)command.Id);
                         break;
                     case GpuResourceKind.Renderbuffer:
-                        StateCache.Current.DeleteRenderbuffer((int)command.Id);
+                        RHICommandContext.Current.OpenGL.DeleteRenderbuffer((int)command.Id);
                         break;
                     case GpuResourceKind.Query:
                         StateCache.Current.DeleteQuery((int)command.Id);
@@ -214,7 +214,7 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
                         StateCache.Current.DeleteTransformFeedback((int)command.Id);
                         break;
                     case GpuResourceKind.Sampler:
-                        StateCache.Current.DeleteSampler((int)command.Id);
+                        RHICommandContext.Current.OpenGL.DeleteSampler((int)command.Id);
                         break;
                     case GpuResourceKind.ProgramPipeline:
                         StateCache.Current.DeleteProgramPipeline((int)command.Id);

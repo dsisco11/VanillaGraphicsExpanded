@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -135,7 +136,7 @@ public sealed class DriverProgramCacheTests(HeadlessGLFixture fixture, ITestOutp
             using var assets = new BinaryShaderApiFixture();
             const string identity = "tests/GpuUniformRingBufferIntegrationTests_1";
             var settings = new ShaderSettings(GpuShaderContracts.Registry.FindProgram(identity));
-            using var texture = Texture3D.Create(1, 1, 1, PixelInternalFormat.Rgba32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D);
+            using var texture = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             for (int generation = -1; generation < 3; generation++)
             {
                 using var bypass = generation < 0 ? DriverProgramCache.UseStoreForTesting(null) : null;

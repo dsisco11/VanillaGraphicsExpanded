@@ -25,8 +25,8 @@ public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
             int offset = Math.Max(1, GpuSupport.Graphics.TextureBufferOffsetAlignment);
             buffer.Allocate(checked(offset + 512));
             using var view = ranged
-                ? GpuBufferView.CreateRange(buffer.BufferId, SizedInternalFormat.R32f, offset, 256)
-                : GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
+                ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = false, Offset = offset, Length = 256, Label = null }).RequireResource()
+                : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view));
             Assert.NotNull(entry.Metadata.Buffer);
@@ -63,7 +63,7 @@ public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
         fixture.InitializeResourceDisposal();
         try
         {
-            using var owner = DynamicTexture3D.Create(4, 4, 2, PixelInternalFormat.Rgba8, immutableStorage: true);
+            using var owner = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var borrower = new BorrowedTexture(owner.TextureId);
             GpuResource retained = retainOwner ? owner : borrower;
             var manager = GpuResourceManagerSystem.CurrentManager!;

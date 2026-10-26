@@ -25,8 +25,8 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             using var sentinelBuffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(96);
-            using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
-            using var sentinelTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var sentinelTexture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             using var sentinelFramebuffer = DynamicGpuFramebuffer.CreateEmpty();
@@ -68,13 +68,13 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
             using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             int offset = Math.Max(1, GpuSupport.Graphics.TextureBufferOffsetAlignment);
             buffer.Allocate(offset + 512);
-            using var sentinel = GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
+            using var sentinel = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             using var sentinelBinding = StateCache.Current.BindTextureScope(TextureTarget.TextureBuffer, 0, sentinel.TextureId);
             using GpuBufferView view = preferredType
-                ? ranged ? GpuBufferTexture.CreateRange(buffer.BufferId, SizedInternalFormat.R32f, offset, 256)
-                    : GpuBufferTexture.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f)
-                : ranged ? GpuBufferView.CreateRange(buffer.BufferId, SizedInternalFormat.R32f, offset, 256)
-                    : GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
+                ? ranged ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = false, Offset = offset, Length = 256, Label = null }).RequireResource()
+                    : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource()
+                : ranged ? RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = false, Offset = offset, Length = 256, Label = null }).RequireResource()
+                    : RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             Assert.Equal(buffer.BufferId, view.BufferId);
             Assert.Equal((nint)(ranged ? offset : 0), view.OffsetBytes);
             Assert.Equal((nint)(ranged ? 256 : 0), view.SizeBytes);

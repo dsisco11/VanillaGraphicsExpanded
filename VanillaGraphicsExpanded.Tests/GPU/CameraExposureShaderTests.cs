@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
 using VanillaGraphicsExpanded.Rendering;
@@ -30,7 +31,7 @@ public sealed class CameraExposureShaderTests(HeadlessGLFixture fixture) : LumOn
         EnsureShaderTestAvailable();
         var shader=Programs.CreateCompute(CameraHistogramShaderProgram.Create);
         Assert.True(shader.EnsureReady());
-        using var external=Texture3D.Create(2,2,2,PixelInternalFormat.Rgba16f,TextureFilterMode.Nearest,TextureTarget.Texture3D,"Borrowed.Mismatch");
+        using var external=RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Borrowed.Mismatch" }).RequireResource();
         using var borrowed=new BorrowedTexture(external.TextureId);
         var binding=shader.ProgramLayout.BinaryInterface!.PreparedBindings.Resolve(
             GpuBindingEntry.Identity(ShaderBindingKind.Sampler,"sceneRadiance"));

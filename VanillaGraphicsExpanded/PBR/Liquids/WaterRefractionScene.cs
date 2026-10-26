@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -113,10 +114,8 @@ internal sealed class WaterRefractionScene : IDisposable
         {
             try
             {
-                SourceColor = DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f,
-                    debugName: "WaterRefraction.Radiance");
-                SourceDepth = DynamicTexture2D.Create(width, height, PixelInternalFormat.R32f,
-                    debugName: "WaterRefraction.Depth");
+                SourceColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WaterRefraction.Radiance" }).RequireResource();
+                SourceDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WaterRefraction.Depth" }).RequireResource();
                 targetImages = compositeColor is null
                     ? [GpuFramebufferAttachment.FromTexture(SourceColor), GpuFramebufferAttachment.FromTexture(SourceDepth)]
                     : [GpuFramebufferAttachment.FromTexture(compositeColor), GpuFramebufferAttachment.FromTexture(SourceColor),
@@ -138,10 +137,8 @@ internal sealed class WaterRefractionScene : IDisposable
             {
                 int reducedWidth = (width + 1) / 2;
                 int reducedHeight = (height + 1) / 2;
-                reducedColor = DynamicTexture2D.Create(reducedWidth, reducedHeight, PixelInternalFormat.Rgba16f,
-                    debugName: "WaterRefraction.ReducedRadiance");
-                reducedDepth = DynamicTexture2D.Create(reducedWidth, reducedHeight, PixelInternalFormat.Rgba32f,
-                    debugName: "WaterRefraction.ReducedDepthAndUv");
+                reducedColor = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, reducedWidth), Height = System.Math.Max(1, reducedHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WaterRefraction.ReducedRadiance" }).RequireResource();
+                reducedDepth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, reducedWidth), Height = System.Math.Max(1, reducedHeight), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "WaterRefraction.ReducedDepthAndUv" }).RequireResource();
                 reducedImages = [GpuFramebufferAttachment.FromTexture(reducedColor), GpuFramebufferAttachment.FromTexture(reducedDepth)];
                 reducedTarget = StaticGpuFramebuffer.Create(reducedImages,
                     debugName: "WaterRefraction.Reduction") ?? throw new InvalidOperationException("Water receiver reduction unavailable.");

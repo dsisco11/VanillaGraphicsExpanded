@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -23,7 +25,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var first = GpuFramebufferAttachment.FromTexture(texture);
             using var second = GpuFramebufferAttachment.FromTexture(texture);
             using var firstFramebuffer = DynamicGpuFramebuffer.Create([first])!;
@@ -33,8 +35,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             secondFramebuffer.AttachmentsChanged += () => secondChanges++;
             using (texture.BindScope(0))
             using (var operation = new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Storage))
-                StateCache.Current.TextureImage2D(texture, TextureTarget.Texture2D, 0, PixelInternalFormat.Rgba8,
-                    8, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero, operation);
+                VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DefineTextureImages(texture.TextureId, new GpuTextureInitialization { Target = TextureTarget.Texture2D, AllocationMode = GpuTextureAllocationMode.Mutable, InternalFormat = PixelInternalFormat.Rgba8, Width = 8, Height = 4, Levels = 1 }.Resolve(), operation);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             Assert.False(manager.IsResourceMetadataAvailable(first));
             Assert.False(manager.IsResourceMetadataAvailable(second));
@@ -56,10 +57,8 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
     }
 
     /// <summary>Creation, storage and metadata queries preserve sentinel selection; direct operations issue no bind calls.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void OwnedStorageUsesCapabilitySelectedAddressing(bool direct)
+    [Fact]
+    public void OwnedStorageUsesCoreNamedAddressing()
     {
         fixture.EnsureContextValid();
         fixture.InitializeResourceDisposal();
@@ -69,26 +68,24 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         StateCache.Current.InvalidateAll();
         try
         {
-            using var capabilities = new DirectStateAccessCapabilityScope(direct);
             harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.BindRenderbuffer), [typeof(RenderbufferTarget), typeof(int)]),
                 prefix: new HarmonyMethod(typeof(GpuRenderbufferMetadataInterceptionTests), nameof(CountRenderbufferBind)));
             renderbufferBinds = 0;
-            using var owner = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 4, 4, samples: 4);
-            using var alias = GpuRenderbuffer.Wrap(owner.RenderbufferId);
+            using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = 4, Label = null }).RequireResource();
+            using var alias = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(owner.RenderbufferId);
             owner.Resize(8, 6);
             Assert.Equal(8, owner.Width);
             Assert.Equal(8, alias.Width);
             Assert.Equal(6, alias.Height);
             Assert.Equal(4, alias.Samples);
             Assert.Equal(sentinel, GL.GetInteger(GetPName.RenderbufferBinding));
-            if (direct) Assert.Equal(0, renderbufferBinds);
-            else Assert.True(renderbufferBinds > 0);
+            Assert.Equal(0, renderbufferBinds);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            StateCache.Current.DeleteRenderbuffer(sentinel);
+            RHICommandContext.Current.OpenGL.DeleteRenderbuffer(sentinel);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -109,7 +106,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
             harmony.Patch(native, prefix: new HarmonyMethod(typeof(GpuRenderbufferMetadataInterceptionTests), nameof(SubstituteAdvancedStorage)));
             harmony.Patch(AccessTools.Method(typeof(GpuRenderbufferMetadataInterceptionTests), nameof(AllocateAdvanced)),
                 transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            using var owner = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 4, 4);
+            using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
             ulong previous = entry.MetadataRevision;
             capturedAdvancedArguments = null;
@@ -140,8 +137,8 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         var harmony = Patch();
         try
         {
-            using var owner = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 4, 4);
-            using var alias = GpuRenderbuffer.Wrap(owner.RenderbufferId);
+            using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
+            using var alias = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLRenderbufferIntegration.Borrow(owner.RenderbufferId);
             using var image = GpuFramebufferAttachment.FromRenderbuffer(owner);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             int notifications = 0;
@@ -175,9 +172,9 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         var harmony = Patch();
         try
         {
-            using var owner = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 4, 4);
+            using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromRenderbuffer(owner);
-            StateCache.Current.BindRenderbuffer(owner.RenderbufferId);
+            OpenGLImageBindings.BindRenderbuffer(StateCache.Current, owner.RenderbufferId);
             Allocate(0, owner.RenderbufferId, -1);
             Assert.Equal(4, owner.Width);
             Assert.Equal(4, image.Width);
@@ -197,7 +194,7 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         var harmony = Patch();
         try
         {
-            using var owner = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 4, 4);
+            using var owner = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
             using var first = GpuFramebufferAttachment.FromRenderbuffer(owner);
             using var second = GpuFramebufferAttachment.FromRenderbuffer(owner);
             using var firstFramebuffer = DynamicGpuFramebuffer.Create([first])!;
@@ -240,9 +237,9 @@ public sealed class GpuRenderbufferMetadataInterceptionTests(HeadlessGLFixture f
         fixture.InitializeResourceDisposal();
         try
         {
-            using var renderbuffer = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 4, 4);
-            using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
-            using var replacement = DynamicTexture3D.Create(4, 4, 2, PixelInternalFormat.Rgba8);
+            using var renderbuffer = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 4, Height = 4, Samples = 0, Label = null }).RequireResource();
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var replacement = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = kind == 0 ? GpuFramebufferAttachment.FromRenderbuffer(renderbuffer)
                 : kind == 1 ? GpuFramebufferAttachment.FromTexture(texture) : GpuFramebufferAttachment.FromTexture(replacement, layer: 0);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;

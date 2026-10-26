@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using Vintagestory.API.Client;
@@ -16,8 +17,8 @@ internal sealed class EngineTerrainBuffers : IDisposable
     /// <summary>Models engine-owned color and sampled depth; VGE attachments remain owned by GBufferManager.</summary>
     public EngineTerrainBuffers(int width, int height)
     {
-        Color = DynamicTexture2D.Create(width,height,PixelInternalFormat.Rgba16f);
-        Depth = DynamicTexture2D.Create(width,height,PixelInternalFormat.R32f);
+        Color = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        Depth = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         Output = DynamicGpuFramebuffer.CreateSingle(Color)!;
         Primary = new() { FboId=Output.FboId, Width=width, Height=height,
             DepthTextureId=Depth.TextureId, ColorTextureIds=[Color.TextureId] };

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -87,7 +88,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         RasterDepthCopyShaderProgram.Register(assets.Api);
         var registry = GpuShaderProgramLibraries.Require(assets.Api);
         var owner = registry.Get<RasterDepthCopyShaderProgram>(RasterDepthCopyShaderProgram.Contract.Identity)!;
-        using var depth = Texture2D.Create(1, 1, PixelInternalFormat.R32f);
+        using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         owner.PrimaryDepth = depth;
         using (owner.UseScope())
         {
@@ -243,7 +244,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         using var assets = new BinaryShaderApiFixture();
         using var shader = DepthHierarchyComputeShader.Create(assets.Api);
         using var hierarchy = new DepthHierarchyPass();
-        using var source = DynamicTexture2D.Create(65, 37, PixelInternalFormat.R32f);
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, 65), Height = System.Math.Max(1, 37), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         source.UploadDataImmediate(Enumerable.Repeat(.375f, 65 * 37).ToArray());
         hierarchy.Prepare(65, 37, shader);
         hierarchy.Render(source);
@@ -309,7 +310,7 @@ public sealed class ShaderRegistryLifetimeTests(HeadlessGLFixture fixture) : Ren
         using var assets = new BinaryShaderApiFixture();
         var registry = GpuShaderProgramLibraries.Require(assets.Api);
         var lifetime = ClientRenderingLifetime.Find(assets.Api)!;
-        using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var target = DynamicGpuFramebuffer.CreateSingle(texture)!;
         lifetime.Attach(() => { target.Dispose(); texture.Dispose(); });
         var cache = StateCache.Current;

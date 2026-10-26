@@ -89,7 +89,7 @@ internal sealed partial class StateCache
         finally
         {
             // Texture queries select a unit temporarily. Failed entry must restore that selector too.
-            try { if (activeTextureUnit != active) { ActiveTexture(active); CheckBoundaryNativeError(); } }
+            try { if (activeTextureUnit != active) { OpenGLImageBindings.ActiveTexture(this, active); CheckBoundaryNativeError(); } }
             catch (Exception error)
             {
                 activeTextureUnit = null;
@@ -109,7 +109,7 @@ internal sealed partial class StateCache
             bindings.Add(() => { RequireBoundaryResource(EPipelineState.BufferBindings, value.Value); if (bufferBindingByTarget.GetValueOrDefault(value.Key) != value.Value) OpenGLBufferBindings.BindBuffer(this, value.Key, value.Value); },
                 () => bufferBindingByTarget.Remove(value.Key),
                 () => bufferBindingByTarget.GetValueOrDefault(value.Key) != value.Value || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, value.Value)));
-        bindings.Add(() => { if (activeTextureUnit != active) ActiveTexture(active); }, () => activeTextureUnit = null, () => activeTextureUnit != active);
+        bindings.Add(() => { if (activeTextureUnit != active) OpenGLImageBindings.ActiveTexture(this, active); }, () => activeTextureUnit = null, () => activeTextureUnit != active);
         scope.AddCleanup(EngineBoundaryCleanup.Bindings, bindings);
 
         currentReadFramebuffer ??= QueryBoundary(() => GL.GetInteger(GetPName.ReadFramebufferBinding));
@@ -135,7 +135,7 @@ internal sealed partial class StateCache
         var slots = textureBindingsByUnit![unit] ??= new();
         if (!slots.TryGetValue(target, out int texture))
         {
-            ActiveTexture(unit); CheckBoundaryNativeError();
+            OpenGLImageBindings.ActiveTexture(this, unit); CheckBoundaryNativeError();
             texture = QueryBoundary(() => GL.GetInteger(query));
             slots[target] = texture;
         }
@@ -145,11 +145,11 @@ internal sealed partial class StateCache
             samplerBindingByUnit[unit] = samplerValue;
         }
         int sampler = samplerBindingByUnit[unit]!.Value;
-        restore.Add(() => { RequireBoundaryResource(EPipelineState.TextureBindings, texture); if (!TryGetCachedBoundTexture(target, unit, out int current) || current != texture) BindTexture(target, unit, texture); },
+        restore.Add(() => { RequireBoundaryResource(EPipelineState.TextureBindings, texture); if (!TryGetCachedBoundTexture(target, unit, out int current) || current != texture) OpenGLImageBindings.BindTexture(this, target, unit, texture); },
             // Texture binding also selects the active unit; neither result is trusted on failure.
             () => { textureBindingsByUnit?[unit]?.Remove(target); activeTextureUnit = null; },
             () => !TryGetCachedBoundTexture(target, unit, out int current) || current != texture || boundaryRetiredResources.Contains((EPipelineState.TextureBindings, texture)));
-        restore.Add(() => { RequireBoundaryResource(EPipelineState.SamplerBindings, sampler); if (!TryGetCachedBoundSampler(unit, out int current) || current != sampler) BindSampler(unit, sampler); },
+        restore.Add(() => { RequireBoundaryResource(EPipelineState.SamplerBindings, sampler); if (!TryGetCachedBoundSampler(unit, out int current) || current != sampler) OpenGLImageBindings.BindSampler(this, unit, sampler); },
             () => { if (samplerBindingByUnit is { } values && unit < values.Length) values[unit] = null; },
             () => !TryGetCachedBoundSampler(unit, out int current) || current != sampler || boundaryRetiredResources.Contains((EPipelineState.SamplerBindings, sampler)));
     }
@@ -220,7 +220,7 @@ internal sealed partial class StateCache
     }
 
     /// <summary>Prevents binding a retired or reused borrowed name; snapshots never acquire resource ownership.</summary>
-    private void RequireBoundaryResource(EPipelineState kind, int name)
+    internal void RequireBoundaryResource(EPipelineState kind, int name)
     {
         if (name != 0 && boundaryRetiredResources.Contains((kind, name)))
             throw new InvalidOperationException("A borrowed boundary resource was retired during the operation.");

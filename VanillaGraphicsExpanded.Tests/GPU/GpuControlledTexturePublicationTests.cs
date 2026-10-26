@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering;
@@ -19,7 +20,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         var original = GpuSupport.Graphics;
         try
         {
-            AccessTools.Field(typeof(GpuSupport), "graphics").SetValue(null, original with { SupportsInternalFormatQuery2 = false });
+            // Sample selection uses the baseline per-format capability cache.
             using var recipient = new TextureRecipient();
             var request = new GpuTextureInitialization
             {
@@ -48,9 +49,9 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture2D.Create(8, 8, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var binding = texture.BindScope(0);
-            StateCache.Current.ExecuteCoreTexImage2D(TextureTarget.Texture2D, int.MaxValue, PixelInternalFormat.Rgba8,
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, int.MaxValue, PixelInternalFormat.Rgba8,
                 1, 1, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             Assert.Equal(8, texture.Width);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
@@ -99,7 +100,7 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture2D.CreateMipmapped(8, 8, PixelInternalFormat.Rgba8, 4);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
@@ -118,26 +119,24 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
     }
 
     /// <summary>External parameter and single-image changes retain unrelated images and storage revisions.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ExternalChangesPreserveUnaffectedDescriptors(bool dsa)
+    [Fact]
+    public void ExternalChangesPreserveUnaffectedDescriptors()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var texture = DynamicTexture2D.CreateMipmapped(16, 8, PixelInternalFormat.Rgba8, 4);
-            using var capabilities = new DirectStateAccessCapabilityScope(dsa);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 16), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
+
             using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, texture.TextureId);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             var original = entry.Metadata.Levels;
             ulong storage = entry.StorageRevision;
-            StateCache.Current.ExecuteCoreTexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 2);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexParameter(TextureTarget.Texture2D, TextureParameterName.TextureMaxLevel, 2);
             Assert.Equal(original, entry.Metadata.Levels);
             Assert.Equal(2, entry.Metadata.MaxLevel);
             Assert.Equal(storage, entry.StorageRevision);
-            StateCache.Current.ExecuteCoreTexImage2D(TextureTarget.Texture2D, 2, PixelInternalFormat.Rgba16f,
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, 2, PixelInternalFormat.Rgba16f,
                 4, 2, 0, PixelFormat.Rgba, PixelType.Float, IntPtr.Zero);
             Assert.Equal(original[0], entry.Metadata.Levels[0]);
             Assert.Equal(original[1], entry.Metadata.Levels[1]);
@@ -171,11 +170,11 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(recipient));
             using var binding = StateCache.Current.BindTextureScope(TextureTarget.Texture2D, 0, (int)handle.Id);
             ulong storage = entry.StorageRevision;
-            StateCache.Current.ExecuteCoreGenerateMipmap(GenerateMipmapTarget.Texture2D);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreGenerateMipmap(GenerateMipmapTarget.Texture2D);
             Assert.Equal(4, entry.Metadata.Levels.Length);
             Assert.Equal(storage + (immutable ? 0UL : 1UL), entry.StorageRevision);
             storage = entry.StorageRevision;
-            StateCache.Current.ExecuteCoreGenerateMipmap(GenerateMipmapTarget.Texture2D);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreGenerateMipmap(GenerateMipmapTarget.Texture2D);
             Assert.Equal(storage, entry.StorageRevision);
             GL.GetTextureLevelParameter((int)handle.Id, 3, GetTextureParameter.TextureWidth, out int lastWidth);
             Assert.Equal(1, lastWidth);
@@ -219,16 +218,14 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
     }
 
     /// <summary>Sized texture creation and mip selection preserve complete image metadata.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void CreationAndMipRangePublishCompleteMetadata(bool dsa)
+    [Fact]
+    public void CreationAndMipRangePublishCompleteMetadata()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var capabilities = new DirectStateAccessCapabilityScope(dsa);
-            using var texture = DynamicTexture2D.CreateMipmapped(16, 8, PixelInternalFormat.Rgba16f, 4);
+
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, 16), Height = System.Math.Max(1, 8), MipLevels = 4, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (4) - 1, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(texture));
             Assert.Equal(4, entry.Metadata.Levels.Length);
@@ -258,9 +255,8 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var source = DynamicTexture3D.Create(8, 4, 6, PixelInternalFormat.Rgba32f, immutableStorage: true);
-            using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray,
-                PixelInternalFormat.Rgba32f, 0, 1, 2, 3);
+            using var source = RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 6), MipLevels = 1, Storage = (true ? RHIStorageMode.Immutable : RHIStorageMode.Mutable), Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba32f, BaseMip = 0, MipCount = 1, BaseLayer = 2, LayerCount = 3, Label = null }).RequireResource();
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(
                 GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(view));
             Assert.Equal(new GpuTextureViewMetadata(0, 1, 2, 3), entry.Metadata.View);
@@ -292,8 +288,8 @@ public sealed class GpuControlledTexturePublicationTests(HeadlessGLFixture fixtu
         internal AllocationFailure()
         {
             current = this;
-            harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.TexImage2D),
-                [typeof(TextureTarget), typeof(int), typeof(PixelInternalFormat), typeof(int), typeof(int), typeof(int), typeof(PixelFormat), typeof(PixelType), typeof(IntPtr)]),
+            harmony.Patch(AccessTools.Method(typeof(OpenTK.Graphics.OpenGL4.GL), nameof(OpenTK.Graphics.OpenGL4.GL.TexImage2D),
+                [typeof(OpenTK.Graphics.OpenGL4.TextureTarget), typeof(int), typeof(OpenTK.Graphics.OpenGL4.PixelInternalFormat), typeof(int), typeof(int), typeof(int), typeof(OpenTK.Graphics.OpenGL4.PixelFormat), typeof(OpenTK.Graphics.OpenGL4.PixelType), typeof(IntPtr)]),
                 prefix: new HarmonyMethod(typeof(AllocationFailure), nameof(BeforeImage)));
         }
         /// <summary>Removes only this test's native interception.</summary>

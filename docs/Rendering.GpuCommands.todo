@@ -3,7 +3,7 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phases 1–2 complete; runtime migration and qualification in Phases 3–8 remain outstanding.
+Status: Phases 1–3 complete; runtime migration and qualification in Phases 4–8 remain outstanding.
 
 Goal
   Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
@@ -135,27 +135,34 @@ Phase 3: Replace images, samplers and backing-resource relationships
   Depends on Phase 2.
   Outcome: owned and borrowed image resources use final creation, mutation and lifetime routes.
 
-  ☐ Implement texture/renderbuffer/sampler creation, storage/configuration, uploads/copies/clears and
+  ☑ Implement texture/renderbuffer/sampler creation, storage/configuration, uploads/copies/clears and
     immediate mip generation. Use core Create* and named APIs where equivalent; keep mutable image
     definitions bound with backend-owned restoration, never substitute immutable storage semantics.
-  ☐ Migrate DynamicTexture2D, DynamicTextureCube and other image wrappers/helpers without removing
+  ☑ Migrate DynamicTexture2D, DynamicTextureCube and other image wrappers/helpers without removing
     allocation-policy inputs. Include cube faces/mips, multisample images and cached format/sample limits.
     Publish coherent image facts once, with only the approved narrow driver-derived reads.
-  ☐ Implement explicit buffer-texture and native texture-view creation with backing refs and subresource
+  ☑ Implement explicit buffer-texture and native texture-view creation with backing refs and subresource
     ranges. Preserve dependencies, alias validity and view-relative selections through replacement/failure.
-  ☐ Migrate external borrowing/adoption and native readers. Reuse available manager facts; unknown external
+  ☑ Migrate external borrowing/adoption and native readers. Reuse available manager facts; unknown external
     facts use explicit acquisition. Native IDs stay at integration boundaries; ownership transfer is explicit.
     Owner refs follow intentional replacement; old borrowers/views retain original associations.
-  ☐ Migrate image/sampler disposal and exact engine operations together with their caller/helper coverage.
+  ☑ Migrate image/sampler disposal and exact engine operations together with their caller/helper coverage.
     Failure clears provisional identity, retires only owned candidates and preserves documented replacement
     behavior; no deletion of borrowed backing objects and no invented rollback.
-  ☐ Implement buffer-to-texture/texture-to-buffer transfer payload contracts with offsets/layout/pitches
+  ☑ Implement buffer-to-texture/texture-to-buffer transfer payload contracts with offsets/layout/pitches
     so later compute consumers need no raw pixel-buffer scopes or pointer-shaped semantic APIs.
-  ☐ Test cube/mip derivation, partial allocation cleanup, contents, view ranges, replacement/name reuse,
+  ☑ Test cube/mip derivation, partial allocation cleanup, contents, view ranges, replacement/name reuse,
     borrowed lifetime, sampler configuration, optional features and selector preservation. Remove baseline
     capability forks and fallback tests from wrappers, creation, readers and fixtures in this unit.
-  ☐ Completion: image/sampler family receipts pass with no old executor. Framebuffer pass realization
+  ☑ Completion: image/sampler family receipts pass with no old executor. Framebuffer pass realization
     remains in Phase 5 and must call these completed image operations through their final contracts.
+
+  Evidence: second review and independent stage audit completed against the linked authority.
+    [Image migration qualification](Rendering.GpuCommands.Migrations.md#image-migration-qualification-phase-3)
+    records source closure, direct caller migration, exact adapters and final identities. Debug 929 and
+    generator 180 passed. Ordinary Release: 917 passed, 12 Harmony observer/injection failures; the same
+    Release binaries passed all 929 with process-only JIT controls. Canonical package and all 761 shader
+    identities passed. No instrumented Release product, live visual or performance qualification claimed.
 
 Phase 4: Replace synchronization, queries and remaining non-draw resource operations
   Depends on Phase 3.

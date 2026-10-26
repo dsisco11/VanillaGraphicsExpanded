@@ -13,10 +13,10 @@ internal sealed partial class StateCache
         if (kind == GpuResourceKind.Framebuffer) RequireMutableFramebufferConfiguration(id);
     }
 
-    /// <summary>Retires only proven deleted names and preserves native deferred-destruction behavior.</summary>
-    internal void CompleteResourceDeletion(GpuResourceKind kind, nint nativeId)
+    /// <summary>Retires only proven deleted names; exact adapters may supply an outcome from their original native loader.</summary>
+    internal void CompleteResourceDeletion(GpuResourceKind kind, nint nativeId, bool? observedDeletion = null)
     {
-        if (nativeId == 0 || !WasResourceDeleted(kind, nativeId)) return;
+        if (nativeId == 0 || !(observedDeletion ?? WasResourceDeleted(kind, nativeId))) return;
         CancelResourceOperation(kind, nativeId);
         GpuResourceManagerSystem.CurrentManager?.ObserveDeletion(kind, nativeId);
         int id = unchecked((int)nativeId);
@@ -98,11 +98,11 @@ internal sealed partial class StateCache
         return kind switch
         {
             GpuResourceKind.Buffer => RHI.Backends.OpenGL.OpenGLBufferDeletionCalls.WasDeleted(id),
-            GpuResourceKind.Texture => !GL.IsTexture(id),
-            GpuResourceKind.Renderbuffer => !GL.IsRenderbuffer(id),
+            GpuResourceKind.Texture => RHI.Backends.OpenGL.OpenGLImageDeletionCalls.WasDeleted(kind, id),
+            GpuResourceKind.Renderbuffer => RHI.Backends.OpenGL.OpenGLImageDeletionCalls.WasDeleted(kind, id),
             GpuResourceKind.Framebuffer => !GL.IsFramebuffer(id),
             GpuResourceKind.VertexArray => !GL.IsVertexArray(id),
-            GpuResourceKind.Sampler => !GL.IsSampler(id),
+            GpuResourceKind.Sampler => RHI.Backends.OpenGL.OpenGLImageDeletionCalls.WasDeleted(kind, id),
             GpuResourceKind.Query => !GL.IsQuery(id),
             GpuResourceKind.Sync => !GL.IsSync((IntPtr)nativeId),
             GpuResourceKind.ProgramPipeline => !GL.IsProgramPipeline(id),

@@ -88,7 +88,7 @@ public sealed class ShaderTestFramework : IDisposable
         float[] data,
         TextureFilterMode filter = TextureFilterMode.Nearest)
     {
-        var texture = DynamicTexture2D.CreateWithData(width, height, format, data, filter);
+        var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = width, Height = height, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format(format), MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = filter, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, width, height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(format), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((data).AsSpan()).ToArray())]).RequireResource();
         _managedResources.Add(texture);
         return texture;
     }
@@ -108,7 +108,7 @@ public sealed class ShaderTestFramework : IDisposable
         PixelInternalFormat format,
         TextureFilterMode filter = TextureFilterMode.Nearest)
     {
-        var texture = DynamicTexture2D.Create(width, height, format, filter);
+        var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = filter, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         _managedResources.Add(texture);
         return texture;
     }
@@ -137,7 +137,7 @@ public sealed class ShaderTestFramework : IDisposable
         var textures = new DynamicTexture2D[attachmentCount];
         for (int i = 0; i < attachmentCount; i++)
         {
-            textures[i] = DynamicTexture2D.Create(width, height, format);
+            textures[i] = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             _managedResources.Add(textures[i]);
         }
 
@@ -171,7 +171,7 @@ public sealed class ShaderTestFramework : IDisposable
         var textures = new DynamicTexture2D[formats.Length];
         for (int i = 0; i < formats.Length; i++)
         {
-            textures[i] = DynamicTexture2D.Create(width, height, formats[i]);
+            textures[i] = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(formats[i])), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             _managedResources.Add(textures[i]);
         }
 

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -29,17 +30,17 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
         {
             using var first = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); first.Allocate(128);
             using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(128);
-            using var view = GpuBufferView.CreateWholeBuffer(first.BufferId, SizedInternalFormat.R32f);
-            using var sentinel = GpuBufferView.CreateWholeBuffer(first.BufferId, SizedInternalFormat.R32f);
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = first, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
+            using var sentinel = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = first, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = (GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(view)!;
             using var alias = new TextureAlias(view.TextureId); manager.AssociateResource(entry, alias);
             // Invalidate cached selection while retaining actual native binding to exercise resolution.
-            StateCache.Current.BindTexture(TextureTarget.TextureBuffer, 0, sentinel.TextureId);
-            StateCache.Current.BindTexture(TextureTarget.TextureBuffer, 3, view.TextureId);
-            StateCache.Current.ActiveTexture(variant == 6 ? 5 : 3);
+            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.TextureBuffer, 0, sentinel.TextureId);
+            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.TextureBuffer, 3, view.TextureId);
+            OpenGLImageBindings.ActiveTexture(StateCache.Current, variant == 6 ? 5 : 3);
             StateCache.Current.InvalidateAll();
-            using var capabilities = new DirectStateAccessCapabilityScope(variant != 11);
+
             Associate(variant, view.TextureId, second.BufferId, SizedInternalFormat.R32ui, 0, 128);
             bool ranged = variant is 7 or 8 or 9 or 10;
             Assert.Equal(second.BufferId, view.BufferId);
@@ -49,7 +50,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             Assert.Equal(view.BufferId, alias.Snapshot.Buffer.Value.BufferId);
             Assert.True(view.IsValid);
             Assert.Equal((int)(variant == 6 ? TextureUnit.Texture5 : TextureUnit.Texture3), GL.GetInteger(GetPName.ActiveTexture));
-            StateCache.Current.ActiveTexture(0);
+            OpenGLImageBindings.ActiveTexture(StateCache.Current, 0);
             Assert.Equal(sentinel.TextureId, GL.GetInteger(GetPName.TextureBindingBuffer));
             second.Allocate(256);
             Assert.Equal(ranged ? 128 : 0, view.SizeBytes);
@@ -69,7 +70,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
         try
         {
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
-            using var view = GpuBufferView.CreateRange(buffer.BufferId, SizedInternalFormat.R32f, 0, 64);
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = false, Offset = 0, Length = 64, Label = null }).RequireResource();
             var entry = (GpuResourceMetadataEntry<GpuTextureMetadata>)GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(view)!;
             if (rejection == 4) Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 128);
             var original = entry.Metadata.Buffer;
@@ -100,7 +101,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
         try
         {
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
-            using var view = GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = true, Label = null }).RequireResource();
             Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 128);
             Assert.Equal(128, view.SizeBytes);
             buffer.Allocate(256);
@@ -140,7 +141,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
             Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Texture, texture));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.OpenGL.DeleteTexture(texture); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>A native dispatch exception preserves the original failure and withdraws the unchanged association snapshot.</summary>
     [Fact]
@@ -151,7 +152,7 @@ public sealed class GpuBufferTextureInterceptionTests(HeadlessGLFixture fixture)
         try
         {
             using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
-            using var view = GpuBufferView.CreateRange(buffer.BufferId, SizedInternalFormat.R32f, 0, 64);
+            using var view = RHICommandContext.Current.CreateBufferTexture(new RHIBufferTextureDescription { Buffer = buffer, Format = RHIFormat.R32f, WholeBuffer = false, Offset = 0, Length = 64, Label = null }).RequireResource();
             harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.TextureBufferRange), [typeof(int), typeof(SizedInternalFormat), typeof(int), typeof(IntPtr), typeof(IntPtr)]),
                 prefix: new HarmonyMethod(typeof(GpuBufferTextureInterceptionTests), nameof(ThrowBeforeDispatch)));
             var failure = Assert.Throws<ApplicationException>(() => Associate(8, view.TextureId, buffer.BufferId, SizedInternalFormat.R32f, 0, 64));

@@ -9,19 +9,9 @@ internal sealed partial class StateCache
 {
     #region Public API
     #region Other resource bindings
-    /// <summary>Forgets only the retired renderbuffer binding, including reuse during boundary cleanup.</summary>
-    internal void DeleteRenderbuffer(int renderbuffer)
-    {
-        GL.DeleteRenderbuffer(renderbuffer);
-        CompleteResourceDeletion(GpuResourceKind.Renderbuffer, renderbuffer);
-    }
 
-    /// <summary>Records implicit sampler unbinding only on slots referencing the deleted name.</summary>
-    internal void DeleteSampler(int sampler)
-    {
-        GL.DeleteSampler(sampler);
-        CompleteResourceDeletion(GpuResourceKind.Sampler, sampler);
-    }
+
+
 
     /// <summary>Records implicit read/draw unbinding without losing the surviving direction.</summary>
     internal void DeleteFramebuffer(int framebuffer)

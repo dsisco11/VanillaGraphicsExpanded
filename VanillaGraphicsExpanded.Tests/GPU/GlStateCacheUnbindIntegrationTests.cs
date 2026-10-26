@@ -67,9 +67,9 @@ public class GlStateCacheUnbindIntegrationTests
 
         // Renderbuffer
         int rbo = GL.GenRenderbuffer();
-        StateCache.Current.BindRenderbuffer(rbo);
+        OpenGLImageBindings.BindRenderbuffer(StateCache.Current, rbo);
         Assert.Equal(rbo, StateCache.Current.GetCurrentRenderbuffer());
-        StateCache.Current.UnbindRenderbuffer();
+        OpenGLImageBindings.UnbindRenderbuffer(StateCache.Current);
         Assert.Equal(0, StateCache.Current.GetCurrentRenderbuffer());
         GL.DeleteRenderbuffer(rbo);
 
@@ -84,16 +84,16 @@ public class GlStateCacheUnbindIntegrationTests
         // Texture + sampler
         int tex = GL.GenTexture();
         const int unit = 5;
-        StateCache.Current.BindTexture(TextureTarget.Texture2D, unit, tex);
+        OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D, unit, tex);
         Assert.Equal(tex, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, unit));
-        StateCache.Current.UnbindTexture(TextureTarget.Texture2D, unit);
+        OpenGLImageBindings.UnbindTexture(StateCache.Current, TextureTarget.Texture2D, unit);
         Assert.Equal(0, StateCache.Current.GetBoundTexture(TextureTarget.Texture2D, unit));
         GL.DeleteTexture(tex);
 
         int sampler = GL.GenSampler();
-        StateCache.Current.BindSampler(unit, sampler);
+        OpenGLImageBindings.BindSampler(StateCache.Current, unit, sampler);
         Assert.Equal(sampler, StateCache.Current.GetBoundSampler(unit));
-        StateCache.Current.UnbindSampler(unit);
+        OpenGLImageBindings.UnbindSampler(StateCache.Current, unit);
         Assert.Equal(0, StateCache.Current.GetBoundSampler(unit));
         GL.DeleteSampler(sampler);
 

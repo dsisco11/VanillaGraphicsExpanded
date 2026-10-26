@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -373,8 +374,7 @@ public sealed partial class PBRCompositeRenderer : IRenderer, IDisposable
         ReleaseCompositeTargets();
         try
         {
-            compositeColorTex = DynamicTexture2D.Create(width, height,
-                PixelInternalFormat.R11fG11fB10f, debugName: "PBRComposite");
+            compositeColorTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R11fG11fB10f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "PBRComposite" }).RequireResource();
             compositeImage = GpuFramebufferAttachment.FromTexture(compositeColorTex);
             compositeFbo = StaticGpuFramebuffer.Create([compositeImage], debugName: "PBRCompositeFBO");
             // The shader exposes two additional discarded outputs, distinct from the common preserving pass.

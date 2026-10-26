@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -42,7 +43,7 @@ public sealed class GpuRenderbufferTextureMetadataTests(HeadlessGLFixture fixtur
             Assert.True(entry.StorageRevision>revision);
             Associate(multi,texture,int.MaxValue); Assert.Equal(ErrorCode.InvalidOperation,GL.GetError()); Assert.Equal(second,alias.Snapshot.Renderbuffer);
             var backingMetadata=((GpuResourceMetadataEntry<GpuRenderbufferMetadata>)manager.FindResource(GpuResourceKind.Renderbuffer,second)!).Metadata;
-            StateCache.Current.DeleteRenderbuffer(second); Assert.False(manager.IsResourceMetadataAvailable(alias));
+            RHICommandContext.Current.OpenGL.DeleteRenderbuffer(second); Assert.False(manager.IsResourceMetadataAvailable(alias));
             var replacement=manager.RegisterCreatedResource<GpuRenderbufferMetadata>(GpuResourceKind.Renderbuffer,second);
             manager.PublishMetadata(replacement,backingMetadata,GpuMetadataChange.Storage);
             Assert.Throws<InvalidOperationException>(()=>manager.RefreshMetadata(entry,GpuMetadataChange.None));
@@ -52,7 +53,7 @@ public sealed class GpuRenderbufferTextureMetadataTests(HeadlessGLFixture fixtur
             Assert.True(manager.IsResourceMetadataAvailable(alias)); Assert.Equal(first,alias.Snapshot.Renderbuffer);
             Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteTexture(texture); StateCache.Current.DeleteRenderbuffer(first); StateCache.Current.DeleteRenderbuffer(second); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.OpenGL.DeleteTexture(texture); RHICommandContext.Current.OpenGL.DeleteRenderbuffer(first); RHICommandContext.Current.OpenGL.DeleteRenderbuffer(second); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
     #region Private

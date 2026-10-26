@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using HarmonyLib;
 using VanillaGraphicsExpanded.ModSystems;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
@@ -43,23 +44,23 @@ internal static class AtmosphereShaderBindingHook
             // sampler units even then, so they cannot alias engine 2D samplers at unit zero.
             __instance.Uniform("vge_atmosphereAerialRadiance", AerialRadianceTextureUnit);
             var cache = Rendering.StateCache.Current;
-            cache.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialRadianceTextureUnit, AtmosphereModSystem.AerialRadianceTextureId);
-            cache.UnbindSampler(AerialRadianceTextureUnit);
+            OpenGLImageBindings.BindTexture(cache, OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialRadianceTextureUnit, AtmosphereModSystem.AerialRadianceTextureId);
+            OpenGLImageBindings.UnbindSampler(cache, AerialRadianceTextureUnit);
         }
         if ((bindings & AtmosphereBindings.AerialAttenuation) != 0)
         {
             __instance.Uniform("vge_atmosphereAerialAttenuation", AerialAttenuationTextureUnit);
             var cache = Rendering.StateCache.Current;
-            cache.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialAttenuationTextureUnit, AtmosphereModSystem.AerialAttenuationTextureId);
-            cache.UnbindSampler(AerialAttenuationTextureUnit);
+            OpenGLImageBindings.BindTexture(cache, OpenTK.Graphics.OpenGL.TextureTarget.Texture3D, AerialAttenuationTextureUnit, AtmosphereModSystem.AerialAttenuationTextureId);
+            OpenGLImageBindings.UnbindSampler(cache, AerialAttenuationTextureUnit);
         }
         if ((bindings & AtmosphereBindings.LightShaftOcclusion) != 0)
         {
             const int unit=AtmosphereProgramBindings.LightShaftOcclusionTextureUnit;
             __instance.Uniform("vge_lightShaftOcclusion",unit);
             var texture=PBR.Postprocessing.LightShaftOcclusionRenderer.Texture;
-            Rendering.StateCache.Current.BindTexture(OpenTK.Graphics.OpenGL.TextureTarget.Texture2D,unit,texture?.TextureId??0);
-            Rendering.StateCache.Current.UnbindSampler(unit);
+            OpenGLImageBindings.BindTexture(Rendering.StateCache.Current, OpenTK.Graphics.OpenGL.TextureTarget.Texture2D,unit,texture?.TextureId??0);
+            OpenGLImageBindings.UnbindSampler(Rendering.StateCache.Current, unit);
         }
         // Resource initialization is owned by the Before renderer.
         if (lighting is null) return;

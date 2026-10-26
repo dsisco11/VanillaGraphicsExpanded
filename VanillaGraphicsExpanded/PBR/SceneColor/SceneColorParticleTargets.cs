@@ -98,10 +98,8 @@ internal sealed class SceneColorParticleTargets : IDisposable
         CopyDepth(beforeCopy!);
         // Clear storage directly so indexed write masks and borrowed glow/depth
         // remain untouched. Unsupported setup cannot publish an HDR capture.
-        if (!DrawTarget[0].TryClearToZero())
-            throw new InvalidOperationException("Particle radiance clear is unavailable.");
-        if (HasSsao && (!DrawTarget[2].TryClearToZero() || !DrawTarget[3].TryClearToZero()))
-            throw new InvalidOperationException("Particle SSAO clear is unavailable.");
+        DrawTarget[0].ClearToZero();
+        if (HasSsao) { DrawTarget[2].ClearToZero(); DrawTarget[3].ClearToZero(); }
         captureStarted = true;
     }
 

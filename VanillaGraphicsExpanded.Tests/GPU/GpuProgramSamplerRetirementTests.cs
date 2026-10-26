@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using HarmonyLib;
 using VanillaGraphicsExpanded.HarmonyPatches;
@@ -25,9 +27,9 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         using var lights = new VgeLightsUniformBuffer();
         TestUniformRing.EnsureFrame();
         var program = programs.Create<PBRDirectLightingShaderProgram>(owner => { owner.FrameInputs = camera; owner.LightsInputs = lights; });
-        using var depth = Texture2D.Create(1, 1, PixelInternalFormat.DepthComponent32f);
-        using var input = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var unrelated = GpuSampler.Create();
+        using var depth = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.DepthComponent32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var input = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32f, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var unrelated = RHICommandContext.Current.CreateSampler(new RHISamplerDescription {  }).RequireResource();
         unrelated.Bind(9);
         try
         {
@@ -55,9 +57,9 @@ public sealed class GpuProgramSamplerRetirementTests(HeadlessGLFixture fixture) 
         }
         finally
         {
-            StateCache.Current.UnbindSampler(4);
-            StateCache.Current.UnbindSampler(5);
-            StateCache.Current.UnbindSampler(9);
+            OpenGLImageBindings.UnbindSampler(StateCache.Current, 4);
+            OpenGLImageBindings.UnbindSampler(StateCache.Current, 5);
+            OpenGLImageBindings.UnbindSampler(StateCache.Current, 9);
         }
     }
 

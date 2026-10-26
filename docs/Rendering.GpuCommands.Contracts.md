@@ -64,8 +64,8 @@ not a second bare-owner/exception-only creation pattern. Fence insertion retains
 public factory result. Empty metadata schemas remain empty; no full VAO, sampler or transform-feedback
 configuration mirror is introduced. Refs for these kinds are introduced with their owning family, not
 as unused public scaffolding. Wrapper-owned implicit conversions follow the texture value's pattern.
-`GpuBufferView` currently has no public texture conversion; B supplies its operator using the existing
-internal typed-base constructor rather than changing `GpuTextureRef` or creating another reference type.
+`GpuBufferView` supplies its wrapper-owned texture conversion through the existing internal typed-base
+constructor; it does not change `GpuTextureRef` or create another reference type.
 
 Owner-following refs observe intentional replacement of their retained owning wrapper at execution.
 Borrowers and native views retain original associations/dependencies. No ref captures another token or

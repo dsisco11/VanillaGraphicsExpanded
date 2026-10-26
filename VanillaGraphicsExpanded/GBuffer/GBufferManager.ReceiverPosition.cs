@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using Vintagestory.API.Client;
 using VanillaGraphicsExpanded.Rendering;
@@ -29,11 +30,10 @@ public sealed partial class GBufferManager
 
         // Do not insert this owned texture into the engine's deletion list. Its framebuffer
         // attachment is sufficient; VGE owns its lifetime alongside the other G-buffer textures.
-        fallbackPosition ??= DynamicTexture2D.Create(width, height, PixelInternalFormat.Rgba16f,
-            debugName: "gReceiverPosition");
+        fallbackPosition ??= RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "gReceiverPosition" }).RequireResource();
         fallbackPosition.DisableMipmaps();
-        fallbackPosition.SetTexFilter(TextureMinFilter.Nearest, TextureMagFilter.Nearest);
-        fallbackPosition.SetTexWrap(TextureWrapMode.ClampToEdge, TextureWrapMode.ClampToEdge);
+        fallbackPosition.SetTexFilter(RHISamplerFilter.Nearest, RHISamplerFilter.Nearest);
+        fallbackPosition.SetTexWrap(RHISamplerAddress.ClampToEdge, RHISamplerAddress.ClampToEdge);
         PositionTextureId = fallbackPosition.TextureId;
     }
     #endregion

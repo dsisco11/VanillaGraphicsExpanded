@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -24,7 +25,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
         try
         {
             using GpuTexture texture = layered
-                ? DynamicTexture3D.Create(4, 4, 2, PixelInternalFormat.Rgba8)
+                ? RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource()
                 : new ReplacementTexture();
             using var faults = new NativeReadFailure();
             faults.Enabled = true;
@@ -48,7 +49,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         Assert.Null(GpuResourceManagerSystem.CurrentManager);
-        using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var faults = new NativeReadFailure { Enabled = true, Throw = throws };
         texture.SetMipRange(0, 0);
         Assert.Equal((nint)0, faults.LastReadId);
@@ -68,7 +69,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         Assert.Null(GpuResourceManagerSystem.CurrentManager);
-        using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using (new GpuResourceManager.MetadataOperation<GpuTextureMetadata>(texture, GpuMetadataChange.Metadata)) { }
         Assert.Equal(0, texture.Width);
         Assert.False(texture.TryBind(0));
@@ -86,7 +87,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         Assert.Null(GpuResourceManagerSystem.CurrentManager);
-        using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
         using var faults = new NativeReadFailure { Enabled = true, Throw = throws };
@@ -108,7 +109,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
     {
         fixture.EnsureContextValid();
         Assert.Null(GpuResourceManagerSystem.CurrentManager);
-        using var texture = DynamicTexture2D.CreateMipmapped(4, 4, PixelInternalFormat.Rgba8, 2);
+        using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 2, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (2) - 1, Label = null }).RequireResource();
         using var image = GpuFramebufferAttachment.FromTexture(texture, mipLevel: 1);
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty();
         using var binding = texture.BindScope(0);
@@ -155,7 +156,7 @@ public sealed class GpuTextureFailureRecoveryTests(HeadlessGLFixture fixture)
             current = this;
             harmony.Patch(AccessTools.Method(typeof(GpuTextureMetadataReader), nameof(GpuTextureMetadataReader.TryRead)),
                 prefix: new HarmonyMethod(AccessTools.Method(typeof(NativeReadFailure), nameof(Read))));
-            harmony.Patch(AccessTools.Method(typeof(StateCache), nameof(StateCache.DeleteTexture), [typeof(int)]),
+            harmony.Patch(AccessTools.Method(typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend), nameof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBackend.DeleteTexture), [typeof(int)]),
                 prefix: new HarmonyMethod(AccessTools.Method(typeof(NativeReadFailure), nameof(Delete))));
         }
         /// <summary>Restores the original methods before leaving the collection-serialized test.</summary>

@@ -15,7 +15,7 @@ internal static partial class OpenGLBufferDeletionCalls
         {
             var cache = EngineStateCalls.CurrentCache;
             GL.DeleteBuffer(id);
-            cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)id));
+            cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)id), unchecked((int)id) == 0 || !GL.IsBuffer(unchecked((int)id)));
         }
 
         /// <summary>Executes Core.DeleteBuffer and reconciles each successful name deletion.</summary>
@@ -23,7 +23,7 @@ internal static partial class OpenGLBufferDeletionCalls
         {
             var cache = EngineStateCalls.CurrentCache;
             GL.DeleteBuffer(id);
-            cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)id));
+            cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)id), unchecked((int)id) == 0 || !GL.IsBuffer(unchecked((int)id)));
         }
 
         /// <summary>Executes Core.DeleteBuffers and reconciles each successful name deletion.</summary>
@@ -33,7 +33,7 @@ internal static partial class OpenGLBufferDeletionCalls
             GL.DeleteBuffers(count, ref ids);
             if (count <= 0) return;
             foreach (var value in MemoryMarshal.CreateReadOnlySpan(ref ids, count))
-                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value));
+                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value), unchecked((int)value) == 0 || !GL.IsBuffer(unchecked((int)value)));
         }
 
         /// <summary>Executes Core.DeleteBuffers and reconciles each successful name deletion.</summary>
@@ -43,7 +43,7 @@ internal static partial class OpenGLBufferDeletionCalls
             GL.DeleteBuffers(count, ids);
             if (count <= 0) return;
             foreach (var value in ids.AsSpan(0, Math.Min(count, ids.Length)))
-                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value));
+                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value), unchecked((int)value) == 0 || !GL.IsBuffer(unchecked((int)value)));
         }
 
         /// <summary>Executes Core.DeleteBuffers and reconciles each successful name deletion.</summary>
@@ -53,7 +53,7 @@ internal static partial class OpenGLBufferDeletionCalls
             GL.DeleteBuffers(count, ids);
             if (count <= 0) return;
             foreach (var value in new ReadOnlySpan<int>(ids, count))
-                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value));
+                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value), unchecked((int)value) == 0 || !GL.IsBuffer(unchecked((int)value)));
         }
 
         /// <summary>Executes Core.DeleteBuffers and reconciles each successful name deletion.</summary>
@@ -63,7 +63,7 @@ internal static partial class OpenGLBufferDeletionCalls
             GL.DeleteBuffers(count, ref ids);
             if (count <= 0) return;
             foreach (var value in MemoryMarshal.CreateReadOnlySpan(ref ids, count))
-                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value));
+                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value), unchecked((int)value) == 0 || !GL.IsBuffer(unchecked((int)value)));
         }
 
         /// <summary>Executes Core.DeleteBuffers and reconciles each successful name deletion.</summary>
@@ -73,7 +73,7 @@ internal static partial class OpenGLBufferDeletionCalls
             GL.DeleteBuffers(count, ids);
             if (count <= 0) return;
             foreach (var value in ids.AsSpan(0, Math.Min(count, ids.Length)))
-                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value));
+                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value), unchecked((int)value) == 0 || !GL.IsBuffer(unchecked((int)value)));
         }
 
         /// <summary>Executes Core.DeleteBuffers and reconciles each successful name deletion.</summary>
@@ -83,7 +83,7 @@ internal static partial class OpenGLBufferDeletionCalls
             GL.DeleteBuffers(count, ids);
             if (count <= 0) return;
             foreach (var value in new ReadOnlySpan<uint>(ids, count))
-                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value));
+                cache.CompleteResourceDeletion(GpuResourceKind.Buffer, unchecked((int)value), unchecked((int)value) == 0 || !GL.IsBuffer(unchecked((int)value)));
         }
         #endregion
     }

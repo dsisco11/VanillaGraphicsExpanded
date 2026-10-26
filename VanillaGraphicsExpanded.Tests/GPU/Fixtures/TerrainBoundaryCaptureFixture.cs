@@ -18,10 +18,10 @@ internal static class TerrainBoundaryCaptureFixture
     {
         Assert.True(LumonSceneCaptureVoxelComputeShader.TryCreate(api, out var owner, out string log), log);
         using var shader = owner!;
-        using var depth = Texture3D.Create(4, 4, 1, PixelInternalFormat.R16f, TextureFilterMode.Nearest, TextureTarget.Texture2DArray);
-        using var material = Texture3D.Create(4, 4, 1, PixelInternalFormat.Rgba8, TextureFilterMode.Nearest, TextureTarget.Texture2DArray);
-        using var occupancy = Texture3D.Create(64, 64, 64, PixelInternalFormat.R32ui, TextureFilterMode.Nearest, TextureTarget.Texture3D);
-        using var palette = Texture2D.Create(64, 1, PixelInternalFormat.Rgba32ui, TextureFilterMode.Nearest);
+        using var depth = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.R16f, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var material = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var occupancy = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 64), Depth = System.Math.Max(1, 64), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        using var palette = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 64), Height = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         int axis = face >> 1;
         var voxels = new uint[64 * 64 * 64];
         for (int z = 0; z < 64; z++)

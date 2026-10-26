@@ -44,7 +44,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
             Assert.Equal((int)TextureUnit.Texture5, GL.GetInteger(GetPName.ActiveTexture));
             scope!.Run(() =>
             {
-                cache.BindTexture(TextureTarget.Texture2D, 2, 0); cache.BindSampler(2, 0);
+                OpenGLImageBindings.BindTexture(cache, TextureTarget.Texture2D, 2, 0); OpenGLImageBindings.BindSampler(cache, 2, 0);
                 cache.BindImageTexture(1, 0, 0, false, 0, TextureAccess.ReadOnly, SizedInternalFormat.Rgba8);
                 OpenGLBufferBindings.BindBufferBase(cache, BufferRangeTarget.UniformBuffer, 1, 0);
                 OpenGLBufferBindings.BindBufferBase(cache, BufferRangeTarget.ShaderStorageBuffer, 2, 0);
@@ -105,7 +105,7 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
         GL.ActiveTexture(TextureUnit.Texture0); GL.BindTexture(TextureTarget.Texture2D, texture); cache.InvalidateAll();
         Assert.True(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Retirement"), out var scope,
             new EngineBoundaryResources([(0, TextureTarget.Texture2D)])));
-        cache.DeleteTexture(texture);
+        VanillaGraphicsExpanded.Rendering.RHI.RHICommandContext.Current.OpenGL.DeleteTexture(texture);
         Assert.Throws<EngineBoundaryRestoreException>(() => scope!.Dispose());
         Assert.Equal(0, GL.GetInteger(GetPName.TextureBinding2D)); Assert.False(GL.IsTexture(texture));
         Assert.False(cache.TryGetCachedBoundTexture(TextureTarget.Texture2D, 0, out _));
@@ -118,11 +118,11 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
     {
         fixture.MakeCurrent();
         var cache = StateCache.Current;
-        cache.ActiveTexture(3);
+        OpenGLImageBindings.ActiveTexture(cache, 3);
         Assert.False(cache.TryBeginEngineBoundary(new EngineBoundaryDeclaration("Invalid"), out var scope,
             new EngineBoundaryResources([(int.MaxValue, TextureTarget.Texture2D)])));
         Assert.Null(scope); Assert.Equal((int)TextureUnit.Texture3, GL.GetInteger(GetPName.ActiveTexture));
-        cache.ActiveTexture(0);
+        OpenGLImageBindings.ActiveTexture(cache, 0);
     }
 
     #endregion

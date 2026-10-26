@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using System;
 using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Shaders;
 using OpenTK.Graphics.OpenGL;
@@ -109,7 +111,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
         using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         vertices.UploadData(new float[] { -1, -1, 0, 0, 0, 3, -1, 0, 2, 0, -1, 3, 0, 0, 2 });
         using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo> { [0] = vertices });
-        using var source = DynamicTexture2D.CreateWithData(1, 1, PixelInternalFormat.Rgba32f, [.25f, .5f, .75f, 1]);
+        using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .25f, .5f, .75f, 1 }).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(8, 8, PixelInternalFormat.Rgba32f);
         using var submission = new DebugGraphicsSubmission(Api(assets));
         shader.Scene = source.TextureId;
@@ -123,7 +125,7 @@ public sealed class DebugGraphicsSubmissionTests(HeadlessGLFixture fixture) : Re
             else
             {
                 GL.ReadBuffer(GL.GetInteger(GetPName.Doublebuffer) != 0 ? ReadBufferMode.Back : ReadBufferMode.Front);
-                using var pack = StateCache.Current.SetPixelPackScope(new(1));
+                using var pack = OpenGLPixelLayouts.PackScope(StateCache.Current, new(1));
                 byte[] pixel = new byte[4]; GL.ReadPixels(0, 0, 1, 1, PixelFormat.Rgba, PixelType.UnsignedByte, pixel);
                 Assert.InRange(pixel[0], (byte)63, (byte)65);
             }

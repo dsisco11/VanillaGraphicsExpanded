@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -49,12 +50,10 @@ internal sealed partial class MaterialAtlasTextureStore
                 for (int y = rect.Y; y < rect.Bottom; y++)
                     values.AsSpan(y * page.Width + rect.X, rect.Width).Fill(index + 1);
             }
-            var indices = Texture2D.CreateWithDataImmediate(page.Width, page.Height,
-                PixelInternalFormat.R32f, values, TextureFilterMode.Nearest, $"vge_displacement_{page.AtlasTextureId}");
+            var indices = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = page.Width, Height = page.Height, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = $"vge_displacement_{page.AtlasTextureId}" }, [new RHITextureInitialData(new(new(), 0, 0, 0, page.Width, page.Height), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((values).AsSpan()).ToArray())]).RequireResource();
             try
             {
-                var table = Texture2D.CreateWithDataImmediate(recordWidth, recordHeight,
-                    PixelInternalFormat.Rgba32f, records, TextureFilterMode.Nearest, $"vge_displacement_records_{page.AtlasTextureId}");
+                var table = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = recordWidth, Height = recordHeight, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = $"vge_displacement_records_{page.AtlasTextureId}" }, [new RHITextureInitialData(new(new(), 0, 0, 0, recordWidth, recordHeight), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((records).AsSpan()).ToArray())]).RequireResource();
                 displacementByAtlas.Add(page.AtlasTextureId, new(indices, table));
             }
             catch { indices.Dispose(); throw; }

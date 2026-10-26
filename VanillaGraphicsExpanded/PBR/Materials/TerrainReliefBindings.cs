@@ -1,3 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -40,10 +43,8 @@ internal static class TerrainReliefBindings
     internal static void Bind(ShaderProgramBase program, int atlas, MaterialAtlasTextureStore store)
     {
         if (!programs.TryGetValue(program, out var linked) || linked.ProgramId != program.ProgramId) return;
-        neutral ??= Texture2D.CreateWithDataImmediate(1,1,PixelInternalFormat.Rgba32f,
-            [0,0,0,0],TextureFilterMode.Nearest,"vge_relief_neutral");
-        neutralHeight ??= Texture2D.CreateWithDataImmediate(1,1,PixelInternalFormat.Rgba32f,
-            [.5f,.5f,1,.5f],TextureFilterMode.Nearest,"vge_relief_neutral_height");
+        neutral ??= RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = "vge_relief_neutral" }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { 0,0,0,0 }).AsSpan()).ToArray())]).RequireResource();
+        neutralHeight ??= RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = 1, Height = 1, Format = RHIFormat.Rgba32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = "vge_relief_neutral_height" }, [new RHITextureInitialData(new(new(), 0, 0, 0, 1, 1), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((new float[] { .5f,.5f,1,.5f }).AsSpan()).ToArray())]).RequireResource();
         bool available = store.TryGetDisplacementTextures(atlas, out var page)
             && store.TryGetNormalDepthTextureId(atlas, out _);
         int height = neutralHeight.TextureId;
@@ -52,9 +53,9 @@ internal static class TerrainReliefBindings
         program.BindTexture2D("vge_displacementRecords", available ? page!.Records.TextureId : neutral.TextureId, RecordUnit);
         program.BindTexture2D("vge_normalDepthTex", height, HeightUnit);
         var cache = StateCache.Current;
-        cache.BindSampler(IndexUnit, GpuSamplers.NearestClamp.SamplerId);
-        cache.BindSampler(RecordUnit, GpuSamplers.NearestClamp.SamplerId);
-        cache.BindSampler(HeightUnit, GpuSamplers.NearestClamp.SamplerId);
+        OpenGLImageBindings.BindSampler(cache, IndexUnit, GpuSamplers.NearestClamp.SamplerId);
+        OpenGLImageBindings.BindSampler(cache, RecordUnit, GpuSamplers.NearestClamp.SamplerId);
+        OpenGLImageBindings.BindSampler(cache, HeightUnit, GpuSamplers.NearestClamp.SamplerId);
     }
     #endregion
 }

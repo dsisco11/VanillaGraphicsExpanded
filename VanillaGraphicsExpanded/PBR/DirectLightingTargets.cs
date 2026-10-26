@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -27,8 +28,7 @@ internal sealed class DirectLightingTargets : IDisposable
     {
         try
         {
-            Radiance = resources.Own(Texture3D.Create(width, height, 3, PixelInternalFormat.Rgba16f,
-                TextureFilterMode.Linear, TextureTarget.Texture2DArray, "DirectLighting.Radiance"));
+            Radiance = resources.Own(RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), Depth = System.Math.Max(1, 3), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = "DirectLighting.Radiance" }).RequireResource());
             var layers = new GpuFramebufferAttachment[3];
             for (int layer = 0; layer < layers.Length; layer++)
                 layers[layer] = resources.Own(GpuFramebufferAttachment.FromTexture(Radiance, layer: layer));

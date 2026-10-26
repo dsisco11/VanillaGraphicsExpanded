@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -8,29 +9,29 @@ namespace VanillaGraphicsExpanded.HarmonyPatches.NativeAdapters.Textures;
 internal static unsafe partial class Ext
 {
     #region Internal API
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void EGLImageTargetTextureStorage(int @texture, IntPtr @image, ref int @attrib_list)
-        => StateCache.Current.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, ref @attrib_list);
+        => OpenGLTexturesCalls.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, ref @attrib_list);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void EGLImageTargetTextureStorage(int @texture, IntPtr @image, int[] @attrib_list)
-        => StateCache.Current.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, @attrib_list);
+        => OpenGLTexturesCalls.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, @attrib_list);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void EGLImageTargetTextureStorage(int @texture, IntPtr @image, int* @attrib_list)
-        => StateCache.Current.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, @attrib_list);
+        => OpenGLTexturesCalls.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, @attrib_list);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void EGLImageTargetTextureStorage(uint @texture, IntPtr @image, ref int @attrib_list)
-        => StateCache.Current.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, ref @attrib_list);
+        => OpenGLTexturesCalls.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, ref @attrib_list);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void EGLImageTargetTextureStorage(uint @texture, IntPtr @image, int[] @attrib_list)
-        => StateCache.Current.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, @attrib_list);
+        => OpenGLTexturesCalls.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, @attrib_list);
 
-    /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
+    /// <summary>Forwards the exact signature to the OpenGL backend execution boundary.</summary>
     internal static void EGLImageTargetTextureStorage(uint @texture, IntPtr @image, int* @attrib_list)
-        => StateCache.Current.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, @attrib_list);
+        => OpenGLTexturesCalls.ExecuteExtEGLImageTargetTextureStorage(@texture, @image, @attrib_list);
 
     #endregion
 }

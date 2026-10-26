@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -106,8 +107,8 @@ internal sealed class LocalExposureRenderer : IDisposable
             inputs??=new LocalExposureInputs();
             if(logarithms is null)
             {
-                logarithms=resources.Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.Rg32f,debugName:"LocalExposure.Log"));
-                baseImage=resources.Own(DynamicTexture2D.Create(width,height,PixelInternalFormat.Rg32f,debugName:"LocalExposure.Base"));
+                logarithms=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "LocalExposure.Log" }).RequireResource());
+                baseImage=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rg32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "LocalExposure.Base" }).RequireResource());
                 Generation++;
             }
         }

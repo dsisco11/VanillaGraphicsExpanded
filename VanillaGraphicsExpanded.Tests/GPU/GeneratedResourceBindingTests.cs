@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Shaders;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -34,10 +36,8 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             using var shaderHandle = new BorrowedProgramFixture(shader, program);
             shader.ProgramLayout.BinaryInterface = TestShaderInterfaces.BuildLayout(program).BinaryInterface;
             shader.ProgramLayout.RebuildCache(program);
-            using var input = Texture3D.Create(1, 1, 1, PixelInternalFormat.R32ui,
-                TextureFilterMode.Nearest, TextureTarget.Texture3D, "GeneratedBinding.Input");
-            using var output = Texture3D.Create(1, 1, 1, PixelInternalFormat.R32ui,
-                TextureFilterMode.Nearest, TextureTarget.Texture3D, "GeneratedBinding.Output");
+            using var input = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "GeneratedBinding.Input" }).RequireResource();
+            using var output = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.R32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "GeneratedBinding.Output" }).RequireResource();
             input.UploadDataImmediate(new uint[] { 123 }, 0, 0, 0, 1, 1, 1, 0);
             output.UploadDataImmediate(new uint[1], 0, 0, 0, 1, 1, 1, 0);
 
@@ -65,9 +65,9 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             Assert.Equal(0, imageLevel);
             Assert.Equal(1, imageLayered);
             Assert.Equal(0, imageLayer);
-            StateCache.Current.ActiveTexture(7);
-            StateCache.Current.BindTexture(TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), 0);
-            StateCache.Current.ActiveTexture(3);
+            OpenGLImageBindings.ActiveTexture(StateCache.Current, 7);
+            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), 0);
+            OpenGLImageBindings.ActiveTexture(StateCache.Current, 3);
             GL.GetInteger(GetPName.TextureBinding3D, out int priorInput);
             shader.Input = input;
             shader.Output = new(output, Access: TextureAccess.WriteOnly, Layered: true, Format: SizedInternalFormat.R32ui);
@@ -75,7 +75,7 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             GL.GetInteger(GetPName.TextureBinding3D, out int stagedInput);
             Assert.Equal(priorInput, stagedInput);
             Publish(shader);
-            StateCache.Current.ActiveTexture(7);
+            OpenGLImageBindings.ActiveTexture(StateCache.Current, 7);
             GL.GetInteger(GetPName.TextureBinding3D, out int unusedBinding);
             Assert.Equal(0, unusedBinding);
             GL.DispatchCompute(1, 1, 1);
@@ -83,7 +83,7 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             GpuTestFence.WaitForGpuOrSkip("Generated resource binding dispatch");
             uint[] result = new uint[1];
             GL.PixelStore(PixelStoreParameter.PackAlignment, 1);
-            StateCache.Current.BindTexture(TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), output.TextureId);
+            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), output.TextureId);
             GL.GetTexImage(TextureTarget.Texture3D, 0, PixelFormat.RedInteger, PixelType.UnsignedInt, result);
             Assert.Equal(123u, result[0]);
             // Optional active absence explicitly clears a binding left by the preceding owner.
@@ -92,14 +92,14 @@ public sealed class GeneratedResourceBindingTests : RenderTestBase
             optional = optional with { Contract = optional.Contract with { Binding = optional.Contract.Binding with { Required = false } } };
             ShaderPreparedSubmission.ValidateSampler(optional, (GpuTexture?)null);
             ShaderPreparedSubmission.Sampler(optional, (GpuTexture?)null);
-            StateCache.Current.ActiveTexture(3);
+            OpenGLImageBindings.ActiveTexture(StateCache.Current, 3);
             GL.GetInteger(GetPName.TextureBinding3D, out int clearedInput);
             Assert.Equal(0, clearedInput);
         }
         finally
         {
             GL.UseProgram(0);
-            StateCache.Current.BindTexture(TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), 0);
+            OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture3D, StateCache.Current.GetActiveTextureUnit(), 0);
             TestShaderInterfaces.DeleteProgram(program);
             TestShaderInterfaces.DeleteShader(module);
         }

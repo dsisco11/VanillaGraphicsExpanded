@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -36,9 +37,8 @@ internal sealed class ColorGradingLut : IDisposable
         if(!generator.EnsureReady()) throw new InvalidOperationException(generator.PreparationLog);
         if(key==controls&&completed is { IsValid:true }) return completed;
         inputs??=new(); inputs.Capture(controls);
-        spare??=DynamicTexture3D.Create(Size,Size,Size,PixelInternalFormat.Rgba16f,
-            TextureFilterMode.Linear,TextureTarget.Texture3D);
-        spare.SetTexWrap(TextureWrapMode.ClampToEdge,TextureWrapMode.ClampToEdge,TextureWrapMode.ClampToEdge);
+        spare??=RHICommandContext.Current.CreateDynamicTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba16f, Width = System.Math.Max(1, Size), Height = System.Math.Max(1, Size), Depth = System.Math.Max(1, Size), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+        spare.SetTexWrap(RHISamplerAddress.ClampToEdge,RHISamplerAddress.ClampToEdge,RHISamplerAddress.ClampToEdge);
         generator.GradingInputs=inputs;
         generator.GradedOutput=new(spare,TextureAccess.WriteOnly,Layered:true,Format:SizedInternalFormat.Rgba16f);
         generator.Dispatch(Size/4,Size/4,Size/4);

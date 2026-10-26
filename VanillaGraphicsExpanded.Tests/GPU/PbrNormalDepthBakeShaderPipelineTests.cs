@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.IO;
 
@@ -62,7 +63,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
+        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = w, Height = h, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(w, h, PixelInternalFormat.Rgba16f);
 
         target.Bind();
@@ -164,7 +165,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
+        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = w, Height = h, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
 
         (float minA1, float maxA1) = RenderPackAndGetAlphaMinMax(programId, heightTex, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 1f);
         (float minA2, float maxA2) = RenderPackAndGetAlphaMinMax(programId, heightTex, w, h, normalStrength: 0f, normalScale: 1f, depthScale: 0.5f);
@@ -214,7 +215,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
+        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = w, Height = h, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
 
         float[] rgbFlat = RenderPackAndReadFirstPixel(programId, heightTex, w, h, normalStrength: 1f, normalScale: 0f, depthScale: 1f);
         float[] rgbTilt = RenderPackAndReadFirstPixel(programId, heightTex, w, h, normalStrength: 1f, normalScale: 2f, depthScale: 1f);
@@ -374,8 +375,8 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var hTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, hData, TextureFilterMode.Nearest);
-        using var hnTex = DynamicTexture2D.Create(w, h, PixelInternalFormat.R32f, TextureFilterMode.Nearest);
+        using var hTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = w, Height = h, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((hData).AsSpan()).ToArray())]).RequireResource();
+        using var hnTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, w), Height = System.Math.Max(1, h), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
         using var hnFbo = DynamicGpuFramebuffer.CreateSingle(hnTex) ?? throw new InvalidOperationException("Failed to create Hn FBO");
 
         // Pass 1: normalize into hnTex
@@ -502,7 +503,7 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             }
         }
 
-        using var heightTex = DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.R32f, heightData, TextureFilterMode.Nearest);
+        using var heightTex = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = w, Height = h, Format = RHIFormat.R32f, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = null }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.R32f), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((heightData).AsSpan()).ToArray())]).RequireResource();
         using var target = CreateRenderTarget(w, h, PixelInternalFormat.Rgba16f);
 
         // Simulate engine state bleed: blending enabled with an additive-ish alpha path.
@@ -581,6 +582,6 @@ public sealed class PbrNormalDepthBakeShaderPipelineTests : RenderTestBase
             rgba[i + 3] = alpha;
         }
 
-        return DynamicTexture2D.CreateWithData(w, h, PixelInternalFormat.Rgba8, rgba, TextureFilterMode.Nearest, debugName: "Tests.Pbr.NormalDepthBake.AlbedoAtlas");
+        return RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Width = w, Height = h, Format = RHIFormat.Rgba8, MipLevels = 1, Storage = RHIStorageMode.Mutable, BaseLevel = 0, MaxLevel = 0, Filter = TextureFilterMode.Nearest, Label = "Tests.Pbr.NormalDepthBake.AlbedoAtlas" }, [new RHITextureInitialData(new(new(), 0, 0, 0, w, h), VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLPixelValues.Encoding(TextureFormatHelper.GetPixelFormat(PixelInternalFormat.Rgba8), OpenTK.Graphics.OpenGL.PixelType.Float), System.Runtime.InteropServices.MemoryMarshal.AsBytes((rgba).AsSpan()).ToArray())]).RequireResource();
     }
 }

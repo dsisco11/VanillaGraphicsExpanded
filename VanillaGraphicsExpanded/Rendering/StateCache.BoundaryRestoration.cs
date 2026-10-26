@@ -7,6 +7,8 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     private bool restoringBoundary;
+    /// <summary>Reports restoration ownership to backend layout transitions.</summary>
+    internal bool RestoringBoundary => restoringBoundary;
     #region Public API
     /// <summary>Attempts an independent cleanup owner without hiding failures from later owners.</summary>
     internal void AttemptBoundaryCleanup(Action cleanup, List<Exception> failures,
@@ -123,7 +125,7 @@ internal sealed partial class StateCache
     }
 
     /// <summary>Turns driver errors into a visible failed handoff rather than false cached success.</summary>
-    private void CheckBoundaryNativeError()
+    internal void CheckBoundaryNativeError()
     {
         var error = ReadBoundaryError();
         if (error != ErrorCode.NoError) throw new InvalidOperationException($"Native boundary cleanup failed: {error}.");

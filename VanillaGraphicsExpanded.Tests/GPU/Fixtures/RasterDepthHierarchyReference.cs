@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Postprocessing;
@@ -23,7 +24,7 @@ internal sealed class RasterDepthHierarchyReference : IDisposable
             Dispose();
             try {
                 int levels=1;for(int extent=Math.Max(width,height);extent>1;extent>>=1) levels++;
-                Texture=resources.Own(DynamicTexture2D.CreateMipmapped(width,height,PixelInternalFormat.R32f,levels,"DepthHierarchy"));
+                Texture=resources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.R32f, Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = levels, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (levels) - 1, Label = "DepthHierarchy" }).RequireResource());
                 targets=new GpuFramebuffer[levels];
                 for(int level=0;level<levels;level++) {
                     var attachment=resources.Own(GpuFramebufferAttachment.FromTexture(Texture,mipLevel:level));

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -37,14 +38,7 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
         layout.RegisterUniformBlockBinding("TestParams", bindingIndex: 0, required: true);
         layout.ApplyContract(programId);
 
-        using var outTex = Texture3D.Create(
-            width: 1,
-            height: 1,
-            depth: 1,
-            format: PixelInternalFormat.Rgba32ui,
-            filter: TextureFilterMode.Nearest,
-            textureTarget: TextureTarget.Texture3D,
-            debugName: "Test_Out");
+        using var outTex = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_Out" }).RequireResource();
 
         uint[] zeros = new uint[4];
         outTex.UploadDataImmediate(zeros, x: 0, y: 0, z: 0, regionWidth: 1, regionHeight: 1, regionDepth: 1, mipLevel: 0);
@@ -105,14 +99,7 @@ public sealed class GpuUniformRingBufferIntegrationTests : RenderTestBase
         layout.RegisterUniformBlockBinding("TestParams", bindingIndex: 0, required: true);
         layout.ApplyContract(programId);
 
-        using var outTex = Texture3D.Create(
-            width: 1,
-            height: 1,
-            depth: 1,
-            format: PixelInternalFormat.Rgba32ui,
-            filter: TextureFilterMode.Nearest,
-            textureTarget: TextureTarget.Texture3D,
-            debugName: "Test_Out");
+        using var outTex = RHICommandContext.Current.CreateTexture3D(new RHITextureDescription { Dimension = RHITextureDimension.Three, Format = RHIFormat.Rgba32ui, Width = System.Math.Max(1, 1), Height = System.Math.Max(1, 1), Depth = System.Math.Max(1, 1), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test_Out" }).RequireResource();
 
         outTex.UploadDataImmediate(new uint[4], x: 0, y: 0, z: 0, regionWidth: 1, regionHeight: 1, regionDepth: 1, mipLevel: 0);
         GL.BindImageTexture(0, outTex.TextureId, level: 0, layered: true, layer: 0, access: TextureAccess.WriteOnly, format: SizedInternalFormat.Rgba32ui);

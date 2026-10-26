@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 
 using VanillaGraphicsExpanded.Rendering;
@@ -27,7 +29,7 @@ public class GpuTextureSamplerIntegrationTests
     {
         fixture.MakeCurrent();
 
-        using var tex = Texture2D.Create(4, 4, PixelInternalFormat.Rgba8, filter: TextureFilterMode.Linear, debugName: "Test.Tex");
+        using var tex = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test.Tex" }).RequireResource();
 
         Assert.True(tex.IsValid);
 
@@ -58,15 +60,15 @@ public class GpuTextureSamplerIntegrationTests
     {
         fixture.MakeCurrent();
 
-        using var t1 = Texture2D.Create(4, 4, PixelInternalFormat.Rgba8, filter: TextureFilterMode.Nearest, debugName: "Test.T1");
-        using var t2 = Texture2D.Create(4, 4, PixelInternalFormat.Rgba8, filter: TextureFilterMode.Linear, debugName: "Test.T2");
-        using var s1 = GpuSampler.Create("Test.S1");
+        using var t1 = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test.T1" }).RequireResource();
+        using var t2 = RHICommandContext.Current.CreateTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Linear, BaseLevel = 0, MaxLevel = (1) - 1, Label = "Test.T2" }).RequireResource();
+        using var s1 = RHICommandContext.Current.CreateSampler(new RHISamplerDescription { Label = "Test.S1" }).RequireResource();
 
         const int unit = 2;
 
         // Establish a known texture+sampler binding without going through GpuTexture.Bind (which unbinds samplers).
-        StateCache.Current.BindTexture(t1.TextureTarget, unit, t1.TextureId);
-        StateCache.Current.BindSampler(unit, s1);
+        OpenGLImageBindings.BindTexture(StateCache.Current, t1.TextureTarget, unit, t1.TextureId);
+        OpenGLImageBindings.BindSampler(StateCache.Current, unit, s1);
 
         int prevTexId = StateCache.Current.GetBoundTexture(t1.TextureTarget, unit);
         int prevSamplerId = StateCache.Current.GetBoundSampler(unit);

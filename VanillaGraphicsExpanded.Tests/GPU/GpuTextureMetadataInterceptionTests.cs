@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -24,8 +25,8 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         var harmony = Patch(nameof(DefineCopiedOrCompressed));
         try
         {
-            using var texture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
-            using var source = DynamicTexture2D.Create(8, 8, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 2), Height = System.Math.Max(1, 2), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
+            using var source = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(source);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             framebuffer.Bind();
@@ -54,7 +55,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         {
             GL.TextureStorage2D(raw, 4, SizedInternalFormat.Rgba8, 8, 8);
             using var texture = new BorrowedTexture(raw);
-            using var view = GpuTextureView.CreateFromTexture(texture, TextureTarget.Texture2D, PixelInternalFormat.Rgba8, 0, 4, 0, 1);
+            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = texture, Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, BaseMip = 0, MipCount = 4, BaseLayer = 0, LayerCount = 1, Label = null }).RequireResource();
             using var binding = texture.BindScope(0);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong storage = entry.StorageRevision;
@@ -63,7 +64,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
             Assert.True(view.IsValid);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteTexture(raw); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.OpenGL.DeleteTexture(raw); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
     /// <summary>Bound, named and explicit-unit image definitions update aliases without changing the selected texture unit.</summary>
@@ -79,7 +80,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         var harmony = Patch(nameof(DefineImage));
         try
         {
-            using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var alias = new BorrowedTexture(texture.TextureId);
             using var image = GpuFramebufferAttachment.FromTexture(texture);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
@@ -114,7 +115,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         var harmony = Patch(nameof(DefineSpecial));
         try
         {
-            using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 4), Height = System.Math.Max(1, 4), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var binding = texture.BindScope(0);
             var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture)!;
             ulong revision = entry.MetadataRevision;
@@ -139,9 +140,9 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         var harmony = Patch(nameof(GenerateLevels));
         try
         {
-            using var texture = DynamicTexture2D.Create(8, 8, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = RHIFormat.Rgba8, Width = System.Math.Max(1, 8), Height = System.Math.Max(1, 8), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var binding = texture.BindScope(0);
-            StateCache.Current.ExecuteCoreTexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
+            VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLTexturesCalls.ExecuteCoreTexImage2D(TextureTarget.Texture2D, 1, PixelInternalFormat.Rgba8, 4, 4, 0, PixelFormat.Rgba, PixelType.UnsignedByte, IntPtr.Zero);
             texture.SetMipRange(1, 3);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(texture));
             ulong revision = entry.MetadataRevision;
@@ -173,7 +174,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         var harmony = Patch(nameof(DefineCubeFace));
         try
         {
-            using var texture = DynamicTextureCube.Create(4, PixelInternalFormat.Rgba8);
+            using var texture = RHICommandContext.Current.CreateTextureCube(new RHITextureDescription { Dimension = RHITextureDimension.Cube, Format = RHIFormat.Rgba8, Width = 4, Height = 4, MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource();
             using var image = GpuFramebufferAttachment.FromTexture(texture, cubeFace: TextureTarget.TextureCubeMapPositiveX);
             using var framebuffer = DynamicGpuFramebuffer.Create([image])!;
             int changed = 0;
@@ -214,7 +215,7 @@ public sealed class GpuTextureMetadataInterceptionTests(HeadlessGLFixture fixtur
         finally
         {
             if (harmony is not null) harmony.UnpatchAll(harmony.Id);
-            StateCache.Current.DeleteTexture(raw);
+            RHICommandContext.Current.OpenGL.DeleteTexture(raw);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

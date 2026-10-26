@@ -183,8 +183,8 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
             {
                 ConfigModSystem.Config.ShadingQuality=quality;
                 int unit=GpuBindingRegistry.Sampler.MicrofacetEnergy;
-                StateCache.Current.BindTexture(TextureTarget.Texture2D,unit,0);
-                StateCache.Current.BindSampler(unit,0);
+                OpenGLImageBindings.BindTexture(StateCache.Current, TextureTarget.Texture2D,unit,0);
+                OpenGLImageBindings.BindSampler(StateCache.Current, unit,0);
                 engine.Use();
                 var selected=MicrofacetEnergyLookup.Prepare();
                 GL.GetInteger(GetPName.ActiveTexture,out int priorActive);

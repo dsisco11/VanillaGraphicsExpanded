@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using Vintagestory.Client;
 using VanillaGraphicsExpanded.PBR.SceneColor;
 using System.Runtime.CompilerServices;
@@ -144,7 +145,7 @@ public sealed class EngineFramebufferRebuildTests(HeadlessGLFixture fixture) : R
             var failures = new List<string>();
             for (int index = 0; index < inputs.Length; index++)
             {
-                StateCache.Current.BindTexture(inputs[index].Name == "G-buffer surface" ? TextureTarget.Texture2DArray : TextureTarget.Texture2D, inputs[index].Unit, inputs[index].Texture);
+                OpenGLImageBindings.BindTexture(StateCache.Current, inputs[index].Name == "G-buffer surface" ? TextureTarget.Texture2DArray : TextureTarget.Texture2D, inputs[index].Unit, inputs[index].Texture);
                 var error = GL.GetError();
                 if (error != ErrorCode.NoError) failures.Add($"{inputs[index].Name}: texture {inputs[index].Texture}, {error}");
             }

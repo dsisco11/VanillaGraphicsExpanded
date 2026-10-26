@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -15,9 +17,9 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
     public void UnknownBindingAndNestedScopesRestoreNativeOwners()
     {
         EnsureContextValid();
-        using var first = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 2, 2);
-        using var second = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 2, 2);
-        using var third = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 2, 2);
+        using var first = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
+        using var second = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
+        using var third = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, (int)first.ResourceId);
         var cache = StateCache.Current; cache.Invalidate(EPipelineState.RenderbufferBinding);
         Assert.Equal((int)first.ResourceId, cache.GetCurrentRenderbuffer());
@@ -43,14 +45,14 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
     public void BoundRetirementUpdatesOnlyTheAffectedBinding()
     {
         EnsureContextValid();
-        using var retired = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 2, 2);
-        using var live = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 2, 2);
+        using var retired = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
+        using var live = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         var cache = StateCache.Current;
-        cache.BindRenderbuffer((int)retired.ResourceId);
+        OpenGLImageBindings.BindRenderbuffer(cache, (int)retired.ResourceId);
         retired.Dispose();
         Assert.Equal(0, cache.GetCurrentRenderbuffer());
         Assert.Equal(0, GL.GetInteger(GetPName.RenderbufferBinding));
-        cache.BindRenderbuffer((int)live.ResourceId);
+        OpenGLImageBindings.BindRenderbuffer(cache, (int)live.ResourceId);
         Assert.Equal((int)live.ResourceId, GL.GetInteger(GetPName.RenderbufferBinding));
         Assert.Equal(ErrorCode.NoError, GL.GetError());
     }
@@ -60,7 +62,7 @@ public sealed class RenderbufferBindingLifetimeTests(HeadlessGLFixture fixture) 
     public void UnrelatedNativeErrorSurvivesBindingRecovery()
     {
         EnsureContextValid();
-        using var bound = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 2, 2);
+        using var bound = RHICommandContext.Current.CreateRenderbuffer(new RHIRenderbufferDescription { Format = RHIFormat.Rgba8, Width = 2, Height = 2, Samples = 0, Label = null }).RequireResource();
         var cache = StateCache.Current;
         GL.BindRenderbuffer(RenderbufferTarget.Renderbuffer, (int)bound.ResourceId);
         cache.Invalidate(EPipelineState.RenderbufferBinding);

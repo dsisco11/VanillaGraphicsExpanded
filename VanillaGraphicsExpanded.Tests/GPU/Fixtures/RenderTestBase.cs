@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -84,7 +85,7 @@ public abstract class RenderTestBase : IDisposable
     protected GpuFramebuffer CreateRenderTarget(int width, int height, PixelInternalFormat format)
     {
         EnsureContextValid(beginUniformFrame: false);
-        var texture = _targetResources.Own(DynamicTexture2D.Create(width, height, format));
+        var texture = _targetResources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(format)), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         var gBuffer = DynamicGpuFramebuffer.CreateSingle(texture);
         return gBuffer ?? throw new InvalidOperationException("Failed to create GBuffer");
     }
@@ -102,7 +103,7 @@ public abstract class RenderTestBase : IDisposable
         var textures = new DynamicTexture2D[formats.Length];
         for (int i = 0; i < formats.Length; i++)
         {
-            textures[i] = _targetResources.Own(DynamicTexture2D.Create(width, height, formats[i]));
+            textures[i] = _targetResources.Own(RHICommandContext.Current.CreateDynamicTexture2D(new RHITextureDescription { Dimension = RHITextureDimension.Two, Format = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLImageValues.Format((OpenTK.Graphics.OpenGL.PixelInternalFormat)(formats[i])), Width = System.Math.Max(1, width), Height = System.Math.Max(1, height), MipLevels = 1, Storage = RHIStorageMode.Mutable, Filter = TextureFilterMode.Nearest, BaseLevel = 0, MaxLevel = (1) - 1, Label = null }).RequireResource());
         }
         var gBuffer = DynamicGpuFramebuffer.CreateMRT(textures);
         return gBuffer ?? throw new InvalidOperationException("Failed to create MRT GBuffer");

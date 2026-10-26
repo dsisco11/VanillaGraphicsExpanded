@@ -14,7 +14,7 @@ internal sealed class BorrowedTexture : GpuTexture
         if (externalTexture <= 0)
             throw new ArgumentOutOfRangeException(nameof(externalTexture));
 
-        textureId = externalTexture;
+        SetCreationIdentity(externalTexture, CaptureCreationContext(GpuResourceKind.Texture));
         try
         {
             GpuResourceManager.AcquireWrapperMetadata(this, GpuTextureMetadataReader.Instance);

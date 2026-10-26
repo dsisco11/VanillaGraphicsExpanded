@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 
@@ -13,6 +15,9 @@ namespace VanillaGraphicsExpanded.Rendering;
 public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
 {
     private int samplerId;
+
+    /// <summary>Supplies a query-free consumer reference without lifecycle authority.</summary>
+    public static implicit operator GpuSamplerRef(GpuSampler? value) => new(value);
 
     /// <inheritdoc />
     public override nint ResourceId
@@ -34,28 +39,9 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
     public new bool IsValid => base.IsValid;
 
     /// <summary>Declares an unpublished wrapper for manager-owned creation.</summary>
-    private GpuSampler() { }
+    internal GpuSampler() { }
 
-    /// <summary>
-    /// Creates a new sampler object.
-    /// </summary>
-    public static GpuSampler Create(string? debugName = null)
-    {
-        var value = new GpuSampler();
-        try
-        {
-            if (!GpuResourceManager.CreateSampler(new GpuSamplerInitialization(), value, out _).HasValue)
-                throw new InvalidOperationException("Sampler creation failed.");
-            value.SetDebugName(debugName);
-            return value;
-        }
-        catch
-        {
-            // The manager retires provisional allocation; dispose a completed handoff too.
-            value.Dispose();
-            throw;
-        }
-    }
+
 
     /// <summary>
     /// Sets the debug label for this sampler (debug builds only).
@@ -81,7 +67,7 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
             return;
         }
 
-        StateCache.Current.BindSampler(unit, samplerId);
+        OpenGLImageBindings.BindSampler(StateCache.Current, unit, samplerId);
     }
 
     /// <summary>
@@ -94,7 +80,7 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
             return false;
         }
 
-        StateCache.Current.BindSampler(unit, samplerId);
+        OpenGLImageBindings.BindSampler(StateCache.Current, unit, samplerId);
         return true;
     }
 
@@ -103,7 +89,7 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
     /// </summary>
     public static void Unbind(int unit)
     {
-        StateCache.Current.UnbindSampler(unit);
+        OpenGLImageBindings.UnbindSampler(StateCache.Current, unit);
     }
 
     /// <summary>
@@ -116,68 +102,27 @@ public sealed class GpuSampler : GpuResource<GpuSamplerMetadata>, IDisposable
         return new BindingScope(scope);
     }
 
-    /// <summary>
-    /// Sets min/mag filtering parameters.
-    /// </summary>
-    public void SetFilter(TextureMinFilter minFilter, TextureMagFilter magFilter)
+    /// <summary>Applies owner-selected minification and magnification through the semantic backend.</summary>
+    public void SetFilter(RHISamplerFilter minFilter, RHISamplerFilter magFilter)
     {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.SamplerParameter(samplerId, SamplerParameterName.TextureMinFilter, (int)minFilter);
-            GL.SamplerParameter(samplerId, SamplerParameterName.TextureMagFilter, (int)magFilter);
-        }
-        catch
-        {
-        }
+        if (!IsValid) return;
+        RHICommandContext.Current.ConfigureSampler(this, new RHISamplerDescription { MinFilter = minFilter, MagFilter = magFilter });
     }
 
-    /// <summary>
-    /// Sets wrap mode parameters for S/T (and optionally R).
-    /// </summary>
-    public void SetWrap(TextureWrapMode wrapS, TextureWrapMode wrapT, TextureWrapMode? wrapR = null)
+    /// <summary>Applies only the requested wrap axes without reading sampler parameters.</summary>
+    public void SetWrap(RHISamplerAddress wrapS, RHISamplerAddress wrapT, RHISamplerAddress? wrapR = null)
     {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.SamplerParameter(samplerId, SamplerParameterName.TextureWrapS, (int)wrapS);
-            GL.SamplerParameter(samplerId, SamplerParameterName.TextureWrapT, (int)wrapT);
-            if (wrapR.HasValue)
-            {
-                GL.SamplerParameter(samplerId, SamplerParameterName.TextureWrapR, (int)wrapR.Value);
-            }
-        }
-        catch
-        {
-        }
+        if (!IsValid) return;
+        var request = new RHISamplerDescription { AddressS = wrapS, AddressT = wrapT };
+        if (wrapR.HasValue) request.AddressR = wrapR.Value;
+        RHICommandContext.Current.ConfigureSampler(this, request);
     }
 
-    /// <summary>
-    /// Sets depth comparison sampling parameters (useful for shadow samplers).
-    /// </summary>
-    public void SetCompare(TextureCompareMode mode, DepthFunction function)
+    /// <summary>Applies owner-selected shadow comparison without swallowing native dispatch failures.</summary>
+    public void SetCompare(bool enabled, RHIComparison comparison)
     {
-        if (!IsValid)
-        {
-            return;
-        }
-
-        try
-        {
-            GL.SamplerParameter(samplerId, SamplerParameterName.TextureCompareMode, (int)mode);
-            GL.SamplerParameter(samplerId, SamplerParameterName.TextureCompareFunc, (int)function);
-        }
-        catch
-        {
-        }
+        if (!IsValid) return;
+        RHICommandContext.Current.ConfigureSampler(this, new RHISamplerDescription { Compare = enabled, Comparison = comparison });
     }
 
     /// <summary>

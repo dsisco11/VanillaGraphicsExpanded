@@ -36,8 +36,6 @@ internal struct GpuBufferTextureInitialization
             throw new ArgumentException("Buffer texture initialization requires backing, format and mode.");
         if (mode == GpuBufferTextureMode.Whole ? (assigned & 24) != 0 : (assigned & 24) != 24 || offset < 0 || size <= 0)
             throw new ArgumentException("Whole views reject ranges; range views require nonnegative offset and positive size.");
-        if (mode == GpuBufferTextureMode.Range && !GpuSupport.Graphics.SupportsTextureBufferRange)
-            throw new NotSupportedException("Buffer texture ranges are unavailable.");
         if (format is not (SizedInternalFormat.R8 or SizedInternalFormat.R16 or SizedInternalFormat.R16f or SizedInternalFormat.R32f
             or SizedInternalFormat.R8i or SizedInternalFormat.R16i or SizedInternalFormat.R32i
             or SizedInternalFormat.R8ui or SizedInternalFormat.R16ui or SizedInternalFormat.R32ui

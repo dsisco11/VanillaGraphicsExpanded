@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -45,7 +46,7 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
             Assert.Equal(new GpuTextureViewMetadata(1, 2, 1, 2), first.Snapshot.View);
             Assert.Equal(first.Snapshot, second.Snapshot);
             Assert.Equal(2, first.Snapshot.Levels.Length);
-            using (var fallback = new DirectStateAccessCapabilityScope(false))
+            // Explicit acquisition uses named baseline queries while preserving source-relative facts.
             {
                 Assert.True(new GpuTextureMetadataReader(TextureTarget.Texture2DArray).TryRead(viewId, out var boundSnapshot));
                 Assert.Equal(first.Snapshot.View, boundSnapshot.View);
@@ -70,8 +71,8 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            StateCache.Current.DeleteTexture(viewId);
-            StateCache.Current.DeleteTexture(sourceId);
+            RHICommandContext.Current.OpenGL.DeleteTexture(viewId);
+            RHICommandContext.Current.OpenGL.DeleteTexture(sourceId);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -90,7 +91,7 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
             GL.CreateTextures(TextureTarget.Texture2DArray, 1, out sourceId);
             GL.TextureStorage3D(sourceId, 4, SizedInternalFormat.Rgba8, 8, 8, 4);
             using var source = new BorrowedTexture(sourceId);
-            using var view = GpuTextureView.CreateFromTexture(source, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba8, 0, 1, 0, 2);
+            using var view = RHICommandContext.Current.CreateTextureView(new RHITextureViewDescription { Source = source, Dimension = RHITextureDimension.TwoArray, Format = RHIFormat.Rgba8, BaseMip = 0, MipCount = 1, BaseLayer = 0, LayerCount = 2, Label = null }).RequireResource();
             var sourceEntry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(source)!;
             ulong sourceRevision = sourceEntry.MetadataRevision;
             DefineView(false, view.TextureId, source.TextureId);
@@ -103,7 +104,7 @@ public sealed class GpuTextureViewInterceptionTests(HeadlessGLFixture fixture)
             Assert.Equal(sourceRevision, sourceEntry.MetadataRevision);
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteTexture(sourceId); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.OpenGL.DeleteTexture(sourceId); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
 
