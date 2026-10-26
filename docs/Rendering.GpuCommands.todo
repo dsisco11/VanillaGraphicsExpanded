@@ -50,10 +50,11 @@ Scope and implementation boundaries
   - No worker scheduling, asynchronous submission, shared-context execution, nested lists, cross-list
     scheduler, second backend, shader translation, render graph, global PSO cache or automatic sharing.
   - No new game launch or visual acceptance by the agent. Delegate all build/test execution to subagents.
-    DEBUG-only diagnostics; no instrumented Release product. Keep measured CPU results separate from
-    GPU/frame-time and user-run visual evidence.
+    DEBUG-only diagnostics; no instrumented Release product. No performance baseline, benchmark,
+    timing study or measured performance acceptance is required. Preserve efficient execution through
+    storage reuse, binding suppression and avoidance of redundant queries or unnecessary allocations.
   - No architectural decisions remain open. Concrete API spelling, typed-page sizing and pooling are
-    implementation details subject to the approved contracts and measurements, not scope expansion.
+    implementation details subject to the approved contracts, not measurement gates or scope expansion.
 
 Phase 1: Establish final contracts and migration dependency closure
   Outcome: the final API model and explicit migration units are defined before replacing execution.
@@ -204,7 +205,7 @@ Phase 5: Replace shader, pipeline and immediate rendering as one integration uni
     before mutation; reject undeclared operations before dispatch. Restore on success/failure and retain
     existing usage/reentry guards. Compute and graphics share the context; renderers only orchestrate.
   ☐ Reconcile separately scheduled PSO multi-bind work with the current checkout: use core 4.5 multi-bind
-    and existing slot knowledge, with singles for semantic eligibility/measured policy, not old contexts.
+    and existing slot knowledge, with singles for semantic eligibility/batching policy, not old contexts.
     Do not reimplement separately completed work or retain its older-context fallback after migration.
   ☐ Migrate all affected renderers, shader owners and external integration callers directly. In particular,
     preserve direct-lighting geometry, depth hierarchy dispatch→barriers→tail transfers→publication,
@@ -274,28 +275,26 @@ Phase 7: Finish the cache split and reconcile architecture documentation
   ☐ Completion: final source audit finds no internal execution bypass, duplicate authority, temporary shim,
     obsolete capability path or old context/cache alias. Documentation describes implemented contracts.
 
-Phase 8: Qualify integrated behavior, cost and release artifacts
+Phase 8: Qualify integrated behavior and release artifacts
   Depends on Phase 7.
-  Outcome: correctness, measured costs, package identity and outstanding live evidence are explicit.
+  Outcome: correctness, package identity and outstanding live evidence are explicit.
 
   ☐ Run delegated focused and integrated regressions on an immutable candidate, covering all family receipts,
     original-context retirement, aliases/views, local tools, context loss, rejected commands, exactly-once
     external calls and immediate/recorded equivalence. Keep hardware coverage gaps explicit.
   ☐ Run canonical Debug/Release build and package tooling through subagents; verify installed/package
     identity where the repository workflow requires it. Confirm diagnostic counters remain DEBUG-only.
-    Do not create an instrumented Release product to obtain measurements.
-  ☐ Measure unchanged/changed/sparse bindings, small/large payloads and representative cloud/depth passes:
-    baseline versus immediate facade versus recorded submission CPU cost, allocations/retained capacity,
-    native bindings, metadata queries and publication counts. Separate preparation/copy/record/validate/
-    dispatch costs; choose page sizes/pooling from evidence without claiming frame-time improvement.
-  ☐ Record whether CPU recording offers enough parallelizable work to justify a future proposal, without
-    adding workers, async submission or concurrency qualification to this implementation.
+    Do not create an instrumented Release product.
+  ☐ Review storage reuse and allocation sites; verify immediate calls need no recording allocation and
+    recording requires no per-command heap object. Use focused behavioral checks for stable binding
+    suppression and reuse of available metadata without redundant queries. No timing thresholds or
+    before/after benchmark comparison are required for completion.
   ☐ Provide a user-run visual/runtime checklist for graphics, compute, cloud/depth content ordering,
-    resize, shader reload and teardown. Record actual user evidence separately from headless tests and
-    CPU measurements; leave live appearance/performance acceptance unchecked until supplied.
+    resize, shader reload and teardown. Record actual user evidence separately from headless tests;
+    leave live appearance/runtime-behavior acceptance unchecked until supplied.
   ☐ Reconcile every proposal requirement with implementation and evidence; resolve deviations or obtain
     explicit scope approval rather than declaring unimplemented requirements complete.
-  ☐ Completion: all required correctness/package/measurement receipts and user-run acceptance are recorded;
+  ☐ Completion: all required correctness/package receipts and user-run acceptance are recorded;
     remaining unsupported hardware evidence is disclosed, and no unapproved architecture deviation remains.
 
 Final acceptance
@@ -305,8 +304,8 @@ Final acceptance
     one execution owner with existing manager metadata/lifetime authority and preserved cache behavior.
   ☐ GraphicsCommandContext and StateCache's old execution/name surfaces are gone; shader/PSO, geometry,
     targets, uniforms, synchronization and recording follow the approved final contracts.
-  ☐ Tests, current-state docs, package verification, measurements and user-run evidence support the claimed
-    outcome without claiming unmeasured GPU performance or treating headless results as visual acceptance.
+  ☐ Tests, current-state docs, package verification and user-run evidence support the claimed outcome
+    without performance claims or treating headless results as visual acceptance.
 
 Proposal coverage map
   Boundary, operations, capabilities and resource inputs: Phases 1–5; final cache split in Phase 7.
@@ -316,5 +315,5 @@ Proposal coverage map
   Uniform capture, physical publication and history: Phase 5; recording/epoch/cancellation tests in 6.
   Recording, ownership transfer, tickets, failure and CPU/GPU completion: Phases 4/6.
   Native dispatch, publication, exact integration and no-shim migration: mandatory receipts, Phases 2–7.
-  Representative outcomes, baseline comparison, package and user-run qualification: Phase 8, supported
+  Representative outcomes, efficient-execution checks, package and user-run qualification: Phase 8, supported
     by focused verification and current-state documentation in every owning migration unit.

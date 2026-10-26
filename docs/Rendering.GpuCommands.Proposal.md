@@ -376,8 +376,8 @@ design decisions, not implied by enabling CPU-only parallel recording.
 Record commands in reusable typed payload pages with an ordered `RHICommand` header stream. Store
 managed references in list-owned tables, not an unmanaged union. Copy spans/arrays and mutable binding
 descriptions at recording; freeze immutable executable/descriptive objects by retaining them. Do not
-record closures or require one heap object per command. Pooling is a candidate implementation to measure,
-not a performance claim. Immediate calls need no recording allocation.
+record closures or require one heap object per command. Reuse storage where ownership permits; page sizes
+and pooling are implementation choices, not benchmark gates. Immediate calls need no recording allocation.
 
 References retain wrappers but do not prevent explicit disposal or replacement. Resolve current resource
 identity and metadata at execution, consistent with `GpuTextureRef`: an intentional owner replacement
@@ -563,7 +563,7 @@ storage, list lifecycle, core operation families and optional extension modules 
 Other backends implement the semantic interface; optional features can reject unsupported requests.
 No second backend, shader-language translation, render graph or global resource-model rewrite is proposed.
 PSO multi-bind fits inside the binding backend using baseline support and existing slot knowledge;
-individual calls remain useful for ineligible semantics or measured batching policy, not older contexts.
+individual calls remain useful for ineligible semantics or batching policy, not older contexts.
 This design does not require multi-bind to wait for deferred recording. The separately scheduled PSO
 work may precede this backend migration; its existing-runtime capability path is removed when that family
 is replaced under the 4.5 contract.
@@ -620,21 +620,18 @@ Verify borrowing versus explicit ownership transfer, available-alias reuse, repl
 dependencies. Assert public callers cannot obtain provisional identity or perform metadata handoff,
 and distinguish usable creation from GPU completion and producer content readiness.
 
-Measure immediate baseline versus command facade and recorded submission: CPU time per operation/list,
-recording allocation bytes, retained capacity, native binds, metadata queries and publication counts.
-Use unchanged/changed/sparse binding sets, small/large payloads and representative cloud/depth passes.
-Reuse stable snapshots without added queries; measure dispatch overhead before selecting page sizes or
-pooling policy. No promised frame-time gain. Debug instrumentation remains DEBUG-only; no instrumented
-Release product variant. Future implementation qualification includes delegated regression tests,
+Design for efficient execution: reuse stable snapshots without added queries, preserve binding suppression,
+avoid unnecessary allocations and keep immediate execution free of recording storage. Use focused source
+checks and behavioral tests to guard these properties. Performance baselines, benchmarks, timing studies
+and measured performance acceptance are not requirements of this implementation. Debug instrumentation
+remains DEBUG-only; no instrumented Release product variant. Qualification includes delegated regression tests,
 canonical build/package identity and user-run visual checks, distinct from this document review.
 
 Verify recording with no current native context and supplied inputs only; verify closing prevents further
 mutation and that reset/cancellation release retained CPU data without native work. These checks establish
-the recording boundary, not full concurrent execution qualification. Before proposing worker recording,
-measure preparation, payload copying, recording, validation and native dispatch separately. Compare the
-parallelizable portion against scheduling, handoff and ordering costs; command recording alone may be
-too cheap to justify workers. Add concurrency integration and its race/lifetime tests only when those
-measurements justify it and that additional scope is approved. No CPU-time result alone proves a frame-time gain.
+the recording boundary, not full concurrent execution qualification. Worker recording and concurrency
+integration remain separate design decisions requiring additional approval and their own race/lifetime
+tests; this implementation does not require a performance study to assess that future work.
 
 ## Approval and controlling contracts
 
@@ -643,7 +640,7 @@ single-use recorded lists and the required context-independent recording contrac
 operations; direct OpenGL 4.5 execution with explicit optional features; existing manager publication
 and error policy.
 These choices are proposed together for review. No unresolved external specification blocks the design;
-API naming and measured storage tuning remain implementation details, not permission to change semantics.
+API naming and storage sizing/pooling remain implementation details, not permission to change semantics.
 
 Current authority: [GPU resources](Rendering.GpuResources.md),
 [prepared resource submission](Rendering.ShaderBindingState.md#prepared-resource-submission),
