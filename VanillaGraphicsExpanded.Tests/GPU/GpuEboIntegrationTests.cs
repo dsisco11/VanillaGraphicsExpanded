@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -34,7 +35,7 @@ public class GpuEboIntegrationTests : IDisposable
         _fixture.EnsureContextValid();
 
         // Act
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Assert
         Assert.True(ebo.IsValid);
@@ -55,7 +56,7 @@ public class GpuEboIntegrationTests : IDisposable
         _fixture.EnsureContextValid();
 
         // Act
-        using var ebo = GpuEbo.Create(BufferUsageHint.DynamicDraw);
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
 
         // Assert
         Assert.True(ebo.IsValid);
@@ -73,7 +74,7 @@ public class GpuEboIntegrationTests : IDisposable
         const string debugName = "TestEBO";
 
         // Act
-        using var ebo = GpuEbo.Create(debugName: debugName);
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = debugName }).RequireResource();
 
         // Assert
         Assert.True(ebo.IsValid);
@@ -89,7 +90,7 @@ public class GpuEboIntegrationTests : IDisposable
         var usage = BufferUsageHint.StreamDraw;
 
         // Act
-        using var ebo = GpuEbo.Create(usage, debugName);
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Usage(usage), Label = debugName }).RequireResource();
 
         // Assert
         Assert.True(ebo.IsValid);
@@ -108,8 +109,8 @@ public class GpuEboIntegrationTests : IDisposable
         _fixture.EnsureContextValid();
 
         // Act
-        using var ebo1 = GpuEbo.Create();
-        using var ebo2 = GpuEbo.Create();
+        using var ebo1 = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var ebo2 = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Assert
         Assert.NotEqual(ebo1.BufferId, ebo2.BufferId);
@@ -126,7 +127,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         uint[] indices = { 0, 1, 2, 3, 4, 5 };
 
         // Act
@@ -144,7 +145,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => ebo.UploadIndices((uint[])null!));
@@ -155,7 +156,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         uint[] indices = { 0, 1, 2 };
 
         // Act
@@ -172,7 +173,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act
         bool result = ebo.TryUploadIndices((uint[])null!);
@@ -187,7 +188,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         uint[] indices = { 0, 1, 2, 3 };
         ReadOnlySpan<uint> span = indices.AsSpan();
 
@@ -205,7 +206,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         uint[] indices = { 0, 1, 2 };
         ReadOnlySpan<uint> span = indices.AsSpan();
 
@@ -227,7 +228,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         ushort[] indices = { 0, 1, 2, 3, 4, 5 };
 
         // Act
@@ -245,7 +246,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => ebo.UploadIndices((ushort[])null!));
@@ -256,7 +257,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         ushort[] indices = { 0, 1, 2 };
 
         // Act
@@ -273,7 +274,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act
         bool result = ebo.TryUploadIndices((ushort[])null!);
@@ -288,7 +289,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         ushort[] indices = { 0, 1, 2, 3 };
         ReadOnlySpan<ushort> span = indices.AsSpan();
 
@@ -306,7 +307,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         ushort[] indices = { 0, 1, 2 };
         ReadOnlySpan<ushort> span = indices.AsSpan();
 
@@ -328,7 +329,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         byte[] indices = { 0, 1, 2, 3, 4, 5 };
 
         // Act
@@ -346,7 +347,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act & Assert
         Assert.Throws<ArgumentNullException>(() => ebo.UploadIndices((byte[])null!));
@@ -357,7 +358,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         byte[] indices = { 0, 1, 2 };
 
         // Act
@@ -374,7 +375,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act
         bool result = ebo.TryUploadIndices((byte[])null!);
@@ -389,7 +390,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         byte[] indices = { 0, 1, 2, 3 };
         ReadOnlySpan<byte> span = indices.AsSpan();
 
@@ -407,7 +408,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         byte[] indices = { 0, 1, 2 };
         ReadOnlySpan<byte> span = indices.AsSpan();
 
@@ -429,7 +430,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         
         uint[] firstIndices = { 0, 1, 2 };
         ushort[] secondIndices = { 10, 11, 12, 13 };
@@ -452,7 +453,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         uint[] emptyIndices = Array.Empty<uint>();
 
         // Act
@@ -473,7 +474,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         
         // Don't upload data to avoid access violations - this will test early return
         const PrimitiveType primitiveType = PrimitiveType.Triangles;
@@ -490,7 +491,7 @@ public class GpuEboIntegrationTests : IDisposable
     public void DrawElements_WithCustomIndexCount_UsesSpecifiedCount()
     {
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         ebo.UploadIndices(new uint[] { 0, 1, 2, 3, 4, 5 });
         var harmony = new Harmony("Tests.EboCustomDrawCount");
         try
@@ -510,7 +511,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act & Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => 
@@ -522,7 +523,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act - Should return early due to zero index count
         ebo.DrawElements(PrimitiveType.Triangles);
@@ -537,7 +538,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         
         // Don't upload data to avoid access violations
         const PrimitiveType primitiveType = PrimitiveType.Triangles;
@@ -555,7 +556,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         uint[] indices = { 0, 1, 2 };
         ebo.UploadIndices(indices);
 
@@ -571,7 +572,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act & Assert
         Assert.Throws<ArgumentOutOfRangeException>(() => 
@@ -583,7 +584,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var ebo = GpuEbo.Create();
+        var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         ebo.Dispose();
 
         // Act - Should return early due to disposed state
@@ -603,7 +604,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var ebo = GpuEbo.Create();
+        var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         uint[] indices = { 0, 1, 2 };
         ebo.UploadIndices(indices);
         
@@ -633,7 +634,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var ebo = GpuEbo.Create();
+        var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         uint[] indices = { 0, 1, 2 };
         ebo.UploadIndices(indices);
 
@@ -653,7 +654,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         const string newDebugName = "UpdatedEBO";
 
         // Act
@@ -668,7 +669,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create(debugName: "Initial");
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Initial" }).RequireResource();
 
         // Act
         ebo.SetDebugName(null);
@@ -682,7 +683,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var ebo = GpuEbo.Create();
+        var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         uint[] indices = { 0, 1, 2 };
         ebo.UploadIndices(indices);
 
@@ -707,7 +708,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var ebo = GpuEbo.Create();
+        var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         ebo.Dispose();
         
         uint[] indices = { 0, 1, 2 };
@@ -734,7 +735,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create(BufferUsageHint.DynamicDraw, "TestEBO");
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "TestEBO" }).RequireResource();
         uint[] indices = { 0, 1, 2 };
         ebo.UploadIndices(indices);
 
@@ -757,7 +758,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var ebo = GpuEbo.Create(debugName: "TestEBO");
+        var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "TestEBO" }).RequireResource();
         uint[] indices = { 0, 1, 2 };
         ebo.UploadIndices(indices);
         ebo.Dispose();
@@ -781,7 +782,7 @@ public class GpuEboIntegrationTests : IDisposable
         _fixture.EnsureContextValid();
 
         // Act
-        using var ebo = GpuEbo.Create(usage);
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Usage(usage), Label = null }).RequireResource();
 
         // Assert
         Assert.True(ebo.IsValid);
@@ -799,7 +800,7 @@ public class GpuEboIntegrationTests : IDisposable
         string longName = new string('E', 1000);
 
         // Act
-        using var ebo = GpuEbo.Create(debugName: longName);
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = longName }).RequireResource();
 
         // Assert
         Assert.Equal(longName, ebo.DebugName);
@@ -815,7 +816,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act & Assert - Should not throw
         ebo.Bind();
@@ -832,7 +833,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         const int expectedSize = 1024;
 
         // Act
@@ -848,7 +849,7 @@ public class GpuEboIntegrationTests : IDisposable
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act
         bool result = ebo.TryBind();

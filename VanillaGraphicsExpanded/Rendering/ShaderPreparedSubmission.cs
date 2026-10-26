@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -184,13 +185,13 @@ internal static class ShaderPreparedSubmission
     {
         if (!binding.Active) return;
         if (buffer?.IsValid == true) buffer.BindBase(binding.Contract.Binding.Slot);
-        else StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, binding.Contract.Binding.Slot, 0);
+        else OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer, binding.Contract.Binding.Slot, 0);
     }
     /// <summary>Leaves content upload and dirty-state commitment with the CPU block and ring owners.</summary>
     internal static void UniformBlock(GpuPreparedBindings.Entry binding, CpuUniformBuffer? buffer)
     {
         if (!binding.Active) return;
-        if (buffer == null) StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer, binding.Contract.Binding.Slot, 0);
+        if (buffer == null) OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer, binding.Contract.Binding.Slot, 0);
         else if (!buffer.TryBindToSlot(binding.Contract.Binding.Slot)) throw new InvalidOperationException($"Could not publish {binding.Contract.Name}.");
     }
     /// <summary>Publishes or clears a complete storage allocation.</summary>
@@ -198,22 +199,22 @@ internal static class ShaderPreparedSubmission
     {
         if (!binding.Active) return;
         if (buffer?.IsValid == true) buffer.BindBase(binding.Contract.Binding.Slot);
-        else StateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, 0);
+        else OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, 0);
     }
     /// <summary>Publishes the initialized storage range or clears optional absent storage.</summary>
     internal static void StorageBlock(GpuPreparedBindings.Entry binding, GpuStorageBufferBinding range)
     {
         if (!binding.Active) return;
         if (range.Buffer?.IsValid == true)
-            StateCache.Current.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, range.Buffer.BufferId, range.OffsetBytes, range.SizeBytes);
-        else StateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, 0);
+            OpenGLBufferBindings.BindBufferRange(StateCache.Current, BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, range.Buffer.BufferId, range.OffsetBytes, range.SizeBytes);
+        else OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.ShaderStorageBuffer, binding.Contract.Binding.Slot, 0);
     }
     /// <summary>Publishes counter storage without repeating executable inspection.</summary>
     internal static void AtomicCounter(GpuPreparedBindings.Entry binding, GpuAtomicCounterBuffer? buffer)
     {
         if (!binding.Active) return;
         if (buffer?.IsValid == true) buffer.BindBase(binding.Contract.Binding.Slot);
-        else StateCache.Current.BindBufferBase(BufferRangeTarget.AtomicCounterBuffer, binding.Contract.Binding.Slot, 0);
+        else OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.AtomicCounterBuffer, binding.Contract.Binding.Slot, 0);
     }
     #endregion
     #endregion

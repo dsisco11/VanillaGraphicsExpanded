@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Runtime.InteropServices;
 using System.Runtime.CompilerServices;
@@ -105,8 +106,8 @@ internal sealed class LumonSceneWorkQueueGpu<T> : IDisposable where T : unmanage
     private readonly string debugName;
     private readonly int capacityItems;
 
-    private readonly BufferUsageHint counterUsage;
-    private readonly BufferUsageHint itemsUsage;
+    private readonly RHIBufferUsage counterUsage;
+    private readonly RHIBufferUsage itemsUsage;
 
     private GpuAtomicCounterBuffer? counter;
     private GpuShaderStorageBuffer? items;
@@ -119,8 +120,8 @@ internal sealed class LumonSceneWorkQueueGpu<T> : IDisposable where T : unmanage
     public LumonSceneWorkQueueGpu(
         string debugName,
         int capacityItems,
-        BufferUsageHint counterUsage = BufferUsageHint.DynamicDraw,
-        BufferUsageHint itemsUsage = BufferUsageHint.DynamicDraw)
+        RHIBufferUsage counterUsage = RHIBufferUsage.DynamicDraw,
+        RHIBufferUsage itemsUsage = RHIBufferUsage.DynamicDraw)
     {
         if (capacityItems <= 0) throw new ArgumentOutOfRangeException(nameof(capacityItems));
         this.debugName = debugName ?? throw new ArgumentNullException(nameof(debugName));
@@ -140,10 +141,10 @@ internal sealed class LumonSceneWorkQueueGpu<T> : IDisposable where T : unmanage
             return;
         }
 
-        counter ??= GpuAtomicCounterBuffer.Create(counterUsage, debugName: $"{debugName}.Counter(ACBO)");
+        counter ??= RHICommandContext.Current.CreateAtomicCounterBuffer(new RHIBufferDescription { Role = RHIBufferRole.AtomicCounter, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = counterUsage, Label = $"{debugName}.Counter(ACBO)" }).RequireResource();
         counter.InitializeCounters(counterCount: 1, initialValue: 0);
 
-        items ??= GpuShaderStorageBuffer.Create(itemsUsage, debugName: $"{debugName}.Items(SSBO)");
+        items ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = itemsUsage, Label = $"{debugName}.Items(SSBO)" }).RequireResource();
         int bytes = checked(capacityItems * Unsafe.SizeOf<T>());
         items.EnsureCapacity(bytes, growExponentially: false);
     }

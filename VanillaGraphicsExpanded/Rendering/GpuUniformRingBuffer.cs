@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 
@@ -137,7 +138,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
         this.debugName = debugName;
 
         GpuSupport.EnsureCurrentContext();
-        usePersistent = preferPersistent && GpuSupport.SupportsArbBufferStorage;
+        usePersistent = preferPersistent;
 
         pages = new GpuUniformBuffer[pageCount];
         mappedBases = new IntPtr[pageCount];
@@ -145,7 +146,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
 
         for (int i = 0; i < pageCount; i++)
         {
-            pages[i] = GpuUniformBuffer.Create(usage: BufferUsageHint.StreamDraw, debugName: $"{debugName}.Page{i}");
+            pages[i] = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = $"{debugName}.Page{i}" }).RequireResource();
             mappedBases[i] = IntPtr.Zero;
         }
 
@@ -259,8 +260,7 @@ internal sealed class GpuUniformRingBuffer : IDisposable
 
             if (!coherent)
             {
-                using var scope = page.BindScope();
-                GL.FlushMappedBufferRange(BufferTarget.UniformBuffer, (IntPtr)offset, data.Length);
+                RHICommandContext.Current.FlushMappedBuffer(page, offset, data.Length);
             }
         }
         else
@@ -342,24 +342,22 @@ internal sealed class GpuUniformRingBuffer : IDisposable
                 continue;
             }
 
-            using var scope = page.BindScope();
-
-            BufferStorageFlags storageFlags = BufferStorageFlags.MapWriteBit | BufferStorageFlags.MapPersistentBit | BufferStorageFlags.DynamicStorageBit;
-            MapBufferAccessMask mapFlags = MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapPersistentBit;
+            RHIStorageAccess storageFlags = RHIStorageAccess.Write | RHIStorageAccess.Persistent | RHIStorageAccess.DynamicUpdates;
+            RHIBufferMapAccess mapFlags = RHIBufferMapAccess.Write | RHIBufferMapAccess.Persistent;
 
             if (coherent)
             {
-                storageFlags |= BufferStorageFlags.MapCoherentBit;
-                mapFlags |= MapBufferAccessMask.MapCoherentBit;
+                storageFlags |= RHIStorageAccess.Coherent;
+                mapFlags |= RHIBufferMapAccess.Coherent;
             }
             else
             {
-                mapFlags |= MapBufferAccessMask.MapFlushExplicitBit;
+                mapFlags |= RHIBufferMapAccess.ExplicitFlush;
             }
 
-            StateCache.Current.BufferStorage(page, pageSizeBytes, IntPtr.Zero, storageFlags);
+            RHICommandContext.Current.AllocateImmutableBuffer(page, pageSizeBytes, storageFlags);
 
-            IntPtr ptr = GL.MapBufferRange(BufferTarget.UniformBuffer, IntPtr.Zero, pageSizeBytes, mapFlags);
+            IntPtr ptr = RHICommandContext.Current.MapBuffer(page, 0, pageSizeBytes, mapFlags);
             if (ptr == IntPtr.Zero)
             {
                 throw new InvalidOperationException("glMapBufferRange returned NULL for persistent UBO ring page.");

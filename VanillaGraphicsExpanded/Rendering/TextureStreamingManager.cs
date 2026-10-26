@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Buffers;
 using System.Collections.Concurrent;
@@ -1986,7 +1988,7 @@ internal sealed class TextureStreamingManager : IDisposable
         TextureUploadRequest request = prepared.Request;
 
         StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, request.TextureId);
-        StateCache.Current.BindBuffer(BufferTarget.PixelUnpackBuffer, pboUpload.BufferId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.PixelUnpackBuffer, pboUpload.BufferId);
 
         try
         {
@@ -1995,7 +1997,7 @@ internal sealed class TextureStreamingManager : IDisposable
         }
         finally
         {
-            StateCache.Current.BindBuffer(BufferTarget.PixelUnpackBuffer, 0);
+            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.PixelUnpackBuffer, 0);
             StateCache.Current.BindTextureOnActiveUnit(request.Target.BindTarget, 0);
         }
     }
@@ -2167,7 +2169,7 @@ internal sealed class TextureStreamingManager : IDisposable
             this.alignment = Math.Max(1, alignment);
             this.coherent = coherent;
 
-            buffer = GpuPixelUnpackBuffer.Create(debugName: "VGE_TextureStreaming_PersistentPboRing");
+            buffer = RHICommandContext.Current.CreatePixelUnpackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelUnpack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_TextureStreaming_PersistentPboRing" }).RequireResource();
             mappedPtr = buffer.AllocateAndMapPersistent(bufferSizeBytes, coherent);
 
             if (mappedPtr == IntPtr.Zero)
@@ -2398,7 +2400,7 @@ internal sealed class TextureStreamingManager : IDisposable
 
             for (int i = 0; i < slots.Length; i++)
             {
-                var buffer = GpuPixelUnpackBuffer.Create(BufferUsageHint.StreamDraw, debugName: $"VGE_TextureStreaming_TriplePbo_{i}");
+                var buffer = RHICommandContext.Current.CreatePixelUnpackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelUnpack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = $"VGE_TextureStreaming_TriplePbo_{i}" }).RequireResource();
                 buffer.AllocateOrphan(bufferSizeBytes);
 
                 slots[i] = new PboSlot(buffer);
@@ -2437,7 +2439,7 @@ internal sealed class TextureStreamingManager : IDisposable
             IntPtr ptr = buffer.MapRange(
                 offsetBytes: 0,
                 byteCount: prepared.ByteCount,
-                access: MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit);
+                access: RHIBufferMapAccess.Write | RHIBufferMapAccess.InvalidateBuffer);
 
             if (ptr == IntPtr.Zero)
             {
@@ -2487,7 +2489,7 @@ internal sealed class TextureStreamingManager : IDisposable
             IntPtr ptr = buffer.MapRange(
                 offsetBytes: 0,
                 byteCount: byteCount,
-                access: MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit);
+                access: RHIBufferMapAccess.Write | RHIBufferMapAccess.InvalidateBuffer);
 
             if (ptr == IntPtr.Zero)
             {

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -23,7 +24,7 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
         GpuResourceManagerSystem.Initialize(manager);
         try
         {
-            using var buffer = GpuShaderStorageBuffer.Create(); buffer.Allocate(16);
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(16);
             using var texture = DynamicTexture3D.Create(4, 4, 2, PixelInternalFormat.Rgba8, immutableStorage: true);
             using var program = GpuProgramObject.Create();
             using var vao = GpuVao.Create();
@@ -57,7 +58,7 @@ public sealed class GpuResourceOperationContextTests(HeadlessGLFixture fixture)
             {
                 current = (origin.Handle, origin.Generation + 1);
                 attempt();
-                Assert.Throws<InvalidOperationException>(() => StateCache.Current.TryNamedBufferData(buffer, 64, IntPtr.Zero, BufferUsageHint.DynamicDraw));
+                Assert.Throws<InvalidOperationException>(() => GpuBufferUploader.Allocate(buffer, 64, IntPtr.Zero, RHIBufferUsage.DynamicDraw));
                 Assert.Throws<InvalidOperationException>(() => GpuTextureView.CreateFromTexture(texture, TextureTarget.Texture2DArray, PixelInternalFormat.Rgba8, 0, 1, 0, 1));
                 current = origin;
             }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -116,7 +117,7 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
             cache.InvalidateAll();
             cache.BindVertexArray(vao);
             Assert.Equal(buffer, cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
-            cache.BindBuffer(BufferTarget.ElementArrayBuffer, 0);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, 0);
             Assert.Equal(0, GL.GetInteger(GetPName.ElementArrayBufferBinding));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
@@ -146,8 +147,8 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
             /// <summary>Applies the indexed binding variant exercised by this case.</summary>
             void Bind()
             {
-                if (range) cache.BindBufferRange(BufferRangeTarget.UniformBuffer, 0, first, 0, 16);
-                else cache.BindBufferBase(BufferRangeTarget.UniformBuffer, 0, first);
+                if (range) OpenGLBufferBindings.BindBufferRange(cache, BufferRangeTarget.UniformBuffer, 0, first, 0, 16);
+                else OpenGLBufferBindings.BindBufferBase(cache, BufferRangeTarget.UniformBuffer, 0, first);
             }
             Bind();
 #if DEBUG
@@ -157,7 +158,7 @@ public sealed class BindingSuppressionTests(HeadlessGLFixture fixture)
 #if DEBUG
             Assert.Equal(calls, cache.ResourceSlotBindCount);
 #endif
-            cache.BindBuffer(BufferTarget.UniformBuffer, second);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.UniformBuffer, second);
             Bind();
 #if DEBUG
             Assert.Equal(calls + 1, cache.ResourceSlotBindCount);

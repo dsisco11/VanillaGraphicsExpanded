@@ -99,7 +99,9 @@ helper assumptions; it does not introduce a full layout mirror. P1 refreshes nat
 invalidates derived preparation. L1 retires entries/aliases and reconciles affected dependencies. I1
 applies those same destinations only where their execution has a represented metadata effect.
 
-Every route is native command -> StateCache observation -> context's GpuResourceManager -> canonical
+Buffer dispatch and exact forwarding live under `Rendering/RHI/Backends/OpenGL/Buffers`; StateCache
+retains selector knowledge and operation reconciliation. Other families still dispatch through StateCache.
+Every route is native command -> existing observation/publication services -> context's GpuResourceManager -> canonical
 struct update -> typed wrapper snapshots -> existing dependent validation/publication. Read canonical
 facts once per change, not once per wrapper. Texture and renderbuffer changes also project selected
 GpuImageMetadata to associated framebuffer images. Each kind has one canonical struct even when several

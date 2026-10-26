@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using System.Collections.Immutable;
 using System.Reflection;
@@ -214,7 +215,7 @@ public sealed class CelestialDrawTests(HeadlessGLFixture fixture) : LumOnShaderF
             [transmission.X,transmission.Y,transmission.Z,1,transmission.X,transmission.Y,transmission.Z,1]);
         shader.ExternalTransmission=table??extinction;
         Vector3 direction=Vector3.Normalize(new((centre.X/size*2-1)/projection.M11,(centre.Y/size*2-1)/projection.M22,behind?1:-1));
-        using var buffer=GpuVbo.Create();
+        using var buffer=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.UploadData(Enumerable.Range(0,count).SelectMany(_=>new[]{new Vector4(direction,.001f),new Vector4(1,.5f,.25f,0)}).ToArray());
         using var geometry=new ArrayGraphicsGeometry(CelestialStarGeometry.Layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>{[0]=buffer});
         float[] data=Draw(shader,geometry,CelestialStarGeometry.Layout,size,count);

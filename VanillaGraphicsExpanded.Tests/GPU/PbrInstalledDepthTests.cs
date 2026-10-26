@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -27,7 +28,7 @@ public sealed class PbrInstalledDepthTests(HeadlessGLFixture fixture) : RenderTe
         int fragment = shaders.Compile(ShaderType.FragmentShader, PbrSurfaceInstalledShaderTests.Build("standard.fsh", 0, oit, ssao, 0, offsetVariant));
         using var program = GpuProgramObject.Adopt(TerrainShaderTestFixture.Link(vertex, fragment));
         using var vao = GpuVao.Create();
-        using var vertices = GpuVbo.Create();
+        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         using var framework = new ShaderTestFramework();
         using var texture = framework.CreateTexture(1, 1, PixelInternalFormat.Rgba32f, [1f, .25f, .1f, 1f]);
         using var color = DynamicTexture2D.Create(1, 1, PixelInternalFormat.Rgba32f);

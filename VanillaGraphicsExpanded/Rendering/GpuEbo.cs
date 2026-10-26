@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -16,20 +17,15 @@ internal sealed class GpuEbo : GpuBufferObject
     public int IndexCount => indexCount;
     public DrawElementsType IndexType => indexType;
 
-    /// <summary>Declares buffer policy before manager-owned native creation.</summary>
-    private GpuEbo(BufferUsageHint usage, string? debugName)
+    /// <summary>Declares index-buffer policy without native allocation or publication.</summary>
+    internal GpuEbo(RHIBufferUsage usage, string? debugName)
     {
         target = BufferTarget.ElementArrayBuffer;
         allocationUsage = usage;
         this.debugName = debugName;
     }
 
-    public static GpuEbo Create(BufferUsageHint usage = BufferUsageHint.StaticDraw, string? debugName = null)
-    {
-        var buffer = new GpuEbo(usage, debugName);
-        buffer.InitializeNativeBuffer();
-        return buffer;
-    }
+
 
     public void UploadIndices(uint[] indices)
     {

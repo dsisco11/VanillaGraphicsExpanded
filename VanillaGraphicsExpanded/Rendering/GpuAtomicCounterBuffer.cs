@@ -1,4 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 
 using OpenTK.Graphics.OpenGL;
@@ -12,24 +14,14 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuAtomicCounterBuffer : GpuBufferObject
 {
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
-    private GpuAtomicCounterBuffer(BufferUsageHint usage, string? debugName)
+    internal GpuAtomicCounterBuffer(RHIBufferUsage usage, string? debugName)
     {
         target = BufferTarget.AtomicCounterBuffer;
         allocationUsage = usage;
         this.debugName = debugName;
     }
 
-    /// <summary>
-    /// Creates a new atomic counter buffer object name and wraps it in an RAII instance.
-    /// </summary>
-    public static GpuAtomicCounterBuffer Create(
-        BufferUsageHint usage = BufferUsageHint.DynamicDraw,
-        string? debugName = null)
-    {
-        var buffer = new GpuAtomicCounterBuffer(usage, debugName);
-        buffer.InitializeNativeBuffer();
-        return buffer;
-    }
+
 
     /// <summary>
     /// Allocates and initializes the buffer with <paramref name="counterCount"/> 32-bit counters.
@@ -77,7 +69,7 @@ internal sealed class GpuAtomicCounterBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        StateCache.Current.BindBufferBase(BufferRangeTarget.AtomicCounterBuffer, bindingIndex, bufferId);
+        RHICommandContext.Current.BindBufferBase(RHIBufferRole.AtomicCounter, bindingIndex, this);
     }
 
     /// <summary>
@@ -101,7 +93,7 @@ internal sealed class GpuAtomicCounterBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(offsetBytes), "Offset must be >= 0 and size must be > 0.");
         }
 
-        StateCache.Current.BindBufferRange(BufferRangeTarget.AtomicCounterBuffer, bindingIndex, bufferId, offsetBytes, sizeBytes);
+        RHICommandContext.Current.BindBufferRange(RHIBufferRole.AtomicCounter, bindingIndex, this, offsetBytes, sizeBytes);
     }
 
     /// <summary>
@@ -114,6 +106,6 @@ internal sealed class GpuAtomicCounterBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        StateCache.Current.UnbindBufferBase(BufferRangeTarget.AtomicCounterBuffer, bindingIndex);
+        RHICommandContext.Current.BindBufferBase(RHIBufferRole.AtomicCounter, bindingIndex, default);
     }
 }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Threading;
 
@@ -38,7 +39,7 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
             {
             }
 
-            var vbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_Test_DisposeQueue_VBO");
+            var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_Test_DisposeQueue_VBO" }).RequireResource();
             int id = vbo.BufferId;
 
             Assert.True(id != 0);
@@ -134,7 +135,7 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
         try
         {
             manager.OnRenderFrame(0, GpuResourceManager.Stage);
-            var buffer = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw);
+            var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = null }).RequireResource();
             buffer.Bind(); buffer.Unbind(); id = buffer.BufferId;
             if (queued)
             {
@@ -146,7 +147,7 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
             manager.Dispose();
             // Registration changes emulate a reused namespace while keeping a live sentinel observable.
             Assert.True(GL.IsBuffer(id));
-            using (var current = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw))
+            using (var current = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = null }).RequireResource())
             {
                 current.Bind(); current.Unbind();
                 int currentId = current.BufferId;
@@ -159,7 +160,7 @@ public sealed class GpuResourceManagerDeletionQueueIntegrationTests
         {
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.Retire(replacement);
             VanillaGraphicsExpanded.Rendering.Integration.RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            if (id != 0) StateCache.Current.DeleteBuffer(id);
+            if (id != 0) RHICommandContext.Current.OpenGL.DeleteBuffer(id);
             manager.Dispose(); GpuResourceManagerSystem.Shutdown(); TextureStreamingSystem.Dispose();
         }
     }

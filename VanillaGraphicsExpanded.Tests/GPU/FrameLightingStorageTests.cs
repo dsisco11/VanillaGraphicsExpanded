@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using System.Text.RegularExpressions;
 using VanillaGraphicsExpanded.PBR;
@@ -34,7 +35,7 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
         EnsureShaderTestAvailable();
         var program = Programs.CreateCompute(FrameLightingShaderProgram.Create);
         using var previous = ExposureTestStorage.Create(2);
-        using var output = GpuShaderStorageBuffer.Create(debugName: "Tests.FrozenLighting");
+        using var output = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.FrozenLighting" }).RequireResource();
         output.Allocate(32);
         program.PreviousExposure = previous; program.Output = output;
         program.Capture(0, .5f, true, 42, 7);
@@ -69,7 +70,7 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
         EnsureShaderTestAvailable();
         var program = Programs.CreateCompute(FrameLightingShaderProgram.Create);
         using var previous = ExposureTestStorage.Create(float.NaN);
-        using var output = GpuShaderStorageBuffer.Create(debugName: "Tests.BoundedLighting");
+        using var output = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.BoundedLighting" }).RequireResource();
         output.Allocate(32);
         program.PreviousExposure = previous; program.Output = output;
         float bound = LightingStorage.UpperBound(945821327.847);
@@ -100,7 +101,7 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         var program = Programs.CreateCompute(FrameLightingShaderProgram.Create);
-        using var output = GpuShaderStorageBuffer.Create(debugName: "Tests.RetentionBoundary");
+        using var output = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.RetentionBoundary" }).RequireResource();
         output.Allocate(32); program.Output = output;
         foreach(float camera in new[]{float.Epsilon,.001f,1f})
         foreach (float bound in new[] { 0f,945821327f,float.MaxValue })
@@ -120,7 +121,7 @@ public sealed class FrameLightingStorageTests(HeadlessGLFixture fixture) : LumOn
     {
         EnsureShaderTestAvailable();
         var freeze=Programs.CreateCompute(FrameLightingShaderProgram.Create);
-        using var output=GpuShaderStorageBuffer.Create(debugName:"Tests.HighlightContainment");
+        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.HighlightContainment" }).RequireResource();
         output.Allocate(32);freeze.Output=output;
         string directory=Path.Combine(AppContext.BaseDirectory,"assets/shaders/includes");
         using var modules=new TerrainShaderTestFixture();

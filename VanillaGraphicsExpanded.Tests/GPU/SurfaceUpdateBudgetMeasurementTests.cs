@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using System.Text.Json;
 using OpenTK.Graphics.OpenGL;
@@ -28,7 +29,7 @@ public sealed class SurfaceUpdateBudgetMeasurementTests(HeadlessGLFixture fixtur
             room.Diagnostics.Enabled=diagnosticsEnabled;
             using var seedTimer=GpuTimerQuery.Create();using var directTimer=GpuTimerQuery.Create();using var indirectTimer=GpuTimerQuery.Create();
             var timers=new[]{seedTimer,directTimer,indirectTimer};
-            using var seedWork=GpuShaderStorageBuffer.Create();using var directWork=GpuShaderStorageBuffer.Create();using var indirectWork=GpuShaderStorageBuffer.Create();
+            using var seedWork=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();using var directWork=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();using var indirectWork=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
             var storage=new[]{seedWork,directWork,indirectWork};foreach(var buffer in storage)buffer.EnsureCapacity(8<<4,growExponentially:false);
             // Warm all operation variants before timing; every leg starts with the same captured enclosure.
             foreach(uint operation in new uint[]{0,4,1})for(int warm=0;warm<8;warm++)

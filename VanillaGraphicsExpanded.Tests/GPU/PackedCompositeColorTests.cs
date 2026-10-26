@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Tests.GPU.Helpers;
@@ -39,8 +40,8 @@ public sealed class PackedCompositeColorTests(HeadlessGLFixture fixture) : LumOn
         using var lighting = LayeredTestTexture.Create(direct,specular,emission);
         using var surface = LayeredTestTexture.Create(normal,material,indirect);
         using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.R11fG11fB10f,PixelInternalFormat.Rgba16f,PixelInternalFormat.R32f);
-        using var positions = GpuVbo.Create(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
-        using var uv = GpuVbo.Create(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
+        using var positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
+        using var uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
         using var geometry = new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout, PrimitiveType.Triangles,
             new Dictionary<int,GpuVbo> { [0]=positions, [1]=uv });
         using var lifetime = new GraphicsPipelineLifetime();

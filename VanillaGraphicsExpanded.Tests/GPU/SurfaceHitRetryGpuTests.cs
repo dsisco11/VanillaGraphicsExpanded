@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
@@ -66,9 +67,9 @@ public sealed class SurfaceHitRetryGpuTests(HeadlessGLFixture fixture):RenderTes
         EnsureContextValid();using var room=new SurfaceLightingEnclosureFixture();room.Seed();room.WithholdPages();
         using var queue=Queue(pages:4);room.DispatchDiagnosticWork(1,rays:4,steps:256,hitRetries:queue,captureHitRetries:true);
         GpuTestFence.WaitForGpuOrSkip("Bounded retained hit capture");
-        using(var header=queue.MapRange<uint>(0,4,MapBufferAccessMask.MapReadBit))
+        using(var header=queue.MapRange<uint>(0,4,RHIBufferMapAccess.Read))
         { Assert.True(header.IsMapped);Assert.InRange(header.Span[0],1u,16u); }
-        using var guard=queue.MapRange<uint>(HeaderBytes+Capacity*RecordBytes,4,MapBufferAccessMask.MapReadBit);
+        using var guard=queue.MapRange<uint>(HeaderBytes+Capacity*RecordBytes,4,RHIBufferMapAccess.Read);
         Assert.True(guard.IsMapped);foreach(uint word in guard.Span)Assert.Equal(0xfeedabcdU,word);
         for(int page=0;page<4;page++)Assert.Equal(0,room.Read(room.Snapshot.IndirectIrradiance,page)[3]);
     }
@@ -81,11 +82,11 @@ public sealed class SurfaceHitRetryGpuTests(HeadlessGLFixture fixture):RenderTes
         using var queue=Queue();Assert.False(room.BounceSample(rays:4,steps:0,hitRetries:queue,captureHitRetries:true));
         GpuTestFence.WaitForGpuOrSkip("Incomplete retained geometry");
         uint count;
-        using(var header=queue.MapRange<uint>(0,4,MapBufferAccessMask.MapReadBit))
+        using(var header=queue.MapRange<uint>(0,4,RHIBufferMapAccess.Read))
         { Assert.True(header.IsMapped);count=header.Span[0]; }
         if(count>0)
         {
-            using var state=queue.MapRange<uint>(HeaderBytes+64,4,MapBufferAccessMask.MapReadBit);
+            using var state=queue.MapRange<uint>(HeaderBytes+64,4,RHIBufferMapAccess.Read);
             Assert.True(state.IsMapped);Assert.Equal(0u,state.Span[0]);
         }
     }
@@ -95,7 +96,7 @@ public sealed class SurfaceHitRetryGpuTests(HeadlessGLFixture fixture):RenderTes
     /// <summary>Allocates the production bounded record layout with a guard beyond all writable records.</summary>
     private static GpuShaderStorageBuffer Queue(uint pages=1)
     {
-        var buffer=GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw);
+        var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         var words=new uint[(HeaderBytes+Capacity*RecordBytes+16)>>2];words[1]=Capacity;words[2]=pages;words[3]=37;
         Array.Fill(words,0xfeedabcdU,words.Length-4,4);
         buffer.EnsureCapacity(words.Length<<2,growExponentially:false);buffer.UploadSubData<uint>(words,0,words.Length<<2);return buffer;
@@ -105,15 +106,15 @@ public sealed class SurfaceHitRetryGpuTests(HeadlessGLFixture fixture):RenderTes
     private static SurfaceFallbackResult Read(GpuShaderStorageBuffer queue)
     {
         GpuTestFence.WaitForGpuOrSkip("Retained geometric hit readback");
-        using(var header=queue.MapRange<uint>(0,4,MapBufferAccessMask.MapReadBit))
+        using(var header=queue.MapRange<uint>(0,4,RHIBufferMapAccess.Read))
         { Assert.True(header.IsMapped);Assert.Equal(1u,header.Span[0]); }
         SurfaceFallbackRequest request;
-        using(var record=queue.MapRange<SurfaceFallbackRequest>(HeaderBytes,1,MapBufferAccessMask.MapReadBit))
+        using(var record=queue.MapRange<SurfaceFallbackRequest>(HeaderBytes,1,RHIBufferMapAccess.Read))
         { Assert.True(record.IsMapped);request=record.Span[0]; }
         int count;
-        using(var state=queue.MapRange<uint>(HeaderBytes+64,4,MapBufferAccessMask.MapReadBit))
+        using(var state=queue.MapRange<uint>(HeaderBytes+64,4,RHIBufferMapAccess.Read))
         { Assert.True(state.IsMapped);Assert.Equal(1u,state.Span[0]);count=(int)state.Span[1]; }
-        using var hits=queue.MapRange<SurfaceLightingQuery>(HeaderBytes+80,count,MapBufferAccessMask.MapReadBit);
+        using var hits=queue.MapRange<SurfaceLightingQuery>(HeaderBytes+80,count,RHIBufferMapAccess.Read);
         Assert.True(hits.IsMapped);return new([new(request,0,count,true)],hits.Span.ToArray().ToImmutableArray(),[]);
     }
 

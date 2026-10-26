@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -45,9 +46,9 @@ public sealed class EngineBoundaryBindingTests(HeadlessGLFixture fixture)
             {
                 cache.BindTexture(TextureTarget.Texture2D, 2, 0); cache.BindSampler(2, 0);
                 cache.BindImageTexture(1, 0, 0, false, 0, TextureAccess.ReadOnly, SizedInternalFormat.Rgba8);
-                cache.BindBufferBase(BufferRangeTarget.UniformBuffer, 1, 0);
-                cache.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 2, 0);
-                cache.BindVertexArray(0); cache.BindBuffer(BufferTarget.ArrayBuffer, 0);
+                OpenGLBufferBindings.BindBufferBase(cache, BufferRangeTarget.UniformBuffer, 1, 0);
+                OpenGLBufferBindings.BindBufferBase(cache, BufferRangeTarget.ShaderStorageBuffer, 2, 0);
+                cache.BindVertexArray(0); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ArrayBuffer, 0);
                 cache.BindFramebuffer(FramebufferTarget.Framebuffer, 0);
                 if (invalidate) cache.Invalidate(EPipelineState.Bindings);
             });

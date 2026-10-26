@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Text.Json;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -80,7 +81,7 @@ public sealed class PsoStateRelevanceWorkloadTests(HeadlessGLFixture fixture, IT
         using var metadata = new RenderPassTargets(pass);
         var layout = new VertexLayoutDesc([new(0, 2, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 24),
             new(1, 4, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 8, 24)]);
-        using var buffer = GpuVbo.Create(); buffer.UploadData(new float[] { 3, 4, .75f, .125f, .5f, 1 });
+        using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.UploadData(new float[] { 3, 4, .75f, .125f, .5f, 1 });
         using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = buffer });
         using var lifetime = new GraphicsPipelineLifetime();
         using var pipeline = new GraphicsPipeline(lifetime, new(program.GraphicsIdentity!, layout, metadata.Signature,

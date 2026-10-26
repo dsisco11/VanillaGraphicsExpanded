@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using VanillaGraphicsExpanded.Rendering;
@@ -36,9 +37,7 @@ internal sealed class LumonScenePatchMetadataGpuBuffer : IDisposable
             return;
         }
 
-        ssbo = GpuShaderStorageBuffer.Create(
-            usage: OpenTK.Graphics.OpenGL.BufferUsageHint.DynamicDraw,
-            debugName: $"LumOn.LumonScene.{field}.PatchMetadata(SSBO)");
+        ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = $"LumOn.LumonScene.{field}.PatchMetadata(SSBO)" }).RequireResource();
 
         int bytes = checked(capacityEntries * System.Runtime.InteropServices.Marshal.SizeOf<LumonScenePatchMetadataGpu>());
         ssbo.EnsureCapacity(bytes, growExponentially: false);

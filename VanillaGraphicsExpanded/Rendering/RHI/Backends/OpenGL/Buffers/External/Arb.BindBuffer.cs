@@ -1,14 +1,14 @@
 using System;
 using OpenTK.Graphics.OpenGL;
 
-namespace VanillaGraphicsExpanded.Rendering;
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
 /// <summary>Owns exact Arb BindBuffer dispatch and its completion bookkeeping.</summary>
-internal sealed unsafe partial class StateCache
+internal static unsafe partial class OpenGLBufferBindingCalls
 {
     #region Internal API
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
-    internal void ExecuteArbBindBuffer(BufferTargetArb @target, int @buffer)
+    internal static void ExecuteArbBindBuffer(BufferTargetArb @target, int @buffer)
     {
         var observation = StateCache.BeginNativeBufferBinding((BufferTarget)@target);
         bool returned = false;
@@ -25,7 +25,7 @@ internal sealed unsafe partial class StateCache
     }
 
     /// <summary>Executes the exact external overload once and completes its selector or routing bookkeeping.</summary>
-    internal void ExecuteArbBindBuffer(BufferTargetArb @target, uint @buffer)
+    internal static void ExecuteArbBindBuffer(BufferTargetArb @target, uint @buffer)
     {
         var observation = StateCache.BeginNativeBufferBinding((BufferTarget)@target);
         bool returned = false;

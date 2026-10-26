@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Diagnostics;
 
@@ -125,7 +126,7 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         if (!VaoDsa.TryVertexArrayElementBuffer(vertexArrayId, bufferId))
         {
             Bind();
-            StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, bufferId);
+            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, bufferId);
         }
     }
 
@@ -303,7 +304,7 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         }
 
         Bind();
-        StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, ebo.BufferId);
         GL.DrawElements(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes);
 #if DEBUG
         StateCache.Current.RecordDrawSubmission();
@@ -365,7 +366,7 @@ internal sealed class GpuVao : GpuResource<GpuVertexArrayMetadata>, IDisposable
         }
 
         Bind();
-        StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, ebo.BufferId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, ebo.BufferId);
         GL.DrawElementsInstanced(primitiveType, count, ebo.IndexType, (IntPtr)offsetBytes, instanceCount);
 #if DEBUG
         StateCache.Current.RecordDrawSubmission();

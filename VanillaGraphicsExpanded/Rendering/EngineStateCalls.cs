@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -100,12 +101,12 @@ internal static partial class EngineStateCalls
     /// <summary>Publishes a sampler independently of texture binding.</summary>
     public static void BindSampler(int unit, int sampler) => CurrentCache.BindSampler(unit, sampler);
     /// <summary>Publishes generic and vertex-array-owned buffer bindings.</summary>
-    public static void BindBuffer(BufferTarget target, int buffer) => CurrentCache.ExecuteCoreBindBuffer(target, buffer);
+    public static void BindBuffer(BufferTarget target, int buffer) => OpenGLBufferBindingCalls.ExecuteCoreBindBuffer(target, buffer);
     /// <summary>Publishes an indexed whole-buffer binding and its generic binding side effect.</summary>
-    public static void BindBufferBase(BufferRangeTarget target, int index, int buffer) => CurrentCache.BindBufferBase(target, index, buffer);
+    public static void BindBufferBase(BufferRangeTarget target, int index, int buffer) => OpenGLBufferBindingCalls.BindBufferBase(target, index, buffer);
     /// <summary>Publishes an indexed range without truncating native offsets or sizes.</summary>
     public static void BindBufferRange(BufferRangeTarget target, int index, int buffer, IntPtr offset, IntPtr size) =>
-        CurrentCache.BindBufferRange(target, index, buffer, offset, size);
+        OpenGLBufferBindingCalls.BindBufferRange(target, index, buffer, offset, size);
     /// <summary>Publishes an image unit including the complete image-view selection.</summary>
     public static void BindImageTexture(int unit, int texture, int level, bool layered, int layer, TextureAccess access, SizedInternalFormat format) =>
         CurrentCache.BindImageTexture(unit, texture, level, layered, layer, access, format);
@@ -123,9 +124,9 @@ internal static partial class EngineStateCalls
     /// <summary>Preserves texture deletion's implicit unbinding in cached snapshots.</summary>
     public static void DeleteTexture(int texture) => CurrentCache.DeleteTexture(texture);
     /// <summary>Preserves buffer deletion's effect on generic and indexed bindings.</summary>
-    public static void DeleteBuffer(int buffer) => CurrentCache.DeleteBuffer(buffer);
+    public static void DeleteBuffer(int buffer) => OpenGLBufferDeletionCalls.Core.DeleteBuffer(buffer);
     /// <summary>Preserves bulk buffer deletion and its implicit binding changes.</summary>
-    public static void DeleteBuffers(int count, ref int buffers) => CurrentCache.DeleteBuffers(count, ref buffers);
+    public static void DeleteBuffers(int count, ref int buffers) => OpenGLBufferDeletionCalls.Core.DeleteBuffers(count, ref buffers);
     /// <summary>Invalidates sampler bindings after engine retirement.</summary>
     public static void DeleteSampler(int sampler) => CurrentCache.DeleteSampler(sampler);
     /// <summary>Invalidates read/draw framebuffer bindings after engine retirement.</summary>

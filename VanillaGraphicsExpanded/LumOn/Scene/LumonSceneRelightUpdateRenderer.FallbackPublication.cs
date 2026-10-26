@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Runtime.InteropServices;
@@ -90,7 +91,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer
         }
         if (pendingCommits.Count == 0) pendingCommitDependencies = null;
         if (accepted == 0) return 0;
-        fallbackCommitBuffer ??= GpuShaderStorageBuffer.Create(debugName:"SurfaceLighting.FallbackCommits");
+        fallbackCommitBuffer ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "SurfaceLighting.FallbackCommits" }).RequireResource();
         fallbackCommitBuffer.EnsureCapacity(SurfaceFallbackWorker.MaximumTexels << 5,growExponentially:false);
         fallbackCommitBuffer.UploadSubData<SurfaceFallbackCommit>(fallbackCommitUpload,0,SurfaceFallbackWorker.MaximumTexels << 5);
         var work = CollectionsMarshal.AsSpan(fallbackWork);

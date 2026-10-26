@@ -86,7 +86,9 @@ public sealed class EngineStateSwitchingTests
             (typeof(GL), typeof(EngineStateCalls)),
             (typeof(GL), typeof(EngineStateDeletionCalls.Core)),
             (typeof(GL.Arb), typeof(EngineStateDeletionCalls.Arb)),
-            (typeof(GL.Ext), typeof(EngineStateDeletionCalls.Ext))
+            (typeof(GL.Ext), typeof(EngineStateDeletionCalls.Ext)),
+            (typeof(GL), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferDeletionCalls.Core)),
+            (typeof(GL.Arb), typeof(VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferDeletionCalls.Arb))
         };
         foreach (var (native, replacement) in EngineStateCallMap.Replacements)
         {

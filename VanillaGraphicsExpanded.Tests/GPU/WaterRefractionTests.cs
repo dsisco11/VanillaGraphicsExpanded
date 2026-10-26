@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
@@ -309,10 +310,10 @@ public sealed class WaterRefractionTests(HeadlessGLFixture fixture, ITestOutputH
             .With(GlPipelineStateId.CullFaceEnable).With(GlPipelineStateId.ScissorTestEnable).With(GlPipelineStateId.ColorMask)
             .With(GlPipelineStateId.BlendEnable), nonDefaultMask: default));
         using var vao = GpuVao.Create("Test.WaterCapture");
-        using var vertices = GpuVbo.Create(debugName: "Test.WaterCapture.Vertices");
-        using var flags = GpuVbo.Create(debugName: "Test.WaterCapture.Flags");
+        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.WaterCapture.Vertices" }).RequireResource();
+        using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.WaterCapture.Flags" }).RequireResource();
         using var binding = vao.BindScope();
-        using var indices = GpuEbo.Create(debugName: "Test.WaterCapture.Indices");
+        using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.WaterCapture.Indices" }).RequireResource();
         indices.UploadIndices(new uint[] { 0, 1, 2, 3, 4, 5 });
         using (vertices.BindScope())
         {

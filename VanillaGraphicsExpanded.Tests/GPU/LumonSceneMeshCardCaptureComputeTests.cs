@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
 using System.Numerics;
@@ -284,7 +285,7 @@ public sealed class LumonSceneMeshCardCaptureComputeTests : RenderTestBase
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged
     {
-        var ssbo = GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw, debugName: name);
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = name }).RequireResource();
         int bytes = checked(data.Length * Marshal.SizeOf<T>());
         ssbo.EnsureCapacity(bytes, growExponentially: false);
         ssbo.UploadSubData(data, dstOffsetBytes: 0, byteCount: bytes);

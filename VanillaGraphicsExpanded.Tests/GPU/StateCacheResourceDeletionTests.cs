@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -82,9 +83,9 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
         {
             cache.InvalidateAll();
             cache.BindVertexArray(retired);
-            cache.BindBuffer(BufferTarget.ElementArrayBuffer, buffer);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer);
             cache.BindVertexArray(survivor);
-            cache.BindBuffer(BufferTarget.ElementArrayBuffer, buffer);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer);
             EngineStateCalls.DeleteVertexArray(retired);
             Assert.True(cache.TryGetCachedCurrentVao(out int selected));
             Assert.Equal(survivor, selected);
@@ -111,9 +112,9 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
         try
         {
             cache.InvalidateAll();
-            cache.BindBuffer(BufferTarget.ArrayBuffer, retired[0]);
-            cache.BindBuffer(BufferTarget.CopyReadBuffer, retired[1]);
-            cache.BindBuffer(BufferTarget.CopyWriteBuffer, survivor);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ArrayBuffer, retired[0]);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.CopyReadBuffer, retired[1]);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.CopyWriteBuffer, survivor);
             EngineStateCalls.DeleteBuffers(retired.Length, ref retired[0]);
             Assert.False(cache.TryGetCachedBoundBuffer(BufferTarget.ArrayBuffer, out _));
             Assert.False(cache.TryGetCachedBoundBuffer(BufferTarget.CopyReadBuffer, out _));
@@ -139,7 +140,7 @@ public sealed class StateCacheResourceDeletionTests(HeadlessGLFixture fixture) :
         {
             cache.InvalidateAll();
             cache.BindVertexArray(array);
-            cache.BindBuffer(BufferTarget.ElementArrayBuffer, buffer);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer, buffer);
             cache.BindVertexArray(0);
             EngineStateCalls.DeleteBuffers(1, ref buffer);
             // GL keeps storage referenced by unbound containers until their attachment is released.

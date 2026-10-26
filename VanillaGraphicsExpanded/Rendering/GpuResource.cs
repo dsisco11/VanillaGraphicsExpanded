@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Threading;
 
@@ -55,7 +56,7 @@ public abstract partial class GpuResource : IDisposable
         RequireRetirement();
         if (ResourceId != 0 && !IsValid) throw new InvalidOperationException("The original resource allocation has retired.");
         var origin = NativeProgramContext != default ? NativeProgramContext : nativeContext;
-        if (ResourceId != 0 && origin != default && !Integration.RenderContextRegistry.IsAlive(origin))
+        if (ResourceId != 0 && origin != default && (origin.Generation == 0 ? !IsCurrentResourceContext(origin) : !Integration.RenderContextRegistry.IsAlive(origin)))
             throw new InvalidOperationException("The original resource context has retired.");
 
         nint id = ResourceId;
@@ -77,6 +78,8 @@ public abstract partial class GpuResource : IDisposable
         // Detached or disposed wrappers no longer mutate the shared allocation. Other aliases
         // may subsequently borrow it, but those guards cannot make local cleanup non-idempotent.
         if (IsDisposed) return;
+        // Local tools have no queue-owning context registration; retain ownership until their context is current.
+        if (nativeContext != default && nativeContext.Generation == 0) RequireOriginalContext();
         RequireRetirement();
         if (Interlocked.Exchange(ref disposed, 1) != 0)
         {
@@ -102,13 +105,13 @@ public abstract partial class GpuResource : IDisposable
 
     #region Internal API
     /// <summary>Installs or clears identity during manager-owned creation without invoking wrapper policy.</summary>
-    internal void SetCreationIdentity(nint id)
+    internal void SetCreationIdentity(nint id, (nint Handle, long Generation)? context = null)
     {
         ObjectDisposedException.ThrowIf(id != 0 && IsDisposed, this);
         if (id != 0 && ResourceId != 0)
             throw new InvalidOperationException("Creation requires an unpublished resource declaration.");
         ResourceId = id;
-        if (id != 0) nativeContext = Integration.RenderContextRegistry.Current();
+        if (id != 0) nativeContext = context ?? Integration.RenderContextRegistry.Current();
     }
 
     /// <summary>Rejects storage mutation or retirement while a pass or immutable framebuffer borrows its configuration.</summary>
@@ -181,6 +184,16 @@ public abstract partial class GpuResource : IDisposable
         // Context-free CPU declarations retain the existing service policy. Native owners
         // abandon dead namespaces or defer to their captured manager while another context is current.
         if (origin == default) { DeleteOrEnqueue(kind, id); return; }
+        if (origin.Generation == 0)
+        {
+            // An unregistered tool has no foreign-context cleanup service. Never delete a name in another namespace.
+            if (IsCurrentResourceContext(origin))
+            {
+                if (kind == GpuResourceKind.Buffer) RHICommandContext.Current.OpenGL.DeleteBuffer((int)id);
+                else DeleteOrEnqueue(kind, id);
+            }
+            return;
+        }
         if (!Integration.RenderContextRegistry.IsAlive(origin)) return;
         if (origin != Integration.RenderContextRegistry.Current())
         {
@@ -251,7 +264,7 @@ public abstract partial class GpuResource : IDisposable
             switch (kind)
             {
                 case GpuResourceKind.Buffer:
-                    StateCache.Current.DeleteBuffer((int)id);
+                    RHICommandContext.Current.OpenGL.DeleteBuffer((int)id);
                     break;
                 case GpuResourceKind.VertexArray:
                     StateCache.Current.DeleteVertexArray((int)id);

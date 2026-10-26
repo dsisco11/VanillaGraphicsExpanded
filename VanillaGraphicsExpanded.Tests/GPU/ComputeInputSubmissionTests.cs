@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
@@ -119,7 +120,7 @@ public sealed class ComputeInputSubmissionTests(HeadlessGLFixture fixture) : Ren
         Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var owner, out string log), log);
         using var shader = owner!;
         Assert.True(shader.EnsureReady());
-        using var storage = GpuShaderStorageBuffer.Create();
+        using var storage = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         int alignment = GL.GetInteger(GetPName.ShaderStorageBufferOffsetAlignment);
         storage.EnsureCapacity(alignment + 64, growExponentially: false);
         var range = new GpuStorageBufferBinding(storage, alignment, 32);

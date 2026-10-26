@@ -7,11 +7,20 @@ internal sealed partial class GpuResourceManager
     /// <summary>Commits an initialized buffer and its recipient together, exposing identity only on success.</summary>
     internal static GpuBufferMetadata? CreateBuffer(in GpuBufferInitialization initialization,
         GpuResource<GpuBufferMetadata> recipient, out GpuResourceHandle handle)
-        => CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(initialization, recipient, out handle);
+        => CreateBuffer(initialization, recipient, default, out handle);
+
+    /// <summary>Keeps client content stable throughout allocation and private publication handoff.</summary>
+    internal static unsafe GpuBufferMetadata? CreateBuffer(in GpuBufferInitialization initialization,
+        GpuResource<GpuBufferMetadata> recipient, RHI.RHIBufferInitialData initialData, out GpuResourceHandle handle)
+    {
+        fixed (byte* bytes = initialData.Bytes)
+            return CreateResource<GpuBufferInitialization, GpuBufferMetadata, BufferCreation>(initialization,
+                recipient, out handle, new BufferCreation((nint)bytes, initialData.Bytes.Length, initialData.Offset));
+    }
     #endregion
 
     /// <summary>Supplies buffer validation and native execution to the common creation handoff.</summary>
-    private readonly struct BufferCreation : IGpuResourceCreation<GpuBufferInitialization, GpuBufferMetadata>
+    private readonly struct BufferCreation(nint data, int byteCount, nint offset) : IGpuResourceCreation<GpuBufferInitialization, GpuBufferMetadata>
     {
         #region Public API
         /// <inheritdoc />
@@ -20,12 +29,10 @@ internal sealed partial class GpuResourceManager
         public void Validate(in GpuBufferInitialization initialization)
         {
             initialization.Validate();
-            if (initialization.Mode == GpuBufferStorageMode.Immutable && !GpuSupport.Graphics.SupportsArbBufferStorage)
-                throw new System.NotSupportedException("Immutable buffer storage is unavailable.");
         }
         /// <inheritdoc />
         public GpuBufferMetadata? Initialize(StateCache cache, in GpuBufferInitialization initialization, out nint id)
-            => cache.CreateBuffer(initialization, out id);
+            => RHI.RHICommandContext.Current.OpenGL.InitializeBuffer(initialization, out id, data, byteCount, offset);
         #endregion
     }
 }

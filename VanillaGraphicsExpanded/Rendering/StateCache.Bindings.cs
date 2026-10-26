@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -826,109 +827,13 @@ internal sealed partial class StateCache
         return false;
     }
 
-    /// <summary>Skips known buffer bindings while keeping element bindings specific to their VAO.</summary>
-    public void BindBuffer(BufferTarget target, int bufferId)
-    {
-        if (target is BufferTarget.PixelPackBuffer or BufferTarget.PixelUnpackBuffer)
-        {
-            BindPixelTransferBuffer(target, bufferId);
-            return;
-        }
-        if (TryGetCachedBoundBuffer(target, out int cached) && cached == bufferId) return;
-        if (target == BufferTarget.ElementArrayBuffer)
-        {
-            var observation = BeginNativeVertexMetadata(0, named: false, elementBinding: true);
-            bool returned = false;
-            try
-            {
-                GL.BindBuffer(target, bufferId);
-                returned = true;
-            }
-            catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-            }
-            finally
-            {
-                // Publish the independent configuration revision; exceptions keep it unavailable.
-                observation.Complete(returned);
-            }
-            // Revision publication and binding knowledge are independent. The observer
-            // invalidates aliases; this controlled command establishes only its EBO fact.
-            if (returned) observation.EstablishElementBinding(bufferId);
-            return;
-        }
-
-        try
-        {
-            GL.BindBuffer(target, bufferId);
-            bufferBindingByTarget[target] = bufferId;
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
-    }
-
-    public void UnbindBuffer(BufferTarget target)
-    {
-        BindBuffer(target, 0);
-    }
-
-    public void BindBufferBase(BufferRangeTarget target, int index, int bufferId)
-    {
-        var binding = new IndexedBufferBinding(bufferId, 0, 0, false);
-#if DEBUG
-        IndexedBufferCacheChecks++;
-#endif
-        if (indexedBufferBindings.TryGetValue((target, index), out var previous) && previous == binding &&
-            bufferBindingByTarget.GetValueOrDefault((BufferTarget)target) == bufferId) return;
-        try
-        {
-            GL.BindBufferBase(target, index, bufferId);
-#if DEBUG
-            ResourceSlotBindCount++;
-#endif
-            indexedBufferBindings[(target, index)] = binding;
-            bufferBindingByTarget[(BufferTarget)target] = bufferId;
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
-    }
-
-    public void UnbindBufferBase(BufferRangeTarget target, int index)
-    {
-        BindBufferBase(target, index, 0);
-    }
-
-    public void BindBufferRange(BufferRangeTarget target, int index, int bufferId, nint offsetBytes, nint sizeBytes)
-    {
-        var binding = new IndexedBufferBinding(bufferId, offsetBytes, sizeBytes, true);
-#if DEBUG
-        IndexedBufferCacheChecks++;
-#endif
-        if (indexedBufferBindings.TryGetValue((target, index), out var previous) && previous == binding &&
-            bufferBindingByTarget.GetValueOrDefault((BufferTarget)target) == bufferId) return;
-        try
-        {
-            GL.BindBufferRange(target, index, bufferId, (IntPtr)offsetBytes, (IntPtr)sizeBytes);
-#if DEBUG
-            ResourceSlotBindCount++;
-#endif
-            indexedBufferBindings[(target, index)] = binding;
-            bufferBindingByTarget[(BufferTarget)target] = bufferId;
-        }
-        catch when (!restoringBoundary && !resolvingBoundary && activeBoundary is null)
-        {
-        }
-    }
-
     /// <summary>Captures known generic or VAO-owned binding facts before a temporary selection.</summary>
     public BufferScope BindBufferScope(BufferTarget target, int bufferId)
     {
         int? vao = target == BufferTarget.ElementArrayBuffer ? GetCurrentVao() : null;
         int previous = GetBoundBuffer(target);
 
-        BindBuffer(target, bufferId);
+        OpenGLBufferBindings.BindBuffer(this, target, bufferId);
         return new BufferScope(this, target, previous, vao);
     }
 
@@ -939,6 +844,7 @@ internal sealed partial class StateCache
         private readonly BufferTarget target;
         private readonly int previous;
         private readonly int? vao;
+        private readonly RHI.RHICommandContext context;
 
         /// <summary>Captures the generic selector or the original VAO-owned element selector.</summary>
         public BufferScope(StateCache cache, BufferTarget target, int previous, int? vao = null)
@@ -947,18 +853,20 @@ internal sealed partial class StateCache
             this.target = target;
             this.previous = previous;
             this.vao = vao;
+            context = RHI.RHICommandContext.Current;
         }
 
         /// <summary>Restores an element association on its original VAO without changing a later selection.</summary>
         public void Dispose()
         {
+            context.OpenGL.RequireContext();
             if (vao.HasValue && cache.GetCurrentVao() != vao.Value)
             {
                 using var selection = cache.BindVertexArrayScope(vao.Value);
-                cache.BindBuffer(target, previous);
+                OpenGLBufferBindings.BindBuffer(cache, target, previous);
                 return;
             }
-            cache.BindBuffer(target, previous);
+            OpenGLBufferBindings.BindBuffer(cache, target, previous);
         }
     }
 

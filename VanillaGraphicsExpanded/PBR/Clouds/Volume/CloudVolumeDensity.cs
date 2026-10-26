@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -111,9 +112,9 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
             executable[i]=next;
         }
         if(summary is null)
-        {summary=GpuShaderStorageBuffer.Create();summary.UploadData(new uint[8]);}
+        {summary=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();summary.UploadData(new uint[8]);}
         if(commands is null)
-        {commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[]{0,1,1});}
+        {commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = RHIBufferRole.IndirectDraw, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();commands.UploadData(new uint[]{0,1,1});}
     }
 
     /// <summary>Consumes only a synchronous certified native borrow, then advances one density budget against owned descriptors.</summary>
@@ -217,7 +218,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     /// <summary>Consumes a completed height/error reduction without rereading native storage.</summary>
     private (float Minimum,float Maximum) ReadBounds()
     {
-        using var read=summary.MapScope<uint>(0,4,MapBufferAccessMask.MapReadBit);
+        using var read=summary.MapScope<uint>(0,4,RHIBufferMapAccess.Read);
         if(read.Span[0]!=0)throw new InvalidOperationException("Native cloud extinction or height data is invalid.");
         return read.Span[3]==0?(0,0):(Unordered(read.Span[1]),Unordered(read.Span[2]));
     }
@@ -282,7 +283,7 @@ internal sealed class CloudVolumeDensity(Func<int,PackedUniformBuffer?,CloudVolu
     private void ReadGeneration(CloudVolumeFields fields,uint completedFrame)
     {
         var state=fields.DensityState;
-        using var read=summary!.MapScope<uint>(0,8,MapBufferAccessMask.MapReadBit);
+        using var read=summary!.MapScope<uint>(0,8,RHIBufferMapAccess.Read);
         if(read.Span[0]!=0)throw new InvalidOperationException("Generated cloud density cannot be represented as finite R16F.");
         state.Selected=checked((int)read.Span[5]);state.Remaining=checked((int)read.Span[4]);
         state.Changed=checked((int)read.Span[7]);state.MaintenanceRequired=state.Remaining!=0;

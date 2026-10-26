@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
@@ -71,9 +72,9 @@ public sealed class LiquidSpecularTriangulationTests(HeadlessGLFixture fixture) 
         using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
         using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         using var vao = GpuVao.Create("Test.LiquidTriangulation.Vao");
-        using var vertices = GpuVbo.Create(debugName: "Test.LiquidTriangulation.Vertices");
-        using var flags = GpuVbo.Create(debugName: "Test.LiquidTriangulation.Flags");
-        using var indices = GpuEbo.Create(debugName: "Test.LiquidTriangulation.Indices");
+        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Vertices" }).RequireResource();
+        using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Flags" }).RequireResource();
+        using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.LiquidTriangulation.Indices" }).RequireResource();
         using var vertexBinding = vao.BindScope();
         using (vertices.BindScope())
         {

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Liquids;
 using VanillaGraphicsExpanded.Rendering;
@@ -77,8 +78,8 @@ public sealed class WaterRefractionReductionTests(HeadlessGLFixture fixture, ITe
             measuredColor.UploadDataImmediate(Enumerable.Range(0,size*size).SelectMany(_=>new[] {8f,2f,1f,1f}).ToArray());
             program.SourceColor=measuredColor; program.SourceDepth=measuredDepth;
             using var vao=GpuVao.Create("Test.WaterReduction.Measurement");
-            using var vertices=GpuVbo.Create(debugName:"Test.WaterReduction.Vertices");
-            using var indices=GpuEbo.Create(debugName:"Test.WaterReduction.Indices");
+            using var vertices=RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.WaterReduction.Vertices" }).RequireResource();
+            using var indices=RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.WaterReduction.Indices" }).RequireResource();
             using var geometry=vao.BindScope();
             indices.UploadIndices(new uint[] {0,1,2});
             using(vertices.BindScope())

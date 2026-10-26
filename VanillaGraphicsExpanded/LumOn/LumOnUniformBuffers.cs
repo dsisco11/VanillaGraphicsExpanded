@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Buffers.Binary;
 using System.Numerics;
@@ -44,7 +45,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
         if (frameUbo is null || frameUbo.BufferId == 0)
         {
             frameUbo?.Dispose();
-            frameUbo = GpuUniformBuffer.Create(debugName: "LumOn.FrameUBO");
+            frameUbo = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "LumOn.FrameUBO" }).RequireResource();
         }
     }
 
@@ -54,7 +55,7 @@ internal sealed class LumOnUniformBuffers : IDisposable
         if (worldProbeUbo is null || worldProbeUbo.BufferId == 0)
         {
             worldProbeUbo?.Dispose();
-            worldProbeUbo = GpuUniformBuffer.Create(debugName: "LumOn.WorldProbeUBO");
+            worldProbeUbo = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "LumOn.WorldProbeUBO" }).RequireResource();
         }
     }
 

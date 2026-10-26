@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 using OpenTK.Graphics.OpenGL;
@@ -21,12 +22,12 @@ internal static class CloudStoredVolumeDiagnostics
         if(source is not null&&source.TryGetTarget(out var prior)&&ReferenceEquals(prior,solution)&&now-lastRead<Stopwatch.Frequency)return;
         var fields=solution.Storage.Published;var d=fields.Domain;
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
-        using var header=fields.Scratch.MapScope<uint>(0,52,MapBufferAccessMask.MapReadBit);
+        using var header=fields.Scratch.MapScope<uint>(0,52,RHIBufferMapAccess.Read);
         uint pendingAge=0,completedAge=0,fallback=0,directCompleted=0,diffuseCompleted=0;
         long occupiedOrigins=0,eligibleDirect=0,eligibleDiffuse=0;int unknownBlocks=0;
         var rays=solution.WorkStatistics;
-        using var support=fields.Occupancy.MapScope<uint>(0,d.Blocks,MapBufferAccessMask.MapReadBit);
-        using(var regions=fields.Regions.MapScope<uint>(0,d.Blocks*16,MapBufferAccessMask.MapReadBit))
+        using var support=fields.Occupancy.MapScope<uint>(0,d.Blocks,RHIBufferMapAccess.Read);
+        using(var regions=fields.Regions.MapScope<uint>(0,d.Blocks*16,RHIBufferMapAccess.Read))
             for(int b=0;b<regions.Span.Length;b+=16)
             {
                 var r=regions.Span.Slice(b,16);

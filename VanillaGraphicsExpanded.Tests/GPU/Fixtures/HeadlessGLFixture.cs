@@ -11,7 +11,7 @@ using VanillaGraphicsExpanded.Rendering;
 namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 
 /// <summary>
-/// xUnit fixture that creates a headless OpenGL 4.3 context for GPU tests.
+/// xUnit fixture that creates a headless OpenGL 4.5 context for GPU tests.
 /// Uses OpenTK.Windowing.Desktop to create a hidden window with an OpenGL context.
 /// This uses the same OpenTK libraries as the production code, ensuring full compatibility.
 /// </summary>
@@ -148,9 +148,9 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
                 return ValueTask.CompletedTask;
             }
             
-            // Set window hints for OpenGL 4.3 Core
+            // Set window hints for OpenGL 4.5 Core
             GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
-            GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 3);
+            GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5);
             GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Core);
             GLFW.WindowHint(WindowHintBool.OpenGLForwardCompat, true);
             GLFW.WindowHint(WindowHintBool.OpenGLDebugContext, true);
@@ -178,13 +178,13 @@ public sealed class HeadlessGLFixture : IAsyncLifetime
             GLVersion = GL.GetString(StringName.Version);
             GLRenderer = GL.GetString(StringName.Renderer);
 
-            // Verify we have at least OpenGL 4.3
+            // Verify we have at least OpenGL 4.5
             GL.GetInteger(GetPName.MajorVersion, out int major);
             GL.GetInteger(GetPName.MinorVersion, out int minor);
 
-            if (major < 4 || (major == 4 && minor < 3))
+            if (major < 4 || (major == 4 && minor < 5))
             {
-                _initializationError = $"OpenGL 4.3+ required, got {major}.{minor}";
+                _initializationError = $"OpenGL 4.5+ required, got {major}.{minor}";
                 _contextValid = false;
             }
             else

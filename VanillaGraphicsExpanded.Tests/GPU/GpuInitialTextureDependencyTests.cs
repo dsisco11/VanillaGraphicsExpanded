@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -33,7 +34,7 @@ public sealed class GpuInitialTextureDependencyTests(HeadlessGLFixture fixture)
             Assert.NotNull(manager.AcquireResource(GpuResourceKind.Buffer,buffer,new GpuBufferMetadataReader()));
             Assert.True(entry.StorageRevision>revision); Assert.True(manager.IsResourceMetadataAvailable(alias)); Assert.Equal(ErrorCode.NoError,GL.GetError());
         }
-        finally { StateCache.Current.DeleteTexture(texture); StateCache.Current.DeleteBuffer(buffer); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { StateCache.Current.DeleteTexture(texture); RHICommandContext.Current.OpenGL.DeleteBuffer(buffer); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     /// <summary>A failed association acquisition cannot publish a texture whose reported backing is nonexistent.</summary>
     [Fact]

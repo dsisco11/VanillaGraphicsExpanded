@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Buffers;
 using System.Numerics;
@@ -15,7 +16,7 @@ using Vintagestory.API.Common;
 namespace VanillaGraphicsExpanded.LumOn.Scene;
 
 /// <summary>
-/// Phase 22.11 mesh-card capture dispatcher (GL 4.3 compute).
+/// Mesh-card capture dispatcher (GL 4.3 compute).
 /// Produces per-texel depth + normal in the physical atlases for a set of card pages.
 /// </summary>
 internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
@@ -155,9 +156,7 @@ internal sealed class LumonSceneMeshCardCaptureDispatcher : IDisposable
 
     private void EnsureTrianglesBufferCreated()
     {
-        trianglesSsbo ??= GpuShaderStorageBuffer.Create(
-            BufferUsageHint.DynamicDraw,
-            debugName: "LumOn.LumonScene.MeshCardTriangles(SSBO)");
+        trianglesSsbo ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "LumOn.LumonScene.MeshCardTriangles(SSBO)" }).RequireResource();
     }
 
     private void UploadTriangles(ReadOnlySpan<LumonSceneMeshCardTriangleGpu> triangles)

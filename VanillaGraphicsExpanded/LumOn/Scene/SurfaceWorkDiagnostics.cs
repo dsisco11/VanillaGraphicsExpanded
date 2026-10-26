@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Immutable;
 using System.Diagnostics;
@@ -87,7 +88,7 @@ internal sealed class SurfaceWorkDiagnostics : IDisposable
                 total.ReadFailures++; slot.Dispose(); slots[index] = null; PendingCount--; continue;
             }
             if (!slot.Start.TryGetResultNanoseconds(out long start) || !slot.End.TryGetResultNanoseconds(out long end)) continue;
-            using var mapped = slot.Buffer.MapRange<uint>(0, zero.Length, MapBufferAccessMask.MapReadBit);
+            using var mapped = slot.Buffer.MapRange<uint>(0, zero.Length, RHIBufferMapAccess.Read);
             if (mapped.IsMapped)
             {
                 for (int i = 0; i < zero.Length; i++) total.Counters[i] += mapped.Span[i];
@@ -136,7 +137,7 @@ internal sealed class SurfaceWorkDiagnostics : IDisposable
     /// <summary>One independently fenced diagnostic buffer and its timestamp pair.</summary>
     private sealed class Slot : IDisposable
     {
-        public readonly GpuShaderStorageBuffer Buffer = GpuShaderStorageBuffer.Create(debugName: "SurfaceCache.Diagnostics");
+        public readonly GpuShaderStorageBuffer Buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "SurfaceCache.Diagnostics" }).RequireResource();
         public readonly GpuTimestampQuery Start = GpuTimestampQuery.Create("SurfaceCache.Start");
         public readonly GpuTimestampQuery End = GpuTimestampQuery.Create("SurfaceCache.End");
         public GpuFence? Fence;

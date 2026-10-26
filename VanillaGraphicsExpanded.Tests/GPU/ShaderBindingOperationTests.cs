@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -116,15 +118,15 @@ public sealed class ShaderBindingOperationTests(HeadlessGLFixture fixture, ITest
         output.WriteLine($"Managed array: preparation reflection queries {reflection}; {repeats} full-set validations/publications; {repeats * 2} texture cache checks; {repeats * 2} sampler cache checks; {repeats} image cache checks; steady-state reflection/name resolutions 0; texture/sampler/image binds 0.");
 #endif
 
-        using var buffer = GpuShaderStorageBuffer.Create();
+        using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         buffer.EnsureCapacity(64, growExponentially: false);
-        cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, buffer.BufferId, 0, 32);
+        OpenGLBufferBindings.BindBufferRange(cache, BufferRangeTarget.ShaderStorageBuffer, 0, buffer.BufferId, 0, 32);
 #if DEBUG
         long bufferChecks = cache.IndexedBufferCacheChecks;
         long bufferBinds = cache.ResourceSlotBindCount;
 #endif
         for (int use = 0; use < repeats; use++)
-            cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, buffer.BufferId, 0, 32);
+            OpenGLBufferBindings.BindBufferRange(cache, BufferRangeTarget.ShaderStorageBuffer, 0, buffer.BufferId, 0, 32);
 #if DEBUG
         Assert.Equal(bufferChecks + repeats, cache.IndexedBufferCacheChecks);
         Assert.Equal(bufferBinds, cache.ResourceSlotBindCount);

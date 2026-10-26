@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -20,7 +21,7 @@ public sealed class GpuResourceAliasMetadataTests(HeadlessGLFixture fixture)
         fixture.InitializeResourceDisposal();
         try
         {
-            using var buffer = GpuVbo.Create();
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             int offset = Math.Max(1, GpuSupport.Graphics.TextureBufferOffsetAlignment);
             buffer.Allocate(checked(offset + 512));
             using var view = ranged

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
@@ -225,7 +226,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         using var programs = new ComponentShaderPrograms();
         using var firstTexture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
         using var secondTexture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
-        using var frame = GpuUniformBuffer.Create();
+        using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         frame.Allocate(112);
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
@@ -271,7 +272,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
-        using var frame = GpuUniformBuffer.Create();
+        using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         frame.Allocate(112);
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         GpuSupport.Initialize();
@@ -346,7 +347,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
-        using var frame = GpuUniformBuffer.Create();
+        using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         frame.Allocate(112);
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);
@@ -413,7 +414,7 @@ public sealed class ShaderInputSubmissionTests : RenderTestBase
         EnsureContextValid();
         using var programs = new ComponentShaderPrograms();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba16f);
-        using var frame = GpuUniformBuffer.Create();
+        using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         frame.Allocate(112);
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         using var ring = new GpuUniformRingBuffer(4096, 1, false);

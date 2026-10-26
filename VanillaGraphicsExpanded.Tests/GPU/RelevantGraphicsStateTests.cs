@@ -264,7 +264,7 @@ public sealed class RelevantGraphicsStateTests(HeadlessGLFixture fixture)
             this.fixture = fixture; fixture.MakeCurrent();
             // Forward-compatible core contexts reject non-unit widths even when the driver reports a wider range.
             GLFW.DefaultWindowHints(); GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4);
-            GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 3); GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Compat);
+            GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5); GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Compat);
             GLFW.WindowHint(WindowHintBool.Visible, false); GLFW.WindowHint(WindowHintBool.OpenGLForwardCompat, false);
             window = GLFW.CreateWindow(8, 8, "Relevant width test", null, null);
             Assert.True(window != null, "The required compatibility raster context could not be created.");

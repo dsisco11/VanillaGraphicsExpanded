@@ -1,4 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
@@ -13,24 +15,14 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuIndirectBuffer : GpuBufferObject
 {
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
-    private GpuIndirectBuffer(BufferUsageHint usage, string? debugName)
+    internal GpuIndirectBuffer(RHIBufferUsage usage, string? debugName, RHIBufferRole role = RHIBufferRole.IndirectDraw)
     {
-        target = BufferTarget.DrawIndirectBuffer;
+        target = OpenGLBufferValues.Target(role);
         allocationUsage = usage;
         this.debugName = debugName;
     }
 
-    /// <summary>
-    /// Creates a new indirect command buffer object name and wraps it in an RAII instance.
-    /// </summary>
-    public static GpuIndirectBuffer Create(
-        BufferUsageHint usage = BufferUsageHint.DynamicDraw,
-        string? debugName = null)
-    {
-        var buffer = new GpuIndirectBuffer(usage, debugName);
-        buffer.InitializeNativeBuffer();
-        return buffer;
-    }
+
 
     /// <summary>
     /// Binds this buffer as the draw-indirect buffer (GL_DRAW_INDIRECT_BUFFER).
@@ -43,7 +35,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
             return;
         }
 
-        StateCache.Current.BindBuffer(BufferTarget.DrawIndirectBuffer, bufferId);
+        RHICommandContext.Current.BindBuffer(RHIBufferRole.IndirectDraw, this);
     }
 
     /// <summary>
@@ -57,7 +49,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
             return;
         }
 
-        StateCache.Current.BindBuffer(BufferTarget.DispatchIndirectBuffer, bufferId);
+        RHICommandContext.Current.BindBuffer(RHIBufferRole.IndirectDispatch, this);
     }
 
     /// <summary>Binds indirect arguments as shader storage so compute can generate command counts.</summary>
@@ -65,7 +57,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
     {
         if (bindingIndex < 0) throw new ArgumentOutOfRangeException(nameof(bindingIndex));
         if (!IsValid) throw new ObjectDisposedException(nameof(GpuIndirectBuffer));
-        StateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, bufferId);
+        RHICommandContext.Current.BindBufferBase(RHIBufferRole.ShaderStorage, bindingIndex, this);
     }
 
     /// <summary>
@@ -73,7 +65,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
     /// </summary>
     public StateCache.BufferScope BindDrawScope()
     {
-        BindDraw();
+        GpuResourceManager.RequireBufferReferenceMetadata(this);
         return StateCache.Current.BindBufferScope(BufferTarget.DrawIndirectBuffer, bufferId);
     }
 
@@ -82,6 +74,7 @@ internal sealed class GpuIndirectBuffer : GpuBufferObject
     /// </summary>
     public StateCache.BufferScope BindDispatchScope()
     {
+        GpuResourceManager.RequireBufferReferenceMetadata(this);
         return StateCache.Current.BindBufferScope(BufferTarget.DispatchIndirectBuffer, bufferId);
     }
 

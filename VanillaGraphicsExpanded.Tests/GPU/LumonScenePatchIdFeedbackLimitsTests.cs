@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
 using System.Collections.Generic;
@@ -358,21 +359,21 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
 
     private static GpuAtomicCounterBuffer CreateAtomicCounterBuffer(uint initialValue, int counterCount)
     {
-        var buf = GpuAtomicCounterBuffer.Create(BufferUsageHint.DynamicDraw, debugName: "Test_AtomicCounter");
+        var buf = RHICommandContext.Current.CreateAtomicCounterBuffer(new RHIBufferDescription { Role = RHIBufferRole.AtomicCounter, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Test_AtomicCounter" }).RequireResource();
         buf.InitializeCounters(counterCount, initialValue);
         return buf;
     }
 
     private static uint ReadAtomicCounter(GpuAtomicCounterBuffer buffer, int counterIndex)
     {
-        using var mapped = buffer.MapRange<uint>(dstOffsetBytes: counterIndex * sizeof(uint), elementCount: 1, access: MapBufferAccessMask.MapReadBit);
+        using var mapped = buffer.MapRange<uint>(dstOffsetBytes: counterIndex * sizeof(uint), elementCount: 1, access: RHIBufferMapAccess.Read);
         Assert.True(mapped.IsMapped);
         return mapped.Span[0];
     }
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, int capacityItems) where T : unmanaged
     {
-        var ssbo = GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw, debugName: name);
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = name }).RequireResource();
         ssbo.Allocate(checked(capacityItems * Unsafe.SizeOf<T>()));
         return ssbo;
     }
@@ -380,7 +381,7 @@ public sealed class LumonScenePatchIdFeedbackLimitsTests : RenderTestBase
     private static T[] ReadSsbo<T>(GpuShaderStorageBuffer ssbo, int itemCount) where T : unmanaged
     {
         T[] dst = new T[itemCount];
-        using var mapped = ssbo.MapRange<T>(dstOffsetBytes: 0, elementCount: itemCount, access: MapBufferAccessMask.MapReadBit);
+        using var mapped = ssbo.MapRange<T>(dstOffsetBytes: 0, elementCount: itemCount, access: RHIBufferMapAccess.Read);
         Assert.True(mapped.IsMapped);
         mapped.Span.CopyTo(dst);
         return dst;

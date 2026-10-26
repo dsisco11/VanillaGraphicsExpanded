@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -17,27 +19,34 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
     [Fact]
     public void FirstBoundAllocationPublishesReservedName()
     {
-        fixture.EnsureContextValid();
-        fixture.InitializeResourceDisposal();
+        fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         var harmony = new Harmony("VGE.Tests.BufferMetadata.FirstAllocation");
+        int reserved = GL.GenBuffer();
         try
         {
-            using var capabilities = new DirectStateAccessCapabilityScope(false);
             harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(Allocate)),
                 transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            using var owner = GpuVbo.Create();
+            harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(BindReserved)),
+                transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
             var manager = GpuResourceManagerSystem.CurrentManager!;
-            var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
-            Assert.Null(entry.Reader);
-            StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, owner.BufferId);
+            Assert.False(GL.IsBuffer(reserved));
+            BindReserved(reserved);
+            Assert.True(GL.IsBuffer(reserved));
             Allocate(48);
-            AcquireAfterExternal(owner);
-            Assert.Equal(48, owner.SizeBytes);
+            var entry = manager.AcquireResource(GpuResourceKind.Buffer, reserved, new GpuBufferMetadataReader())!;
+            using var alias = new BufferAlias(reserved);
+            manager.AssociateResource(entry, alias);
+            Assert.Equal((nint)48, alias.Capacity);
             Assert.NotNull(entry.Reader);
-            Assert.True(manager.IsResourceMetadataAvailable(owner));
+            Assert.True(manager.IsResourceMetadataAvailable(alias));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally
+        {
+            harmony.UnpatchAll(harmony.Id);
+            OpenGLBufferDeletionCalls.Core.DeleteBuffer(reserved);
+            fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
+        }
     }
 
     /// <summary>Method specification discovery identifies a caller containing only a closed generic native operation.</summary>
@@ -61,8 +70,8 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         {
             harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(AllocateStorage)),
                 transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            using var owner = GpuVbo.Create();
-            StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, owner.BufferId);
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, owner.BufferId);
             AllocateStorage(named, owner.BufferId);
             AcquireAfterExternal(owner);
             Assert.Equal(96, owner.SizeBytes);
@@ -97,7 +106,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         {
             var caller = AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(Upload));
             harmony.Patch(caller, transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            using var owner = GpuVbo.Create();
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(64);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
@@ -132,15 +141,15 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         {
             harmony.Patch(AccessTools.Method(typeof(GpuBufferMetadataInterceptionTests), nameof(Allocate)),
                 transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            using var owner = GpuVbo.Create();
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(64);
-            StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, owner.BufferId);
+            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, owner.BufferId);
             Allocate(-1);
             AcquireAfterExternal(owner);
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal(ErrorCode.InvalidValue, GL.GetError());
             raw = GL.GenBuffer();
-            StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, raw);
+            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, raw);
             Allocate(24);
             Assert.Null(GpuResourceManagerSystem.CurrentManager!.FindResource(GpuResourceKind.Buffer, raw));
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int size);
@@ -150,7 +159,7 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
         finally
         {
             harmony.UnpatchAll(harmony.Id);
-            if (raw != 0) StateCache.Current.DeleteBuffer(raw);
+            if (raw != 0) RHICommandContext.Current.OpenGL.DeleteBuffer(raw);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -195,6 +204,10 @@ public sealed class GpuBufferMetadataInterceptionTests(HeadlessGLFixture fixture
             case 7: GL.Ext.NamedBufferData(id, 16, IntPtr.Zero, BufferUsageHint.DynamicDraw); break;
         }
     }
+
+    /// <summary>Realizes a reserved name through the exact external binding boundary.</summary>
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static void BindReserved(int id) => GL.BindBuffer(BufferTarget.ArrayBuffer, id);
 
     /// <summary>Preserves a native invalid-size call that the public owning API would reject before dispatch.</summary>
     [MethodImpl(MethodImplOptions.NoInlining)]

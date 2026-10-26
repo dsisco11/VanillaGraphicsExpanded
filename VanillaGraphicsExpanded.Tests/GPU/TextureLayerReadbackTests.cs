@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -29,7 +30,7 @@ public sealed class TextureLayerReadbackTests(HeadlessGLFixture fixture) : Rende
         using var read=DynamicGpuFramebuffer.CreateEmpty("Tests.Readback.Read");
         using var drawScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer,draw.FboId);
         using var readScope=StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer,read.FboId);
-        using var pack=GpuPixelPackBuffer.Create(debugName:"Tests.Readback.ExistingPack");
+        using var pack=RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = "Tests.Readback.ExistingPack" }).RequireResource();
         using var packScope=pack.BindScope();
         var packing=new[]{PixelStoreParameter.PackAlignment,PixelStoreParameter.PackRowLength,
             PixelStoreParameter.PackSkipRows,PixelStoreParameter.PackSkipPixels,PixelStoreParameter.PackSwapBytes};

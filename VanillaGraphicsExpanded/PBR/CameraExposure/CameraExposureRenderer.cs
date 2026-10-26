@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Reactive.Linq;
 using VanillaGraphicsExpanded.ModSystems;
@@ -195,7 +196,7 @@ internal sealed class CameraExposureRenderer : IRenderer
         frameLighting.Capture(physicalBound, manual, automaticHistory, VgeFrameRenderer.Current.FrameIndex, calibrationGeneration);
         if (frozenLighting is null)
         {
-            frozenLighting = GpuShaderStorageBuffer.Create(debugName: "Camera.FrozenLighting");
+            frozenLighting = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Camera.FrozenLighting" }).RequireResource();
             frozenLighting.Allocate(32);
         }
         frameLighting.PreviousExposure = automaticHistory ? targets!.Exposure : null;

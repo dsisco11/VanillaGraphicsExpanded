@@ -30,11 +30,14 @@ Resource wrappers retain growth/sampling policy, attachment selection and upload
 It retains the typed resource wrapper without exposing ownership or mutation methods. Conversion
 operators live on `GpuTexture` and `GpuTextureView`; manager-certified published metadata supplies
 binding and attachment validation without native discovery during reference construction or access.
-Manager creation orchestrates allocation from initialization records.
-StateCache executes their native commands and owns metadata publication, including deferred publication
+Buffer creation uses `RHICommandContext` descriptions and typed ready-owner results, privately lowering
+to manager initialization records. The OpenGL RHI backend executes core named buffer operations and the
+manager publishes their snapshots; `GpuBufferUploader` retains growth/content policy.
+Manager creation orchestrates other resource allocation from initialization records.
+StateCache executes those native commands and owns metadata publication, including deferred publication
 for complete texture allocation and framebuffer reattachment operations.
 
-Buffer, image-texture, renderbuffer, buffer-texture and texture-view wrappers use the manager's
+Buffer creation privately uses the manager handoff; image-texture, renderbuffer, buffer-texture and texture-view wrappers use the manager's
 `CreateBuffer`, `CreateTexture`, `CreateRenderbuffer`, `CreateBufferTexture` and `CreateTextureView`
 entry points. Their initialization records distinguish omitted inputs from explicit zero/false.
 Private allocation returns a complete snapshot before identity/recipient handoff. Controlled changes
@@ -42,7 +45,7 @@ publish arguments, native defaults and derived image geometry; wrappers retain u
 Unsized formats acquire only the resolved format. Sample requests use cached target/format capabilities;
 renderbuffer and multisample-texture allocation without those capabilities reads only its resulting sample count.
 Known source metadata supplies view geometry and backing ranges without object rediscovery. Buffer
-realization binds generated names before publication when direct creation is unavailable.
+realization uses core `CreateBuffers`; reserved-name realization is retained only for exact external calls.
 
 Vertex arrays, program pipelines, samplers, queries, sync fences, transform feedback objects,
 semaphores and memory objects also use resource-specific manager creation entry points and empty
@@ -59,7 +62,7 @@ sampling policy and configuration remain separate wrapper operations.
 | Texture | `BorrowedTexture(int)` | Reuses available covered canonical facts; unknown or unavailable objects use native target/image discovery. Non-owning; transfer rejected; dispose is local only. Same live native object must share the owner's canonical entry. |
 | Texture | `GpuBufferView`, derived `GpuBufferTexture` | Own the texture name, not the buffer. Buffer ID, format, offset and size describe the view; track texture association changes. Whole-buffer views currently use size zero as a sentinel, not a cached capacity; preserve that convention. |
 | Texture | `GpuTextureView` | Owns a distinct texture object sharing immutable storage, with source reference/ID/generation, target, format, base/count levels and layers. It gets its own canonical texture entry, distinct from its source. Preserve current source-generation validation. |
-| Buffer | `GpuBufferObject`: `GpuVbo`, `GpuEbo`, `GpuUniformBuffer`, `GpuShaderStorageBuffer`, `GpuAtomicCounterBuffer`, `GpuIndirectBuffer`, `GpuPixelPackBuffer`, `GpuPixelUnpackBuffer` | CreateBuffers with GenBuffer fallback; size/usage are storage metadata. Target is the wrapper's intended binding role. EBO index type/count are authored interpretation/content extent, not discoverable from GL bytes. Pack/unpack methods return mapping pointers to their callers; they do not retain a mapping snapshot for notification to refresh. |
+| Buffer | `GpuBufferObject`: `GpuVbo`, `GpuEbo`, `GpuUniformBuffer`, `GpuShaderStorageBuffer`, `GpuAtomicCounterBuffer`, `GpuIndirectBuffer`, `GpuPixelPackBuffer`, `GpuPixelUnpackBuffer` | Core CreateBuffers only; capacity/usage/immutable/access flags are storage metadata. Target is the wrapper's intended binding role. EBO index type/count are authored interpretation/content extent, not discoverable from GL bytes. Pack/unpack methods return mapping pointers to their callers; they do not retain a mapping snapshot for notification to refresh. |
 | Framebuffer | `GpuFramebuffer`: `DynamicGpuFramebuffer`, `StaticGpuFramebuffer` | Generated owners and external non-owning wraps. Attachment dictionary, wrapped extent, surface/pass metadata and dirty publication. External attachment changes refresh actual attachment descriptions, preserving ownership of existing image wrappers. Window-surface format/samples remain on the explicit surface publication path; default framebuffer zero is not a native object handle. Static attachment locks stay in force. |
 | Texture / Renderbuffer | `GpuFramebufferAttachment` | Constructors immediately allocate owned backing storage, or factories retain a typed/raw external image; base `OwnsResource=false`, but owned backing storage is released through its existing disposal queue/finalizer mechanism. Associate with the backing entry and receive an image metadata projection. Selected mip/layer/cube face remain local view choices. External dimensions/format/samples must refresh. `Detach` rejected. |
 | Renderbuffer | `GpuRenderbuffer.Create` / `Wrap` | Create owns; Wrap borrows. Storage format, width, height and actual sample count refresh from native storage. Only owning wrappers may transfer their handle; Wrap borrowers reject Detach and ReleaseHandle without affecting the external owner. |
@@ -138,7 +141,7 @@ native-width representation; narrower existing accessors must reject values they
 | Kind / canonical struct | Native fields and wrapper migration | Local or derived state | API families |
 | --- | --- | --- | --- |
 | Texture / `GpuTextureMetadata` | Target; per-level/per-face dimensions, format, samples and allocated state; immutable storage/level count; base/max levels. Optional buffer association (ID/format/offset/range/whole-buffer mode), texture-view range (base/count levels/layers) and renderbuffer association. `GpuTexture` and all subclasses, `GpuBufferView`/`GpuBufferTexture` and `GpuTextureView` use this struct; their native descriptor fields become accessors. | FilterMode, labels, streaming and uploads remain local. The managed view source/reference/ID certificate and captured source storage revision remain dependency state: arbitrary external views do not expose a queryable source name. `StorageGeneration` reads the manager-owned storage revision; source validation asks the manager to check its original source registration dependency. | T1–T4, I1, L1 |
-| Buffer / `GpuBufferMetadata` | Actual byte capacity and usage; `sizeBytes/usage` become accessors in `GpuBufferObject`, inherited by VBO/EBO/UBO/SSBO/atomic/indirect/pixel pack/unpack wrappers. | Intended target, requested allocation usage, EBO index type/count, queued uploads, mapping scopes, growth policy and labels remain local. No content or mapping-ownership mirror. | B1, I1, L1 |
+| Buffer / `GpuBufferMetadata` | Byte capacity, usage, immutable-storage status and storage-access flags; `sizeBytes/usage` are accessors in `GpuBufferObject`, inherited by VBO/EBO/UBO/SSBO/atomic/indirect/pixel pack/unpack wrappers. | Intended target, requested allocation usage, EBO index type/count, queued uploads, mapping scopes, growth policy and labels remain local. No content or mapping-ownership mirror. | B1, I1, L1 |
 | Renderbuffer / `GpuRenderbufferMetadata` | Width/height/format and actual samples; `storage/width/height/samples` become accessors. | Ownership and labels remain local. | R1, L1 |
 | Framebuffer / `GpuFramebufferMetadata` | Immutable attachment descriptors keyed by slot: kind/ID, mip, layer/face, layered state, multiview base/count and proven ordinary/multiview mode (unknown when native queries cannot establish it); attachmentless default dimensions/layers/samples where applicable. Image facts resolve through backing entries. | Retained image wrappers/ownership, frozen locks, dirty/publication state, viewport fallback extent and surface metadata stay local. The wrapper dictionary reconciles from descriptors rather than independently defining native facts. Selected range/replay policy remains on the image relationship. Pass extent/format are derived; routing stays in existing StateCache routing cache. | F1, backing T/R changes, L1 |
 | VertexArray / `GpuVertexArrayMetadata` | Empty struct: `GpuVao` has no retained native layout fields. Entry revision invalidates represented helper assumptions; no full attribute mirror. | `GpuVertexAttribBinding` is an authored value helper, not a resource. Capture owning-wrapper identity and manager-owned revision for its facts; after mutation, resolve the selected current buffer/offset/stride/divisor before fallback reuse or reject unavailable facts. Vertex contents stay external. | V1, L1 |
@@ -254,7 +257,8 @@ and late admission reconcile through atomic map operations and registration stat
 marks the original entry atomically unavailable before queuing native work. Manager-side association
 checks observe retirement without wrapper notification handlers or GL calls. Existing exception policy remains.
 
-Metadata readers select named queries only when the cached DSA capability permits them; otherwise
+Buffer readers call core named backend queries only for explicit external acquisition/recovery.
+Image metadata readers select named queries only when the cached DSA capability permits them; otherwise
 known targets use existing binding scopes. Immutable-storage/view parameter queries use their own
 cached capabilities. Before texture-view
 queries are supported, immutable level counts come from the queried allocated image chain. External view

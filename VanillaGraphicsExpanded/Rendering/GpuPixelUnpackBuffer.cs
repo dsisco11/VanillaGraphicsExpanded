@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -11,28 +12,14 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
 {
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
-    private GpuPixelUnpackBuffer(BufferUsageHint usage, string? debugName)
+    internal GpuPixelUnpackBuffer(RHIBufferUsage usage, string? debugName)
     {
         target = BufferTarget.PixelUnpackBuffer;
         allocationUsage = usage;
         this.debugName = debugName;
     }
 
-    /// <summary>
-    /// Creates a new PixelUnpackBuffer (PBO) object name and wraps it in an RAII instance.
-    /// </summary>
-    /// <remarks>
-    /// Requires a current GL context on the calling thread.
-    /// The returned buffer starts with <see cref="GpuBufferObject.SizeBytes"/> = 0 and no allocated storage.
-    /// </remarks>
-    public static GpuPixelUnpackBuffer Create(
-        BufferUsageHint usage = BufferUsageHint.StreamDraw,
-        string? debugName = null)
-    {
-        var buffer = new GpuPixelUnpackBuffer(usage, debugName);
-        buffer.InitializeNativeBuffer();
-        return buffer;
-    }
+
 
     /// <summary>
     /// Allocates (or reallocates) the buffer store by orphaning the existing storage and creating a new store
@@ -54,7 +41,7 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(byteCount), byteCount, "Byte count must be >= 0.");
         }
 
-        _ = GpuBufferUploader.BufferData(this, byteCount, IntPtr.Zero, allocationUsage);
+        GpuBufferUploader.Allocate(this, byteCount, IntPtr.Zero, allocationUsage);
 
     }
 
@@ -66,7 +53,7 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
     /// Returns <see cref="IntPtr.Zero"/> on invalid buffers; GL failures are surfaced via OpenTK/driver behavior.
     /// The caller is responsible for calling <see cref="Unmap"/> when finished.
     /// </remarks>
-    public IntPtr MapRange(int offsetBytes, int byteCount, MapBufferAccessMask access)
+    public IntPtr MapRange(int offsetBytes, int byteCount, RHIBufferMapAccess access)
     {
         if (!IsValid)
         {
@@ -83,8 +70,8 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(byteCount), byteCount, "Byte count must be >= 0.");
         }
 
-        using var scope = BindScope();
-        return GL.MapBufferRange(BufferTarget.PixelUnpackBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount, access);
+
+        return RHICommandContext.Current.MapBuffer(this, offsetBytes, byteCount, access);
     }
 
     /// <summary>
@@ -101,8 +88,8 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
             return false;
         }
 
-        using var scope = BindScope();
-        return GL.UnmapBuffer(BufferTarget.PixelUnpackBuffer);
+
+        return RHICommandContext.Current.UnmapBuffer(this);
     }
 
     /// <summary>
@@ -129,8 +116,8 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(byteCount), byteCount, "Byte count must be >= 0.");
         }
 
-        using var scope = BindScope();
-        GL.FlushMappedBufferRange(BufferTarget.PixelUnpackBuffer, (IntPtr)offsetBytes, byteCount);
+
+        RHICommandContext.Current.FlushMappedBuffer(this, offsetBytes, byteCount);
     }
 
     /// <summary>
@@ -147,7 +134,7 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
     public IntPtr AllocateAndMapPersistent(
         int byteCount,
         bool coherent,
-        BufferStorageFlags extraStorageFlags = 0)
+        RHIStorageAccess extraStorageFlags = 0)
     {
         if (!IsValid)
         {
@@ -159,24 +146,24 @@ internal sealed class GpuPixelUnpackBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(byteCount), byteCount, "Byte count must be >= 0.");
         }
 
-        using var scope = BindScope();
 
-        BufferStorageFlags storageFlags = BufferStorageFlags.MapWriteBit | BufferStorageFlags.MapPersistentBit | extraStorageFlags;
-        MapBufferAccessMask mapFlags = MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapPersistentBit;
+
+        RHIStorageAccess storageFlags = RHIStorageAccess.Write | RHIStorageAccess.Persistent | extraStorageFlags;
+        RHIBufferMapAccess mapFlags = RHIBufferMapAccess.Write | RHIBufferMapAccess.Persistent;
 
         if (coherent)
         {
-            storageFlags |= BufferStorageFlags.MapCoherentBit;
-            mapFlags |= MapBufferAccessMask.MapCoherentBit;
+            storageFlags |= RHIStorageAccess.Coherent;
+            mapFlags |= RHIBufferMapAccess.Coherent;
         }
         else
         {
-            mapFlags |= MapBufferAccessMask.MapFlushExplicitBit;
+            mapFlags |= RHIBufferMapAccess.ExplicitFlush;
         }
 
-        StateCache.Current.BufferStorage(this, byteCount, IntPtr.Zero, storageFlags);
+        RHICommandContext.Current.AllocateImmutableBuffer(this, byteCount, storageFlags);
 
 
-        return GL.MapBufferRange(BufferTarget.PixelUnpackBuffer, IntPtr.Zero, byteCount, mapFlags);
+        return RHICommandContext.Current.MapBuffer(this, 0, byteCount, mapFlags);
     }
 }

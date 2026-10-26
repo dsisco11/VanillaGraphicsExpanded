@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -128,7 +130,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
         Assert.Throws<NotSupportedException>(()=>new CloudSimpleGeometry(malformed.Mesh,1));
         using var packed=new NativeCloud(5,.1f,0,short.MaxValue,.1f,0,0);
         StateCache.Current.BindVertexArray(packed.Mesh.VaoId);
-        StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer,packed.Mesh.customDataShortVboId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer,packed.Mesh.customDataShortVboId);
         GL.VertexAttribPointer(3,2,VertexAttribPointerType.Short,true,0,IntPtr.Zero);
         Assert.Throws<NotSupportedException>(()=>new CloudSimpleGeometry(packed.Mesh,1));
         Assert.False(native.Mesh.Disposed); Assert.True(GL.IsBuffer(native.Mesh.customDataShortVboId));
@@ -208,8 +210,8 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
     {
         internal readonly VAO Mesh;
         private readonly GpuVao vao=GpuVao.Create();
-        private readonly GpuEbo indices=GpuEbo.Create();
-        private readonly GpuVbo[] streams=Enumerable.Range(0,4).Select(_=>GpuVbo.Create()).ToArray();
+        private readonly GpuEbo indices=RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        private readonly GpuVbo[] streams=Enumerable.Range(0,4).Select(_=>RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource()).ToArray();
         #region Public API
         /// <summary>Authors the native representation independently of the production adapter's layout descriptor.</summary>
         internal NativeCloud(int face,float neighbor,short tileX,short brightness,float thickness,float thin,float undulation)
@@ -225,7 +227,7 @@ public sealed class CloudSimpleDrawTests(HeadlessGLFixture fixture) : LumOnShade
             int[] components=[3,4,1,2,4,1,1,1,1,1]; int[] offsets=[0,0,0,0,4,12,14,16,18,20];
             for(int i=0;i<10;i++)
             {
-                int binding=i<3?i:3; StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer,streams[binding].BufferId);
+                int binding=i<3?i:3; OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer,streams[binding].BufferId);
                 if(i==2) GL.VertexAttribIPointer(i,1,VertexAttribIntegerType.UnsignedInt,4,IntPtr.Zero);
                 else GL.VertexAttribPointer(i,components[i],i==0?VertexAttribPointerType.Float:i==1?VertexAttribPointerType.UnsignedByte:VertexAttribPointerType.Short,
                     i!=0,i==0?12:i==1?4:24,(IntPtr)offsets[i]);

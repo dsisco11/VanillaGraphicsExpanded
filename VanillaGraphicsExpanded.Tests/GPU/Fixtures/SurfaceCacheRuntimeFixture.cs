@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using Moq;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.DebugView;
@@ -65,7 +66,7 @@ internal sealed partial class SurfaceCacheRuntimeFixture : IDisposable
     {
         if (!TryGetLighting(out var snapshot) || !Feedback.TryGetNearDispatchState(out _,out _,out var mapping,out _) ||
             !TryGetRequestedPages(mapping, out var pages)) return false;
-        using var ready = snapshot.Readiness.MapRange<uint>(0, checked((int)pages.Max(page => page.Physical)+1), MapBufferAccessMask.MapReadBit);
+        using var ready = snapshot.Readiness.MapRange<uint>(0, checked((int)pages.Max(page => page.Physical)+1), RHIBufferMapAccess.Read);
         if (!ready.IsMapped) return false;
         foreach (var page in pages) if (ready.Span[(int)page.Physical] == 0) return false;
         // Admission permits partial lighting. Read every requested texel, coalescing only neighboring requested tiles.

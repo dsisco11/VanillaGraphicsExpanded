@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -156,7 +157,7 @@ public sealed class CompleteGraphicsDrawTests(HeadlessGLFixture fixture)
             program = GL.CreateProgram(); GL.AttachShader(program, vs); GL.AttachShader(program, fs); GL.LinkProgram(program);
             GL.GetProgram(program, GetProgramParameterName.LinkStatus, out int linked); Assert.True(linked != 0, GL.GetProgramInfoLog(program));
             GL.DeleteShader(vs); GL.DeleteShader(fs);
-            vao = GpuVao.Create(); vao.Bind(); indices = GpuEbo.Create(); indices.UploadIndices(new uint[] { 0, 1, 2 });
+            vao = GpuVao.Create(); vao.Bind(); indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); indices.UploadIndices(new uint[] { 0, 1, 2 });
             framebuffer = GL.GenFramebuffer(); GL.BindFramebuffer(FramebufferTarget.Framebuffer, framebuffer);
             for (int i = 0; i < colors.Length; i++)
             {

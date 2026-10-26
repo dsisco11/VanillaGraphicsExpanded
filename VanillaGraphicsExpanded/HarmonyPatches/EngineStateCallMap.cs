@@ -42,6 +42,8 @@ internal static class EngineStateCallMap
             (typeof(GL), typeof(EngineStateDeletionCalls.Core)),
             (typeof(GL.Arb), typeof(EngineStateDeletionCalls.Arb)),
             (typeof(GL.Ext), typeof(EngineStateDeletionCalls.Ext)),
+            (typeof(GL), typeof(Rendering.RHI.Backends.OpenGL.OpenGLBufferDeletionCalls.Core)),
+            (typeof(GL.Arb), typeof(Rendering.RHI.Backends.OpenGL.OpenGLBufferDeletionCalls.Arb)),
         })
         {
             foreach (var adapter in pair.Adapter.GetMethods(BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly))

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Concurrent;
 using System.Threading;
@@ -189,7 +190,7 @@ internal sealed partial class GpuResourceManager : IRenderer, IDisposable
                 switch (command.Kind)
                 {
                     case GpuResourceKind.Buffer:
-                        StateCache.Current.DeleteBuffer((int)command.Id);
+                        RHICommandContext.Current.OpenGL.DeleteBuffer((int)command.Id);
                         break;
                     case GpuResourceKind.VertexArray:
                         StateCache.Current.DeleteVertexArray((int)command.Id);

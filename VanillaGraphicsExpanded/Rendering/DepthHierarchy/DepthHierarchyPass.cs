@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -50,7 +51,7 @@ internal sealed class DepthHierarchyPass : IDisposable
                 }
                 if (ScratchBytes > limits.MaxShaderStorageBlockSize)
                     throw new InvalidOperationException("Depth hierarchy tail exceeds the storage-block limit.");
-                tail = resources.Own(GpuShaderStorageBuffer.Create(debugName: "DepthHierarchy.Tail"));
+                tail = resources.Own(RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "DepthHierarchy.Tail" }).RequireResource());
                 tail.UploadData(new uint[ScratchBytes / 4]);
             }
             catch { Dispose(); throw; }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
@@ -71,7 +72,7 @@ internal static class TerrainBoundaryCaptureFixture
     /// <summary>Uploads tightly packed work records through the production buffer owner.</summary>
     private static GpuShaderStorageBuffer Buffer<T>(ReadOnlySpan<T> values) where T : unmanaged
     {
-        var buffer = GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw);
+        var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         int bytes = values.Length * Marshal.SizeOf<T>();
         buffer.EnsureCapacity(bytes, false); buffer.UploadSubData(values, 0, bytes);
         return buffer;

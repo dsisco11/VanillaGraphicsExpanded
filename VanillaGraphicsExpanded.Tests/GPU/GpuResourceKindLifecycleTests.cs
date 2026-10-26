@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -86,7 +87,7 @@ public sealed class GpuResourceKindLifecycleTests(HeadlessGLFixture fixture, ITe
     {
         return kind switch
         {
-            GpuResourceKind.Buffer => GpuVbo.Create(),
+            GpuResourceKind.Buffer => RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(),
             GpuResourceKind.VertexArray => GpuVao.Create(),
             GpuResourceKind.Texture => DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8),
             GpuResourceKind.Framebuffer => new DynamicGpuFramebuffer(true),

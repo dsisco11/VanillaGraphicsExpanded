@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -45,7 +46,7 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
         fixture.InitializeResourceDisposal();
         try
         {
-            using var buffer = GpuVbo.Create();
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             var range = new GpuStorageBufferBinding(buffer, 0, 64);
             var previous = ShaderInputValidation.StorageKey(range);
@@ -74,7 +75,7 @@ public sealed class ShaderInputMetadataRevisionTests(HeadlessGLFixture fixture)
         try
         {
             using var texture = DynamicTexture2D.Create(4, 4, PixelInternalFormat.Rgba8);
-            using var buffer = GpuVbo.Create();
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             var range = new GpuStorageBufferBinding(buffer, 0, 64);
             var previous = textureInput ? ShaderInputValidation.TextureKey(texture) : ShaderInputValidation.StorageKey(range);

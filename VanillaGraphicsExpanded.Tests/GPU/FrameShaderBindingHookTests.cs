@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using HarmonyLib;
 using Moq;
 using OpenTK.Graphics.OpenGL;
@@ -62,8 +63,8 @@ public sealed class FrameShaderBindingHookTests(HeadlessGLFixture fixture) : Ren
         try
         {
             // Native GUI/offscreen routes must draw before world publication with no camera range inherited.
-            StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
-            StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Lights,0);
+            OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
+            OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Lights,0);
             Assert.Throws<InvalidOperationException>(() => VgeFrameRenderer.Current);
             engine.Use();
             Assert.Equal(0,Binding().Buffer);

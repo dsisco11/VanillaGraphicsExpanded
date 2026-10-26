@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Tessellation;
@@ -80,7 +81,7 @@ public sealed class TerrainDisplacementNumericalTests : RenderTestBase
         inputs.SetBytes(bytes);
         Assert.True(inputs.TryBindToSlot(GpuBindingRegistry.Ubo.ShaderInputs));
         // A shadow pass precedes world publication and must not activate the shared camera block.
-        StateCache.Current.BindBufferBase(BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
+        OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.UniformBuffer,GpuBindingRegistry.Ubo.Frame,0);
         Assert.Equal(-1,GL.GetUniformBlockIndex(program.ProgramId,"VgeFrameUBO"));
         using var framework = new ShaderTestFramework();
         using var target = framework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f);

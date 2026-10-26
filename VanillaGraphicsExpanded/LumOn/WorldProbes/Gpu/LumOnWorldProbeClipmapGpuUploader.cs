@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Passes;
@@ -38,12 +39,12 @@ internal sealed partial class LumOnWorldProbeClipmapGpuUploader : IDisposable
     {
         this.capi = capi ?? throw new ArgumentNullException(nameof(capi));
 
-        probeVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, debugName: "VGE_WorldProbeProbeResolve_VBO");
+        probeVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldProbeProbeResolve_VBO" }).RequireResource();
 
         try
         {
             probeGeometry = new(ProbeLayout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = probeVbo });
-            tileVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, debugName: "VGE_WorldProbeTileResolve_VBO");
+            tileVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldProbeTileResolve_VBO" }).RequireResource();
             tileGeometry = new(TileLayout, PrimitiveType.Points, new Dictionary<int, GpuVbo> { [0] = tileVbo });
         }
         catch

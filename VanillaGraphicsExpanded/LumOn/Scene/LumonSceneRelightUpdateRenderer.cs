@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
 using System;
 using System.Collections.Generic;
@@ -121,7 +122,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             historyRevision = feedback.GeometryHistoryRevision; settingsHash = hash;
             sourceCalibration = VgeFrameRenderer.CurrentLightingCalibration;
             readiness = new uint[pool.Plan.CapacityPages + 1];
-            readyBuffer ??= GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw, debugName: "SurfaceLighting.Readiness");
+            readyBuffer ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "SurfaceLighting.Readiness" }).RequireResource();
             readyBuffer.EnsureCapacity(readiness.Length * sizeof(uint), growExponentially: false);
             readyBuffer.UploadSubData<uint>(readiness, 0, readiness.Length * sizeof(uint));
         }
@@ -165,7 +166,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             uint operation = pass == 2 ? 4u : pass;
             var work = CollectionsMarshal.AsSpan(operation == 0 ? seedWork : operation == 1 ? traceWork : refreshWork);
             if (work.Length == 0) continue;
-            var workBuffer = operationBuffers[pass] ??= GpuShaderStorageBuffer.Create(debugName: $"SurfaceLighting.Operation{pass}");
+            var workBuffer = operationBuffers[pass] ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = $"SurfaceLighting.Operation{pass}" }).RequireResource();
             workBuffer.EnsureCapacity(work.Length << 4, growExponentially: false);
             workBuffer.UploadSubData(work, 0, work.Length << 4);
             var fallbackBuffer = operation == 1 ? BeginFallbackCapture(current,work) : null;
@@ -185,7 +186,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             if (work.Length == 0) continue;
             // All stages are already queued. Completion reads no longer separate shader submissions.
             long readStart = System.Diagnostics.Stopwatch.GetTimestamp();
-            using var result = operationBuffers[pass]!.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, MapBufferAccessMask.MapReadBit);
+            using var result = operationBuffers[pass]!.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, RHIBufferMapAccess.Read);
             diagnosticMapMilliseconds[pass] += System.Diagnostics.Stopwatch.GetElapsedTime(readStart).TotalMilliseconds;
             diagnosticMapCalls[pass]++;
             for (int i = 0; i < work.Length; i++)
@@ -227,7 +228,7 @@ internal sealed partial class LumonSceneRelightUpdateRenderer : IRenderer, ISurf
             // Keep the submitted list unchanged while its span is borrowed for completion handling.
             committedWork.Clear();
             long readStart = System.Diagnostics.Stopwatch.GetTimestamp();
-            using (var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, MapBufferAccessMask.MapReadBit))
+            using (var result = gpu.RelightWork.Items.MapRange<LumonSceneRelightWorkGpu>(0, work.Length, RHIBufferMapAccess.Read))
             {
                 diagnosticMapMilliseconds[3] += System.Diagnostics.Stopwatch.GetElapsedTime(readStart).TotalMilliseconds;
                 diagnosticMapCalls[3]++;

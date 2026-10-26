@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Linq;
 using OpenTK.Graphics.OpenGL;
@@ -115,9 +116,9 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         StateCache.Current.BindVertexArray(vao);
         CheckAttribute(0, 3, 12, positions);
         CheckAttribute(1, 2, 8, uv);
-        CheckBuffer(BufferTarget.ArrayBuffer, positions, checked(vertices * 12));
-        CheckBuffer(BufferTarget.ArrayBuffer, uv, checked(vertices * 8));
-        CheckBuffer(BufferTarget.ElementArrayBuffer, elements, checked(count * sizeof(uint)));
+        CheckBuffer(positions, checked(vertices * 12));
+        CheckBuffer(uv, checked(vertices * 8));
+        CheckBuffer(elements, checked(count * sizeof(uint)));
     }
 
     /// <summary>Retires only the adapter's owned mesh, preserving engine cleanup on its originating context.</summary>
@@ -169,10 +170,9 @@ internal sealed class EngineFullscreenGeometry : GraphicsGeometry
         && mesh.customDataShortVboId == 0 && mesh.customDataByteVboId == 0;
 
     /// <summary>Checks allocated byte extent through the existing cache-owned binding API.</summary>
-    private static void CheckBuffer(BufferTarget target, int buffer, int required)
+    private static void CheckBuffer(int buffer, int required)
     {
-        StateCache.Current.BindBuffer(target, buffer);
-        GL.GetBufferParameter(target, BufferParameterName.BufferSize, out int bytes);
+        nint bytes = GpuResourceManager.AcquireBufferMetadata(buffer).Capacity;
         if (bytes < required) throw new InvalidOperationException("Engine geometry buffer is smaller than its upload.");
     }
     #endregion

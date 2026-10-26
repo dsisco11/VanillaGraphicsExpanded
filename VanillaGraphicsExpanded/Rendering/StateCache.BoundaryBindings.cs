@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -74,11 +75,11 @@ internal sealed partial class StateCache
             RequireBoundaryResource(EPipelineState.VertexArray, vao);
             RequireBoundaryResource(EPipelineState.BufferBindings, elementBuffer);
             BindVertexArray(vao);
-            BindBuffer(BufferTarget.ElementArrayBuffer, elementBuffer);
+            OpenGLBufferBindings.BindBuffer(this, BufferTarget.ElementArrayBuffer, elementBuffer);
         }, () => elementArrayBufferByVao.Remove(vao),
             () => !elementArrayBufferByVao.TryGetValue(vao, out int current) || current != elementBuffer
                 || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, elementBuffer)));
-        bindings.Add(() => { RequireBoundaryResource(EPipelineState.BufferBindings, arrayBuffer); if (bufferBindingByTarget.GetValueOrDefault(BufferTarget.ArrayBuffer) != arrayBuffer) BindBuffer(BufferTarget.ArrayBuffer, arrayBuffer); },
+        bindings.Add(() => { RequireBoundaryResource(EPipelineState.BufferBindings, arrayBuffer); if (bufferBindingByTarget.GetValueOrDefault(BufferTarget.ArrayBuffer) != arrayBuffer) OpenGLBufferBindings.BindBuffer(this, BufferTarget.ArrayBuffer, arrayBuffer); },
             () => bufferBindingByTarget.Remove(BufferTarget.ArrayBuffer),
             () => bufferBindingByTarget.GetValueOrDefault(BufferTarget.ArrayBuffer) != arrayBuffer || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, arrayBuffer)));
         try
@@ -105,7 +106,7 @@ internal sealed partial class StateCache
         }
         // Indexed buffer binds also alter the generic target, so restore that alias last.
         foreach (var value in generic)
-            bindings.Add(() => { RequireBoundaryResource(EPipelineState.BufferBindings, value.Value); if (bufferBindingByTarget.GetValueOrDefault(value.Key) != value.Value) BindBuffer(value.Key, value.Value); },
+            bindings.Add(() => { RequireBoundaryResource(EPipelineState.BufferBindings, value.Value); if (bufferBindingByTarget.GetValueOrDefault(value.Key) != value.Value) OpenGLBufferBindings.BindBuffer(this, value.Key, value.Value); },
                 () => bufferBindingByTarget.Remove(value.Key),
                 () => bufferBindingByTarget.GetValueOrDefault(value.Key) != value.Value || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, value.Value)));
         bindings.Add(() => { if (activeTextureUnit != active) ActiveTexture(active); }, () => activeTextureUnit = null, () => activeTextureUnit != active);
@@ -194,8 +195,8 @@ internal sealed partial class StateCache
         {
             RequireBoundaryResource(EPipelineState.BufferBindings, saved.Buffer);
             if (indexedBufferBindings.TryGetValue((target, slot), out var current) && current == saved) return;
-            if (saved.Range) BindBufferRange(target, slot, saved.Buffer, saved.Offset, saved.Size);
-            else BindBufferBase(target, slot, saved.Buffer);
+            if (saved.Range) OpenGLBufferBindings.BindBufferRange(this, target, slot, saved.Buffer, saved.Offset, saved.Size);
+            else OpenGLBufferBindings.BindBufferBase(this, target, slot, saved.Buffer);
         }, () => { indexedBufferBindings.Remove((target, slot)); bufferBindingByTarget.Remove((BufferTarget)target); },
             () => !indexedBufferBindings.TryGetValue((target, slot), out var current) || current != saved || boundaryRetiredResources.Contains((EPipelineState.BufferBindings, saved.Buffer)));
     }

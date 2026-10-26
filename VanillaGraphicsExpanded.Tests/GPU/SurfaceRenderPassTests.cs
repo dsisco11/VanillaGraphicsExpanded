@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
@@ -85,7 +86,7 @@ public sealed class SurfaceRenderPassTests(HeadlessGLFixture fixture) : RenderTe
         var layout = new VertexLayoutDesc([new(0, 3, VertexAttribPointerType.Float, VertexInterpretation.Floating, 0, 0, 12)]);
         using var pipeline = new GraphicsPipeline(lifetime, new(shader.GraphicsIdentity!, layout,
             new([new(metadata.Color)], metadata.DepthStencil, metadata.Samples, metadata.HasDepth, metadata.HasStencil), DynamicPipelineState.Viewport), shader);
-        using var buffer = GpuVbo.Create();
+        using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.UploadData(new float[] { -1, -1, 0, 3, -1, 0, -1, 3, 0 });
         using var geometry = new ArrayGraphicsGeometry(layout, PrimitiveType.Triangles, new Dictionary<int, GpuVbo> { [0] = buffer });
         using var source = DynamicTexture2D.CreateWithData(2, 2, PixelInternalFormat.R32f, [.25f, .5f, .75f, 1]);

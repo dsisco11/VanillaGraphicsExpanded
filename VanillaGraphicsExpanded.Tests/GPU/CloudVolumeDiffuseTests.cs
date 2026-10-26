@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -30,7 +31,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
         int region=(d.BlocksY+2)*d.BlocksX+1;
         var occupancy=new uint[d.Blocks];occupancy[region]=5u|(256u<<3);
         fields.Occupancy.UploadData(occupancy);
-        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=1;
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,RHIBufferMapAccess.Write))membership.Span[0]=1;
         var light=new AtmosphereLighting(Vector3.UnitY,Vector3.Zero,environment,Vector3.Zero,Vector3.Zero,ImmutableArray<float>.Empty);
         var planes=Enumerable.Repeat(new Vector4(0,0,0,1),6).ToArray();
         foreach(int level in Enumerable.Range(0,5))
@@ -44,7 +45,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
             {
                 Assert.True(work.Select(storage,light,(uint)(level*4+sample+1),planes,()=>true,directEnabled:false,lightingRays:profile.LightingRays),work.Failure);
                 Assert.True(work.TryBatch(storage,out var batch));
-                using(var args=batch!.Commands.MapScope<uint>(12,3,MapBufferAccessMask.MapReadBit))
+                using(var args=batch!.Commands.MapScope<uint>(12,3,RHIBufferMapAccess.Read))
                 {Assert.Equal(1u,args.Span[0]);Assert.Equal((uint)profile.Directions,args.Span[1]);Assert.Equal(1u,args.Span[2]);}
                 timer.Begin();Assert.True(solver.Update(storage,work,()=>true,deferStatus:true),solver.Failure);timer.End();
                 work.SubmitCompletion(storage,()=>true);
@@ -72,7 +73,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
         var density=Enumerable.Repeat(.0078125f,d.Voxels).ToArray();
         fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
-        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=1;
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,RHIBufferMapAccess.Write))membership.Span[0]=1;
         fields.Direct.UploadDataImmediate(Enumerable.Repeat(float.NaN,d.Voxels*2).ToArray(),0,0,0,d.Size,66,d.Size);
         using var work=new CloudVolumeWork((op,large,shared)=>CloudVolumeWorkProgram.Create(Programs.Api,op,large,shared));
         using var solver=new CloudVolumeDiffuse(shadows=>CloudVolumeDiffuseProgram.Create(Programs.Api,shadows));
@@ -84,7 +85,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
         {Assert.True(disabled.Update(storage,work,()=>true));Assert.Equal(0,disabled.LastCopyBytes);}
         Assert.Same(unchanged,fields.Diffuse);
         using var probe=CloudVolumeProbeProgram.Create(Programs.Api);
-        using var result=GpuShaderStorageBuffer.Create();result.UploadData(new Vector4[2]);
+        using var result=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();result.UploadData(new Vector4[2]);
         var selectedPoint=Point(d,3,2,3);var untouchedPoint=Point(d,9,64,9);
         Assert.True(work.Select(storage,light,2,planes,()=>true,directEnabled:false));
         Assert.True(solver.Update(storage,work,()=>true,deferStatus:true),solver.Failure);
@@ -130,12 +131,12 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
         Assert.Equal(retainedValue,Query(probe,fields,result,retainedPoint));
         fields.Density.UploadDataImmediate(new float[d.Voxels],0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(new uint[d.Blocks]);
-        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=1;
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,RHIBufferMapAccess.Write))membership.Span[0]=1;
         var repairHistory=ReadWords(fields,CloudVolumeWork.RepairListWord,32);
         Assert.True(work.Select(storage,light with{Environment=new Vector3(1000)},5,planes,()=>true,directEnabled:false));
         coherent=fields.Diffuse;var encoding=fields.Encoding;
         Assert.True(work.TryBatch(storage,out var empty));
-        using(var args=empty!.Commands.MapScope<uint>(48,3,MapBufferAccessMask.MapReadBit))Assert.Equal(0u,args.Span[0]);
+        using(var args=empty!.Commands.MapScope<uint>(48,3,RHIBufferMapAccess.Read))Assert.Equal(0u,args.Span[0]);
         // Poison a block covered by repair history: empty work must not repair or publish it.
         int poison=(int)repairHistory[0];
         fields.DiffuseSpare.UploadDataImmediate(new[]{float.NaN,float.NaN,float.NaN,0},
@@ -150,7 +151,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
         Assert.True(solver.Update(storage,work,()=>true));Assert.Same(coherent,fields.Diffuse);
         fields.Density.UploadDataImmediate(density,0,0,0,d.Size,66,d.Size);
         fields.Occupancy.UploadData(Enumerable.Repeat(1u,d.Blocks).ToArray());
-        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,MapBufferAccessMask.MapWriteBit))membership.Span[0]=1;
+        using(var membership=fields.Scratch.MapScope<uint>(48*4,1,RHIBufferMapAccess.Write))membership.Span[0]=1;
         // Exercise the actual compiled cached-shadow path after real ordered direct completion.
         light=light with{Solar=Vector3.One,Lunar=Vector3.One,Moon=-Vector3.UnitX};
         using var direct=new CloudVolumeDirect(op=>CloudVolumeDirectProgram.Create(Programs.Api,op));
@@ -177,7 +178,7 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
     /// <summary>Reads a bounded existing list or counter after ordered test dispatches.</summary>
     private static uint[] ReadWords(CloudVolumeFields fields,int offset,int count)
     {
-        using var read=fields.Scratch.MapScope<uint>(offset*4,count,MapBufferAccessMask.MapReadBit);
+        using var read=fields.Scratch.MapScope<uint>(offset*4,count,RHIBufferMapAccess.Read);
         return read.Span.ToArray();
     }
     /// <summary>Transforms an authored physical texel centre into native-local coordinates.</summary>
@@ -192,12 +193,12 @@ public sealed class CloudVolumeDiffuseTests(HeadlessGLFixture fixture,Xunit.ITes
     {
         p.Capture(fields,point);p.Density=fields.Density;p.Direct=fields.Direct;p.Diffuse=fields.Diffuse;p.Result=result;p.Dispatch(1);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit|MemoryBarrierFlags.BufferUpdateBarrierBit);
-        using var read=result.MapScope<Vector4>(0,2,MapBufferAccessMask.MapReadBit);return read.Span[1];
+        using var read=result.MapScope<Vector4>(0,2,RHIBufferMapAccess.Read);return read.Span[1];
     }
     /// <summary>Inspects exact completed frames to detect any publication of a failed prefix.</summary>
     private static uint[] Completed(CloudVolumeFields fields)
     {
-        using var read=fields.Regions.MapScope<uint>(0,fields.Domain.Blocks*16,MapBufferAccessMask.MapReadBit);
+        using var read=fields.Regions.MapScope<uint>(0,fields.Domain.Blocks*16,RHIBufferMapAccess.Read);
         var values=new uint[fields.Domain.Blocks*3];
         for(int i=0;i<fields.Domain.Blocks;i++)
         {values[i*3]=read.Span[i*16+10];values[i*3+1]=read.Span[i*16+11];values[i*3+2]=read.Span[i*16+15];}

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -31,11 +32,11 @@ public class GpuMappedBufferScopeIntegrationTests
         const int count = 256;
         int byteCount = checked(count * sizeof(int));
 
-        using var vbo = GpuVbo.Create(usage: BufferUsageHint.DynamicDraw, debugName: "MappedVbo");
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "MappedVbo" }).RequireResource();
         vbo.Allocate(byteCount);
         Assert.Equal(byteCount, GetActualSizeBytes(vbo));
 
-        using (var mapped = vbo.MapScope<int>(0, count, MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapInvalidateBufferBit))
+        using (var mapped = vbo.MapScope<int>(0, count, RHIBufferMapAccess.Write | RHIBufferMapAccess.InvalidateBuffer))
         {
             Assert.True(mapped.IsMapped);
             Assert.Equal(count, mapped.Span.Length);
@@ -63,11 +64,11 @@ public class GpuMappedBufferScopeIntegrationTests
         const int count = 128;
         int byteCount = checked(count * sizeof(int));
 
-        using var vbo = GpuVbo.Create(usage: BufferUsageHint.StreamDraw, debugName: "FlushMappedVbo");
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "FlushMappedVbo" }).RequireResource();
         vbo.Allocate(byteCount);
         Assert.Equal(byteCount, GetActualSizeBytes(vbo));
 
-        using (var mapped = vbo.MapScope<int>(0, count, MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapFlushExplicitBit))
+        using (var mapped = vbo.MapScope<int>(0, count, RHIBufferMapAccess.Write | RHIBufferMapAccess.ExplicitFlush))
         {
             Assert.True(mapped.IsMapped);
 
@@ -94,10 +95,10 @@ public class GpuMappedBufferScopeIntegrationTests
     {
         fixture.MakeCurrent();
 
-        var vbo = GpuVbo.Create(debugName: "DisposedMappedVbo");
+        var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "DisposedMappedVbo" }).RequireResource();
         vbo.Dispose();
 
-        bool result = vbo.TryMapScope<int>(0, 1, MapBufferAccessMask.MapWriteBit, out GpuMappedBufferScope<int> scope);
+        bool result = vbo.TryMapScope<int>(0, 1, RHIBufferMapAccess.Write, out GpuMappedBufferScope<int> scope);
 
         Assert.False(result);
         Assert.False(scope.IsMapped);

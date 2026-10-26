@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -276,8 +277,8 @@ public sealed class ShaderTestFramework : IDisposable
         ];
 
         _quadVao = GpuVao.Create("Tests.FullscreenTriangle");
-        _quadVbo = GpuVbo.Create(debugName: "Tests.FullscreenTriangle.Vertices");
-        _quadEbo = GpuEbo.Create(debugName: "Tests.FullscreenTriangle.Indices");
+        _quadVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Tests.FullscreenTriangle.Vertices" }).RequireResource();
+        _quadEbo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Tests.FullscreenTriangle.Indices" }).RequireResource();
         using var geometry = _quadVao.BindScope();
         using var vertexBinding = _quadVbo.BindScope();
         _quadVbo.UploadData(vertices);

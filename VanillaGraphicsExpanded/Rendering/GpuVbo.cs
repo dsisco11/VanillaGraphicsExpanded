@@ -1,4 +1,5 @@
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 
 using OpenTK.Graphics.OpenGL;
 
@@ -9,21 +10,13 @@ namespace VanillaGraphicsExpanded.Rendering;
 /// </summary>
 internal sealed class GpuVbo : GpuBufferObject
 {
-    /// <summary>Declares buffer policy before manager-owned native creation.</summary>
-    private GpuVbo(BufferTarget target, BufferUsageHint usage, string? debugName)
+    #region Internal API
+    /// <summary>Declares vertex-buffer policy without realizing a native resource.</summary>
+    internal GpuVbo(BufferTarget target, RHIBufferUsage usage, string? debugName)
     {
         this.target = target;
         allocationUsage = usage;
         this.debugName = debugName;
     }
-
-    public static GpuVbo Create(
-        BufferTarget target = BufferTarget.ArrayBuffer,
-        BufferUsageHint usage = BufferUsageHint.StaticDraw,
-        string? debugName = null)
-    {
-        var buffer = new GpuVbo(target, usage, debugName);
-        buffer.InitializeNativeBuffer();
-        return buffer;
-    }
+    #endregion
 }

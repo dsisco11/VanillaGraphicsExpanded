@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -24,7 +25,7 @@ public sealed class GpuVertexAcquisitionFoundationTests(HeadlessGLFixture fixtur
         {
             using var capabilities = new DirectStateAccessCapabilityScope(true);
             using var vao = GpuVao.Create();
-            using var buffer = GpuVbo.Create(); buffer.Allocate(64);
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.Allocate(64);
             nint wideOffset = checked((nint)((long)int.MaxValue + 1024));
             StateCache.Current.VertexArrayVertexBuffer(vao.VertexArrayId, 1, buffer.BufferId, wideOffset, 24);
             StateCache.Current.VertexArrayBindingDivisor(vao.VertexArrayId, 1, 7);

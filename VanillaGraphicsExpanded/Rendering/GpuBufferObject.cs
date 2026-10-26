@@ -1,4 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Buffers;
 using System.Collections.Concurrent;
 using System.Diagnostics;
@@ -23,12 +25,16 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     /// <summary>Reads the canonical storage usage through the typed snapshot.</summary>
     protected BufferUsageHint usage => metadata.Usage;
     /// <summary>Contains the requested hint for the next allocation, independently of observed storage.</summary>
-    protected BufferUsageHint allocationUsage;
+    protected RHIBufferUsage allocationUsage;
     protected string? debugName;
 
     private readonly ConcurrentQueue<PendingUpload> pendingUploads = new();
     private int uploadsQueued;
 
+    /// <summary>Supplies a non-owning consumer value without acquisition or native work.</summary>
+    public static implicit operator GpuBufferRef(GpuBufferObject? buffer) => new(buffer);
+    /// <summary>Gets the intended semantic role retained by this owning abstraction.</summary>
+    public RHIBufferRole Role => RHI.Backends.OpenGL.OpenGLBufferValues.Role(target);
     public int BufferId => bufferId;
     public int SizeBytes => sizeBytes;
     public BufferTarget Target => target;
@@ -44,14 +50,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
 
     protected override GpuResourceKind ResourceKind => GpuResourceKind.Buffer;
 
-    /// <summary>Hands a complete declaration to the manager for native realization and snapshot delivery.</summary>
-    protected void InitializeNativeBuffer()
-    {
-        var initialization = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Realization };
-        if (!GpuResourceManager.CreateBuffer(initialization, this, out _).HasValue)
-            throw new InvalidOperationException("Buffer creation failed.");
-        SetDebugName(debugName);
-    }
+
     public override void SetDebugName(string? debugName)
     {
         this.debugName = debugName;
@@ -68,6 +67,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     public BindingScope BindScope()
     {
         ObjectDisposedException.ThrowIf(!IsValid, this);
+        GpuResourceManager.RequireBufferReferenceMetadata(this);
         return new BindingScope(StateCache.Current.BindBufferScope(target, bufferId));
     }
 
@@ -79,7 +79,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
             return;
         }
 
-        StateCache.Current.BindBuffer(target, bufferId);
+        RHICommandContext.Current.BindBuffer(Role, this);
     }
 
     public bool TryBind()
@@ -89,13 +89,13 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
             return false;
         }
 
-        StateCache.Current.BindBuffer(target, bufferId);
+        RHICommandContext.Current.BindBuffer(Role, this);
         return true;
     }
 
     public void Unbind()
     {
-        StateCache.Current.BindBuffer(target, 0);
+        RHICommandContext.Current.BindBuffer(Role, default);
     }
 
     public void Allocate(int sizeBytes)
@@ -111,7 +111,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
             throw new ArgumentOutOfRangeException(nameof(sizeBytes), sizeBytes, "Size must be >= 0.");
         }
 
-        _ = GpuBufferUploader.BufferData(this, sizeBytes, IntPtr.Zero, allocationUsage);
+        GpuBufferUploader.Allocate(this, sizeBytes, IntPtr.Zero, allocationUsage);
 
     }
 
@@ -157,7 +157,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
             newCapacity = Math.Max(newCapacity, checked(sizeBytes * 2));
         }
 
-        _ = GpuBufferUploader.BufferData(this, newCapacity, IntPtr.Zero, allocationUsage);
+        GpuBufferUploader.Allocate(this, newCapacity, IntPtr.Zero, allocationUsage);
 
     }
 
@@ -262,7 +262,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         {
             try
             {
-                _ = GpuBufferUploader.BufferData(this, byteCount, ptr, allocationUsage);
+                GpuBufferUploader.Allocate(this, byteCount, ptr, allocationUsage);
 
                 return;
             }
@@ -275,7 +275,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
             }
         }
 
-        GpuBufferUploader.BufferData(this, byteCount, data, allocationUsage);
+        GpuBufferUploader.Allocate(this, byteCount, data, allocationUsage);
 
     }
 
@@ -329,14 +329,14 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
 
         if (byteCount == 0)
         {
-            _ = GpuBufferUploader.BufferData(this, 0, IntPtr.Zero, allocationUsage);
+            GpuBufferUploader.Allocate(this, 0, IntPtr.Zero, allocationUsage);
 
             return;
         }
 
         fixed (T* ptr = data)
         {
-            _ = GpuBufferUploader.BufferData(this, byteCount, (IntPtr)ptr, allocationUsage);
+            GpuBufferUploader.Allocate(this, byteCount, (IntPtr)ptr, allocationUsage);
         }
 
     }
@@ -405,7 +405,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         {
             try
             {
-                _ = GpuBufferUploader.BufferSubData(this, 0, byteCount, ptr);
+                GpuBufferUploader.Upload(this, 0, byteCount, ptr);
                 return;
             }
             finally
@@ -417,9 +417,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
             }
         }
 
-        Bind();
-        GL.BufferSubData(target, (IntPtr)0, (IntPtr)byteCount, data);
-        Unbind();
+        GpuBufferUploader.Upload(this, 0, byteCount, data);
     }
 
     public bool TryUploadOrResize<T>(T[] data, int byteCount, bool growExponentially = true) where T : struct
@@ -506,7 +504,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
 
         fixed (T* ptr = data)
         {
-            _ = GpuBufferUploader.BufferSubData(this, 0, byteCount, (IntPtr)ptr);
+            GpuBufferUploader.Upload(this, 0, byteCount, (IntPtr)ptr);
         }
     }
 
@@ -603,7 +601,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         {
             try
             {
-                _ = GpuBufferUploader.BufferSubData(this, dstOffsetBytes, byteCount, ptr);
+                GpuBufferUploader.Upload(this, dstOffsetBytes, byteCount, ptr);
                 return;
             }
             finally
@@ -615,9 +613,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
             }
         }
 
-        Bind();
-        GL.BufferSubData(target, (IntPtr)dstOffsetBytes, (IntPtr)byteCount, data);
-        Unbind();
+        GpuBufferUploader.Upload(this, dstOffsetBytes, byteCount, data);
     }
 
     public bool TryUploadSubData<T>(T[] data, int dstOffsetBytes, int byteCount) where T : struct
@@ -710,7 +706,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
 
         fixed (T* ptr = data)
         {
-            _ = GpuBufferUploader.BufferSubData(this, dstOffsetBytes, byteCount, (IntPtr)ptr);
+            GpuBufferUploader.Upload(this, dstOffsetBytes, byteCount, (IntPtr)ptr);
         }
     }
 
@@ -755,7 +751,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         }
     }
 
-    public unsafe MappedRange<T> MapRange<T>(int dstOffsetBytes, int elementCount, MapBufferAccessMask access) where T : unmanaged
+    public unsafe MappedRange<T> MapRange<T>(int dstOffsetBytes, int elementCount, RHIBufferMapAccess access) where T : unmanaged
     {
         if (!IsValid)
         {
@@ -775,7 +771,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         int byteCount = checked(elementCount * sizeof(T));
         if (byteCount == 0)
         {
-            return new MappedRange<T>(bufferId, target, access, dstOffsetBytes, elementCount, IntPtr.Zero, isMapped: false);
+            return new MappedRange<T>(this, access, dstOffsetBytes, elementCount, IntPtr.Zero, isMapped: false);
         }
 
         if (sizeBytes < checked(dstOffsetBytes + byteCount))
@@ -784,33 +780,15 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
                 $"MapRange range [{dstOffsetBytes}, {dstOffsetBytes + byteCount}) exceeds allocated buffer size {sizeBytes}.");
         }
 
-        if (BufferMapDsa.TryMapNamedBufferRange(bufferId, dstOffsetBytes, byteCount, access, out IntPtr ptr))
-        {
-            return new MappedRange<T>(bufferId, target, access, dstOffsetBytes, elementCount, ptr, isMapped: true);
-        }
-
-        if (target == BufferTarget.ElementArrayBuffer)
-        {
-            ptr = MapElementArrayBufferRange(bufferId, dstOffsetBytes, byteCount, access);
-        }
-        else
-        {
-            using var scope = BindScope();
-            ptr = GL.MapBufferRange(target, (IntPtr)dstOffsetBytes, (IntPtr)byteCount, access);
-        }
-
-        if (ptr == IntPtr.Zero)
-        {
-            throw new InvalidOperationException("glMapBufferRange failed.");
-        }
-
-        return new MappedRange<T>(bufferId, target, access, dstOffsetBytes, elementCount, ptr, isMapped: true);
+        nint ptr = RHICommandContext.Current.MapBuffer(this, dstOffsetBytes, byteCount, access);
+        if (ptr == 0) throw new InvalidOperationException("Named buffer mapping failed.");
+        return new MappedRange<T>(this, access, dstOffsetBytes, elementCount, ptr, isMapped: true);
     }
 
     /// <summary>
     /// Maps a range of the buffer and returns an RAII scope that will unmap on dispose.
     /// </summary>
-    public GpuMappedBufferScope<T> MapScope<T>(int dstOffsetBytes, int elementCount, MapBufferAccessMask access) where T : unmanaged
+    public GpuMappedBufferScope<T> MapScope<T>(int dstOffsetBytes, int elementCount, RHIBufferMapAccess access) where T : unmanaged
     {
         return new GpuMappedBufferScope<T>(MapRange<T>(dstOffsetBytes, elementCount, access));
     }
@@ -821,7 +799,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
     public bool TryMapScope<T>(
         int dstOffsetBytes,
         int elementCount,
-        MapBufferAccessMask access,
+        RHIBufferMapAccess access,
         out GpuMappedBufferScope<T> scope) where T : unmanaged
     {
         if (TryMapRange(dstOffsetBytes, elementCount, access, out MappedRange<T> range))
@@ -834,7 +812,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         return false;
     }
 
-    public bool TryMapRange<T>(int dstOffsetBytes, int elementCount, MapBufferAccessMask access, out MappedRange<T> range) where T : unmanaged
+    public bool TryMapRange<T>(int dstOffsetBytes, int elementCount, RHIBufferMapAccess access, out MappedRange<T> range) where T : unmanaged
     {
         try
         {
@@ -867,13 +845,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         return $"{GetType().Name}(id={bufferId}, target={target}, sizeBytes={sizeBytes}, usage={usage}, name={debugName}, disposed={IsDisposed})";
     }
 
-    /// <summary>Maps element storage through a neutral selector without changing any VAO association.</summary>
-    private static IntPtr MapElementArrayBufferRange(int bufferId, int offsetBytes, int byteCount, MapBufferAccessMask access)
-    {
-        // Mapping addresses buffer storage, so a copy binding avoids the VAO-owned element selector.
-        using var binding = StateCache.Current.BindBufferScope(BufferTarget.CopyWriteBuffer, bufferId);
-        return GL.MapBufferRange(BufferTarget.CopyWriteBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount, access);
-    }
+
 
     private static bool TryGetBlittableArrayPointer<T>(T[] data, out GCHandle handle, out IntPtr ptr) where T : struct
     {
@@ -966,7 +938,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         {
             if (upload.ByteCount == 0)
             {
-                _ = GpuBufferUploader.BufferData(this, 0, IntPtr.Zero, allocationUsage);
+                GpuBufferUploader.Allocate(this, 0, IntPtr.Zero, allocationUsage);
 
                 return;
             }
@@ -980,7 +952,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
             {
                 fixed (byte* ptr = upload.Buffer)
                 {
-                    _ = GpuBufferUploader.BufferData(this, upload.ByteCount, (IntPtr)ptr, allocationUsage);
+                    GpuBufferUploader.Allocate(this, upload.ByteCount, (IntPtr)ptr, allocationUsage);
                 }
             }
 
@@ -996,7 +968,7 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         {
             fixed (byte* ptr = upload.Buffer)
             {
-                _ = GpuBufferUploader.BufferSubData(this, upload.DstOffsetBytes, upload.ByteCount, (IntPtr)ptr);
+                GpuBufferUploader.Upload(this, upload.DstOffsetBytes, upload.ByteCount, (IntPtr)ptr);
             }
         }
     }
@@ -1076,211 +1048,72 @@ public abstract class GpuBufferObject : GpuResource<GpuBufferMetadata>, IDisposa
         UploadOrResize = 2,
     }
 
-    private static class BufferMapDsa
-    {
-        private static int enabledState;
-
-        public static bool TryMapNamedBufferRange(int bufferId, int offsetBytes, int byteCount, MapBufferAccessMask access, out IntPtr ptr)
-        {
-            ptr = IntPtr.Zero;
-
-            if (enabledState == -1)
-            {
-                return false;
-            }
-
-            try
-            {
-                ptr = GL.MapNamedBufferRange(bufferId, (IntPtr)offsetBytes, byteCount, (BufferAccessMask)(int)access);
-
-                if (ptr == IntPtr.Zero)
-                {
-                    return false;
-                }
-
-                enabledState = 1;
-                return true;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
-        }
-
-        public static bool TryUnmapNamedBuffer(int bufferId)
-        {
-            if (enabledState == -1)
-            {
-                return false;
-            }
-
-            try
-            {
-                bool ok = GL.UnmapNamedBuffer(bufferId);
-                enabledState = 1;
-                return ok;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
-        }
-
-        public static bool TryFlushMappedNamedBufferRange(int bufferId, int offsetBytes, int byteCount)
-        {
-            if (enabledState == -1)
-            {
-                return false;
-            }
-
-            try
-            {
-                GL.FlushMappedNamedBufferRange(bufferId, (IntPtr)offsetBytes, byteCount);
-
-                enabledState = 1;
-                return true;
-            }
-            catch
-            {
-                enabledState = -1;
-                return false;
-            }
-        }
-    }
-
+    /// <summary>Owns an immediate mapping against its original wrapper, identity and context.</summary>
     public struct MappedRange<T> : IDisposable where T : unmanaged
     {
-        private readonly int bufferId;
-        private readonly BufferTarget target;
-        private readonly MapBufferAccessMask access;
+        private readonly GpuBufferObject owner;
+        private readonly RHICommandContext context;
+        private readonly RHIBufferMapAccess access;
+        private readonly int nativeId;
         private readonly int offsetBytes;
         private readonly int elementCount;
-        private readonly IntPtr ptr;
+        private readonly nint pointer;
         private bool isMapped;
 
-        internal MappedRange(
-            int bufferId,
-            BufferTarget target,
-            MapBufferAccessMask access,
-            int offsetBytes,
-            int elementCount,
-            IntPtr ptr,
-            bool isMapped)
-        {
-            this.bufferId = bufferId;
-            this.target = target;
-            this.access = access;
-            this.offsetBytes = offsetBytes;
-            this.elementCount = elementCount;
-            this.ptr = ptr;
-            this.isMapped = isMapped;
-        }
-
-        public int BufferId => bufferId;
+        #region Public API
+        /// <summary>Gets the original mapped name for diagnostics only.</summary>
+        public int BufferId => nativeId;
+        /// <summary>Gets the allocation-relative offset.</summary>
         public int OffsetBytes => offsetBytes;
+        /// <summary>Gets the mapped element extent.</summary>
         public int ElementCount => elementCount;
+        /// <summary>Gets the checked byte extent.</summary>
         public unsafe int ByteCount => checked(elementCount * sizeof(T));
+        /// <summary>Reports whether this value still owns its mapping.</summary>
         public bool IsMapped => isMapped;
-        public IntPtr Pointer => ptr;
-
-        public unsafe Span<T> Span
-        {
-            get
-            {
-                if (!isMapped)
-                {
-                    return Span<T>.Empty;
-                }
-
-                return new Span<T>((void*)ptr, elementCount);
-            }
-        }
-
-        public void Flush()
-        {
-            Flush(relativeOffsetBytes: 0, byteCount: ByteCount);
-        }
-
+        /// <summary>Gets the immediate client pointer; it must never be retained by a recorded command.</summary>
+        public nint Pointer => pointer;
+        /// <summary>Provides client access only while the original allocation remains live.</summary>
+        public unsafe Span<T> Span { get { if (!isMapped) return Span<T>.Empty; RequireOwner(); return new((void*)pointer, elementCount); } }
+        /// <summary>Flushes all bytes when explicit flush was requested.</summary>
+        public void Flush() => Flush(0, ByteCount);
+        /// <summary>Flushes a checked subrange without changing selectors.</summary>
         public void Flush(int relativeOffsetBytes, int byteCount)
         {
-            if (!isMapped || byteCount <= 0)
-            {
-                return;
-            }
-
-            if ((access & MapBufferAccessMask.MapFlushExplicitBit) == 0)
-            {
-                return;
-            }
-
-            int absOffset = checked(offsetBytes + relativeOffsetBytes);
-            if (BufferMapDsa.TryFlushMappedNamedBufferRange(bufferId, absOffset, byteCount))
-            {
-                return;
-            }
-
-            if (target == BufferTarget.ElementArrayBuffer)
-            {
-                FlushElementArrayBufferRange(bufferId, absOffset, byteCount);
-                return;
-            }
-
-            FlushBoundRange(bufferId, target, absOffset, byteCount);
+            if (!isMapped) return;
+            RequireOwner();
+            if (relativeOffsetBytes < 0 || byteCount < 0 || relativeOffsetBytes > ByteCount || byteCount > ByteCount-relativeOffsetBytes)
+                throw new ArgumentOutOfRangeException(nameof(byteCount));
+            if ((access & RHIBufferMapAccess.ExplicitFlush) != 0 && byteCount != 0)
+                context.FlushMappedBuffer(owner, relativeOffsetBytes, byteCount);
         }
-
+        /// <summary>Unmaps exactly once against the original context, never retrying after failure.</summary>
         public void Dispose()
         {
-            if (!isMapped)
-            {
-                return;
-            }
-
+            if (!isMapped) return;
+            RequireOwner();
             isMapped = false;
-
-            if (BufferMapDsa.TryUnmapNamedBuffer(bufferId))
-            {
-                return;
-            }
-
-            if (target == BufferTarget.ElementArrayBuffer)
-            {
-                UnmapElementArrayBuffer(bufferId);
-                return;
-            }
-
-            UnmapBound(bufferId, target);
+            if (!context.UnmapBuffer(owner)) throw new InvalidOperationException("Mapped buffer contents became invalid.");
         }
+        #endregion
 
-        /// <summary>Flushes a mapped range while restoring known or recovered buffer selection on every exit.</summary>
-        private static void FlushBoundRange(int bufferId, BufferTarget target, int offsetBytes, int byteCount)
+        #region Internal API
+        /// <summary>Retains mapping ownership without querying metadata or capturing another registration.</summary>
+        internal MappedRange(GpuBufferObject owner, RHIBufferMapAccess access, int offsetBytes, int elementCount, nint pointer, bool isMapped)
         {
-            using var binding = StateCache.Current.BindBufferScope(target, bufferId);
-            GL.FlushMappedBufferRange(target, (IntPtr)offsetBytes, (IntPtr)byteCount);
+            this.owner=owner; this.access=access; this.offsetBytes=offsetBytes; this.elementCount=elementCount;
+            this.pointer=pointer; this.isMapped=isMapped; nativeId=owner.BufferId; context=RHICommandContext.Current;
         }
+        #endregion
 
-        /// <summary>Flushes element storage without changing the current VAO or its element association.</summary>
-        private static void FlushElementArrayBufferRange(int bufferId, int offsetBytes, int byteCount)
+        #region Private
+        /// <summary>Rejects disposal or replacement before touching mapping storage.</summary>
+        private void RequireOwner()
         {
-            // Use the same neutral selector as fallback mapping; the buffer owns the mapped range.
-            using var binding = StateCache.Current.BindBufferScope(BufferTarget.CopyWriteBuffer, bufferId);
-            GL.FlushMappedBufferRange(BufferTarget.CopyWriteBuffer, (IntPtr)offsetBytes, (IntPtr)byteCount);
+            context.OpenGL.RequireContext();
+            if (!owner.IsValid || owner.BufferId != nativeId) throw new InvalidOperationException("The mapped allocation has retired.");
         }
-
-        /// <summary>Unmaps storage while restoring the selected target even when native dispatch throws.</summary>
-        private static void UnmapBound(int bufferId, BufferTarget target)
-        {
-            using var binding = StateCache.Current.BindBufferScope(target, bufferId);
-            _ = GL.UnmapBuffer(target);
-        }
-
-        /// <summary>Unmaps element storage through the neutral selector without touching VAO state.</summary>
-        private static void UnmapElementArrayBuffer(int bufferId)
-        {
-            using var binding = StateCache.Current.BindBufferScope(BufferTarget.CopyWriteBuffer, bufferId);
-            _ = GL.UnmapBuffer(BufferTarget.CopyWriteBuffer);
-        }
+        #endregion
     }
 
     /// <summary>Preserves the public buffer scope API while delegating restoration to the state cache.</summary>

@@ -1,97 +1,97 @@
 using System;
 using OpenTK.Graphics.OpenGL;
 
-namespace VanillaGraphicsExpanded.Rendering;
+namespace VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 
-/// <summary>Owns exact Core BufferStorage execution and affected metadata completion.</summary>
-internal sealed unsafe partial class StateCache
+/// <summary>Owns exact Arb BufferData execution and affected metadata completion.</summary>
+internal static unsafe partial class OpenGLBufferStorageCalls
 {
     #region Internal API
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
-    internal void ExecuteCoreBufferStorage(BufferTarget @target, int @size, IntPtr @data, BufferStorageFlags @flags)
+    internal static void ExecuteArbBufferData(BufferTargetArb @target, int @size, IntPtr @data, BufferUsageArb @usage)
     {
         var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
-        try { GL.BufferStorage(@target, @size, @data, @flags); }
+        try { GL.Arb.BufferData(@target, @size, @data, @usage); }
         finally { observation.Complete(); }
     }
 
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
-    internal void ExecuteCoreBufferStorage(BufferTarget @target, IntPtr @size, IntPtr @data, BufferStorageFlags @flags)
+    internal static void ExecuteArbBufferData(BufferTargetArb @target, IntPtr @size, IntPtr @data, BufferUsageArb @usage)
     {
         var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
-        try { GL.BufferStorage(@target, @size, @data, @flags); }
+        try { GL.Arb.BufferData(@target, @size, @data, @usage); }
         finally { observation.Complete(); }
     }
 
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
-    internal void ExecuteCoreBufferStorage<T2>(BufferTarget @target, int @size, ref T2 @data, BufferStorageFlags @flags)
+    internal static void ExecuteArbBufferData<T2>(BufferTargetArb @target, int @size, ref T2 @data, BufferUsageArb @usage)
         where T2 : struct
     {
         var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
-        try { GL.BufferStorage<T2>(@target, @size, ref @data, @flags); }
+        try { GL.Arb.BufferData<T2>(@target, @size, ref @data, @usage); }
         finally { observation.Complete(); }
     }
 
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
-    internal void ExecuteCoreBufferStorage<T2>(BufferTarget @target, int @size, T2[,,] @data, BufferStorageFlags @flags)
+    internal static void ExecuteArbBufferData<T2>(BufferTargetArb @target, int @size, T2[,,] @data, BufferUsageArb @usage)
         where T2 : struct
     {
         var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
-        try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
+        try { GL.Arb.BufferData<T2>(@target, @size, @data, @usage); }
         finally { observation.Complete(); }
     }
 
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
-    internal void ExecuteCoreBufferStorage<T2>(BufferTarget @target, int @size, T2[,] @data, BufferStorageFlags @flags)
+    internal static void ExecuteArbBufferData<T2>(BufferTargetArb @target, int @size, T2[,] @data, BufferUsageArb @usage)
         where T2 : struct
     {
         var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
-        try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
+        try { GL.Arb.BufferData<T2>(@target, @size, @data, @usage); }
         finally { observation.Complete(); }
     }
 
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
-    internal void ExecuteCoreBufferStorage<T2>(BufferTarget @target, int @size, T2[] @data, BufferStorageFlags @flags)
+    internal static void ExecuteArbBufferData<T2>(BufferTargetArb @target, int @size, T2[] @data, BufferUsageArb @usage)
         where T2 : struct
     {
         var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
-        try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
+        try { GL.Arb.BufferData<T2>(@target, @size, @data, @usage); }
         finally { observation.Complete(); }
     }
 
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
-    internal void ExecuteCoreBufferStorage<T2>(BufferTarget @target, IntPtr @size, ref T2 @data, BufferStorageFlags @flags)
+    internal static void ExecuteArbBufferData<T2>(BufferTargetArb @target, IntPtr @size, ref T2 @data, BufferUsageArb @usage)
         where T2 : struct
     {
         var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
-        try { GL.BufferStorage<T2>(@target, @size, ref @data, @flags); }
+        try { GL.Arb.BufferData<T2>(@target, @size, ref @data, @usage); }
         finally { observation.Complete(); }
     }
 
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
-    internal void ExecuteCoreBufferStorage<T2>(BufferTarget @target, IntPtr @size, T2[,,] @data, BufferStorageFlags @flags)
+    internal static void ExecuteArbBufferData<T2>(BufferTargetArb @target, IntPtr @size, T2[,,] @data, BufferUsageArb @usage)
         where T2 : struct
     {
         var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
-        try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
+        try { GL.Arb.BufferData<T2>(@target, @size, @data, @usage); }
         finally { observation.Complete(); }
     }
 
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
-    internal void ExecuteCoreBufferStorage<T2>(BufferTarget @target, IntPtr @size, T2[,] @data, BufferStorageFlags @flags)
+    internal static void ExecuteArbBufferData<T2>(BufferTargetArb @target, IntPtr @size, T2[,] @data, BufferUsageArb @usage)
         where T2 : struct
     {
         var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
-        try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
+        try { GL.Arb.BufferData<T2>(@target, @size, @data, @usage); }
         finally { observation.Complete(); }
     }
 
     /// <summary>Executes the exact external overload and completes its affected metadata publication.</summary>
-    internal void ExecuteCoreBufferStorage<T2>(BufferTarget @target, IntPtr @size, T2[] @data, BufferStorageFlags @flags)
+    internal static void ExecuteArbBufferData<T2>(BufferTargetArb @target, IntPtr @size, T2[] @data, BufferUsageArb @usage)
         where T2 : struct
     {
         var observation = StateCache.InvalidateNativeBufferStorage(unchecked((int)@target), false);
-        try { GL.BufferStorage<T2>(@target, @size, @data, @flags); }
+        try { GL.Arb.BufferData<T2>(@target, @size, @data, @usage); }
         finally { observation.Complete(); }
     }
     #endregion

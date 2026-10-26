@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Atmosphere;
@@ -38,9 +39,9 @@ public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : Re
         using var assets = new BinaryShaderApiFixture();
         Assert.True(GpuComputePipeline.TryCreateFromAssets(assets.Api, new ShaderSettings(AtmosphereComputePrograms.Scattering), out var program, out string log), log);
         using var ownedProgram = program!;
-        using var parameters = GpuShaderStorageBuffer.Create();
+        using var parameters = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         parameters.EnsureCapacity(64, growExponentially: false);
-        using var source = GpuShaderStorageBuffer.Create();
+        using var source = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         var budget = AtmosphereScatteringBudget.FromQuality(quality);
         source.EnsureCapacity(budget.Width * budget.Height * 16, growExponentially: false);
         // The ground-level cells on either side of the horizon qualify the visibility
@@ -57,7 +58,7 @@ public sealed class AtmosphereGpuScatteringTests(HeadlessGLFixture fixture) : Re
                 GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.BufferUpdateBarrierBit);
                 using var fence = GpuFence.Insert();
                 Assert.Contains(fence.Wait(TimeSpan.FromSeconds(5)), new[] { WaitSyncStatus.AlreadySignaled, WaitSyncStatus.ConditionSatisfied });
-                using var mapped = source.MapRange<Vector4>(cell * 16, 1, MapBufferAccessMask.MapReadBit);
+                using var mapped = source.MapRange<Vector4>(cell * 16, 1, RHIBufferMapAccess.Read);
                 Assert.True(mapped.IsMapped);
                 Vector3 expected = Reference(cell, budget, groundAlbedo);
                 Vector4 actual = mapped.Span[0];

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -73,7 +74,7 @@ internal sealed class CloudVolumeFields : IDisposable
     /// <summary>Initializes an exact integer buffer without bypassing the resource owner.</summary>
     private GpuShaderStorageBuffer Buffer(int words)
     {
-        var buffer = resources.Own(GpuShaderStorageBuffer.Create()); buffer.UploadData(new uint[words]); return buffer;
+        var buffer = resources.Own(RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource()); buffer.UploadData(new uint[words]); return buffer;
     }
     #endregion
 }

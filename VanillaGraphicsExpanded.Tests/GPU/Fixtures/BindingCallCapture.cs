@@ -27,6 +27,11 @@ internal sealed class BindingCallCapture : IDisposable
                 (Action<int>)GL.UseProgram,
                 (Action<int>)GL.BindProgramPipeline,
                 (Action<BufferTarget, int>)GL.BindBuffer,
+                (Action<OpenTK.Graphics.OpenGL4.BufferTarget, int>)OpenTK.Graphics.OpenGL4.GL.BindBuffer,
+                (Action<BufferRangeTarget, int, int>)GL.BindBufferBase,
+                (Action<BufferRangeTarget, int, int, nint, nint>)GL.BindBufferRange,
+                (Action<OpenTK.Graphics.OpenGL4.BufferRangeTarget, int, int>)OpenTK.Graphics.OpenGL4.GL.BindBufferBase,
+                (Action<OpenTK.Graphics.OpenGL4.BufferRangeTarget, int, int, nint, nint>)OpenTK.Graphics.OpenGL4.GL.BindBufferRange,
                 (Action<FramebufferTarget, int>)GL.BindFramebuffer,
                 (VertexQuery)GL.GetVertexArrayIndexed,
                 (VertexWideQuery)GL.GetVertexArrayIndexed64

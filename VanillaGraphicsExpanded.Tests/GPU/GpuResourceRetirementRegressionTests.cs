@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -58,7 +59,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
             using var view = GpuBufferView.CreateWholeBuffer(buffer, SizedInternalFormat.R32f);
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuTextureMetadata>>(manager.GetResourceRegistration(view));
             Assert.True(entry.MetadataAvailable);
-            StateCache.Current.DeleteBuffer(buffer);
+            RHICommandContext.Current.OpenGL.DeleteBuffer(buffer);
             Assert.False(GL.IsBuffer(buffer));
             Assert.Null(manager.FindResource(GpuResourceKind.Buffer, buffer));
             Assert.False(entry.MetadataAvailable);
@@ -68,7 +69,7 @@ public sealed class GpuResourceRetirementRegressionTests(HeadlessGLFixture fixtu
         }
         finally
         {
-            if (GL.IsBuffer(buffer)) StateCache.Current.DeleteBuffer(buffer);
+            if (GL.IsBuffer(buffer)) RHICommandContext.Current.OpenGL.DeleteBuffer(buffer);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

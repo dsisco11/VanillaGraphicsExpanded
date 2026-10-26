@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -174,7 +175,7 @@ public class GpuVaoIntegrationTests
         // Arrange
         _fixture.EnsureContextValid();
         using var vao = GpuVao.Create();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act
         vao.BindElementBuffer(ebo.BufferId);
@@ -191,7 +192,7 @@ public class GpuVaoIntegrationTests
         // Arrange
         _fixture.EnsureContextValid();
         using var vao = GpuVao.Create();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act
         vao.BindElementBuffer(ebo);
@@ -219,7 +220,7 @@ public class GpuVaoIntegrationTests
         // Arrange
         _fixture.EnsureContextValid();
         using var vao = GpuVao.Create();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         
         vao.BindElementBuffer(ebo);
 
@@ -236,7 +237,7 @@ public class GpuVaoIntegrationTests
         // Arrange
         _fixture.EnsureContextValid();
         using var vao = GpuVao.Create();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         
         // Bind VAO first to ensure element buffer binding is visible
         vao.Bind();
@@ -299,7 +300,7 @@ public class GpuVaoIntegrationTests
         // Arrange
         _fixture.EnsureContextValid();
         using var vao = GpuVao.Create();
-        using var vbo = GpuVbo.Create();
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         
         const int attributeIndex = 0;
         const int size = 3;
@@ -326,7 +327,7 @@ public class GpuVaoIntegrationTests
         // Arrange
         _fixture.EnsureContextValid();
         using var vao = GpuVao.Create();
-        using var vbo = GpuVbo.Create();
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         
         const int attributeIndex = 0;
         const int size = 1;
@@ -406,7 +407,7 @@ public class GpuVaoIntegrationTests
         // Arrange
         _fixture.EnsureContextValid();
         using var vao = GpuVao.Create();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Don't upload data - this will leave IndexCount as 0
         // which triggers early return in DrawElements
@@ -481,7 +482,7 @@ public class GpuVaoIntegrationTests
         // Arrange
         _fixture.EnsureContextValid();
         using var vao = GpuVao.Create();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Don't upload data - IndexCount will be 0, causing early return
         const PrimitiveType primitiveType = PrimitiveType.Triangles;
@@ -512,7 +513,7 @@ public class GpuVaoIntegrationTests
         // Arrange
         _fixture.EnsureContextValid();
         using var vao = GpuVao.Create();
-        using var ebo = GpuEbo.Create();
+        using var ebo = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Don't upload data - IndexCount will be 0
 

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -24,11 +26,11 @@ public sealed class GpuVertexBufferBindingInterceptionTests(HeadlessGLFixture fi
         try
         {
             using var vao=GpuVao.Create(); vao.Bind();
-            using var first=GpuShaderStorageBuffer.Create(); first.Allocate(64);
-            using var second=GpuShaderStorageBuffer.Create(); second.Allocate(64);
+            using var first=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); first.Allocate(64);
+            using var second=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(64);
             var target=element?BufferTarget.ElementArrayBuffer:BufferTarget.ArrayBuffer;
             var cache=StateCache.Current;
-            cache.BindBuffer(target,first.BufferId);
+            OpenGLBufferBindings.BindBuffer(cache, target,first.BufferId);
             Assert.Equal(first.BufferId,cache.GetBoundBuffer(target));
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong revision=entry.MetadataRevision;

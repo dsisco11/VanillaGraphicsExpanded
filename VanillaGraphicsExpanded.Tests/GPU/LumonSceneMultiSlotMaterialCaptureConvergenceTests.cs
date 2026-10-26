@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
 using System.Collections.Generic;
@@ -273,14 +274,14 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, int capacityItems) where T : unmanaged
     {
-        var ssbo = GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw, debugName: name);
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = name }).RequireResource();
         ssbo.Allocate(checked(capacityItems * Unsafe.SizeOf<T>()));
         return ssbo;
     }
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, T[] data) where T : unmanaged
     {
-        var ssbo = GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw, debugName: name);
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = name }).RequireResource();
         ssbo.Allocate(checked(data.Length * Unsafe.SizeOf<T>()));
         ssbo.UploadSubData(data, dstOffsetBytes: 0, byteCount: checked(data.Length * Unsafe.SizeOf<T>()));
         return ssbo;
@@ -288,7 +289,7 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
 
     private static GpuShaderStorageBuffer CreateSsbo<T>(string name, ReadOnlySpan<T> data) where T : unmanaged
     {
-        var ssbo = GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicDraw, debugName: name);
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = name }).RequireResource();
         ssbo.Allocate(checked(data.Length * Unsafe.SizeOf<T>()));
         ssbo.UploadSubData(data, dstOffsetBytes: 0, byteCount: checked(data.Length * Unsafe.SizeOf<T>()));
         return ssbo;
@@ -297,7 +298,7 @@ public sealed class LumonSceneMultiSlotMaterialCaptureConvergenceTests : RenderT
     private static T[] ReadSsbo<T>(GpuShaderStorageBuffer ssbo, int itemCount) where T : unmanaged
     {
         T[] dst = new T[itemCount];
-        using var mapped = ssbo.MapRange<T>(dstOffsetBytes: 0, elementCount: itemCount, access: MapBufferAccessMask.MapReadBit);
+        using var mapped = ssbo.MapRange<T>(dstOffsetBytes: 0, elementCount: itemCount, access: RHIBufferMapAccess.Read);
         Assert.True(mapped.IsMapped);
         mapped.Span.CopyTo(dst);
         return dst;

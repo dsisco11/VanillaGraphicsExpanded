@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -7,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Helpers;
 /// <summary>Copies one display framebuffer's BGRA8 pixels through a PBO into a BMP file.</summary>
 internal sealed class FramebufferBmpCapture(int width, int height) : IDisposable
 {
-    private readonly GpuPixelPackBuffer readback = GpuPixelPackBuffer.Create(debugName: "Test.FramebufferBmp.Readback");
+    private readonly GpuPixelPackBuffer readback = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = "Test.FramebufferBmp.Readback" }).RequireResource();
 
     #region Public API
     /// <summary>Reads the framebuffer's first color attachment without altering its pixels.</summary>
@@ -20,7 +21,7 @@ internal sealed class FramebufferBmpCapture(int width, int height) : IDisposable
         using var binding = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
         GL.ReadBuffer(ReadBufferMode.ColorAttachment0);
         readback.ReadPixels(0, 0, width, height, PixelFormat.Bgra, PixelType.UnsignedByte);
-        IntPtr mapped = readback.MapRange(0, byteCount, MapBufferAccessMask.MapReadBit);
+        IntPtr mapped = readback.MapRange(0, byteCount, RHIBufferMapAccess.Read);
         if (mapped == IntPtr.Zero) throw new InvalidOperationException("Could not map framebuffer readback buffer.");
         byte[] pixels = new byte[byteCount];
         try { Marshal.Copy(mapped, pixels, 0, byteCount); }

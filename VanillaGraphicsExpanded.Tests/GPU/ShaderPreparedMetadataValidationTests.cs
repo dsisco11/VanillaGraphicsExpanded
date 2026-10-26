@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -55,7 +56,7 @@ public sealed class ShaderPreparedMetadataValidationTests(HeadlessGLFixture fixt
         fixture.InitializeResourceDisposal();
         try
         {
-            using var storage = GpuShaderStorageBuffer.Create();
+            using var storage = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
             storage.Allocate(64);
             var binding = Entry(ShaderBindingKind.StorageBlock, default, [true]) with { MinimumSize = 32 };
             Validate(binding, storage, ranged);

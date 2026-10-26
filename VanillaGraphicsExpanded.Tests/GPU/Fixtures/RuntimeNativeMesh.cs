@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -10,8 +12,8 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 internal sealed class RuntimeNativeMesh : IDisposable
 {
     private readonly GpuVao vao = GpuVao.Create();
-    private readonly GpuVbo positions = GpuVbo.Create(), uv = GpuVbo.Create();
-    private readonly GpuEbo indices = GpuEbo.Create();
+    private readonly GpuVbo positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(), uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+    private readonly GpuEbo indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
     internal VAO Mesh { get; }
 
     #region Public API
@@ -20,9 +22,9 @@ internal sealed class RuntimeNativeMesh : IDisposable
     {
         vao.Bind(); positions.UploadData(data.xyz); uv.UploadData(data.Uv);
         indices.UploadIndices(data.Indices.Take(data.IndicesCount).Select(value => checked((uint)value)).ToArray());
-        StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, positions.BufferId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, positions.BufferId);
         GL.VertexAttribPointer(0, 3, VertexAttribPointerType.Float, false, 0, IntPtr.Zero); GL.EnableVertexAttribArray(0);
-        StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, uv.BufferId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, uv.BufferId);
         GL.VertexAttribPointer(1, 2, VertexAttribPointerType.Float, false, 0, IntPtr.Zero); GL.EnableVertexAttribArray(1);
         vao.BindElementBuffer(indices);
         Mesh = (VAO)RuntimeHelpers.GetUninitializedObject(typeof(VAO)); GC.SuppressFinalize(Mesh);

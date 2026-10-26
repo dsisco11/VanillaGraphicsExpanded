@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using GLFW = OpenTK.Windowing.GraphicsLibraryFramework.GLFW;
@@ -65,7 +66,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         if (registered) fixture.InitializeResourceDisposal();
         try
         {
-            using var dependency = GpuVbo.Create();
+            using var dependency = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             dependency.Allocate(16);
             using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var state = new CreationState { Failure = failure };
@@ -184,7 +185,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         finally
         {
             RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            if (GL.IsBuffer(state.Id)) StateCache.Current.DeleteBuffer(state.Id);
+            if (GL.IsBuffer(state.Id)) RHICommandContext.Current.OpenGL.DeleteBuffer(state.Id);
             fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
         }
     }
@@ -245,7 +246,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var owner = GpuVbo.Create(); owner.Allocate(16);
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); owner.Allocate(16);
             using var recipient = new Declaration<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var original = manager.GetResourceRegistration(owner)!;
@@ -302,7 +303,7 @@ public sealed class GpuManagerCreationFoundationTests(HeadlessGLFixture fixture)
         finally
         {
             fixture.MakeCurrent();
-            if (state.Id != 0 && GL.IsBuffer(state.Id)) StateCache.Current.DeleteBuffer(state.Id);
+            if (state.Id != 0 && GL.IsBuffer(state.Id)) RHICommandContext.Current.OpenGL.DeleteBuffer(state.Id);
             fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll();
         }
     }

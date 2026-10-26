@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering;
@@ -23,7 +24,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
         try
         {
             using var capability = new DirectStateAccessCapabilityScope(dsa);
-            using var buffer = GpuVbo.Create(); buffer.Allocate(64);
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.Allocate(64);
             using var view = GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             int observed = 0;
@@ -94,7 +95,7 @@ public sealed class GpuExternalAcquisitionReuseTests(HeadlessGLFixture fixture)
             using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
             using var renderbuffer = GpuRenderbuffer.Create(RenderbufferStorage.Rgba8, 8, 4);
             using var vao = GpuVao.Create();
-            using var buffer = GpuVbo.Create();
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
             var manager = GpuResourceManagerSystem.CurrentManager!;

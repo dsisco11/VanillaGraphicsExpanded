@@ -26,6 +26,7 @@ internal sealed partial class GpuResourceManager
         var request = initialization;
         creation.Validate(request);
         var origin = RenderContextRegistry.Current();
+        var nativeOrigin = GpuResource.CaptureCreationContext(creation.Kind);
         if (manager is not null && manager.CanAcquireWrapperMetadata(recipient)) manager.RequireMetadataContext();
         else manager = null;
         nint id = 0;
@@ -37,7 +38,7 @@ internal sealed partial class GpuResourceManager
             // follows the same ownership cleanup even before canonical registration exists.
             var candidate = creation.Initialize(StateCache.Current, request, out id);
             if (!candidate.HasValue || id == 0) return null;
-            if (origin != RenderContextRegistry.Current())
+            if (origin != RenderContextRegistry.Current() || !GpuResource.IsCurrentResourceContext(nativeOrigin))
                 throw new InvalidOperationException("The creation context changed before publication.");
             ValidateMetadataType<TMetadata>(creation.Kind, id);
             if (manager is not null)
@@ -51,8 +52,8 @@ internal sealed partial class GpuResourceManager
                 manager.PublishMetadata(entry, candidate.Value, GpuMetadataChange.None);
                 candidate = entry.Metadata;
             }
-            recipient.SetCreationIdentity(id);
-            if (origin != RenderContextRegistry.Current()
+            recipient.SetCreationIdentity(id, nativeOrigin);
+            if (!GpuResource.IsCurrentResourceContext(nativeOrigin) || origin != RenderContextRegistry.Current()
                 || origin != default && !RenderContextRegistry.IsAlive(origin))
                 throw new InvalidOperationException("The creation context retired during identity handoff.");
             if (manager is not null)
@@ -84,7 +85,7 @@ internal sealed partial class GpuResourceManager
                 {
                     if (id != 0 && (entry is not null ? manager!.IsRegistered(entry)
                         : manager is null || manager.FindResource(creation.Kind, id) is null))
-                        GpuResource.RetireResource(creation.Kind, id, origin, manager);
+                        GpuResource.RetireResource(creation.Kind, id, nativeOrigin, manager);
                 }
                 catch { }
                 finally

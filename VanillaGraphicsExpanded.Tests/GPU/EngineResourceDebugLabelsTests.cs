@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -104,9 +105,9 @@ public sealed class EngineResourceDebugLabelsTests(HeadlessGLFixture fixture) : 
     {
         EnsureContextValid();
         using var vao = GpuVao.Create();
-        using var vertices = GpuVbo.Create();
-        using var flags = GpuVbo.Create();
-        using var indices = GpuEbo.Create();
+        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         vertices.UploadData(new float[] { 0, 0, 0 });
         flags.UploadData(new int[] { 0 });
         indices.UploadIndices(new uint[] { 0 });

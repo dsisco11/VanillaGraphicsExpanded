@@ -97,7 +97,7 @@ internal sealed partial class StateCache
         }
         return kind switch
         {
-            GpuResourceKind.Buffer => !GL.IsBuffer(id),
+            GpuResourceKind.Buffer => RHI.Backends.OpenGL.OpenGLBufferDeletionCalls.WasDeleted(id),
             GpuResourceKind.Texture => !GL.IsTexture(id),
             GpuResourceKind.Renderbuffer => !GL.IsRenderbuffer(id),
             GpuResourceKind.Framebuffer => !GL.IsFramebuffer(id),

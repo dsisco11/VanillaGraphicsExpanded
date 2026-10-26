@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -21,9 +23,9 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
         try
         {
             using var sentinel=GpuVao.Create(); sentinel.Bind();
-            using var arraySentinel=GpuShaderStorageBuffer.Create(); arraySentinel.Allocate(64);
-            using var buffer=GpuShaderStorageBuffer.Create(); buffer.Allocate(128);
-            StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer,arraySentinel.BufferId);
+            using var arraySentinel=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); arraySentinel.Allocate(64);
+            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
+            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer,arraySentinel.BufferId);
             using var capabilities=new DirectStateAccessCapabilityScope(direct);
             using var vao=GpuVao.Create();
             Assert.True(GL.IsVertexArray(vao.VertexArrayId));
@@ -60,15 +62,15 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
         try
         {
             using var vao=GpuVao.Create(); vao.Bind();
-            using var buffer=GpuShaderStorageBuffer.Create(); buffer.Allocate(64);
+            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(64);
             var cache=StateCache.Current;
             var entry=GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(vao)!;
             ulong before=entry.MetadataRevision;
-            cache.BindBuffer(BufferTarget.ElementArrayBuffer,buffer.BufferId);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,buffer.BufferId);
             Assert.Equal(before+1,entry.MetadataRevision);
             Assert.Equal(buffer.BufferId,cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
             before=entry.MetadataRevision;
-            cache.BindBuffer(BufferTarget.ElementArrayBuffer,buffer.BufferId);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,buffer.BufferId);
             Assert.Equal(before,entry.MetadataRevision);
             BindExternalElement(int.MaxValue);
             Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
@@ -77,7 +79,7 @@ public sealed class GpuVertexWrapperMetadataTests(HeadlessGLFixture fixture)
             Assert.Equal(before+1,entry.MetadataRevision);
             // A pending unrelated error must also survive a successful binding change and later cache recovery.
             GL.Enable((EnableCap)(-1));
-            cache.BindBuffer(BufferTarget.ElementArrayBuffer,0);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,0);
             Assert.Equal(0,cache.GetBoundBuffer(BufferTarget.ElementArrayBuffer));
             Assert.Equal(ErrorCode.InvalidEnum,GL.GetError());
             Assert.Equal(ErrorCode.NoError,GL.GetError());

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene;
 using VanillaGraphicsExpanded.Rendering;
@@ -7,7 +8,7 @@ namespace VanillaGraphicsExpanded.Tests.GPU.Fixtures;
 /// <summary>Withholds alternate real cache pages without changing producer resources or dependency identity.</summary>
 internal sealed class SelectiveSurfaceLightingProvider(ISurfaceLightingProvider source) : ISurfaceLightingProvider, IDisposable
 {
-    private readonly GpuShaderStorageBuffer readiness=GpuShaderStorageBuffer.Create();
+    private readonly GpuShaderStorageBuffer readiness=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
     public bool Withhold { get; set; }=true;
 
     #region Provider lifetime
@@ -17,7 +18,7 @@ internal sealed class SelectiveSurfaceLightingProvider(ISurfaceLightingProvider 
         if(!source.TryGetSurfaceLighting(out snapshot)) return false;
         if(!Withhold) return true;
         int bytes=snapshot.Readiness.SizeBytes;
-        using var read=snapshot.Readiness.MapRange<uint>(0,bytes>>2,MapBufferAccessMask.MapReadBit);
+        using var read=snapshot.Readiness.MapRange<uint>(0,bytes>>2,RHIBufferMapAccess.Read);
         Assert.True(read.IsMapped);
         var flags=read.Span.ToArray();
         for(int i=1;i<flags.Length;i+=2) flags[i]=0;

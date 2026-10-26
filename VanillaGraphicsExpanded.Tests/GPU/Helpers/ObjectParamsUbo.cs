@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using VanillaGraphicsExpanded.Rendering;
@@ -14,7 +15,7 @@ internal sealed class ObjectParamsUbo : IDisposable
 
     public ObjectParamsUbo(string debugName)
     {
-        ubo = GpuUniformBuffer.Create(debugName: debugName);
+        ubo = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = debugName }).RequireResource();
     }
 
     public void UploadAndBind(ReadOnlySpan<byte> bytes)

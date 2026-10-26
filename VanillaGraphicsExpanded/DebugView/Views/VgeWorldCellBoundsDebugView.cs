@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Generic;
 using VanillaGraphicsExpanded.Rendering.Pipeline;
 using VanillaGraphicsExpanded.Rendering.Pipeline.Descriptions;
@@ -274,7 +275,7 @@ public static partial class VgeBuiltInDebugViews
             vbo = null;
             try
             {
-                vbo = GpuVbo.Create(BufferTarget.ArrayBuffer, BufferUsageHint.StreamDraw, "VGE_WorldCellBoundsLines_VBO");
+                vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = "VGE_WorldCellBoundsLines_VBO" }).RequireResource();
                 geometry = new(LineLayout, PrimitiveType.Lines, new Dictionary<int, GpuVbo> { [0] = vbo });
             }
             catch

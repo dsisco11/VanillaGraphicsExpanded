@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Diagnostics;
 
@@ -93,7 +94,7 @@ internal struct GpuVertexAttribBinding
         {
             // Legacy emulation: bind VAO + bind ARRAY_BUFFER. Offsets are applied per-attribute via VertexAttribPointer.
             StateCache.Current.BindVertexArray(vaoId);
-            StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, vboId);
+            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, vboId);
         }
 
         return new GpuVertexAttribBinding(owner!, bindingIndex, vboId, offsetBytes, strideBytes, divisor);
@@ -162,7 +163,7 @@ internal struct GpuVertexAttribBinding
         nint absoluteOffset = baseOffsetBytes + relativeOffsetBytes;
 
         StateCache.Current.BindVertexArray(vaoId);
-        StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, vboId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, vboId);
         StateCache.Current.EnableVertexAttribArray(attribIndex);
         StateCache.Current.VertexAttribPointer(attribIndex, size, type, normalized, strideBytes, (IntPtr)absoluteOffset);
         StateCache.Current.VertexAttribDivisor(attribIndex, divisor);
@@ -207,7 +208,7 @@ internal struct GpuVertexAttribBinding
         nint absoluteOffset = baseOffsetBytes + relativeOffsetBytes;
 
         StateCache.Current.BindVertexArray(vaoId);
-        StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, vboId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, vboId);
         StateCache.Current.EnableVertexAttribArray(attribIndex);
         StateCache.Current.VertexAttribIPointer(attribIndex, size, type, strideBytes, (IntPtr)absoluteOffset);
         StateCache.Current.VertexAttribDivisor(attribIndex, divisor);
@@ -231,7 +232,7 @@ internal struct GpuVertexAttribBinding
         {
             if (vboId == 0) throw new InvalidOperationException("Bind a vertex buffer before configuring double attributes.");
             cache.BindVertexArray(vaoId);
-            cache.BindBuffer(BufferTarget.ArrayBuffer, vboId);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ArrayBuffer, vboId);
             cache.EnableVertexAttribArray(attribIndex);
             cache.VertexAttribLPointer(attribIndex, size, VertexAttribDoubleType.Double, strideBytes,
                 checked(baseOffsetBytes + relativeOffsetBytes));

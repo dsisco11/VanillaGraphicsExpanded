@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using System.Runtime.ExceptionServices;
 using HarmonyLib;
@@ -284,9 +285,9 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         using var lifetime = StartManager();
         using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
         using var textureSentinel = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
-        using var buffer = GpuShaderStorageBuffer.Create();
+        using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         buffer.Allocate(32);
-        using var bufferSentinel = GpuShaderStorageBuffer.Create();
+        using var bufferSentinel = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         bufferSentinel.Allocate(16);
         using var framebuffer = new DynamicGpuFramebuffer(true);
         framebuffer.Bind();
@@ -329,7 +330,7 @@ public sealed class GpuResourceWrapperLifecycleTests(HeadlessGLFixture fixture)
         finally
         {
             StateCache.Current.DeleteTexture(texture.TextureId);
-            StateCache.Current.DeleteBuffer(buffer.BufferId);
+            RHICommandContext.Current.OpenGL.DeleteBuffer(buffer.BufferId);
             StateCache.Current.DeleteFramebuffer(framebuffer.FboId);
         }
     }

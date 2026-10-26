@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.DebugView;
 using VanillaGraphicsExpanded.Rendering;
@@ -152,7 +153,7 @@ public sealed class GraphicsPassSequenceTests(HeadlessGLFixture fixture,ITestOut
             a=Own(DynamicGpuFramebuffer.CreateMRT(outputs.Take(2).ToArray())!);b=Own(DynamicGpuFramebuffer.CreateMRT(outputs.Skip(2).ToArray())!);
             incoming=CreateTarget();read=CreateTarget();
             var layout=new VertexLayoutDesc([new(0,3,VertexAttribPointerType.Float,VertexInterpretation.Floating,0,0,20),new(1,2,VertexAttribPointerType.Float,VertexInterpretation.Floating,0,12,20)]);
-            var vertices=Own(GpuVbo.Create());vertices.UploadData(new float[]{-1,-1,0,0,0,3,-1,0,2,0,-1,3,0,0,2});
+            var vertices=Own(RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource());vertices.UploadData(new float[]{-1,-1,0,0,0,3,-1,0,2,0,-1,3,0,0,2});
             geometry=Own(new ArrayGraphicsGeometry(layout,PrimitiveType.Triangles,new Dictionary<int,GpuVbo>{{0,vertices}}));
             var lifetime=Own(new GraphicsPipelineLifetime());var signature=new RenderTargetSignature([new(PixelInternalFormat.Rgba32f)]);
             p=Own(new GraphicsPipeline(lifetime,new(first.GraphicsIdentity!,layout,signature,DynamicPipelineState.Viewport),first));

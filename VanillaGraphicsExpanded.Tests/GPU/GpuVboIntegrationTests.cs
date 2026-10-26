@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -28,7 +29,7 @@ public class GpuVboIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var vbo = GpuVbo.Create();
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Assert
         Assert.True(vbo.IsValid);
@@ -47,7 +48,7 @@ public class GpuVboIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var vbo = GpuVbo.Create(BufferTarget.ElementArrayBuffer);
+        using var vbo = RHICommandContext.Current.CreateBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Assert
         Assert.True(vbo.IsValid);
@@ -62,7 +63,7 @@ public class GpuVboIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var vbo = GpuVbo.Create(usage: BufferUsageHint.DynamicDraw);
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
 
         // Assert
         Assert.True(vbo.IsValid);
@@ -80,7 +81,7 @@ public class GpuVboIntegrationTests
         const string debugName = "TestVBO";
 
         // Act
-        using var vbo = GpuVbo.Create(debugName: debugName);
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = debugName }).RequireResource();
 
         // Assert
         Assert.True(vbo.IsValid);
@@ -97,7 +98,7 @@ public class GpuVboIntegrationTests
         var usage = BufferUsageHint.DynamicDraw;
 
         // Act
-        using var vbo = GpuVbo.Create(target, usage, debugName);
+        using var vbo = RHICommandContext.Current.CreateBuffer(new RHIBufferDescription { Role = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Role(target), Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Usage(usage), Label = debugName }).RequireResource();
 
         // Assert
         Assert.True(vbo.IsValid);
@@ -117,8 +118,8 @@ public class GpuVboIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var vbo1 = GpuVbo.Create();
-        using var vbo2 = GpuVbo.Create();
+        using var vbo1 = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var vbo2 = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Assert
         Assert.NotEqual(vbo1.BufferId, vbo2.BufferId);
@@ -131,7 +132,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var vbo = GpuVbo.Create();
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act & Assert - Should not throw
         vbo.Bind();
@@ -148,7 +149,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var vbo = GpuVbo.Create();
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         const int expectedSize = 1024;
 
         // Act
@@ -164,7 +165,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var vbo = GpuVbo.Create();
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act
         bool result = vbo.TryBind();
@@ -180,8 +181,8 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var vbo1 = GpuVbo.Create();
-        using var vbo2 = GpuVbo.Create();
+        using var vbo1 = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var vbo2 = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Bind first VBO
         vbo1.Bind();
@@ -207,7 +208,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var vbo = GpuVbo.Create();
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         const string newDebugName = "UpdatedVBO";
 
         // Act
@@ -222,7 +223,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vbo = GpuVbo.Create();
+        var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         int originalBufferId = vbo.BufferId;
 
         // Act
@@ -246,7 +247,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vbo = GpuVbo.Create();
+        var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         int originalBufferId = vbo.BufferId;
 
         // Act
@@ -270,8 +271,8 @@ public class GpuVboIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var arrayVbo = GpuVbo.Create(BufferTarget.ArrayBuffer, debugName: "ArrayVBO");
-        using var elementVbo = GpuVbo.Create(BufferTarget.ElementArrayBuffer, debugName: "ElementVBO");
+        using var arrayVbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "ArrayVBO" }).RequireResource();
+        using var elementVbo = RHICommandContext.Current.CreateBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "ElementVBO" }).RequireResource();
 
         // Assert
         Assert.True(arrayVbo.IsValid);
@@ -288,7 +289,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var vbo = GpuVbo.Create();
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         const int initialSize = 512;
         const int targetSize = 2048;
 
@@ -313,7 +314,7 @@ public class GpuVboIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var vbo = GpuVbo.Create(target);
+        using var vbo = RHICommandContext.Current.CreateBuffer(new RHIBufferDescription { Role = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Role(target), Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Assert
         Assert.True(vbo.IsValid);
@@ -331,7 +332,7 @@ public class GpuVboIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var vbo = GpuVbo.Create(usage: usage);
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL.OpenGLBufferValues.Usage(usage), Label = null }).RequireResource();
 
         // Assert
         Assert.True(vbo.IsValid);
@@ -346,7 +347,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var vbo = GpuVbo.Create();
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         const int size = 1024;
 
         // Act
@@ -362,7 +363,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vbo = GpuVbo.Create();
+        var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         vbo.Dispose();
 
         // Act
@@ -377,7 +378,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vbo = GpuVbo.Create();
+        var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         vbo.Dispose();
 
         // Act
@@ -392,7 +393,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        using var vbo = GpuVbo.Create(debugName: "Initial");
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Initial" }).RequireResource();
 
         // Act
         vbo.SetDebugName(null);
@@ -408,7 +409,7 @@ public class GpuVboIntegrationTests
         _fixture.EnsureContextValid();
 
         // Act
-        using var vbo = GpuVbo.Create(debugName: "");
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "" }).RequireResource();
 
         // Assert
         Assert.Equal("", vbo.DebugName);
@@ -419,8 +420,8 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vbo1 = GpuVbo.Create();
-        var vbo2 = GpuVbo.Create();
+        var vbo1 = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        var vbo2 = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         int bufferId1 = vbo1.BufferId;
         int bufferId2 = vbo2.BufferId;
 
@@ -447,7 +448,7 @@ public class GpuVboIntegrationTests
     {
         // Arrange
         _fixture.EnsureContextValid();
-        var vbo = GpuVbo.Create();
+        var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
 
         // Act & Assert - Multiple dispose calls should be safe
         vbo.Dispose();
@@ -468,7 +469,7 @@ public class GpuVboIntegrationTests
         string longName = new string('A', 1000); // Very long debug name
 
         // Act
-        using var vbo = GpuVbo.Create(debugName: longName);
+        using var vbo = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = longName }).RequireResource();
 
         // Assert
         Assert.Equal(longName, vbo.DebugName);

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -9,10 +10,10 @@ internal static unsafe partial class Core
 {
     #region Internal API
     /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
-    internal static void BindBuffer(BufferTarget @target, int @buffer) => StateCache.Current.ExecuteCoreBindBuffer(@target, @buffer);
+    internal static void BindBuffer(BufferTarget @target, int @buffer) => OpenGLBufferBindingCalls.ExecuteCoreBindBuffer(@target, @buffer);
 
     /// <summary>Forwards the exact signature to the StateCache execution boundary.</summary>
-    internal static void BindBuffer(BufferTarget @target, uint @buffer) => StateCache.Current.ExecuteCoreBindBuffer(@target, @buffer);
+    internal static void BindBuffer(BufferTarget @target, uint @buffer) => OpenGLBufferBindingCalls.ExecuteCoreBindBuffer(@target, @buffer);
 
     #endregion
 }

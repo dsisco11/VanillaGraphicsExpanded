@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Materials;
@@ -34,7 +35,7 @@ public sealed class MaterialAtlasBakeSubmissionTests(HeadlessGLFixture fixture) 
         using var destination = DynamicTexture2D.Create(edge, edge, PixelInternalFormat.Rgba16f);
         using var caller = CreateRenderTarget(3, 2, PixelInternalFormat.Rgba16f);
         using var read = CreateRenderTarget(2, 3, PixelInternalFormat.Rgba16f);
-        using var transfer = GpuPixelPackBuffer.Create();
+        using var transfer = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = null }).RequireResource();
         transfer.AllocateOrphan(128 * 128 * 16);
         using var hostilePack = StateCache.Current.SetPixelPackScope(new(8, RowLength: 73, SkipRows: 2, SkipPixels: 3));
         using var hostileTransfer = StateCache.Current.BindBufferScope(BufferTarget.PixelPackBuffer, transfer.BufferId);

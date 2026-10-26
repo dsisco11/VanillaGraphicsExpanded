@@ -3,7 +3,7 @@ RHI commands and command lists — implementation plan
 
 Source proposal: [Rendering.GpuCommands.Proposal.md](Rendering.GpuCommands.Proposal.md).
 Parent design task: Rendering.GpuResourceHandles.todo, Phase 8.
-Status: Phase 1 complete; runtime migration and qualification in Phases 2–8 remain outstanding.
+Status: Phases 1–2 complete; runtime migration and qualification in Phases 3–8 remain outstanding.
 
 Goal
   Implement the approved semantic RHI boundary, immediate execution and optional single-use recorded
@@ -100,28 +100,36 @@ Phase 2: Establish backend admission and replace the buffer family
   Depends on Phase 1.
   Outcome: buffers execute through the final immediate RHI path, with one cache and manager authority.
 
-  ☐ Implement backend/context association and one-time 4.5 version/entry-point admission. Project existing
+  ☑ Implement backend/context association and one-time 4.5 version/entry-point admission. Project existing
     cached limits and optional capabilities through RHICapabilities; reject unsupported contexts explicitly.
     Preserve context-local tools and existing native-context identity/retirement services.
-  ☐ Implement the shared operation sequence: validate/guard, suppress eligible known-equal state,
+  ☑ Implement the shared operation sequence: validate/guard, suppress eligible known-equal state,
     retain original identity, withdraw affected metadata, execute explicit internal steps, reconcile and
     commit once. Disposal is cleanup, not success; no ambient collector or arbitrary joining callback.
-  ☐ Implement typed owned creation using unpublished internal recipients and private manager handoff.
+  ☑ Implement typed owned creation using unpublished internal recipients and private manager handoff.
     Return completed owners or failure diagnostics, propagate required exceptions, publish before handoff
     and clean candidate-only allocations. Avoid constructor/factory recursion and public recipient APIs.
-  ☐ Replace buffer creation/storage/configuration/upload/copy/clear and manager acquisition/deletion paths
+  ☑ Replace buffer creation/storage/configuration/upload/copy/clear and manager acquisition/deletion paths
     with direct core named operations. Preserve wrapper growth policy and GpuBufferUploader responsibility.
     Initial CPU content is stable until return; GPU staging follows explicit completion lifetimes.
-  ☐ Update all affected helpers and callers directly, including uniform/geometry storage callers where
+  ☑ Update all affected helpers and callers directly, including uniform/geometry storage callers where
     they consume buffer operations. Remove old buffer execution entry points and try-named/retry fallback.
     The uniform publication algorithm and geometry draw family remain explicitly incomplete until Phase 5.
-  ☐ Move this family's exact engine overloads to internal backend forwarding modules with compiler-checked
+  ☑ Move this family's exact engine overloads to internal backend forwarding modules with compiler-checked
     signatures, reserved-name semantics and shared reconciliation. Keep metadata readers manager-owned.
-  ☐ Test content, capacity, omitted inputs, partial creation failure, local contexts, same-ID reuse and
+  ☑ Test content, capacity, omitted inputs, partial creation failure, local contexts, same-ID reuse and
     queued retirement. Prove uploads do not publish capacity, native work never retries, and sentinel
     bindings survive named operations and necessary external bound operations.
-  ☐ Completion: mandatory migration receipts pass for the entire buffer unit; no old buffer executor
+  ☑ Completion: mandatory migration receipts pass for the entire buffer unit; no old buffer executor
     remains behind the new API. Other resource families are identified as incomplete, not shimmed.
+
+  Evidence: second review and independent stage audit completed against all linked authority.
+    Source closure, removed APIs, delegated tests and final package identities are recorded in
+    [Buffer migration qualification](Rendering.GpuCommands.Migrations.md#buffer-migration-qualification-phase-2).
+    Debug scoped 673 passed, final affected rechecks 53/84 passed, generator 180 passed. Ordinary Release
+    675: 671 passed and four Harmony observer/injection failures; the same Release binaries passed all
+    13 affected cases with process-only JIT controls. Canonical package and 761 shader identities passed.
+    No instrumented Release variant, performance measurement or installed-game qualification is claimed.
 
 Phase 3: Replace images, samplers and backing-resource relationships
   Depends on Phase 2.

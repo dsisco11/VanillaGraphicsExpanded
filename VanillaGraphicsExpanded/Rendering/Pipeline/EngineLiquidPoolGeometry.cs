@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -47,9 +48,9 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
         using var errors = new GlDebug.ErrorScope("Liquid pool geometry publication");
         foreach (var attribute in Layout.Attributes) ValidateAttribute(attribute);
         foreach (var attribute in Layout.Attributes.GroupBy(a => a.Binding).Select(g => g.First()))
-            ValidateBuffer(BufferTarget.ArrayBuffer, streams[attribute.Binding], checked(vertices * attribute.Stride));
+            ValidateBuffer(streams[attribute.Binding], checked(vertices * attribute.Stride));
         using var elementScope = StateCache.Current.BindBufferScope(BufferTarget.ElementArrayBuffer, elements);
-        ValidateBuffer(BufferTarget.ElementArrayBuffer, elements, checked(indices * sizeof(uint)));
+        ValidateBuffer(elements, checked(indices * sizeof(uint)));
     }
 
     /// <summary>Detects engine retirement and replacement without querying GPU state.</summary>
@@ -127,10 +128,9 @@ internal sealed class EngineLiquidPoolGeometry : GraphicsGeometry
     }
 
     /// <summary>Checks capacity at publication while keeping ordinary draws query-free.</summary>
-    private static void ValidateBuffer(BufferTarget target, int id, int required)
+    private static void ValidateBuffer(int id, int required)
     {
-        StateCache.Current.BindBuffer(target, id);
-        GL.GetBufferParameter(target, BufferParameterName.BufferSize, out int size);
+        nint size = GpuResourceManager.AcquireBufferMetadata(id).Capacity;
         if (size < required) throw new InvalidOperationException("Liquid pool buffer is smaller than its declared capacity.");
     }
     #endregion

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR;
 using VanillaGraphicsExpanded.PBR.Materials.Energy;
@@ -73,8 +74,8 @@ public sealed class AmbientOcclusionCompositeTests(HeadlessGLFixture fixture) : 
         using var surface = LayeredTestTexture.Create(normal,material,indirect);
         using var proxySurface = LayeredTestTexture.Create(proxyNormal,material,indirect);
         using var target = TestFramework.CreateTestGBuffer(1,1,PixelInternalFormat.Rgba32f,3);
-        using var positions = GpuVbo.Create(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
-        using var uv = GpuVbo.Create(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
+        using var positions = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); positions.UploadData(new float[] {-1,-1,0, 3,-1,0, -1,3,0});
+        using var uv = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); uv.UploadData(new float[] {0,0, 2,0, 0,2});
         using var geometry = new ArrayGraphicsGeometry(EngineFullscreenGeometry.Layout, PrimitiveType.Triangles,
             new Dictionary<int,GpuVbo> { [0]=positions, [1]=uv });
         using var lifetime = new GraphicsPipelineLifetime();

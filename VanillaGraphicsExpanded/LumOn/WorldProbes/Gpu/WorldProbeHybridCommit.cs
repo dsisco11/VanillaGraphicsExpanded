@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
 using System.Runtime.InteropServices;
@@ -13,7 +14,7 @@ namespace VanillaGraphicsExpanded.LumOn.WorldProbes.Gpu;
 internal sealed class WorldProbeHybridCommit : IDisposable
 {
     private readonly WorldProbeCommitShader pipeline;
-    private readonly GpuShaderStorageBuffer staging = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamDraw);
+    private readonly GpuShaderStorageBuffer staging = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = null }).RequireResource();
 
     /// <summary>Describes one probe's target and geometry metadata in three aligned vectors.</summary>
     [StructLayout(LayoutKind.Sequential)]

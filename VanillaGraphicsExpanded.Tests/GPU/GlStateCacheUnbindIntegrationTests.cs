@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 
 using OpenTK.Graphics.OpenGL;
@@ -97,9 +99,9 @@ public class GlStateCacheUnbindIntegrationTests
 
         // Buffer
         int buffer = GL.GenBuffer();
-        StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, buffer);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, buffer);
         Assert.Equal(buffer, StateCache.Current.GetBoundBuffer(BufferTarget.ArrayBuffer));
-        StateCache.Current.UnbindBuffer(BufferTarget.ArrayBuffer);
+        RHICommandContext.Current.BindBuffer(RHIBufferRole.Vertex, default);
         Assert.Equal(0, StateCache.Current.GetBoundBuffer(BufferTarget.ArrayBuffer));
         GL.DeleteBuffer(buffer);
     }

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Shaders;
 using System;
 using System.Collections.Generic;
@@ -439,7 +440,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
         {
             count = Math.Clamp(count, 0, capacityItems);
             var dst = new T[count];
-            using var mapped = buffer.MapRange<T>(dstOffsetBytes: 0, elementCount: count, access: MapBufferAccessMask.MapReadBit);
+            using var mapped = buffer.MapRange<T>(dstOffsetBytes: 0, elementCount: count, access: RHIBufferMapAccess.Read);
             if (!mapped.IsMapped)
             {
                 return dst;
@@ -453,7 +454,7 @@ public sealed class LumonSceneFeedbackGatherComputeTests : RenderTestBase
 
     private static Ssbo<T> CreateSsbo<T>(string debugName, int capacityItems, T sentinel) where T : unmanaged
     {
-        var ssbo = GpuShaderStorageBuffer.Create(BufferUsageHint.DynamicRead, debugName: debugName);
+        var ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicRead, Label = debugName }).RequireResource();
         int bytes = checked(capacityItems * Marshal.SizeOf<T>());
         ssbo.EnsureCapacity(bytes, growExponentially: false);
 

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
@@ -82,9 +83,9 @@ public sealed class LiquidTransparencyTests(HeadlessGLFixture fixture) : RenderT
         using var fixedFunction = LegacyFixedFunctionReference.Capture(state);
         using var framebufferBinding = state.BindFramebufferScope(FramebufferTarget.Framebuffer, target.FboId);
         using var vao = GpuVao.Create("Test.LiquidBuckets.Vao");
-        using var vertices = GpuVbo.Create(debugName: "Test.LiquidBuckets.Vertices");
-        using var flags = GpuVbo.Create(debugName: "Test.LiquidBuckets.Flags");
-        using var indices = GpuEbo.Create(debugName: "Test.LiquidBuckets.Indices");
+        using var vertices = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.LiquidBuckets.Vertices" }).RequireResource();
+        using var flags = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.LiquidBuckets.Flags" }).RequireResource();
+        using var indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = "Test.LiquidBuckets.Indices" }).RequireResource();
         using var vertexBinding = vao.BindScope();
         // Supply every input through vertex buffers instead of mutable global constant attributes.
         using (vertices.BindScope())

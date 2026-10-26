@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -22,12 +24,12 @@ public sealed class GpuVertexMetadataInterceptionTests(HeadlessGLFixture fixture
         try
         {
             using var owner=GpuVao.Create(); using var sentinel=GpuVao.Create();
-            using var buffer=GpuShaderStorageBuffer.Create(); buffer.Allocate(64);
-            using var previous=GpuShaderStorageBuffer.Create(); previous.Allocate(64);
+            using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(64);
+            using var previous=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); previous.Allocate(64);
             var cache=StateCache.Current;
-            cache.BindVertexArray(owner.VertexArrayId); cache.BindBuffer(BufferTarget.ElementArrayBuffer,previous.BufferId);
-            cache.BindVertexArray(sentinel.VertexArrayId); cache.BindBuffer(BufferTarget.ElementArrayBuffer,previous.BufferId);
-            cache.BindBuffer(BufferTarget.ArrayBuffer,previous.BufferId);
+            cache.BindVertexArray(owner.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,previous.BufferId);
+            cache.BindVertexArray(sentinel.VertexArrayId); OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ElementArrayBuffer,previous.BufferId);
+            OpenGLBufferBindings.BindBuffer(cache, BufferTarget.ArrayBuffer,previous.BufferId);
             bool named=variant is 1 or 3 or 5 or 7 or 9 or 10 or 11;
             if(!named) cache.BindVertexArray(owner.VertexArrayId);
             var manager=GpuResourceManagerSystem.CurrentManager!;

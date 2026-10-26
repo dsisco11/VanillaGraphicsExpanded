@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using HarmonyLib;
 using VanillaGraphicsExpanded.Rendering;
@@ -18,7 +19,7 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var buffer = GpuVbo.Create();
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(32);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(buffer));
@@ -108,23 +109,20 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Immutable storage requires explicit flags and retains its native storage behavior across dispatch paths.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ImmutableBufferCreationRequiresFlagsAndPublishesCapacity(bool dsa)
+    /// <summary>Immutable storage requires explicit flags and retains its native storage behavior through core named dispatch.</summary>
+    [Fact]
+    public void ImmutableBufferCreationRequiresFlagsAndPublishesCapacity()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var capabilities = new DirectStateAccessCapabilityScope(dsa);
             using var recipient = new Recipient<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var request = new GpuBufferInitialization { Mode = GpuBufferStorageMode.Immutable, Capacity = 64 };
             Assert.Throws<ArgumentException>(() => GpuResourceManager.CreateBuffer(request, recipient, out _));
             Assert.Equal((nint)0, recipient.ResourceId);
             request.StorageFlags = 0;
             var result = GpuResourceManager.CreateBuffer(request, recipient, out var handle);
-            Assert.Equal(new GpuBufferMetadata(64, BufferUsageHint.DynamicDraw), result);
+            Assert.Equal(new GpuBufferMetadata(64, BufferUsageHint.DynamicDraw, true), result);
             using var binding = StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, (int)handle.Id);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, (BufferParameterName)All.BufferImmutableStorage, out int immutable);
             GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int size);
@@ -135,20 +133,17 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
         finally { fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
 
-    /// <summary>Creation exposes complete facts in both manager and context-local paths and restores fallback bindings.</summary>
+    /// <summary>Creation exposes complete facts in both manager and context-local paths and preserves bindings.</summary>
     [Theory]
-    [InlineData(false, false)]
-    [InlineData(false, true)]
-    [InlineData(true, false)]
-    [InlineData(true, true)]
-    public void BufferCreationPublishesFactsAndPreservesBindings(bool registered, bool dsa)
+    [InlineData(false)]
+    [InlineData(true)]
+    public void BufferCreationPublishesFactsAndPreservesBindings(bool registered)
     {
         fixture.EnsureContextValid();
         if (registered) fixture.InitializeResourceDisposal();
         try
         {
-            using var capabilities = new DirectStateAccessCapabilityScope(dsa);
-            using var sentinel = GpuVbo.Create();
+            using var sentinel = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             using var binding = StateCache.Current.BindBufferScope(BufferTarget.CopyWriteBuffer, sentinel.BufferId);
             using var recipient = new Recipient<GpuBufferMetadata>(GpuResourceKind.Buffer);
             var request = new GpuBufferInitialization
@@ -194,16 +189,13 @@ public sealed class GpuBufferImageCreationTests(HeadlessGLFixture fixture)
     }
 
     /// <summary>Replacement of equal-sized storage still advances its identity and delivers aliases without invoking a reader.</summary>
-    [Theory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void ControlledBufferReplacementPublishesAliasesWithoutRecovery(bool dsa)
+    [Fact]
+    public void ControlledBufferReplacementPublishesAliasesWithoutRecovery()
     {
         fixture.EnsureContextValid(); fixture.InitializeResourceDisposal();
         try
         {
-            using var capabilities = new DirectStateAccessCapabilityScope(dsa);
-            using var owner = GpuVbo.Create();
+            using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             owner.Allocate(32);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));

@@ -33,6 +33,14 @@ public static partial class GpuSupport
             return graphics;
         }
     }
+
+    /// <summary>Admits an explicit current-context tool and returns its captured capabilities without requiring registration.</summary>
+    /// <remarks>RHI admission owns the physical context check. Rendering hot paths use their retained immutable projection.</remarks>
+    internal static GraphicsCapabilities CaptureRHIContext()
+    {
+        Initialize();
+        return graphics;
+    }
     #endregion
 
     #region Private

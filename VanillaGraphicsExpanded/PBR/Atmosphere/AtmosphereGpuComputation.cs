@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Immutable;
 using System.Numerics;
@@ -69,8 +70,8 @@ internal sealed class AtmosphereGpuComputation : IDisposable
         GpuQueue<Vector4>? output = null;
         try
         {
-            parameters = GpuShaderStorageBuffer.Create(debugName: "Atmosphere.Parameters");
-            source = GpuShaderStorageBuffer.Create(debugName: "Atmosphere.Scattering");
+            parameters = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Atmosphere.Parameters" }).RequireResource();
+            source = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Atmosphere.Scattering" }).RequireResource();
             output = new(MaximumOutputBytes / 16, debugName: "Atmosphere.Output");
             parameters.EnsureCapacity(64, growExponentially: false);
             source.EnsureCapacity(128 * 64 * 16, growExponentially: false);

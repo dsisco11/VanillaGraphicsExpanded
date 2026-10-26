@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 
@@ -23,19 +24,19 @@ internal sealed class UniformStoragePage : IDisposable
         this.coherent = coherent;
         Slots = new UniformStorageVersion?[capacity / slotSize];
         Generations = new long[Slots.Length];
-        Buffer = GpuUniformBuffer.Create(debugName: "Uniform.PersistentPage");
+        Buffer = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Uniform.PersistentPage" }).RequireResource();
         try
         {
             if (!persistent) Buffer.Allocate(capacity);
             else
             {
-                using var binding = Buffer.BindScope();
-                var storage = BufferStorageFlags.MapWriteBit | BufferStorageFlags.MapPersistentBit;
-                var access = MapBufferAccessMask.MapWriteBit | MapBufferAccessMask.MapPersistentBit;
-                if (coherent) { storage |= BufferStorageFlags.MapCoherentBit; access |= MapBufferAccessMask.MapCoherentBit; }
-                else access |= MapBufferAccessMask.MapFlushExplicitBit;
-                StateCache.Current.BufferStorage(Buffer, capacity, IntPtr.Zero, storage);
-                mapped = GL.MapBufferRange(BufferTarget.UniformBuffer, IntPtr.Zero, capacity, access);
+
+                var storage = RHIStorageAccess.Write | RHIStorageAccess.Persistent;
+                var access = RHIBufferMapAccess.Write | RHIBufferMapAccess.Persistent;
+                if (coherent) { storage |= RHIStorageAccess.Coherent; access |= RHIBufferMapAccess.Coherent; }
+                else access |= RHIBufferMapAccess.ExplicitFlush;
+                RHICommandContext.Current.AllocateImmutableBuffer(Buffer, capacity, storage);
+                mapped = RHICommandContext.Current.MapBuffer(Buffer, 0, capacity, access);
                 if (mapped == IntPtr.Zero) throw new InvalidOperationException("Persistent uniform mapping failed.");
             }
             if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Uniform storage allocation failed.");
@@ -54,8 +55,8 @@ internal sealed class UniformStoragePage : IDisposable
                 System.Buffer.MemoryCopy(source, (byte*)mapped + offset, data.Length, data.Length);
             if (!coherent)
             {
-                using var binding = Buffer.BindScope();
-                GL.FlushMappedBufferRange(BufferTarget.UniformBuffer, (IntPtr)offset, data.Length);
+
+                RHICommandContext.Current.FlushMappedBuffer(Buffer, offset, data.Length);
             }
         }
         if (GL.GetError() != ErrorCode.NoError) throw new InvalidOperationException("Uniform storage upload failed.");

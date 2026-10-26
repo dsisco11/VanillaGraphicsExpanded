@@ -2,7 +2,7 @@
 
 Planning inventory for [Phase 1](Rendering.GpuCommands.todo), implementing the final
 [contracts](Rendering.GpuCommands.Contracts.md) under the [approved proposal](Rendering.GpuCommands.Proposal.md).
-Every unit below is outstanding runtime work. This document defines replacement boundaries, not a
+The implementation checklist controls acceptance of each unit. This document defines replacement boundaries, not a
 second execution design or a claim that existing APIs already satisfy the RHI.
 
 ## Source inventory and coverage
@@ -81,6 +81,42 @@ for required mutable/bound semantics, external exact overloads and optional capa
   add focused ready/failure/candidate cleanup, content, sentinel selectors, no retry, capacity publication,
   omission/zero, original-context/name-reuse cases. Test receipts belong to A, not a future compatibility path.
 
+### Buffer source closure
+
+The implemented entry route is `RHICommandContext` -> `IRHIBackend` -> focused
+`RHI/Backends/OpenGL/Buffers` modules. Existing subclasses remain the owners; typed factories privately
+lower `RHIBufferDescription` into manager initialization/handoff. `GpuBufferRef` retains only the typed
+resource, while the existing manager supplies live metadata. `GpuBufferMetadata` additionally represents
+immutable storage/access flags so later write/map validation needs no descriptor query.
+
+Removed APIs/files: all eight buffer-wrapper `Create` factories; uploader `BufferData/BufferSubData`;
+`TryNamedBufferData/TryNamedBufferSubData`, `BufferMapDsa` and named/bound retry state;
+`StateCache.BufferCreation/BufferStorage/BufferContents/PixelTransferBindings`; native buffer-binding and
+buffer-deletion execution methods on StateCache; the buffer-storage command partials and Core/Arb
+BindBuffer selector partials. Callers now use ready-owner factories and semantic uploader/binding/map
+operations directly. Buffer scopes retain only existing selector recovery/restoration responsibility;
+those helpers invoke final backend execution rather than an old cache executor.
+
+Exact storage, Core/Arb generic binding and Core/Arb deletion overloads reside in backend `Buffers/External`
+modules. Their compiler-checked engine adapters preserve the original legacy OpenTK signatures, exact
+argument/error behavior and one native call. Manager-owned buffer readers delegate unknown external
+reads to core named backend query services; controlled allocation/upload does not invoke them.
+The thread-local cache associates its knowledge with admitted physical/registered context identity and
+withdraws that knowledge on a switch. Context-local buffer owners retain physical identity, reject
+foreign-context use/disposal and require disposal before local context destruction.
+
+Initial client bytes remain pinned through synchronous creation. Mutable/dynamic partial initialization
+uses subdata; immutable storage without dynamic updates uses an operation-local staging copy. Deletion
+after issuing the copy relies on native deferred destruction, so staging storage remains until consumed.
+The staging candidate uses original-context retirement and never an unrelated context's numeric namespace.
+
+Still incomplete: image/buffer-texture associations and image transfers are B; sparse residency and
+external-memory workflows are C/D; uniform publication, prepared program binding and geometry draw
+orchestration are E. Their buffer storage calls already consume final backend operations. Their retained
+orchestration/execution does not sit behind a buffer compatibility shim. Sparse residency is not a
+canonical buffer-metadata mutation; the existing unused `GpuSparseBuffer` helper belongs to C/D's explicit
+residency contract and must be removed there together with the final optional operation.
+
 ## B — Images, samplers and backing relationships (Phase 3)
 
 - **Existing entry points:** `GpuTexture` allocation/replacement/mips/parameters; `DynamicTexture2D/3D/Cube`,
@@ -119,7 +155,8 @@ for required mutable/bound semantics, external exact overloads and optional capa
 - **Existing entry points:** `GpuFence.Insert/Poll/Wait/TryConsumeIfSignaled`, `GpuQuery.Create` and native
   query consumers, pixel-pack read/map and unpack staging, raw `GL.MemoryBarrier`, fence/query/wait calls;
   `GpuSemaphore.Create/Wait/Signal/ImportFromFd`, `GpuMemoryObject.Create/SetParameter/ImportFromFd`;
-  `GpuTransformFeedback.Create/BindBufferBase/BindBufferRange/Begin/End/Pause/Resume`.
+  `GpuTransformFeedback.Create/BindBufferBase/BindBufferRange/Begin/End/Pause/Resume`;
+  optional `GpuSparseBuffer` page commitment and typed residency execution.
 - **Callers:** uniform ring/persistent storage completion, scene/world-probe feedback and diagnostics,
   material-builder statistics, exposure diagnostics, cloud stored-volume diagnostics/work/publication,
   depth hierarchy transfers, `GlGpuProfiler` and context cleanup. Preserve DEBUG-only diagnostics.
@@ -225,3 +262,39 @@ retained in `artifacts/rhi-phase1-baseline/commands-and-results.txt`. A baseline
 existing condition; Phase 1 introduces no runtime migration and does not authorize unrelated behavior
 changes merely to make that baseline green. No repository-wide green claim is made. Installed-game
 startup, appearance and GPU/frame-time performance remain unqualified; no game was launched or installed.
+
+## Buffer migration qualification (Phase 2)
+
+Second review and the independent stage audit reconciled the selected task contract with the proposal,
+Contracts, unit A, the resource/binding contracts, canonical schema/API coverage and archived private
+initialization authority. No remaining required buffer-unit defect or unresolved documentation gap was
+found. Other units above remain incomplete; this is not acceptance of their retained execution APIs.
+
+| Task group -> controlling contract | Implementation and evidence |
+| --- | --- |
+| Admission/context -> proposal baseline; Contracts authority/submission; A | OpenGLBackend, RHICapabilities, existing GpuSupport capture, StateCache.ContextIdentity and GpuResource.ContextIdentity. RHIBufferTests covers original thread/context, physical local tools, stale refs and selector knowledge. |
+| Creation/operations -> proposal owned creation and reconciliation; archived initialization authority | Typed ready-owner factories, private manager handoff, named backend operations and explicit MetadataOperation participation. Initial-content, failure diagnostics, candidate cleanup, omission/zero, frozen requests and interruption tests; no success-on-dispose or retry. |
+| Callers/removals -> proposal family-closure rule; A | Existing owners/uploader/growth and uniform/geometry callers use final buffer operations. Before inventory is the retained Phase 1 site inventory; after inventories are artifacts/rhi-phase2/buffer-callers.txt and buffer-native-sites.txt. removed-buffer-apis.txt is empty. Images, optional residency/results and render submission remain B/C/D/E. |
+| Exact calls/readers -> API coverage B1/V1/L1 and explicit exclusions | Buffers/External, compiler-checked NativeAdapters and Core/Arb deletion mappings; manager-owned readers delegate to backend query services. EngineStateSwitching/EngineGeneric, buffer interception, reserved-name and deletion tests cover native signatures, errors and publication. |
+| Behavioral qualification -> selected task tests and retained resource/binding contracts | Debug scoped 673 passed; subsequent final affected selections passed 53 and 84 respectively. Final Release scope is 675 tests, with the observer qualification below. ShaderContractGenerator.Tests: 180 passed. No game launch, visual qualification or performance measurement. |
+
+Delegated exact commands, class selections, environment and results are retained in
+`artifacts/rhi-phase2/commands-and-results.txt`. `debug-final-scoped.trx` records the broad Debug scope;
+`debug-final-changes.trx` and `debug-interruption-recheck.trx` qualify the subsequent frozen-request and
+interruption corrections. `generator-debug.trx` records generator validation.
+
+Ordinary Release `release-final-scoped.trx`: **671 passed, 4 failed, zero skipped**. The failures concern
+Harmony observation/injection visibility: the pre-existing engine routing case and three RHI creation/
+allocation callback tests. The same ordinary Release assemblies pass all **13 affected cases** with
+process-local `COMPlus_JitNoInline=1` and `COMPlus_TieredCompilation=0`
+(`release-observer-controlled.trx`). No instrumented Release product was built; the ordinary run is not
+reported as green. An additional irradiance rendering assertion was reproduced on the untouched prior
+Release artifact (Phase 1 runtime SHA DEB104E0E7BCF8166CAC78C9C53C338D1AA797002C18203B74B5BA04A8948B88)
+and excluded from this direct-family scope; its exact prior comparison is recorded in the command ledger.
+
+Final `./build.ps1 --configuration=Release --spirv=true` passed. Publish, package-directory, ZIP and
+tested runtime DLL SHA256 all **CB4518C0ADD30CBCBAFF39A02223353BDF9098A4111C38E6427F677816FAD7CE**.
+All **761** packaged/ZIP shaders match the canonical producer, with zero mismatches.
+`artifacts/rhi-phase2/package-identity.json` records identities;
+`artifacts/rhi-phase2-canonical-package-final.log` records canonical packaging. These receipts qualify
+this family and candidate, not a repository-wide clean suite or installed-game acceptance.

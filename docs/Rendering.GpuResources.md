@@ -19,13 +19,15 @@ subresources remain with their existing wrappers and helpers.
 
 Resource-specific initialization records expose legal inputs and automatically record assigned fields,
 including explicit zero and false values. Manager creation methods validate those requests and use
+the OpenGL backend through `RHICommandContext` for buffer allocation; other resource families use
 StateCache to allocate and configure native objects. A nullable metadata result reports detected failure;
 identity and a complete initial snapshot are handed to the wrapper only after successful initialization.
 Partial allocation cleanup preserves the original exception and the originating deletion context.
 
 ## Command results and queries
 
-StateCache owns native dispatch and the resulting metadata effects. Controlled operations publish inputs,
+The OpenGL RHI backend owns buffer native dispatch; StateCache retains its selector knowledge and
+operation guards. Other resource families dispatch through StateCache. Controlled operations publish inputs,
 guaranteed defaults and derived facts. Existing failure handling remains authoritative: reported failure
 does not publish success, and interruption withdraws affected knowledge. No universal post-command query,
 error drain or separate requested/actual metadata cache is used. Available covered aliases reuse canonical
@@ -35,7 +37,8 @@ Driver-produced shader compilation/link results and interfaces retain their comp
 uses cached target/format sample capabilities, with a single sample-count read when those capabilities
 cannot supply the result. Unsized image formats may require a resolved-format read. These exceptions do
 not authorize full descriptor scans after controlled allocation. Native readers choose supported named
-or binding-preserving query paths internally.
+or binding-preserving query paths internally for image families. Buffer readers always use
+core named queries, and are invoked only for explicit unknown external acquisition or recovery.
 
 An operation captures its original identity, withdraws affected availability, constructs a complete result
 and commits once. Participating internal steps receive the operation explicitly. Unrelated same-resource
@@ -43,6 +46,31 @@ reentry is rejected before dispatch. Cleanup does not recover or retry mutations
 Deferred program linking retains its separate submission/completion boundary. Snapshot assignment precedes
 availability and dependent notification. Selected framebuffer images project backing metadata without
 another canonical entry or reader when facts are available.
+
+## Buffer execution
+
+`RHICommandContext` admits desktop OpenGL 4.5 and required core buffer entry points for its original
+context/thread. `RHICapabilities` projects the existing capability snapshot without a second discovery
+service. `RHIBufferDescription` uses project-owned role, storage, usage and access values and distinguishes
+omission from explicit zero. Creation returns `RHICreationResult<T>` containing an already initialized
+existing owner, or diagnostics; the manager retains private identity/snapshot handoff and candidate cleanup.
+
+`GpuBufferUploader` validates client payloads and routes allocation and uploads into that semantic path.
+Core named allocation, upload, copy, clear, map and flush preserve selectors. Canonical `GpuBufferMetadata`
+contains capacity, usage, immutable-storage status and storage-access flags; content operations never
+publish another storage snapshot. Partial initial bytes use direct subdata when permitted, otherwise a
+temporary staging copy. Native deferred destruction retains that staging storage until the copy completes.
+No alternate execution path is retried after failure.
+
+`GpuBufferRef` privately retains the typed resource and exposes only published metadata and managed
+identity. It grants no lifecycle or storage-replacement authority. Backend use validates original context
+and manager association before examining binding suppression. Exact engine buffer overloads execute in
+`Rendering/RHI/Backends/OpenGL/Buffers/External`, preserving original arguments and native errors; they
+withdraw uncertain metadata/bindings rather than applying managed omission or suppression rules.
+
+Context-local buffers retain physical context identity without registering a second lifetime system.
+Local tools must dispose their owners before destroying that context; foreign-context disposal rejects
+without surrendering ownership. Registered resources retain the existing deferred retirement service.
 
 ## Binding knowledge and retirement
 
@@ -75,7 +103,7 @@ run in its originating context. Weak recipients are pruned during acquisition, p
 ## External coverage and consumers
 
 Compiler-checked adapters redirect supported calls discovered in the built-in engine assemblies through
-StateCache. Allowed OpenTK owners are GL (also named Core by adapters), GL.Ext and GL.Arb. Other auxiliary
+backend buffer modules or the remaining StateCache operation families. Allowed OpenTK owners are GL (also named Core by adapters), GL.Ext and GL.Arb. Other auxiliary
 owners and legacy fixed-function facilities are outside interception. Generic discovery handles concrete
 value-type instantiations from built-in assembly references; arbitrary mods and dynamic callers are outside
 that boundary. A registry entry does not extend interception to unsupported callers.

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Integration;
@@ -19,7 +20,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         fixture.InitializeResourceDisposal();
         try
         {
-            using var buffer = GpuVbo.Create();
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(buffer));
@@ -54,10 +55,10 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         fixture.InitializeResourceDisposal();
         try
         {
-            using var buffer = GpuVbo.Create();
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(16);
             int oldId = buffer.BufferId;
-            StateCache.Current.DeleteBuffer(oldId);
+            RHICommandContext.Current.OpenGL.DeleteBuffer(oldId);
             Assert.False(buffer.IsValid);
             Assert.False(buffer.IsDisposed);
             Assert.False(GL.IsBuffer(oldId));
@@ -83,7 +84,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         bool contextRetired = false;
         try
         {
-            using var buffer = GpuVbo.Create();
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(16);
             native = buffer.BufferId;
             var manager = GpuResourceManagerSystem.CurrentManager!;
@@ -109,7 +110,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         finally
         {
             if (contextRetired) RenderContextRegistry.RegisterCurrent(fixture, static _ => true);
-            if (native != 0 && GL.IsBuffer(native)) StateCache.Current.DeleteBuffer(native);
+            if (native != 0 && GL.IsBuffer(native)) RHICommandContext.Current.OpenGL.DeleteBuffer(native);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }
@@ -213,7 +214,7 @@ public sealed class GpuResourceMetadataRecoveryTests(HeadlessGLFixture fixture)
         }
         finally
         {
-            if (GL.IsBuffer(buffer)) StateCache.Current.DeleteBuffer(buffer);
+            if (GL.IsBuffer(buffer)) RHICommandContext.Current.OpenGL.DeleteBuffer(buffer);
             fixture.CleanupGpuResources();
             StateCache.Current.InvalidateAll();
         }

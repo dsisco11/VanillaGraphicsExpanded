@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
@@ -21,11 +23,11 @@ public sealed class GpuVertexBindingLifetimeTests(HeadlessGLFixture fixture)
         try
         {
             using var vao=GpuVao.Create(); using var sentinel=GpuVao.Create();
-            using var first=GpuShaderStorageBuffer.Create(); first.Allocate(128);
-            using var second=GpuShaderStorageBuffer.Create(); second.Allocate(128);
+            using var first=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); first.Allocate(128);
+            using var second=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); second.Allocate(128);
             var helper=vao.GetBinding(2).BindVertexBuffer(first.BufferId,0,16).SetDivisor(3);
             var copied=helper;
-            sentinel.Bind(); StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer,first.BufferId);
+            sentinel.Bind(); OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer,first.BufferId);
             StateCache.Current.VertexArrayVertexBuffer(vao.VertexArrayId,2,second.BufferId,32,24);
             StateCache.Current.VertexArrayBindingDivisor(vao.VertexArrayId,2,7);
             Assert.Equal(second.BufferId,helper.BufferId); Assert.Equal(32,helper.BaseOffsetBytes); Assert.Equal(24,helper.StrideBytes); Assert.Equal(7,helper.Divisor);
@@ -49,7 +51,7 @@ public sealed class GpuVertexBindingLifetimeTests(HeadlessGLFixture fixture)
             transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
         try
         {
-            using var vao=GpuVao.Create(); using var buffer=GpuShaderStorageBuffer.Create(); buffer.Allocate(128);
+            using var vao=GpuVao.Create(); using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
             var helper=vao.GetBinding(1).BindVertexBuffer(buffer.BufferId,16,16);
             RejectExternalBinding(vao.VertexArrayId);
             Assert.Equal(ErrorCode.InvalidOperation,GL.GetError());
@@ -112,7 +114,7 @@ public sealed class GpuVertexBindingLifetimeTests(HeadlessGLFixture fixture)
         try
         {
             using var capabilities=new DirectStateAccessCapabilityScope(false);
-            using var vao=GpuVao.Create(); using var buffer=GpuShaderStorageBuffer.Create(); buffer.Allocate(128);
+            using var vao=GpuVao.Create(); using var buffer=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); buffer.Allocate(128);
             var helper=vao.GetBinding(2).BindVertexBuffer(buffer.BufferId,0,16).SetDivisor(3);
             var copied=helper;
             helper.SetFloatAttrib(0,2,VertexAttribPointerType.Float,false,0);

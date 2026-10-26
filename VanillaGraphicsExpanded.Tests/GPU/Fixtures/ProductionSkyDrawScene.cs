@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using System.Numerics;
 using System.Runtime.CompilerServices;
@@ -101,7 +102,7 @@ internal sealed class ProductionSkyDrawScene : IDisposable
             using var metadata = new RenderPassTargets(pass);
             fullscreen = Own(new ArrayGraphicsGeometry(CelestialDrawPass.FullscreenLayout, PrimitiveType.Triangles,
                 new Dictionary<int, GpuVbo>(), 3));
-            var stream = Own(GpuVbo.Create());
+            var stream = Own(RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource());
             stream.UploadData(new[] { new Vector4(Vector3.Normalize(new(.002f, .001f, -1)), .001f * variation), new Vector4(1, .5f, .25f, 0) });
             stars = Own(new ArrayGraphicsGeometry(CelestialStarGeometry.Layout, PrimitiveType.Triangles,
                 new Dictionary<int, GpuVbo> { [0] = stream }));

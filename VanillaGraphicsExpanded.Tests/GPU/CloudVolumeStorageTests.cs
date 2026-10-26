@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Clouds;
@@ -21,7 +22,7 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
         var submission=new CloudVolumeSubmission();
         using var storage = new CloudVolumeStorage(() => CloudVolumeMaintenanceProgram.Create(Programs.Api), () => CloudVolumeCopyProgram.Create(Programs.Api),submission);
         using var probe = CloudVolumeProbeProgram.Create(Programs.Api);
-        using var output = GpuShaderStorageBuffer.Create(); output.UploadData(new Vector4[2]);
+        using var output = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource(); output.UploadData(new Vector4[2]);
         var identity = new CloudVolumeIdentity(new object(), 1, 1);
         var encoding = new CloudVolumeEncoding(new Vector3(1000));
         var domain = new CloudVolumeDomain(5, default, -100, 100);
@@ -55,7 +56,7 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
         var moved = new CloudVolumeDomain(5, new CloudPlacement(1,0,0,0,0,0,0,0,Vector3.Zero,0), -100,100,domain);
         storage.Request(moved, identity, encoding, new Vector3(4), () => true);
         Assert.Same(density,storage.Published.Density);
-        using(var words=fields.Regions.MapScope<uint>(0,16,MapBufferAccessMask.MapReadBit))
+        using(var words=fields.Regions.MapScope<uint>(0,16,RHIBufferMapAccess.Read))
         {
             Assert.Equal(123u,words.Span[3]);Assert.Equal(234u,words.Span[9]);Assert.Equal(345u,words.Span[14]);
             Assert.Equal(10u,words.Span[1]);Assert.Equal(11u,words.Span[5]);Assert.Equal(12u,words.Span[7]);Assert.Equal(13u,words.Span[12]);
@@ -124,7 +125,7 @@ public sealed class CloudVolumeStorageTests(HeadlessGLFixture fixture) : LumOnSh
         probe.Capture(fields,point); probe.Density=fields.Density; probe.Direct=fields.Direct;
         probe.Diffuse=fields.Diffuse; probe.Result=output; probe.Dispatch(1);
         GpuComputePipeline.MemoryBarrier(MemoryBarrierFlags.BufferUpdateBarrierBit|MemoryBarrierFlags.ShaderStorageBarrierBit);
-        using var read=output.MapScope<Vector4>(0,2,MapBufferAccessMask.MapReadBit); return read.Span.ToArray();
+        using var read=output.MapScope<Vector4>(0,2,RHIBufferMapAccess.Read); return read.Span.ToArray();
     }
     #endregion
 }

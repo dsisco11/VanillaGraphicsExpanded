@@ -1,4 +1,6 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 
 using OpenTK.Graphics.OpenGL;
@@ -13,24 +15,14 @@ public sealed class GpuShaderStorageBuffer : GpuBufferObject
 {
     /// <summary>Wraps a newly allocated storage-buffer object with its usage and debug identity.</summary>
     /// <summary>Declares buffer policy before manager-owned native creation.</summary>
-    private GpuShaderStorageBuffer(BufferUsageHint usage, string? debugName)
+    internal GpuShaderStorageBuffer(RHIBufferUsage usage, string? debugName)
     {
         target = BufferTarget.ShaderStorageBuffer;
         allocationUsage = usage;
         this.debugName = debugName;
     }
 
-    /// <summary>
-    /// Creates a new SSBO object name and wraps it in an RAII instance.
-    /// </summary>
-    public static GpuShaderStorageBuffer Create(
-        BufferUsageHint usage = BufferUsageHint.DynamicDraw,
-        string? debugName = null)
-    {
-        var buffer = new GpuShaderStorageBuffer(usage, debugName);
-        buffer.InitializeNativeBuffer();
-        return buffer;
-    }
+
 
     /// <summary>
     /// Binds this SSBO to a shader storage binding point (base binding).
@@ -48,7 +40,7 @@ public sealed class GpuShaderStorageBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        StateCache.Current.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, bufferId);
+        RHICommandContext.Current.BindBufferBase(RHIBufferRole.ShaderStorage, bindingIndex, this);
     }
 
     /// <summary>
@@ -72,7 +64,7 @@ public sealed class GpuShaderStorageBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(offsetBytes), "Offset must be >= 0 and size must be > 0.");
         }
 
-        StateCache.Current.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, bindingIndex, bufferId, offsetBytes, sizeBytes);
+        RHICommandContext.Current.BindBufferRange(RHIBufferRole.ShaderStorage, bindingIndex, this, offsetBytes, sizeBytes);
     }
 
     /// <summary>
@@ -85,6 +77,6 @@ public sealed class GpuShaderStorageBuffer : GpuBufferObject
             throw new ArgumentOutOfRangeException(nameof(bindingIndex), bindingIndex, "Binding index must be >= 0.");
         }
 
-        StateCache.Current.UnbindBufferBase(BufferRangeTarget.ShaderStorageBuffer, bindingIndex);
+        RHICommandContext.Current.BindBufferBase(RHIBufferRole.ShaderStorage, bindingIndex, default);
     }
 }

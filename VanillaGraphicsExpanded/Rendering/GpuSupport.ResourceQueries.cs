@@ -135,6 +135,7 @@ public static partial class GpuSupport
         return capabilities with
         {
             UniformBufferOffsetAlignment = IsAtLeast(capabilities.ApiVersion, 3, 1) ? SafeGetInt(GetPName.UniformBufferOffsetAlignment) : 0,
+            MaxTransformFeedbackBuffers = IsAtLeast(capabilities.ApiVersion, 4, 0) ? SafeGetInt(GetPName.MaxTransformFeedbackBuffers) : 0,
             TextureBufferOffsetAlignment = capabilities.SupportsTextureBufferRange ? SafeGetInt((GetPName)All.TextureBufferOffsetAlignment) : 0,
             MaxTextureBufferSize = IsAtLeast(capabilities.ApiVersion, 3, 1) ? SafeGetInt(GetPName.MaxTextureBufferSize) : 0,
             MaxRectangleTextureSize = IsAtLeast(capabilities.ApiVersion, 3, 1) || GlExtensions.Supports("GL_ARB_texture_rectangle")

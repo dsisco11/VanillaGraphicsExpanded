@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Linq;
 using OpenTK.Graphics.OpenGL;
@@ -42,7 +43,7 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
         }
         if(commands is null)
         {
-            commands=GpuIndirectBuffer.Create(debugName:"Cloud.Volume.Publication.Arguments");
+            commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = RHIBufferRole.IndirectDraw, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Cloud.Volume.Publication.Arguments" }).RequireResource();
             commands.UploadData(new uint[4]);
         }
     }
@@ -119,7 +120,7 @@ internal sealed class CloudVolumePublication(Func<int,PackedUniformBuffer,CloudV
     }
     /// <summary>Allocates exact metadata through its ordinary GPU owner.</summary>
     private GpuShaderStorageBuffer Buffer(int words)
-    {var result=resources!.Own(GpuShaderStorageBuffer.Create());result.UploadData(new uint[words]);return result;}
+    {var result=resources!.Own(RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource());result.UploadData(new uint[words]);return result;}
     /// <summary>Revokes the snapshot before releasing every acquired image and metadata buffer.</summary>
     private void ResetImages()
     {Published=null;source=null;resources?.Dispose();resources=null;density=direct=diffuse=null;regions=occupancy=null;}

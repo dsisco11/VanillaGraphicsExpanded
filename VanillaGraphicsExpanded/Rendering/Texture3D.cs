@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Diagnostics;
 using VanillaGraphicsExpanded.Collections;
@@ -84,10 +85,10 @@ public sealed class Texture3D : GpuTexture
             if (!framebuffer.CheckStatus(out string? error)) throw new InvalidOperationException(error);
             // CheckStatus releases its diagnostic binding in debug builds.
             framebuffer.Bind();
-            using var staging = GpuPixelPackBuffer.Create(debugName: "VGE_Texture3D_Readback_Pixels");
+            using var staging = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = "VGE_Texture3D_Readback_Pixels" }).RequireResource();
             staging.AllocateOrphan(byteCount);
             staging.ReadPixels(x, y, regionWidth, regionHeight, format, PixelType.Float);
-            using var mapped = staging.MapRange<float>(0, count, MapBufferAccessMask.MapReadBit);
+            using var mapped = staging.MapRange<float>(0, count, RHIBufferMapAccess.Read);
             if (!mapped.IsMapped) throw new InvalidOperationException("Texture readback mapping failed.");
             mapped.Span.CopyTo(pixels.Span);
             return pixels;

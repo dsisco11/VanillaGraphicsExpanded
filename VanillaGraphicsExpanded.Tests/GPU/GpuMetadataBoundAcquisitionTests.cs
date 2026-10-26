@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -21,8 +22,8 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
         try
         {
             using var capabilities = new DirectStateAccessCapabilityScope(dsa);
-            using var buffer = GpuVbo.Create();
-            using var sentinelBuffer = GpuVbo.Create();
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+            using var sentinelBuffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             buffer.Allocate(96);
             using var texture = DynamicTexture2D.Create(8, 4, PixelInternalFormat.Rgba8);
             using var sentinelTexture = DynamicTexture2D.Create(2, 2, PixelInternalFormat.Rgba8);
@@ -64,7 +65,7 @@ public sealed class GpuMetadataBoundAcquisitionTests(HeadlessGLFixture fixture)
         try
         {
             using var capabilities = new DirectStateAccessCapabilityScope(dsa);
-            using var buffer = GpuVbo.Create();
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
             int offset = Math.Max(1, GpuSupport.Graphics.TextureBufferOffsetAlignment);
             buffer.Allocate(offset + 512);
             using var sentinel = GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);

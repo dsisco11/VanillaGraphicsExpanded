@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Globalization;
 using OpenTK.Graphics.OpenGL;
@@ -28,9 +29,9 @@ internal static class ExposureSnapshotLog
         try
         {
             var publication = CameraExposureRenderer.DiagnosticPublication();
-            using var fallback = publication.History is null ? GpuShaderStorageBuffer.Create(debugName:"ExposureSnapshot.Neutral") : null;
+            using var fallback = publication.History is null ? RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "ExposureSnapshot.Neutral" }).RequireResource() : null;
             fallback?.UploadData(new float[8]);
-            using var output = GpuShaderStorageBuffer.Create(debugName:"ExposureSnapshot.Output");
+            using var output = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "ExposureSnapshot.Output" }).RequireResource();
             output.Allocate(48);
             using var program = ExposureSnapshotProgram.Create(api);
             if(!program.EnsureReady()) throw new InvalidOperationException(program.PreparationLog);
@@ -42,7 +43,7 @@ internal static class ExposureSnapshotLog
                 throw new InvalidOperationException("Exposure snapshot boundary was rejected.");
             GL.MemoryBarrier(MemoryBarrierFlags.ShaderStorageBarrierBit | MemoryBarrierFlags.BufferUpdateBarrierBit);
             var values=new float[12];
-            using(output.BindScope()) GL.GetBufferSubData(BufferTarget.ShaderStorageBuffer,IntPtr.Zero,48,values);
+            RHICommandContext.Current.OpenGL.ReadBuffer(output, 0, System.Runtime.InteropServices.MemoryMarshal.AsBytes(values.AsSpan()));
             api.Logger.Notification(Format(values,publication.Settings,local,publication.History is not null,
                 VgeFrameRenderer.Current.FrameIndex,ConfigModSystem.Config.LumOn.Enabled,antialias));
         }

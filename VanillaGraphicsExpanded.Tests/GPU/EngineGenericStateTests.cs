@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -38,8 +39,8 @@ public sealed class EngineGenericStateTests(HeadlessGLFixture fixture)
             harmony.Patch(AccessTools.Method(typeof(GL), nameof(GL.BufferSubData), [typeof(BufferTarget), typeof(IntPtr), typeof(int), typeof(IntPtr)]), prefix: new HarmonyMethod(typeof(EngineGenericStateTests), nameof(CapturePayload)));
             foreach (var target in targets.Where(target => target.GetParameters().Length == 1).Concat(new[] { typeof(UBO).GetMethod("Bind")!, typeof(UBO).GetMethod("Unbind")! }))
                 harmony.Patch(target, transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            using var first = GpuVbo.Create(); first.Allocate(4);
-            using var second = GpuVbo.Create(); second.Allocate(8);
+            using var first = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); first.Allocate(4);
+            using var second = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); second.Allocate(8);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var firstEntry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(first));
             var secondEntry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(second));
@@ -105,7 +106,7 @@ public sealed class EngineGenericStateTests(HeadlessGLFixture fixture)
             var definition = typeof(EngineGenericStateTests).GetMethod(nameof(GenericNativeUpload), BindingFlags.NonPublic | BindingFlags.Static)!;
             foreach (var type in new[] { typeof(int), typeof(Pair) })
                 harmony.Patch(definition.MakeGenericMethod(type), transpiler: new HarmonyMethod(typeof(EngineStateSwitchingHook), nameof(EngineStateSwitchingHook.Transpiler)));
-            using var buffer = GpuVbo.Create(); buffer.Allocate(8);
+            using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); buffer.Allocate(8);
             using (StateCache.Current.BindBufferScope(BufferTarget.ArrayBuffer, buffer.BufferId))
             {
                 GenericNativeUpload(new[] { 17, 23 });

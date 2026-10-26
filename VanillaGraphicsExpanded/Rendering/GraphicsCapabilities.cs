@@ -213,6 +213,8 @@ public sealed record GraphicsCapabilities
     #region Additional resource capabilities
     /// <summary>Required uniform-buffer range offset alignment in bytes.</summary>
     public int UniformBufferOffsetAlignment { get; init; }
+    /// <summary>Maximum indexed transform-feedback buffer bindings.</summary>
+    public int MaxTransformFeedbackBuffers { get; init; }
     /// <summary>Required texture-buffer range offset alignment in bytes, or zero without range support.</summary>
     public int TextureBufferOffsetAlignment { get; init; }
     /// <summary>Maximum number of texels addressable by a buffer texture.</summary>

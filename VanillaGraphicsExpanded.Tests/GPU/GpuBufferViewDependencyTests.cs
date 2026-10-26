@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -26,7 +27,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         var harmony = Patch();
         try
         {
-            using var buffer = GpuShaderStorageBuffer.Create();
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, ranged);
             var manager = GpuResourceManagerSystem.CurrentManager!;
@@ -62,14 +63,14 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         var harmony = Patch();
         try
         {
-            using var buffer = GpuShaderStorageBuffer.Create();
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, ranged);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             var entry = (GpuResourceMetadataEntry<GpuBufferMetadata>)manager.GetResourceRegistration(buffer)!;
             using var alias = new TextureAlias(view.TextureId);
             manager.AssociateResource((GpuResourceMetadataEntry<GpuTextureMetadata>)manager.GetResourceRegistration(view)!, alias);
-            using var sentinelBuffer = GpuShaderStorageBuffer.Create();
+            using var sentinelBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
             sentinelBuffer.Allocate(64);
             using var sentinel = CreateView(sentinelBuffer, false);
             sentinel.BindImageUnit(0);
@@ -104,7 +105,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         fixture.InitializeResourceDisposal();
         try
         {
-            using var buffer = GpuShaderStorageBuffer.Create();
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, false);
             using var sentinel = CreateView(buffer, false);
@@ -135,14 +136,14 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
         fixture.InitializeResourceDisposal();
         try
         {
-            using var buffer = GpuShaderStorageBuffer.Create();
+            using var buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
             buffer.Allocate(64);
             using var view = CreateView(buffer, false);
             var manager = GpuResourceManagerSystem.CurrentManager!;
             int oldId = buffer.BufferId;
             var original = (GpuResourceMetadataEntry<GpuBufferMetadata>)manager.GetResourceRegistration(buffer)!;
             var originalMetadata = original.Metadata;
-            StateCache.Current.DeleteBuffer(oldId);
+            RHICommandContext.Current.OpenGL.DeleteBuffer(oldId);
             Assert.False(manager.IsResourceMetadataAvailable(view));
             // Deterministically exercise registry name reuse without assuming the driver's allocator reuses this integer.
             var replacement = manager.RegisterCreatedResource<GpuBufferMetadata>(GpuResourceKind.Buffer, oldId);
@@ -156,7 +157,7 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             Assert.False(view.IsValid);
             // Retire the synthetic registry-only replacement before the driver may reuse this native name.
             manager.ObserveDeletion(GpuResourceKind.Buffer, oldId);
-            using var newBuffer = GpuShaderStorageBuffer.Create();
+            using var newBuffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
             newBuffer.Allocate(128);
             var reassociation = StateCache.BeginNativeBufferTexture(view.TextureId, (int)TextureTarget.TextureBuffer,
                 0, true, false, newBuffer.BufferId, (int)SizedInternalFormat.R32f, 0, 0, true);
@@ -201,12 +202,12 @@ public sealed class GpuBufferViewDependencyTests(HeadlessGLFixture fixture)
             Assert.True(viewEntry.StorageRevision > revision);
             Assert.True(view.IsValid);
             Assert.Equal(0, view.SizeBytes);
-            StateCache.Current.DeleteBuffer(buffer);
+            RHICommandContext.Current.OpenGL.DeleteBuffer(buffer);
             Assert.False(view.IsValid);
             Assert.False(manager.IsResourceMetadataAvailable(view));
             Assert.Equal(ErrorCode.NoError, GL.GetError());
         }
-        finally { harmony.UnpatchAll(harmony.Id); StateCache.Current.DeleteBuffer(buffer); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
+        finally { harmony.UnpatchAll(harmony.Id); RHICommandContext.Current.OpenGL.DeleteBuffer(buffer); fixture.CleanupGpuResources(); StateCache.Current.InvalidateAll(); }
     }
     #endregion
 

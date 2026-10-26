@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 using VanillaGraphicsExpanded.Rendering;
@@ -35,9 +36,7 @@ internal sealed class LumonSceneChunkSlotInfoGpuBuffer : IDisposable
             return;
         }
 
-        ssbo = GpuShaderStorageBuffer.Create(
-            usage: OpenTK.Graphics.OpenGL.BufferUsageHint.DynamicDraw,
-            debugName: $"LumOn.LumonScene.{field}.ChunkSlotInfo(SSBO)");
+        ssbo = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = $"LumOn.LumonScene.{field}.ChunkSlotInfo(SSBO)" }).RequireResource();
 
         int bytes = checked(capacityEntries * System.Runtime.InteropServices.Marshal.SizeOf<LumonSceneChunkSlotInfoGpu>());
         ssbo.EnsureCapacity(bytes, growExponentially: false);

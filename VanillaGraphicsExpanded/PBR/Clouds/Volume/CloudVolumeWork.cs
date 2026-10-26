@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
@@ -117,7 +118,7 @@ internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVo
     internal int VerifyStatus(CloudVolumeFields fields,int channels=7)
     {
         Check(()=>true);
-        using var status=fields.Scratch.MapScope<uint>(17*4,31,MapBufferAccessMask.MapReadBit);
+        using var status=fields.Scratch.MapScope<uint>(17*4,31,RHIBufferMapAccess.Read);
         if((status.Span[8]&((uint)channels|8u))!=0)throw new InvalidOperationException("Cloud density or lighting arithmetic failed.");
         if(status.Span[0]>CloudVolumeLightingBudget.MaximumDiffuseJobs)throw new InvalidOperationException("Diffuse list exceeds its admitted budget.");
         if(status.Span[21]>CloudVolumeLightingBudget.MaximumDiffuseJobs||status.Span[22]>fields.Domain.Voxels)
@@ -179,7 +180,7 @@ internal sealed class CloudVolumeWork(Func<int,bool,PackedUniformBuffer?,CloudVo
             if(batch is not null&&executable[i]!=0&&executable[i]!=next)throw new InvalidOperationException("Cloud work executable changed; reset required.");
             executable[i]=next;
         }
-        if(commands is null){commands=GpuIndirectBuffer.Create();commands.UploadData(new uint[45]);}
+        if(commands is null){commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = RHIBufferRole.IndirectDraw, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();commands.UploadData(new uint[45]);}
     }
     #endregion
     #region Private

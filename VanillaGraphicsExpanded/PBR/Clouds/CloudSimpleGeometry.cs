@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Linq;
 using System.Runtime.CompilerServices;
@@ -105,13 +106,11 @@ internal sealed class CloudSimpleGeometry : GraphicsGeometry
         }
         for (int i = 0; i < buffers.Length; i++)
         {
-            StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, buffers[i]);
-            GL.GetBufferParameter(BufferTarget.ArrayBuffer, BufferParameterName.BufferSize, out int bytes);
+            nint bytes = GpuResourceManager.AcquireBufferMetadata(buffers[i]).Capacity;
             int required = i == 3 ? checked(instances * 24) : 24 * Layout.Attributes.First(a => a.Binding == i).Stride;
             if (bytes < required) throw new InvalidOperationException("Cloud stream is smaller than its declared geometry.");
         }
-        using var element = StateCache.Current.BindBufferScope(BufferTarget.ElementArrayBuffer, mesh.vboIdIndex);
-        GL.GetBufferParameter(BufferTarget.ElementArrayBuffer, BufferParameterName.BufferSize, out int indices);
+        nint indices = GpuResourceManager.AcquireBufferMetadata(mesh.vboIdIndex).Capacity;
         if (indices < 36 * sizeof(uint)) throw new InvalidOperationException("Incomplete cloud template indices.");
         return new(mesh.VaoId,mesh.vboIdIndex,buffers[0],buffers[1],buffers[2],buffers[3],instances,Rendering.Integration.RenderContextRegistry.Current());
     }

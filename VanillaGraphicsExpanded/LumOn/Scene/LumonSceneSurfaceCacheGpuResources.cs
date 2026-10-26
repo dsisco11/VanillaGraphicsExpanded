@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 
 namespace VanillaGraphicsExpanded.LumOn.Scene;
@@ -91,8 +92,8 @@ internal sealed class LumonSceneFieldGpuResources : IDisposable
         pageRequests = new LumonSceneWorkQueueGpu<LumonScenePageRequestGpu>(
             $"LumOn.LumonScene.{field}.PageRequests",
             capacityItems: q,
-            counterUsage: OpenTK.Graphics.OpenGL.BufferUsageHint.DynamicRead,
-            itemsUsage: OpenTK.Graphics.OpenGL.BufferUsageHint.DynamicRead);
+            counterUsage: RHIBufferUsage.DynamicRead,
+            itemsUsage: RHIBufferUsage.DynamicRead);
         captureWork = new LumonSceneWorkQueueGpu<LumonSceneCaptureWorkGpu>($"LumOn.LumonScene.{field}.CaptureWork", capacityItems: q);
         relightWork = new LumonSceneWorkQueueGpu<LumonSceneRelightWorkGpu>($"LumOn.LumonScene.{field}.RelightWork", capacityItems: q);
     }

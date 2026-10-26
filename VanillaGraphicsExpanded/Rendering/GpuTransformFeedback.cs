@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
 using System;
 using System.Diagnostics;
 
@@ -128,7 +129,7 @@ internal sealed class GpuTransformFeedback : GpuResource<GpuTransformFeedbackMet
         }
 
         using var _ = BindScope();
-        StateCache.Current.BindBufferBase(BufferRangeTarget.TransformFeedbackBuffer, index, bufferId);
+        OpenGLBufferBindings.BindBufferBase(StateCache.Current, BufferRangeTarget.TransformFeedbackBuffer, index, bufferId);
     }
 
     /// <summary>
@@ -151,7 +152,7 @@ internal sealed class GpuTransformFeedback : GpuResource<GpuTransformFeedbackMet
         }
 
         using var _ = BindScope();
-        StateCache.Current.BindBufferRange(BufferRangeTarget.TransformFeedbackBuffer, index, bufferId, offsetBytes, sizeBytes);
+        OpenGLBufferBindings.BindBufferRange(StateCache.Current, BufferRangeTarget.TransformFeedbackBuffer, index, bufferId, offsetBytes, sizeBytes);
     }
 
     /// <summary>

@@ -8,26 +8,6 @@ namespace VanillaGraphicsExpanded.Rendering;
 internal sealed partial class StateCache
 {
     #region Public API
-    #region Buffers
-    /// <summary>Deletes buffer storage and invalidates all assignments referencing its retired numeric name.</summary>
-    internal void DeleteBuffer(int buffer)
-    {
-        GL.DeleteBuffer(buffer);
-        CompleteResourceDeletion(GpuResourceKind.Buffer, buffer);
-    }
-
-
-    /// <summary>Deletes the native buffer span and forgets only references to its nonzero names.</summary>
-    internal void DeleteBuffers(int count, ref int buffers)
-    {
-        GL.DeleteBuffers(count, ref buffers);
-        if (count <= 0) return;
-        foreach (int buffer in MemoryMarshal.CreateReadOnlySpan(ref buffers, count))
-            CompleteResourceDeletion(GpuResourceKind.Buffer, buffer);
-    }
-
-    #endregion
-
     #region Other resource bindings
     /// <summary>Forgets only the retired renderbuffer binding, including reuse during boundary cleanup.</summary>
     internal void DeleteRenderbuffer(int renderbuffer)

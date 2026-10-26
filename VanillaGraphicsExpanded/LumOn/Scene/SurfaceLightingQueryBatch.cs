@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
@@ -14,7 +15,7 @@ internal sealed class SurfaceLightingQueryBatch : IDisposable
     private readonly SurfaceLightingQueryShader pipeline;
     private readonly SurfaceLightingParamsUbo lighting = new();
 
-    private readonly GpuQueue<SurfaceLightingQuery> queue = new(MaximumQueries, debugName: "SurfaceLighting.Queries", usage: BufferUsageHint.StreamRead);
+    private readonly GpuQueue<SurfaceLightingQuery> queue = new(MaximumQueries, debugName: "SurfaceLighting.Queries", usage: RHIBufferUsage.StreamRead);
     public bool Pending => queue.Pending;
 
     #region Submission and completion

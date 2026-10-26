@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Globalization;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.CameraExposure;
@@ -140,8 +141,8 @@ public sealed class ExposureSnapshotTests(HeadlessGLFixture fixture) : LumOnShad
         using var frame=TestFrameCamera.CreateIdentity(width,height);
         using var lighting=new TestFrameLightingPublication();
         lighting.Capture(scale);
-        using var history=GpuShaderStorageBuffer.Create(debugName:"Tests.ExposureSnapshot.History");history.UploadData(state);
-        using var output=GpuShaderStorageBuffer.Create(debugName:"Tests.ExposureSnapshot.Output");output.Allocate(48);
+        using var history=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.ExposureSnapshot.History" }).RequireResource();history.UploadData(state);
+        using var output=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.ExposureSnapshot.Output" }).RequireResource();output.Allocate(48);
         var program=Programs.CreateCompute(ExposureSnapshotProgram.Create);
         program.FrameOverride=frame;program.LightingOverride=lighting.Buffer;
         program.Scene=scene;program.LocalBase=baseImage;program.History=history;program.Output=output;

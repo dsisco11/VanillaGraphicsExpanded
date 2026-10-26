@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Collections.Immutable;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
@@ -57,7 +58,7 @@ internal static class SurfaceCacheReadinessReadback
         using var framebuffer = DynamicGpuFramebuffer.CreateEmpty("Test_SurfaceCacheReadiness");
         using var draw = StateCache.Current.BindFramebufferScope(FramebufferTarget.DrawFramebuffer, framebuffer.FboId);
         using var read = StateCache.Current.BindFramebufferScope(FramebufferTarget.ReadFramebuffer, framebuffer.FboId);
-        using var staging = GpuPixelPackBuffer.Create(debugName: "Test_SurfaceCacheReadiness");
+        using var staging = RHICommandContext.Current.CreatePixelPackBuffer(new RHIBufferDescription { Role = RHIBufferRole.PixelPack, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamRead, Label = "Test_SurfaceCacheReadiness" }).RequireResource();
         staging.AllocateOrphan(checked((int)((long)count << 2)));
         int layer = -1, offsetBytes = 0;
         // Queue exact runs into disjoint staging ranges, then synchronize only once when mapping.
@@ -73,7 +74,7 @@ internal static class SurfaceCacheReadinessReadback
             staging.ReadPixels(region.X, region.Y, region.Width, region.Height, PixelFormat.Rgba, PixelType.Float, offsetBytes);
             offsetBytes = checked(offsetBytes + checked((int)((long)region.Width * region.Height << 4)));
         }
-        using var mapped = staging.MapRange<float>(0, count, MapBufferAccessMask.MapReadBit);
+        using var mapped = staging.MapRange<float>(0, count, RHIBufferMapAccess.Read);
         if (!mapped.IsMapped) throw new InvalidOperationException("Unable to map requested Surface Cache texels.");
         return IsFullyInitialized(mapped.Span);
     }

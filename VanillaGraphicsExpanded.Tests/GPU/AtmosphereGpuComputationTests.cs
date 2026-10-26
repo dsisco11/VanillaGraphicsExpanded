@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Diagnostics;
 using System.Numerics;
 using System.Collections.Immutable;
@@ -26,7 +27,7 @@ public sealed class AtmosphereGpuComputationTests(HeadlessGLFixture fixture, ITe
         Assert.True(LumonSceneFeedbackCompactPagesComputeShader.TryCreate(assets.Api, out var loaded, out string log), log);
         using var outer = loaded!;
         using var texture = Texture3D.Create(1, 1, 1, PixelInternalFormat.R32ui, textureTarget: TextureTarget.Texture2DArray);
-        using var requests = GpuShaderStorageBuffer.Create();
+        using var requests = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         requests.EnsureCapacity(64, growExponentially: false);
         using var counter = new ComponentAtomicCounters(0, 1);
         outer.BindPageUsageStamp(texture.TextureId);

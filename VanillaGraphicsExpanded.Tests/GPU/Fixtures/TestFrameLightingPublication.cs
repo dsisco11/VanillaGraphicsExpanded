@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Reflection;
 using System.Runtime.InteropServices;
 using OpenTK.Graphics.OpenGL;
@@ -17,7 +18,7 @@ internal sealed class TestFrameLightingPublication : IDisposable
         {
             if (buffer is null)
             {
-                buffer = GpuShaderStorageBuffer.Create(debugName: "Tests.FrameLightingPublication");
+                buffer = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.FrameLightingPublication" }).RequireResource();
                 Capture();
             }
             return buffer;
@@ -31,7 +32,7 @@ internal sealed class TestFrameLightingPublication : IDisposable
         Span<float> values = MemoryMarshal.Cast<byte, float>(bytes.AsSpan());
         values[0] = scale; values[1] = 1 / scale; values[2] = 16000 / scale; values[3] = 1;
         Span<uint> identity = MemoryMarshal.Cast<byte, uint>(bytes.AsSpan()); identity[4] = frame; identity[5] = calibration;
-        (buffer ??= GpuShaderStorageBuffer.Create(debugName: "Tests.FrameLightingPublication")).UploadData(bytes);
+        (buffer ??= RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = "Tests.FrameLightingPublication" }).RequireResource()).UploadData(bytes);
     }
 
     /// <summary>Assigns only the migrated production program's explicit alternate-view property, retaining caller overrides.</summary>

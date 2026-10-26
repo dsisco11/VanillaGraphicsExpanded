@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Rendering.Contracts;
@@ -168,27 +170,27 @@ public sealed class PreparedSubmissionTests(HeadlessGLFixture fixture) : RenderT
         EnsureContextValid();
         var cache = StateCache.Current;
         cache.InvalidateAll();
-        using var first = GpuShaderStorageBuffer.Create();
-        using var second = GpuShaderStorageBuffer.Create();
+        using var first = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var second = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         first.EnsureCapacity(64, growExponentially: false);
         second.EnsureCapacity(64, growExponentially: false);
-        cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, first.BufferId, 0, 32);
+        OpenGLBufferBindings.BindBufferRange(cache, BufferRangeTarget.ShaderStorageBuffer, 0, first.BufferId, 0, 32);
 #if DEBUG
         long count = cache.ResourceSlotBindCount;
 #endif
-        cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, first.BufferId, 0, 32);
+        OpenGLBufferBindings.BindBufferRange(cache, BufferRangeTarget.ShaderStorageBuffer, 0, first.BufferId, 0, 32);
 #if DEBUG
         Assert.Equal(count, cache.ResourceSlotBindCount);
 #endif
-        cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, second.BufferId, 0, 64);
-        cache.BindBufferRange(BufferRangeTarget.ShaderStorageBuffer, 0, first.BufferId, 0, 32);
+        OpenGLBufferBindings.BindBufferRange(cache, BufferRangeTarget.ShaderStorageBuffer, 0, second.BufferId, 0, 64);
+        OpenGLBufferBindings.BindBufferRange(cache, BufferRangeTarget.ShaderStorageBuffer, 0, first.BufferId, 0, 32);
         Assert.True(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.ShaderStorageBuffer, 0, out int restored, out nint offset, out nint size));
         Assert.Equal(first.BufferId, restored);
         Assert.Equal((nint)0, offset);
         Assert.Equal((nint)32, size);
         first.Dispose();
         Assert.False(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.ShaderStorageBuffer, 0, out _, out _, out _));
-        cache.BindBufferBase(BufferRangeTarget.ShaderStorageBuffer, 0, 0);
+        OpenGLBufferBindings.BindBufferBase(cache, BufferRangeTarget.ShaderStorageBuffer, 0, 0);
         Assert.True(cache.TryGetCachedIndexedBuffer(BufferRangeTarget.ShaderStorageBuffer, 0, out int cleared, out _, out _));
         Assert.Equal(0, cleared);
         using var image = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);

@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Numerics;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.PBR.Clouds.Volume;
@@ -25,9 +26,9 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
             data[b+9]=(uint)(50+(r*17)%256);data[b+13]=r%23==0?0u:4u;data[b+14]=(uint)(40+(r*13)%128);
         }
         var header=new uint[(CloudVolumeDomain.ScratchBytes-4096)/4];header[18]=(uint)(d.Blocks*2-9);header[19]=(uint)(d.Blocks-7);header[^1]=0xdeadbeef;
-        using var regions=GpuShaderStorageBuffer.Create();using var scratch=GpuShaderStorageBuffer.Create();using var commands=GpuIndirectBuffer.Create();
+        using var regions=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();using var scratch=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();using var commands=RHICommandContext.Current.CreateIndirectBuffer(new RHIBufferDescription { Role = RHIBufferRole.IndirectDraw, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         regions.UploadData(data);scratch.UploadData(header);commands.UploadData(new uint[45]);
-        using var occupancy=GpuShaderStorageBuffer.Create();
+        using var occupancy=RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         using var inputs=new PackedUniformBuffer(208);var submission=new CloudVolumeSubmission();
         var programs=Enumerable.Range(0,11).Select(op=>CloudVolumeWorkProgram.Create(Programs.Api,op,CloudVolumeLightingBudget.Candidates(rays,true)>64,inputs)).ToArray();
         try
@@ -47,7 +48,7 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
                 for(int sample=0;sample<4;sample++)
                 {
                     regions.UploadData(data);
-                    using(var cursor=scratch.MapScope<uint>(18*4,2,MapBufferAccessMask.MapWriteBit))
+                    using(var cursor=scratch.MapScope<uint>(18*4,2,RHIBufferMapAccess.Write))
                     {cursor.Span[0]=header[18];cursor.Span[1]=header[19];}
                     timer.Begin();
                     /// <summary>Submits one real selector operation and orders its summary and indirect outputs.</summary>
@@ -155,7 +156,7 @@ public sealed class CloudVolumeWorkReductionTests(HeadlessGLFixture fixture,Xuni
     private static uint[] Read(GpuBufferObject buffer,int offset,int count)
     {
         if(count==0)return [];
-        using var view=buffer.MapScope<uint>(offset*4,count,MapBufferAccessMask.MapReadBit);return view.Span.ToArray();
+        using var view=buffer.MapScope<uint>(offset*4,count,RHIBufferMapAccess.Read);return view.Span.ToArray();
     }
     #endregion
 }

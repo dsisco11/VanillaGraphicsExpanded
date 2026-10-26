@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using OpenTK.Graphics.OpenGL;
@@ -32,7 +33,7 @@ internal sealed partial class LumOnWorldProbeClipmapGpuResources
             out var created, out _, out string log, preferSpirv: true))
             throw new InvalidOperationException("Cannot initialize world-probe history: " + log);
         historyClear = new(created!);
-        historyClearSlots = GpuShaderStorageBuffer.Create(BufferUsageHint.StreamDraw);
+        historyClearSlots = RHICommandContext.Current.CreateShaderStorageBuffer(new RHIBufferDescription { Role = RHIBufferRole.ShaderStorage, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StreamDraw, Label = null }).RequireResource();
     }
 
     /// <summary>Queues an inclusive local box; overlapping regions share one physical-slot entry.</summary>

@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System.Runtime.CompilerServices;
 using HarmonyLib;
 using OpenTK.Graphics.OpenGL;
@@ -110,7 +112,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
     {
         EnsureContextValid(); using var storage = new LiquidPoolStorage();
         StateCache.Current.BindVertexArray(storage.Mesh.VaoId);
-        StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, location == 3 ? storage.Mesh.flagsVboId : storage.Mesh.customDataIntVboId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, location == 3 ? storage.Mesh.flagsVboId : storage.Mesh.customDataIntVboId);
         GL.VertexAttribIPointer(location, 1, VertexAttribIntegerType.Int, location == 3 ? 4 : 8, (IntPtr)(location == 6 ? 4 : 0));
         Assert.Throws<InvalidOperationException>(() => new EngineLiquidPoolGeometry(storage.Pool));
     }
@@ -121,7 +123,7 @@ public sealed class EngineLiquidPoolGeometryTests(HeadlessGLFixture fixture) : R
     {
         EnsureContextValid(); using var storage = new LiquidPoolStorage();
         StateCache.Current.BindVertexArray(storage.Mesh.VaoId);
-        StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, storage.Mesh.customDataIntVboId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, storage.Mesh.customDataIntVboId);
         GL.VertexAttribIPointer(5, 1, VertexAttribIntegerType.UnsignedInt, 0, IntPtr.Zero);
         Assert.Throws<InvalidOperationException>(() => new EngineLiquidPoolGeometry(storage.Pool));
     }
@@ -135,8 +137,8 @@ internal sealed class LiquidPoolStorage : IDisposable
     internal readonly VAO Mesh;
     internal readonly ModelDataPoolLocation Location = new() { VerticesStart = 0, VerticesEnd = 3, IndicesStart = 0, IndicesEnd = 3 };
     private readonly GpuVao vao = GpuVao.Create();
-    private readonly GpuEbo indices = GpuEbo.Create();
-    private readonly GpuVbo[] streams = Enumerable.Range(0, 6).Select(_ => GpuVbo.Create()).ToArray();
+    private readonly GpuEbo indices = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+    private readonly GpuVbo[] streams = Enumerable.Range(0, 6).Select(_ => RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource()).ToArray();
 
     #region Public API
     /// <summary>Configures separate engine streams and the shared interleaved pair of integer attributes.</summary>
@@ -157,7 +159,7 @@ internal sealed class LiquidPoolStorage : IDisposable
             new(6, 1, VertexAttribPointerType.UnsignedInt, VertexInterpretation.Integer, 5, 4, 8)];
         foreach (var attribute in nativeAttributes)
         {
-            StateCache.Current.BindBuffer(BufferTarget.ArrayBuffer, streams[attribute.Binding].BufferId);
+            OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ArrayBuffer, streams[attribute.Binding].BufferId);
             if (attribute.Interpretation == VertexInterpretation.Integer)
                 GL.VertexAttribIPointer(attribute.Location, attribute.Components, VertexAttribIntegerType.UnsignedInt, attribute.Stride, (IntPtr)attribute.Offset);
             else GL.VertexAttribPointer(attribute.Location, attribute.Components, attribute.Storage,

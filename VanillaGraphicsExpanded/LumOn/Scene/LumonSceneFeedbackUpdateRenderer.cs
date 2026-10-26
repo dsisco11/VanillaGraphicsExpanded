@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
 using System;
 using System.Buffers;
@@ -858,9 +859,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         }
 
         feedbackMarkDebugCounters?.Dispose();
-        feedbackMarkDebugCounters = GpuAtomicCounterBuffer.Create(
-            usage: BufferUsageHint.DynamicRead,
-            debugName: "LumOn.LumonScene.Feedback.MarkCounters(ACBO)");
+        feedbackMarkDebugCounters = RHICommandContext.Current.CreateAtomicCounterBuffer(new RHIBufferDescription { Role = RHIBufferRole.AtomicCounter, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicRead, Label = "LumOn.LumonScene.Feedback.MarkCounters(ACBO)" }).RequireResource();
         feedbackMarkDebugCounters.InitializeCounters(counterCount: FeedbackMarkDebugCounterCount, initialValue: 0u);
     }
 
@@ -1351,7 +1350,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         EnsureRecaptureListIfRequested();
 
         uint requestCount;
-        using (var mapped = nearGpu.PageRequests.Counter.MapRange<uint>(dstOffsetBytes: 0, elementCount: 1, access: MapBufferAccessMask.MapReadBit))
+        using (var mapped = nearGpu.PageRequests.Counter.MapRange<uint>(dstOffsetBytes: 0, elementCount: 1, access: RHIBufferMapAccess.Read))
         {
             requestCount = (mapped.IsMapped && mapped.Span.Length > 0) ? mapped.Span[0] : 0u;
         }
@@ -1407,7 +1406,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                 using (var mappedItems = nearGpu.PageRequests.Items.MapRange<LumonScenePageRequestGpu>(
                     dstOffsetBytes: 0,
                     elementCount: toRead,
-                    access: MapBufferAccessMask.MapReadBit))
+                    access: RHIBufferMapAccess.Read))
                 {
                     if (!mappedItems.IsMapped)
                     {
@@ -1626,7 +1625,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
                     using var mapped = feedbackMarkDebugCounters.MapRange<uint>(
                         dstOffsetBytes: 0,
                         elementCount: FeedbackMarkDebugCounterCount,
-                        access: MapBufferAccessMask.MapReadBit);
+                        access: RHIBufferMapAccess.Read);
 
                     if (mapped.IsMapped && mapped.Span.Length >= FeedbackMarkDebugCounterCount)
                     {
@@ -2033,7 +2032,7 @@ internal sealed partial class LumonSceneFeedbackUpdateRenderer : IRenderer, IDis
         try
         {
             long mapStart = System.Diagnostics.Stopwatch.GetTimestamp();
-            using var mapped = nearGpu.CaptureWork.Items.MapRange<LumonSceneCaptureWorkGpu>(0, captureCount, MapBufferAccessMask.MapReadBit);
+            using var mapped = nearGpu.CaptureWork.Items.MapRange<LumonSceneCaptureWorkGpu>(0, captureCount, RHIBufferMapAccess.Read);
             diagnosticCaptureMapMilliseconds += System.Diagnostics.Stopwatch.GetElapsedTime(mapStart).TotalMilliseconds;
             diagnosticCaptureMapCalls++;
             if (!mapped.IsMapped)

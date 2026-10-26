@@ -148,7 +148,7 @@ public sealed class ConfigurableRasterizerGpuTests(HeadlessGLFixture fixture, IT
         {
             this.fixture = fixture; fixture.MakeCurrent();
             GLFW.DefaultWindowHints();
-            GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4); GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 3);
+            GLFW.WindowHint(WindowHintInt.ContextVersionMajor, 4); GLFW.WindowHint(WindowHintInt.ContextVersionMinor, 5);
             GLFW.WindowHint(WindowHintOpenGlProfile.OpenGlProfile, OpenGlProfile.Compat);
             GLFW.WindowHint(WindowHintBool.Visible, false);
             window = GLFW.CreateWindow(32, 32, "Raster compatibility test", null, null);

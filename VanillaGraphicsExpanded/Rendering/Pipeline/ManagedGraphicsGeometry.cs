@@ -1,3 +1,5 @@
+using VanillaGraphicsExpanded.Rendering.RHI.Backends.OpenGL;
+using VanillaGraphicsExpanded.Rendering.RHI;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -69,7 +71,7 @@ internal sealed class ManagedGraphicsGeometry : GraphicsGeometry
     internal override void Submit(GraphicsDraw draw)
     {
         vao.Bind();
-        StateCache.Current.BindBuffer(BufferTarget.ElementArrayBuffer, elements.BufferId);
+        OpenGLBufferBindings.BindBuffer(StateCache.Current, BufferTarget.ElementArrayBuffer, elements.BufferId);
         GL.DrawElementsInstancedBaseVertex(topology, draw.IndexCount, DrawElementsType.UnsignedInt,
             (IntPtr)((long)draw.FirstIndex * sizeof(uint)), draw.InstanceCount, draw.BaseVertex);
 #if DEBUG
@@ -97,7 +99,7 @@ internal sealed class ManagedGraphicsGeometry : GraphicsGeometry
         this.topology = topology;
         this.indices = (uint[])indices.Clone();
         vao = GpuVao.Create();
-        try { elements = GpuEbo.Create(); }
+        try { elements = RHICommandContext.Current.CreateIndexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Index, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource(); }
         catch { vao.Dispose(); throw; }
         try
         {
@@ -108,7 +110,7 @@ internal sealed class ManagedGraphicsGeometry : GraphicsGeometry
             vao.BindElementBuffer(elements);
             foreach (var stream in streams)
             {
-                var buffer = GpuVbo.Create();
+                var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
                 buffers.Add(stream.Binding, buffer);
                 buffer.UploadData(stream.Data);
                 var attributes = layout.Attributes.Where(a => a.Binding == stream.Binding).ToArray();

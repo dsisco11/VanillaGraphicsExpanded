@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.Rendering;
 using VanillaGraphicsExpanded.Tests.GPU.Fixtures;
@@ -15,7 +16,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void BufferAllocationPublishesNativeCapacityToEveryAlias()
     {
         using var lifetime = StartLifetime(true);
-        using var owner = GpuVbo.Create(usage: BufferUsageHint.DynamicDraw);
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         owner.Allocate(64);
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
@@ -37,7 +38,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void ContentUploadDoesNotPublishAnotherMetadataRevision()
     {
         using var lifetime = StartLifetime(true);
-        using var owner = GpuVbo.Create();
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         owner.Allocate(64);
         var entry = GpuResourceManagerSystem.CurrentManager!.GetResourceRegistration(owner)!;
         ulong metadataRevision = entry.MetadataRevision, storageRevision = entry.StorageRevision;
@@ -57,7 +58,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void RejectedBufferAllocationPreservesMeasuredCapacity()
     {
         using var lifetime = StartLifetime(true);
-        using var owner = GpuVbo.Create();
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         owner.Allocate(64);
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
@@ -67,7 +68,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         {
             // Bypass the owning API to verify the StateCache command boundary also validates storage inputs.
             using var binding = owner.BindScope();
-            Assert.Throws<ArgumentOutOfRangeException>(() => StateCache.Current.BufferData(owner, -1, IntPtr.Zero, BufferUsageHint.StaticDraw));
+            Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.Allocate(owner, -1, IntPtr.Zero, RHIBufferUsage.StaticDraw));
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal((nint)64, alias.Capacity);
             Assert.Equal((nint)64, entry.Metadata.Capacity);
@@ -84,8 +85,8 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     {
         using var lifetime = StartLifetime(true);
         Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
-        using var owner = GpuVbo.Create();
-        using var sentinel = GpuVbo.Create();
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var sentinel = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         owner.Allocate(64);
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
@@ -94,7 +95,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         ulong metadataRevision = entry.MetadataRevision, storageRevision = entry.StorageRevision;
         using var sentinelBinding = sentinel.BindScope();
         byte[] expected = [9, 8, 7, 6];
-        GpuBufferUploader.BufferData(owner, byteCount, expected, BufferUsageHint.StreamDraw);
+        GpuBufferUploader.Allocate(owner, byteCount, expected, RHIBufferUsage.StreamDraw);
         Assert.Equal(sentinel.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
         Assert.Equal(byteCount, owner.SizeBytes);
         Assert.Equal((nint)byteCount, alias.Capacity);
@@ -117,8 +118,8 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     {
         using var lifetime = StartLifetime(true);
         Assert.True(GpuSupport.Graphics.SupportsArbDirectStateAccess);
-        using var owner = GpuVbo.Create();
-        using var sentinel = GpuVbo.Create();
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
+        using var sentinel = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         owner.Allocate(64);
         var manager = GpuResourceManagerSystem.CurrentManager!;
         var entry = Assert.IsType<GpuResourceMetadataEntry<GpuBufferMetadata>>(manager.GetResourceRegistration(owner));
@@ -127,7 +128,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         using var sentinelBinding = sentinel.BindScope();
         try
         {
-            Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.BufferData(owner, -1, new byte[4], BufferUsageHint.StreamDraw));
+            Assert.Throws<ArgumentOutOfRangeException>(() => GpuBufferUploader.Allocate(owner, -1, new byte[4], RHIBufferUsage.StreamDraw));
             Assert.Equal(sentinel.BufferId, GL.GetInteger(GetPName.ArrayBufferBinding));
             Assert.Equal(64, owner.SizeBytes);
             Assert.Equal((nint)64, alias.Capacity);
@@ -144,7 +145,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
     public void RequestedBufferUsageDoesNotMasqueradeAsAllocatedStorage(bool managed)
     {
         using var lifetime = StartLifetime(managed);
-        using var owner = GpuVbo.Create(usage: BufferUsageHint.DynamicDraw);
+        using var owner = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         // Direct-state creation realizes an empty native object immediately. The legacy
         // generated-name path has no metadata to expose until its first storage command.
         if (GL.IsBuffer(owner.BufferId))
@@ -216,7 +217,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         GL.GetTextureParameter(view.TextureId, GetTextureParameter.TextureViewNumLayers, out int actualLayerCount);
         Assert.Equal(actualBaseLayer, view.BaseLayer);
         Assert.Equal(actualLayerCount, view.LayerCount);
-        using var buffer = GpuVbo.Create();
+        using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.Allocate(1024);
         using var bufferView = GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
         Assert.Equal(buffer.BufferId, bufferView.BufferId);
@@ -290,7 +291,7 @@ public sealed class GpuResourceMetadataPublicationTests(HeadlessGLFixture fixtur
         Assert.True(GpuSupport.Graphics.SupportsTextureBufferRange);
         int offset = Math.Max(1, GpuSupport.Graphics.TextureBufferOffsetAlignment);
         const int size = 256;
-        using var buffer = GpuVbo.Create();
+        using var buffer = RHICommandContext.Current.CreateVertexBuffer(new RHIBufferDescription { Role = RHIBufferRole.Vertex, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.StaticDraw, Label = null }).RequireResource();
         buffer.Allocate(checked(offset * 2 + size));
         using var sentinel = GpuBufferView.CreateWholeBuffer(buffer.BufferId, SizedInternalFormat.R32f);
         var cache = StateCache.Current;

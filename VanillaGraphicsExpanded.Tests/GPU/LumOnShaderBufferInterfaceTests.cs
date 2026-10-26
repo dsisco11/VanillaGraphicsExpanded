@@ -1,3 +1,4 @@
+using VanillaGraphicsExpanded.Rendering.RHI;
 using OpenTK.Graphics.OpenGL;
 using VanillaGraphicsExpanded.LumOn;
 using VanillaGraphicsExpanded.LumOn.Scene.Geometry;
@@ -30,9 +31,9 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         var program = CreateConsumer(programs, consumer);
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         ((ILumOnFrameShader)program).FrameInputs = frameCamera;
-        using var frame = GpuUniformBuffer.Create();
-        using var world = GpuUniformBuffer.Create();
-        using var replacement = GpuUniformBuffer.Create();
+        using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var world = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var replacement = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
         using var inputs = AssignRequiredTextures(program, texture);
         // Contents are irrelevant to this binding-only contract; no draw reads these buffers.
@@ -68,8 +69,8 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         using var programs = new ComponentShaderPrograms();
         var program = programs.Create<LumOnVelocityShaderProgram>();
         Assert.Equal(-1, program.ProgramLayout.BinaryInterface!.GetUniformBlockIndex(LumOnUniformBuffers.WorldProbeBlockName));
-        using var sentinel = GpuUniformBuffer.Create();
-        using var ignored = GpuUniformBuffer.Create();
+        using var sentinel = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
+        using var ignored = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         sentinel.UploadOrResize(new byte[16]);
         ignored.UploadOrResize(new byte[16]);
         // Deliberate low-level precondition: the absent block's setter must preserve this slot.
@@ -95,7 +96,7 @@ public sealed class LumOnShaderBufferInterfaceTests : RenderTestBase
         using var frameCamera = TestFrameCamera.CreateIdentity(1, 1);
         ((ILumOnFrameShader)program).FrameInputs = frameCamera;
         using var texture = Texture2D.Create(1, 1, PixelInternalFormat.Rgba32f);
-        using var frame = GpuUniformBuffer.Create();
+        using var frame = RHICommandContext.Current.CreateUniformBuffer(new RHIBufferDescription { Role = RHIBufferRole.Uniform, Mode = RHIStorageMode.Mutable, Capacity = 0, Usage = RHIBufferUsage.DynamicDraw, Label = null }).RequireResource();
         frame.Allocate(112);
         program.FrameUniformBuffer = frame;
         AssignRequiredTextures(program, texture);
